@@ -1,11 +1,14 @@
 import os
+import shutil
 from typing import (
     Any,
     cast,
     ClassVar,
     Dict,
     Generic,
+    List,
     Optional,
+    Tuple,
     Type,
     TYPE_CHECKING,
     TypeVar,
@@ -16,7 +19,7 @@ from wandb import util
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.Media import Media
+from .base_types.WBValue import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
@@ -29,14 +32,261 @@ if TYPE_CHECKING:  # pragma: no cover
     import sklearn
     import tensorflow
 
-    # TODO: make these richer
-    ModelObjType = Any
+    # TODO: make these richer - for now this is fine.
+    GlobalModelObjType = Any
     ModelFilePathType = str
     ModelDirPathType = str
-    ModelPathType = Union[ModelFilePathType, ModelDirPathType]
-    ModelType = Union[ModelPathType, ModelObjType]
+    PathType = Union[ModelFilePathType, ModelDirPathType]
+    ManyPathType = Union[PathType, List[PathType], Dict[str, PathType]]
+    ModelType = Union[PathType, GlobalModelObjType]
 
     RegisteredAdaptersMapType = Dict[str, Type["_IModelAdapter"]]
+    SuitableAdapterTuple = Tuple[GlobalModelObjType, Type["_IModelAdapter"]]
+
+    DataTypeContainerInterfaceType = LocalArtifact
+
+
+# DIRectoryies are herd
+
+# DataTypePyObj = TypeVar("DataTypePyObj")
+
+
+# class _IDataType(WBValue, Generic[DataTypePyObj]):
+#     """DataType is basically Media2. It will be the better, more generic version of Media.
+
+#     The implementation is a paired down version of Media which only supports adding to Artifacts.
+#     Moreover, it supports both files and directories.
+#     """
+#     _typename: str
+#     _path: Optional[str]
+#     _py_obj: Optional[DataTypePyObj]
+
+#     def __init__(
+#         self, data_or_path: Union[DataTypePyObj, PathType], clone: bool = True
+#     ) -> None:
+#         super(_IDataType, self).__init__()
+#         # tmp_dir = os.path.join(
+#         #     tempfile.TemporaryDirectory("wandb-datatypes").name, str(util.generate_id())
+#         # )
+
+#         # # if
+
+#         # if isinstance(data_or_path, str) and os.path.exists(data_or_path):
+#         #     self._init_from_path(data_or_path, tmp_dir)
+#         # else:
+#         #     self._init_from_obj(data_or_path, tmp_dir)
+
+#     # def _init_from_path(self, path: str) -> None:
+#     #     self._path = path
+
+#     # def I am thinking we might want too expose some sort of one or many file interface
+#     def data_files(self) -> Optional[ManyPathType]:
+#         """Returns a list of files associated with this data type"""
+#         return []
+
+#     # def Here i am thinking about actually going full type/value weave
+
+#     # Probably should make a generic "container" interface
+#     def to_json(self, artifact: "DataTypeContainerInterfaceType") -> dict:
+#         json_obj = {
+#             "type": self._typename,
+#         }
+
+#         # For each path (directory or file):
+#         # 1. Check to see if the object has already been added to the artifact
+#         # if so, then simply use the already existing path
+
+#         # 2. Check to see if the object is sourced from another artifact
+#         # if so, then simply store a reference to the other artifact entry
+#         # Skipping this for now...
+
+#         # Add the file to the artifact - renaming based on the digest (always?)
+#         # Return this new path
+
+#         data_files = self.data_files()
+#         if data_files is None or (isinstance(data_files, list) and len(data_files) == 0) or (isinstance(data_files, dict) and len(data_files) == 0):
+#             return json_obj
+
+#         if isinstance(data_files, list):
+#             added_files = []
+#             for filepath in data_files:
+#                 path = _add_path_to_artifact(artifact, filepath)
+#                 if path is not None:
+#                     added_files.append(path)
+#             json_obj["files"] = added_files
+#         elif isinstance(data_files, dict):
+#             added_files = {}
+#             for key, filepath in data_files.items():
+#                 path = _add_path_to_artifact(artifact, filepath)
+#                 if path is not None:
+#                     added_files[key] = path
+#             json_obj["files"] = added_files
+#         elif isinstance(data_files, str):
+#             path = _add_path_to_artifact(artifact, data_files)
+#             if path is not None:
+#                 json_obj["files"] = path
+
+#         return json_obj
+
+
+#     @classmethod
+#     def from_json(
+#         cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
+#     ) -> "Media":
+#         """Likely will need to override for any more complicated media objects"""
+#         files = None
+#         if isinstance(json_obj["files"], str):
+#             files = source_artifact.get_path(json_obj["files"]).download()
+#         elif isinstance(json_obj["files"], list):
+#             files = [
+#                 source_artifact.get_path(filepath).download()
+#                 for filepath in json_obj["files"]]
+#         elif isinstance(json_obj["files"], dict):
+#             files = {}
+#             for key, filepath in json_obj["files"].items():
+#                 files[key] = source_artifact.get_path(filepath).download()
+
+
+def _add_path_to_artifact(artifact: "LocalArtifact", filepath: str) -> Optional[str]:
+    path: Optional[str] = None
+    if os.path.isfile(filepath):
+        current_path = artifact.get_added_local_path_name(filepath)
+        if current_path is not None:
+            path = current_path
+        else:
+            path = artifact.add_file(
+                filepath,
+                os.path.join(
+                    ".wb_data", str(util.generate_id()), os.path.basename(filepath)
+                ),
+                True,
+            ).path
+    return path
+
+
+# class SavedModel(_IDataType):
+class SavedModel(WBValue):
+    _log_type: ClassVar[str] = "saved-model"
+    _adapter: Type["_IModelAdapter"]
+    _model_obj: Optional["GlobalModelObjType"]
+    _path: str
+
+    def __init__(
+        self, model_or_path: "ModelType", adapter_id: Optional[str] = None,
+    ) -> None:
+        super(SavedModel, self).__init__()
+        model_adapter_tuple = _ModelAdapterRegistry.find_suitable_adapter(
+            model_or_path, adapter_id
+        )
+        assert (
+            model_adapter_tuple is not None
+        ), f"No suitable adapter found for model {model_or_path}"
+
+        self._adapter = model_adapter_tuple[1]
+        self._path = self._make_target_path()
+
+        if _is_path(model_or_path):
+
+            if os.path.isfile(model_or_path):
+                assert os.path.splitext(self._path)[1] is not None
+                shutil.copyfile(model_or_path, self._path)
+            elif os.path.isdir(model_or_path):
+                assert os.path.splitext(self._path)[1] is None
+                shutil.copytree(model_or_path, self._path)
+            else:
+                raise ValueError(
+                    f"Expected a path to a file or directory, got {model_or_path}"
+                )
+
+            # This will be a fresh copy from disk, so it is OK to set now
+            self._model_obj = model_adapter_tuple[0]
+        else:
+            # We immediately write the file(s) in case the user modifies the model
+            # after creating the SavedModel (ie. continues training)
+            assert self._model_obj is not None
+            self._adapter.save_model(self._model_obj, self._path)
+            # Important: set this to None, so any model_obj() read will lazy load from disk (cached)
+            self._model_obj = None
+
+    def _make_target_path(self) -> str:
+        tmp_path = os.path.abspath(
+            os.path.join(MEDIA_TMP.name, str(util.generate_id()))
+        )
+        if self._adapter.path_extension() != "":
+            tmp_path += "." + self._adapter.path_extension()
+        os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
+        return tmp_path
+
+    def model_obj(self) -> "GlobalModelObjType":
+        if self._model_obj is None:
+            model_obj = self._adapter.model_obj_from_path(self._path)
+            assert model_obj is not None, f"Could not load model from path {self._path}"
+            self._model_obj = model_obj
+            return model_obj
+        return self._model_obj
+
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        import wandb
+
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+            raise ValueError("SavedModel cannot be added to run - must use artifact")
+        artifact = run_or_artifact
+        json_obj = {
+            "type": self._log_type,
+            "adapter_id": self._adapter.adapter_id(),
+        }
+        if os.path.isfile(self._path):
+            # If the path is a file, then we can just add it to the artifact,
+            # First checking to see if the artifact already has the file (use the cache)
+            # Else, add it directly, allowing the artifact adder to rename the file deterministically.
+            already_added_path = artifact.get_added_local_path_name(self._path)
+            if already_added_path is not None:
+                json_obj["path"] = already_added_path
+            else:
+                target_path = os.path.join(
+                    ".wb_data", "saved_models", os.path.basename(self._path)
+                )
+                json_obj["path"] = artifact.add_file(self._path, target_path, True).path
+        elif os.path.isdir(self._path):
+            from wandb.sdk.interface.artifacts import md5_files_b64, b64_string_to_hex
+
+            # Here, we need to add a directory of files to the artifact. The directory must be named deterministically based on the contents of the directory.
+            # but the files themselves need to have their name preserved. This functionality really should be added to the artifact, but doing it here
+            # for now until we get the patterns down.
+            file_paths = []
+            for dirpath, _, filenames in os.walk(self._path, topdown=True):
+                for fn in filenames:
+                    file_paths.append(os.path.join(dirpath, fn))
+            dirname = b64_string_to_hex(md5_files_b64(file_paths))[:20]
+            target_path = os.path.join(".wb_data", "saved_models", dirname)
+            artifact.add_dir(self._path, target_path)
+            json_obj["path"] = target_path
+        else:
+            raise ValueError(
+                f"Expected a path to a file or directory, got {self._path}"
+            )
+
+        return json_obj
+
+    @classmethod
+    def from_json(
+        cls: Type["SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "SavedModel":
+        path = json_obj["path"]
+        entry = source_artifact.manifest.entries.get(path)
+        if entry is not None:
+            dl_path = entry.download()
+        else:
+            # assume it is directory: (would be nice to parallelize)
+            dl_path = os.path.join(source_artifact._default_root(), path)
+            for p, e in source_artifact.manifest.entries.items():
+                if p.startswith(path):
+                    e.download()
+        return cls(dl_path, json_obj["adapter_id"])
+
+
+def _is_path(model_or_path: "ModelType") -> bool:
+    return isinstance(model_or_path, str) and os.path.exists(model_or_path)
 
 
 class _ModelAdapterRegistry(object):
@@ -66,98 +316,42 @@ class _ModelAdapterRegistry(object):
         return selected_adapter
 
     @staticmethod
-    def maybe_init_adapter_from_model_or_path(
+    def maybe_adapter_from_model_or_path(
         adapter_cls: Type["_IModelAdapter"], model_or_path: "ModelType",
-    ) -> Optional["_IModelAdapter"]:
-        possible_adapter: Optional["_IModelAdapter"] = None
+    ) -> Optional[SuitableAdapterTuple]:
+        model_adapter_tuple: Optional[SuitableAdapterTuple] = None
         if _is_path(model_or_path):
-            possible_adapter = adapter_cls.maybe_init_from_path(model_or_path)
-        elif adapter_cls.can_adapt_model(model_or_path):
-            possible_adapter = adapter_cls(model_or_path)
-        return possible_adapter
+            possible_model = adapter_cls.model_obj_from_path(model_or_path)
+            if possible_model is not None:
+                model_adapter_tuple = (possible_model, adapter_cls)
+        elif adapter_cls.can_adapt_model_obj(model_or_path):
+            model_adapter_tuple = (model_or_path, adapter_cls)
+        return model_adapter_tuple
 
     @staticmethod
     def find_suitable_adapter(
         model_or_path: "ModelType", adapter_id: Optional[str] = None
-    ) -> Optional["_IModelAdapter"]:
+    ) -> Optional[SuitableAdapterTuple]:
         adapter_classes = _ModelAdapterRegistry.registered_adapters()
-        adapter: Optional["_IModelAdapter"] = None
+        model_adapter_tuple: Optional[SuitableAdapterTuple] = None
         if adapter_id is None:
             for key in adapter_classes:
-                adapter = _ModelAdapterRegistry.maybe_init_adapter_from_model_or_path(
+                model_adapter_tuple = _ModelAdapterRegistry.maybe_adapter_from_model_or_path(
                     adapter_classes[key], model_or_path
                 )
-                if adapter is not None:
+                if model_adapter_tuple is not None:
                     break
         elif adapter_id in adapter_classes:
-            adapter = _ModelAdapterRegistry.maybe_init_adapter_from_model_or_path(
+            model_adapter_tuple = _ModelAdapterRegistry.maybe_adapter_from_model_or_path(
                 adapter_classes[adapter_id], model_or_path
             )
-        return adapter
+        return model_adapter_tuple
 
 
-class SavedModel(Media):
-    _log_type: ClassVar[str] = "saved-model"
-    _adapter: "_IModelAdapter"
-
-    def __init__(
-        self, model_or_path: "ModelType", adapter_id: Optional[str] = None,
-    ) -> None:
-        super(SavedModel, self).__init__()
-        _adapter = _ModelAdapterRegistry.find_suitable_adapter(
-            model_or_path, adapter_id
-        )
-        assert (
-            _adapter is not None
-        ), f"No suitable adapter found for model {model_or_path}"
-        self._adapter = _adapter
-        if _is_path(model_or_path):
-            # TODO: make media support a directory path
-            self._set_file(model_or_path)
-        else:
-            # We immediately write the file(s) in case the user modifies the model
-            # after creating the SavedModel (ie. continues training)
-            tmp_path = os.path.join(MEDIA_TMP.name, str(util.generate_id()))
-            os.makedirs(tmp_path)
-            self._adapter.save_model(tmp_path)
-            # TODO: make media support a directory path (this is going to be non-trivial)
-            self._set_file(tmp_path, is_tmp=True)
-
-    def model_obj(self) -> "ModelObjType":
-        return self._adapter.model_obj()
-
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_obj = super(SavedModel, self).to_json(run_or_artifact)
-        json_obj["adapter_id"] = self._adapter.adapter_id()
-        return json_obj
-
-    @classmethod
-    def from_json(
-        cls: Type["SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
-    ) -> "SavedModel":
-        # TODO: make download support directories
-        return cls(
-            source_artifact.get_path(json_obj["path"]).download(),
-            json_obj["adapter_id"],
-        )
+AdapterModelObjType = TypeVar("AdapterModelObjType")
 
 
-def _is_path(model_or_path: "ModelType") -> bool:
-    return isinstance(model_or_path, str) and os.path.exists(model_or_path)
-
-
-def _single_path_of_maybe_dir(maybe_dir: str) -> Optional[str]:
-    if os.path.isdir(maybe_dir):
-        paths = os.listdir(maybe_dir)
-        if len(paths) == 1:
-            return os.path.join(maybe_dir, paths[0])
-    return None
-
-
-ModelObjectType = TypeVar("ModelObjectType")
-
-
-class _IModelAdapter(Generic[ModelObjectType]):
+class _IModelAdapter(Generic[AdapterModelObjType]):
     """_IModelAdapter is an interface for adapting a model in the form of a runtime python object
     to work with the SavedModel media type. The adapter is responsible for converting the model
     to one or more files that can be saved to disk as well as providing a method for loading the
@@ -165,89 +359,88 @@ class _IModelAdapter(Generic[ModelObjectType]):
 
     At a minimum, implementers of _IModelAdapter must implement the following:
         - `_adapter_id` should be set to a globally unique identifier for the adapter (and never changed)
-        - (optional) `_can_init_from_directory` should return True if the adapter can be initialized from a directory
-        - `_unsafe_maybe_init_from_path` should return a new instance of the implementing class if possible
-        - `_unsafe_can_adapt_model` should return True if the adapter can adapt the given model
-        - `save_model` should save the model to the given directory
+        - `_path_extension` should be set to the file extension of the model file - empty string means directory
+        - `_unsafe_model_obj_from_path` should return a new instance of the implementing class if possible
+        - `_unsafe_can_adapt_model_obj` should return True if the adapter can adapt the given model
+        - `save_model` should save the model to the given directory.
     """
 
     # Class Vars
     _adapter_id: ClassVar[str]
-    _can_init_from_directory: ClassVar[bool] = False
-
-    # Instance Vars
-    _model_obj: ModelObjectType
-
-    def __init__(self, model: ModelObjectType) -> None:
-        """Contruction of the adapter will take an object of type `ModelObjectType`.
-        """
-        super(_IModelAdapter, self).__init__()
-        assert self.can_adapt_model(
-            model
-        ), f"{self.__class__} is unable to adapt model {model}"
-        self._model_obj = model
+    _path_extension: ClassVar[str]
 
     @classmethod
-    def maybe_init_from_path(
-        cls: Type["_IModelAdapter"], dir_or_file_path: "ModelPathType"
-    ) -> Optional["_IModelAdapter"]:
+    def model_obj_from_path(
+        cls: Type["_IModelAdapter"], dir_or_file_path: "PathType"
+    ) -> Optional[AdapterModelObjType]:
         """Accepts a path (of a directory or single file) and possibly
         returns a new instance of the class.
         """
         try:
-            possible_single_file = _single_path_of_maybe_dir(dir_or_file_path)
-            if possible_single_file is not None:
-                return cls._unsafe_maybe_init_from_path(possible_single_file)
-            elif cls._can_init_from_directory:
-                return cls._unsafe_maybe_init_from_path(dir_or_file_path)
+            if os.path.isdir(dir_or_file_path) and cls.path_extension() == "":
+                maybe_model = cls._unsafe_model_obj_from_path(dir_or_file_path)
+            elif (
+                os.path.isfile(dir_or_file_path)
+                and os.path.splitext(dir_or_file_path)[1] == f".{cls.path_extension()}"
+            ):
+                maybe_model = cls._unsafe_model_obj_from_path(dir_or_file_path)
+
+            if cls.can_adapt_model_obj(maybe_model):
+                return maybe_model
         except Exception:
             pass
         return None
 
     @classmethod
-    def can_adapt_model(cls: Type["_IModelAdapter"], obj: Any) -> bool:
+    def can_adapt_model_obj(
+        cls: Type["_IModelAdapter"], obj: GlobalModelObjType
+    ) -> bool:
         """Determines if the class is capable of adapting the provided python object.
         """
         try:
-            return cls._unsafe_can_adapt_model(obj)
+            return cls._unsafe_can_adapt_model_obj(obj)
         except Exception:
             return False
 
     @classmethod
     def adapter_id(cls: Type["_IModelAdapter"]) -> str:
-        assert isinstance(cls._adapter_id, str), "adapter_id must be a string"
+        assert isinstance(cls._adapter_id, str), "_adapter_id must be a string"
         return cls._adapter_id
 
-    def model_obj(self) -> ModelObjectType:
-        return self._model_obj
-
     @classmethod
-    def _unsafe_maybe_init_from_path(
-        cls: Type["_IModelAdapter"], dir_or_file_path: "ModelPathType"
-    ) -> Optional["_IModelAdapter"]:
+    def path_extension(cls: Type["_IModelAdapter"]) -> str:
+        assert isinstance(cls._path_extension, str), "_path_extension must be a string"
+        return cls._path_extension
+
+    @staticmethod
+    def _unsafe_model_obj_from_path(
+        dir_or_file_path: "PathType",
+    ) -> AdapterModelObjType:
         """Accepts a path (pointing to a directory or single file) and possibly
         returns a new instance of the class. A directory will only be passed if
         `_can_init_from_directory` is True. For convenience, if the caller passes a
-        directory to `maybe_init_from_path` and that directory contains a single file,
+        directory to `model_obj_from_path` and that directory contains a single file,
         then the single file path will be passed to this method.
 
-        Subclass developers are expected to override this method instead of `maybe_init_from_path`.
+        Subclass developers are expected to override this method instead of `model_obj_from_path`.
         It is OK to throw errors in this method - which should be interpretted by the
         caller as an invalid path for this class.
         """
         raise NotImplementedError()
 
     @staticmethod
-    def _unsafe_can_adapt_model(obj: Any) -> bool:
+    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
         """Determines if the class is capable of adapting the provided python object.
         """
         raise NotImplementedError()
 
-    def save_model(self, dir_path: "ModelDirPathType") -> None:
+    @staticmethod
+    def save_model(
+        model_obj: AdapterModelObjType, dir_or_file_path: "PathType"
+    ) -> None:
         """Save the model to disk. The method will receive a directory path which all
-        files needed for deserialization should be saved. A directory will always be passed,
-        even if `_can_init_from_directory` is False. If this method saves a single file to such
-        directory, that single file will be used when calling `_unsafe_maybe_init_from_path`.
+        files needed for deserialization should be saved. A directory will always be passed if
+        _path_extension is an empty string, else a single file will be passed.
         """
         raise NotImplementedError()
 
@@ -265,22 +458,22 @@ def _get_torch() -> "torch":
 
 class _PytorchModelAdapter(_IModelAdapter["torch.nn.Module"]):
     _adapter_id = "pytorch"
-
-    @classmethod
-    def _unsafe_maybe_init_from_path(
-        cls: Type["_IModelAdapter"], dir_or_file_path: "ModelPathType"
-    ) -> Optional["_IModelAdapter"]:
-        return cls(_get_torch().load(dir_or_file_path))
+    _path_extension = "pt"
 
     @staticmethod
-    def _unsafe_can_adapt_model(obj: Any) -> bool:
+    def _unsafe_model_obj_from_path(dir_or_file_path: "PathType") -> "torch.nn.Module":
+        return _get_torch().load(dir_or_file_path)
+
+    @staticmethod
+    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
         return isinstance(obj, _get_torch().nn.Module)
 
-    def save_model(self, dir_path: "ModelDirPathType") -> None:
+    @staticmethod
+    def save_model(
+        model_obj: AdapterModelObjType, dir_or_file_path: "PathType"
+    ) -> None:
         _get_torch().save(
-            self.model_obj(),
-            os.path.join(dir_path, "model.pt"),
-            pickle_module=_get_cloudpickle(),
+            model_obj, dir_or_file_path, pickle_module=_get_cloudpickle(),
         )
 
 
@@ -292,17 +485,18 @@ def _get_sklearn() -> "sklearn":
 
 class _SklearnModelAdapter(_IModelAdapter["sklearn.base.BaseEstimator"]):
     _adapter_id = "sklearn"
-
-    @classmethod
-    def _unsafe_maybe_init_from_path(
-        cls: Type["_IModelAdapter"], dir_or_file_path: "ModelPathType"
-    ) -> Optional["_IModelAdapter"]:
-        with open(dir_or_file_path, "rb") as file:
-            model = _get_cloudpickle().load(file)
-        return cls(model)
+    _path_extension = "pkl"
 
     @staticmethod
-    def _unsafe_can_adapt_model(obj: Any) -> bool:
+    def _unsafe_model_obj_from_path(
+        dir_or_file_path: "PathType",
+    ) -> "sklearn.base.BaseEstimator":
+        with open(dir_or_file_path, "rb") as file:
+            model = _get_cloudpickle().load(file)
+        return model
+
+    @staticmethod
+    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
         dynamic_sklearn = _get_sklearn()
         return cast(
             bool,
@@ -313,11 +507,13 @@ class _SklearnModelAdapter(_IModelAdapter["sklearn.base.BaseEstimator"]):
             ),
         )
 
-    def save_model(self, dir_path: "ModelDirPathType") -> None:
+    @staticmethod
+    def save_model(
+        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: "PathType"
+    ) -> None:
         dynamic_cloudpickle = _get_cloudpickle()
-        target_path = os.path.join(dir_path, "model.pkl")
-        with open(target_path, "wb") as file:
-            dynamic_cloudpickle.dump(self.model_obj(), file)
+        with open(dir_or_file_path, "wb") as file:
+            dynamic_cloudpickle.dump(model_obj, file)
 
 
 def _get_tf_keras() -> "tensorflow.keras":
@@ -329,21 +525,24 @@ def _get_tf_keras() -> "tensorflow.keras":
 
 class _TensorflowKerasSavedModelAdapter(_IModelAdapter["tensorflow.keras.Model"]):
     _adapter_id = "tf-keras-savedmodel"
-    _can_init_from_directory = True
-
-    @classmethod
-    def _unsafe_maybe_init_from_path(
-        cls: Type["_IModelAdapter"], dir_or_file_path: "ModelPathType"
-    ) -> Optional["_IModelAdapter"]:
-        return cls(_get_tf_keras().models.load_model(dir_or_file_path))
+    _path_extension = ""
 
     @staticmethod
-    def _unsafe_can_adapt_model(obj: Any) -> bool:
+    def _unsafe_model_obj_from_path(
+        dir_or_file_path: "PathType",
+    ) -> "tensorflow.keras.Model":
+        return _get_tf_keras().models.load_model(dir_or_file_path)
+
+    @staticmethod
+    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
         return isinstance(obj, _get_tf_keras().models.Model)
 
-    def save_model(self, dir_path: "ModelDirPathType") -> None:
+    @staticmethod
+    def save_model(
+        model_obj: "tensorflow.keras.Model", dir_or_file_path: "PathType"
+    ) -> None:
         _get_tf_keras().models.save_model(
-            self.model_obj(), dir_path, include_optimizer=True
+            model_obj, dir_or_file_path, include_optimizer=True
         )
 
 
