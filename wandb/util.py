@@ -1376,9 +1376,8 @@ def uri_from_path(path: Optional[str]) -> str:
 
 def is_unicode_safe(stream: TextIO) -> bool:
     """returns true if the stream supports UTF-8"""
-    if not hasattr(stream, "encoding"):
-        return False
-    return stream.encoding.lower() in {"utf-8", "utf_8"}
+    encoding = getattr(stream, "encoding", None)
+    return encoding.lower() in {"utf-8", "utf_8"} if encoding else False
 
 
 def _has_internet() -> bool:
