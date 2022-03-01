@@ -787,11 +787,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    data,
-                    fp,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                    indent=4,
+                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif _is_numpy_array(data_or_path):
@@ -818,11 +814,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    list_data,
-                    fp,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                    indent=4,
+                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
@@ -1009,8 +1001,7 @@ class Molecule(BatchableMedia):
             molecule = rdkit_chem.AddHs(molecule)
             rdkit_chem_all_chem.EmbedMolecule(molecule)
             rdkit_chem_all_chem.MMFFOptimizeMolecule(
-                molecule,
-                maxIters=mmff_optimize_molecule_max_iterations,
+                molecule, maxIters=mmff_optimize_molecule_max_iterations,
             )
         # convert to the pdb format supported by Molecule
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
@@ -1609,8 +1600,7 @@ class ImageMask(Media):
         cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()},
-            key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
@@ -2216,11 +2206,7 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(
-        self,
-        data: "ImageDataType",
-        mode: str = None,
-    ) -> None:
+    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -2343,11 +2329,7 @@ class Image(BatchableMedia):
                 class_id = hashlib.md5(
                     str(self._classes._class_set).encode("utf-8")
                 ).hexdigest()
-                class_name = os.path.join(
-                    "media",
-                    "classes",
-                    class_id + "_cls",
-                )
+                class_name = os.path.join("media", "classes", class_id + "_cls",)
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
@@ -2968,9 +2950,7 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls,
-        json_dict: Dict[str, Any],
-        artifact: Optional["PublicArtifact"] = None,
+        cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (
