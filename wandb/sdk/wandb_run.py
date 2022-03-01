@@ -185,11 +185,8 @@ class RunStatusChecker(object):
 
 # TODO(kpt) should we auto decorate?
 def attach(func: Callable) -> Callable:
-    if hasattr(func, "tracing"):  # Only decorate once
-        return func
-
     @functools.wraps(func)
-    def wrapper(self, *args: Any, **kwargs: Any) -> Any:
+    def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
         try:
             if getattr(self, "_init_pid", None) != os.getpid():
                 wandb._attach(run=self)
@@ -197,7 +194,6 @@ def attach(func: Callable) -> Callable:
         except Exception as e:
             raise e
 
-    wrapper.tracing = True
     return wrapper
 
 
@@ -409,7 +405,8 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            settings_dict=self._settings, process_context="user",
+            settings_dict=self._settings,
+            process_context="user",
         )
 
         # Populate config
@@ -511,7 +508,8 @@ class Run:
 
     def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
-            pytorch_ignite="ignite", transformers_huggingface="transformers",
+            pytorch_ignite="ignite",
+            transformers_huggingface="transformers",
         )
 
         # calculate mod_map, a mapping from module_name to telem_name
@@ -606,14 +604,14 @@ class Run:
 
         self._attach_id = _attach_id
 
-    @property
+    @property  # type: ignore
     @attach
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":
         if self._torch_history is None:
             self._torch_history = wandb.wandb_torch.TorchHistory()
         return self._torch_history
 
-    @property
+    @property  # type: ignore
     @attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
@@ -621,24 +619,24 @@ class Run:
         cp.freeze()
         return cp
 
-    @property
+    @property  # type: ignore
     @attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
-    @property
+    @property  # type: ignore
     @attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config
 
-    @property
+    @property  # type: ignore
     @attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
-    @property
+    @property  # type: ignore
     @attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
@@ -660,7 +658,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property
+    @property  # type: ignore
     @attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
@@ -680,7 +678,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property
+    @property  # type: ignore
     @attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
@@ -699,7 +697,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property
+    @property  # type: ignore
     @attach
     def id(self) -> str:
         """Returns the identifier for this run."""
@@ -707,7 +705,7 @@ class Run:
             assert self._run_id is not None
         return self._run_id
 
-    @property
+    @property  # type: ignore
     @attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
@@ -715,7 +713,7 @@ class Run:
             return None
         return self._run_obj.sweep_id or None
 
-    @property
+    @property  # type: ignore
     @attach
     def path(self) -> str:
         """Returns the path to the run.
@@ -729,7 +727,7 @@ class Run:
                 parts.append(e)
         return "/".join(parts)
 
-    @property
+    @property  # type: ignore
     @attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
@@ -738,7 +736,7 @@ class Run:
         else:
             return self._run_obj.start_time.ToSeconds()
 
-    @property
+    @property  # type: ignore
     @attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
@@ -747,7 +745,7 @@ class Run:
         else:
             return self._run_obj.starting_step
 
-    @property
+    @property  # type: ignore
     @attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
@@ -755,7 +753,7 @@ class Run:
             return self._run_obj.resumed
         return False
 
-    @property
+    @property  # type: ignore
     @attach
     def step(self) -> int:
         """Returns the current value of the step.
@@ -769,7 +767,7 @@ class Run:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.project if run_obj else ""
 
-    @property
+    @property  # type: ignore
     @attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
@@ -782,17 +780,17 @@ class Run:
         )
         return "dryrun" if self._settings._offline else "run"
 
-    @property
+    @property  # type: ignore
     @attach
     def offline(self) -> bool:
         return self._settings._offline
 
-    @property
+    @property  # type: ignore
     @attach
     def disabled(self) -> bool:
         return self._settings._noop
 
-    @property
+    @property  # type: ignore
     @attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
@@ -807,13 +805,13 @@ class Run:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.run_group if run_obj else ""
 
-    @property
+    @property  # type: ignore
     @attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
-    @property
+    @property  # type: ignore
     @attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
@@ -903,12 +901,14 @@ class Run:
             return None
         return self._settings.sweep_url
 
-    @property
+    @property  # type: ignore
+    @attach
     def url(self) -> Optional[str]:
         """Returns the W&B url associated with the run."""
         return self.get_url()
 
-    @property
+    @property  # type: ignore
+    @attach
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
 
@@ -1001,6 +1001,7 @@ class Run:
         if lines:
             self._label_probe_lines(lines)
 
+    @attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Displays this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
@@ -1010,6 +1011,7 @@ class Run:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
+    @attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generates HTML containing an iframe displaying the current run."""
         url = self._settings.run_url + "?jupyter=true"
@@ -1123,7 +1125,10 @@ class Run:
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_partial_history(
-                row, step, flush=commit, publish_step=not_using_tensorboard,
+                row,
+                step,
+                flush=commit,
+                publish_step=not_using_tensorboard,
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1181,7 +1186,8 @@ class Run:
         self.history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            process_context="user", settings_dict=self.settings,
+            process_context="user",
+            settings_dict=self.settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1264,7 +1270,9 @@ class Run:
                 return
             elif step > self.history_step:
                 self._partial_history_callback(
-                    {}, self.history_step, commit=True,
+                    {},
+                    self.history_step,
+                    commit=True,
                 )
                 self.history_step = step
         elif commit is None:  # step is None and commit is None
@@ -1852,7 +1860,9 @@ class Run:
 
         # make sure all uncommitted history is flushed
         self._partial_history_callback(
-            {}, self.history_step, commit=True,
+            {},
+            self.history_step,
+            commit=True,
         )
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
@@ -1877,7 +1887,8 @@ class Run:
                 )
                 logger.info(f"got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    self._poll_exit_response, printer=self._printer,
+                    self._poll_exit_response,
+                    printer=self._printer,
                 )
             time.sleep(0.1)
 
@@ -1906,10 +1917,15 @@ class Run:
         )
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1918,8 +1934,13 @@ class Run:
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2059,8 +2080,8 @@ class Run:
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -2149,7 +2170,8 @@ class Run:
                     )
                 self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2558,7 +2580,9 @@ class Run:
 
     @staticmethod
     def _header_wandb_version_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         if settings.quiet or settings.silent:
             return
@@ -2568,7 +2592,9 @@ class Run:
 
     @staticmethod
     def _header_sync_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2590,7 +2616,9 @@ class Run:
 
     @staticmethod
     def _header_run_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         if settings._offline or settings.silent:
@@ -2898,7 +2926,9 @@ class Run:
         if log_dir:
             # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
-            printer.display(f"Find logs at: {printer.files(log_dir)}",)
+            printer.display(
+                f"Find logs at: {printer.files(log_dir)}",
+            )
 
     @staticmethod
     def _footer_history_summary_info(
@@ -2936,7 +2966,10 @@ class Run:
                 if sparkline:
                     history_rows.append([key, sparkline])
             if history_rows:
-                history_grid = printer.grid(history_rows, "Run history:",)
+                history_grid = printer.grid(
+                    history_rows,
+                    "Run history:",
+                )
                 panel.append(history_grid)
 
         # Render summary if available
@@ -2961,7 +2994,10 @@ class Run:
                     continue
 
             if summary_rows:
-                summary_grid = printer.grid(summary_rows, "Run summary:",)
+                summary_grid = printer.grid(
+                    summary_rows,
+                    "Run summary:",
+                )
                 panel.append(summary_grid)
 
         if panel:
@@ -3134,14 +3170,6 @@ def finish(exit_code: int = None, quiet: bool = None) -> None:
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
-
-
-# propagate our doc string to the runs restore method
-try:
-    Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
-except AttributeError:
-    pass
 
 
 class _LazyArtifact(ArtifactInterface):
