@@ -48,6 +48,7 @@ from .sdk.data_types.Image import Image
 from .sdk.data_types.Molecule import Molecule
 from .sdk.data_types.Object3D import Object3D
 from .sdk.data_types.Plotly import Plotly
+from .sdk.data_types.SavedModel import SavedModel
 from .sdk.data_types.Video import Video
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
@@ -67,6 +68,7 @@ __all__ = [
     "Object3D",
     "Plotly",
     "Video",
+    "SavedModel",
     # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
     "BoundingBoxes2D",

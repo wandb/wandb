@@ -5,18 +5,22 @@ import torch
 from tensorflow import keras
 import numpy as np
 import os
+import shutil
+from wandb.apis.public import Artifact
+from wandb.apis.public import _DownloadedArtifactEntry
+from wandb.sdk.wandb_artifacts import ArtifactEntry
 
 
-def test_SavedModel_sklearn(runner):
-    savedModel_test(runner, sklearn_model())
+def test_SavedModel_sklearn(runner, mocker):
+    savedModel_test(runner, mocker, sklearn_model())
 
 
-def test_SavedModel_pytorch(runner):
-    savedModel_test(runner, pytorch_model())
+def test_SavedModel_pytorch(runner, mocker):
+    savedModel_test(runner, mocker, pytorch_model())
 
 
-def test_SavedModel_keras(runner):
-    savedModel_test(runner, keras_model())
+def test_SavedModel_keras(runner, mocker):
+    savedModel_test(runner, mocker, keras_model())
 
 
 def test_SklearnModelAdapter(runner):
@@ -89,15 +93,61 @@ def keras_model():
     return model
 
 
+# These classes are used to patch the API
+# so we can simulate downloading an artifact without
+# actually making a network round trip (using the local filesystem)
+class DownloadedArtifactEntryPatch(_DownloadedArtifactEntry):
+    def download(self, root=None):
+        root = root or self._parent_artifact._default_root()
+        return self.copy(self.local_path, os.path.join(root, self.name))
+
+
+class ArtifactEntryPatch(ArtifactEntry):
+    def download(self, root=None):
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        shutil.copyfile(self.local_path, self.path)
+        return self.path
+
+
+def make_local_artifact_public(art, mocker):
+    mocker.patch(
+        "wandb.apis.public._DownloadedArtifactEntry", DownloadedArtifactEntryPatch
+    )
+    mocker.patch("wandb.sdk.wandb_artifacts.ArtifactEntry", ArtifactEntryPatch)
+
+    pub = Artifact(
+        None,
+        "FAKE_ENTITY",
+        "FAKE_PROJECT",
+        "FAKE_NAME",
+        {
+            "artifactSequence": {"name": "FAKE_SEQUENCE_NAME",},
+            "aliases": [],
+            "id": "FAKE_ID",
+            "digest": "FAKE_DIGEST",
+            "state": None,
+            "size": None,
+            "createdAt": None,
+            "updatedAt": None,
+            "artifactType": {"name": "FAKE_TYPE_NAME",},
+        },
+    )
+    pub._manifest = art._manifest
+    for val in pub._manifest.entries.values():
+        val.__class__ = ArtifactEntryPatch
+    return pub
+
+
 # External SavedModel tests (user facing)
-def savedModel_test(runner, model):
+def savedModel_test(runner, mocker, model):
     sm = SM.SavedModel(model)
     with runner.isolated_filesystem():
         art = wandb.Artifact("name", "type")
         art.add(sm, "model")
         assert art.manifest.entries["model.saved-model.json"] is not None
-        # This is almost certainly going to fail without a special harness
-        sm2 = art.get("model")
+        pub_art = make_local_artifact_public(art, mocker)
+        sm2 = pub_art.get("model")
+        assert sm2 is not None
 
 
 # Internal adapter tests (non user facing)
@@ -106,19 +156,20 @@ def adapter_test(
 ):
     # Verify valid models can be adapted
     for model in valid_models:
-        assert adapter_cls.can_adapt_model(model)
+        assert adapter_cls.can_adapt_model_obj(model)
 
     # Verify invalid models are denied
     for model in invalid_models:
-        assert not adapter_cls.can_adapt_model(model)
+        assert not adapter_cls.can_adapt_model_obj(model)
 
     # Verify file-level serialization and deserialization
     with runner.isolated_filesystem():
         i = 0
         for model in valid_models:
-            adapter = adapter_cls(model)
-            dirpath = os.path.join(".", f"adapter_dir_{i}")
-            os.makedirs(dirpath)
-            adapter.save_model(dirpath)
-            adapter2 = adapter_cls.maybe_init_from_path(dirpath)
+            path = os.path.join(".", f"adapter_dir_{i}")
+            os.makedirs(path)
+            if adapter_cls.path_extension() != "":
+                path += "." + adapter_cls.path_extension()
+            adapter_cls.save_model(model, path)
+            adapter2 = adapter_cls.model_obj_from_path(path)
             assert adapter2 is not None

@@ -61,7 +61,7 @@ class SavedModel(WBValue):
         )
         assert (
             model_adapter_tuple is not None
-        ), f"No suitable adapter found for model {model_or_path}"
+        ), f"No suitable adapter ({adapter_id}) found for model {model_or_path}"
 
         self._adapter = model_adapter_tuple[1]
         self._path = self._make_target_path()
@@ -72,7 +72,7 @@ class SavedModel(WBValue):
                 assert os.path.splitext(self._path)[1] is not None
                 shutil.copyfile(model_or_path, self._path)
             elif os.path.isdir(model_or_path):
-                assert os.path.splitext(self._path)[1] is None
+                assert os.path.splitext(self._path)[1] == ""
                 shutil.copytree(model_or_path, self._path)
             else:
                 raise ValueError(
@@ -84,8 +84,7 @@ class SavedModel(WBValue):
         else:
             # We immediately write the file(s) in case the user modifies the model
             # after creating the SavedModel (ie. continues training)
-            assert self._model_obj is not None
-            self._adapter.save_model(self._model_obj, self._path)
+            self._adapter.save_model(model_adapter_tuple[0], self._path)
             # Important: set this to None, so any model_obj() read will lazy load from disk (cached)
             self._model_obj = None
 
@@ -159,10 +158,13 @@ class SavedModel(WBValue):
             dl_path = entry.download()
         else:
             # assume it is directory: (would be nice to parallelize)
-            dl_path = os.path.join(source_artifact._default_root(), path)
+            dl_path = None
             for p, e in source_artifact.manifest.entries.items():
                 if p.startswith(path):
-                    e.download()
+                    example_path = e.download()
+                    if dl_path is None:
+                        root = example_path[: -len(p)]
+                        dl_path = os.path.join(root, path)
         return cls(dl_path, json_obj["adapter_id"])
 
 
@@ -199,8 +201,8 @@ class _ModelAdapterRegistry(object):
     @staticmethod
     def maybe_adapter_from_model_or_path(
         adapter_cls: Type["_IModelAdapter"], model_or_path: "ModelType",
-    ) -> Optional[SuitableAdapterTuple]:
-        model_adapter_tuple: Optional[SuitableAdapterTuple] = None
+    ) -> Optional["SuitableAdapterTuple"]:
+        model_adapter_tuple: Optional["SuitableAdapterTuple"] = None
         if _is_path(model_or_path):
             possible_model = adapter_cls.model_obj_from_path(model_or_path)
             if possible_model is not None:
@@ -212,9 +214,9 @@ class _ModelAdapterRegistry(object):
     @staticmethod
     def find_suitable_adapter(
         model_or_path: "ModelType", adapter_id: Optional[str] = None
-    ) -> Optional[SuitableAdapterTuple]:
+    ) -> Optional["SuitableAdapterTuple"]:
         adapter_classes = _ModelAdapterRegistry.registered_adapters()
-        model_adapter_tuple: Optional[SuitableAdapterTuple] = None
+        model_adapter_tuple: Optional["SuitableAdapterTuple"] = None
         if adapter_id is None:
             for key in adapter_classes:
                 model_adapter_tuple = _ModelAdapterRegistry.maybe_adapter_from_model_or_path(
@@ -274,7 +276,7 @@ class _IModelAdapter(Generic[AdapterModelObjType]):
 
     @classmethod
     def can_adapt_model_obj(
-        cls: Type["_IModelAdapter"], obj: GlobalModelObjType
+        cls: Type["_IModelAdapter"], obj: "GlobalModelObjType"
     ) -> bool:
         """Determines if the class is capable of adapting the provided python object.
         """
@@ -310,7 +312,7 @@ class _IModelAdapter(Generic[AdapterModelObjType]):
         raise NotImplementedError()
 
     @staticmethod
-    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
+    def _unsafe_can_adapt_model_obj(obj: "GlobalModelObjType") -> bool:
         """Determines if the class is capable of adapting the provided python object.
         """
         raise NotImplementedError()
@@ -346,7 +348,7 @@ class _PytorchModelAdapter(_IModelAdapter["torch.nn.Module"]):
         return _get_torch().load(dir_or_file_path)
 
     @staticmethod
-    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
+    def _unsafe_can_adapt_model_obj(obj: "GlobalModelObjType") -> bool:
         return isinstance(obj, _get_torch().nn.Module)
 
     @staticmethod
@@ -377,7 +379,7 @@ class _SklearnModelAdapter(_IModelAdapter["sklearn.base.BaseEstimator"]):
         return model
 
     @staticmethod
-    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
+    def _unsafe_can_adapt_model_obj(obj: "GlobalModelObjType") -> bool:
         dynamic_sklearn = _get_sklearn()
         return cast(
             bool,
@@ -415,7 +417,7 @@ class _TensorflowKerasSavedModelAdapter(_IModelAdapter["tensorflow.keras.Model"]
         return _get_tf_keras().models.load_model(dir_or_file_path)
 
     @staticmethod
-    def _unsafe_can_adapt_model_obj(obj: GlobalModelObjType) -> bool:
+    def _unsafe_can_adapt_model_obj(obj: "GlobalModelObjType") -> bool:
         return isinstance(obj, _get_tf_keras().models.Model)
 
     @staticmethod
