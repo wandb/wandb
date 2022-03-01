@@ -204,40 +204,96 @@ ModelObjectType = TypeVar("ModelObjectType")
 
 
 class _IModelAdapter(Generic[ModelObjectType]):
+    """_IModelAdapter is an interface for adapting a model in the form of a runtime python object
+    to work with the SavedModel media type. The adapter is responsible for converting the model
+    to one or more files that can be saved to disk as well as providing a method for loading the
+    model from disk.
+
+
+    """
+
+    # Class Vars
     _adapter_id: ClassVar[str]
+    _can_init_from_directory: ClassVar[bool] = False
+    
+    # Instance Vars
     _internal_model: ModelObjectType
+    
 
     def __init__(self, model: ModelObjectType) -> None:
+        """Contruction of the adapter will take an object of type `ModelObjectType`.
+        """
+        super(_IModelAdapter, self).__init__()
+        assert self.can_adapt_model(model), f"{self.__class__} is unable to adapt model {model}"
         self._internal_model = model
 
     @classmethod
-    def init_from_path(
+    def maybe_init_from_path(
         cls: Type["_IModelAdapter"], dir_or_file_path: ModelPathType
-    ) -> "_IModelAdapter":
-        raise NotImplementedError()
-
-    @staticmethod
-    def can_load_path(dir_or_file_path: ModelPathType) -> bool:
-        """ Will only be a dir in the case that the dir contains more than 1 file.
+    ) -> Optional["_IModelAdapter"]:
+        """Accepts a path (of a directory or single file) and possibly 
+        returns a new instance of the class.
         """
-        raise NotImplementedError()
+        try:
+            possible_single_file = _single_path_of_maybe_dir(dir_or_file_path)
+            if possible_single_file is not None:
+                return cls._unsafe_maybe_init_from_path(possible_single_file)
+            elif cls._can_init_from_directory:
+                return cls._unsafe_maybe_init_from_path(dir_or_file_path)
+        except Exception:
+            pass
+        return None
 
-    @staticmethod
-    def can_adapt_model(obj: Any) -> bool:
-        raise NotImplementedError()
-
-    def save_model(self, dir_path: ModelDirPathType) -> None:
-        raise NotImplementedError()
-
-    def model_spec(self) -> _ModelSpec:
-        raise NotImplementedError()
+    @classmethod
+    def can_adapt_model(cls: Type["_IModelAdapter"], obj: Any) -> bool:
+        """Determines if the class is capable of adapting the provided python object.
+        """
+        try:
+            return cls._unsafe_can_adapt_model(obj)
+        except Exception:
+            return False
 
     @classmethod
     def adapter_id(cls: Type["_IModelAdapter"]) -> str:
+        assert isinstance(cls._adapter_id, str), "adapter_id must be a string"
         return cls._adapter_id
 
     def raw(self) -> ModelObjectType:
         return self._internal_model
+
+    
+    @classmethod
+    def _unsafe_maybe_init_from_path(
+        cls: Type["_IModelAdapter"], dir_or_file_path: ModelPathType
+    ) -> Optional["_IModelAdapter"]:
+        """Accepts a path (pointing to a directory or single file) and possibly 
+        returns a new instance of the class. A directory will only be passed if
+        `_can_init_from_directory` is True. For convenience, if the caller passes a 
+        directory to `maybe_init_from_path` and that directory contains a single file,
+        then the single file path will be passed to this method.
+        
+        Subclass developers are expected to override this method instead of `maybe_init_from_path`.
+        It is OK to throw errors in this method - which should be interpretted by the 
+        caller as an invalid path for this class. 
+        """
+        raise NotImplementedError()
+
+    @staticmethod
+    def _unsafe_can_adapt_model(obj: Any) -> bool:
+        """Determines if the class is capable of adapting the provided python object.
+        """
+        raise NotImplementedError()
+
+    def save_model(self, dir_path: ModelDirPathType) -> None:
+        """Save the model to disk. The method will receive a directory path which all
+        files needed for deserialization should be saved. A directory will always be passed,
+        even if `_can_init_from_directory` is False. If this method saves a single file to such
+        directory, that single file will be used when calling `_unsafe_maybe_init_from_path`.
+        """
+        raise NotImplementedError()
+
+    # def model_spec(self) -> _ModelSpec:
+    #     raise NotImplementedError()
 
 
 def _get_torch(hard: bool = False) -> "torch":
