@@ -39,3 +39,4 @@ rdkit-pypi; platform.machine != 'arm64'
 torch
 cloudpickle
 sklearn
+tensorflow
