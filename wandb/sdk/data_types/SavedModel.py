@@ -24,9 +24,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
+    import cloudpickle
     import torch
     import sklearn
-    import cloudpickle
     import tensorflow
 
     # TODO: make these richer
@@ -118,6 +118,7 @@ class SavedModel(Media):
             # We immediately write the file(s) in case the user modifies the model
             # after creating the SavedModel (ie. continues training)
             tmp_path = os.path.join(MEDIA_TMP.name, str(util.generate_id()))
+            os.makedirs(tmp_path)
             self._adapter.save_model(tmp_path)
             # TODO: make media support a directory path (this is going to be non-trivial)
             self._set_file(tmp_path, is_tmp=True)
@@ -251,6 +252,13 @@ class _IModelAdapter(Generic[ModelObjectType]):
         raise NotImplementedError()
 
 
+def _get_cloudpickle() -> "cloudpickle":
+    return cast(
+        "cloudpickle",
+        util.get_module("cloudpickle", "ModelAdapter requires `cloudpickle`"),
+    )
+
+
 def _get_torch() -> "torch":
     return cast("torch", util.get_module("torch", "ModelAdapter requires `torch`"),)
 
@@ -269,19 +277,16 @@ class _PytorchModelAdapter(_IModelAdapter["torch.nn.Module"]):
         return isinstance(obj, _get_torch().nn.Module)
 
     def save_model(self, dir_path: "ModelDirPathType") -> None:
-        _get_torch().save(self.model_obj(), os.path.join(dir_path, "model.pt"))
+        _get_torch().save(
+            self.model_obj(),
+            os.path.join(dir_path, "model.pt"),
+            pickle_module=_get_cloudpickle(),
+        )
 
 
 def _get_sklearn() -> "sklearn":
     return cast(
         "sklearn", util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
-    )
-
-
-def _get_cloudpickle() -> "cloudpickle":
-    return cast(
-        "cloudpickle",
-        util.get_module("cloudpickle", "ModelAdapter requires `cloudpickle`"),
     )
 
 

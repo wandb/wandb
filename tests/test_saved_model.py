@@ -1,8 +1,49 @@
+import wandb
 from wandb.sdk.data_types import SavedModel as SM
 from sklearn import svm
 import torch
 from tensorflow import keras
 import numpy as np
+import os
+
+
+def test_SavedModel_sklearn(runner):
+    savedModel_test(runner, sklearn_model())
+
+
+def test_SavedModel_pytorch(runner):
+    savedModel_test(runner, pytorch_model())
+
+
+def test_SavedModel_keras(runner):
+    savedModel_test(runner, keras_model())
+
+
+def test_SklearnModelAdapter(runner):
+    adapter_test(
+        runner,
+        SM._SklearnModelAdapter,
+        [sklearn_model()],
+        [keras_model(), pytorch_model(),],
+    )
+
+
+def test_PytorchModelAdapter(runner):
+    adapter_test(
+        runner,
+        SM._PytorchModelAdapter,
+        [pytorch_model()],
+        [keras_model(), sklearn_model(),],
+    )
+
+
+def test_TensorflowKerasSavedModelAdapter(runner):
+    adapter_test(
+        runner,
+        SM._TensorflowKerasSavedModelAdapter,
+        [keras_model()],
+        [sklearn_model(), pytorch_model()],
+    )
 
 
 def sklearn_model():
@@ -48,26 +89,36 @@ def keras_model():
     return model
 
 
-def test_SklearnModelAdapter_can_adapt_model():
-    assert SM._SklearnModelAdapter.can_adapt_model(
-        sklearn_model()
-    ), "Expect _SklearnModelAdapter to be able to adapt sklearn model"
-    assert not SM._SklearnModelAdapter.can_adapt_model(
-        pytorch_model()
-    ), "Expect _SklearnModelAdapter NOT to be able to adapt sklearn model"
-    assert not SM._SklearnModelAdapter.can_adapt_model(
-        keras_model()
-    ), "Expect _SklearnModelAdapter NOT to be able to adapt sklearn model"
+# External SavedModel tests (user facing)
+def savedModel_test(runner, model):
+    sm = SM.SavedModel(model)
+    with runner.isolated_filesystem():
+        art = wandb.Artifact("name", "type")
+        art.add(sm, "model")
+        assert art.manifest.entries["model.saved-model.json"] is not None
+        # This is almost certainly going to fail without a special harness
+        sm2 = art.get("model")
 
 
-# TODO: Code:
-# Get the directory stuff working for artifacts and media types
-# TODO: Tests
-# Each adapter type:
-#   - can adapt
-#   - init from path
-#   - Save model
-#  Saved Model
-#  - Init From each type
-#  - Init from unsupported type
-#  - Add to artifact (and load from artifact - may require new test harness)
+# Internal adapter tests (non user facing)
+def adapter_test(
+    runner, adapter_cls, valid_models, invalid_models,
+):
+    # Verify valid models can be adapted
+    for model in valid_models:
+        assert adapter_cls.can_adapt_model(model)
+
+    # Verify invalid models are denied
+    for model in invalid_models:
+        assert not adapter_cls.can_adapt_model(model)
+
+    # Verify file-level serialization and deserialization
+    with runner.isolated_filesystem():
+        i = 0
+        for model in valid_models:
+            adapter = adapter_cls(model)
+            dirpath = os.path.join(".", f"adapter_dir_{i}")
+            os.makedirs(dirpath)
+            adapter.save_model(dirpath)
+            adapter2 = adapter_cls.maybe_init_from_path(dirpath)
+            assert adapter2 is not None
