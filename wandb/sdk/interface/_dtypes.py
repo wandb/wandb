@@ -1,3 +1,4 @@
+import datetime
 import math
 import sys
 import typing as t
@@ -383,6 +384,15 @@ if np:
     NumberType.types.append(np.complex64)
     NumberType.types.append(np.complex128)
     NumberType.types.append(np.complex_)
+
+
+class TimestampType(Type):
+    name = "timestamp"
+    types: t.ClassVar[t.List[type]] = [datetime.datetime, datetime.date]
+
+
+if np:
+    TimestampType.types.append(np.datetime64)
 
 
 class BooleanType(Type):
@@ -862,6 +872,7 @@ TypeRegistry.add(UnknownType)
 # Types with default type mappings
 TypeRegistry.add(NoneType)
 TypeRegistry.add(StringType)
+TypeRegistry.add(TimestampType)
 TypeRegistry.add(NumberType)
 TypeRegistry.add(BooleanType)
 TypeRegistry.add(ListType)
@@ -883,6 +894,7 @@ __all__ = [
     "NoneType",
     "StringType",
     "NumberType",
+    "TimestampType",
     "BooleanType",
     "ListType",
     "TypedDictType",

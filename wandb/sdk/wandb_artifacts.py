@@ -5,6 +5,7 @@ import hashlib
 import os
 import re
 import shutil
+import tempfile
 import time
 from typing import (
     Any,
@@ -28,7 +29,6 @@ from wandb import env
 from wandb import util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
-from wandb.compat import tempfile as compat_tempfile
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
@@ -66,7 +66,7 @@ _REQUEST_POOL_CONNECTIONS = 64
 
 _REQUEST_POOL_MAXSIZE = 64
 
-ARTIFACT_TMP = compat_tempfile.TemporaryDirectory("wandb-artifacts")
+ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
 
 class _AddedObj(object):
@@ -158,9 +158,7 @@ class Artifact(ArtifactInterface):
         self._added_objs = {}
         self._added_local_paths = {}
         # You can write into this directory when creating artifact files
-        self._artifact_dir = compat_tempfile.TemporaryDirectory(
-            missing_ok_on_cleanup=True
-        )
+        self._artifact_dir = tempfile.TemporaryDirectory()
         self._type = type
         self._name = name
         self._description = description
@@ -617,7 +615,7 @@ class Artifact(ArtifactInterface):
                             tel.feature.artifact_incremental = True
                     run.log_artifact(self)
             else:
-                wandb.run.log_artifact(self)  # type: ignore
+                wandb.run.log_artifact(self)
 
     def delete(self) -> None:
         if self._logged_artifact:

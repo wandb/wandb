@@ -1,9 +1,14 @@
 import re
 import time
+from typing import Any, Optional, TYPE_CHECKING
 
 import six
 import wandb
+from wandb.sdk.lib import telemetry
 from wandb.viz import create_custom_chart
+
+if TYPE_CHECKING:
+    from wandb.sdk.internal.tb_watcher import TBHistory
 
 # We have atleast the default namestep and a global step to track
 # TODO: reset this structure on wandb.join
@@ -20,10 +25,8 @@ tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 pb = wandb.util.get_module(
     "tensorboard.compat.proto.summary_pb2"
 ) or wandb.util.get_module("tensorflow.core.framework.summary_pb2")
-if pb:
-    Summary = pb.Summary
-else:
-    Summary = None
+
+Summary = pb.Summary if pb else None
 
 
 def make_ndarray(tensor):
@@ -148,9 +151,20 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                     counts = [ndarray[0][2]]
                     bins = ndarray[0][:2]
                 if len(counts) > 0:
-                    values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
-                        np_histogram=(counts, bins)
-                    )
+                    try:
+                        # TODO: we should just re-bin if there are too many buckets
+                        values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
+                            np_histogram=(counts, bins)
+                        )
+                    except ValueError:
+                        wandb.termwarn(
+                            'Not logging key "{}". '
+                            "Histograms must have fewer than {} bins".format(
+                                namespaced_tag(value.tag, namespace),
+                                wandb.Histogram.MAX_LENGTH,
+                            ),
+                            repeat=False,
+                        )
             elif plugin_name == "pr_curves":
                 pr_curve_data = make_ndarray(value.tensor)
                 precision = pr_curve_data[-2, :].tolist()
@@ -251,7 +265,13 @@ def reset_state():
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
 
-def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
+def _log(
+    tf_summary_str_or_pb: Any,
+    history: Optional["TBHistory"] = None,
+    step: int = 0,
+    namespace: str = "",
+    **kwargs: Any,
+) -> None:
     """Logs a tfsummary to wandb
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
@@ -262,7 +282,6 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     """
     global STEPS
     global RATE_LIMIT
-    history = history or wandb.run.history
     # To handle multiple global_steps, we keep track of them here instead
     # of the global log
     last_step = STEPS.get(namespace, {"step": 0})
@@ -300,6 +319,26 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
             RATE_LIMIT_SECONDS is None
             or timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS
         ):
-            history.add({}, **kwargs)
+            if history is None:
+                wandb.run._log({})
+            else:
+                history.add({}, **kwargs)
+
         STEPS["global"]["last_log"] = timestamp
-    history._row_update(log_dict)
+
+    if history is None:
+        wandb.run._log(log_dict, commit=False)
+    else:
+        history._row_update(log_dict)
+
+
+def log(tf_summary_str_or_pb: Any, step: int = 0, namespace: str = "") -> None:
+    if wandb.run is None:
+        raise wandb.Error(
+            "You must call `wandb.init()` before calling wandb.tensorflow.log"
+        )
+
+    with telemetry.context() as tel:
+        tel.feature.tensorboard_log = True
+
+    _log(tf_summary_str_or_pb, namespace=namespace, step=step)

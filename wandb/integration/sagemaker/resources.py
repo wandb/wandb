@@ -20,7 +20,8 @@ def parse_sm_resources():
     run_dict = dict()
     env_dict = dict()
     run_id = os.getenv("TRAINING_JOB_NAME")
-    if run_id:
+
+    if run_id and os.getenv("WANDB_RUN_ID") is None:
         run_dict["run_id"] = "-".join(
             [run_id, os.getenv("CURRENT_HOST", socket.gethostname())]
         )

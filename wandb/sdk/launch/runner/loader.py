@@ -1,17 +1,24 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Type
 
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
-from wandb.sdk.launch.runner.abstract import AbstractRunner
 
+from .abstract import AbstractRunner
+from .aws import AWSSagemakerRunner
+from .gcp_vertex import VertexRunner
 from .local import LocalRunner
+
 
 __logger__ = logging.getLogger(__name__)
 
 
 # Statically register backend defined in wandb
-WANDB_RUNNERS = {"local": LocalRunner}
+WANDB_RUNNERS: Dict[str, Type["AbstractRunner"]] = {
+    "local": LocalRunner,
+    "gcp-vertex": VertexRunner,
+    "sagemaker": AWSSagemakerRunner,
+}
 
 
 def load_backend(

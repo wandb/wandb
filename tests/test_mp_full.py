@@ -100,6 +100,7 @@ def test_multiproc_strict_bad(live_mock_server, test_settings, parse_ctx):
         test_settings.update(strict="bad")
 
 
+@pytest.mark.timeout(300)
 def test_multiproc_spawn(runner, test_settings):
     # WB5640. Before the WB5640 fix this code fragment would raise an
     # exception, this test checks that it runs without error

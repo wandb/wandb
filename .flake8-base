@@ -24,13 +24,11 @@ exclude =
     ./wandb/old/
     ./wandb/proto/
     ./wandb/proto_check/
-    ./wandb/util.py
     ./wandb/env.py
     ./wandb/sweeps/
     ./wandb/integration/magic.py
     ./wandb/integration/keras/
     ./wandb/integration/tensorboard/
-    ./wandb/integration/xgboost/
     ./wandb/integration/fastai/
     ./wandb/integration/metaflow/
     ./wandb/filesync/
@@ -38,7 +36,6 @@ exclude =
     ./wandb/sdk/internal/file_pusher.py
     ./wandb/sdk/internal/file_stream.py
     ./wandb/keras/
-    ./wandb/compat/
     ./wandb/superagent/
     ./wandb/plots/
     ./wandb/sklearn/

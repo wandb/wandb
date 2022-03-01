@@ -1,6 +1,6 @@
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from wandb_gql import Client, gql  # type: ignore
+from wandb_gql.client import RetryError  # type: ignore
+from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
 import ast
 import base64
@@ -447,7 +447,7 @@ class Api:
         """
         query = gql(
             """
-        query Models($entity: String!) {
+        query EntityProjects($entity: String) {
             models(first: 10, entityName: $entity) {
                 edges {
                     node {
@@ -479,7 +479,7 @@ class Api:
         """
         query = gql(
             """
-        query Models($entity: String, $project: String!) {
+        query ProjectDetails($entity: String, $project: String) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -509,7 +509,7 @@ class Api:
         """
         query = gql(
             """
-        query Sweep($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
+        query SweepWithRuns($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
                     id
@@ -578,7 +578,7 @@ class Api:
         """
         query = gql(
             """
-        query Buckets($model: String!, $entity: String!) {
+        query ProjectRuns($model: String!, $entity: String) {
             model(name: $model, entityName: $entity) {
                 buckets(first: 10) {
                     edges {
@@ -669,9 +669,9 @@ class Api:
         """
         query = gql(
             """
-        query Model(
+        query RunConfigs(
             $name: String!,
-            $entity: String!,
+            $entity: String,
             $run: String!,
             $pattern: String!,
             $includeConfig: Boolean!,
@@ -754,7 +754,7 @@ class Api:
         """
         query = gql(
             """
-        query Model($project: String!, $entity: String, $name: String!) {
+        query RunResumeStatus($project: String, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -799,7 +799,7 @@ class Api:
     def check_stop_requested(self, project_name, entity_name, run_id):
         query = gql(
             """
-        query Model($projectName: String, $entityName: String, $runId: String!) {
+        query RunStoppedStatus($projectName: String, $entityName: String, $runId: String!) {
             project(name:$projectName, entityName:$entityName) {
                 run(name:$runId) {
                     stopped
@@ -868,7 +868,7 @@ class Api:
     def get_project_run_queues(self, entity, project):
         query = gql(
             """
-        query Project($entity: String!, $projectName: String!){
+        query ProjectRunQueues($entity: String!, $projectName: String!){
             project(entityName: $entity, name: $projectName) {
                 runQueues {
                     id
@@ -1309,7 +1309,7 @@ class Api:
     def get_run_info(self, entity, project, name):
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!) {
+        query RunInfo($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
                     runInfo {
@@ -1370,7 +1370,7 @@ class Api:
         """
         query = gql(
             """
-        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
@@ -1431,7 +1431,7 @@ class Api:
         """
         query = gql(
             """
-        query Model($name: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrls($name: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files {
@@ -1478,7 +1478,7 @@ class Api:
         """
         query = gql(
             """
-        query Model($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrl($name: String!, $fileName: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files(names: [$fileName]) {
@@ -1551,19 +1551,11 @@ class Api:
         return path, response
 
     def upload_file_azure(self, url, file, extra_headers):
-        from azure.core.exceptions import HttpResponseError
-        from azure.core.pipeline.policies import HTTPPolicy
+        from azure.core.exceptions import AzureError
 
-        # Disable retries
-        class NoRetry(HTTPPolicy):
-            def send(self, request):
-                return self.next.send(request)
-
-            def increment(self, *args, **kwargs):
-                return 0
-
+        # Configure the client without retries so our existing logic can handle them
         client = self._azure_blob_module.BlobClient.from_blob_url(
-            url, retry_policy=NoRetry()
+            url, retry_policy=self._azure_blob_module.LinearRetry(retry_total=0)
         )
         try:
             if extra_headers.get("Content-MD5") is not None:
@@ -1580,12 +1572,15 @@ class Api:
                 overwrite=True,
                 content_settings=content_settings,
             )
-        except HttpResponseError as e:
-            response = requests.model.Response()
-            response.status_code = e.response.status_code
-            response.headers = e.response.headers
-            response.raw = e.response.internal_response
-            raise requests.exceptions.RequestException(e.message, response=response)
+        except AzureError as e:
+            if hasattr(e, "response"):
+                response = requests.model.Response()
+                response.status_code = e.response.status_code
+                response.headers = e.response.headers
+                response.raw = e.response.internal_response
+                raise requests.exceptions.RequestException(e.message, response=response)
+            else:
+                raise requests.exceptions.ConnectionError(e.message)
 
     def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
@@ -1647,8 +1642,8 @@ class Api:
             """
         mutation CreateAgent(
             $host: String!
-            $projectName: String!,
-            $entityName: String!,
+            $projectName: String,
+            $entityName: String,
             $sweep: String!
         ) {
             createAgent(input: {

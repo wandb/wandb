@@ -68,6 +68,7 @@ CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
+SENTRY_DSN = "WANDB_SENTRY_DSN"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -109,7 +110,7 @@ def immutable_keys():
     ]
 
 
-def _env_as_bool(var, default=None, env=None):
+def _env_as_bool(var: str, default: str = None, env=None) -> bool:
     if env is None:
         env = os.environ
     val = env.get(var, default)
@@ -124,7 +125,7 @@ def is_debug(default=None, env=None):
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
-def error_reporting_enabled():
+def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default=True)
 
 

@@ -1,3 +1,62 @@
+## 0.12.11 (March 1, 2022)
+
+#### :nail_care: Enhancement
+* Add captions to Molecules by @dmitryduev in https://github.com/wandb/client/pull/3173
+* Add CatBoost Integration by @ayulockin in https://github.com/wandb/client/pull/2975
+* Launch: AWS Sagemaker integration by @KyleGoyette in https://github.com/wandb/client/pull/3007
+* Launch: Remove repo2docker and add gpu support by @stephchen in https://github.com/wandb/client/pull/3161
+* Adds Timestamp inference from Python for Weave by @tssweeney in https://github.com/wandb/client/pull/3212
+* Launch GCP vertex integration by @stephchen in https://github.com/wandb/client/pull/3040
+* Use Artifacts when put into run config. Accept a string to represent an artifact in the run config by @KyleGoyette in https://github.com/wandb/client/pull/3203
+* Improve xgboost `wandb_callback` (#2929) by @ayulockin in https://github.com/wandb/client/pull/3025
+* Add initial kubeflow pipeline support by @andrewtruong in https://github.com/wandb/client/pull/3206
+
+#### :bug: Bug Fix
+* Fix logging of images with special characters in the key by @speezepearson in https://github.com/wandb/client/pull/3187
+* Fix azure blob upload retry logic by @vanpelt in https://github.com/wandb/client/pull/3218
+* Fix program field for scripts run as a python module by @dmitryduev in https://github.com/wandb/client/pull/3228
+* Fix issue where `sync_tensorboard` could die on large histograms by @KyleGoyette in https://github.com/wandb/client/pull/3019
+* Fix wandb service performance issue during run shutdown by @raubitsj in https://github.com/wandb/client/pull/3262
+* Fix vendoring of gql and graphql by @raubitsj in https://github.com/wandb/client/pull/3266
+* Flush log data without finish with service by @kptkin in https://github.com/wandb/client/pull/3137
+* Fix wandb service hang when the service crashes by @raubitsj in https://github.com/wandb/client/pull/3280
+* Fix issue logging images with "/" on Windows by @KyleGoyette in https://github.com/wandb/client/pull/3146
+* Add image filenames to images/separated media by @KyleGoyette in https://github.com/wandb/client/pull/3041
+* Add setproctitle to requirements.txt by @raubitsj in https://github.com/wandb/client/pull/3289
+* Fix issue where sagemaker run ids break run queues by @KyleGoyette in https://github.com/wandb/client/pull/3290
+* Fix encoding exception when using %%capture magic by @raubitsj in https://github.com/wandb/client/pull/3310
+
+## New Contributors
+* @speezepearson made their first contribution in https://github.com/wandb/client/pull/3188
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.10...v0.12.11
+
+## 0.12.10 (February 1, 2022)
+
+#### :nail_care: Enhancement
+* Improve validation when creating Tables with invalid columns from dataframes by @tssweeney in https://github.com/wandb/client/pull/3113
+* Enable digest deduplication for `use_artifact()` calls by @annirudh in https://github.com/wandb/client/pull/3109
+* Initial prototype of azure blob upload support by @vanpelt in https://github.com/wandb/client/pull/3089
+
+### :bug: Bug Fix
+* Fix wandb launch using python dev versions by @stephchen in https://github.com/wandb/client/pull/3036
+* Fix loading table saved with mixed types by @vwrj in https://github.com/wandb/client/pull/3120
+* Fix ResourceWarning when calling wandb.log by @vwrj in https://github.com/wandb/client/pull/3130
+* Fix missing cursor in ProjectArtifactCollections by @KyleGoyette in https://github.com/wandb/client/pull/3108
+* Fix windows table logging classes issue by @vwrj in https://github.com/wandb/client/pull/3145
+* Gracefully handle string labels in wandb.sklearn.plot.classifier.calibration_curve by @acrellin in https://github.com/wandb/client/pull/3159
+* Do not display login warning when calling wandb.sweep() by @acrellin in https://github.com/wandb/client/pull/3162
+
+### :broom: Cleanup
+* Drop python2 backport deps (enum34, subprocess32, configparser) by @jbylund in https://github.com/wandb/client/pull/3004
+* Settings refactor by @dmitryduev in https://github.com/wandb/client/pull/3083
+
+## New Contributors
+* @jbylund made their first contribution in https://github.com/wandb/client/pull/3004
+* @acrellin made their first contribution in https://github.com/wandb/client/pull/3159
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.9...v0.12.10
+
 ## 0.12.9 (December 16, 2021)
 
 #### :bug: Bug Fix

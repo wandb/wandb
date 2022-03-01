@@ -1,6 +1,9 @@
 id: 0.sb3.01-stable-baselines3
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][policy_type]: MlpPolicy

@@ -4,7 +4,7 @@
 ---
 id: 0.imports.01-batch1
 tag:
-  shard: imports
+  shard: imports1
 plugin:
   - wandb
 depend:
@@ -34,6 +34,9 @@ assert:
     - 7  # catboost
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
+    - 51  # datasets
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 21  # deepchem
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
@@ -48,7 +51,7 @@ import autokeras  # noqa: F401
 import catalyst  # noqa: F401
 import catboost  # noqa: F401
 # import dalle_pytorch
-# import datasets
+import datasets  # noqa: F401
 import deepchem  # noqa: F401
 import deepctr  # noqa: F401
 # import deeppavlov

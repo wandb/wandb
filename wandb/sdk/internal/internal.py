@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 import psutil
 from six.moves import queue
 import wandb
-from wandb.util import sentry_exc
+from wandb.util import sentry_exc, sentry_set_scope
 
 from . import handler
 from . import internal_util
@@ -36,7 +36,7 @@ from . import sender
 from . import settings_static
 from . import writer
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import debug_log
+from ..lib import tracelog
 
 
 if TYPE_CHECKING:
@@ -70,8 +70,11 @@ def wandb_internal(
     """
     # mark this process as internal
     wandb._set_internal_process()
-    _setup_debug_log()
+    _setup_tracelog()
     started = time.time()
+
+    # any sentry events in the internal process will be tagged as such
+    sentry_set_scope(process_context="internal")
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register
@@ -92,15 +95,15 @@ def wandb_internal(
         datetime.fromtimestamp(started),
     )
 
-    debug_log.annotate_queue(record_q, "record_q")
-    debug_log.annotate_queue(result_q, "result_q")
+    tracelog.annotate_queue(record_q, "record_q")
+    tracelog.annotate_queue(result_q, "result_q")
     publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
     threads: "List[RecordLoopThread]" = []
 
     send_record_q: "Queue[Record]" = queue.Queue()
-    debug_log.annotate_queue(send_record_q, "send_q")
+    tracelog.annotate_queue(send_record_q, "send_q")
     record_sender_thread = SenderThread(
         settings=_settings,
         record_q=send_record_q,
@@ -112,7 +115,7 @@ def wandb_internal(
     threads.append(record_sender_thread)
 
     write_record_q: "Queue[Record]" = queue.Queue()
-    debug_log.annotate_queue(write_record_q, "write_q")
+    tracelog.annotate_queue(write_record_q, "write_q")
     record_writer_thread = WriterThread(
         settings=_settings,
         record_q=write_record_q,
@@ -166,15 +169,19 @@ def wandb_internal(
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
             wandb.termerror("Internal wandb error: file data was not synced")
+            if settings.get("_require_service"):
+                # TODO: We can make this more graceful by returning an error to streams.py
+                # and potentially just fail the one stream.
+                os._exit(-1)
             sys.exit(-1)
 
 
-def _setup_debug_log() -> None:
+def _setup_tracelog() -> None:
     # TODO: remove this temporary hack, need to find a better way to pass settings
     # to the server.  for now lets just look at the environment variable we need
-    debug_log_mode = os.environ.get("WANDB_DEBUG_LOG")
-    if debug_log_mode:
-        debug_log.enable(debug_log_mode)
+    tracelog_mode = os.environ.get("WANDB_TRACELOG")
+    if tracelog_mode:
+        tracelog.enable(tracelog_mode)
 
 
 def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:

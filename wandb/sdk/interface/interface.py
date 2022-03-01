@@ -143,7 +143,7 @@ class InterfaceBase(object):
             for k, v in six.iteritems(data):
                 update = config.update.add()
                 update.key = k
-                update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
+                update.value_json = json_dumps_safer(json_friendly(v)[0])
         if key:
             update = config.update.add()
             if isinstance(key, tuple):
@@ -151,7 +151,7 @@ class InterfaceBase(object):
                     update.nested_key.append(k)
             else:
                 update.key = key
-            update.value_json = json_dumps_safer(json_friendly(val)[0])  # type: ignore
+            update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
     def _make_run(self, run: "Run") -> pb.RunRecord:
@@ -258,13 +258,13 @@ class InterfaceBase(object):
                 )
             return json_value
         else:
-            friendly_value, converted = json_friendly(  # type: ignore
+            friendly_value, converted = json_friendly(
                 data_types.val_to_json(
                     self._run, path_from_root, value, namespace="summary"
                 )
             )
-            json_value, compressed = maybe_compress_summary(  # type: ignore
-                friendly_value, get_h5_typename(value)  # type: ignore
+            json_value, compressed = maybe_compress_summary(
+                friendly_value, get_h5_typename(value)
             )
             if compressed:
                 # TODO(jhr): impleement me
@@ -365,7 +365,7 @@ class InterfaceBase(object):
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))  # type: ignore
+            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -489,6 +489,37 @@ class InterfaceBase(object):
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
+    def publish_partial_history(
+        self,
+        data: dict,
+        step: int,
+        flush: Optional[bool] = None,
+        publish_step: bool = True,
+        run: Optional["Run"] = None,
+    ) -> None:
+        run = run or self._run
+
+        data = data_types.history_dict_to_json(
+            run, data, step=step, ignore_copy_err=True
+        )
+        data.pop("_step", None)
+
+        partial_history = pb.PartialHistoryRequest()
+        for k, v in data.items():
+            item = partial_history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)
+        if publish_step:
+            assert step is not None
+            partial_history.step.num = step
+        if flush is not None:
+            partial_history.action.flush = flush
+        self._publish_partial_history(partial_history)
+
+    @abstractmethod
+    def _publish_partial_history(self, history: pb.PartialHistoryRequest) -> None:
+        raise NotImplementedError
+
     def publish_history(
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
@@ -502,7 +533,7 @@ class InterfaceBase(object):
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)  # type: ignore
+            item.value_json = json_dumps_safer_history(v)
         self._publish_history(history)
 
     @abstractmethod

@@ -17,6 +17,7 @@ from __future__ import print_function
 import base64
 import binascii
 import codecs
+import datetime
 import hashlib
 import json
 import logging
@@ -24,12 +25,12 @@ import os
 import pprint
 import re
 import sys
-import warnings
+import tempfile
+from typing import Optional
 
 import six
 import wandb
 from wandb import util
-from wandb.compat import tempfile
 from wandb.sdk.data_types import (
     _numpy_arrays_to_lists,
     BatchableMedia,
@@ -67,11 +68,6 @@ __all__ = [
 ]
 
 
-# Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings(
-    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-)
-
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
@@ -108,8 +104,34 @@ def _json_helper(val, artifact):
         for key in val:
             res[key] = _json_helper(val[key], artifact)
         return res
-    elif hasattr(val, "tolist"):
-        return util.json_friendly(val.tolist())[0]
+
+    if hasattr(val, "tolist"):
+        return _json_helper(val.tolist(), artifact)
+    elif hasattr(val, "item"):
+        return _json_helper(val.item(), artifact)
+
+    if isinstance(val, datetime.datetime):
+        if val.tzinfo is None:
+            val = datetime.datetime(
+                val.year,
+                val.month,
+                val.day,
+                val.hour,
+                val.minute,
+                val.second,
+                val.microsecond,
+                tzinfo=datetime.timezone.utc,
+            )
+        return int(val.timestamp() * 1000)
+    elif isinstance(val, datetime.date):
+        return int(
+            datetime.datetime(
+                val.year, val.month, val.day, tzinfo=datetime.timezone.utc
+            ).timestamp()
+            * 1000
+        )
+    elif isinstance(val, (list, tuple)):
+        return [_json_helper(i, artifact) for i in val]
     else:
         return util.json_friendly(val)[0]
 
@@ -1026,13 +1048,15 @@ class Audio(BatchableMedia):
             caption=json_obj["caption"],
         )
 
-    def bind_to_run(self, run, key, step, id_=None):
+    def bind_to_run(
+        self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
+    ):
         if Audio.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return super(Audio, self).bind_to_run(run, key, step, id_)
+        return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)

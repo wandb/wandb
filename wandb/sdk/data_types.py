@@ -10,6 +10,7 @@ import platform
 import re
 import shutil
 import sys
+import tempfile
 from typing import (
     Any,
     cast,
@@ -31,7 +32,6 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
-from wandb.compat import tempfile
 from wandb.util import has_num
 
 from .interface import _dtypes
@@ -81,8 +81,8 @@ def _get_max_cli_version() -> Union[str, None]:
 
 def _is_offline() -> bool:
     return (
-        wandb.run is not None and wandb.run._settings.mode == "offline"  # type: ignore
-    ) or str(wandb.setup().settings.mode) == "offline"
+        wandb.run is not None and wandb.run.settings._offline
+    ) or wandb.setup().settings._offline
 
 
 def _server_accepts_client_ids() -> bool:
@@ -104,6 +104,15 @@ def _server_accepts_client_ids() -> bool:
     if max_cli_version is None:
         return False
     return parse_version("0.11.0") <= parse_version(max_cli_version)
+
+
+def _server_accepts_image_filenames() -> bool:
+    # Newer versions of wandb accept large image filenames arrays
+    # but older versions would have issues with this.
+    max_cli_version = _get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.12.10") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):
@@ -484,6 +493,7 @@ class Media(WBValue):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
         """Bind this object to a particular Run.
 
@@ -531,7 +541,11 @@ class Media(WBValue):
             self._is_tmp = False
             _datatypes_callback(media_path)
         else:
-            shutil.copy(self._path, new_path)
+            try:
+                shutil.copy(self._path, new_path)
+            except shutil.SameFileError as e:
+                if not ignore_copy_err:
+                    raise e
             self._path = new_path
             _datatypes_callback(media_path)
 
@@ -860,6 +874,8 @@ class Molecule(BatchableMedia):
     Arguments:
         data_or_path: (string, io)
             Molecule can be initialized from a file name or an io object.
+        caption: (string)
+            Caption associated with the molecule for display.
     """
 
     SUPPORTED_TYPES = {
@@ -877,8 +893,15 @@ class Molecule(BatchableMedia):
     SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
     _log_type = "molecule-file"
 
-    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
+    def __init__(
+        self,
+        data_or_path: Union[str, "TextIO"],
+        caption: Optional[str] = None,
+        **kwargs: str,
+    ) -> None:
         super(Molecule, self).__init__()
+
+        self._caption = caption
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
@@ -923,6 +946,7 @@ class Molecule(BatchableMedia):
     def from_rdkit(
         cls,
         data_or_path: "RDKitDataType",
+        caption: Optional[str] = None,
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
@@ -932,10 +956,12 @@ class Molecule(BatchableMedia):
         Arguments:
             data_or_path: (string, rdkit.Chem.rdchem.Mol)
                 Molecule can be initialized from a file name or an rdkit.Chem.rdchem.Mol object.
-            convert_to_3d_and_optimize: bool
+            caption: (string)
+                Caption associated with the molecule for display.
+            convert_to_3d_and_optimize: (bool)
                 Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
                 This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations: int
+            mmff_optimize_molecule_max_iterations: (int)
                 Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
         """
         rdkit_chem = util.get_module(
@@ -980,12 +1006,13 @@ class Molecule(BatchableMedia):
         # convert to the pdb format supported by Molecule
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
 
-        return cls(io.StringIO(pdb_block), file_type="pdb")
+        return cls(io.StringIO(pdb_block), caption=caption, file_type="pdb")
 
     @classmethod
     def from_smiles(
         cls,
         data: str,
+        caption: Optional[str] = None,
         sanitize: bool = True,
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
@@ -994,14 +1021,16 @@ class Molecule(BatchableMedia):
         Convert SMILES string to wandb.Molecule
 
         Arguments:
-            data: string
+            data: (string)
                 SMILES string.
-            sanitize: bool
+            caption: (string)
+                Caption associated with the molecule for display
+            sanitize: (bool)
                 Check if the molecule is chemically reasonable by the RDKit's definition.
-            convert_to_3d_and_optimize: bool
+            convert_to_3d_and_optimize: (bool)
                 Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
                 This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations: int
+            mmff_optimize_molecule_max_iterations: (int)
                 Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
         """
         rdkit_chem = util.get_module(
@@ -1014,6 +1043,7 @@ class Molecule(BatchableMedia):
 
         return cls.from_rdkit(
             data_or_path=molecule,
+            caption=caption,
             convert_to_3d_and_optimize=convert_to_3d_and_optimize,
             mmff_optimize_molecule_max_iterations=mmff_optimize_molecule_max_iterations,
         )
@@ -1548,10 +1578,11 @@ class ImageMask(Media):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
-        super(ImageMask, self).bind_to_run(run, key, step, id_=id_)
+        super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
         class_labels = self._val["class_labels"]
 
         run._add_singleton(
@@ -1838,10 +1869,11 @@ class BoundingBoxes2D(JSONMetadata):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
-        super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
+        super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
         run._add_singleton(
             "bounding_box/class_labels",
             str(key) + "_wandb_delimeter_" + self._key,
@@ -2253,17 +2285,22 @@ class Image(BatchableMedia):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
-        super(Image, self).bind_to_run(run, key, step, id_)
+        super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._boxes[k].bind_to_run(run, key, step, id_)
+                self._boxes[k].bind_to_run(
+                    run, key, step, id_, ignore_copy_err=ignore_copy_err
+                )
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._masks[k].bind_to_run(run, key, step, id_)
+                self._masks[k].bind_to_run(
+                    run, key, step, id_, ignore_copy_err=ignore_copy_err
+                )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Image, self).to_json(run_or_artifact)
@@ -2401,6 +2438,14 @@ class Image(BatchableMedia):
             "format": format,
             "count": num_images_to_log,
         }
+        if _server_accepts_image_filenames():
+            meta["filenames"] = [obj["path"] for obj in jsons]
+        else:
+            wandb.termwarn(
+                "Unable to log image array filenames. In some cases, this can prevent images from being"
+                "viewed in the UI. Please upgrade your wandb server",
+                repeat=False,
+            )
 
         captions = Image.all_captions(seq)
 
@@ -2574,7 +2619,10 @@ class Plotly(Media):
 
 
 def history_dict_to_json(
-    run: "Optional[LocalRun]", payload: dict, step: Optional[int] = None
+    run: "Optional[LocalRun]",
+    payload: dict,
+    step: Optional[int] = None,
+    ignore_copy_err: Optional[bool] = None,
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
@@ -2586,9 +2634,13 @@ def history_dict_to_json(
     for key in list(payload):
         val = payload[key]
         if isinstance(val, dict):
-            payload[key] = history_dict_to_json(run, val, step=step)
+            payload[key] = history_dict_to_json(
+                run, val, step=step, ignore_copy_err=ignore_copy_err
+            )
         else:
-            payload[key] = val_to_json(run, key, val, namespace=step)
+            payload[key] = val_to_json(
+                run, key, val, namespace=step, ignore_copy_err=ignore_copy_err
+            )
 
     return payload
 
@@ -2599,6 +2651,7 @@ def val_to_json(
     key: str,
     val: "ValToJsonType",
     namespace: Optional[Union[str, int]] = None,
+    ignore_copy_err: Optional[bool] = None,
 ) -> Union[Sequence, dict]:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
@@ -2629,7 +2682,9 @@ def val_to_json(
             items = _prune_max_seq(val)
 
             for i, item in enumerate(items):
-                item.bind_to_run(run, key, namespace, id_=i)
+                item.bind_to_run(
+                    run, key, namespace, id_=i, ignore_copy_err=ignore_copy_err
+                )
 
             return items[0].seq_to_json(items, run, key, namespace)
         else:
@@ -2640,7 +2695,12 @@ def val_to_json(
             # This used to happen. The frontend doesn't handle heterogenous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
-            return [val_to_json(run, key, v, namespace=namespace) for v in val]
+            return [
+                val_to_json(
+                    run, key, v, namespace=namespace, ignore_copy_err=ignore_copy_err
+                )
+                for v in val
+            ]
 
     if isinstance(val, WBValue):
         assert run
