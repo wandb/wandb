@@ -188,7 +188,10 @@ def attach(func: Callable) -> Callable:
     @functools.wraps(func)
     def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
         try:
-            if getattr(self, "_init_pid", None) != os.getpid():
+            if (
+                getattr(self, "_attach_id", None)
+                and getattr(self, "_init_pid", None) != os.getpid()
+            ):
                 wandb._attach(run=self)
             return func(self, *args, **kwargs)
         except Exception as e:
