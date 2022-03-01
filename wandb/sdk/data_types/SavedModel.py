@@ -168,9 +168,6 @@ class _IModelAdapter(Generic[ModelObjectType]):
         - `_unsafe_maybe_init_from_path` should return a new instance of the implementing class if possible
         - `_unsafe_can_adapt_model` should return True if the adapter can adapt the given model
         - `save_model` should save the model to the given directory
-        - can_adapt_model(model: ModelObjectType) -> bool
-
-
     """
 
     # Class Vars
