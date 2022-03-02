@@ -2,7 +2,7 @@ import os
 from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
 
 from .. import _dtypes
-from ..base_types.Media import Media
+from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact

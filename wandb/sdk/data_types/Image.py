@@ -9,10 +9,10 @@ import wandb
 from wandb import util
 
 from ._private import MEDIA_TMP
-from .base_types.Media import BatchableMedia, Media
-from .helper_types.BoundingBoxes2D import BoundingBoxes2D
-from .helper_types.Classes import Classes
-from .helper_types.ImageMask import ImageMask
+from .base_types.media import BatchableMedia, Media
+from .helper_types.bounding_boxes_2d import BoundingBoxes2D
+from .helper_types.classes import Classes
+from .helper_types.image_mask import ImageMask
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore

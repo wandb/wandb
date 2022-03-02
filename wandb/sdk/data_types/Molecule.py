@@ -6,7 +6,7 @@ from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
 from wandb import util
 
 from ._private import MEDIA_TMP
-from .base_types.Media import BatchableMedia, Media
+from .base_types.media import BatchableMedia, Media
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO

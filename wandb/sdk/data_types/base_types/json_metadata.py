@@ -4,7 +4,7 @@ from typing import Type, TYPE_CHECKING, Union
 
 from wandb import util
 
-from .Media import Media
+from .media import Media
 from .._private import MEDIA_TMP
 
 if TYPE_CHECKING:  # pragma: no cover

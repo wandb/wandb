@@ -5,7 +5,7 @@ from wandb import util
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.Media import BatchableMedia
+from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO

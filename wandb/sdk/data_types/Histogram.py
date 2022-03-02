@@ -3,7 +3,7 @@ from typing import Optional, Sequence, Tuple, TYPE_CHECKING, Union
 
 from wandb import util
 
-from .base_types.WBValue import WBValue
+from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore

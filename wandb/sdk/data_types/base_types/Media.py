@@ -8,7 +8,7 @@ import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 
-from .WBValue import WBValue
+from .wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore

@@ -84,7 +84,7 @@ from .wandb_setup import _WandbSetup
 
 
 if TYPE_CHECKING:
-    from .data_types.base_types.WBValue import WBValue
+    from .data_types.base_types.wb_value import WBValue
     from .wandb_alerts import AlertLevel
 
     from .interface.artifacts import (

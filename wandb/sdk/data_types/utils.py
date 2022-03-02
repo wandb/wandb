@@ -7,9 +7,9 @@ import wandb
 from wandb import util
 
 
-from .base_types.Media import BatchableMedia, Media
-from .base_types.WBValue import WBValue
-from .Plotly import Plotly
+from .base_types.media import BatchableMedia, Media
+from .base_types.wb_value import WBValue
+from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore

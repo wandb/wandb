@@ -5,7 +5,7 @@ import wandb
 from wandb import util
 from wandb.util import has_num
 
-from ..base_types.JSONMetadata import JSONMetadata
+from ..base_types.json_metadata import JSONMetadata
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact

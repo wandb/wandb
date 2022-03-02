@@ -6,7 +6,7 @@ import wandb
 from wandb import util
 
 from .._private import MEDIA_TMP
-from ..base_types.Media import Media
+from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact

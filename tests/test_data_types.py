@@ -1,6 +1,6 @@
 import wandb
 from wandb import data_types
-from wandb.sdk.data_types.base_types.Media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 import numpy as np
 import pytest
 import PIL
