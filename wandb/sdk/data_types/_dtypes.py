@@ -1,3 +1,24 @@
+__all__ = [
+    "AnyType",
+    "BooleanType",
+    "ConstType",
+    "InvalidType",
+    "ListType",
+    "NDArrayType",
+    "NoneType",
+    "NumberType",
+    "OptionalType",
+    "PythonObjectType",
+    "StringType",
+    "TimestampType",
+    "Type",
+    "TypedDictType",
+    "TypeRegistry",
+    "UnionType",
+    "UnknownType",
+]
+
+
 import datetime
 import math
 import sys
@@ -22,17 +43,17 @@ class TypeRegistry:
     the .add call.
     """
 
-    _types_by_name = None
-    _types_by_class = None
+    _types_by_name: t.Optional[dict] = None
+    _types_by_class: t.Optional[dict] = None
 
     @staticmethod
-    def types_by_name():
+    def types_by_name() -> dict:
         if TypeRegistry._types_by_name is None:
             TypeRegistry._types_by_name = {}
         return TypeRegistry._types_by_name
 
     @staticmethod
-    def types_by_class():
+    def types_by_class() -> dict:
         if TypeRegistry._types_by_class is None:
             TypeRegistry._types_by_class = {}
         return TypeRegistry._types_by_class
@@ -64,7 +85,7 @@ class TypeRegistry:
             _type = class_handler.from_obj(py_obj)
         else:
             _type = PythonObjectType.from_obj(py_obj)
-        return _type
+        return _type  # type: ignore[no-any-return]
 
     @staticmethod
     def type_from_dict(
@@ -76,7 +97,7 @@ class TypeRegistry:
         _type = TypeRegistry.types_by_name().get(wb_type)
         if _type is None:
             TypeError("missing type handler for {}".format(wb_type))
-        return _type.from_json(json_dict, artifact)
+        return _type.from_json(json_dict, artifact)  # type: ignore
 
     @staticmethod
     def type_from_dtype(dtype: ConvertableToType) -> "Type":
@@ -159,7 +180,7 @@ def _json_obj_to_params_obj(
         return json_obj
 
 
-class Type(object):
+class Type:
     """This is the most generic type which all types are subclasses.
     It provides simple serialization and deserialization as well as equality checks.
     A name class-level property must be uniquely set by subclasses.
@@ -181,11 +202,11 @@ class Type(object):
     # Contains the further specification of the Type
     _params: t.Dict[str, t.Any]
 
-    def __init__(*args, **kwargs):
+    def __init__(*args: t.Any, **kwargs: t.Any) -> None:
         pass
 
     @property
-    def params(self):
+    def params(self) -> t.Dict[str, t.Any]:
         if not hasattr(self, "_params") or self._params is None:
             self._params = {}
         return self._params
@@ -255,7 +276,7 @@ class Type(object):
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "Type":
         return cls()
 
-    def explain(self, other: t.Any, depth=0) -> str:
+    def explain(self, other: t.Any, depth: int = 0) -> str:
         """Explains why an item is not assignable to a type. Assumes that
         the caller has already validated that the assignment fails.
 
@@ -275,7 +296,7 @@ class Type(object):
                 gap, other, wbtype, self
             )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         rep = self.name.capitalize()
         if len(self.params.keys()) > 0:
             rep += "("
@@ -286,7 +307,7 @@ class Type(object):
             rep += ")"
         return rep
 
-    def __eq__(self, other):
+    def __eq__(self, other: t.Any) -> bool:
         return self is other or (
             isinstance(self, Type)
             and isinstance(other, Type)
@@ -447,7 +468,7 @@ class ConstType(Type):
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "ConstType":
         return cls(py_obj)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self.params["val"])
 
 
@@ -466,7 +487,7 @@ def _flatten_union_types(wb_types: t.List[Type]) -> t.List[Type]:
 def _union_assigner(
     allowed_types: t.List[Type],
     obj_or_type: t.Union[Type, t.Optional[t.Any]],
-    type_mode=False,
+    type_mode: bool = False,
 ) -> t.Union[t.List[Type], InvalidType]:
     resolved_types = []
     valid = False
@@ -557,7 +578,7 @@ class UnionType(Type):
 
         return self.__class__(resolved_types)
 
-    def explain(self, other: t.Any, depth=0) -> str:
+    def explain(self, other: t.Any, depth: int = 0) -> str:
         exp = super(UnionType, self).explain(other, depth)
         for ndx, subtype in enumerate(self.params["allowed_types"]):
             if ndx > 0:
@@ -565,7 +586,7 @@ class UnionType(Type):
             exp += "\n" + subtype.explain(other, depth=depth + 1)
         return exp
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}".format(" or ".join([str(t) for t in self.params["allowed_types"]]))
 
 
@@ -659,7 +680,7 @@ class ListType(Type):
 
         return InvalidType()
 
-    def explain(self, other: t.Any, depth=0) -> str:
+    def explain(self, other: t.Any, depth: int = 0) -> str:
         exp = super(ListType, self).explain(other, depth)
         gap = "".join(["\t"] * depth)
         if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
@@ -679,7 +700,7 @@ class ListType(Type):
                 new_element_type = _new_element_type
         return exp
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}[]".format(self.params["element_type"])
 
 
@@ -711,7 +732,7 @@ class NDArrayType(Type):
                 shape.append(dim)
                 if dim > 0:
                     target = target[0]
-            return cls(shape)
+            return cls(shape)  # type: ignore[unreachable]
         else:
             raise TypeError(
                 "NDArrayType.from_obj expects py_obj to be ndarray or list, found {}".format(
@@ -840,7 +861,7 @@ class TypedDictType(Type):
 
         return InvalidType()
 
-    def explain(self, other: t.Any, depth=0) -> str:
+    def explain(self, other: t.Any, depth: int = 0) -> str:
         exp = super(TypedDictType, self).explain(other, depth)
         gap = "".join(["\t"] * depth)
         if isinstance(other, dict):
@@ -860,7 +881,7 @@ class TypedDictType(Type):
                     )
         return exp
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{}".format(self.params["type_map"])
 
 
@@ -885,23 +906,3 @@ TypeRegistry.add(ConstType)
 
 # Common Industry Types
 TypeRegistry.add(NDArrayType)
-
-__all__ = [
-    "TypeRegistry",
-    "InvalidType",
-    "UnknownType",
-    "AnyType",
-    "NoneType",
-    "StringType",
-    "NumberType",
-    "TimestampType",
-    "BooleanType",
-    "ListType",
-    "TypedDictType",
-    "UnionType",
-    "PythonObjectType",
-    "ConstType",
-    "OptionalType",
-    "Type",
-    "NDArrayType",
-]

@@ -24,11 +24,9 @@ import logging
 import os
 import pprint
 import re
-import sys
 import tempfile
 from typing import Optional
 
-import six
 import wandb
 from wandb import util
 
@@ -71,6 +69,7 @@ __all__ = [
     "ImageMask",
     "BoundingBoxes2D",
     "Classes",
+    "WBValue",
 ]
 
 
@@ -284,8 +283,6 @@ class Table(Media):
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
-        if sys.version_info.major < 3:
-            valid_col_types.append(unicode)  # noqa: F821 (unicode is in py2)
         assert type(columns) is list, "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
             [type(col) in valid_col_types for col in columns]
@@ -1015,7 +1012,7 @@ class Audio(BatchableMedia):
         self._sample_rate = sample_rate
         self._caption = caption
 
-        if isinstance(data_or_path, six.string_types):
+        if isinstance(data_or_path, str):
             if Audio.path_is_reference(data_or_path):
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()

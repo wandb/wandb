@@ -30,6 +30,7 @@ from wandb import util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
+from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
@@ -70,7 +71,7 @@ ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
 
 class _AddedObj(object):
-    def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
+    def __init__(self, entry: ArtifactEntry, obj: "WBValue"):
         self.entry = entry
         self.obj = obj
 
@@ -454,7 +455,7 @@ class Artifact(ArtifactInterface):
 
         return manifest_entries
 
-    def add(self, obj: data_types.WBValue, name: str) -> ArtifactEntry:
+    def add(self, obj: "WBValue", name: str) -> ArtifactEntry:
         self._ensure_can_add()
         name = util.to_forward_slash_path(name)
 
@@ -544,7 +545,7 @@ class Artifact(ArtifactInterface):
             "Cannot load paths from an artifact before it has been logged or in offline mode"
         )
 
-    def get(self, name: str) -> data_types.WBValue:
+    def get(self, name: str) -> "WBValue":
         if self._logged_artifact:
             return self._logged_artifact.get(name)
 
@@ -705,10 +706,10 @@ class Artifact(ArtifactInterface):
         self._added_local_paths[path] = entry
         return entry
 
-    def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactEntry:
+    def __setitem__(self, name: str, item: "WBValue") -> ArtifactEntry:
         return self.add(item, name)
 
-    def __getitem__(self, name: str) -> Optional[data_types.WBValue]:
+    def __getitem__(self, name: str) -> Optional["WBValue"]:
         return self.get(name)
 
 
