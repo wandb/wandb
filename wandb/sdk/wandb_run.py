@@ -625,9 +625,10 @@ class Run:
         if not _attach_id:
             return
 
+        if state["_init_pid"] == os.getpid():
+            raise RuntimeError("attach in the same process is not supported")
+
         self._is_attaching = ""
-        # if state["_init_pid"] == os.getpid():
-        #     raise RuntimeError("attach in the same process is not supported")
         self._attach_id = _attach_id
 
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":
