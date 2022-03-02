@@ -199,26 +199,26 @@ def test_attrib_get_bad():
 
 def test_update_override():
     s = Settings()
-    s.update(dict(base_url="something2"), source=Source.OVERRIDE)
-    assert s.base_url == "something2"
+    s.update(dict(base_url="https://something2.local"), source=Source.OVERRIDE)
+    assert s.base_url == "https://something2.local"
 
 
 def test_update_priorities():
     s = Settings()
     # USER has higher priority than ORG (and both are higher priority than BASE)
-    s.update(dict(base_url="foo"), source=Source.USER)
-    assert s.base_url == "foo"
-    s.update(dict(base_url="bar"), source=Source.ORG)
-    assert s.base_url == "foo"
+    s.update(dict(base_url="https://foo.local"), source=Source.USER)
+    assert s.base_url == "https://foo.local"
+    s.update(dict(base_url="https://bar.local"), source=Source.ORG)
+    assert s.base_url == "https://foo.local"
 
 
 def test_update_priorities_order():
     s = Settings()
     # USER has higher priority than ORG (and both are higher priority than BASE)
-    s.update(dict(base_url="bar"), source=Source.ORG)
-    assert s.base_url == "bar"
-    s.update(dict(base_url="foo"), source=Source.USER)
-    assert s.base_url == "foo"
+    s.update(dict(base_url="https://bar.local"), source=Source.ORG)
+    assert s.base_url == "https://bar.local"
+    s.update(dict(base_url="https://foo.local"), source=Source.USER)
+    assert s.base_url == "https://foo.local"
 
 
 def test_update_missing_attrib():
@@ -229,14 +229,14 @@ def test_update_missing_attrib():
 
 def test_update_kwargs():
     s = Settings()
-    s.update(base_url="something")
-    assert s.base_url == "something"
+    s.update(base_url="https://something.local")
+    assert s.base_url == "https://something.local"
 
 
 def test_update_both():
     s = Settings()
-    s.update(dict(base_url="something"), project="nothing")
-    assert s.base_url == "something"
+    s.update(dict(base_url="https://something.local"), project="nothing")
+    assert s.base_url == "https://something.local"
     assert s.project == "nothing"
 
 
@@ -283,12 +283,12 @@ ignore_globs=foo,bar"""
 
 def test_copy():
     s = Settings()
-    s.update(base_url="changed")
+    s.update(base_url="https://changed.local")
     s2 = copy.copy(s)
-    assert s2.base_url == "changed"
-    s.update(base_url="notchanged")
-    assert s.base_url == "notchanged"
-    assert s2.base_url == "changed"
+    assert s2.base_url == "https://changed.local"
+    s.update(base_url="https://not.changed.local")
+    assert s.base_url == "https://not.changed.local"
+    assert s2.base_url == "https://changed.local"
 
 
 def test_update_linked_properties():
@@ -413,30 +413,62 @@ def test_priority_update_policy_smaller_source():
     assert s.summary_warnings == 42
 
 
-def test_validate_base_url():
-    s = Settings()
-    with pytest.raises(UsageError):
-        s.update(base_url="https://wandb.ai")
-    with pytest.raises(UsageError):
-        s.update(base_url="https://app.wandb.ai")
-    with pytest.raises(UsageError):
-        s.update(base_url="http://api.wandb.ai")
-    s.update(base_url="https://api.wandb.ai")
-    assert s.base_url == "https://api.wandb.ai"
-    s.update(base_url="https://wandb.ai.other.crazy.domain.com")
-    assert s.base_url == "https://wandb.ai.other.crazy.domain.com"
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://api.wandb.ai",
+        "https://wandb.ai.other.crazy.domain.com",
+        "https://127.0.0.1",
+        "https://localhost",
+        "https://192.168.31.1:8080",
+        "https://myhost:8888",  # fixme: should this be allowed?
+    ],
+)
+def test_validate_base_url(url):
+    s = Settings(base_url=url)
+    assert s.base_url == url
 
 
-def test_preprocess_base_url():
+@pytest.mark.parametrize(
+    "url, error",
+    [
+        (
+            "https://wandb.ai",
+            "is not a valid server address, did you mean https://api.wandb.ai?",
+        ),
+        (
+            "https://app.wandb.ai",
+            "is not a valid server address, did you mean https://api.wandb.ai?",
+        ),
+        ("http://api.wandb.ai", "http is not secure, please use https://api.wandb.ai"),
+        ("http://host\t.ai", "URL cannot contain unsafe characters"),
+        ("http://host\n.ai", "URL cannot contain unsafe characters"),
+        ("http://host\r.ai", "URL cannot contain unsafe characters"),
+        ("ftp://host.ai", "URL must start with `http(s)://`"),
+        ("gibberish", "gibberish is not a valid server address",),
+        ("LOL" * 100, "hostname is invalid"),
+    ],
+)
+def test_validate_invalid_base_url(capsys, url, error):
     s = Settings()
-    s.update(base_url="http://host.com")
-    assert s.base_url == "http://host.com"
-    s.update(base_url="http://host.com/")
-    assert s.base_url == "http://host.com"
-    s.update(base_url="http://host.com///")
-    assert s.base_url == "http://host.com"
-    s.update(base_url="//http://host.com//")
-    assert s.base_url == "//http://host.com"
+    with pytest.raises(UsageError):
+        s.update(base_url=url)
+        captured = capsys.readouterr().err
+        assert error in captured
+
+
+@pytest.mark.parametrize(
+    "url, processed_url",
+    [
+        ("https://host.com", "https://host.com"),
+        ("https://host.com/", "https://host.com"),
+        ("https://host.com///", "https://host.com"),
+    ],
+)
+def test_preprocess_base_url(url, processed_url):
+    s = Settings()
+    s.update(base_url=url)
+    assert s.base_url == processed_url
 
 
 def test_code_saving_save_code_env_false(live_mock_server, test_settings):

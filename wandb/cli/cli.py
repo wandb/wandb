@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
+import configparser
 import copy
 import datetime
 from functools import wraps
@@ -23,7 +23,6 @@ from click.exceptions import ClickException
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 import six
-from six.moves import configparser
 import wandb
 from wandb import Config
 from wandb import env, util
@@ -216,9 +215,6 @@ def projects(entity, display=True):
 def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
-
-    if host and not host.startswith("http"):
-        raise ClickException("host must start with http(s)://")
 
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
