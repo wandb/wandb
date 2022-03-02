@@ -103,12 +103,12 @@ class VertexRunner(AbstractRunner):
         gcp_staging_bucket = resource_args.get("gcp_staging_bucket")
         if not gcp_staging_bucket:
             raise LaunchError(
-                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. You can specify a bucket with --resource-arg gcp_staging_bucket=<bucket>."
+                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key gcp_staging_bucket."
             )
         gcp_artifact_repo = resource_args.get("gcp_artifact_repo")
         if not gcp_artifact_repo:
             raise LaunchError(
-                "Vertex requires an Artifact Registry repository for the Docker image. You can specify a repo with --resource-arg gcp_artifact_repo=<repo>."
+                "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key gcp_artifact_repo."
             )
         gcp_docker_host = resource_args.get(
             "gcp_docker_host"
