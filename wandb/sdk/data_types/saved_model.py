@@ -309,7 +309,8 @@ class _IModelAdapter(Generic[AdapterModelObjType]):
 
             if cls.can_adapt_model_obj(maybe_model):
                 return maybe_model
-        except Exception:
+        except Exception as e:
+            print(f"Error in {cls.adapter_id()}.model_obj_from_path:", e)
             pass
         return None
 
@@ -321,7 +322,8 @@ class _IModelAdapter(Generic[AdapterModelObjType]):
         """
         try:
             return cls._unsafe_can_adapt_model_obj(obj)
-        except Exception:
+        except Exception as e:
+            print(f"Error in {cls.adapter_id()}.can_adapt_model_obj:", e)
             return False
 
     @classmethod
