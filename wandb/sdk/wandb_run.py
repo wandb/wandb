@@ -116,7 +116,7 @@ class TeardownHook(NamedTuple):
     stage: TeardownStage
 
 
-class RunStatusChecker(object):
+class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
     For now, we just use this to figure out if the user has requested a stop.
@@ -183,11 +183,15 @@ class RunStatusChecker(object):
         self._retry_thread.join()
 
 
-# TODO(kpt) should we auto decorate?
 def attach(func: Callable) -> Callable:
     @functools.wraps(func)
     def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
         try:
+            # * `_attach_id` is only assigned in service hence for all non-service cases
+            # it will be a passthrough.
+            # * `_init_pid` is only assigned in __init__:
+            #   - for non-fork case the object is shared through pickling so will be None.
+            #   - for fork case the new process share mem space hence the value would be of parent process.
             if (
                 getattr(self, "_attach_id", None)
                 and getattr(self, "_init_pid", None) != os.getpid()
@@ -592,7 +596,7 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id)
+        return dict(_attach_id=_attach_id, _init_pid=self._init_pid)
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -602,6 +606,9 @@ class Run:
         _attach_id = state.get("_attach_id")
         if not _attach_id:
             return
+
+        if state["_init_pid"] == os.getpid():
+            raise RuntimeError("attach in the same process is not supported")
 
         self._attach_id = _attach_id
 
