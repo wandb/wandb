@@ -741,6 +741,9 @@ message ArtifactSendRequest {
 
 message ArtifactSendResponse {
   string xid = 1;
+  string ignore1 = 1001;
+  string ignore2 = 1002;
+  string ignore3 = 1003;
 }
 
 /*
