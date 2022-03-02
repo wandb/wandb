@@ -16,7 +16,6 @@ import os
 from typing import Any, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
-from wandb import data_types
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
@@ -32,6 +31,7 @@ from wandb.util import (
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
+from ..data_types.utils import history_dict_to_json, val_to_json
 from ..wandb_artifacts import Artifact
 
 if TYPE_CHECKING:
@@ -258,9 +258,7 @@ class InterfaceBase(object):
             return json_value
         else:
             friendly_value, converted = json_friendly(
-                data_types.val_to_json(
-                    self._run, path_from_root, value, namespace="summary"
-                )
+                val_to_json(self._run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -499,9 +497,13 @@ class InterfaceBase(object):
     ) -> None:
         run = run or self._run
 
+<<<<<<< HEAD
         data = data_types.history_dict_to_json(
             run, data, step=user_step, ignore_copy_err=True
         )
+=======
+        data = history_dict_to_json(run, data, step=step, ignore_copy_err=True)
+>>>>>>> 3ef746cc9b765d6f493b1008fcab6013d9110b4c
         data.pop("_step", None)
 
         partial_history = pb.PartialHistoryRequest()
@@ -524,7 +526,7 @@ class InterfaceBase(object):
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
         run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
+        data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
             assert step is not None
