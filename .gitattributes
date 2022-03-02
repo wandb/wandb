@@ -1,0 +1,3 @@
+wandb/vendor/** linguist-vendored
+wandb/proto/*_pb2.py linguist-generated
+wandb/proto/*_pb2.pyi linguist-generated
