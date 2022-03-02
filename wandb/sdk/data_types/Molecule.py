@@ -3,11 +3,10 @@ import os
 import pathlib
 from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
 
-import six
 from wandb import util
 
 from ._private import MEDIA_TMP
-from .base_types.Media import BatchableMedia, Media
+from .base_types.media import BatchableMedia, Media
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -83,7 +82,7 @@ class Molecule(BatchableMedia):
                 f.write(molecule)
 
             self._set_file(tmp_path, is_tmp=True)
-        elif isinstance(data_or_path, six.string_types):
+        elif isinstance(data_or_path, str):
             extension = os.path.splitext(data_or_path)[1][1:]
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
@@ -126,7 +125,7 @@ class Molecule(BatchableMedia):
             required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
         )
 
-        if isinstance(data_or_path, six.string_types):
+        if isinstance(data_or_path, str):
             # path to a file?
             path = pathlib.Path(data_or_path)
             extension = path.suffix.split(".")[-1]

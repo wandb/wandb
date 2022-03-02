@@ -2,14 +2,14 @@ import logging
 import re
 from typing import cast, Optional, Sequence, TYPE_CHECKING, Union
 
-from six.moves.collections_abc import Sequence as SixSequence
+
 import wandb
 from wandb import util
 
 
-from .base_types.Media import BatchableMedia, Media
-from .base_types.WBValue import WBValue
-from .Plotly import Plotly
+from .base_types.media import BatchableMedia, Media
+from .base_types.wb_value import WBValue
+from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
@@ -78,7 +78,7 @@ def val_to_json(
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
-    elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
+    elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
         assert run
         # This check will break down if Image/Audio/... have child classes.
         if (

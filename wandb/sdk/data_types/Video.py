@@ -1,13 +1,13 @@
+from io import BytesIO
 import logging
 import os
 from typing import Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
 
-import six
 from wandb import util
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.Media import BatchableMedia
+from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -71,14 +71,14 @@ class Video(BatchableMedia):
         if self._format not in Video.EXTS:
             raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
 
-        if isinstance(data_or_path, six.BytesIO):
+        if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
                 MEDIA_TMP.name, util.generate_id() + "." + self._format
             )
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
             self._set_file(filename, is_tmp=True)
-        elif isinstance(data_or_path, six.string_types):
+        elif isinstance(data_or_path, str):
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:

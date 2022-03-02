@@ -4,13 +4,11 @@ import platform
 import shutil
 from typing import cast, Optional, Sequence, Type, TYPE_CHECKING, Union
 
-import six
-from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 
-from .WBValue import WBValue
+from .wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
@@ -115,8 +113,8 @@ class Media(WBValue):
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
         # mypy to understand that these are strings below.
-        assert isinstance(self._path, six.string_types)
-        assert isinstance(self._sha256, six.string_types)
+        assert isinstance(self._path, str)
+        assert isinstance(self._sha256, str)
 
         if run is None:
             raise TypeError('Argument "run" must not be None.')
@@ -183,7 +181,7 @@ class Media(WBValue):
             # The following two assertions are guaranteed to pass
             # by definition is_bound, but are needed for
             # mypy to understand that these are strings below.
-            assert isinstance(self._path, six.string_types)
+            assert isinstance(self._path, str)
 
             json_obj.update(
                 {
@@ -206,8 +204,8 @@ class Media(WBValue):
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
                 # mypy to understand that these are strings below.
-                assert isinstance(self._path, six.string_types)
-                assert isinstance(self._sha256, six.string_types)
+                assert isinstance(self._path, str)
+                assert isinstance(self._sha256, str)
                 artifact = run  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
@@ -301,10 +299,10 @@ def _numpy_arrays_to_lists(
 
     if isinstance(payload, dict):
         res = {}
-        for key, val in six.iteritems(payload):
+        for key, val in payload.items():
             res[key] = _numpy_arrays_to_lists(val)
         return res
-    elif isinstance(payload, SixSequence) and not isinstance(payload, six.string_types):
+    elif isinstance(payload, Sequence) and not isinstance(payload, str):
         return [_numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
         if TYPE_CHECKING:

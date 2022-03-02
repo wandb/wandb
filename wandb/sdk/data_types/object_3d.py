@@ -3,13 +3,12 @@ import json
 import os
 from typing import ClassVar, Sequence, Set, Type, TYPE_CHECKING, Union
 
-import six
 import wandb
 from wandb import util
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types.Media import BatchableMedia
+from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -76,7 +75,7 @@ class Object3D(BatchableMedia):
                 f.write(object_3d)
 
             self._set_file(tmp_path, is_tmp=True)
-        elif isinstance(data_or_path, six.string_types):
+        elif isinstance(data_or_path, str):
             path = data_or_path
             extension = None
             for supported_type in Object3D.SUPPORTED_TYPES:

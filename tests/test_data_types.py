@@ -1,6 +1,6 @@
 import wandb
 from wandb import data_types
-from wandb.sdk.data_types.base_types.Media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 import numpy as np
 import pytest
 import PIL
@@ -211,7 +211,7 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types.converters._prune_max_seq(large_list),
+        wandb.wandb_sdk.data_types.utils._prune_max_seq(large_list),
         mocked_run,
         "test2",
         0,

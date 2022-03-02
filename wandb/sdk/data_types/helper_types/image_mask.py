@@ -2,12 +2,11 @@ import numbers
 import os
 from typing import Optional, Type, TYPE_CHECKING, Union
 
-import six
 import wandb
 from wandb import util
 
 from .._private import MEDIA_TMP
-from ..base_types.Media import Media
+from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
@@ -239,9 +238,7 @@ class ImageMask(Media):
         # Optional argument
         if "class_labels" in val:
             for k, v in list(val["class_labels"].items()):
-                if (not isinstance(k, numbers.Number)) or (
-                    not isinstance(v, six.string_types)
-                ):
+                if (not isinstance(k, numbers.Number)) or (not isinstance(v, str)):
                     raise TypeError(
                         "Class labels must be a dictionary of numbers to strings"
                     )

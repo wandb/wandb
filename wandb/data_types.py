@@ -33,11 +33,12 @@ import wandb
 from wandb import util
 
 from .sdk.data_types import _dtypes
-from .sdk.data_types.base_types.Media import (
+from .sdk.data_types.base_types.media import (
     _numpy_arrays_to_lists,
     BatchableMedia,
     Media,
 )
+<<<<<<< HEAD
 from .sdk.data_types.base_types.WBValue import WBValue
 from .sdk.data_types.helper_types.BoundingBoxes2D import BoundingBoxes2D
 from .sdk.data_types.helper_types.Classes import Classes
@@ -50,6 +51,19 @@ from .sdk.data_types.Object3D import Object3D
 from .sdk.data_types.Plotly import Plotly
 from .sdk.data_types.SavedModel import SavedModel
 from .sdk.data_types.Video import Video
+=======
+from .sdk.data_types.base_types.wb_value import WBValue
+from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
+from .sdk.data_types.helper_types.classes import Classes
+from .sdk.data_types.helper_types.image_mask import ImageMask
+from .sdk.data_types.histogram import Histogram
+from .sdk.data_types.html import Html
+from .sdk.data_types.image import Image
+from .sdk.data_types.molecule import Molecule
+from .sdk.data_types.object_3d import Object3D
+from .sdk.data_types.plotly import Plotly
+from .sdk.data_types.video import Video
+>>>>>>> data_types/filesplit
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
 # Once we fully type this file and move it all into sdk, then we will need to cleanup the

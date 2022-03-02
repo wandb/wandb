@@ -1,18 +1,18 @@
 import hashlib
+from io import BytesIO
 import logging
 import os
 from typing import Any, cast, Dict, List, Optional, Sequence, Type, TYPE_CHECKING, Union
 
 from pkg_resources import parse_version
-import six
 import wandb
 from wandb import util
 
 from ._private import MEDIA_TMP
-from .base_types.Media import BatchableMedia, Media
-from .helper_types.BoundingBoxes2D import BoundingBoxes2D
-from .helper_types.Classes import Classes
-from .helper_types.ImageMask import ImageMask
+from .base_types.media import BatchableMedia, Media
+from .helper_types.bounding_boxes_2d import BoundingBoxes2D
+from .helper_types.classes import Classes
+from .helper_types.image_mask import ImageMask
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
@@ -129,7 +129,7 @@ class Image(BatchableMedia):
         # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, six.string_types):
+        elif isinstance(data_or_path, str):
             self._initialize_from_path(data_or_path)
         else:
             self._initialize_from_data(data_or_path, mode)
@@ -236,7 +236,7 @@ class Image(BatchableMedia):
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
         )
         if util.is_matplotlib_typename(util.get_full_typename(data)):
-            buf = six.BytesIO()
+            buf = BytesIO()
             util.ensure_matplotlib_figure(data).savefig(buf)
             self._image = pil_image.open(buf)
         elif isinstance(data, pil_image.Image):

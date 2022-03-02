@@ -32,7 +32,7 @@ from wandb.util import (
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
-from ..data_types.converters import history_dict_to_json, val_to_json
+from ..data_types.utils import history_dict_to_json, val_to_json
 from ..wandb_artifacts import Artifact
 
 if TYPE_CHECKING:
