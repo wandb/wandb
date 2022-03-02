@@ -1376,9 +1376,8 @@ def uri_from_path(path: Optional[str]) -> str:
 
 def is_unicode_safe(stream: TextIO) -> bool:
     """returns true if the stream supports UTF-8"""
-    if not hasattr(stream, "encoding"):
-        return False
-    return stream.encoding.lower() in {"utf-8", "utf_8"}
+    encoding = getattr(stream, "encoding", None)
+    return encoding.lower() in {"utf-8", "utf_8"} if encoding else False
 
 
 def _has_internet() -> bool:
@@ -1586,3 +1585,15 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     # to include paths
     entity, project, name_and_alias_or_version = parts[:3]
     return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
+
+
+def _get_max_cli_version() -> Union[str, None]:
+    _, server_info = wandb.api.viewer_server_info()
+    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    return str(max_cli_version) if max_cli_version is not None else None
+
+
+def _is_offline() -> bool:
+    return (
+        wandb.run is not None and wandb.run.settings._offline
+    ) or wandb.setup().settings._offline
