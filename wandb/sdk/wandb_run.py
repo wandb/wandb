@@ -186,6 +186,11 @@ class RunStatusChecker:
 def attach(func: Callable) -> Callable:
     @functools.wraps(func)
     def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+
+        if self._is_attaching:
+            message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{self._is_attaching}`"
+            raise RuntimeError(message)
+
         try:
             # * `_attach_id` is only assigned in service hence for all non-service cases
             # it will be a passthrough.
@@ -196,7 +201,9 @@ def attach(func: Callable) -> Callable:
                 getattr(self, "_attach_id", None)
                 and getattr(self, "_init_pid", None) != os.getpid()
             ):
+                self._is_attaching = func.__name__
                 wandb._attach(run=self)
+                self._is_attaching = ""
             return func(self, *args, **kwargs)
         except Exception as e:
             raise e
@@ -323,6 +330,7 @@ class Run:
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _is_attaching: str
     _settings: Settings
 
     def __init__(
@@ -349,7 +357,7 @@ class Run:
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self.history_step = 0
+        self._step = 0
         self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
         _datatypes_set_callback(self._datatypes_callback)
@@ -483,6 +491,7 @@ class Run:
         self._iface_pid = None
         self._iface_port = None
         self._attach_id = None
+        self._is_attaching = ""
 
         # for now, use runid as attach id, this could/should be versioned in the future
         if self._settings._require_service:
@@ -520,7 +529,8 @@ class Run:
             raise Exception("Attribute {} is not supported on Run object.".format(attr))
         super(Run, self).__setattr__(attr, value)
 
-    def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
+    @staticmethod
+    def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
             pytorch_ignite="ignite", transformers_huggingface="transformers",
         )
@@ -615,13 +625,11 @@ class Run:
         if not _attach_id:
             return
 
-        if state["_init_pid"] == os.getpid():
-            raise RuntimeError("attach in the same process is not supported")
-
+        self._is_attaching = ""
+        # if state["_init_pid"] == os.getpid():
+        #     raise RuntimeError("attach in the same process is not supported")
         self._attach_id = _attach_id
 
-    @property  # type: ignore
-    @attach
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":
         if self._torch_history is None:
             self._torch_history = wandb.wandb_torch.TorchHistory()
@@ -729,6 +737,12 @@ class Run:
             return None
         return self._run_obj.sweep_id or None
 
+    def _get_path(self) -> str:
+        parts = [
+            e for e in [self._entity, self._project, self._run_id] if e is not None
+        ]
+        return "/".join(parts)
+
     @property  # type: ignore
     @attach
     def path(self) -> str:
@@ -737,37 +751,25 @@ class Run:
         Run paths include entity, project, and run ID, in the format
         `entity/project/run_id`.
         """
-        parts = []
-        for e in [self._entity, self._project, self._run_id]:
-            if e is not None:
-                parts.append(e)
-        return "/".join(parts)
+        return self._get_path()
 
     @property  # type: ignore
     @attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
-        if not self._run_obj:
-            return self._start_time
-        else:
-            return self._run_obj.start_time.ToSeconds()
+        return self._start_time
 
     @property  # type: ignore
     @attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
-        if not self._run_obj:
-            return self._starting_step
-        else:
-            return self._run_obj.starting_step
+        return self._starting_step if not self._run_obj else self._run_obj.starting_step
 
     @property  # type: ignore
     @attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
-        if self._run_obj:
-            return self._run_obj.resumed
-        return False
+        return self._run_obj.resumed if self._run_obj else False
 
     @property  # type: ignore
     @attach
@@ -776,9 +778,8 @@ class Run:
 
         This counter is incremented by `wandb.log`.
         """
-        return self.history_step
+        return self._step
 
-    @attach
     def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.project if run_obj else ""
@@ -870,7 +871,7 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name or "{}-{}".format("source", self.id)
+        name = name or "{}-{}".format("source", self._run_id)
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -888,7 +889,7 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        return self.log_artifact(art)
+        return self._log_artifact(art)
 
     def get_url(self) -> Optional[str]:
         """Returns the url for the W&B run, if there is one.
@@ -1136,7 +1137,7 @@ class Run:
         if row:
             row = self._visualization_hack(row)
             row["_timestamp"] = int(row.get("_timestamp", time.time()))
-            row["_runtime"] = int(row.get("_runtime", time.time() - self.start_time))
+            row["_runtime"] = int(row.get("_runtime", time.time() - self._start_time))
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1182,6 +1183,8 @@ class Run:
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
+
+        self._start_time = run_obj.start_time.ToSeconds()
         # Grab the config from resuming
         if run_obj.config:
             c_dict = config_util.dict_no_value_from_proto_list(run_obj.config.update)
@@ -1196,10 +1199,10 @@ class Run:
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        self.history_step = self.starting_step
+        self._step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            process_context="user", settings_dict=self.settings,
+            process_context="user", settings_dict=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1270,29 +1273,27 @@ class Run:
                     "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
-            if self.history_step > step:
+            if self._step > step:
                 wandb.termwarn(
                     (
                         "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(
-                            step, self.history_step, data
-                        )
+                        "Step {} < {}; dropping {}.".format(step, self._step, data)
                     )
                 )
                 return
-            elif step > self.history_step:
+            elif step > self._step:
                 self._partial_history_callback(
-                    {}, self.history_step, commit=True,
+                    {}, self._step, commit=True,
                 )
-                self.history_step = step
+                self._step = step
         elif commit is None:  # step is None and commit is None
             commit = True
 
         if commit:
-            self._partial_history_callback(data, self.history_step, commit=True)
-            self.history_step += 1
+            self._partial_history_callback(data, self._step, commit=True)
+            self._step += 1
         else:
-            self._partial_history_callback(data, self.history_step)
+            self._partial_history_callback(data, self._step)
 
     @attach
     def log(
@@ -1543,14 +1544,14 @@ class Run:
                 "%s is a cloud storage url, can't save file to wandb." % glob_str
             )
             return []
-        files = glob.glob(os.path.join(self.dir, wandb_glob_str))
+        files = glob.glob(os.path.join(self._settings.files_dir, wandb_glob_str))
         warn = False
         if len(files) == 0 and "*" in wandb_glob_str:
             warn = True
         for path in glob.glob(glob_str):
             file_name = os.path.relpath(path, base_path)
             abs_path = os.path.abspath(path)
-            wandb_path = os.path.join(self.dir, file_name)
+            wandb_path = os.path.join(self._settings.files_dir, file_name)
             wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
             if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
@@ -1583,7 +1584,12 @@ class Run:
         replace: bool = False,
         root: Optional[str] = None,
     ) -> Union[None, TextIO]:
-        return restore(name, run_path or self.path, replace, root or self.dir)
+        return restore(
+            name,
+            run_path or self._get_path(),
+            replace,
+            root or self._settings.files_dir,
+        )
 
     @attach
     def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
@@ -1600,7 +1606,7 @@ class Run:
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        logger.info(f"finishing run {self.path}")
+        logger.info(f"finishing run {self._get_path()}")
         # detach jupyter hooks / others that needs to happen before backend shutdown
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
@@ -1619,7 +1625,7 @@ class Run:
         # inform manager this run is finished
         manager = self._wl and self._wl._get_manager()
         if manager:
-            manager._inform_finish(run_id=self.id)
+            manager._inform_finish(run_id=self._run_id)
 
     @attach
     def join(self, exit_code: int = None) -> None:
@@ -1870,7 +1876,7 @@ class Run:
 
         # make sure all uncommitted history is flushed
         self._partial_history_callback(
-            {}, self.history_step, commit=True,
+            {}, self._step, commit=True,
         )
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
