@@ -11,7 +11,7 @@ import six
 
 import wandb
 from wandb import util
-from wandb.sdk.data_types.converters import val_to_json
+from wandb.sdk.data_types.utils import val_to_json
 from wandb.apis.internal import Api
 from six import string_types
 
