@@ -29,12 +29,11 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
-    import cloudpickle
-    import torch
-    import sklearn
-    import tensorflow
+    import cloudpickle  # type: ignore
+    import torch  # type: ignore
+    import sklearn  # type: ignore
+    import tensorflow  # type: ignore
 
-    # TODO: make these richer - for now this is fine.
     GlobalModelObjType = Any
     ModelFilePathType = str
     ModelDirPathType = str
