@@ -38,7 +38,6 @@ from .sdk.data_types.base_types.media import (
     BatchableMedia,
     Media,
 )
-
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
 from .sdk.data_types.helper_types.classes import Classes
