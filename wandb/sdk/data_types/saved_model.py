@@ -15,9 +15,9 @@ from typing import (
     Union,
 )
 
-from wandb import util
 import wandb
-from wandb.sdk.interface.artifacts import md5_files_b64, b64_string_to_hex
+from wandb import util
+from wandb.sdk.interface.artifacts import b64_string_to_hex, md5_files_b64
 
 from . import _dtypes
 from ._private import MEDIA_TMP
