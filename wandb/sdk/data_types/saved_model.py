@@ -16,6 +16,8 @@ from typing import (
 )
 
 from wandb import util
+import wandb
+from wandb.sdk.interface.artifacts import md5_files_b64, b64_string_to_hex
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -47,6 +49,16 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class SavedModel(WBValue):
+    """SavedModel is a data type that can be used to store a model object
+    inside of a W&B Artifact.
+
+    Arguments:
+        model_or_path: (pytorch model, keras model, sklearn model, str) Accepts
+            a runtime python object, a path to a file, or a path to a directory.
+        adapter_id: (str) The id of the adapter to use for this model - if None
+            is provided, then the adapter will be inferred from the model_or_path.
+    """
+
     _log_type: ClassVar[str] = "saved-model"
     _adapter: Type["_IModelAdapter"]
     _model_obj: Optional["GlobalModelObjType"]
@@ -56,18 +68,22 @@ class SavedModel(WBValue):
         self, model_or_path: "ModelType", adapter_id: Optional[str] = None,
     ) -> None:
         super(SavedModel, self).__init__()
+
+        # First, we attempt to locate a suitable adapter for this model.
         model_adapter_tuple = _ModelAdapterRegistry.find_suitable_adapter(
             model_or_path, adapter_id
         )
         assert (
             model_adapter_tuple is not None
         ), f"No suitable adapter ({adapter_id}) found for model {model_or_path}"
-
         self._adapter = model_adapter_tuple[1]
+
+        # Next we create a path for the model to be serialized to.
         self._path = self._make_target_path()
 
+        # If this input is a path-like object, then we simply copy
+        # it to the target path.
         if _is_path(model_or_path):
-
             if os.path.isfile(model_or_path):
                 assert os.path.splitext(self._path)[1] is not None
                 shutil.copyfile(model_or_path, self._path)
@@ -79,16 +95,19 @@ class SavedModel(WBValue):
                     f"Expected a path to a file or directory, got {model_or_path}"
                 )
 
-            # This will be a fresh copy from disk, so it is OK to set now
+            # Since the adapter search already loads a copy of the model into
+            # memory, we can store a local copy of the model object.
             self._model_obj = model_adapter_tuple[0]
         else:
+            # If the input is a python object, then we serialize it to a file.
             # We immediately write the file(s) in case the user modifies the model
             # after creating the SavedModel (ie. continues training)
             self._adapter.save_model(model_adapter_tuple[0], self._path)
-            # Important: set this to None, so any model_obj() read will lazy load from disk (cached)
+            # Important: set this to None, so any model_obj() read will lazy load from disk.
             self._model_obj = None
 
     def _make_target_path(self) -> str:
+        # Private method to create a temp target path based on the adapter.
         tmp_path = os.path.abspath(
             os.path.join(MEDIA_TMP.name, str(util.generate_id()))
         )
@@ -98,6 +117,8 @@ class SavedModel(WBValue):
         return tmp_path
 
     def model_obj(self) -> "GlobalModelObjType":
+        """ Returns the model object.
+        """
         if self._model_obj is None:
             model_obj = self._adapter.model_obj_from_path(self._path)
             assert model_obj is not None, f"Could not load model from path {self._path}"
@@ -106,8 +127,10 @@ class SavedModel(WBValue):
         return self._model_obj
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        import wandb
-
+        # Unlike other data types, we do not allow adding to a Run directly. There is a
+        # bit of tech debt in the other data types which requires the input to `to_json`
+        # to accept a Run or Artifact. However, Run additions should be deprecated in the future.
+        # This check helps ensure we do not add to the debt.
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             raise ValueError("SavedModel cannot be added to run - must use artifact")
         artifact = run_or_artifact
@@ -128,11 +151,10 @@ class SavedModel(WBValue):
                 )
                 json_obj["path"] = artifact.add_file(self._path, target_path, True).path
         elif os.path.isdir(self._path):
-            from wandb.sdk.interface.artifacts import md5_files_b64, b64_string_to_hex
-
-            # Here, we need to add a directory of files to the artifact. The directory must be named deterministically based on the contents of the directory.
-            # but the files themselves need to have their name preserved. This functionality really should be added to the artifact, but doing it here
-            # for now until we get the patterns down.
+            # If the path is a directory, then we need to add all of the files
+            # The directory must be named deterministically based on the contents of the directory,
+            # but the files themselves need to have their name preserved.
+            # FUTURE: Add this functionality to the artifact adder itself
             file_paths = []
             for dirpath, _, filenames in os.walk(self._path, topdown=True):
                 for fn in filenames:
@@ -153,18 +175,28 @@ class SavedModel(WBValue):
         cls: Type["SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "SavedModel":
         path = json_obj["path"]
+
+        # First, if the entry is a file, the download it.
         entry = source_artifact.manifest.entries.get(path)
         if entry is not None:
             dl_path = entry.download()
         else:
-            # assume it is directory: (would be nice to parallelize)
+            # If not, assume it is directory.
+            # FUTURE: Add this functionality to the artifact loader
+            # (would be nice to parallelize)
             dl_path = None
+
+            # Look through the entire manifest to find all of the files in the directory.
+            # Construct the directory path by inspecting the target download location.
             for p, e in source_artifact.manifest.entries.items():
                 if p.startswith(path):
                     example_path = e.download()
                     if dl_path is None:
                         root = example_path[: -len(p)]
                         dl_path = os.path.join(root, path)
+
+        # Return the SavedModel object instantiated with the downloaded path
+        # and specified adapter.
         return cls(dl_path, json_obj["adapter_id"])
 
 
@@ -173,10 +205,14 @@ def _is_path(model_or_path: "ModelType") -> bool:
 
 
 class _ModelAdapterRegistry(object):
+    """This class is used to internally manager model adapters.
+    """
+
     _registered_adapters: ClassVar[Optional["RegisteredAdaptersMapType"]] = None
 
     @staticmethod
     def register_adapter(adapter: Type["_IModelAdapter"]) -> None:
+        """Registers a model adapter."""
         adapters = _ModelAdapterRegistry.registered_adapters()
         adapter_id = adapter.adapter_id()
         if adapter_id in adapters:
@@ -187,12 +223,14 @@ class _ModelAdapterRegistry(object):
 
     @staticmethod
     def registered_adapters() -> "RegisteredAdaptersMapType":
+        """Returns a (singleton) map of registered model adapters."""
         if _ModelAdapterRegistry._registered_adapters is None:
             _ModelAdapterRegistry._registered_adapters = {}
         return _ModelAdapterRegistry._registered_adapters
 
     @staticmethod
     def load_adapter(adapter_id: str) -> Type["_IModelAdapter"]:
+        """Load an adapter by id."""
         selected_adapter = _ModelAdapterRegistry.registered_adapters()[adapter_id]
         if selected_adapter is None:
             raise ValueError(f"adapter {adapter_id} not registered")
@@ -202,6 +240,7 @@ class _ModelAdapterRegistry(object):
     def maybe_adapter_from_model_or_path(
         adapter_cls: Type["_IModelAdapter"], model_or_path: "ModelType",
     ) -> Optional["SuitableAdapterTuple"]:
+        """Apply an adapter class to a model or path and return the adapter if it is suitable."""
         model_adapter_tuple: Optional["SuitableAdapterTuple"] = None
         if _is_path(model_or_path):
             possible_model = adapter_cls.model_obj_from_path(model_or_path)
@@ -215,6 +254,7 @@ class _ModelAdapterRegistry(object):
     def find_suitable_adapter(
         model_or_path: "ModelType", adapter_id: Optional[str] = None
     ) -> Optional["SuitableAdapterTuple"]:
+        """Search for a suitable adapter given a model or path"""
         adapter_classes = _ModelAdapterRegistry.registered_adapters()
         model_adapter_tuple: Optional["SuitableAdapterTuple"] = None
         if adapter_id is None:
@@ -287,11 +327,17 @@ class _IModelAdapter(Generic[AdapterModelObjType]):
 
     @classmethod
     def adapter_id(cls: Type["_IModelAdapter"]) -> str:
+        """Returns the adapter_id for the adapter. Callers should use this method
+        as opposed to directly accessing the private variable to ensure implementers of this
+        interface set the _adapter_id variable correctly."""
         assert isinstance(cls._adapter_id, str), "_adapter_id must be a string"
         return cls._adapter_id
 
     @classmethod
     def path_extension(cls: Type["_IModelAdapter"]) -> str:
+        """Returns the path extension for the adapter. Callers should use this method
+        as opposed to directly accessing the private variable to ensure implementers of this
+        interface set the _path_extension variable correctly."""
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
         return cls._path_extension
 
@@ -434,7 +480,7 @@ class _TensorflowKerasSavedModelAdapter(_IModelAdapter["tensorflow.keras.Model"]
 # media type to encode the type of the data. However, it might be
 # worth waiting for Shawn to finish his Python Weave implementation.
 class _SavedModelType(_dtypes.Type):
-    name = "saved-model"
+    name = SavedModel._log_type
     types = [SavedModel]
 
     def __init__(self, adapter_id: str) -> None:

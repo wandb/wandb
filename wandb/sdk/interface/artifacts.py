@@ -46,7 +46,7 @@ def md5_hash_file(path):
 
 def md5_hash_files(paths: List[str]):
     hash_md5 = hashlib.md5()
-    # Copy the input
+    # Create a mutable copy to sort
     paths = [path for path in paths]
     paths.sort()
     for path in paths:

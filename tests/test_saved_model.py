@@ -144,7 +144,7 @@ def savedModel_test(runner, mocker, model):
     with runner.isolated_filesystem():
         art = wandb.Artifact("name", "type")
         art.add(sm, "model")
-        assert art.manifest.entries["model.saved-model.json"] is not None
+        assert art.manifest.entries[f"model.{SM.SavedModel._log_type}.json"] is not None
         pub_art = make_local_artifact_public(art, mocker)
         sm2 = pub_art.get("model")
         assert sm2 is not None
