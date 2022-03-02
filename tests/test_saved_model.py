@@ -24,6 +24,7 @@ def test_SavedModel_sklearn(runner, mocker):
 def test_SavedModel_pytorch(runner, mocker):
     savedModel_test(runner, mocker, pytorch_model())
 
+
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
 )
@@ -47,6 +48,7 @@ def test_PytorchModelAdapter(runner):
         [pytorch_model()],
         [keras_model(), sklearn_model(),],
     )
+
 
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
