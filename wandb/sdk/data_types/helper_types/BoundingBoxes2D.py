@@ -1,7 +1,6 @@
 import numbers
 from typing import Optional, Type, TYPE_CHECKING, Union
 
-import six
 import wandb
 from wandb import util
 from wandb.util import has_num
@@ -255,9 +254,7 @@ class BoundingBoxes2D(JSONMetadata):
         # Optional argument
         if "class_labels" in val:
             for k, v in list(val["class_labels"].items()):
-                if (not isinstance(k, numbers.Number)) or (
-                    not isinstance(v, six.string_types)
-                ):
+                if (not isinstance(k, numbers.Number)) or (not isinstance(v, str)):
                     raise TypeError(
                         "Class labels must be a dictionary of numbers to string"
                     )
@@ -297,20 +294,16 @@ class BoundingBoxes2D(JSONMetadata):
                 raise TypeError("Box scores must be a dictionary")
             elif "scores" in box:
                 for k, v in list(box["scores"].items()):
-                    if not isinstance(k, six.string_types):
+                    if not isinstance(k, str):
                         raise TypeError("A score key must be a string")
                     if not isinstance(v, numbers.Number):
                         raise TypeError("A score value must be a number")
 
-            if ("class_id" in box) and not isinstance(
-                box["class_id"], six.integer_types
-            ):
+            if ("class_id" in box) and not isinstance(box["class_id"], int):
                 raise TypeError("A box's class_id must be an integer")
 
             # Optional
-            if ("box_caption" in box) and not isinstance(
-                box["box_caption"], six.string_types
-            ):
+            if ("box_caption" in box) and not isinstance(box["box_caption"], str):
                 raise TypeError("A box's caption must be a string")
         return True
 

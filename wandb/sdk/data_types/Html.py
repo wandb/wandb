@@ -1,7 +1,6 @@
 import os
 from typing import Sequence, Type, TYPE_CHECKING, Union
 
-import six
 from wandb import util
 
 from . import _dtypes
@@ -31,14 +30,14 @@ class Html(BatchableMedia):
 
     def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
         super(Html, self).__init__()
-        data_is_path = isinstance(data, six.string_types) and os.path.exists(data)
+        data_is_path = isinstance(data, str) and os.path.exists(data)
         data_path = ""
         if data_is_path:
-            assert isinstance(data, six.string_types)
+            assert isinstance(data, str)
             data_path = data
             with open(data_path, "r") as file:
                 self.html = file.read()
-        elif isinstance(data, six.string_types):
+        elif isinstance(data, str):
             self.html = data
         elif hasattr(data, "read"):
             if hasattr(data, "seek"):
