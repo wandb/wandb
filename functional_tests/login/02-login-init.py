@@ -14,3 +14,5 @@ if __name__ == "__main__":
     with mock.patch.dict(os.environ, {"WANDB_DIR": test_dir}):
         run = wandb.init(project="test-project")
         run.finish()
+
+    assert os.path.exists(os.path.join(test_dir, "wandb", "debug.log"))
