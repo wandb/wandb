@@ -17,6 +17,7 @@ import tensorflow as tf
 
 import matplotlib.pyplot as plt
 import numpy
+
 # Checking to see if this line errors out in CI
 import plotly
 import requests
