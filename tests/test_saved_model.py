@@ -1,14 +1,20 @@
-import wandb
-from wandb.sdk.data_types import saved_model as SM
-from sklearn import svm
-import torch
-from tensorflow import keras
-import numpy as np
 import os
 import shutil
+import pytest
+
+import wandb
+from wandb.sdk.data_types import saved_model as SM
 from wandb.apis.public import Artifact
 from wandb.apis.public import _DownloadedArtifactEntry
 from wandb.sdk.wandb_artifacts import ArtifactEntry
+
+
+torch = pytest.importorskip("torch")
+tensorflow = pytest.importorskip("tensorflow")
+keras = tensorflow.keras
+sklearn = pytest.importorskip("sklearn")
+svm = sklearn.svm
+np = pytest.importorskip("numpy")
 
 
 def test_SavedModel_sklearn(runner, mocker):
