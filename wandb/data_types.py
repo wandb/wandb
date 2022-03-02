@@ -31,40 +31,46 @@ from typing import Optional
 import six
 import wandb
 from wandb import util
-from wandb.sdk.data_types import (
+
+from .sdk.data_types import _dtypes
+from .sdk.data_types.base_types.media import (
     _numpy_arrays_to_lists,
     BatchableMedia,
-    BoundingBoxes2D,
-    Classes,
-    Histogram,
-    history_dict_to_json,
-    Html,
-    Image,
-    ImageMask,
     Media,
-    Molecule,
-    Object3D,
-    Plotly,
-    val_to_json,
-    Video,
-    WBValue,
 )
-from wandb.sdk.interface import _dtypes
+from .sdk.data_types.base_types.wb_value import WBValue
+from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
+from .sdk.data_types.helper_types.classes import Classes
+from .sdk.data_types.helper_types.image_mask import ImageMask
+from .sdk.data_types.histogram import Histogram
+from .sdk.data_types.html import Html
+from .sdk.data_types.image import Image
+from .sdk.data_types.molecule import Molecule
+from .sdk.data_types.object_3d import Object3D
+from .sdk.data_types.plotly import Plotly
+from .sdk.data_types.video import Video
+
+# Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
+# Once we fully type this file and move it all into sdk, then we will need to cleanup the
+# other internal imports
 
 __all__ = [
+    # Untyped Exports
     "Audio",
+    "Table",
+    "Bokeh",
+    # Typed Exports
     "Histogram",
-    "Object3D",
-    "Molecule",
     "Html",
+    "Image",
+    "Molecule",
+    "Object3D",
+    "Plotly",
     "Video",
+    # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
     "BoundingBoxes2D",
     "Classes",
-    "Image",
-    "Plotly",
-    "history_dict_to_json",
-    "val_to_json",
 ]
 
 
@@ -1135,13 +1141,6 @@ class Audio(BatchableMedia):
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-
-def is_numpy_array(data):
-    np = util.get_module(
-        "numpy", required="Logging raw point cloud data requires numpy"
-    )
-    return isinstance(data, np.ndarray)
 
 
 class JoinedTable(Media):
