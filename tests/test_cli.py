@@ -210,10 +210,17 @@ def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc)
         )
 
 
-def test_login_bad_host(runner, empty_netrc, local_netrc):
+@pytest.mark.parametrize(
+    "host, error",
+    [
+        ("https://app.wandb.ai", "did you mean https://api.wandb.ai"),
+        ("ftp://google.com", "URL must start with `http(s)://`"),
+    ],
+)
+def test_login_bad_host(runner, empty_netrc, local_netrc, host, error):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.login, ["--host", "https://app.wandb.ai"])
-        assert "did you mean https://api.wandb.ai" in result.output
+        result = runner.invoke(cli.login, ["--host", host])
+        assert error in result.output
         assert result.exit_code != 0
 
 
