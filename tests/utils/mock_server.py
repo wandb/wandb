@@ -10,6 +10,9 @@ import platform
 import yaml
 import six
 import gzip
+import functools
+import time
+import requests
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -88,6 +91,8 @@ def default_ctx():
         "code_saving_enabled": True,
         "sentry_events": [],
         "run_cuda_version": None,
+        # relay mode, keep track of upsert runs for validation
+        "relay_run_info": {},
     }
 
 
@@ -344,12 +349,114 @@ class HttpException(Exception):
         return rv
 
 
+class SnoopRelay:
+
+    _inject_count: int
+    _inject_time: float
+
+    def __init__(self):
+        self._inject_count = 0
+        self._inject_time = 0.0
+
+    def relay(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+
+            # Normal mockserver mode, disable live relay and call next function
+            if not os.environ.get("MOCKSERVER_RELAY"):
+                return func(*args, **kwargs)
+
+            if request.method == "POST":
+                url_path = request.path
+                body = request.get_json()
+
+                url = f"https://api.wandb.ai{url_path}"
+                resp = requests.post(url, json=body)
+                data = resp.json()
+                run_obj = data.get("data", {}).get("upsertBucket", {}).get("bucket", {})
+                project_obj = run_obj.get("project", {})
+
+                run_id = run_obj.get("name")
+                project = project_obj.get("name")
+                entity = project_obj.get("entity", {}).get("name")
+
+                ctx = get_ctx()
+                if run_id:
+                    ctx["relay_run_info"].setdefault(run_id, {})
+                    ctx["relay_run_info"][run_id]["project"] = project
+                    ctx["relay_run_info"][run_id]["entity"] = entity
+
+                # TODO: This is a hardcoded for now, will add inject specification to the yea file
+                if run_id and run_id.startswith("inject"):
+                    time_now = time.time()
+                    if self._inject_count == 0:
+                        self._inject_time = time_now
+                    self._inject_count += 1
+                    if time_now < self._inject_time + 21:
+                        # print("INJECT", self._inject_count, time_now, self._inject_time)
+                        time.sleep(12)
+                        raise HttpException("some error", status_code=500)
+                return data
+            assert False
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    def context_enrich(self, ctx):
+        for run_id, run_info in ctx["relay_run_info"].items():
+            run_num = len(ctx["runs"])
+            insert = run_id not in ctx["run_ids"]
+            if insert:
+                ctx["run_ids"].append(run_id)
+            run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
+
+            # NOTE: not used, added for consistancy with non-relay mode
+            r = run_ctx.setdefault("run", {})
+            r.setdefault("display_name", f"relay_name-{run_num}")
+            r.setdefault("storage_id", f"storageid{run_num}")
+            r.setdefault("project_name", "relay_proj")
+            r.setdefault("entity_name", "relay_entity")
+
+            # TODO: handle errors better
+            try:
+                # NOTE: We are using wandb but it isnt a strict depenedency
+                import wandb
+
+                api = wandb.Api()
+                run = api.run(f"{run_info['entity']}/{run_info['project']}/{run_id}")
+            except Exception as e:
+                print(f"ERROR: problem calling public api for run {run_id}", e)
+                continue
+
+            value_config = {k: dict(value=v) for k, v in run.rawconfig.items()}
+            # TODO: need to have a correct state mapping
+            exitcode = 0 if run.state == "finished" else 1
+
+            for c in ctx, run_ctx:
+                c.setdefault("config", []).append(dict(value_config))
+                c.setdefault("file_stream", []).append(
+                    dict(
+                        exitcode=exitcode,
+                        files={
+                            "wandb-summary.json": dict(
+                                offset=0, content=[json.dumps(run.summary_metrics)]
+                            )
+                        },
+                    )
+                )
+            ctx["runs"][run_id] = run_ctx
+        # print("SEND", ctx)
+        return ctx
+
+
 def create_app(user_ctx=None):
     app = Flask(__name__)
     # When starting in live mode, user_ctx is a fancy object
     if isinstance(user_ctx, dict):
         with app.app_context():
             set_ctx(user_ctx)
+    snoop = SnoopRelay()
 
     @app.teardown_appcontext
     def persist_ctx(exc):
@@ -370,6 +477,7 @@ def create_app(user_ctx=None):
         ctx = get_ctx()
         body = request.get_json()
         if request.method == "GET":
+            ctx = snoop.context_enrich(ctx)
             return json.dumps(ctx)
         elif request.method == "DELETE":
             app.logger.info("reseting context")
@@ -383,6 +491,7 @@ def create_app(user_ctx=None):
             return json.dumps(get_ctx())
 
     @app.route("/graphql", methods=["POST"])
+    @snoop.relay
     def graphql():
         #  TODO: in tests wandb-username is set to the test name, lets scope ctx to it
         ctx = get_ctx()
@@ -1789,6 +1898,7 @@ index 30d74d2..9a2c773 100644
         return "ARTIFACT %s" % digest, 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
+    @snoop.relay
     def file_stream(entity, project, run):
         ctx = get_ctx()
         run_ctx = get_run_ctx(run)
