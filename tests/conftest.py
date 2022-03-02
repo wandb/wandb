@@ -317,12 +317,12 @@ def live_mock_server(request, worker_id):
     # We set the username so the mock backend can namespace state
     with mock.patch.dict(
         os.environ,
-            {
-                "WANDB_USERNAME": name,
-                "WANDB_BASE_URL": server.base_url,
-                "WANDB_ERROR_REPORTING": "false",
-                "WANDB_API_KEY": DUMMY_API_KEY,
-            }
+        {
+            "WANDB_USERNAME": name,
+            "WANDB_BASE_URL": server.base_url,
+            "WANDB_ERROR_REPORTING": "false",
+            "WANDB_API_KEY": DUMMY_API_KEY,
+        },
     ):
         # clear mock server ctx
         server.reset_ctx()
@@ -452,10 +452,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
         args.update(marker.kwargs)
     try:
         mocks_from_args(mocker, args, mock_server)
-        with mock.patch.dict(
-                os.environ,
-                {k: v for k, v in args["env"].items()}
-        ):
+        with mock.patch.dict(os.environ, {k: v for k, v in args["env"].items()}):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
             #  We want to run setup every time in tests
