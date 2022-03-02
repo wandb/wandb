@@ -19,7 +19,7 @@ from wandb import util
 
 from . import _dtypes
 from ._private import MEDIA_TMP
-from .base_types import WBValue
+from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
