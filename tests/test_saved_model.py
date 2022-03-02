@@ -1,5 +1,5 @@
 import wandb
-from wandb.sdk.data_types import SavedModel as SM
+from wandb.sdk.data_types import saved_model as SM
 from sklearn import svm
 import torch
 from tensorflow import keras
