@@ -12,8 +12,7 @@ from wandb.sdk.wandb_artifacts import ArtifactEntry
 torch = pytest.importorskip("torch")
 tensorflow = pytest.importorskip("tensorflow")
 keras = tensorflow.keras
-sklearn = pytest.importorskip("sklearn")
-svm = sklearn.svm
+svm = pytest.importorskip("sklearn.svm")
 np = pytest.importorskip("numpy")
 
 
