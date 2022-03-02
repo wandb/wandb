@@ -1,0 +1,10 @@
+id: 0.login.02-login-init
+plugin:
+  - wandb
+command:
+    program: 02-login-init.py
+assert:
+  - :wandb:runs_len: 1
+  - :op:find:
+      - :wandb:runs[0][settings]
+      - "test_dir/wandb/debug.log"
