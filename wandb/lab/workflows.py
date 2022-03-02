@@ -13,6 +13,7 @@ from wandb.sdk.interface.artifacts import (
     Artifact as ArtifactInterface,
 )
 
+from collections import defaultdict
 from wandb.sdk.wandb_artifacts import Artifact as LocalArtifact
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.apis import InternalApi, PublicApi
@@ -142,25 +143,37 @@ def use_model(model_alias: str):
 
 def link_model(
     model: "SavedModel",
-    registry_name: str,
+    registry_path: str,
     aliases: Optional[Union[str, List[str]]] = None,
 ):
+    """
+    `registry_name`: str that can take the following form:
+        "{portfolio}"
+        "{entity}/{project}/{portfolio}"
+        "{project}/{portfolio}
+    """
 
     if aliases is None:
         aliases = ["latest"]
 
+    # SavedModel instance contains _artifact_source and _artifact_target
+    # source is always a LocalArtifact and target is always a PublicArtifact
+
     # SavedModel instance contains a reference to its underlying artifact.
     # If it's a Public Artifact, i.e it's been logged to the backend already,
     # we can simply use its link method.
-    artifact = model._artifact_target.artifact
-    if artifact.id:
-        public_artifact = artifact._logged_artifact
+    if model._artifact_target is not None:
+        public_artifact = model._artifact_target.artifact._logged_artifact
         # TODO: we should have a constraint that all linked artifacts in a portfolio
         # have the same artifact type: i.e all "model" or "dataset".
-        return public_artifact.link(registry_name, aliases)
+        # TODO: This is synchronous
+
+        return public_artifact.link(registry_path, aliases)
 
     if wandb.run:
-        wandb.run.link_artifact(artifact, registry_name, aliases)
+        # TODO: This is async
+        artifact = model._artifact_source.artifact
+        wandb.run.link_artifact(artifact, registry_path, aliases)
 
     # artifact here is a LocalArtifact.
     # We make the assumption here that if someone calls log_model 5 times

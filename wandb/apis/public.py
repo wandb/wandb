@@ -11,6 +11,7 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 import datetime
+from collections import namedtuple
 from functools import partial
 import json
 import logging
@@ -3608,38 +3609,47 @@ class Artifact(artifacts.Artifact):
         return use_as
 
     @normalize_exceptions
-    def link(self, registry_name, aliases=None):
+    def link(self, registry_path: str, aliases=None):
+
+        portfolio, project, entity = util._parse_portfolio_path(registry_path)
+
+        EmptyRunProps = namedtuple("Empty", "entity project")
+        r = wandb.run if wandb.run else EmptyRunProps(entity=None, project=None)
+        entity = entity or r.entity or self.entity
+        project = project or r.project or self.project
+
+        if project is None or entity is None:
+            raise ValueError(
+                "Please make sure `registry_path` is of the format {entity}/{project}/{registry_name}."
+            )
 
         # this is a public artifact, so we can link using the artifactID directly
+        # TODO: Make corresponding backend change
+        # TODO: Test with python script --> see if we need to add retrying logic
         mutation = gql(
             """
-        mutation LinkArtifact(
-            $artifactID: ID,
-            $artifactPortfolioName: String,
-            $entityName: String,
-            $projectName: String,
-            $aliases: [ArtifactAliasInput!]) {
-            linkArtifact(input: {
-                artifactID: $artifactID,
-                artifactPortfolioName: $artifactPortfolioName,
-                entityName: $entityName,
-                projectName: $projectName,
-                aliases: $aliases
-            }) {
-                artifactID
-                versionIndex
-            }
-        }
+            mutation LinkArtifact($artifactID: ID!, $artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!]) {
+    linkArtifact(input: {artifactID: $artifactID, artifactPortfolioName: $artifactPortfolioName,
+        entityName: $entityName,
+        projectName: $projectName,
+        aliases: $aliases
+    }) {
+            versionIndex
+    }
+}
         """
         )
         self.client.execute(
             mutation,
             variable_values={
                 "artifactID": self.id,
-                "artifactPortfolioName": registry_name,
-                "$entityName": self._entity,
-                "$projectName": self._project,
-                "$aliases": [alias for alias in aliases],
+                "artifactPortfolioName": portfolio,
+                "entityName": entity,
+                "projectName": project,
+                "aliases": [
+                    {"alias": alias, "artifactCollectionName": portfolio}
+                    for alias in aliases
+                ],
             },
         )
         return True

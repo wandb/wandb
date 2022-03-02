@@ -3203,5 +3203,8 @@ class _LazyArtifact(ArtifactInterface):
     def save(self) -> None:
         return self._assert_instance().save()
 
+    def link(self, registry_path: str, aliases=None) -> None:
+        return self._assert_instance().link(registry_path, aliases)
+
     def delete(self) -> None:
         return self._assert_instance().delete()

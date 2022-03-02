@@ -1,6 +1,7 @@
 import base64
 import binascii
 import codecs
+from collections import defaultdict
 import colorsys
 import contextlib
 from datetime import date, datetime
@@ -1474,6 +1475,18 @@ def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
             return json.loads(config)
         except ValueError:
             return None
+
+
+def _parse_portfolio_path(name: str):
+    words = name.split("/")
+    if len(words) == 0 or len(words) > 3:
+        raise ValueError(
+            "registry name must be of the form {registy}, {project}/{registry}, or {entity}/{project}/{registry}"
+        )
+    keys = ["portfolio", "project", "entity"]
+    rev = reversed(words)
+    parsed = defaultdict(str, zip(keys, rev))
+    return tuple(parsed[key] for key in keys)
 
 
 def _is_artifact(v: Any) -> bool:
