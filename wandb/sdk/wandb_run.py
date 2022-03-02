@@ -338,7 +338,7 @@ class Run:
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
