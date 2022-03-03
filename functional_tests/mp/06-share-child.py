@@ -35,7 +35,6 @@ def main():
     p.start()
     p.join()
 
-    run.log({"s3": 13})
     run.log({"s3": 4}, step=4, commit=True)
 
     run.log({"s1": 120}, step=100)
