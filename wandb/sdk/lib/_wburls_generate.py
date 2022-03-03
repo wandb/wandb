@@ -1,3 +1,5 @@
+from wburls import wburls  # type: ignore
+
 template = """
 import sys
 
@@ -12,10 +14,8 @@ URLS = Literal[
 ]
 """
 
-from wburls import wburls
 
-
-def generate():
+def generate() -> None:
     urls = wburls._get_urls()
     literal_list = ", ".join([f'"{key}"' for key in urls])
     print(template.replace("$literal_list", literal_list))

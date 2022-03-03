@@ -8,15 +8,13 @@ Usage:
     ./tools/generate-tool.py --generate --check wandb/sdk/lib/_wburls_generated.py
 """
 
-import os
-import subprocess
-import pathlib
 import argparse
 import contextlib
-import tempfile
 import filecmp
-
-from typing import Any, List
+import os
+import pathlib
+import subprocess
+import tempfile
 
 
 parser = argparse.ArgumentParser()
@@ -111,9 +109,8 @@ def main():
 
     if args.generate:
         generate_files(path_list)
-
-    if args.format:
-        format_files(path_list)
+        if args.format:
+            format_files(path_list)
 
     if args.check:
         check_files(path_list)
