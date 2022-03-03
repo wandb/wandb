@@ -406,7 +406,7 @@ message ArtifactResult {
  * LinkArtifactRecord: link artifact to portfolio
  */
  message LinkArtifactRecord {
-  ArtifactRecord  artifact = 1;
+  string          client_id = 1;
   string          portfolio_name = 2;
   string          portfolio_entity = 3;
   string          portfolio_project = 4;

@@ -2069,7 +2069,7 @@ class Api:
                     }
             """
         )
-        self.gql(
+        response = self.gql(
             mutation,
             variable_values={
                 "clientID": client_id,
@@ -2082,6 +2082,8 @@ class Api:
                 ],
             },
         )
+        logger.debug("Done with link_artifact mutation")
+        logger.debug(f"{response}")
 
     def use_artifact(
         self,

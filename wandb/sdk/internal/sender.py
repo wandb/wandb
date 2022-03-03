@@ -966,8 +966,7 @@ class SendManager:
 
     def send_link_artifact(self, record: "Record") -> None:
         link = record.link_artifact
-        artifact = link.artifact
-        client_id = artifact.client_id
+        client_id = link.client_id
         portfolio_name = link.portfolio_name
         entity = link.portfolio_entity
         project = link.portfolio_project

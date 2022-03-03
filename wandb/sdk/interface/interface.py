@@ -402,30 +402,17 @@ class InterfaceBase(object):
 
     def publish_link_artifact(
         self,
-        run: "Run",
         artifact: Artifact,
         portfolio_name: str,
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
-        is_user_created: bool = False,
-        use_after_commit: bool = False,
-        finalize: bool = True,
     ) -> None:
-        proto_run = self._make_run(run)
-        proto_artifact = self._make_artifact(artifact)
-        proto_artifact.run_id = proto_run.run_id
-        proto_artifact.project = proto_run.project
-        proto_artifact.entity = proto_run.entity
-        proto_artifact.user_created = is_user_created
-        proto_artifact.use_after_commit = use_after_commit
-        proto_artifact.finalize = finalize
-
         link_artifact = pb.LinkArtifactRecord()
-        link_artifact.artifact.CopyFrom(proto_artifact)
+        link_artifact.client_id = artifact._client_id
         link_artifact.portfolio_name = portfolio_name
-        link_artifact.portfolio_entity = entity or proto_run.entity
-        link_artifact.portfolio_project = project or proto_run.project
+        link_artifact.portfolio_entity = entity
+        link_artifact.portfolio_project = project
         for alias in aliases:
             link_artifact.portfolio_aliases.append(alias)
 

@@ -159,6 +159,7 @@ def link_model(
         run = wandb.run
         # _artifact_target is a Local Artifact
         # In this case, the given SavedModel was added to a LocalArtifact, most likely through `.add(WBValue)`
+
         if model._artifact_target is not None:
             artifact = model._artifact_target.artifact
         # _artifact_source is a Public Artifact here.
@@ -182,21 +183,21 @@ def link_model(
 
     # TODO: Will delete the below code/comments.
 
-    # SavedModel instance contains a reference to its underlying artifact.
-    # If it's a Public Artifact, i.e it's been logged to the backend already,
-    # we can simply use its link method.
-    if model._artifact_target is not None:
-        public_artifact = model._artifact_target.artifact._logged_artifact
-        # TODO: we should have a constraint that all linked artifacts in a portfolio
-        # have the same artifact type: i.e all "model" or "dataset".
-        # TODO: This is synchronous
+    # # SavedModel instance contains a reference to its underlying artifact.
+    # # If it's a Public Artifact, i.e it's been logged to the backend already,
+    # # we can simply use its link method.
+    # if model._artifact_target is not None:
+    #     public_artifact = model._artifact_target.artifact._logged_artifact
+    #     # TODO: we should have a constraint that all linked artifacts in a portfolio
+    #     # have the same artifact type: i.e all "model" or "dataset".
+    #     # TODO: This is synchronous
 
-        return public_artifact.link(registry_path, aliases)
+    #     return public_artifact.link(registry_path, aliases)
 
-    if wandb.run:
-        # TODO: This is async
-        artifact = model._artifact_source.artifact
-        wandb.run.link_artifact(artifact, registry_path, aliases)
+    # if wandb.run:
+    #     # TODO: This is async
+    #     artifact = model._artifact_source.artifact
+    #     wandb.run.link_artifact(artifact, registry_path, aliases)
 
     # artifact here is a LocalArtifact.
     # We make the assumption here that if someone calls log_model 5 times
