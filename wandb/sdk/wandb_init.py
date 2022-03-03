@@ -99,22 +99,28 @@ class _WandbInit(object):
 
         # if the user ran, for example, `wandb.login(`) before `wandb.init()`,
         # the singleton will already be set up and so if e.g. env vars are set
-        # in between, they will be ignored, which is not what we want.
+        # in between, they will be ignored, which we need to inform the user about.
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
-            # update the singleton._environ with the current env vars
-            singleton._environ = (
-                dict(os.environ)
-                if singleton._environ is None
-                else {**singleton._environ, **dict(os.environ)}
-            )
-            # update the singleton with the current settings
-            singleton_settings = singleton._settings_setup(
-                singleton.settings, singleton._early_logger
-            )
-            self._wl = wandb_setup.setup(settings=singleton_settings)
-        else:
-            self._wl = wandb_setup.setup()
+            # check if environment variables have changed
+            singleton_env = {
+                k: v for k, v in singleton._environ.items() if k.startswith("WANDB_")
+            }
+            os_env = {k: v for k, v in os.environ.items() if k.startswith("WANDB_")}
+            if (
+                set(singleton_env.keys()) != set(os_env.keys())
+                or set(singleton_env.values()) != set(os_env.values())
+            ):
+                wandb.termwarn(
+                    "It appears that the `wandb`-related environment variables changed "
+                    "after the current `wandb` session was set up. These changes will be ignored. "
+                    "If you want to modify the corresponding settings at this point, "
+                    "please pass the corresponding arguments to `wandb.init()`. "
+                    "For more information, please refer to the documentation at "
+                    "https://docs.wandb.ai/ref/python/init."
+                )
+
+        self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())
 

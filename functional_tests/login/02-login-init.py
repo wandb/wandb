@@ -15,4 +15,5 @@ if __name__ == "__main__":
         run = wandb.init(project="test-project")
         run.finish()
 
-    assert os.path.exists(os.path.join(test_dir, "wandb", "debug.log"))
+    assert os.path.exists(os.path.join("wandb", "debug.log"))
+    assert not os.path.exists(os.path.join(test_dir, "wandb", "debug.log"))
