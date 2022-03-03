@@ -39,8 +39,8 @@ class InterfaceSock(InterfaceShared):
 
     def _hack_set_run(self, run: "Run") -> None:
         super(InterfaceSock, self)._hack_set_run(run)
-        assert run.id
-        self._stream_id = run.id
+        assert run._run_id
+        self._stream_id = run._run_id
 
     def _assign(self, record: Any) -> None:
         assert self._stream_id
