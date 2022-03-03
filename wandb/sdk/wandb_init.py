@@ -107,10 +107,9 @@ class _WandbInit(object):
                 k: v for k, v in singleton._environ.items() if k.startswith("WANDB_")
             }
             os_env = {k: v for k, v in os.environ.items() if k.startswith("WANDB_")}
-            if (
-                set(singleton_env.keys()) != set(os_env.keys())
-                or set(singleton_env.values()) != set(os_env.values())
-            ):
+            if set(singleton_env.keys()) != set(os_env.keys()) or set(
+                singleton_env.values()
+            ) != set(os_env.values()):
                 wandb.termwarn(
                     "It appears that the `wandb`-related environment variables changed "
                     "after the current `wandb` session was set up. These changes will be ignored. "
