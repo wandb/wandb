@@ -390,7 +390,7 @@ class _PytorchModelAdapter(_IModelAdapter["torch.nn.Module"]):
 
     @staticmethod
     def _unsafe_model_obj_from_path(dir_or_file_path: "PathType") -> "torch.nn.Module":
-        return _get_torch().load(dir_or_file_path)
+        return _get_torch().load(dir_or_file_path, None, _get_cloudpickle())
 
     @staticmethod
     def _unsafe_can_adapt_model_obj(obj: "GlobalModelObjType") -> bool:
