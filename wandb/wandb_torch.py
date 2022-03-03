@@ -399,7 +399,7 @@ class TorchGraph(wandb.data_types.Graph):
                 graph_hook = sub_module.register_forward_hook(
                     self.create_forward_hook(name, graph_idx)
                 )
-                wandb.run._torch()._hook_handles[
+                wandb.run._torch._hook_handles[
                     "topology/" + str(id(graph_hook))
                 ] = graph_hook
                 if not hasattr(parent, "_wandb_hook_names"):

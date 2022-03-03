@@ -627,6 +627,7 @@ class Run:
         self._is_attaching = ""
         self._attach_id = _attach_id
 
+    @property
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":
         if self._torch_history is None:
             self._torch_history = wandb.wandb_torch.TorchHistory()
