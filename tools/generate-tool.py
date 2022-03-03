@@ -104,7 +104,6 @@ def check_files(paths):
 
 
 def main():
-    print(args.format)
     path_list = get_paths()
 
     if args.generate:
