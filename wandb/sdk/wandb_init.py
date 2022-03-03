@@ -673,7 +673,10 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+    attach_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    *,
+    run: Optional["Run"] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
@@ -681,10 +684,18 @@ def _attach(
         attach_id: (str, optional) The id of the run or an attach identifier
             that maps to a run.
         run_id: (str, optional) The id of the run to attach to.
+        run: (Run, optional) The run instance to attach
     """
     attach_id = attach_id or run_id
+    if not ((attach_id is None) ^ (run is None)):
+        raise UsageError("Either (`attach_id` or `run_id`) or `run` must be specified")
+
+    attach_id = attach_id or run._attach_id
+
     if attach_id is None:
-        raise UsageError("attach_id or run_id must be specified")
+        raise UsageError(
+            "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
+        )
     wandb._assert_is_user_process()
 
     _wl = wandb_setup._setup()
@@ -706,7 +717,10 @@ def _attach(
     backend.server_connect()
     logger.info("attach backend started and connected")
 
-    run = Run(settings=settings)
+    if run is None:
+        run = Run(settings=settings)
+    else:
+        run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
