@@ -400,6 +400,41 @@ class InterfaceBase(object):
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
+    def publish_link_artifact(
+        self,
+        run: "Run",
+        artifact: Artifact,
+        portfolio_name: str,
+        aliases: Iterable[str],
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        is_user_created: bool = False,
+        use_after_commit: bool = False,
+        finalize: bool = True,
+    ) -> None:
+        proto_run = self._make_run(run)
+        proto_artifact = self._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = is_user_created
+        proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
+
+        link_artifact = pb.LinkArtifactRecord()
+        link_artifact.artifact.CopyFrom(proto_artifact)
+        link_artifact.portfolio_name = portfolio_name
+        link_artifact.portfolio_entity = entity or proto_run.entity
+        link_artifact.portfolio_project = project or proto_run.project
+        for alias in aliases:
+            link_artifact.portfolio_aliases.append(alias)
+
+        self._publish_link_artifact(link_artifact)
+
+    @abstractmethod
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        raise NotImplementedError
+
     def communicate_artifact(
         self,
         run: "Run",

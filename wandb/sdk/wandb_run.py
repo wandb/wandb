@@ -2005,6 +2005,40 @@ class Run:
     def _detach(self) -> None:
         pass
 
+    def link_artifact(
+        self,
+        artifact: Union[public.Artifact, Artifact],
+        portfolio_path: str,
+        aliases: Optional[List[str]],
+    ):
+        # TODO: Add checks for local and public artifact and change the below booleans
+        # For now, we're assuming a Local Artifact.
+        finalize = True
+        is_user_created = True
+        use_after_commit = False
+
+        portfolio, project, entity = wandb.util._parse_portfolio_path(portfolio_path)
+
+        # if local artifact, then use client_id
+        # if public artifact, use the real server_id as artifactID
+        if self._backend and self._backend.interface:
+            if not self._settings._offline:
+                future = self._backend.interface.publish_link_artifact(
+                    self,
+                    artifact,
+                    portfolio,
+                    aliases,
+                    entity,
+                    project,
+                    finalize=finalize,
+                    is_user_created=is_user_created,
+                    use_after_commit=use_after_commit,
+                )
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+            else:
+                # TODO: implement offline mode + sync
+                raise NotImplementedError
+
     def use_artifact(
         self,
         artifact_or_name: Union[str, public.Artifact, Artifact],

@@ -20,7 +20,6 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.apis import internal, public
 from wandb.data_types import SavedModel
 import wandb
-import pandas as pd
 
 
 def _add_any(
@@ -123,12 +122,12 @@ def log_model(
     # Do client id and server id mapping on backend for linkartifact.
     # artifactsaver, createArtifact mutation.
     # many to one relationship from sequence_client_id to relevant server id.
-    artifact.wait()
+    # artifact.wait()
 
     # Once this completes, we will have uploaded the artifact.
     # `artifact._logged_artifact._instance` points to the Public Artifact.
     # Property access on `artifact` will be routed to this Public Artifact.
-    model._set_artifact_source(artifact._logged_artifact._instance)
+    # model._set_artifact_source(artifact._logged_artifact._instance)
 
     # Now the SavedModel() instance has the Public Artifact bound to it.
     # In `link_model`, we can now call properties on this Public Artifact.
@@ -156,8 +155,32 @@ def link_model(
     if aliases is None:
         aliases = ["latest"]
 
-    # SavedModel instance contains _artifact_source and _artifact_target
-    # source is always a LocalArtifact and target is always a PublicArtifact
+    if wandb.run:
+        run = wandb.run
+        # _artifact_target is a Local Artifact
+        # In this case, the given SavedModel was added to a LocalArtifact, most likely through `.add(WBValue)`
+        if model._artifact_target is not None:
+            artifact = model._artifact_target.artifact
+        # _artifact_source is a Public Artifact here.
+        # Its existence means that SavedModel was deserialized from an artifact, most likely from `use_model`.
+        elif model._artifact_source is not None:
+            artifact = model._artifact_source.artifact
+        else:
+            raise ValueError(
+                "Linking requires that the given SavedModel belongs to an artifact"
+            )
+
+        run.link_artifact(artifact, registry_path, aliases)
+
+    else:
+        if model._artifact_source is not None:
+            model._artifact_source.artifact.link(registry_path, aliases)
+        else:
+            raise ValueError(
+                "Linking requires that the given SavedModel belongs to an artifact"
+            )
+
+    # TODO: Will delete the below code/comments.
 
     # SavedModel instance contains a reference to its underlying artifact.
     # If it's a Public Artifact, i.e it's been logged to the backend already,

@@ -2048,6 +2048,41 @@ class Api:
             open_file.close()
         return responses
 
+    def link_artifact(self, client_id, portfolio_name, entity, project, aliases):
+        mutation = gql(
+            """
+                mutation LinkArtifact(
+                    $clientID: ID!,
+                    $artifactPortfolioName: String!,
+                    $entityName: String!,
+                    $projectName: String!,
+                    $aliases: [ArtifactAliasInput!]) {
+                        linkArtifact(input: {
+                            clientID: $clientID,
+                            artifactPortfolioName: $artifactPortfolioName,
+                            entityName: $entityName,
+                            projectName: $projectName,
+                            aliases: $aliases
+                        }) {
+                            versionIndex
+                        }
+                    }
+            """
+        )
+        self.gql(
+            mutation,
+            variable_values={
+                "clientID": client_id,
+                "artifactPortfolioName": portfolio_name,
+                "entityName": entity,
+                "projectName": project,
+                "aliases": [
+                    {"alias": alias, "artifactCollectionName": portfolio_name}
+                    for alias in aliases
+                ],
+            },
+        )
+
     def use_artifact(
         self,
         artifact_id,
