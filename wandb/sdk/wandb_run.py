@@ -609,7 +609,11 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id, _init_pid=self._init_pid)
+        return dict(
+            _attach_id=_attach_id,
+            _init_pid=self._init_pid,
+            _is_attaching=self._is_attaching,
+        )
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -620,13 +624,9 @@ class Run:
         if not _attach_id:
             return
 
-        _init_pid = state["_init_pid"]
-        if _init_pid == os.getpid():
+        self.__dict__.update(state)
+        if self._init_pid == os.getpid():
             raise RuntimeError("attach in the same process is not supported")
-
-        self._is_attaching = ""
-        self._init_pid = _init_pid
-        self._attach_id = _attach_id
 
     @property
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":

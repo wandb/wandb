@@ -509,6 +509,20 @@ def test_attach_usage_errors(wandb_init_run):
     assert "Either (`attach_id` or `run_id`) or `run` must be specified" in str(e.value)
 
 
+def test_log_step_warning(test_settings, capsys):
+    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
+        with wandb.init(settings=test_settings) as run:
+            dummy_pid = run._init_pid + 1
+            with mock.patch("os.getpid", return_value=dummy_pid):
+                run.log({"a": 2}, step=5)
+
+    message = capsys.readouterr().err
+    assert (
+        "Step cannot be set when using run in multiple processes. Please log your step values as a metric such as 'global_step"
+        in message
+    )
+
+
 # TODO: test these or make sure they are tested somewhere
 # run.save()  # odd
 # run.use_artifact()
