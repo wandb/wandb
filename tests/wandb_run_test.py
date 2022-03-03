@@ -5,6 +5,7 @@ config tests.
 import os
 import sys
 import numpy as np
+import pickle
 import platform
 import pytest
 from unittest import mock
@@ -712,3 +713,12 @@ def test_settings_unexpected_args_telemetry(
         telemetry_issues = telemetry.get("11", [])
         assert 2 in telemetry_issues
         run.finish()
+
+
+def test_attach_same_process(test_settings):
+    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
+        with pytest.raises(RuntimeError) as excinfo:
+            run = wandb.init(settings=test_settings)
+            new_run = pickle.loads(pickle.dumps(run))
+            new_run.log({"a": 2})
+    assert "attach in the same process is not supported" in str(excinfo.value)

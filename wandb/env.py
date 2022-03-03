@@ -110,7 +110,7 @@ def immutable_keys():
     ]
 
 
-def _env_as_bool(var, default=None, env=None):
+def _env_as_bool(var: str, default: str = None, env=None) -> bool:
     if env is None:
         env = os.environ
     val = env.get(var, default)

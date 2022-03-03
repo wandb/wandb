@@ -232,7 +232,7 @@ class StreamMux:
         # TODO(settings) remove type ignore once SettingsStatic and Settings unified
         print("")
         printer = get_printer(
-            all(stream._settings._jupyter for stream in streams.values())  # type: ignore
+            all(stream._settings._jupyter for stream in streams.values())
         )
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false

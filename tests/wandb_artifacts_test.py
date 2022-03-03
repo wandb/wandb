@@ -1062,6 +1062,7 @@ def test_artifact_references_internal(
             internal_sm.send_artifact(log_artifact)
 
 
+@pytest.mark.timeout(300)
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         run = wandb.init(settings=test_settings)
