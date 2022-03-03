@@ -353,7 +353,6 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
-    _attached_run: bool
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _colab: bool
     _config_dict: Config
@@ -474,7 +473,6 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
-            _attached_run={"value": False},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,

@@ -189,12 +189,12 @@ def _attach(func: Callable) -> Callable:
 
         # * `_attach_id` is only assigned in service hence for all non-service cases
         # it will be a passthrough.
-        # * `_init_pid` is only assigned in __init__:
-        #   - for non-fork case the object is shared through pickling so will be None.
-        #   - for fork case the new process share mem space hence the value would be of parent process.
+        # * `_attach_pid` is only assigned in __init__:
+        #   - for a non fork case: the object is shared through pickling so the value will be None.
+        #   - for a fork case: the new process shares the memory space so the value will be of the parent process.
         if (
             getattr(self, "_attach_id", None)
-            and getattr(self, "_init_pid", None) != os.getpid()
+            and getattr(self, "_attach_pid", None) != os.getpid()
         ):
             if self._is_attaching:
                 message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{self._is_attaching}`"
@@ -322,6 +322,7 @@ class Run:
     _artifact_slots: List[str]
 
     _init_pid: int
+    _attach_pid: int
     _iface_pid: Optional[int]
     _iface_port: Optional[int]
 
@@ -335,6 +336,8 @@ class Run:
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        # pid is set so we know if this run object was initialized by this process
+        self._init_pid = os.getpid()
         self._init(settings=settings, config=config, sweep_config=sweep_config)
 
     def _init(
@@ -476,15 +479,14 @@ class Run:
                 )
         self._config._update(config, ignore_locked=True)
 
-        # pid is set so we know if this run object was initialized by this process
-        self._init_pid = os.getpid()
-
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
         self._iface_port = None
         self._attach_id = None
         self._is_attaching = ""
+
+        self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
         if self._settings._require_service:
@@ -618,10 +620,12 @@ class Run:
         if not _attach_id:
             return
 
-        if state["_init_pid"] == os.getpid():
+        _init_pid = state["_init_pid"]
+        if _init_pid == os.getpid():
             raise RuntimeError("attach in the same process is not supported")
 
         self._is_attaching = ""
+        self._init_pid = _init_pid
         self._attach_id = _attach_id
 
     @property
@@ -1139,11 +1143,6 @@ class Run:
 
         return row
 
-    def _ignore_step(self) -> bool:
-        if self._settings._require_service:
-            return os.getpid() != self._init_pid or self._settings._attached_run
-        return False
-
     def _partial_history_callback(
         self,
         row: Dict[str, Any],
@@ -1165,7 +1164,7 @@ class Run:
                 user_step=self._step,
                 step=step,
                 flush=commit,
-                publish_step=not_using_tensorboard and not self._ignore_step(),
+                publish_step=not_using_tensorboard and os.getpid() == self._init_pid,
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1288,7 +1287,7 @@ class Run:
         self._partial_history_callback(data, step, commit)
 
         if step is not None:
-            if self._ignore_step():
+            if os.getpid() != self._init_pid:
                 wandb.termwarn(
                     "Step cannot be set when using run in multiple processes. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
