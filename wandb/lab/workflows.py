@@ -120,7 +120,15 @@ def log_model(
 def use_model(model_alias: str) -> "SavedModel":
     # TODO: Test public artifact path with this
     # Returns a SavedModel instance
-    pass
+    if wandb.run:
+        run = wandb.run
+        artifact = run.use_artifact(model_alias)
+        sm = artifact.get("index")
+        return sm
+    else:
+        raise ValueError(
+            "use_model can only be called inside a run. Please call wandb.init() before use_model(...)"
+        )
 
 
 def link_model(
