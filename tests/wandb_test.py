@@ -495,6 +495,20 @@ def test_run_url(wandb_init_run):
     assert url is None
 
 
+def test_attach_usage_errors(wandb_init_run):
+
+    with pytest.raises(wandb.UsageError) as e:
+        wandb._attach(run=wandb_init_run)
+    assert (
+        "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
+        in str(e.value)
+    )
+
+    with pytest.raises(wandb.UsageError) as e:
+        wandb._attach()
+    assert "Either (`attach_id` or `run_id`) or `run` must be specified" in str(e.value)
+
+
 # TODO: test these or make sure they are tested somewhere
 # run.save()  # odd
 # run.use_artifact()
