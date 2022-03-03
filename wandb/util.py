@@ -1477,11 +1477,27 @@ def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
             return None
 
 
-def _parse_portfolio_path(name: str):
-    words = name.split("/")
+def _parse_entity_project_item(path: str) -> tuple:
+    """Parses paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
+
+    Args:
+        path: `str`, input path; must be between 0 and 3 in length.
+
+    Returns:
+        tuple of length 3 - (item, project, entity)
+
+    Example:
+        alias, project, entity = _parse_entity_project_item("myproj/mymodel:best")
+
+        assert entity   == ""
+        assert project  == "myproj"
+        assert alias    == "mymodel:best"
+
+    """
+    words = path.split("/")
     if len(words) == 0 or len(words) > 3:
         raise ValueError(
-            "registry name must be of the form {registy}, {project}/{registry}, or {entity}/{project}/{registry}"
+            "Must be of the form {item}, {project}/{item}, or {entity}/{project}/{item}"
         )
     keys = ["portfolio", "project", "entity"]
     rev = reversed(words)

@@ -99,9 +99,6 @@ def log_model(
     description: Optional[str] = None,
     metadata: dict = {},
     project: Optional[str] = None,
-    # evaluation_table:Optional[data_types.Table]=None,
-    # serialization_strategy=wandb.serializers.PytorchSerializer,
-    # link_to_registry=True
 ) -> "SavedModel":
     model = data_types.SavedModel(model_obj)
     artifact = _log_artifact_version(
@@ -117,25 +114,11 @@ def log_model(
     )
 
     # TODO: handle offline mode appropriately.
-    # Do not do .wait() --> it's blocking and synchronous.
-    # We want this done asynchronously.
-    # Do client id and server id mapping on backend for linkartifact.
-    # artifactsaver, createArtifact mutation.
-    # many to one relationship from sequence_client_id to relevant server id.
-    # artifact.wait()
-
-    # Once this completes, we will have uploaded the artifact.
-    # `artifact._logged_artifact._instance` points to the Public Artifact.
-    # Property access on `artifact` will be routed to this Public Artifact.
-    # model._set_artifact_source(artifact._logged_artifact._instance)
-
-    # Now the SavedModel() instance has the Public Artifact bound to it.
-    # In `link_model`, we can now call properties on this Public Artifact.
-    # including id, which will be used in the gql request.
     return model
 
 
-def use_model(model_alias: str):
+def use_model(model_alias: str) -> "SavedModel":
+    # TODO: Test public artifact path with this
     # Returns a SavedModel instance
     pass
 
@@ -157,13 +140,13 @@ def link_model(
 
     if wandb.run:
         run = wandb.run
-        # _artifact_target is a Local Artifact
-        # In this case, the given SavedModel was added to a LocalArtifact, most likely through `.add(WBValue)`
 
+        # If the SavedModel has been added to a Local Artifact (most likely through `.add(WBValue)`), then
+        # model._artifact_target will point to that Local Artifact.
         if model._artifact_target is not None:
             artifact = model._artifact_target.artifact
-        # _artifact_source is a Public Artifact here.
-        # Its existence means that SavedModel was deserialized from an artifact, most likely from `use_model`.
+        # _artifact_source, if it exists, points to a Public Artifact.
+        # Its existence means that SavedModel was deserialized from a logged artifact, most likely from `use_model`.
         elif model._artifact_source is not None:
             artifact = model._artifact_source.artifact
         else:
@@ -245,72 +228,3 @@ def link_model(
     # this accepts a Union[LocalArtifact, PublicArtifact].
 
     # if we're not in the context of a run,
-    pass
-
-
-def link_artifact(
-    artifact: "PublicArtifact",
-    registry_name: str,
-    aliases: Union[str, List[str]] = None,
-) -> None:
-
-    if wandb.run is None:
-        raise ValueError("wandb.init() must be called before artifact can be linked")
-
-    run = wandb.run
-    # TODO: handle offline mode appropriately
-    if run.settings._offline:
-        raise TypeError("Cannot link artifact when in offline mode.")
-
-    api = internal.Api(default_settings={"entity": run.entity, "project": run.project})
-    api.set_current_run_id(run.id)
-
-    api.link_artifact(artifact.id, registry_name, aliases)
-
-    if model_artifact.id is None:
-        # TODO: change error message
-        raise ValueError("model_artifact has not been logged")
-
-    pfolio_id = get_portfolio(portfolio_name)
-    # pfolio = api.artifact_collection(portfolio_name, "model")
-
-    mutation = gql(
-        """
-        mutation linkArtifact($artifactID: ID!, $artifactPortfolioID: ID!, $aliases: [ArtifactAliasInput!]) {
-            linkArtifact(input: {
-                artifactID: $artifactID,
-                artifactPortfolioID: $artifactPortfolioID,
-                aliases: $aliases
-            }) {
-                artifactMembership {
-                    versionIndex
-                }
-            }
-        }
-        """
-    )
-    aliases = [
-        {"artifactCollectionName": portfolio_name, "alias": alias} for alias in aliases
-    ]
-
-    response = api.client.execute(
-        mutation,
-        variable_values={
-            "artifactID": model_artifact.id,
-            "artifactPortfolioID": pfolio_id,
-            "aliases": aliases,
-        },
-    )
-
-    if (
-        response is None
-        or response.get("linkArtifact") is None
-        or response["linkArtifact"].get("artifactMembership") is None
-        or response["linkArtifact"].get("artifactMembership").get("versionIndex")
-        is None
-    ):
-        raise ValueError("Error in GraphQL response")
-
-    version_index = response["linkArtifact"]["artifactMembership"]["versionIndex"]
-    print(f"Version index (0-based): {version_index}")
-    return model_artifact

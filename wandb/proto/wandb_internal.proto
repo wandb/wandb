@@ -407,10 +407,11 @@ message ArtifactResult {
  */
  message LinkArtifactRecord {
   string          client_id = 1;
-  string          portfolio_name = 2;
-  string          portfolio_entity = 3;
-  string          portfolio_project = 4;
-  repeated string portfolio_aliases = 5;
+  string          server_id = 2;
+  string          portfolio_name = 3;
+  string          portfolio_entity = 4;
+  string          portfolio_project = 5;
+  repeated string portfolio_aliases = 6;
   _RecordInfo     _info = 200;
  }
 

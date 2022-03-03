@@ -967,17 +967,32 @@ class SendManager:
     def send_link_artifact(self, record: "Record") -> None:
         link = record.link_artifact
         client_id = link.client_id
+        server_id = link.server_id
         portfolio_name = link.portfolio_name
         entity = link.portfolio_entity
         project = link.portfolio_project
         aliases = link.portfolio_aliases
-        if client_id and portfolio_name and entity and project and aliases:
+        if (
+            (client_id or server_id)
+            and portfolio_name
+            and entity
+            and project
+            and aliases
+        ):
             try:
                 self._api.link_artifact(
-                    client_id, portfolio_name, entity, project, aliases
+                    client_id, server_id, portfolio_name, entity, project, aliases
                 )
             except Exception as e:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
+        else:
+            logger.debug("link_artifact internal API was never called")
+            if not (client_id or server_id):
+                logger.debug("link_artifact params - client_id and server_id not set")
+            else:
+                logger.debug(
+                    f"link_artifact params portfolio_name, entity, project: {portfolio_name}, {entity}, {project}"
+                )
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp

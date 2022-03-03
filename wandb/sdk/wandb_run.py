@@ -37,6 +37,7 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -2011,7 +2012,9 @@ class Run:
         portfolio_path: str,
         aliases: Optional[List[str]],
     ):
-        portfolio, project, entity = wandb.util._parse_portfolio_path(portfolio_path)
+        portfolio, project, entity = wandb.util._parse_entity_project_item(
+            portfolio_path
+        )
 
         # if local artifact, then use client_id
         # if public artifact, use the real server_id as artifactID

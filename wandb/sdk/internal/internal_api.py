@@ -2048,40 +2048,55 @@ class Api:
             open_file.close()
         return responses
 
-    def link_artifact(self, client_id, portfolio_name, entity, project, aliases):
-        mutation = gql(
-            """
+    def link_artifact(
+        self, client_id, server_id, portfolio_name, entity, project, aliases
+    ):
+        template = """
                 mutation LinkArtifact(
-                    $clientID: ID!,
                     $artifactPortfolioName: String!,
                     $entityName: String!,
                     $projectName: String!,
-                    $aliases: [ArtifactAliasInput!]) {
+                    $aliases: [ArtifactAliasInput!],
+                    ID_TYPE
+                    ) {
                         linkArtifact(input: {
-                            clientID: $clientID,
                             artifactPortfolioName: $artifactPortfolioName,
                             entityName: $entityName,
                             projectName: $projectName,
-                            aliases: $aliases
+                            aliases: $aliases,
+                            ID_VALUE
                         }) {
                             versionIndex
                         }
                     }
             """
-        )
-        response = self.gql(
-            mutation,
-            variable_values={
-                "clientID": client_id,
-                "artifactPortfolioName": portfolio_name,
-                "entityName": entity,
-                "projectName": project,
-                "aliases": [
-                    {"alias": alias, "artifactCollectionName": portfolio_name}
-                    for alias in aliases
-                ],
-            },
-        )
+
+        def replace(a, b):
+            nonlocal template
+            template = template.replace(a, b)
+
+        if server_id:
+            logger.debug("link_artifact using public artifact")
+            replace("ID_TYPE", "$artifactID: ID")
+            replace("ID_VALUE", "artifactID: $artifactID")
+        elif client_id:
+            replace("ID_TYPE", "$clientID: ID")
+            replace("ID_VALUE", "clientID: $clientID")
+
+        variable_values = {
+            "clientID": client_id,
+            "artifactID": server_id,
+            "artifactPortfolioName": portfolio_name,
+            "entityName": entity,
+            "projectName": project,
+            "aliases": [
+                {"alias": alias, "artifactCollectionName": portfolio_name}
+                for alias in aliases
+            ],
+        }
+
+        mutation = gql(template)
+        response = self.gql(mutation, variable_values=variable_values)
         logger.debug("Done with link_artifact mutation")
         logger.debug(f"{response}")
 

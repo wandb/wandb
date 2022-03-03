@@ -410,7 +410,10 @@ class InterfaceBase(object):
         project: Optional[str] = None,
     ) -> None:
         link_artifact = pb.LinkArtifactRecord()
-        link_artifact.client_id = artifact._client_id
+        if type(artifact) is Artifact:
+            link_artifact.client_id = artifact._client_id
+        else:
+            link_artifact.server_id = artifact.id
         link_artifact.portfolio_name = portfolio_name
         link_artifact.portfolio_entity = entity or run.entity
         link_artifact.portfolio_project = project or run.project
