@@ -480,7 +480,6 @@ class Artifact(ArtifactInterface):
             data_types.Html,
             data_types.Object3D,
             data_types.Molecule,
-            data_types.SavedModel,
         ]
 
         if not any(isinstance(obj, t) for t in allowed_types):
