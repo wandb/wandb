@@ -266,9 +266,6 @@ class Run:
     two objects will be merged.
 
     Attributes:
-        history: (History) Time series values, created with `wandb.log()`.
-            History can contain scalar values, rich media, or even custom plots
-            across multiple steps.
         summary: (Summary) Single values set for each `wandb.log()` key. By
             default, summary is set to the last value logged. You can manually
             set summary to the best value, like max accuracy, instead of the
