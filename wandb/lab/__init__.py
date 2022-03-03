@@ -6,4 +6,4 @@ from .workflows import *
 
 reset_path()
 
-__all__ = ["log_model"]
+__all__ = ["log_model", "use_model", "link_model"]

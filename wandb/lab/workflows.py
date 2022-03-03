@@ -7,7 +7,7 @@ from typing import (
 )
 import os
 import wandb.data_types as data_types
-from wandb.data_types import SavedModel
+from wandb.sdk.data_types import SavedModel
 from wandb.sdk.interface.artifacts import (
     ArtifactEntry,
     Artifact as ArtifactInterface,
@@ -104,7 +104,9 @@ def log_model(
     artifact = _log_artifact_version(
         name=name,
         type="model",
-        entries={"index": model,},
+        entries={
+            "index": model,
+        },
         aliases=aliases,
         description=description,
         metadata=metadata,
@@ -118,7 +120,6 @@ def log_model(
 
 
 def use_model(model_alias: str) -> "SavedModel":
-    # TODO: Test public artifact path with this
     # Returns a SavedModel instance
     if wandb.run:
         run = wandb.run
@@ -137,7 +138,7 @@ def link_model(
     aliases: Optional[Union[str, List[str]]] = None,
 ):
     """
-    `registry_name`: str that can take the following form:
+    `registry_path`: str that can take the following form:
         "{portfolio}"
         "{entity}/{project}/{portfolio}"
         "{project}/{portfolio}
@@ -174,37 +175,12 @@ def link_model(
 
     # TODO: Will delete the below code/comments.
 
-    # # SavedModel instance contains a reference to its underlying artifact.
-    # # If it's a Public Artifact, i.e it's been logged to the backend already,
-    # # we can simply use its link method.
-    # if model._artifact_target is not None:
-    #     public_artifact = model._artifact_target.artifact._logged_artifact
-    #     # TODO: we should have a constraint that all linked artifacts in a portfolio
-    #     # have the same artifact type: i.e all "model" or "dataset".
-    #     # TODO: This is synchronous
-
-    #     return public_artifact.link(registry_path, aliases)
-
-    # if wandb.run:
-    #     # TODO: This is async
-    #     artifact = model._artifact_source.artifact
-    #     wandb.run.link_artifact(artifact, registry_path, aliases)
-
-    # artifact here is a LocalArtifact.
-    # We make the assumption here that if someone calls log_model 5 times
-    # (which logs an artifact 5 times) & then calls link_model...
-    # There's no guarantee that the artifact actually exists on the backend.
-    # So instead in the linkArtifact gql request, we have to send the client_id
-    # of the LocalArtifact. And in the resolver, we check to see if we have a
-    # server_id mapped. If yes, we use that and continue link logic.
-    # If not, we error out and rely on the client retrying requests.
-    # TODO: How does the client retry request work?
+    # Use Case: a user trains a model, calling log_model several times
+    # in a row and saves a reference to the best model every time.
+    # At the end, they want to link this model into a portfolio.
 
     # Use Case: a user wants to evaluate a batch of models and
     # link the best one into a portfolio.
-
-    # Use Case: a user wants to evaluate all the models in a portfolio
-    # and choose the best one to link into the next stage (next portfolio).
 
     # Use Case: a user wants to evaluate the latest models in a portfolio
     # and choose the best one to link into the next stage (next portfolio).
@@ -212,27 +188,3 @@ def link_model(
     # Automated retraining: a user wants to fire off a training run on new data
     # with the same model architecture. They then want to link this model
     # into one portfolio to compare against the production model.
-
-    # If we're not in a run context OR SavedModels' underlying artifact
-    # is a Public Artifact, use the public API's link_artifact.
-    # this straight away fires up a linkArtifact gql request.
-
-    # Use Case: a user trains a model, calling log_model several times
-    # in a row and saves a reference to the best model every time.
-    # At the end, they want to link this model into a portfolio.
-
-    # --> this is going to be in a run context.
-    # --> link_model(best_model, "mnist_1")
-    # --> best_model's underlying artifact may not be logged yet.
-    # --> run.link_artifact("Union[LocalArtifact, PublicArtifact]")
-
-    # The below case is going to be more common.
-    # I can imagine that a user calls log_model several times in a row
-    # or evaluates a batch of models and wants to link the best one.
-    # In that case, we would use_model, get the SavedModel instance,
-    # and
-    # If we are in a run context, use run.link_artifact
-    # In this case, if SavedModel's artifact hasn't been logged yet,
-    # this accepts a Union[LocalArtifact, PublicArtifact].
-
-    # if we're not in the context of a run,

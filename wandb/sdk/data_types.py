@@ -1,6 +1,5 @@
 import codecs
 
-import cloudpickle
 import hashlib
 import io
 import json
@@ -35,6 +34,7 @@ import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 from wandb.util import has_num, get_module
+import wandb.sdk.pickler as pickle_module
 
 from .interface import _dtypes
 
@@ -2612,11 +2612,11 @@ class SavedModel(Media):
         super(SavedModel, self).__init__()
         torch = get_module("torch")
         if isinstance(model_or_path, str):
-            self._model = torch.load(model_or_path)
+            self._model = torch.load(model_or_path, pickle_module=pickle_module)
             self._set_file(model_or_path)
         else:
             tmp_path = os.path.join(_MEDIA_TMP.name, str(util.generate_id()) + ".pt")
-            torch.save(model_or_path, tmp_path, pickle_module=cloudpickle)
+            torch.save(model_or_path, tmp_path, pickle_module=pickle_module)
             self._set_file(tmp_path, is_tmp=True)
             self._model = model_or_path
 
