@@ -743,7 +743,7 @@ deprecate.deprecate(
 )
 ```
 
-### Adding URLs
+## Adding URLs
 
 All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
 ensure that URLs do not lead to broken links.

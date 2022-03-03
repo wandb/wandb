@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ._wburls_generated import URLS
 
 
-class WBUrls:
+class WBURLs:
     _urls_dict: Optional[Dict["URLS", str]]
 
     def __init__(self) -> None:
@@ -39,4 +39,4 @@ class WBUrls:
         return self._urls_dict[s]
 
 
-wburls = WBUrls()
+wburls = WBURLs()
