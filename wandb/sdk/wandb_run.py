@@ -395,9 +395,6 @@ class Run:
         self._quiet = self._settings.quiet
 
         self._output_writer = None
-        self._upgraded_version_message = None
-        self._deleted_version_message = None
-        self._yanked_version_message = None
         self._used_artifact_slots: Dict[str, str] = {}
 
         # Returned from backend request_run(), set from wandb_init?
@@ -817,7 +814,7 @@ class Run:
     def disabled(self) -> bool:
         return self._settings._noop
 
-    def _get_group(self):
+    def _get_group(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.run_group if run_obj else ""
 
