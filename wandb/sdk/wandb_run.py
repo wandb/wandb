@@ -183,30 +183,29 @@ class RunStatusChecker:
         self._retry_thread.join()
 
 
-def attach(func: Callable) -> Callable:
+def _attach(func: Callable) -> Callable:
     @functools.wraps(func)
     def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
 
-        if self._is_attaching:
-            message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{self._is_attaching}`"
-            raise RuntimeError(message)
-
-        try:
-            # * `_attach_id` is only assigned in service hence for all non-service cases
-            # it will be a passthrough.
-            # * `_init_pid` is only assigned in __init__:
-            #   - for non-fork case the object is shared through pickling so will be None.
-            #   - for fork case the new process share mem space hence the value would be of parent process.
-            if (
-                getattr(self, "_attach_id", None)
-                and getattr(self, "_init_pid", None) != os.getpid()
-            ):
-                self._is_attaching = func.__name__
+        # * `_attach_id` is only assigned in service hence for all non-service cases
+        # it will be a passthrough.
+        # * `_init_pid` is only assigned in __init__:
+        #   - for non-fork case the object is shared through pickling so will be None.
+        #   - for fork case the new process share mem space hence the value would be of parent process.
+        if (
+            getattr(self, "_attach_id", None)
+            and getattr(self, "_init_pid", None) != os.getpid()
+        ):
+            if self._is_attaching:
+                message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{self._is_attaching}`"
+                raise RuntimeError(message)
+            self._is_attaching = func.__name__
+            try:
                 wandb._attach(run=self)
-                self._is_attaching = ""
-            return func(self, *args, **kwargs)
-        except Exception as e:
-            raise e
+            except Exception as e:
+                raise e
+        self._is_attaching = ""
+        return func(self, *args, **kwargs)
 
     return wrapper
 
@@ -451,7 +450,7 @@ class Run:
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self.save(self._settings.launch_config_path)
+            self._save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -637,7 +636,7 @@ class Run:
         return self._torch_history
 
     @property  # type: ignore
-    @attach
+    @_attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
         cp = self._settings.copy()
@@ -645,24 +644,24 @@ class Run:
         return cp
 
     @property  # type: ignore
-    @attach
+    @_attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property  # type: ignore
-    @attach
+    @_attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config
 
     @property  # type: ignore
-    @attach
+    @_attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
     @property  # type: ignore
-    @attach
+    @_attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
 
@@ -684,7 +683,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    @attach
+    @_attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
 
@@ -704,7 +703,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    @attach
+    @_attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
         if self._tags:
@@ -723,7 +722,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    @attach
+    @_attach
     def id(self) -> str:
         """Returns the identifier for this run."""
         if TYPE_CHECKING:
@@ -731,7 +730,7 @@ class Run:
         return self._run_id
 
     @property  # type: ignore
-    @attach
+    @_attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
         if not self._run_obj:
@@ -745,7 +744,7 @@ class Run:
         return "/".join(parts)
 
     @property  # type: ignore
-    @attach
+    @_attach
     def path(self) -> str:
         """Returns the path to the run.
 
@@ -754,26 +753,36 @@ class Run:
         """
         return self._get_path()
 
-    @property  # type: ignore
-    @attach
-    def start_time(self) -> float:
-        """Returns the unix time stamp, in seconds, when the run started."""
-        return self._start_time
+    def _get_start_time(self) -> float:
+        return (
+            self._start_time
+            if not self._run_obj
+            else self._run_obj.start_time.ToSeconds()
+        )
 
     @property  # type: ignore
-    @attach
-    def starting_step(self) -> int:
-        """Returns the first step of the run."""
+    @_attach
+    def start_time(self) -> float:
+        """Returns the unix time stamp, in seconds, when the run started."""
+        return self._get_start_time()
+
+    def _get_starting_step(self) -> int:
         return self._starting_step if not self._run_obj else self._run_obj.starting_step
 
     @property  # type: ignore
-    @attach
+    @_attach
+    def starting_step(self) -> int:
+        """Returns the first step of the run."""
+        return self._get_starting_step()
+
+    @property  # type: ignore
+    @_attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
         return self._run_obj.resumed if self._run_obj else False
 
     @property  # type: ignore
-    @attach
+    @_attach
     def step(self) -> int:
         """Returns the current value of the step.
 
@@ -786,7 +795,7 @@ class Run:
         return run_obj.project if run_obj else ""
 
     @property  # type: ignore
-    @attach
+    @_attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         deprecate.deprecate(
@@ -799,17 +808,21 @@ class Run:
         return "dryrun" if self._settings._offline else "run"
 
     @property  # type: ignore
-    @attach
+    @_attach
     def offline(self) -> bool:
         return self._settings._offline
 
     @property  # type: ignore
-    @attach
+    @_attach
     def disabled(self) -> bool:
         return self._settings._noop
 
+    def _get_group(self):
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.run_group if run_obj else ""
+
     @property  # type: ignore
-    @attach
+    @_attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
 
@@ -820,22 +833,21 @@ class Run:
         If you are doing crossvalidation you should give all the crossvalidation
             folds the same group.
         """
-        run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.run_group if run_obj else ""
+        return self._get_group()
 
     @property  # type: ignore
-    @attach
+    @_attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
     @property  # type: ignore
-    @attach
+    @_attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
         return self.project_name()
 
-    @attach
+    @_attach
     def log_code(
         self,
         root: str = ".",
@@ -920,13 +932,13 @@ class Run:
         return self._settings.sweep_url
 
     @property  # type: ignore
-    @attach
+    @_attach
     def url(self) -> Optional[str]:
         """Returns the W&B url associated with the run."""
         return self.get_url()
 
     @property  # type: ignore
-    @attach
+    @_attach
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
 
@@ -1019,7 +1031,7 @@ class Run:
         if lines:
             self._label_probe_lines(lines)
 
-    @attach
+    @_attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Displays this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
@@ -1029,7 +1041,7 @@ class Run:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
-    @attach
+    @_attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generates HTML containing an iframe displaying the current run."""
         url = self._settings.run_url + "?jupyter=true"
@@ -1138,7 +1150,9 @@ class Run:
         if row:
             row = self._visualization_hack(row)
             row["_timestamp"] = int(row.get("_timestamp", time.time()))
-            row["_runtime"] = int(row.get("_runtime", time.time() - self._start_time))
+            row["_runtime"] = int(
+                row.get("_runtime", time.time() - self._get_start_time())
+            )
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1185,7 +1199,6 @@ class Run:
         self._entity = run_obj.entity
         self._project = run_obj.project
 
-        self._start_time = run_obj.start_time.ToSeconds()
         # Grab the config from resuming
         if run_obj.config:
             c_dict = config_util.dict_no_value_from_proto_list(run_obj.config.update)
@@ -1193,14 +1206,14 @@ class Run:
             if "_wandb" in c_dict:
                 del c_dict["_wandb"]
             # We update the config object here without triggering the callback
-            self.config._update(c_dict, allow_val_change=True, ignore_locked=True)
+            self._config._update(c_dict, allow_val_change=True, ignore_locked=True)
         # Update the summary, this will trigger an un-needed graphql request :(
         if run_obj.summary:
             summary_dict = {}
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        self._step = self.starting_step
+        self._step = self._get_starting_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             process_context="user", settings_dict=self._settings,
@@ -1226,17 +1239,17 @@ class Run:
         """
         value_extra = {"type": data_type, "key": key, "value": value}
 
-        if data_type not in self.config["_wandb"]:
-            self.config["_wandb"][data_type] = {}
+        if data_type not in self._config["_wandb"]:
+            self._config["_wandb"][data_type] = {}
 
-        if data_type in self.config["_wandb"][data_type]:
-            old_value = self.config["_wandb"][data_type][key]
+        if data_type in self._config["_wandb"][data_type]:
+            old_value = self._config["_wandb"][data_type][key]
         else:
             old_value = None
 
         if value_extra != old_value:
-            self.config["_wandb"][data_type][key] = value_extra
-            self.config.persist()
+            self._config["_wandb"][data_type][key] = value_extra
+            self._config.persist()
 
     def _log(
         self,
@@ -1296,7 +1309,7 @@ class Run:
         else:
             self._partial_history_callback(data, self._step)
 
-    @attach
+    @_attach
     def log(
         self,
         data: Dict[str, Any],
@@ -1484,7 +1497,7 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
-    @attach
+    @_attach
     def save(
         self,
         glob_str: Optional[str] = None,
@@ -1512,6 +1525,16 @@ class Run:
                 ),
             )
             return True
+
+        return self._save(glob_str, base_path, policy)
+
+    def _save(
+        self,
+        glob_str: Optional[str] = None,
+        base_path: Optional[str] = None,
+        policy: str = "live",
+    ) -> Union[bool, List[str]]:
+
         if policy not in ("live", "end", "now"):
             raise ValueError(
                 'Only "live" "end" and "now" policies are currently supported.'
@@ -1577,7 +1600,7 @@ class Run:
             self._backend.interface.publish_files(files_dict)
         return files
 
-    @attach
+    @_attach
     def restore(
         self,
         name: str,
@@ -1592,7 +1615,7 @@ class Run:
             root or self._settings.files_dir,
         )
 
-    @attach
+    @_attach
     def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
@@ -1603,6 +1626,9 @@ class Run:
             exit_code: Set to something other than 0 to mark a run as failed
             quiet: Set to true to minimize log output
         """
+        return self._finish(exit_code, quiet)
+
+    def _finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         if quiet is not None:
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
@@ -1628,7 +1654,7 @@ class Run:
         if manager:
             manager._inform_finish(run_id=self._run_id)
 
-    @attach
+    @_attach
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
@@ -1637,10 +1663,11 @@ class Run:
                 "wandb.run.join() is deprecated, please use wandb.run.finish()."
             ),
         )
-        self.finish(exit_code=exit_code)
+        self._finish(exit_code=exit_code)
 
     # TODO(jhr): annotate this
-    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
+    @staticmethod
+    def plot_table(vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
         """Creates a custom plot on a table.
 
         Arguments:
@@ -1815,7 +1842,7 @@ class Run:
             # setup fake callback
             self._redirect_cb = self._console_callback
 
-        output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
+        output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
         self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
@@ -1958,9 +1985,9 @@ class Run:
         spec_filename = filenames.JOBSPEC_FNAME
         with open(spec_filename, "w") as f:
             print(s, file=f)
-        self.save(spec_filename)
+        self._save(spec_filename)
 
-    @attach
+    @_attach
     def define_metric(
         self,
         name: str,
@@ -2056,12 +2083,12 @@ class Run:
         return m
 
     # TODO(jhr): annotate this
-    @attach
+    @_attach
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    @attach
+    @_attach
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
@@ -2111,7 +2138,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
-    @attach
+    @_attach
     def use_artifact(
         self,
         artifact_or_name: Union[str, public.Artifact, Artifact],
@@ -2139,12 +2166,12 @@ class Run:
         Returns:
             An `Artifact` object.
         """
-        if self.offline:
+        if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
         r = self._run_obj
         assert r is not None
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
-        api.set_current_run_id(self.id)
+        api.set_current_run_id(self._run_id)
 
         if isinstance(artifact_or_name, str):
             if self._launch_artifact_mapping:
@@ -2217,7 +2244,7 @@ class Run:
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
-    @attach
+    @_attach
     def log_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2253,7 +2280,7 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
-    @attach
+    @_attach
     def upsert_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2291,12 +2318,12 @@ class Run:
         Returns:
             An `Artifact` object.
         """
-        if self.group == "" and distributed_id is None:
+        if self._get_group() == "" and distributed_id is None:
             raise TypeError(
                 "Cannot upsert artifact unless run is in a group or distributed_id is provided"
             )
         if distributed_id is None:
-            distributed_id = self.group
+            distributed_id = self._get_group()
         return self._log_artifact(
             artifact_or_path,
             name=name,
@@ -2306,7 +2333,7 @@ class Run:
             finalize=False,
         )
 
-    @attach
+    @_attach
     def finish_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2343,12 +2370,12 @@ class Run:
         Returns:
             An `Artifact` object.
         """
-        if self.group == "" and distributed_id is None:
+        if self._get_group() == "" and distributed_id is None:
             raise TypeError(
                 "Cannot finish artifact unless run is in a group or distributed_id is provided"
             )
         if distributed_id is None:
-            distributed_id = self.group
+            distributed_id = self._get_group()
 
         return self._log_artifact(
             artifact_or_path,
@@ -2419,7 +2446,7 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
-        overrides = {"run": self.id}
+        overrides = {"run": self._run_id}
         run_obj = self._run_obj
         if run_obj is not None:
             overrides["entity"] = run_obj.entity
@@ -2459,7 +2486,7 @@ class Run:
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
-                name = "run-%s-%s" % (self.id, os.path.basename(artifact_or_path))
+                name = "run-%s-%s" % (self._run_id, os.path.basename(artifact_or_path))
             artifact = wandb.Artifact(name, type)
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
@@ -2484,7 +2511,7 @@ class Run:
         artifact.finalize()
         return artifact, aliases
 
-    @attach
+    @_attach
     def alert(
         self,
         title: str,
@@ -2528,10 +2555,10 @@ class Run:
         exc_tb: TracebackType,
     ) -> bool:
         exit_code = 0 if exc_type is None else 1
-        self.finish(exit_code)
+        self._finish(exit_code)
         return exc_type is None
 
-    @attach
+    @_attach
     def mark_preempting(self) -> None:
         """Marks this run as preempting.
 
