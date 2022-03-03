@@ -58,7 +58,7 @@ class SavedModel(WBValue):
             is provided, then the adapter will be inferred from the model_or_path.
     """
 
-    _log_type: ClassVar[str] = "saved-model"
+    _log_type: ClassVar[str] = "model-file"
     _adapter: Type["_IModelAdapter"]
     _model_obj: Optional["GlobalModelObjType"]
     _path: str
