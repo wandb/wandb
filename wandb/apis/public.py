@@ -3623,9 +3623,6 @@ class Artifact(artifacts.Artifact):
                 "Please make sure `registry_path` is of the format {entity}/{project}/{registry_name}."
             )
 
-        # this is a public artifact, so we can link using the artifactID directly
-        # TODO: Make corresponding backend change
-        # TODO: Test with python script --> see if we need to add retrying logic
         mutation = gql(
             """
             mutation LinkArtifact($artifactID: ID!, $artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!]) {

@@ -72,8 +72,8 @@ def _log_artifact_version(
         name = f"{name}-{run.id}"
 
     # This is a dirty hack for demo purposes.
-    if getattr(run, "history", None):
-        metadata.update({"__wb_log_step__": wandb.run.history._step})
+    # if getattr(run, "history", None):
+    #     metadata.update({"__wb_log_step__": wandb.run.history._step})
 
     art = wandb.Artifact(name, type, description, metadata, False, None)
 
@@ -104,9 +104,7 @@ def log_model(
     artifact = _log_artifact_version(
         name=name,
         type="model",
-        entries={
-            "index": model,
-        },
+        entries={"index": model,},
         aliases=aliases,
         description=description,
         metadata=metadata,
