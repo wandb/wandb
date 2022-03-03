@@ -2018,7 +2018,7 @@ class Run:
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
-                    artifact, portfolio, aliases, entity, project,
+                    self, artifact, portfolio, aliases, entity, project,
                 )
             else:
                 # TODO: implement offline mode + sync

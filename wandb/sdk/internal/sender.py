@@ -971,7 +971,6 @@ class SendManager:
         entity = link.portfolio_entity
         project = link.portfolio_project
         aliases = link.portfolio_aliases
-
         if client_id and portfolio_name and entity and project and aliases:
             try:
                 self._api.link_artifact(

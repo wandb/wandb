@@ -402,6 +402,7 @@ class InterfaceBase(object):
 
     def publish_link_artifact(
         self,
+        run: "Run",
         artifact: Artifact,
         portfolio_name: str,
         aliases: Iterable[str],
@@ -411,8 +412,8 @@ class InterfaceBase(object):
         link_artifact = pb.LinkArtifactRecord()
         link_artifact.client_id = artifact._client_id
         link_artifact.portfolio_name = portfolio_name
-        link_artifact.portfolio_entity = entity
-        link_artifact.portfolio_project = project
+        link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_project = project or run.project
         for alias in aliases:
             link_artifact.portfolio_aliases.append(alias)
 
