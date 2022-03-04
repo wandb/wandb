@@ -6,6 +6,9 @@ tag:
 depend:
     requirements:
         - numpy
+var:
+  - filenames_len:
+      :fn:len: :wandb:runs[0][summary][examples][filenames]
 assert:
     - :wandb:runs_len: 1
     - :op:contains:
@@ -22,7 +25,4 @@ assert:
           - random field 0
           - random field 1
           - random field 2
-        filenames:
-          - media/images/examples_0_0.png
-          - media/images/examples_0_1.png
-          - media/images/examples_0_2.png
+    - :filenames_len: 3

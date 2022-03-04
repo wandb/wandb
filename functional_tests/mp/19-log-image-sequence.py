@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+"""Multiple processes log sequence of images. 
+    The expected behavior is that there would be (N processes * len(sequence)) image files
+"""
+
 import multiprocessing as mp
 import os
 
@@ -7,6 +12,7 @@ import yea
 
 
 def process_child(run):
+    # need to re-seed the rng otherwise we get image collision
     rng = np.random.default_rng(os.getpid())
     height = width = 2
 
@@ -14,7 +20,6 @@ def process_child(run):
     for _ in range(2):
         media.append(wandb.Image(rng.random((height, width))))
         run.log({"media": media}, commit=False)
-    # print(run._settings.files_dir)
 
     run.log({"x": 1})
 
@@ -23,14 +28,11 @@ def main():
     wandb.require("service")
     wandb.setup()
     run = wandb.init()
-    # run.log({"a": 1})
-    # Start a new run in parallel in a child process
+
     processes = []
     for _ in range(2):
         p = mp.Process(target=process_child, kwargs=dict(run=run))
         processes.append(p)
-
-    for p in processes:
         p.start()
 
     for p in processes:
