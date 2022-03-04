@@ -95,7 +95,7 @@ def val_to_json(
             items = _prune_max_seq(val)
 
             if _server_accepts_image_filenames():
-                for i, item in enumerate(items):
+                for item in items:
                     item.bind_to_run(
                         run=run,
                         key=key,
@@ -103,7 +103,7 @@ def val_to_json(
                         ignore_copy_err=ignore_copy_err,
                     )
             else:
-                for item in items:
+                for i, item in enumerate(items):
                     item.bind_to_run(
                         run=run,
                         key=key,
