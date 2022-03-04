@@ -190,12 +190,12 @@ def _attach(func: Callable) -> Callable:
 
         # * `_attach_id` is only assigned in service hence for all non-service cases
         # it will be a passthrough.
-        # * `_init_pid` is only assigned in __init__:
-        #   - for non-fork case the object is shared through pickling so will be None.
-        #   - for fork case the new process share mem space hence the value would be of parent process.
+        # * `_attach_pid` is only assigned in __init__:
+        #   - for a non fork case: the object is shared through pickling so the value will be None.
+        #   - for a fork case: the new process shares the memory space so the value will be of the parent process.
         if (
             getattr(self, "_attach_id", None)
-            and getattr(self, "_init_pid", None) != os.getpid()
+            and getattr(self, "_attach_pid", None) != os.getpid()
         ):
             if self._is_attaching:
                 message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{self._is_attaching}`"
@@ -323,6 +323,7 @@ class Run:
     _artifact_slots: List[str]
 
     _init_pid: int
+    _attach_pid: int
     _iface_pid: Optional[int]
     _iface_port: Optional[int]
 
@@ -336,6 +337,8 @@ class Run:
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        # pid is set so we know if this run object was initialized by this process
+        self._init_pid = os.getpid()
         self._init(settings=settings, config=config, sweep_config=sweep_config)
 
     def _init(
@@ -477,15 +480,14 @@ class Run:
                 )
         self._config._update(config, ignore_locked=True)
 
-        # pid is set so we know if this run object was initialized by this process
-        self._init_pid = os.getpid()
-
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
         self._iface_port = None
         self._attach_id = None
         self._is_attaching = ""
+
+        self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
         if self._settings._require_service:
@@ -608,7 +610,11 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id, _init_pid=self._init_pid)
+        return dict(
+            _attach_id=_attach_id,
+            _init_pid=self._init_pid,
+            _is_attaching=self._is_attaching,
+        )
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -619,11 +625,9 @@ class Run:
         if not _attach_id:
             return
 
-        if state["_init_pid"] == os.getpid():
+        self.__dict__.update(state)
+        if self._init_pid == os.getpid():
             raise RuntimeError("attach in the same process is not supported")
-
-        self._is_attaching = ""
-        self._attach_id = _attach_id
 
     @property
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":
@@ -1141,7 +1145,10 @@ class Run:
         return row
 
     def _partial_history_callback(
-        self, row: Dict[str, Any], step: int, commit: bool = False
+        self,
+        row: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
     ) -> None:
         if row:
             row = self._visualization_hack(row)
@@ -1152,8 +1159,13 @@ class Run:
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+
             self._backend.interface.publish_partial_history(
-                row, step, flush=commit, publish_step=not_using_tensorboard,
+                row,
+                user_step=self._step,
+                step=step,
+                flush=commit,
+                publish_step=not_using_tensorboard and os.getpid() == self._init_pid,
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1273,37 +1285,27 @@ class Run:
         if any(not isinstance(key, str) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
+        self._partial_history_callback(data, step, commit)
+
         if step is not None:
+            if os.getpid() != self._init_pid:
+                wandb.termwarn(
+                    "Step cannot be set when using run in multiple processes. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
             # if step is passed in when tensorboard_sync is used we honor the step passed
             # to make decisions about how to close out the history record, but will strip
             # this history later on in publish_history()
-            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
-            if using_tensorboard:
+            if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
                     "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
-            if self._step > step:
-                wandb.termwarn(
-                    (
-                        "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(step, self._step, data)
-                    )
-                )
-                return
-            elif step > self._step:
-                self._partial_history_callback(
-                    {}, self._step, commit=True,
-                )
+            if step > self._step:
                 self._step = step
-        elif commit is None:  # step is None and commit is None
-            commit = True
 
-        if commit:
-            self._partial_history_callback(data, self._step, commit=True)
+        if (step is None and commit is None) or commit:
             self._step += 1
-        else:
-            self._partial_history_callback(data, self._step)
 
     @_attach
     def log(
@@ -1897,11 +1899,6 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.stop()
-
-        # make sure all uncommitted history is flushed
-        self._partial_history_callback(
-            {}, self._step, commit=True,
-        )
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 

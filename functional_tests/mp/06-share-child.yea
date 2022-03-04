@@ -9,8 +9,27 @@ parametrize:
       - spawn
       - forkserver
       - fork
+var:
+  - history_len:
+      :fn:len: :wandb:runs[0][history]
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {c1: 11, c2: 22}
-  - :wandb:runs[0][summary]: {'s1': 210, 's2': 120, s3: 13}
+  - :wandb:runs[0][summary]: {'s1': 120, 's2': 120}
+  - :wandb:runs[0][history][0][s1]: 11
+  - :wandb:runs[0][history][0][_step]: 0
+  - :wandb:runs[0][history][3][s1]: 21
+  - :wandb:runs[0][history][3][_step]: 3
+  - :wandb:runs[0][history][4][s1]: 210
+  - :wandb:runs[0][history][4][_step]: 4
+  - :wandb:runs[0][history][5][s1]: 120
+  - :wandb:runs[0][history][5][_step]: 100
+
+  - :wandb:runs[0][history][1][s2]: 12
+  - :wandb:runs[0][history][1][_step]: 1
+  - :wandb:runs[0][history][2][s2]: 120
+  - :wandb:runs[0][history][2][_step]: 2
+
+  - :history_len: 6
+
   - :wandb:runs[0][exitcode]: 0
