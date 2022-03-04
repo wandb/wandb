@@ -32,34 +32,34 @@ def test_SavedModel_keras(runner, mocker):
     savedModel_test(runner, mocker, keras_model())
 
 
-def test_SklearnModelAdapter(runner):
-    adapter_test(
-        runner,
-        SM._SklearnModelAdapter,
-        [sklearn_model()],
-        [keras_model(), pytorch_model(),],
-    )
+# def test_SklearnModelAdapter(runner):
+#     adapter_test(
+#         runner,
+#         SM._SklearnModelAdapter,
+#         [sklearn_model()],
+#         [keras_model(), pytorch_model(),],
+#     )
 
 
-def test_PytorchModelAdapter(runner):
-    adapter_test(
-        runner,
-        SM._PytorchModelAdapter,
-        [pytorch_model()],
-        [keras_model(), sklearn_model(),],
-    )
+# def test_PytorchModelAdapter(runner):
+#     adapter_test(
+#         runner,
+#         SM._PytorchModelAdapter,
+#         [pytorch_model()],
+#         [keras_model(), sklearn_model(),],
+#     )
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
-)
-def test_TensorflowKerasSavedModelAdapter(runner):
-    adapter_test(
-        runner,
-        SM._TensorflowKerasSavedModelAdapter,
-        [keras_model()],
-        [sklearn_model(), pytorch_model()],
-    )
+# @pytest.mark.skipif(
+#     platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
+# )
+# def test_TensorflowKerasSavedModelAdapter(runner):
+#     adapter_test(
+#         runner,
+#         SM._TensorflowKerasSavedModelAdapter,
+#         [keras_model()],
+#         [sklearn_model(), pytorch_model()],
+#     )
 
 
 def sklearn_model():
@@ -152,7 +152,9 @@ def make_local_artifact_public(art, mocker):
 
 # External SavedModel tests (user facing)
 def savedModel_test(runner, mocker, model):
-    sm = SM.SavedModel(model)
+    with pytest.raises(ValueError):
+        _ = SM.SavedModel(model)
+    sm = SM.SavedModel.from_obj(model)
     with runner.isolated_filesystem():
         art = wandb.Artifact("name", "type")
         art.add(sm, "model")
@@ -162,26 +164,26 @@ def savedModel_test(runner, mocker, model):
         assert sm2 is not None
 
 
-# Internal adapter tests (non user facing)
-def adapter_test(
-    runner, adapter_cls, valid_models, invalid_models,
-):
-    # Verify valid models can be adapted
-    for model in valid_models:
-        assert adapter_cls.can_adapt_model_obj(model)
+# # Internal adapter tests (non user facing)
+# def adapter_test(
+#     runner, adapter_cls, valid_models, invalid_models,
+# ):
+#     # Verify valid models can be adapted
+#     for model in valid_models:
+#         assert adapter_cls.handles_model_obj(model)
 
-    # Verify invalid models are denied
-    for model in invalid_models:
-        assert not adapter_cls.can_adapt_model_obj(model)
+#     # Verify invalid models are denied
+#     for model in invalid_models:
+#         assert not adapter_cls.handles_model_obj(model)
 
-    # Verify file-level serialization and deserialization
-    with runner.isolated_filesystem():
-        i = 0
-        for model in valid_models:
-            path = os.path.join(".", f"adapter_dir_{i}")
-            os.makedirs(path)
-            if adapter_cls.path_extension() != "":
-                path += "." + adapter_cls.path_extension()
-            adapter_cls.save_model(model, path)
-            adapter2 = adapter_cls.model_obj_from_path(path)
-            assert adapter2 is not None
+#     # Verify file-level serialization and deserialization
+#     with runner.isolated_filesystem():
+#         i = 0
+#         for model in valid_models:
+#             path = os.path.join(".", f"adapter_dir_{i}")
+#             os.makedirs(path)
+#             if adapter_cls.path_extension() != "":
+#                 path += "." + adapter_cls.path_extension()
+#             adapter_cls.save_model(model, path)
+#             adapter2 = adapter_cls.model_obj_from_path(path)
+#             assert adapter2 is not None
