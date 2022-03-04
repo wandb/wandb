@@ -104,6 +104,7 @@ class _WandbInit(object):
 
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
+
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None:
             if isinstance(settings_param, Settings):
@@ -701,7 +702,7 @@ def _attach(
         )
     wandb._assert_is_user_process()
 
-    _wl = wandb_setup._setup()
+    _wl = wandb_setup._setup(settings=run._settings if run else None)
 
     _set_logger(_wl._get_logger())
     if logger is None:
@@ -723,7 +724,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init(settings=settings)
+        run._init()
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)

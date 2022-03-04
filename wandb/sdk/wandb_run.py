@@ -339,18 +339,18 @@ class Run:
     ) -> None:
         # pid is set so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._init(settings=settings, config=config, sweep_config=sweep_config)
+        self._settings = settings
+        self._init(config=config, sweep_config=sweep_config)
 
     def _init(
         self,
-        settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
-        self._config._set_settings(settings)
+        self._config._set_settings(self._settings)
         self._backend = None
         self._internal_run_interface = None
         self.summary = wandb_summary.Summary(
@@ -362,8 +362,7 @@ class Run:
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._settings = settings
-        self._printer = get_printer(settings._jupyter)
+        self._printer = get_printer(self._settings._jupyter)
         self._wl = None
         self._reporter: Optional[Reporter] = None
 
@@ -371,7 +370,7 @@ class Run:
         self._project = None
         self._group = None
         self._job_type = None
-        self._run_id = settings.run_id
+        self._run_id = self._settings.run_id
         self._start_time = time.time()
         self._starting_step = 0
         self._name = None
@@ -420,7 +419,7 @@ class Run:
         self._use_redirect = True
 
         # Pull info from settings
-        self._init_from_settings(settings)
+        self._init_from_settings(self._settings)
 
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
@@ -434,9 +433,9 @@ class Run:
         config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping: Dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
-        if settings.save_code and settings.program_relpath:
+        if self._settings.save_code and self._settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
-                os.path.join("code", settings.program_relpath)
+                os.path.join("code", self._settings.program_relpath)
             )
         if sweep_config:
             self._config.update_locked(
@@ -611,6 +610,7 @@ class Run:
             return
 
         return dict(
+            _settings=self._settings,
             _attach_id=_attach_id,
             _init_pid=self._init_pid,
             _is_attaching=self._is_attaching,

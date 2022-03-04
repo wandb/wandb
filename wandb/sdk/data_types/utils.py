@@ -107,7 +107,10 @@ def val_to_json(
             if _server_accepts_image_filenames():
                 for i, item in enumerate(items):
                     item.bind_to_run(
-                        run, key, namespace, id_=i, ignore_copy_err=ignore_copy_err
+                        run=run,
+                        key=key,
+                        step=namespace,
+                        ignore_copy_err=ignore_copy_err,
                     )
             else:
                 for item in items:
@@ -115,6 +118,7 @@ def val_to_json(
                         run=run,
                         key=key,
                         step=namespace,
+                        id_=i,
                         ignore_copy_err=ignore_copy_err,
                     )
                 if run._attach_id and run._init_pid != os.getpid():
