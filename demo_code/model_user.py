@@ -8,11 +8,13 @@ import os
 
 os.environ['WANDB_BASE_URL'] = 'http://api.wandb.test'
 
-project = "model_reg_example_trainer_3"
-registered_model = "SKO 2" # change me to a value after manually making a registry
+project = "chris_prep"
+registered_model = "SKO Model" # change me to a value after manually making a registry
 
 wandb.init(project=project)
 
 model = use_model(f"{project}/{registered_model}:latest")
 print(model)
 print(model.model_obj())
+
+# DO some cool stuff here.

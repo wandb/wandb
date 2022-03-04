@@ -18,6 +18,7 @@ run = wandb.init(config={
     "seed"          : 1,
     "train_count"   : 500,
     "val_count"     : 10,
+    "reg_model"     : "SKO Model"
 }, project=project)
 
 cfg                     = wandb.config
@@ -57,3 +58,6 @@ _ = train_model(
     epochs       = cfg.epochs, 
     onEpochEnd   = onEpochEnd
 )
+
+if cfg["reg_model"] and cfg["reg_model"] != "":
+    link_model(best_model, cfg["reg_model"])
