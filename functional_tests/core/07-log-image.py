@@ -1,10 +1,9 @@
 import multiprocessing as mp
+import os
 
 import numpy as np
 import wandb
 import yea
-
-import os
 
 
 def process_child(run):

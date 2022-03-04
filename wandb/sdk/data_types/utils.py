@@ -10,8 +10,8 @@ from wandb import util
 
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
-from .plotly import Plotly
 from .image import _server_accepts_image_filenames
+from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
