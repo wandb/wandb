@@ -79,6 +79,7 @@ from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
+from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
@@ -2681,7 +2682,7 @@ class Run:
                 # TODO(settings): make settings the source of truth
                 if not wandb.jupyter.quiet():
 
-                    doc_html = printer.link("https://wandb.me/run", "docs")
+                    doc_html = printer.link(wburls.get("doc_run"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")
                     project_line = f"to {project_html} ({doc_html})"
@@ -3060,7 +3061,7 @@ class Run:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
-                    f"Learn more: {printer.link('https://wandb.me/local-upgrade')}",
+                    f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
                     status="warn",
                 )
 
