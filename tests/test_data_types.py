@@ -15,7 +15,7 @@ from .utils import dummy_data
 import matplotlib
 import rdkit.Chem
 from wandb import Api
-import time
+from unittest import mock
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -1160,3 +1160,17 @@ def test_image_array_old_wandb(
     "viewed in the UI. Please upgrade your wandb server." in outerr.err
     summary = ctx_util.summary
     assert "filenames" not in list(summary["logged_images"].keys())
+
+
+def test_image_array_old_wandb_mp_warning(test_settings, capsys, monkeypatch):
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
+        with wandb.init(settings=test_settings) as run:
+            wb_image = [wandb.Image(image) for _ in range(5)]
+            run._init_pid += 1
+            run.log({"logged_images": wb_image})
+    outerr = capsys.readouterr()
+    assert (
+        "Trying to log a sequence of Image(s) from multiple processes might cause for data loss. Please upgrade your wandb server"
+        in outerr.err
+    )
