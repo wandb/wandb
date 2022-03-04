@@ -1,4 +1,6 @@
 import logging
+import os
+from pkg_resources import parse_version
 import re
 from typing import cast, Optional, Sequence, TYPE_CHECKING, Union
 
@@ -10,6 +12,7 @@ from wandb import util
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
 from .plotly import Plotly
+from .image import _server_accepts_image_filenames
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
@@ -27,6 +30,15 @@ if TYPE_CHECKING:  # pragma: no cover
         "pd.DataFrame",
         object,
     ]
+
+
+def _server_accepts_image_filenames() -> bool:
+    # Newer versions of wandb accept large image filenames arrays
+    # but older versions would have issues with this.
+    max_cli_version = util._get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.12.10") <= parse_version(max_cli_version)
 
 
 def history_dict_to_json(
@@ -92,10 +104,24 @@ def val_to_json(
 
             items = _prune_max_seq(val)
 
-            for i, item in enumerate(items):
-                item.bind_to_run(
-                    run, key, namespace, id_=i, ignore_copy_err=ignore_copy_err
-                )
+            if _server_accepts_image_filenames():
+                for i, item in enumerate(items):
+                    item.bind_to_run(
+                        run, key, namespace, id_=i, ignore_copy_err=ignore_copy_err
+                    )
+            else:
+                for item in items:
+                    item.bind_to_run(
+                        run=run,
+                        key=key,
+                        step=namespace,
+                        ignore_copy_err=ignore_copy_err,
+                    )
+                if run._attach_id and run._init_pid != os.getpid():
+                    wandb.termwarn(
+                        f"Trying to log {type(items[0])}(s) from multiple processes might cause for data loss. Please upgrade your wandb server",
+                        repeat=False,
+                    )
 
             return items[0].seq_to_json(items, run, key, namespace)
         else:
