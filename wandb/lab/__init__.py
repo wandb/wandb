@@ -1,8 +1,8 @@
 from wandb import util
 
-reset_path = util.vendor_setup()
+from .workflows import link_model, log_model, use_model
 
-from .workflows import *
+reset_path = util.vendor_setup()
 
 reset_path()
 

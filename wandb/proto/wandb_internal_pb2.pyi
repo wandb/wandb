@@ -1094,6 +1094,13 @@ class ArtifactResult(google.protobuf.message.Message):
         ) -> None: ...
 global___ArtifactResult = ArtifactResult
 
+class LinkArtifactResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___LinkArtifactResult = LinkArtifactResult
+
 class LinkArtifactRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     CLIENT_ID_FIELD_NUMBER: builtins.int

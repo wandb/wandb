@@ -1,3 +1,4 @@
+import os
 from typing import (
     Any,
     Dict,
@@ -5,21 +6,14 @@ from typing import (
     Optional,
     Union,
 )
-import os
-import wandb.data_types as data_types
-from wandb.sdk.data_types import SavedModel
-from wandb.sdk.interface.artifacts import (
-    ArtifactEntry,
-    Artifact as ArtifactInterface,
-)
 
-from collections import defaultdict
-from wandb.sdk.wandb_artifacts import Artifact as LocalArtifact
-from wandb.apis.public import Artifact as PublicArtifact
-from wandb.apis import InternalApi, PublicApi
-from wandb.apis import internal, public
-from wandb.data_types import SavedModel
 import wandb
+import wandb.data_types as data_types
+from wandb.data_types import SavedModel
+from wandb.sdk.interface.artifacts import (
+    Artifact as ArtifactInterface,
+    ArtifactEntry,
+)
 
 
 def _add_any(
@@ -54,9 +48,9 @@ def _log_artifact_version(
     name: str,
     type: str,
     entries: Dict[str, Union[str, ArtifactEntry, data_types.WBValue]],
-    aliases: Union[str, List[str]] = [],
+    aliases: Optional[Union[str, List[str]]] = None,
     description: Optional[str] = None,
-    metadata: dict = {},
+    metadata: Optional[dict] = None,
     project: Optional[str] = None,
     project_scope: Optional[bool] = None,
     job_type: str = "auto",
@@ -71,7 +65,10 @@ def _log_artifact_version(
     if not project_scope:
         name = f"{name}-{run.id}"
 
-    # This is a dirty hack for demo purposes.
+    if metadata is None:
+        metadata = {}
+
+    # hack for demo purposes
     # if getattr(run, "history", None):
     #     metadata.update({"__wb_log_step__": wandb.run.history._step})
 
@@ -80,11 +77,13 @@ def _log_artifact_version(
     for path in entries:
         _add_any(art, entries[path], path)
 
-    # Double check that "latest" isn't getting killed.
-    if isinstance(aliases, str):
+    # "latest" should always be present as an alias in every new logged artifact version.
+    if aliases is None:
+        aliases = []
+    elif isinstance(aliases, str):
         aliases = [aliases]
 
-    if isinstance(aliases, list) and "latest" not in aliases:
+    if "latest" not in aliases:
         aliases.append("latest")
 
     run.log_artifact(art, aliases=aliases)
@@ -97,11 +96,11 @@ def log_model(
     name: str = "model",
     aliases: Optional[Union[str, List[str]]] = None,
     description: Optional[str] = None,
-    metadata: dict = {},
+    metadata: Optional[dict] = None,
     project: Optional[str] = None,
 ) -> "SavedModel":
     model = data_types.SavedModel(model_obj)
-    artifact = _log_artifact_version(
+    _ = _log_artifact_version(
         name=name,
         type="model",
         entries={"index": model,},

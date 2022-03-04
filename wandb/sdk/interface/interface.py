@@ -17,6 +17,7 @@ from typing import Any, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
 import six
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
@@ -401,17 +402,17 @@ class InterfaceBase(object):
     def publish_link_artifact(
         self,
         run: "Run",
-        artifact: Artifact,
+        artifact: Union[Artifact, PublicArtifact],
         portfolio_name: str,
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
         link_artifact = pb.LinkArtifactRecord()
-        if type(artifact) is Artifact:
+        if isinstance(artifact, Artifact):
             link_artifact.client_id = artifact._client_id
         else:
-            link_artifact.server_id = artifact.id
+            link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
         link_artifact.portfolio_entity = entity or run.entity
         link_artifact.portfolio_project = project or run.project
