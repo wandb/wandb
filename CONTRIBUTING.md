@@ -34,6 +34,7 @@ Please make sure to update the ToC when you update this page.
 - [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
 - [Documentation Generation](#documentation-generation)
 - [Deprecating Features](#deprecating-features)
+- [Adding URLs](#adding-urls)
 
 ## Development workflow
 
@@ -740,4 +741,14 @@ deprecate.deprecate(
     field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1
     warning_message="This feature is deprecated and will be removed in a future release.",
 )
+```
+
+## Adding URLs
+
+All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
+ensure that URLs do not lead to broken links.
+
+Once you add the URL to that file you will need to run:
+```shell
+python tools/generate-tool.py --generate
 ```
