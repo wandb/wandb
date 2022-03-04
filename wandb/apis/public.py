@@ -10,8 +10,8 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
-import datetime
 from collections import namedtuple
+import datetime
 from functools import partial
 import json
 import logging
@@ -3623,9 +3623,6 @@ class Artifact(artifacts.Artifact):
                 "Please make sure `registry_path` is of the format {entity}/{project}/{registry_name}."
             )
 
-        # this is a public artifact, so we can link using the artifactID directly
-        # TODO: Make corresponding backend change
-        # TODO: Test with python script --> see if we need to add retrying logic
         mutation = gql(
             """
             mutation LinkArtifact($artifactID: ID!, $artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!]) {

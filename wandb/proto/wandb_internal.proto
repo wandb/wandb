@@ -402,6 +402,9 @@ message StoragePolicyConfigItem {
 message ArtifactResult {
 }
 
+message LinkArtifactResult {
+}
+
 /*
  * LinkArtifactRecord: link artifact to portfolio
  */

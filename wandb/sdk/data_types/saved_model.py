@@ -178,7 +178,7 @@ class SavedModel(WBValue):
         # First, if the entry is a file, the download it.
         entry = source_artifact.manifest.entries.get(path)
         if entry is not None:
-            dl_path = entry.download()
+            dl_path = source_artifact.get_path(path).download()
         else:
             # If not, assume it is directory.
             # FUTURE: Add this functionality to the artifact loader
@@ -187,9 +187,9 @@ class SavedModel(WBValue):
 
             # Look through the entire manifest to find all of the files in the directory.
             # Construct the directory path by inspecting the target download location.
-            for p, e in source_artifact.manifest.entries.items():
+            for p, _ in source_artifact.manifest.entries.items():
                 if p.startswith(path):
-                    example_path = e.download()
+                    example_path = source_artifact.get_path(p).download()
                     if dl_path is None:
                         root = example_path[: -len(p)]
                         dl_path = os.path.join(root, path)

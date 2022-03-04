@@ -38,7 +38,6 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -80,6 +79,7 @@ from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
+from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
@@ -2134,13 +2134,12 @@ class Run:
     def _detach(self) -> None:
         pass
 
-
     def link_artifact(
         self,
         artifact: Union[public.Artifact, Artifact],
         portfolio_path: str,
-        aliases: Optional[List[str]],
-    ):
+        aliases: List[str],
+    ) -> None:
         portfolio, project, entity = wandb.util._parse_entity_project_item(
             portfolio_path
         )
@@ -2683,7 +2682,7 @@ class Run:
                 # TODO(settings): make settings the source of truth
                 if not wandb.jupyter.quiet():
 
-                    doc_html = printer.link("https://wandb.me/run", "docs")
+                    doc_html = printer.link(wburls.get("doc_run"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")
                     project_line = f"to {project_html} ({doc_html})"
@@ -3062,7 +3061,7 @@ class Run:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
-                    f"Learn more: {printer.link('https://wandb.me/local-upgrade')}",
+                    f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
                     status="warn",
                 )
 
@@ -3361,9 +3360,6 @@ class _LazyArtifact(ArtifactInterface):
 
     def save(self) -> None:
         return self._assert_instance().save()
-
-    def link(self, registry_path: str, aliases=None) -> None:
-        return self._assert_instance().link(registry_path, aliases)
 
     def delete(self) -> None:
         return self._assert_instance().delete()

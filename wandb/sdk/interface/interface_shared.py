@@ -153,7 +153,7 @@ class InterfaceShared(InterfaceBase):
         record.control.local = True
         return record
 
-    def _make_record(
+    def _make_record(  # noqa: C901
         self,
         run: pb.RunRecord = None,
         config: pb.ConfigRecord = None,
