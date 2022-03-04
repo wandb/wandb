@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Multiple processes log sequence of images. 
+"""Multiple processes log sequence of images.
     The expected behavior is that there would be (N processes * len(sequence)) image files
 """
 
