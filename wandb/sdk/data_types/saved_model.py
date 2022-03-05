@@ -31,6 +31,9 @@ if TYPE_CHECKING:  # pragma: no cover
     import tensorflow  # type: ignore
 
 
+DEBUG_MODE = False
+
+
 SavedModelObjType = TypeVar("SavedModelObjType")
 
 
@@ -50,13 +53,18 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
 
     # Public Methods
     def __init__(self, obj_or_path: Union[SavedModelObjType, str]) -> None:
+        super(SavedModel, self).__init__()
+        if self.__class__ == SavedModel:
+            raise TypeError(
+                "Cannot instantiate abstract SavedModel class - please use SavedModel.init(...) instead."
+            )
         self._model_obj = None
         self._path = None
         self._input_obj_or_path = obj_or_path
         input_is_path = isinstance(obj_or_path, str) and os.path.exists(obj_or_path)
         if input_is_path:
             assert isinstance(obj_or_path, str)  # mypy
-            self._set_obj(self.path_to_obj(obj_or_path))
+            self._set_obj(self._deserialize(obj_or_path))
         else:
             self._set_obj(obj_or_path)
 
@@ -152,26 +160,26 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
         """
         if self._model_obj is None:
             assert self._path is not None, "Cannot load model object without path"
-            self._set_obj(self.path_to_obj(self._path))
+            self._set_obj(self._deserialize(self._path))
 
         assert self._model_obj is not None, "Model object is None"
         return self._model_obj
 
     # Methods to be implemented by subclasses
     @staticmethod
-    def path_to_obj(path: str) -> SavedModelObjType:
+    def _deserialize(path: str) -> SavedModelObjType:
         """Returns the model object from a path. Allowed to throw errors
         """
         raise NotImplementedError()
 
     @staticmethod
-    def validate_obj(obj: Any) -> bool:
+    def _validate_obj(obj: Any) -> bool:
         """Validates the model object. Allowed to throw errors
         """
         raise NotImplementedError()
 
     @staticmethod
-    def obj_to_path(obj: SavedModelObjType, dir_or_file_path: str) -> None:
+    def _serialize(obj: SavedModelObjType, dir_or_file_path: str) -> None:
         """Save the model to disk. The method will receive a directory path which all
         files needed for deserialization should be saved. A directory will always be passed if
         _path_extension is an empty string, else a single file will be passed. Allowed to throw errors
@@ -185,7 +193,9 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
     ) -> Optional["SavedModel"]:
         try:
             return cls(obj_or_path)
-        except Exception:
+        except Exception as e:
+            if DEBUG_MODE:
+                print(f"{cls}._maybe_init({obj_or_path}) failed: {e}")
             pass
 
         for child_cls in cls.__subclasses__():
@@ -216,14 +226,14 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
         self._model_obj = None
 
     def _set_obj(self, model_obj: Any) -> None:
-        assert model_obj is not None and self.validate_obj(
+        assert model_obj is not None and self._validate_obj(
             model_obj
         ), f"Invalid model object {model_obj}"
         self._model_obj = model_obj
 
     def _dump(self, target_path: str) -> None:
         assert self._model_obj is not None, "Cannot dump if model object is None"
-        self.obj_to_path(self._model_obj, target_path)
+        self._serialize(self._model_obj, target_path)
 
 
 def _get_cloudpickle() -> "cloudpickle":
@@ -242,15 +252,15 @@ class _PytorchSavedModel(SavedModel["torch.nn.Module"]):
     _path_extension = "pt"
 
     @staticmethod
-    def path_to_obj(dir_or_file_path: str) -> "torch.nn.Module":
+    def _deserialize(dir_or_file_path: str) -> "torch.nn.Module":
         return _get_torch().load(dir_or_file_path)
 
     @staticmethod
-    def validate_obj(obj: Any) -> bool:
+    def _validate_obj(obj: Any) -> bool:
         return isinstance(obj, _get_torch().nn.Module)
 
     @staticmethod
-    def obj_to_path(model_obj: "torch.nn.Module", dir_or_file_path: str) -> None:
+    def _serialize(model_obj: "torch.nn.Module", dir_or_file_path: str) -> None:
         _get_torch().save(
             model_obj, dir_or_file_path, pickle_module=_get_cloudpickle(),
         )
@@ -267,13 +277,13 @@ class _SklearnSavedModel(SavedModel["sklearn.base.BaseEstimator"]):
     _path_extension = "pkl"
 
     @staticmethod
-    def path_to_obj(dir_or_file_path: str,) -> "sklearn.base.BaseEstimator":
+    def _deserialize(dir_or_file_path: str,) -> "sklearn.base.BaseEstimator":
         with open(dir_or_file_path, "rb") as file:
             model = _get_cloudpickle().load(file)
         return model
 
     @staticmethod
-    def validate_obj(obj: Any) -> bool:
+    def _validate_obj(obj: Any) -> bool:
         dynamic_sklearn = _get_sklearn()
         return cast(
             bool,
@@ -285,7 +295,7 @@ class _SklearnSavedModel(SavedModel["sklearn.base.BaseEstimator"]):
         )
 
     @staticmethod
-    def obj_to_path(
+    def _serialize(
         model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: str
     ) -> None:
         dynamic_cloudpickle = _get_cloudpickle()
@@ -305,15 +315,15 @@ class _TensorflowKerasSavedModel(SavedModel["tensorflow.keras.Model"]):
     _path_extension = ""
 
     @staticmethod
-    def path_to_obj(dir_or_file_path: str,) -> "tensorflow.keras.Model":
+    def _deserialize(dir_or_file_path: str,) -> "tensorflow.keras.Model":
         return _get_tf_keras().models.load_model(dir_or_file_path)
 
     @staticmethod
-    def validate_obj(obj: Any) -> bool:
+    def _validate_obj(obj: Any) -> bool:
         return isinstance(obj, _get_tf_keras().models.Model)
 
     @staticmethod
-    def obj_to_path(model_obj: "tensorflow.keras.Model", dir_or_file_path: str) -> None:
-        _get_tf_keras().models.obj_to_path(
+    def _serialize(model_obj: "tensorflow.keras.Model", dir_or_file_path: str) -> None:
+        _get_tf_keras().models.save_model(
             model_obj, dir_or_file_path, include_optimizer=True
         )
