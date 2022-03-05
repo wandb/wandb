@@ -1916,7 +1916,6 @@ class Run:
 
         # object is about to be returned to the user, dont let them modify it
         self._freeze()
-        self._set_global()
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -1976,22 +1975,6 @@ class Run:
             self._quiet,
             settings=self._settings,
             printer=self._printer,
-        )
-
-    def _set_global(self):
-        # TODO add tests for attach and global
-        module.set_global(
-            run=self,
-            config=self.config,
-            log=self.log,
-            summary=self.summary,
-            save=self.save,
-            use_artifact=self.use_artifact,
-            log_artifact=self.log_artifact,
-            define_metric=self.define_metric,
-            plot_table=self.plot_table,
-            alert=self.alert,
-            mark_preempting=self.mark_preempting,
         )
 
     def _save_job_spec(self) -> None:
