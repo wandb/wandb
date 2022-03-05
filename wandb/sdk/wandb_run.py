@@ -1162,10 +1162,9 @@ class Run:
             self._backend.interface.publish_output(name, data)
 
     def _tensorboard_callback(
-        self, logdir: str, save: bool = None, root_logdir: str = None
+        self, logdir: str, save: bool = True, root_logdir: str = ""
     ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
-        save = True if save is None else save
         if self._backend and self._backend.interface:
             self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 

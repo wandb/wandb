@@ -1,12 +1,12 @@
-"""
-monkeypatch: patch code to add tensorboard hooks
-"""
+"""monkeypatch: patch code to add tensorboard hooks"""
 
 import os
-import socket
 import re
+import socket
+from typing import Any, Optional
 
 import wandb
+import wandb.util
 
 
 TENSORBOARD_C_MODULE = "tensorflow.python.ops.gen_summary_ops"
@@ -16,17 +16,23 @@ TENSORBOARD_WRITER_MODULE = "tensorboard.summary.writer.event_file_writer"
 TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 
 
-def unpatch():
+def unpatch() -> None:
     for module, method in wandb.patched["tensorboard"]:
         writer = wandb.util.get_module(module)
-        setattr(writer, method, getattr(writer, "orig_{}".format(method)))
+        setattr(writer, method, getattr(writer, f"orig_{method}"))
     wandb.patched["tensorboard"] = []
 
 
-def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
+def patch(
+    save: bool = True,
+    tensorboard_x: Optional[bool] = None,
+    pytorch: Optional[bool] = None,
+    root_logdir: str = ""
+) -> None:
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
-            "Tensorboard already patched, remove sync_tensorboard=True from wandb.init or only call wandb.tensorboard.patch once."
+            "Tensorboard already patched, remove `sync_tensorboard=True` "
+            "from `wandb.init` or only call `wandb.tensorboard.patch` once."
         )
 
     # TODO: Some older versions of tensorflow don't require tensorboard to be present.
@@ -38,7 +44,7 @@ def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
     pt_writer = wandb.util.get_module(TENSORBOARD_PYTORCH_MODULE)
     tbx_writer = wandb.util.get_module(TENSORBOARD_X_MODULE)
 
-    if not pytorch and not tensorboardX and c_writer:
+    if not pytorch and not tensorboard_x and c_writer:
         _patch_tensorflow2(
             writer=c_writer,
             module=TENSORBOARD_C_MODULE,
@@ -79,13 +85,16 @@ def patch(save=None, tensorboardX=None, pytorch=None, root_logdir=None):
 
 
 def _patch_tensorflow2(
-    writer, module, save=None, root_logdir=None,
-):
+    writer: Any,
+    module: Any,
+    save: bool = True,
+    root_logdir: str = "",
+) -> None:
     # This configures TensorFlow 2 style Tensorboard logging
     old_csfw_func = writer.create_summary_file_writer
     logdir_hist = []
 
-    def new_csfw_func(*args, **kwargs):
+    def new_csfw_func(*args: Any, **kwargs: Any) -> Any:
         logdir = (
             kwargs["logdir"].numpy().decode("utf8")
             if hasattr(kwargs["logdir"], "numpy")
@@ -94,12 +103,14 @@ def _patch_tensorflow2(
         logdir_hist.append(logdir)
         root_logdir_arg = root_logdir
 
-        if len(set(logdir_hist)) > 1 and root_logdir is None:
+        if len(set(logdir_hist)) > 1 and root_logdir == "":
             wandb.termwarn(
-                'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
+                "When using several event log directories, "
+                'please call `wandb.tensorboard.patch(root_logdir="...")` before `wandb.init`'
             )
-        # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
-        # is genetered and ends with the hostname, update the root_logdir to match.
+        # if the logdir contains the hostname, the writer was not given a logdir.
+        # In this case, the generated logdir
+        # is generated and ends with the hostname, update the root_logdir to match.
         hostname = socket.gethostname()
         search = re.search(r"-\d+_{}".format(hostname), logdir)
         if search:
@@ -108,11 +119,10 @@ def _patch_tensorflow2(
             os.path.abspath(root_logdir)
         ):
             wandb.termwarn(
-                "Found logdirectory outside of given root_logdir, dropping given root_logdir for eventfile in {}".format(
-                    logdir
-                )
+                "Found log directory outside of given root_logdir, "
+                f"dropping given root_logdir for event file in {logdir}"
             )
-            root_logdir_arg = None
+            root_logdir_arg = ""
 
         _notify_tensorboard_logdir(logdir, save=save, root_logdir=root_logdir_arg)
         return old_csfw_func(*args, **kwargs)
@@ -122,23 +132,30 @@ def _patch_tensorflow2(
     wandb.patched["tensorboard"].append([module, "create_summary_file_writer"])
 
 
-def _patch_file_writer(writer, module, save=None, root_logdir=None):
+def _patch_file_writer(
+    writer: Any,
+    module: Any,
+    save: bool = True,
+    root_logdir: str = "",
+) -> None:
     # This configures non-TensorFlow Tensorboard logging, or tensorflow <= 1.15
     old_efw_class = writer.EventFileWriter
 
     logdir_hist = []
 
-    class TBXEventFileWriter(old_efw_class):
-        def __init__(self, logdir, *args, **kwargs):
+    class TBXEventFileWriter(old_efw_class):  # type: ignore
+        def __init__(self, logdir: str, *args: Any, **kwargs: Any) -> None:
             logdir_hist.append(logdir)
             root_logdir_arg = root_logdir
-            if len(set(logdir_hist)) > 1 and root_logdir is None:
+            if len(set(logdir_hist)) > 1 and root_logdir == "":
                 wandb.termwarn(
-                    'When using several event log directories, please call wandb.tensorboard.patch(root_logdir="...") before wandb.init'
+                    "When using several event log directories, "
+                    'please call `wandb.tensorboard.patch(root_logdir="...")` before `wandb.init`'
                 )
 
-            # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
-            # is genetered and ends with the hostname, update the root_logdir to match.
+            # if the logdir contains the hostname, the writer was not given a logdir.
+            # In this case, the logdir is generated and ends with the hostname,
+            # update the root_logdir to match.
             hostname = socket.gethostname()
             search = re.search(r"-\d+_{}".format(hostname), logdir)
             if search:
@@ -148,11 +165,10 @@ def _patch_file_writer(writer, module, save=None, root_logdir=None):
                 os.path.abspath(root_logdir)
             ):
                 wandb.termwarn(
-                    "Found logdirectory outside of given root_logdir, dropping given root_logdir for eventfile in {}".format(
-                        logdir
-                    )
+                    "Found log directory outside of given root_logdir, "
+                    f"dropping given root_logdir for event file in {logdir}"
                 )
-                root_logdir_arg = None
+                root_logdir_arg = ""
 
             _notify_tensorboard_logdir(logdir, save=save, root_logdir=root_logdir_arg)
 
@@ -163,5 +179,10 @@ def _patch_file_writer(writer, module, save=None, root_logdir=None):
     wandb.patched["tensorboard"].append([module, "EventFileWriter"])
 
 
-def _notify_tensorboard_logdir(logdir, save=None, root_logdir=None):
-    wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)
+def _notify_tensorboard_logdir(
+    logdir: str,
+    save: bool = True,
+    root_logdir: str = ""
+) -> None:
+    if wandb.run is not None:
+        wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)

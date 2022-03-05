@@ -471,12 +471,12 @@ class InterfaceBase(object):
         raise NotImplementedError
 
     def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str]
+        self, log_dir: str, save: bool, root_logdir: str = ""
     ) -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
+        tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
     @abstractmethod
