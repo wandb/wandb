@@ -651,7 +651,6 @@ class _WandbInit(object):
         self.backend = backend
         self._reporter.set_context(run=run)
         run._on_start()
-
         logger.info("run started, returning control to user process")
         return run
 

@@ -1699,6 +1699,21 @@ class Run:
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
+    def _set_globals(self) -> None:
+        module.set_global(
+            run=self,
+            config=self.config,
+            log=self.log,
+            summary=self.summary,
+            save=self.save,
+            use_artifact=self.use_artifact,
+            log_artifact=self.log_artifact,
+            define_metric=self.define_metric,
+            plot_table=self.plot_table,
+            alert=self.alert,
+            mark_preempting=self.mark_preempting,
+        )
+
     def _redirect(
         self,
         stdout_slave_fd: Optional[int],
@@ -1867,7 +1882,10 @@ class Run:
         logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
-
+        # would like to move _set_global to _on_ready to unify _on_start and _on_attach (we want to do the set globals after attach)
+        # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
+        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses `wandb.run` and hence breaks
+        self._set_globals()
         self._header(
             self._check_version, settings=self._settings, printer=self._printer
         )
@@ -1878,6 +1896,7 @@ class Run:
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
+
         self._console_start()
         self._on_ready()
 
@@ -1886,6 +1905,7 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.attach = True
 
+        self._set_globals()
         self._on_ready()
 
     def _on_ready(self) -> None:
