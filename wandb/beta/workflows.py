@@ -52,7 +52,7 @@ def _log_artifact_version(
     description: Optional[str] = None,
     metadata: Optional[dict] = None,
     project: Optional[str] = None,
-    project_scope: Optional[bool] = None,
+    scope_project: Optional[bool] = None,
     job_type: str = "auto",
 ) -> ArtifactInterface:
     if wandb.run is None:
@@ -62,7 +62,7 @@ def _log_artifact_version(
     else:
         run = wandb.run
 
-    if not project_scope:
+    if not scope_project:
         name = f"{name}-{run.id}"
 
     if metadata is None:
@@ -98,8 +98,9 @@ def log_model(
     description: Optional[str] = None,
     metadata: Optional[dict] = None,
     project: Optional[str] = None,
+    scope_project: Optional[bool] = None,
 ) -> "SavedModel":
-    model = data_types.SavedModel(model_obj)
+    model = data_types.SavedModel.init(model_obj)
     _ = _log_artifact_version(
         name=name,
         type="model",
@@ -108,7 +109,7 @@ def log_model(
         description=description,
         metadata=metadata,
         project=project,
-        project_scope=False,
+        scope_project=scope_project,
         job_type="log_model",
     )
 
@@ -116,11 +117,15 @@ def log_model(
     return model
 
 
-def use_model(model_alias: str) -> "SavedModel":
+def use_model(alias: str) -> "SavedModel":
+    parts = alias.split(":")
+    if len(parts) == 1:
+        alias += "latest"
+
     # Returns a SavedModel instance
     if wandb.run:
         run = wandb.run
-        artifact = run.use_artifact(model_alias)
+        artifact = run.use_artifact(alias)
         sm = artifact.get("index")
         return sm
     else:
