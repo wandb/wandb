@@ -27,7 +27,7 @@ def patch(
     save: bool = True,
     tensorboard_x: Optional[bool] = None,
     pytorch: Optional[bool] = None,
-    root_logdir: str = ""
+    root_logdir: str = "",
 ) -> None:
     if len(wandb.patched["tensorboard"]) > 0:
         raise ValueError(
@@ -85,10 +85,7 @@ def patch(
 
 
 def _patch_tensorflow2(
-    writer: Any,
-    module: Any,
-    save: bool = True,
-    root_logdir: str = "",
+    writer: Any, module: Any, save: bool = True, root_logdir: str = "",
 ) -> None:
     # This configures TensorFlow 2 style Tensorboard logging
     old_csfw_func = writer.create_summary_file_writer
@@ -133,10 +130,7 @@ def _patch_tensorflow2(
 
 
 def _patch_file_writer(
-    writer: Any,
-    module: Any,
-    save: bool = True,
-    root_logdir: str = "",
+    writer: Any, module: Any, save: bool = True, root_logdir: str = "",
 ) -> None:
     # This configures non-TensorFlow Tensorboard logging, or tensorflow <= 1.15
     old_efw_class = writer.EventFileWriter
@@ -180,9 +174,7 @@ def _patch_file_writer(
 
 
 def _notify_tensorboard_logdir(
-    logdir: str,
-    save: bool = True,
-    root_logdir: str = ""
+    logdir: str, save: bool = True, root_logdir: str = ""
 ) -> None:
     if wandb.run is not None:
         wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)

@@ -14,7 +14,10 @@ if TYPE_CHECKING:
 
 # We have at least the default namestep and a global step to track
 # TODO: reset this structure on wandb.finish
-STEPS: Dict[str, Dict[str, Any]] = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
+STEPS: Dict[str, Dict[str, Any]] = {
+    "": {"step": 0},
+    "global": {"step": 0, "last_log": None},
+}
 # TODO(cling): Set these when tensorboard behavior is configured.
 # We support rate limited logging by setting this to number of seconds,
 # can be a floating point.
@@ -68,10 +71,9 @@ def history_image_key(key: str, namespace: str = "") -> str:
     return namespaced_tag(re.sub(r"[/\\]", "_", key), namespace)
 
 
-def tf_summary_to_dict(
-    tf_summary_str_or_pb: Any,
-    namespace: str = ""
-) -> Optional[Dict[str, Any]]:  # noqa: C901
+def tf_summary_to_dict(  # noqa: C901
+    tf_summary_str_or_pb: Any, namespace: str = ""
+) -> Optional[Dict[str, Any]]:
     """Convert a Tensorboard Summary to a dictionary
 
     Accepts a tensorflow.summary.Summary, one encoded as a string,
