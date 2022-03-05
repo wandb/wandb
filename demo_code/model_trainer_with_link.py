@@ -2,11 +2,9 @@
 # Verify the you installed this branch with
 # pip install -e ../ -U 
 import wandb
-from wandb.lab.workflows import log_model, link_model
+from wandb.beta.workflows import log_model, link_model
 from UserCode import *
 import os
-
-os.environ['WANDB_BASE_URL'] = 'http://api.wandb.test'
 
 project = "chris_prep"
 
