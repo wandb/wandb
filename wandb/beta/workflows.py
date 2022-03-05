@@ -100,7 +100,7 @@ def log_model(
     project: Optional[str] = None,
     scope_project: Optional[bool] = None,
 ) -> "SavedModel":
-    model = data_types.SavedModel(model_obj)
+    model = data_types.SavedModel.init(model_obj)
     _ = _log_artifact_version(
         name=name,
         type="model",
