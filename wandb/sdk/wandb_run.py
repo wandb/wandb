@@ -190,7 +190,7 @@ def _attach(func: Callable) -> Callable:
 
         # * `_attach_id` is only assigned in service hence for all non-service cases
         # it will be a passthrough.
-        # * `_attach_pid` is only assigned in __init__:
+        # * `_attach_pid` is only assigned in _init:
         #   - for a non fork case: the object is shared through pickling so the value will be None.
         #   - for a fork case: the new process shares the memory space so the value will be of the parent process.
         if (
@@ -205,7 +205,7 @@ def _attach(func: Callable) -> Callable:
                 wandb._attach(run=self)
             except Exception as e:
                 raise e
-        self._is_attaching = ""
+            self._is_attaching = ""
         return func(self, *args, **kwargs)
 
     return wrapper
@@ -1165,7 +1165,7 @@ class Run:
                 user_step=self._step,
                 step=step,
                 flush=commit,
-                publish_step=not_using_tensorboard and os.getpid() == self._init_pid,
+                publish_step=not_using_tensorboard,
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1288,9 +1288,11 @@ class Run:
         self._partial_history_callback(data, step, commit)
 
         if step is not None:
-            if os.getpid() != self._init_pid:
+            if (
+                os.getpid() != self._init_pid
+            ):  # TODO this condition won't work for `wandb._attach(attach_id=...)`
                 wandb.termwarn(
-                    "Step cannot be set when using run in multiple processes. Please log your step values as a metric such as 'global_step'",
+                    "Note that setting step in multiprocessing can result in data loss. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             # if step is passed in when tensorboard_sync is used we honor the step passed
@@ -1692,6 +1694,21 @@ class Run:
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
+    def _set_globals(self):
+        module.set_global(
+            run=self,
+            config=self.config,
+            log=self.log,
+            summary=self.summary,
+            save=self.save,
+            use_artifact=self.use_artifact,
+            log_artifact=self.log_artifact,
+            define_metric=self.define_metric,
+            plot_table=self.plot_table,
+            alert=self.alert,
+            mark_preempting=self.mark_preempting,
+        )
+
     def _redirect(
         self,
         stdout_slave_fd: Optional[int],
@@ -1860,7 +1877,10 @@ class Run:
         logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
-
+        # would like to move _set_global to _on_ready to unify _on_start and _on_attach (we want to do the set globals after attach)
+        # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
+        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses `wandb.run` and hence breaks
+        self._set_globals()
         self._header(
             self._check_version, settings=self._settings, printer=self._printer
         )
@@ -1871,6 +1891,7 @@ class Run:
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
+
         self._console_start()
         self._on_ready()
 
@@ -1879,6 +1900,7 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.attach = True
 
+        self._set_globals()
         self._on_ready()
 
     def _on_ready(self) -> None:

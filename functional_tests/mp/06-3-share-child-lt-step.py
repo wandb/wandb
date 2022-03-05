@@ -10,9 +10,18 @@ import wandb
 import yea
 
 
-def process_child(run):
+def process_child(run, check_warning=False):
     run.config.c2 = 22
-    run.log({"s1": 210}, step=3, commit=True)
+
+    f = io.StringIO()
+    with redirect_stderr(f):
+        run.log({"s1": 210}, step=3, commit=True)
+
+        found_warning = (
+            "Note that setting step in multiprocessing can result in data loss. Please log your step values as a metric such as 'global_step'"
+            in f.getvalue()
+        )
+        assert found_warning if check_warning else not found_warning
 
 
 def process_parent():
@@ -26,7 +35,7 @@ def process_parent():
 def share_run():
     process_parent()
     # Start a new run in parallel in a child process
-    p = mp.Process(target=process_child, kwargs=dict(run=wandb.run))
+    p = mp.Process(target=process_child, kwargs=dict(run=wandb.run, check_warning=True))
     p.start()
     p.join()
     wandb.finish()
