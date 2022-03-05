@@ -1694,7 +1694,7 @@ class Run:
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
-    def _set_globals(self):
+    def _set_globals(self) -> None:
         module.set_global(
             run=self,
             config=self.config,
