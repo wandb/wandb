@@ -3,13 +3,13 @@ import re
 import time
 from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 
-import numpy as np  # type: ignore
 import wandb
 from wandb.sdk.lib import telemetry
 import wandb.util
 from wandb.viz import create_custom_chart
 
 if TYPE_CHECKING:
+    import numpy as np  # type: ignore
     from wandb.sdk.internal.tb_watcher import TBHistory
 
 # We have at least the default namestep and a global step to track
