@@ -64,6 +64,10 @@ class SockClient:
             # things like network status poll loop, there might be a better way to quiesce
             pass
 
+    def send_and_recv(self, **kwargs):
+        self.send(**kwargs)
+        return self.read_server_response(timeout=x)  # FIXME
+
     def send(
         self,
         *,

@@ -14,6 +14,8 @@ from ..lib.sock_client import SockClient
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
 
+import os
+
 
 class ServiceSockInterface(ServiceInterface):
     _sock_client: SockClient
@@ -54,7 +56,7 @@ class ServiceSockInterface(ServiceInterface):
         inform_fin._info.stream_id = run_id
 
         assert self._sock_client
-        self._sock_client.send(inform_finish=inform_fin)
+        return self._sock_client.send_and_recv(inform_finish=inform_fin)  # FIXME
 
     def _svc_inform_attach(self, attach_id: str) -> None:
         inform_attach = spb.ServerInformAttachRequest()

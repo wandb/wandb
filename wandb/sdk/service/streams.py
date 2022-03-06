@@ -183,7 +183,7 @@ class StreamMux:
 
     def get_stream(self, stream_id: str) -> StreamRecord:
         with self._streams_lock:
-            stream = self._streams[stream_id]
+            stream = self._streams.get(stream_id)
             return stream
 
     def _process_add(self, action: StreamAction) -> None:

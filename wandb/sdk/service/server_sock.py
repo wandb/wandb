@@ -1,3 +1,4 @@
+from asyncio import streams
 import queue
 import socket
 import threading
@@ -109,7 +110,11 @@ class SockServerReadThread(threading.Thread):
                 self, shandler_str, None
             )
             assert shandler, "unknown handle: {}".format(shandler_str)
-            shandler(sreq)
+            try:
+                shandler(sreq)
+            except Exception as e:
+                self._stopped.set()
+                raise e
 
     def stop(self) -> None:
         try:
@@ -143,7 +148,12 @@ class SockServerReadThread(threading.Thread):
         stream_id = request._info.stream_id
 
         self._clients.add_client(self._sock_client)
+        if stream_id not in self._mux.streams:
+            error_resp = None
+            self._sock_client.send_server_response(error_resp)
+
         iface = self._mux.get_stream(stream_id).interface
+
         assert iface
 
     def server_record_communicate(self, sreq: "spb.ServerRequest") -> None:
