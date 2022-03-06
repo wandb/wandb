@@ -3611,7 +3611,7 @@ class Artifact(artifacts.Artifact):
     @normalize_exceptions
     def link(self, registry_path: str, aliases=None):
 
-        portfolio, project, entity = util._parse_portfolio_path(registry_path)
+        portfolio, project, entity = util._parse_entity_project_item(registry_path)
 
         EmptyRunProps = namedtuple("Empty", "entity project")
         r = wandb.run if wandb.run else EmptyRunProps(entity=None, project=None)
