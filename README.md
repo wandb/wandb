@@ -1,3 +1,4 @@
+<!--  -->
 <p align="center">
   <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
   <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
@@ -16,25 +17,29 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
 
 ## Features
 
--   Store hyper-parameters used in a training run
--   Search, compare, and visualize training runs
--   Analyze system usage metrics alongside runs
--   Collaborate with team members
--   Replicate historic results
--   Run parameter sweeps
--   Keep records of experiments available forever
+- Store hyper-parameters used in a training run
+- Search, compare, and visualize training runs
+- Analyze system usage metrics alongside runs
+- Collaborate with team members
+- Replicate historic results
+- Run parameter sweeps
+- Keep records of experiments available forever
 
 [Documentation →](https://docs.wandb.com)
 
 If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum).
 
 # 🤝 Simple integration with any framework
+
 Install `wandb` library and login:
+
 ```
 pip install wandb
 wandb login
 ```
+
 Flexible integration for any Python script:
+
 ```python
 import wandb
 
@@ -60,7 +65,6 @@ If you have any questions, please don't hesitate to ask in our [user forum](http
 
 **[Explore a W&B dashboard](https://www.youtube.com/watch?v=gnD8BFuyVUA)**
 
-
 # Academic Researchers
 
 If you'd like a free academic account for your research group, [reach out to us →](https://www.wandb.com/academic)
@@ -68,8 +72,8 @@ If you'd like a free academic account for your research group, [reach out to us 
 We make it easy to cite W&B in your published paper. [Learn more →](https://www.wandb.com/academic)
 [![](https://i.imgur.com/loKLiez.png)](https://www.wandb.com/academic)
 
-
 # 📈 Track model and data pipeline hyperparameters
+
 Set `wandb.config` once at the beginning of your script to save your hyperparameters, input settings (like dataset name or model type), and any other independent variables for your experiments. This is useful for analyzing your experiments and reproducing your work in the future. Setting configs also allows you to [visualize](https://docs.wandb.com/sweeps/visualize-sweep-results) the relationships between features of your model architecture or data pipeline and the model performance (as seen in the screenshot above).
 
 ```python
@@ -86,7 +90,9 @@ wandb.config.architecture = "resnet"
 # 🏗 Use your favorite framework
 
 ## 🥕 Keras
+
 In Keras, you can use our callback to automatically save all the metrics tracked in `model.fit`. To get you started here's a minimal example:
+
 ```python
 # Import W&B
 import wandb
@@ -101,7 +107,7 @@ config.learning_rate = 0.01
 
 # Model training code here ...
 
-# Step 3: Add WandbCallback 
+# Step 3: Add WandbCallback
 model.fit(X_train, y_train,  validation_data=(X_test, y_test),
           callbacks=[WandbCallback()])
 ```
@@ -111,8 +117,10 @@ model.fit(X_train, y_train,  validation_data=(X_test, y_test),
 - [Docs](https://docs.wandb.com/library/integrations/keras)
 
 ## 🔥 PyTorch
+
 W&B provides first class support for PyTorch. To automatically log gradients and store the network topology, you can call `.watch` and pass in your PyTorch model.
 Then use `.log` for anything else you want to track, like so:
+
 ```python
 import wandb
 
@@ -126,8 +134,8 @@ config.dropout = 0.01
 # 3. Log gradients and model parameters
 wandb.watch(model)
 for batch_idx, (data, target) in enumerate(train_loader):
-  ...  
-  if batch_idx % args.log_interval == 0:      
+  ...
+  if batch_idx % args.log_interval == 0:
     # 4. Log metrics to visualize performance
     wandb.log({"loss": loss})
 ```
@@ -136,9 +144,10 @@ for batch_idx, (data, target) in enumerate(train_loader):
 - [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM)
 - [Docs](https://docs.wandb.com/library/integrations/pytorch)
 
-
 ## 🌊 TensorFlow
+
 The simplest way to log metrics in TensorFlow is by logging `tf.summary` with our TensorFlow logger:
+
 ```python
 import wandb
 
@@ -160,9 +169,10 @@ with tf.Session() as sess:
 - **[Try in a colab →](http://wandb.me/tf-colab)**
 - [Docs](https://docs.wandb.com/library/integrations/tensorflow)
 
-
 ## 💨 fastai
+
 Visualize, compare, and iterate on fastai models using Weights & Biases with the `WandbCallback`.
+
 ```python
 import wandb
 from fastai.callback.wandb import WandbCallback
@@ -177,9 +187,10 @@ learn.fit(..., cbs=WandbCallback())
 - **[Try in a colab →](http://wandb.me/fastai-colab)**
 - [Docs](https://docs.wandb.com/library/integrations/fastai)
 
-
 ## ⚡️ PyTorch Lightning
+
 Build scalable, structured, high-performance PyTorch models with Lightning and log them with W&B.
+
 ```python
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import Trainer
@@ -191,10 +202,11 @@ trainer = Trainer(logger=wandb_logger)
 - **[Try in a colab →](http://wandb.me/lit-colab)**
 - [Docs](https://docs.wandb.ai/guides/integrations/lightning)
 
-
 ## 🤗 HuggingFace
+
 Just run a script using HuggingFace's Trainer in an environment where `wandb` is installed
 and we'll automatically log losses, evaluation metrics, model topology and gradients:
+
 ```python
 # 1. Install the wandb library
 pip install wandb
@@ -219,12 +231,15 @@ python run_glue.py \
 - [Docs](https://docs.wandb.com/library/integrations/huggingface)
 
 # 🧹 Optimize hyperparameters with Sweeps
+
 Use Weights & Biases Sweeps to automate hyperparameter optimization and explore the space of possible models.
 
 ### [Get started in 5 mins →](https://docs.wandb.com/sweeps/quickstart)
+
 ### [Try Sweeps in PyTorch in a Colab →](http://wandb.me/sweeps-colab)
 
-### Benefits of using W&B Sweeps 
+### Benefits of using W&B Sweeps
+
 - **Quick to setup:** With just a few lines of code you can run W&B sweeps.
 - **Transparent:** We cite all the algorithms we're using, and our code is [open source](https://github.com/wandb/client/tree/master/wandb/sweeps).
 - **Powerful:** Our sweeps are completely customizable and configurable. You can launch a sweep across dozens of machines, and it's just as easy as starting a sweep on your laptop.
@@ -232,11 +247,13 @@ Use Weights & Biases Sweeps to automate hyperparameter optimization and explore 
 <img src="https://gblobscdn.gitbook.com/assets%2F-Lqya5RvLedGEWPhtkjU%2F-LyfPCyvV8By5YBltxfh%2F-LyfQsxswLC-6WKGgfGj%2Fcentral%20sweep%20server%203.png?alt=media&token=c81e4fe7-7ee4-48ea-a4cd-7b28113c6088" width="400" alt="Weights & Biases" />
 
 ### Common use cases
+
 - **Explore:** Efficiently sample the space of hyperparameter combinations to discover promising regions and build an intuition about your model.
-- **Optimize:**  Use sweeps to find a set of hyperparameters with optimal performance.
+- **Optimize:** Use sweeps to find a set of hyperparameters with optimal performance.
 - **K-fold cross validation:** [Here's a brief code example](https://github.com/wandb/examples/tree/master/examples/wandb-sweeps/sweeps-cross-validation) of _k_-fold cross validation with W&B Sweeps.
 
 ### Visualize Sweeps results
+
 The hyperparameter importance plot surfaces which hyperparameters were the best predictors of, and highly correlated to desirable values for your metrics.
 
 <img src="https://paper-attachments.dropbox.com/s_194708415DEC35F74A7691FF6810D3B14703D1EFE1672ED29000BA98171242A5_1578695757573_image.png" width="720" alt="Weights & Biases" />
@@ -246,9 +263,11 @@ Parallel coordinates plots map hyperparameter values to model metrics. They're u
 <img src="https://i.imgur.com/THYXBN0.png" width="720" alt="Weights & Biases" />
 
 # 📜 Share insights with Reports
+
 Reports let you [organize visualizations, describe your findings, and share updates with collaborators](https://www.youtube.com/watch?v=o2dOSIDDr1w&&ab_channel=Weights%26Biases).
 
 ### Common use cases
+
 - **Notes:** Add a graph with a quick note to yourself.
 - **Collaboration:** Share findings with your colleagues.
 - **Work log:** Track what you've tried and plan next steps.
@@ -260,6 +279,7 @@ Once you have experiments in W&B, you can visualize and document results in Repo
 ![](https://i.imgur.com/dn0Dyd8.png)
 
 # 🏺 Version control datasets and models with Artifacts
+
 Git and GitHub make code version control easy,
 but they're not optimized for tracking the other parts of the ML pipeline:
 datasets, models, and other large binary files.
@@ -274,6 +294,7 @@ all directly linked to run.
 ![](https://i.imgur.com/zvBWhGx.png)
 
 ### Common use cases
+
 - **Pipeline Management:** Track and visualize the inputs and outputs of your runs as a graph
 - **Don't Repeat Yourself™:** Prevent the duplication of compute effort
 - **Sharing Data in Teams:** Collaborate on models and datasets without all the headaches
@@ -284,6 +305,6 @@ all directly linked to run.
 
 # Testing
 
-To run basic test use `make test`.  More detailed information can be found at CONTRIBUTING.md.
+To run basic test use `make test`. More detailed information can be found at CONTRIBUTING.md.
 
 We use [circleci](https://circleci.com) for CI.
