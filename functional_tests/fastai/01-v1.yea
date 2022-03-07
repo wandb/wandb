@@ -9,3 +9,4 @@ depend:
         - fastai==1.0.61
 assert:
   - :yea:exit: 0
+  - :wandb:runs_len: 1
