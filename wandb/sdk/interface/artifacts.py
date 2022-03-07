@@ -662,12 +662,12 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def link(self, registry_path: str, aliases: Optional[List[str]] = None) -> None:
+    def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
         """
-        Links this artifact to a portfolio, with aliases.
+        Links this artifact to a portfolio (a promoted collection of artifacts), with aliases.
 
         Arguments:
-            registry_path: (str) The path to the registry. It must take the form
+            target_path: (str) The path to the portfolio. It must take the form
                 {portfolio}, {project}/{portfolio} or {entity}/{project}/{portfolio}.
             aliases: (Optional[List[str]]) A list of strings which uniquely
                 identifies the artifact inside the specified portfolio.

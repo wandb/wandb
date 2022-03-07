@@ -102,15 +102,15 @@ def log_model(
     return model
 
 
-def use_model(alias: str) -> "SavedModel":
-    parts = alias.split(":")
+def use_model(aliased_path: str) -> "SavedModel":
+    parts = aliased_path.split(":")
     if len(parts) == 1:
-        alias += "latest"
+        aliased_path += "latest"
 
     # Returns a SavedModel instance
     if wandb.run:
         run = wandb.run
-        artifact = run.use_artifact(alias)
+        artifact = run.use_artifact(aliased_path)
         sm = artifact.get("index")
         return sm
     else:
@@ -121,14 +121,14 @@ def use_model(alias: str) -> "SavedModel":
 
 def link_model(
     model: "SavedModel",
-    registry_path: str,
+    target_path: str,
     aliases: Optional[Union[str, List[str]]] = None,
 ):
     """
-    `registry_path`: str that can take the following form:
-        "{portfolio}"
-        "{entity}/{project}/{portfolio}"
-        "{project}/{portfolio}
+    `target_path`: str that can take the following form:
+        "{target}"
+        "{entity}/{project}/{target}"
+        "{project}/{target}
     """
 
     if aliases is None:
@@ -150,11 +150,11 @@ def link_model(
                 "Linking requires that the given SavedModel belongs to an artifact"
             )
 
-        run.link_artifact(artifact, registry_path, aliases)
+        run.link_artifact(artifact, target_path, aliases)
 
     else:
         if model._artifact_source is not None:
-            model._artifact_source.artifact.link(registry_path, aliases)
+            model._artifact_source.artifact.link(target_path, aliases)
         else:
             raise ValueError(
                 "Linking requires that the given SavedModel belongs to an artifact"

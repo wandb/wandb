@@ -2137,12 +2137,10 @@ class Run:
     def link_artifact(
         self,
         artifact: Union[public.Artifact, Artifact],
-        portfolio_path: str,
+        target_path: str,
         aliases: List[str],
     ) -> None:
-        portfolio, project, entity = wandb.util._parse_entity_project_item(
-            portfolio_path
-        )
+        portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
 
         # if local artifact, then use client_id
         # if public artifact, use the real server_id as artifactID
