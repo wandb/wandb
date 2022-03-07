@@ -3609,9 +3609,14 @@ class Artifact(artifacts.Artifact):
         return use_as
 
     @normalize_exceptions
-    def link(self, registry_path: str, aliases=None):
+    def link(self, target_path: str, aliases=None):
+        if ":" in target_path:
+            raise ValueError(
+                f"target_path {target_path} cannot contain `:` because it is not an alias."
+            )
 
-        portfolio, project, entity = util._parse_entity_project_item(registry_path)
+        portfolio, project, entity = util._parse_entity_project_item(target_path)
+        aliases = util._resolve_aliases(aliases)
 
         EmptyRunProps = namedtuple("Empty", "entity project")
         r = wandb.run if wandb.run else EmptyRunProps(entity=None, project=None)
@@ -3620,7 +3625,7 @@ class Artifact(artifacts.Artifact):
 
         if project is None or entity is None:
             raise ValueError(
-                "Please make sure `registry_path` is of the format {entity}/{project}/{registry_name}."
+                "Please make sure `target_path` is of the format {entity}/{project}/{target_name}."
             )
 
         mutation = gql(

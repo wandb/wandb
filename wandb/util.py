@@ -1573,12 +1573,41 @@ def _parse_entity_project_item(path: str) -> tuple:
     words = path.split("/")
     if len(words) == 0 or len(words) > 3:
         raise ValueError(
-            "Must be of the form {item}, {project}/{item}, or {entity}/{project}/{item}"
+            "Invalid path: must be of the form {item}, {project}/{item}, or {entity}/{project}/{item}"
         )
-    keys = ["portfolio", "project", "entity"]
+    keys = ["item", "project", "entity"]
     rev = reversed(words)
     parsed = defaultdict(str, zip(keys, rev))
     return tuple(parsed[key] for key in keys)
+
+
+def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+    """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
+    Ensures that "latest" is always present in the returned list.
+
+    Args:
+        aliases: `Optional[Union[str, List[str]]]`
+
+    Returns:
+        List[str], with "latest" always present.
+
+    Example:
+        aliases = _resolve_aliases(["best", "dev"])
+        assert aliases == ["best", "dev", "latest"]
+
+        aliases = _resolve_aliases("boom")
+        assert aliases == ["boom", "latest"]
+
+    """
+    if aliases is None:
+        aliases = []
+    elif isinstance(aliases, str):
+        aliases = [aliases]
+
+    if "latest" not in aliases:
+        aliases.append("latest")
+
+    return aliases
 
 
 def _is_artifact(v: Any) -> bool:

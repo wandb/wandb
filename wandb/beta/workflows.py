@@ -1,3 +1,4 @@
+import json
 import os
 from typing import (
     Any,
@@ -19,10 +20,7 @@ from wandb.sdk.interface.artifacts import (
 def _add_any(
     artifact: ArtifactInterface,
     path_or_obj: Union[str, ArtifactEntry, data_types.WBValue],  # todo: add dataframe
-    name: Optional[str]
-    # is_tmp: Optional[bool] = False,
-    # checksum: bool = True,
-    # max_objects: Optional[int] = None,
+    name: Optional[str],
 ):
     if isinstance(path_or_obj, ArtifactEntry):
         return artifact.add_reference(path_or_obj, name)
@@ -34,8 +32,6 @@ def _add_any(
         elif os.path.isfile(path_or_obj):
             return artifact.add_file(path_or_obj)
         else:
-            import json
-
             with artifact.new_file(name) as f:
                 f.write(json.dumps(path_or_obj, sort_keys=True))
     else:
@@ -68,24 +64,13 @@ def _log_artifact_version(
     if metadata is None:
         metadata = {}
 
-    # hack for demo purposes
-    # if getattr(run, "history", None):
-    #     metadata.update({"__wb_log_step__": wandb.run.history._step})
-
     art = wandb.Artifact(name, type, description, metadata, False, None)
 
     for path in entries:
         _add_any(art, entries[path], path)
 
-    # "latest" should always be present as an alias in every new logged artifact version.
-    if aliases is None:
-        aliases = []
-    elif isinstance(aliases, str):
-        aliases = [aliases]
-
-    if "latest" not in aliases:
-        aliases.append("latest")
-
+    # "latest" should always be present as an alias
+    aliases = wandb.util._resolve_aliases(aliases)
     run.log_artifact(art, aliases=aliases)
 
     return art
