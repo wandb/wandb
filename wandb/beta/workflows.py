@@ -137,7 +137,7 @@ def log_model(
     Returns:
         SavedModel instance
 
-    Examples:
+    Example:
         import torch.nn as nn
         import torch.nn.functional as F
 
@@ -175,6 +175,22 @@ def log_model(
 
 
 def use_model(aliased_path: str) -> "SavedModel":
+    """Allows the user to fetch their saved model with an alias.
+    Under the hood, we use the alias to fetch the model artifact containing the serialized model files
+    and rebuild the model object from these files. We also declare the fetched model artifact as an
+    input to the run (with `run.use_artifact`).
+
+    Args:
+        aliased_path: `str` - the following forms are valid: "name:version", "name:alias". May be prefixed with "entity/project".
+
+    Returns:
+        SavedModel instance
+
+    Example:
+        # assuming you have previously logged a model with the name "my-simple-model"
+        sm = use_model("my-simple-model:latest")
+        model = sm.model_obj()
+    """
     parts = aliased_path.split(":")
     if len(parts) == 1:
         aliased_path += "latest"
@@ -195,12 +211,24 @@ def link_model(
     model: "SavedModel",
     target_path: str,
     aliases: Optional[Union[str, List[str]]] = None,
-):
-    """
-    `target_path`: str that can take the following form:
-        "{target}"
-        "{entity}/{project}/{target}"
-        "{project}/{target}
+) -> None:
+    """Links the given model to a portfolio (a promoted collection of models).
+    Linking to a portfolio allows for useful model-centric workflows in the UI.
+
+    Args:
+        model: `SavedModel` - an instance of SavedModel, most likely from the output of `log_model` or `use_model`.
+        target_path: `str` - the target portfolio. The following forms are valid for the string: {portfolio}, {project/portfolio},
+            {entity}/{project}/{portfolio}.
+        aliases: `str, List[str]` - optional alias(es) that will only be applied on this linked model inside the portfolio.
+            The alias "latest" will always be applied to the latest version of a model.
+
+    Returns:
+        None
+
+    Example:
+        sm = use_model("my-simple-model:latest")
+        link_model(sm, "my-portfolio")
+
     """
 
     if aliases is None:
