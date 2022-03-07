@@ -10,15 +10,25 @@ from wandb.apis.public import _DownloadedArtifactEntry
 from wandb.sdk.wandb_artifacts import ArtifactEntry
 
 
-torch = pytest.importorskip("torch")
-tensorflow = pytest.importorskip("tensorflow")
-keras = tensorflow.keras
-svm = pytest.importorskip("sklearn.svm")
-np = pytest.importorskip("numpy")
+def sklearn_model():
+    module_name = f"smc_{wandb.util.generate_id()}.py"
+    shutil.copy("saved_model_constructors.py", module_name)
+    from .saved_model_constructors import sklearn_model
+    os.remove(module_name)
+    return sklearn_model()
 
 
-def test_SavedModel_sklearn(runner, mocker):
-    savedModel_test(runner, mocker, sklearn_model())
+def pytorch_model():
+    from .saved_model_constructors import pytorch_model
+    return pytorch_model()
+
+def keras_model():
+    from .saved_model_constructors import keras_model
+    return keras_model()
+
+
+# def test_SavedModel_sklearn(runner, mocker):
+#     savedModel_test(runner, mocker, sklearn_model())
 
 
 def test_SavedModel_pytorch(runner, mocker):
@@ -32,13 +42,13 @@ def test_SavedModel_keras(runner, mocker):
     savedModel_test(runner, mocker, keras_model())
 
 
-def test_SklearnSavedModel(runner):
-    subclass_test(
-        runner,
-        SM._SklearnSavedModel,
-        [sklearn_model()],
-        [keras_model(), pytorch_model(),],
-    )
+# def test_SklearnSavedModel(runner):
+#     subclass_test(
+#         runner,
+#         SM._SklearnSavedModel,
+#         [sklearn_model()],
+#         [keras_model(), pytorch_model(),],
+#     )
 
 
 def test_PytorchSavedModel(runner):
@@ -61,48 +71,6 @@ def test_TensorflowKerasSavedModel(runner):
         [sklearn_model(), pytorch_model()],
     )
 
-
-def sklearn_model():
-    return svm.SVC()
-
-
-def pytorch_model():
-    class PytorchModel(torch.nn.Module):
-        def __init__(self):
-            super(PytorchModel, self).__init__()
-            self.hidden_layer = torch.nn.Linear(1, 1)
-            self.hidden_layer.weight = torch.nn.Parameter(torch.tensor([[1.58]]))
-            self.hidden_layer.bias = torch.nn.Parameter(torch.tensor([-0.14]))
-
-            self.output_layer = torch.nn.Linear(1, 1)
-            self.output_layer.weight = torch.nn.Parameter(torch.tensor([[2.45]]))
-            self.output_layer.bias = torch.nn.Parameter(torch.tensor([-0.11]))
-
-        def forward(self, x):
-            x = torch.sigmoid(self.hidden_layer(x))
-            x = torch.sigmoid(self.output_layer(x))
-            return x
-
-    return PytorchModel()
-
-
-def keras_model():
-    def get_model():
-        # Create a simple model.
-        inputs = keras.Input(shape=(32,))
-        outputs = keras.layers.Dense(1)(inputs)
-        model = keras.Model(inputs, outputs)
-        model.compile(optimizer="adam", loss="mean_squared_error")
-        return model
-
-    model = get_model()
-
-    # Train the model.
-    test_input = np.random.random((128, 32))
-    test_target = np.random.random((128, 1))
-    model.fit(test_input, test_target)
-
-    return model
 
 
 # These classes are used to patch the API
@@ -159,6 +127,7 @@ def savedModel_test(runner, mocker, model):
         art = wandb.Artifact("name", "type")
         art.add(sm, "model")
         assert art.manifest.entries[f"model.{sm._log_type}.json"] is not None
+
         pub_art = make_local_artifact_public(art, mocker)
         sm2 = pub_art.get("model")
         assert sm2 is not None

@@ -5,11 +5,13 @@ from typing import (
     ClassVar,
     Generic,
     Optional,
+    List,
     Type,
     TYPE_CHECKING,
     TypeVar,
     Union,
 )
+import shutil
 
 
 import wandb
@@ -36,6 +38,29 @@ DEBUG_MODE = False
 
 SavedModelObjType = TypeVar("SavedModelObjType")
 
+def _add_deterministic_dir_to_artifact(artifact: "LocalArtifact", dir_name: str, target_dir_root:str) -> None:
+    file_paths = []
+    for dirpath, _, filenames in os.walk(dir_name, topdown=True):
+        for fn in filenames:
+            file_paths.append(os.path.join(dirpath, fn))
+    dirname = b64_string_to_hex(md5_files_b64(file_paths))[:20]
+    target_path = os.path.join(target_dir_root, dirname)
+    artifact.add_dir(dir_name, target_path)
+    return target_path
+
+def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str):
+    dl_path = None
+
+    # Look through the entire manifest to find all of the files in the directory.
+    # Construct the directory path by inspecting the target download location.
+    for p, _ in source_artifact.manifest.entries.items():
+        if p.startswith(path):
+            example_path = source_artifact.get_path(p).download()
+            if dl_path is None:
+                root = example_path[: -len(p)]
+                dl_path = os.path.join(root, path)
+    
+    return dl_path
 
 class SavedModel(WBValue, Generic[SavedModelObjType]):
     """SavedModel is a data type that can be used to store a model object
@@ -103,16 +128,7 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
             # If not, assume it is directory.
             # FUTURE: Add this functionality to the artifact loader
             # (would be nice to parallelize)
-            dl_path = None
-
-            # Look through the entire manifest to find all of the files in the directory.
-            # Construct the directory path by inspecting the target download location.
-            for p, _ in source_artifact.manifest.entries.items():
-                if p.startswith(path):
-                    example_path = source_artifact.get_path(p).download()
-                    if dl_path is None:
-                        root = example_path[: -len(p)]
-                        dl_path = os.path.join(root, path)
+            dl_path = _load_dir_from_artifact(source_artifact, path)
 
         # Return the SavedModel object instantiated with the downloaded path
         # and specified adapter.
@@ -147,14 +163,7 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
             # The directory must be named deterministically based on the contents of the directory,
             # but the files themselves need to have their name preserved.
             # FUTURE: Add this functionality to the artifact adder itself
-            file_paths = []
-            for dirpath, _, filenames in os.walk(self._path, topdown=True):
-                for fn in filenames:
-                    file_paths.append(os.path.join(dirpath, fn))
-            dirname = b64_string_to_hex(md5_files_b64(file_paths))[:20]
-            target_path = os.path.join(".wb_data", "saved_models", dirname)
-            artifact.add_dir(self._path, target_path)
-            json_obj["path"] = target_path
+            json_obj["path"] = _add_deterministic_dir_to_artifact(artifact, self._path, os.path.join(".wb_data", "saved_models"))
         else:
             raise ValueError(
                 f"Expected a path to a file or directory, got {self._path}"
@@ -265,9 +274,46 @@ def _get_torch() -> "torch":
     return cast("torch", util.get_module("torch", "ModelAdapter requires `torch`"),)
 
 
+# TODO: Add pip deps
+# TODO: potentially move this up to the saved model class
 class _PytorchSavedModel(SavedModel["torch.nn.Module"]):
     _log_type = "pytorch-model-file"
     _path_extension = "pt"
+    _dep_py_files: Optional[List[str]] = None
+    _dep_py_files_path: Optional[str] = None
+
+    def __init__(self, obj_or_path: Union[SavedModelObjType, str], dep_py_files:Optional[List[str]] = None):
+        super(_PytorchSavedModel, self).__init__(obj_or_path)
+        if dep_py_files is not None:
+            self._dep_py_files = dep_py_files
+            self._dep_py_files_path = os.path.abspath(
+                os.path.join(MEDIA_TMP.name, str(util.generate_id()))
+            )
+            os.makedirs(self._dep_py_files_path, exist_ok=True)
+            for extra_file in self._dep_py_files:
+                if os.path.isfile(extra_file):
+                    shutil.copy(extra_file, self._dep_py_files_path)
+                elif os.path.isdir(extra_file):
+                    shutil.copytree(extra_file, os.path.join(self._dep_py_files_path, os.path.basename(extra_file)))
+
+
+    @classmethod
+    def from_json(
+        cls: Type["SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "SavedModel":
+        inst = super(_PytorchSavedModel, cls).from_json(json_obj, source_artifact)
+        if "dep_py_files_path" in json_obj and json_obj["dep_py_files_path"] is not None:
+            dl_path = _load_dir_from_artifact(source_artifact, json_obj["dep_py_files_path"])
+            if dl_path is not None:
+                # TODO: Add DL path to sys path
+                pass
+        return inst
+
+    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        json_obj = super(_PytorchSavedModel, self).to_json(run_or_artifact)
+        if self._dep_py_files_path is not None:
+            json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(run_or_artifact, self._dep_py_files_path, os.path.join(".wb_data", "extra_files"))
+        return json_obj
 
     @staticmethod
     def _deserialize(dir_or_file_path: str) -> "torch.nn.Module":
@@ -284,41 +330,41 @@ class _PytorchSavedModel(SavedModel["torch.nn.Module"]):
         )
 
 
-def _get_sklearn() -> "sklearn":
-    return cast(
-        "sklearn", util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
-    )
+# def _get_sklearn() -> "sklearn":
+#     return cast(
+#         "sklearn", util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
+#     )
 
 
-class _SklearnSavedModel(SavedModel["sklearn.base.BaseEstimator"]):
-    _log_type = "sklearn-model-file"
-    _path_extension = "pkl"
+# class _SklearnSavedModel(SavedModel["sklearn.base.BaseEstimator"]):
+#     _log_type = "sklearn-model-file"
+#     _path_extension = "pkl"
 
-    @staticmethod
-    def _deserialize(dir_or_file_path: str,) -> "sklearn.base.BaseEstimator":
-        with open(dir_or_file_path, "rb") as file:
-            model = _get_cloudpickle().load(file)
-        return model
+#     @staticmethod
+#     def _deserialize(dir_or_file_path: str,) -> "sklearn.base.BaseEstimator":
+#         with open(dir_or_file_path, "rb") as file:
+#             model = _get_cloudpickle().load(file)
+#         return model
 
-    @staticmethod
-    def _validate_obj(obj: Any) -> bool:
-        dynamic_sklearn = _get_sklearn()
-        return cast(
-            bool,
-            (
-                dynamic_sklearn.base.is_classifier(obj)
-                or dynamic_sklearn.base.is_outlier_detector(obj)
-                or dynamic_sklearn.base.is_regressor(obj)
-            ),
-        )
+#     @staticmethod
+#     def _validate_obj(obj: Any) -> bool:
+#         dynamic_sklearn = _get_sklearn()
+#         return cast(
+#             bool,
+#             (
+#                 dynamic_sklearn.base.is_classifier(obj)
+#                 or dynamic_sklearn.base.is_outlier_detector(obj)
+#                 or dynamic_sklearn.base.is_regressor(obj)
+#             ),
+#         )
 
-    @staticmethod
-    def _serialize(
-        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: str
-    ) -> None:
-        dynamic_cloudpickle = _get_cloudpickle()
-        with open(dir_or_file_path, "wb") as file:
-            dynamic_cloudpickle.dump(model_obj, file)
+#     @staticmethod
+#     def _serialize(
+#         model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: str
+#     ) -> None:
+#         dynamic_cloudpickle = _get_cloudpickle()
+#         with open(dir_or_file_path, "wb") as file:
+#             dynamic_cloudpickle.dump(model_obj, file)
 
 
 def _get_tf_keras() -> "tensorflow.keras":
