@@ -66,7 +66,7 @@ class SockClient:
 
     def send_and_recv(self, **kwargs):
         self.send(**kwargs)
-        return self.read_server_response(timeout=x)  # FIXME
+        return self.read_server_response(timeout=1)  # TODO is this reasonable timeout?
 
     def send(
         self,
