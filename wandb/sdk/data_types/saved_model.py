@@ -69,6 +69,13 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
             self._set_obj(obj_or_path)
 
         self._copy_to_disk()
+        # At this point, the model will be saved to a temp path,
+        # and self._path will be set to such temp path. If the model
+        # provided was a path, then both self._path and self._model_obj
+        # are copies of the user-provided data. However, if the input
+        # was a model object, then we want to clear the model object. The first
+        # accessing of the model object (via .model_obj()) will load the model
+        # from the temp path.
 
         if not input_is_path:
             self._unset_obj()
@@ -191,6 +198,13 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
     def _maybe_init(
         cls: Type["SavedModel"], obj_or_path: Any
     ) -> Optional["SavedModel"]:
+        # _maybe_init is an exception-safe method that will return an instance of this class
+        # (or any subclass of this class - recursively) OR None if no subclass constructor is found.
+        # We first try the current class, then recursively call this method on children classes. This pattern
+        # conforms to the new "Weave-type" pattern developed by Shawn. This way, we can for example have a
+        # pytorch subclass that can itself have two subclasses: one for a TorchScript model, and one for a PyTorch model.
+        # The children subclasses will know how to serialize/deserialize their respective payloads, but the pytorch
+        # parent class can know how to execute inference on the model - regardless of serialization strategy.
         try:
             return cls(obj_or_path)
         except Exception as e:
@@ -207,6 +221,8 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
 
     @classmethod
     def _tmp_path(cls: Type["SavedModel"]) -> str:
+        # Generates a tmp path under our MEDIA_TMP directory which confirms to the file
+        # or folder preferences of the class.
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
         tmp_path = os.path.abspath(
             os.path.join(MEDIA_TMP.name, str(util.generate_id()))
@@ -217,6 +233,8 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
 
     # Private Instance Methods
     def _copy_to_disk(self) -> None:
+        # Creates a temporary path and writes a fresh copy of the
+        # model to disk - updating the _path appropriately.
         tmp_path = self._tmp_path()
         self._dump(tmp_path)
         self._path = tmp_path
