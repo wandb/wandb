@@ -26,8 +26,12 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 54  # dask
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 55  # asyncio
 """
 
+import asyncio  # noqa: F401
 
 import dask.distributed  # noqa: F401
 import joblib  # noqa: F401
