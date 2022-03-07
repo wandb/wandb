@@ -1,5 +1,5 @@
 """
-This module hooks fast.ai Learners to Weights & Biases through a callback.
+This module hooks fast.ai v1 Learners to Weights & Biases through a callback.
 Requested logged data can be configured through the callback constructor.
 
 Examples:
