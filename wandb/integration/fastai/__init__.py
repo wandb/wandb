@@ -131,11 +131,7 @@ class WandbCallback(TrackerCallback):
             wandb.watch(self.learn.model, log=self.log)
 
     def on_epoch_end(
-        self,
-        epoch: int,
-        smooth_loss: float,
-        last_metrics: list,
-        **kwargs: Any
+        self, epoch: int, smooth_loss: float, last_metrics: list, **kwargs: Any
     ) -> None:
         """Logs training loss, validation loss and custom metrics & log prediction samples & save model"""
 
@@ -206,8 +202,7 @@ class WandbCallback(TrackerCallback):
             if not pred[1].shape or pred[1].dim() == 1:
                 pred_log.append(
                     wandb.Image(
-                        x.data,
-                        caption=f"Ground Truth: {y}\nPrediction: {pred[0]}",
+                        x.data, caption=f"Ground Truth: {y}\nPrediction: {pred[0]}",
                     )
                 )
 
