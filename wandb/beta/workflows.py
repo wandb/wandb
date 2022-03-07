@@ -21,7 +21,23 @@ def _add_any(
     artifact: ArtifactInterface,
     path_or_obj: Union[str, ArtifactEntry, data_types.WBValue],  # todo: add dataframe
     name: Optional[str],
-):
+) -> Any:
+    """High-level wrapper to add object(s) to an artifact - calls any of the .add* methods
+    under Artifact depending on the type of object that's passed in. This will probably be moved
+    to the Artifact class in the future.
+
+    Args:
+        artifact: `ArtifactInterface` - most likely a LocalArtifact created with `wandb.Artifact(...)`
+
+        path_or_obj: `Union[str, ArtifactEntry, data_types.WBValue]` - either a str or valid object which
+        indicates what to add to an artifact.
+
+        name: `str` - the name of the object which is added to an artifact.
+
+    Returns:
+        Type[Any] - Union[None, ArtifactManifestEntry, etc]
+
+    """
     if isinstance(path_or_obj, ArtifactEntry):
         return artifact.add_reference(path_or_obj, name)
     elif isinstance(path_or_obj, data_types.WBValue):
@@ -51,6 +67,24 @@ def _log_artifact_version(
     scope_project: Optional[bool] = None,
     job_type: str = "auto",
 ) -> ArtifactInterface:
+    """Creates an artifact, populates it, and logs it with a run.
+    If a run is not present, we create one.
+
+    Args:
+        name: `str` - name of the artifact. If not scoped to a project, name will be suffixed by "-{run_id}".
+        type: `str` - type of the artifact, used in the UI to group artifacts of the same type.
+        entries: `Dict` - dictionary containing the named objects we want added to this artifact.
+        description: `str` - text description of artifact.
+        metadata: `Dict` - users can pass in artifact-specific metadata here, will be visible in the UI.
+        project: `str` - project under which to place this artifact.
+        scope_project: `bool` - if True, we will not suffix `name` with "-{run_id}".
+        job_type: `str` - Only applied if run is not present and we create one.
+            Used to identify runs of a certain job type, i.e "evaluation".
+
+    Returns:
+        ArtifactInterface
+
+    """
     if wandb.run is None:
         run = wandb.init(
             project=project, job_type=job_type, settings=wandb.Settings(silent="true")
@@ -85,6 +119,44 @@ def log_model(
     project: Optional[str] = None,
     scope_project: Optional[bool] = None,
 ) -> "SavedModel":
+    """Logs a model object to enable model-centric workflows in the UI.
+    Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc.
+    Under the hood, we create a model artifact, bind it to the run that produced this model,
+    associate it with the latest metrics logged with `wandb.log(...)` and more.
+
+    Args:
+        model_obj: any model object created with the following ML frameworks: PyTorch, Keras, Tensorflow, Scikit-learn.
+        name: `str` - name of the model artifact that will be created to house this model_obj.
+        aliases: `str, List[str]` - optional alias(es) that will be applied on this model and allow for unique
+            identification. The alias "latest" will always be applied to the latest version of a model.
+        description: `str` - text description/notes about the model - will be visible in the Model Card UI.
+        metadata: `Dict` - model-specific metadata goes here - will be visible the UI.
+        project: `str` - project under which to place this artifact.
+        scope_project: `bool` - If true, name of this model artifact will not be suffixed by `-{run_id}`.
+
+    Returns:
+        SavedModel instance
+
+    Examples:
+        import torch.nn as nn
+        import torch.nn.functional as F
+
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.fc1 = nn.Linear(10, 10)
+
+            def forward(self, x):
+                x = self.fc1(x)
+                x = F.relu(x)
+                return x
+
+
+        model = Net()
+        sm = log_model(model, "my-simple-model", aliases=["best"])
+
+    """
+
     model = data_types.SavedModel.init(model_obj)
     _ = _log_artifact_version(
         name=name,
