@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
+import configparser
 import copy
 import datetime
 from functools import wraps
@@ -23,7 +23,6 @@ from click.exceptions import ClickException
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 import six
-from six.moves import configparser
 import wandb
 from wandb import Config
 from wandb import env, util
@@ -35,6 +34,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -210,9 +210,6 @@ def projects(entity, display=True):
 def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
-
-    if host and not host.startswith("http"):
-        raise ClickException("host must start with http(s)://")
 
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
@@ -1052,7 +1049,7 @@ def launch(
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
-        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
 
@@ -1159,7 +1156,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
-        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?

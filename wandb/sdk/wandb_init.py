@@ -32,6 +32,7 @@ from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .lib.proto_util import message_to_dict
+from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
@@ -603,7 +604,9 @@ class _WandbInit(object):
                 if active_start_method != "fork":
                     error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
                     error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
-                    error_message += "\nFor more info see: https://docs.wandb.ai/library/init#init-start-error"
+                    error_message += (
+                        f"\nFor more info see: {wburls.get('doc_start_err')}"
+                    )
             elif run_result.error:
                 error_message = run_result.error.message
             if error_message:
@@ -720,7 +723,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run.__init__(settings=settings)
+        run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)

@@ -30,7 +30,6 @@ launch_requirements = [
     "chardet",
     "iso8601",
     "typing_extensions",
-    "yaspin",
 ]
 
 
