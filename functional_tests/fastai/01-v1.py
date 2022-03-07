@@ -5,6 +5,7 @@ from wandb.fastai import WandbCallback
 
 path = untar_data(URLs.MNIST_SAMPLE)
 data = ImageDataBunch.from_folder(path)
+model = simple_cnn((3,16,16,2))
 
 wandb.init()
 
