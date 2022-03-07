@@ -100,6 +100,21 @@ class SettingsValue(google.protobuf.message.Message):
     def WhichOneof(self, oneof_group: typing_extensions.Literal[u"value_type",b"value_type"]) -> typing_extensions.Literal["int_value","string_value","float_value","bool_value","null_value","tuple_value"]: ...
 global___SettingsValue = SettingsValue
 
+class Error(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    MESSAGE_FIELD_NUMBER: builtins.int
+    TYPE_FIELD_NUMBER: builtins.int
+    message: typing.Text = ...
+    type: typing.Text = ...
+
+    def __init__(self,
+        *,
+        message : typing.Text = ...,
+        type : typing.Text = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"message",b"message",u"type",b"type"]) -> None: ...
+global___Error = Error
+
 class ServerInformInitRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     class SettingsMapEntry(google.protobuf.message.Message):
@@ -227,9 +242,44 @@ global___ServerInformAttachRequest = ServerInformAttachRequest
 
 class ServerInformAttachResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    class SettingsMapEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: typing.Text = ...
+
+        @property
+        def value(self) -> global___SettingsValue: ...
+
+        def __init__(self,
+            *,
+            key : typing.Text = ...,
+            value : typing.Optional[global___SettingsValue] = ...,
+            ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal[u"value",b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"value",b"value"]) -> None: ...
+
+    _SETTINGS_MAP_FIELD_NUMBER: builtins.int
+    _ERROR_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+
+    @property
+    def _settings_map(self) -> google.protobuf.internal.containers.MessageMap[typing.Text, global___SettingsValue]: ...
+
+    @property
+    def _error(self) -> global___Error: ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
 
     def __init__(self,
+        *,
+        _settings_map : typing.Optional[typing.Mapping[typing.Text, global___SettingsValue]] = ...,
+        _error : typing.Optional[global___Error] = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
         ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_error",b"_error",u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_error",b"_error",u"_info",b"_info",u"_settings_map",b"_settings_map"]) -> None: ...
 global___ServerInformAttachResponse = ServerInformAttachResponse
 
 class ServerInformDetachRequest(google.protobuf.message.Message):

@@ -36,7 +36,6 @@ class ServiceSockInterface(ServiceInterface):
         inform_init = spb.ServerInformInitRequest()
         settings_dict = settings.make_static()
         _pbmap_apply_dict(inform_init._settings_map, settings_dict)
-
         inform_init._info.stream_id = run_id
         assert self._sock_client
         self._sock_client.send(inform_init=inform_init)
@@ -45,7 +44,7 @@ class ServiceSockInterface(ServiceInterface):
         inform_start = spb.ServerInformStartRequest()
         settings_dict = settings.make_static()
         _pbmap_apply_dict(inform_start._settings_map, settings_dict)
-
+        print(inform_start._settings_map["_start_datetime"])
         inform_start._info.stream_id = run_id
         assert self._sock_client
         self._sock_client.send(inform_start=inform_start)

@@ -22,8 +22,6 @@ def _pbmap_apply_dict(
 ) -> None:
 
     for k, v in d.items():
-        if isinstance(v, datetime.datetime):
-            continue
         if isinstance(v, enum.Enum):
             continue
         sv = spb.SettingsValue()
@@ -41,6 +39,8 @@ def _pbmap_apply_dict(
             sv.string_value = v
         elif isinstance(v, tuple):
             sv.tuple_value.string_values.extend(v)
+        elif isinstance(v, datetime.datetime):
+            sv.string_value = str(v)
         m[k].CopyFrom(sv)
 
 

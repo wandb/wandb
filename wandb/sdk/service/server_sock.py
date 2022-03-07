@@ -1,4 +1,3 @@
-from asyncio import streams
 import queue
 import socket
 import threading
@@ -8,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
+from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 from ..lib import tracelog
 from ..lib.proto_util import settings_dict_from_pbmap
@@ -110,11 +110,7 @@ class SockServerReadThread(threading.Thread):
                 self, shandler_str, None
             )
             assert shandler, "unknown handle: {}".format(shandler_str)
-            try:
-                shandler(sreq)
-            except Exception as e:
-                self._stopped.set()
-                raise e
+            shandler(sreq)
 
     def stop(self) -> None:
         try:
@@ -148,10 +144,20 @@ class SockServerReadThread(threading.Thread):
         stream_id = request._info.stream_id
 
         self._clients.add_client(self._sock_client)
-        if stream_id not in self._mux.streams:
-            error_resp = None
-            self._sock_client.send_server_response(error_resp)
-
+        print("server_inform_attach")
+        print(self._mux._streams[stream_id]._settings._start_time)
+        print(self._mux._streams[stream_id]._settings._start_datetime)
+        inform_attach_response = spb.ServerInformAttachResponse()
+        if stream_id not in self._mux._streams:
+            inform_attach_response._error.message = "stream does not exists"
+            inform_attach_response._error.type = "RunTime"
+        else:
+            _pbmap_apply_dict(
+                inform_attach_response._settings_map,
+                self._mux._streams[stream_id]._settings,
+            )
+        response = spb.ServerResponse(inform_attach_response=inform_attach_response)
+        self._sock_client.send_server_response(response)
         iface = self._mux.get_stream(stream_id).interface
 
         assert iface

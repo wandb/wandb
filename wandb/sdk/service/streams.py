@@ -90,6 +90,9 @@ class StreamRecord:
     def update(self, settings: Dict[str, Any]) -> None:
         # Note: Currently just overriding the _settings attribute
         # once we use Settings Class we might want to properly update it
+        print(settings["_start_time"])
+        print(settings["_start_datetime"])
+        print(settings.get("timespec"))
         self._settings = SettingsStatic(settings)
 
 

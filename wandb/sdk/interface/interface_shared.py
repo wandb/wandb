@@ -317,9 +317,9 @@ class InterfaceShared(InterfaceBase):
         """
 
         req = self._make_record(run=run)
-        print(f"_communicate_run: request: {req}")
+        # print(f"_communicate_run: request: {req}")
         resp = self._communicate(req, timeout=timeout)
-        print(f"_communicate_run: response: {resp}")
+        # print(f"_communicate_run: response: {resp}")
         if resp is None:
             logger.info("couldn't get run from backend")
             # Note: timeouts handled by callers: wandb_init.py
@@ -430,13 +430,13 @@ class InterfaceShared(InterfaceBase):
     def _communicate_run_start(
         self, run_start: pb.RunStartRequest
     ) -> Optional[pb.RunStartResponse]:
-        print(f"_communicate_run_start: run_start: {run_start}")
+        # print(f"_communicate_run_start: run_start: {run_start}")
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         if result is None:
             return None
         run_start_response = result.response.run_start_response
-        print(f"_communicate_run_start: result: {result}")
+        # print(f"_communicate_run_start: result: {result}")
 
         return run_start_response
 

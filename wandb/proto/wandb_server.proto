@@ -6,6 +6,7 @@ import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
+
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
   rpc Attach(AttachRequest) returns (AttachResponse) {}
@@ -77,6 +78,11 @@ message SettingsValue {
   }
 }
 
+message Error{
+  string message = 1;
+  string type = 2;
+}
+
 message ServerInformInitRequest {
   map<string, SettingsValue> _settings_map = 50;
   _RecordInfo _info = 200;
@@ -105,6 +111,9 @@ message ServerInformAttachRequest {
 }
 
 message ServerInformAttachResponse {
+  map<string, SettingsValue> _settings_map = 50;
+  Error _error = 51;
+  _RecordInfo _info = 200;
 }
 
 message ServerInformDetachRequest {
