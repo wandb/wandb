@@ -156,11 +156,11 @@ class _Manager:
 
     def _inform_attach(self, attach_id: str) -> None:
         svc_iface = self._get_service_interface()
-        svc_iface._svc_inform_attach(attach_id=attach_id)
+        return svc_iface._svc_inform_attach(attach_id=attach_id)
 
     def _inform_finish(self, run_id: str = None) -> None:
         svc_iface = self._get_service_interface()
-        response = svc_iface._svc_inform_finish(run_id=run_id)  # FIXME
+        return svc_iface._svc_inform_finish(run_id=run_id)  # FIXME
 
     def _inform_teardown(self, exit_code: int) -> None:
         svc_iface = self._get_service_interface()

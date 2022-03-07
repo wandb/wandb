@@ -52,18 +52,18 @@ class ServiceSockInterface(ServiceInterface):
 
     def _svc_inform_finish(self, run_id: str = None) -> None:
         assert run_id
-        inform_fin = spb.ServerInformFinishRequest()
-        inform_fin._info.stream_id = run_id
+        inform_finish = spb.ServerInformFinishRequest()
+        inform_finish._info.stream_id = run_id
 
         assert self._sock_client
-        return self._sock_client.send_and_recv(inform_finish=inform_fin)  # FIXME
+        return self._sock_client.send_and_recv(inform_finish=inform_finish)  # FIXME
 
     def _svc_inform_attach(self, attach_id: str) -> None:
         inform_attach = spb.ServerInformAttachRequest()
         inform_attach._info.stream_id = attach_id
 
         assert self._sock_client
-        self._sock_client.send(inform_attach=inform_attach)
+        return self._sock_client.send_and_recv(inform_attach=inform_attach)
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)

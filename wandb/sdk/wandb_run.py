@@ -1648,7 +1648,9 @@ class Run:
         # inform manager this run is finished
         manager = self._wl and self._wl._get_manager()
         if manager:
-            response = manager._inform_finish(run_id=self.id)  # FIXME
+            response = manager._inform_finish(
+                run_id=self._run_id
+            )  # FIXME add logic to handle failure
 
     @_attach
     def join(self, exit_code: int = None) -> None:
