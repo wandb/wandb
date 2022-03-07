@@ -129,7 +129,9 @@ class SockServerReadThread(threading.Thread):
         iface = self._mux.get_stream(stream_id).interface
         self._clients.add_client(self._sock_client)
         iface_reader_thread = SockServerInterfaceReaderThread(
-            clients=self._clients, iface=iface, stopped=self._stopped,
+            clients=self._clients,
+            iface=iface,
+            stopped=self._stopped,
         )
         iface_reader_thread.start()
 
@@ -150,7 +152,7 @@ class SockServerReadThread(threading.Thread):
         inform_attach_response = spb.ServerInformAttachResponse()
         if stream_id not in self._mux._streams:
             inform_attach_response._error.message = "stream does not exists"
-            inform_attach_response._error.type = "RunTime"
+            inform_attach_response._error.code = 0
         else:
             _pbmap_apply_dict(
                 inform_attach_response._settings_map,

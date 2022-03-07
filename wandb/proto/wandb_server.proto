@@ -78,9 +78,12 @@ message SettingsValue {
   }
 }
 
-message Error{
-  string message = 1;
-  string type = 2;
+// import "google/protobuf/any.proto";
+
+message ErrorStatus{
+  int32 code = 1;
+  string message = 2;
+  // repeated google.protobuf.Any details = 3;
 }
 
 message ServerInformInitRequest {
@@ -112,7 +115,7 @@ message ServerInformAttachRequest {
 
 message ServerInformAttachResponse {
   map<string, SettingsValue> _settings_map = 50;
-  Error _error = 51;
+  ErrorStatus _error = 51;
   _RecordInfo _info = 200;
 }
 
