@@ -129,6 +129,10 @@ workflows:
          image: "python:3.7"
          toxenv: "func-s_base-py37,func-covercircle"
       - test:
+         name: "func-s_sklearn-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_sklearn-py37,func-covercircle"
+      - test:
          name: "func-s_tf115-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_tf115-py37,func-covercircle"
@@ -188,6 +192,10 @@ workflows:
          name: "func-s_imports6-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_imports6-py37"
+      - test:
+         name: "func-s_imports7-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_imports7-py37"
       #
       # functional win tests
       #
