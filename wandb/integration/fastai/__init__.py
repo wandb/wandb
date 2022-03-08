@@ -1,5 +1,5 @@
 """
-This module hooks fast.ai Learners to Weights & Biases through a callback.
+This module hooks fast.ai v1 Learners to Weights & Biases through a callback.
 Requested logged data can be configured through the callback constructor.
 
 Examples:
@@ -35,19 +35,27 @@ Examples:
         learn.fit(..., callbacks=WandbCallback(learn, ...))
     ```
 """
-import wandb
-import fastai
-from fastai.callbacks import TrackerCallback
 from pathlib import Path
 import random
+import sys
+from typing import Any, Optional
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+import fastai  # type: ignore[import]
+from fastai.callbacks import TrackerCallback  # type: ignore[import]
+import wandb
 
 try:
-    import matplotlib
+    import matplotlib  # type: ignore[import]
 
-    if wandb.wandb_lib.ipython._get_python_type() != "jupyter":
+    if wandb.wandb_lib.ipython._get_python_type() != "jupyter":  # type: ignore[attr-defined]
         matplotlib.use("Agg")  # non-interactive backend (avoid tkinter issues)
-    import matplotlib.pyplot as plt
-except:
+    import matplotlib.pyplot as plt  # type: ignore[import]
+except ImportError:
     print("Warning: matplotlib required if logging sample image predictions")
 
 
@@ -73,16 +81,16 @@ class WandbCallback(TrackerCallback):
 
     def __init__(
         self,
-        learn,
-        log="gradients",
-        save_model=True,
-        monitor=None,
-        mode="auto",
-        input_type=None,
-        validation_data=None,
-        predictions=36,
-        seed=12345,
-    ):
+        learn: "fastai.basic_train.Learner",
+        log: Optional[Literal["gradients", "parameters", "all"]] = "gradients",
+        save_model: bool = True,
+        monitor: Optional[str] = None,
+        mode: Literal["auto", "min", "max"] = "auto",
+        input_type: Optional[Literal["images"]] = None,
+        validation_data: Optional[list] = None,
+        predictions: int = 36,
+        seed: int = 12345,
+    ) -> None:
 
         # Check if wandb.init has been called
         if wandb.run is None:
@@ -104,13 +112,13 @@ class WandbCallback(TrackerCallback):
         # Select items for sample predictions to see evolution along training
         self.validation_data = validation_data
         if input_type and not self.validation_data:
-            wandbRandom = random.Random(seed)  # For repeatability
+            wandb_random = random.Random(seed)  # For repeatability
             predictions = min(predictions, len(learn.data.valid_ds))
-            indices = wandbRandom.sample(range(len(learn.data.valid_ds)), predictions)
+            indices = wandb_random.sample(range(len(learn.data.valid_ds)), predictions)
             self.validation_data = [learn.data.valid_ds[i] for i in indices]
 
-    def on_train_begin(self, **kwargs):
-        "Call watch method to log model topology, gradients & weights"
+    def on_train_begin(self, **kwargs: Any) -> None:
+        """Call watch method to log model topology, gradients & weights"""
 
         # Set self.best, method inherited from "TrackerCallback" by "SaveModelCallback"
         super().on_train_begin()
@@ -122,8 +130,10 @@ class WandbCallback(TrackerCallback):
             # Logs model topology and optionally gradients and weights
             wandb.watch(self.learn.model, log=self.log)
 
-    def on_epoch_end(self, epoch, smooth_loss, last_metrics, **kwargs):
-        "Logs training loss, validation loss and custom metrics & log prediction samples & save model"
+    def on_epoch_end(
+        self, epoch: int, smooth_loss: float, last_metrics: list, **kwargs: Any
+    ) -> None:
+        """Logs training loss, validation loss and custom metrics & log prediction samples & save model"""
 
         if self.save_model:
             # Adapted from fast.ai "SaveModelCallback"
@@ -148,7 +158,7 @@ class WandbCallback(TrackerCallback):
                 wandb.termwarn(e.message)
                 self.validation_data = None  # prevent from trying again on next loop
             except Exception as e:
-                wandb.termwarn("Unable to log prediction samples.\n{}".format(e))
+                wandb.termwarn(f"Unable to log prediction samples.\n{e}")
                 self.validation_data = None  # prevent from trying again on next loop
 
         # Log losses & metrics
@@ -161,8 +171,8 @@ class WandbCallback(TrackerCallback):
         }
         wandb.log(logs)
 
-    def on_train_end(self, **kwargs):
-        "Load the best model."
+    def on_train_end(self, **kwargs: Any) -> None:
+        """Load the best model."""
 
         if self.save_model:
             # Adapted from fast.ai "SaveModelCallback"
@@ -171,15 +181,18 @@ class WandbCallback(TrackerCallback):
                     self.learn.load(model_file, purge=False)
                     print("Loaded best saved model from {}".format(self.model_path))
 
-    def _wandb_log_predictions(self):
-        "Log prediction samples"
+    def _wandb_log_predictions(self) -> None:
+        """Log prediction samples"""
 
         pred_log = []
+
+        if self.validation_data is None:
+            return
 
         for x, y in self.validation_data:
             try:
                 pred = self.learn.predict(x)
-            except:
+            except Exception:
                 raise FastaiError(
                     'Unable to run "predict" method from Learner to log prediction samples.'
                 )
@@ -189,8 +202,7 @@ class WandbCallback(TrackerCallback):
             if not pred[1].shape or pred[1].dim() == 1:
                 pred_log.append(
                     wandb.Image(
-                        x.data,
-                        caption="Ground Truth: {}\nPrediction: {}".format(y, pred[0]),
+                        x.data, caption=f"Ground Truth: {y}\nPrediction: {pred[0]}",
                     )
                 )
 
