@@ -344,14 +344,16 @@ class Run:
     ) -> None:
         # pid is set so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._settings = settings
-        self._init(config=config, sweep_config=sweep_config)
+        self._init(settings=settings, config=config, sweep_config=sweep_config)
 
     def _init(
         self,
+        settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+
+        self._settings = settings
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
@@ -615,11 +617,7 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(
-            _settings=self._settings.make_static(),
-            _attach_id=_attach_id,
-            _init_pid=self._init_pid,
-        )
+        return dict(_attach_id=_attach_id, _init_pid=self._init_pid,)
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -632,10 +630,6 @@ class Run:
 
         if state["_init_pid"] == os.getpid():
             raise RuntimeError("attach in the same process is not supported currently")
-
-        # TODO this solution will not work when we pass `_attach_id` to `wandb._attach`
-        self.__dict__["_settings"] = Settings()
-        self.__dict__["_settings"].update(state.pop("_settings", {}))
 
         self.__dict__.update(state)
 

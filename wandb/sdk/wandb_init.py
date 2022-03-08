@@ -711,9 +711,15 @@ def _attach(
     if manager:
         response = manager._inform_attach(attach_id=attach_id)
 
-    # FIXME use Settings from `inform_attach`
     settings: Settings = copy.copy(_wl._settings)
-    settings.update(run_id=attach_id, source=Source.INIT)
+    settings.update(
+        {
+            "run_id": attach_id,
+            "_start_time": response["_start_time"],
+            "_start_datetime": response["_start_datetime"],
+        },
+        source=Source.INIT,
+    )
 
     # TODO: consolidate this codepath with wandb.init()
     backend = Backend(settings=settings, manager=manager)
