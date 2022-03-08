@@ -10,6 +10,10 @@ tag:
 plugin:
   - wandb
 depend:
+  requirements:
+    - numpy
+    - pandas
+    - scikit-learn
   files:
     - file: wine.csv
       source: https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv
