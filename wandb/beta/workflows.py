@@ -152,7 +152,6 @@ def log_model(
                 x = F.relu(x)
                 return x
 
-
         model = Net()
         sm = log_model(model, "my-simple-model", aliases=["best"])
 
@@ -169,7 +168,6 @@ def log_model(
         scope_project=scope_project,
         job_type="log_model",
     )
-
     # TODO: handle offline mode appropriately.
     return model
 
@@ -199,7 +197,14 @@ def use_model(aliased_path: str) -> "SavedModel":
     if wandb.run:
         run = wandb.run
         artifact = run.use_artifact(aliased_path)
-        sm = artifact.get("index")
+        try:
+            sm = artifact.get("index")
+        except Exception:
+            raise ValueError("Error - deserialization into model object failed.")
+
+        if sm is None or not isinstance(sm, SavedModel):
+            raise ValueError("SavedModel instance was not initialized properly.")
+
         return sm
     else:
         raise ValueError(
@@ -237,14 +242,14 @@ def link_model(
     if wandb.run:
         run = wandb.run
 
-        # If the SavedModel has been added to a Local Artifact (most likely through `.add(WBValue)`), then
-        # model._artifact_target will point to that Local Artifact.
-        if model._artifact_target is not None:
-            artifact = model._artifact_target.artifact
         # _artifact_source, if it exists, points to a Public Artifact.
         # Its existence means that SavedModel was deserialized from a logged artifact, most likely from `use_model`.
-        elif model._artifact_source is not None:
+        if model._artifact_source:
             artifact = model._artifact_source.artifact
+        # If the SavedModel has been added to a Local Artifact (most likely through `.add(WBValue)`), then
+        # model._artifact_target will point to that Local Artifact.
+        elif model._artifact_target and model._artifact_target.artifact._final:
+            artifact = model._artifact_target.artifact
         else:
             raise ValueError(
                 "Linking requires that the given SavedModel belongs to an artifact"
