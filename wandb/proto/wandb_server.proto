@@ -6,6 +6,7 @@ import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
+
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
   rpc Attach(AttachRequest) returns (AttachResponse) {}
@@ -74,6 +75,7 @@ message SettingsValue {
     bool bool_value = 4;
     bool null_value = 5;
     StringTupleValue tuple_value = 6;
+    string timestamp_value = 7; // TODO should we use Timestamp??
   }
 }
 
@@ -105,6 +107,8 @@ message ServerInformAttachRequest {
 }
 
 message ServerInformAttachResponse {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
 }
 
 message ServerInformDetachRequest {

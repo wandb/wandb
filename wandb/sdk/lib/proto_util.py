@@ -1,4 +1,5 @@
 #
+from datetime import datetime
 import json
 from typing import Any, Dict, Union
 from typing import TYPE_CHECKING
@@ -75,6 +76,8 @@ def settings_dict_from_pbmap(
             v = None
         elif v_type == "tuple_value":
             v = tuple(v_obj.tuple_value.string_values)
+        elif v_type == "timestamp_value":
+            v = datetime.strptime(v_obj.timestamp_value, "%Y%m%d_%H%M%S")
         d[k] = v
     return d
 

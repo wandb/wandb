@@ -104,7 +104,6 @@ class _WandbInit(object):
 
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
-
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None:
             if isinstance(settings_param, Settings):
@@ -649,8 +648,22 @@ class _WandbInit(object):
             run.config.update({k: v}, allow_val_change=True)
 
         self.backend = backend
+        module.set_global(
+            run=run,
+            config=run.config,
+            log=run.log,
+            summary=run.summary,
+            save=run.save,
+            use_artifact=run.use_artifact,
+            log_artifact=run.log_artifact,
+            define_metric=run.define_metric,
+            plot_table=run.plot_table,
+            alert=run.alert,
+            mark_preempting=run.mark_preempting,
+        )
         self._reporter.set_context(run=run)
         run._on_start()
+
         logger.info("run started, returning control to user process")
         return run
 
@@ -688,7 +701,7 @@ def _attach(
         )
     wandb._assert_is_user_process()
 
-    _wl = wandb_setup._setup(settings=run._settings if run else None)
+    _wl = wandb_setup._setup()
 
     _set_logger(_wl._get_logger())
     if logger is None:
@@ -696,8 +709,9 @@ def _attach(
 
     manager = _wl._get_manager()
     if manager:
-        manager._inform_attach(attach_id=attach_id)
+        response = manager._inform_attach(attach_id=attach_id)
 
+    # FIXME use Settings from `inform_attach`
     settings: Settings = copy.copy(_wl._settings)
     settings.update(run_id=attach_id, source=Source.INIT)
 
@@ -710,7 +724,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init()
+        run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
