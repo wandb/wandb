@@ -51,6 +51,7 @@ def _add_deterministic_dir_to_artifact(
 
 
 def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
+    print(source_artifact.manifest.entries)
     dl_path = None
 
     # Look through the entire manifest to find all of the files in the directory.
@@ -62,7 +63,7 @@ def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str
                 root = example_path[: -len(p)]
                 dl_path = os.path.join(root, path)
 
-    assert dl_path is not None, "Could not find directory in artifact"
+    assert dl_path is not None, f"Could not find directory {path} in artifact"
 
     return dl_path
 
