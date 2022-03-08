@@ -5,6 +5,8 @@ Reproduction for WB-6697
 
 ---
 id: 0.sklearn.02-fix-error-cond-feature-importances
+tag:
+  shard: sklearn
 plugin:
   - wandb
 depend:
