@@ -10,7 +10,7 @@ from typing import (
 
 import wandb
 import wandb.data_types as data_types
-from wandb.data_types import SavedModel
+from wandb.data_types import _SavedModel
 from wandb.sdk.interface.artifacts import (
     Artifact as ArtifactInterface,
     ArtifactEntry,
@@ -119,7 +119,7 @@ def log_model(
     project: Optional[str] = None,
     scope_project: Optional[bool] = None,
     **kwargs: Dict[str, Any],
-) -> "SavedModel":
+) -> "_SavedModel":
     """Logs a model object to enable model-centric workflows in the UI.
     Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc.
     Under the hood, we create a model artifact, bind it to the run that produced this model,
@@ -136,7 +136,7 @@ def log_model(
         scope_project: `bool` - If true, name of this model artifact will not be suffixed by `-{run_id}`.
 
     Returns:
-        SavedModel instance
+        _SavedModel instance
 
     Example:
         import torch.nn as nn
@@ -156,7 +156,7 @@ def log_model(
         sm = log_model(model, "my-simple-model", aliases=["best"])
 
     """
-    model = data_types.SavedModel.init(model_obj, **kwargs)
+    model = data_types._SavedModel.init(model_obj, **kwargs)
     _ = _log_artifact_version(
         name=name,
         type="model",
@@ -172,7 +172,7 @@ def log_model(
     return model
 
 
-def use_model(aliased_path: str) -> "SavedModel":
+def use_model(aliased_path: str) -> "_SavedModel":
     """Allows the user to fetch their saved model with an alias.
     Under the hood, we use the alias to fetch the model artifact containing the serialized model files
     and rebuild the model object from these files. We also declare the fetched model artifact as an
@@ -182,7 +182,7 @@ def use_model(aliased_path: str) -> "SavedModel":
         aliased_path: `str` - the following forms are valid: "name:version", "name:alias". May be prefixed with "entity/project".
 
     Returns:
-        SavedModel instance
+        _SavedModel instance
 
     Example:
         # assuming you have previously logged a model with the name "my-simple-model"
@@ -193,7 +193,7 @@ def use_model(aliased_path: str) -> "SavedModel":
     if len(parts) == 1:
         aliased_path += "latest"
 
-    # Returns a SavedModel instance
+    # Returns a _SavedModel instance
     if wandb.run:
         run = wandb.run
         artifact = run.use_artifact(aliased_path)
@@ -202,8 +202,8 @@ def use_model(aliased_path: str) -> "SavedModel":
         except Exception:
             raise ValueError("Error - deserialization into model object failed.")
 
-        if sm is None or not isinstance(sm, SavedModel):
-            raise ValueError("SavedModel instance was not initialized properly.")
+        if sm is None or not isinstance(sm, _SavedModel):
+            raise ValueError("_SavedModel instance was not initialized properly.")
 
         return sm
     else:
@@ -213,7 +213,7 @@ def use_model(aliased_path: str) -> "SavedModel":
 
 
 def link_model(
-    model: "SavedModel",
+    model: "_SavedModel",
     target_path: str,
     aliases: Optional[Union[str, List[str]]] = None,
 ) -> None:
@@ -221,7 +221,7 @@ def link_model(
     Linking to a portfolio allows for useful model-centric workflows in the UI.
 
     Args:
-        model: `SavedModel` - an instance of SavedModel, most likely from the output of `log_model` or `use_model`.
+        model: `_SavedModel` - an instance of _SavedModel, most likely from the output of `log_model` or `use_model`.
         target_path: `str` - the target portfolio. The following forms are valid for the string: {portfolio}, {project/portfolio},
             {entity}/{project}/{portfolio}.
         aliases: `str, List[str]` - optional alias(es) that will only be applied on this linked model inside the portfolio.
@@ -243,16 +243,16 @@ def link_model(
         run = wandb.run
 
         # _artifact_source, if it exists, points to a Public Artifact.
-        # Its existence means that SavedModel was deserialized from a logged artifact, most likely from `use_model`.
+        # Its existence means that _SavedModel was deserialized from a logged artifact, most likely from `use_model`.
         if model._artifact_source:
             artifact = model._artifact_source.artifact
-        # If the SavedModel has been added to a Local Artifact (most likely through `.add(WBValue)`), then
+        # If the _SavedModel has been added to a Local Artifact (most likely through `.add(WBValue)`), then
         # model._artifact_target will point to that Local Artifact.
         elif model._artifact_target and model._artifact_target.artifact._final:
             artifact = model._artifact_target.artifact
         else:
             raise ValueError(
-                "Linking requires that the given SavedModel belongs to an artifact"
+                "Linking requires that the given _SavedModel belongs to an artifact"
             )
 
         run.link_artifact(artifact, target_path, aliases)
@@ -262,5 +262,5 @@ def link_model(
             model._artifact_source.artifact.link(target_path, aliases)
         else:
             raise ValueError(
-                "Linking requires that the given SavedModel belongs to an artifact"
+                "Linking requires that the given _SavedModel belongs to an artifact"
             )
