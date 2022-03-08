@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Test parent and child processes sharing a run. Synchornize worker process to insure the order of logging."""
 
-
 import multiprocessing as mp
+
 import wandb
 import yea
 
