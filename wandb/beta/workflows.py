@@ -118,6 +118,7 @@ def log_model(
     metadata: Optional[dict] = None,
     project: Optional[str] = None,
     scope_project: Optional[bool] = None,
+    **kwargs: Dict[str, Any],
 ) -> "SavedModel":
     """Logs a model object to enable model-centric workflows in the UI.
     Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc.
@@ -156,8 +157,7 @@ def log_model(
         sm = log_model(model, "my-simple-model", aliases=["best"])
 
     """
-
-    model = data_types.SavedModel.init(model_obj)
+    model = data_types.SavedModel.init(model_obj, **kwargs)
     _ = _log_artifact_version(
         name=name,
         type="model",
