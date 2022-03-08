@@ -75,6 +75,7 @@ message SettingsValue {
     bool bool_value = 4;
     bool null_value = 5;
     StringTupleValue tuple_value = 6;
+    string timestamp_value = 7; // TODO should we use Timestamp??
   }
 }
 

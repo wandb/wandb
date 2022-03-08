@@ -710,7 +710,7 @@ def _attach(
     manager = _wl._get_manager()
     if manager:
         response = manager._inform_attach(attach_id=attach_id)
-    print(response)
+    print(response["_start_datetime"])
 
     settings: Settings = copy.copy(_wl._settings)
     settings.update(run_id=attach_id, source=Source.INIT)

@@ -40,7 +40,7 @@ def _pbmap_apply_dict(
         elif isinstance(v, tuple):
             sv.tuple_value.string_values.extend(v)
         elif isinstance(v, datetime.datetime):
-            sv.string_value = str(v)
+            sv.timestamp_value = datetime.datetime.strftime(v, "%Y%m%d_%H%M%S")
         m[k].CopyFrom(sv)
 
 
