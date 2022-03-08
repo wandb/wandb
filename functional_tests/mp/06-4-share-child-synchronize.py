@@ -15,10 +15,9 @@ def worker_process(run, i):
 
 def main():
     wandb.require("service")
-    wandb.setup()
     run = wandb.init()
 
-    counter = mp.Value("i", 0, lock=mp.RLock())
+    counter = mp.Value("i", 0)
     workers = [
         mp.Process(target=worker_process, kwargs=dict(run=run, i=counter))
         for _ in range(4)

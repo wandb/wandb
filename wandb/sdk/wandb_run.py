@@ -209,6 +209,9 @@ class Attach:
                 try:
                     wandb._attach(run=self)
                 except Exception as e:
+                    # In case the attach fails we will raise the exception that caused the issue.
+                    # This exception should be caught and fail the exction of the program.
+                    cls._is_attaching = ""
                     raise e
                 cls._is_attaching = ""
             return func(self, *args, **kwargs)
