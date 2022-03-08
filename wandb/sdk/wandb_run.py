@@ -2134,6 +2134,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
+    @_attach
     def link_artifact(
         self,
         artifact: Union[public.Artifact, Artifact],
