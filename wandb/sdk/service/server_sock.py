@@ -144,9 +144,6 @@ class SockServerReadThread(threading.Thread):
         stream_id = request._info.stream_id
 
         self._clients.add_client(self._sock_client)
-        print("server_inform_attach")
-        print(self._mux._streams[stream_id]._settings._start_time)
-        print(self._mux._streams[stream_id]._settings._start_datetime)
         inform_attach_response = spb.ServerInformAttachResponse()
         if stream_id not in self._mux._streams:
             inform_attach_response._error.message = "stream does not exists"
