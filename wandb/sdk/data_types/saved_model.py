@@ -69,9 +69,9 @@ def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str
 
 SavedModelObjType = TypeVar("SavedModelObjType")
 
-# Keeping this as underscore (_) private until the API is final
+
 class _SavedModel(WBValue, Generic[SavedModelObjType]):
-    """SavedModel is a data type that can be used to store a model object
+    """SavedModel is a private data type that can be used to store a model object
     inside of a W&B Artifact.
 
     _model_type_id: (str) The id of the SavedModel subclass used to serialize the model.
