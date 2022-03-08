@@ -333,8 +333,8 @@ class _PicklingSavedModel(SavedModel[SavedModelObjType]):
             dl_path = _load_dir_from_artifact(
                 source_artifact, json_obj["dep_py_files_path"]
             )
-            if dl_path is not None:
-                sys.path.append(dl_path)
+            assert dl_path is not None
+            sys.path.append(dl_path)
         inst = super(_PicklingSavedModel, cls).from_json(json_obj, source_artifact)  # type: ignore
         sys.path = backup_path
 
