@@ -487,7 +487,7 @@ def test_launch_code_artifact(
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
-def test_run_in_launch_context_with_artifact_string_used_as_config(
+def test_run_in_launch_context_with_artifact_name_string_used_as_config(
     runner, live_mock_server, test_settings
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
@@ -559,7 +559,7 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_info["used_name"] == "old_name:v0"
         _, err = capsys.readouterr()
         assert (
-            "Swapping artifacts does not support swapping artifacts used as an instance of"
+            "Swapping artifacts is not supported when using an instance of `public.Artifact`."
             in err
         )
 

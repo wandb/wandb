@@ -1,5 +1,6 @@
 import wandb
 from wandb import data_types
+from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 import numpy as np
 import pytest
 import PIL
@@ -210,7 +211,10 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types._prune_max_seq(large_list), mocked_run, "test2", 0
+        wandb.wandb_sdk.data_types.utils._prune_max_seq(large_list),
+        mocked_run,
+        "test2",
+        0,
     )
     expected = {
         "_type": "images/separated",
@@ -853,7 +857,7 @@ def test_graph():
 
 
 def test_numpy_arrays_to_list():
-    conv = data_types._numpy_arrays_to_lists
+    conv = _numpy_arrays_to_lists
     assert conv(np.array(1)) == [1]
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
@@ -1091,6 +1095,29 @@ def test_fail_to_make_file(mocked_run):
         assert " is invalid. Please remove invalid filename characters" in str(e)
 
 
+def test_log_with_dir_sep_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+    run.log({"train/image": wb_image})
+    run.finish()
+    assert True
+
+
+def test_log_with_back_slash_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+
+    # windows doesnt allow a backslash in media keys right now
+    if platform.system() == "Windows":
+        with pytest.raises(ValueError):
+            run.log({"train\image": wb_image})
+    else:
+        run.log({"train\image": wb_image})
+
+    run.finish()
+    assert True
+
+
 runbindable_media = [
     wandb.Image(image, masks={"overlay": standard_mask}),
     wandb.data_types.ImageMask(
@@ -1116,3 +1143,20 @@ def test_media_keys_escaped_as_glob_for_publish(mocked_run, media):
     ]
     assert not any(weird_key in g for g in published_globs), published_globs
     assert any(glob.escape(weird_key) in g for g in published_globs), published_globs
+
+
+def test_image_array_old_wandb(
+    live_mock_server, test_settings, monkeypatch, capsys, parse_ctx
+):
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+    run = wandb.init(settings=test_settings)
+    im_count = 5
+    wb_image = [wandb.Image(image) for i in range(im_count)]
+    run.log({"logged_images": wb_image})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    outerr = capsys.readouterr()
+    assert "Unable to log image array filenames. In some cases, this can prevent images from being"
+    "viewed in the UI. Please upgrade your wandb server." in outerr.err
+    summary = ctx_util.summary
+    assert "filenames" not in list(summary["logged_images"].keys())

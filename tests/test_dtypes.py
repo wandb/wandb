@@ -4,8 +4,9 @@ import numpy as np
 import pytest
 import os
 import sys
+import datetime
 
-from wandb.sdk.interface._dtypes import *
+from wandb.sdk.data_types._dtypes import *
 
 class_labels = {1: "tree", 2: "car", 3: "road"}
 test_folder = os.path.dirname(os.path.realpath(__file__))
@@ -30,6 +31,30 @@ def test_number_type():
     assert TypeRegistry.type_of(1.2).assign(1) == NumberType()
     assert TypeRegistry.type_of(1.2).assign(None) == InvalidType()
     assert TypeRegistry.type_of(1.2).assign("hi") == InvalidType()
+
+
+def make_datetime():
+    return datetime.datetime(2000, 12, 1)
+
+
+def make_date():
+    return datetime.date(2000, 12, 1)
+
+
+def make_datetime64():
+    return np.datetime64("2000-12-01")
+
+
+def test_timestamp_type():
+    assert TypeRegistry.type_of(make_datetime()) == TimestampType()
+    assert (
+        TypeRegistry.type_of(make_datetime())
+        .assign(make_date())
+        .assign(make_datetime64())
+        == TimestampType()
+    )
+    assert TypeRegistry.type_of(make_datetime()).assign(None) == InvalidType()
+    assert TypeRegistry.type_of(make_datetime()).assign(1) == InvalidType()
 
 
 def test_boolean_type():
@@ -337,7 +362,9 @@ def test_classes_type():
         ]
     )
 
-    wb_class_type = wandb.wandb_sdk.data_types._ClassesIdType.from_obj(wb_classes)
+    wb_class_type = wandb.wandb_sdk.data_types.helper_types.classes._ClassesIdType.from_obj(
+        wb_classes
+    )
     assert wb_class_type.assign(1) == wb_class_type
     assert wb_class_type.assign(0) == InvalidType()
 

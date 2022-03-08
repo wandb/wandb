@@ -1,3 +1,4 @@
+import datetime
 import math
 import sys
 import typing as t
@@ -7,8 +8,8 @@ from wandb.util import get_module, is_numpy_array
 np = get_module("numpy")  # intentionally not required
 
 if t.TYPE_CHECKING:
-    from wandb.sdk.wandb_artifacts import Artifact as ArtifactInCreation
     from wandb.apis.public import Artifact as DownloadedArtifact
+    from wandb.sdk.wandb_artifacts import Artifact as ArtifactInCreation
 
 _TYPES_STRIPPED = not (sys.version_info.major == 3 and sys.version_info.minor >= 6)
 if not _TYPES_STRIPPED:
@@ -78,7 +79,7 @@ class TypeRegistry:
         return _type.from_json(json_dict, artifact)
 
     @staticmethod
-    def type_from_dtype(dtype: t.Union[ConvertableToType]) -> "Type":
+    def type_from_dtype(dtype: ConvertableToType) -> "Type":
         # The dtype is already an instance of Type
         if isinstance(dtype, Type):
             wbtype: Type = dtype
@@ -383,6 +384,15 @@ if np:
     NumberType.types.append(np.complex64)
     NumberType.types.append(np.complex128)
     NumberType.types.append(np.complex_)
+
+
+class TimestampType(Type):
+    name = "timestamp"
+    types: t.ClassVar[t.List[type]] = [datetime.datetime, datetime.date]
+
+
+if np:
+    TimestampType.types.append(np.datetime64)
 
 
 class BooleanType(Type):
@@ -862,6 +872,7 @@ TypeRegistry.add(UnknownType)
 # Types with default type mappings
 TypeRegistry.add(NoneType)
 TypeRegistry.add(StringType)
+TypeRegistry.add(TimestampType)
 TypeRegistry.add(NumberType)
 TypeRegistry.add(BooleanType)
 TypeRegistry.add(ListType)
@@ -883,6 +894,7 @@ __all__ = [
     "NoneType",
     "StringType",
     "NumberType",
+    "TimestampType",
     "BooleanType",
     "ListType",
     "TypedDictType",

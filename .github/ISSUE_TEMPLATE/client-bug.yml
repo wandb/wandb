@@ -1,6 +1,6 @@
 ---
 name: 🐛 Client Bug - in the Python library
-description: Create a report to help us improve WandB by reproducing and fixing bugs
+description: Create a report to help us improve W&B by reproducing and fixing bugs
 title: "[CLI]: "
 labels: "cli"
 

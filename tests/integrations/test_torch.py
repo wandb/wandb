@@ -157,19 +157,25 @@ def conv3x3(in_channels, out_channels, **kwargs):
     return layer
 
 
-def test_all_logging(wandb_init_run):
+def test_all_logging(live_mock_server, test_settings, parse_ctx):
     # TODO(jhr): does not work with --flake-finder
+    run = wandb.init(settings=test_settings)
     net = ConvNet()
     wandb.watch(net, log="all", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((32, 1, 28, 28)))
         grads = torch.ones(32, 10)
         output.backward(grads)
-        wandb.log({"a": 2})
-        assert len(wandb.run._backend.history[0]) == 20
-        assert len(wandb.run._backend.history[0]["parameters/fc2.bias"]["bins"]) == 65
-        assert len(wandb.run._backend.history[0]["gradients/fc2.bias"]["bins"]) == 65
-    assert len(wandb.run._backend.history) == 3
+        run.log({"a": 2})
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 3
+    for i in range(3):
+        ctx_util.history[i]["_step"] == i
+        assert len(ctx_util.history[i]) == 20
+        assert len(ctx_util.history[i]["parameters/fc2.bias"]["bins"]) == 65
+        assert len(ctx_util.history[i]["gradients/fc2.bias"]["bins"]) == 65
 
 
 def test_double_log(wandb_init_run):
@@ -179,7 +185,8 @@ def test_double_log(wandb_init_run):
         wandb.watch(net, log_graph=True)
 
 
-def test_embedding_dict_watch(wandb_init_run):
+def test_embedding_dict_watch(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
     model = EmbModelWrapper()
     wandb.watch(model, log_freq=1, idx=0)
     opt = torch.optim.Adam(params=model.parameters())
@@ -189,9 +196,13 @@ def test_embedding_dict_watch(wandb_init_run):
     loss = F.mse_loss(out, inp.float())
     loss.backward()
     opt.step()
-    wandb.log({"loss": loss})
-    print(wandb.run._backend.history)
-    assert len(wandb.run._backend.history[0]["gradients/emb.emb1.weight"]["bins"]) == 65
+    run.log({"loss": loss})
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    print(ctx_util.history)
+    assert len(ctx_util.history[0]["gradients/emb.emb1.weight"]["bins"]) == 65
+    assert ctx_util.history[0]["gradients/emb.emb1.weight"]["_type"] == "histogram"
 
 
 @pytest.mark.timeout(120)
@@ -258,7 +269,7 @@ def test_nested_shape():
     ],
 )
 def test_no_finite_values(test_input, expected, wandb_init_run):
-    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+    torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch_history._no_finite_values(test_input) is expected
 
@@ -273,6 +284,6 @@ def test_no_finite_values(test_input, expected, wandb_init_run):
     ],
 )
 def test_remove_infs_nans(test_input, expected, wandb_init_run):
-    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+    torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch.equal(torch_history._remove_infs_nans(test_input), expected)

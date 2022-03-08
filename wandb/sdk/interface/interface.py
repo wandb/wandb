@@ -17,7 +17,6 @@ from typing import Any, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
 import six
-from wandb import data_types
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
@@ -33,6 +32,7 @@ from wandb.util import (
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
+from ..data_types.utils import history_dict_to_json, val_to_json
 from ..wandb_artifacts import Artifact
 
 if TYPE_CHECKING:
@@ -259,9 +259,7 @@ class InterfaceBase(object):
             return json_value
         else:
             friendly_value, converted = json_friendly(
-                data_types.val_to_json(
-                    self._run, path_from_root, value, namespace="summary"
-                )
+                val_to_json(self._run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -489,11 +487,40 @@ class InterfaceBase(object):
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
+    def publish_partial_history(
+        self,
+        data: dict,
+        step: int,
+        flush: Optional[bool] = None,
+        publish_step: bool = True,
+        run: Optional["Run"] = None,
+    ) -> None:
+        run = run or self._run
+
+        data = history_dict_to_json(run, data, step=step, ignore_copy_err=True)
+        data.pop("_step", None)
+
+        partial_history = pb.PartialHistoryRequest()
+        for k, v in data.items():
+            item = partial_history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)
+        if publish_step:
+            assert step is not None
+            partial_history.step.num = step
+        if flush is not None:
+            partial_history.action.flush = flush
+        self._publish_partial_history(partial_history)
+
+    @abstractmethod
+    def _publish_partial_history(self, history: pb.PartialHistoryRequest) -> None:
+        raise NotImplementedError
+
     def publish_history(
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
         run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
+        data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
             assert step is not None
