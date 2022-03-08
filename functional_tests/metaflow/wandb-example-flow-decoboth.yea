@@ -1,6 +1,9 @@
 id: metaflow.example.both
 plugin:
   - wandb
+depend:
+  requirements:
+    - metaflow>=2.3.5; python_version < '3.10'
 tag:
   shard: metaflow
   skips:
