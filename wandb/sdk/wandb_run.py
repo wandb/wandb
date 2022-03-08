@@ -369,7 +369,7 @@ class Run:
         self._group = None
         self._job_type = None
         self._run_id = settings.run_id
-        # self._start_time = time.time()
+        self._start_time = time.time()
         self._starting_step = 0
         self._name = None
         self._notes = None
@@ -582,8 +582,8 @@ class Run:
         if self._tags is not None:
             for tag in self._tags:
                 run.tags.append(tag)
-        # if self._start_time is not None:
-        #     run.start_time.FromSeconds(int(self._start_time))
+        if self._start_time is not None:
+            run.start_time.FromSeconds(int(self._start_time))
         if self._remote_url is not None:
             run.git.remote_url = self._remote_url
         if self._last_commit is not None:

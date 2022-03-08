@@ -90,9 +90,6 @@ class StreamRecord:
     def update(self, settings: Dict[str, Any]) -> None:
         # Note: Currently just overriding the _settings attribute
         # once we use Settings Class we might want to properly update it
-        print(settings["_start_time"])
-        print(settings["_start_datetime"])
-        print(settings.get("timespec"))
         self._settings = SettingsStatic(settings)
 
 
@@ -186,7 +183,7 @@ class StreamMux:
 
     def get_stream(self, stream_id: str) -> StreamRecord:
         with self._streams_lock:
-            stream = self._streams.get(stream_id)
+            stream = self._streams[stream_id]
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
