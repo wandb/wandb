@@ -2,6 +2,8 @@
 """Demonstrate basic API of plot_learning_curve.
 ---
 id: 0.sklearn.plot_learning_curve-basic
+tag:
+  shard: sklearn
 plugin:
     - wandb
 depend:

@@ -115,11 +115,11 @@ def make_local_artifact_public(art, mocker):
 # External SavedModel tests (user facing)
 def savedModel_test(runner, mocker, model, py_deps=None):
     with pytest.raises(TypeError):
-        _ = SM.SavedModel(model)
+        _ = SM._SavedModel(model)
     kwargs = {}
     if py_deps:
         kwargs["dep_py_files"] = py_deps
-    sm = SM.SavedModel.init(model, **kwargs)
+    sm = SM._SavedModel.init(model, **kwargs)
     with runner.isolated_filesystem():
         art = wandb.Artifact("name", "type")
         art.add(sm, "model")
