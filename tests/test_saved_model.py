@@ -9,12 +9,12 @@ from wandb.apis.public import Artifact
 from wandb.apis.public import _DownloadedArtifactEntry
 from wandb.sdk.wandb_artifacts import ArtifactEntry
 
+from . import saved_model_constructors
 
-torch = pytest.importorskip("torch")
-tensorflow = pytest.importorskip("tensorflow")
-keras = tensorflow.keras
-svm = pytest.importorskip("sklearn.svm")
-np = pytest.importorskip("numpy")
+
+sklearn_model = saved_model_constructors.sklearn_model
+pytorch_model = saved_model_constructors.pytorch_model
+keras_model = saved_model_constructors.keras_model
 
 
 def test_SavedModel_sklearn(runner, mocker):
@@ -22,7 +22,12 @@ def test_SavedModel_sklearn(runner, mocker):
 
 
 def test_SavedModel_pytorch(runner, mocker):
-    savedModel_test(runner, mocker, pytorch_model())
+    savedModel_test(
+        runner,
+        mocker,
+        pytorch_model(),
+        [os.path.abspath(saved_model_constructors.__file__)],
+    )
 
 
 @pytest.mark.skipif(
@@ -60,49 +65,6 @@ def test_TensorflowKerasSavedModel(runner):
         [keras_model()],
         [sklearn_model(), pytorch_model()],
     )
-
-
-def sklearn_model():
-    return svm.SVC()
-
-
-def pytorch_model():
-    class PytorchModel(torch.nn.Module):
-        def __init__(self):
-            super(PytorchModel, self).__init__()
-            self.hidden_layer = torch.nn.Linear(1, 1)
-            self.hidden_layer.weight = torch.nn.Parameter(torch.tensor([[1.58]]))
-            self.hidden_layer.bias = torch.nn.Parameter(torch.tensor([-0.14]))
-
-            self.output_layer = torch.nn.Linear(1, 1)
-            self.output_layer.weight = torch.nn.Parameter(torch.tensor([[2.45]]))
-            self.output_layer.bias = torch.nn.Parameter(torch.tensor([-0.11]))
-
-        def forward(self, x):
-            x = torch.sigmoid(self.hidden_layer(x))
-            x = torch.sigmoid(self.output_layer(x))
-            return x
-
-    return PytorchModel()
-
-
-def keras_model():
-    def get_model():
-        # Create a simple model.
-        inputs = keras.Input(shape=(32,))
-        outputs = keras.layers.Dense(1)(inputs)
-        model = keras.Model(inputs, outputs)
-        model.compile(optimizer="adam", loss="mean_squared_error")
-        return model
-
-    model = get_model()
-
-    # Train the model.
-    test_input = np.random.random((128, 32))
-    test_target = np.random.random((128, 1))
-    model.fit(test_input, test_target)
-
-    return model
 
 
 # These classes are used to patch the API
@@ -151,10 +113,13 @@ def make_local_artifact_public(art, mocker):
 
 
 # External SavedModel tests (user facing)
-def savedModel_test(runner, mocker, model):
+def savedModel_test(runner, mocker, model, py_deps=None):
     with pytest.raises(TypeError):
         _ = SM.SavedModel(model)
-    sm = SM.SavedModel.init(model)
+    kwargs = {}
+    if py_deps:
+        kwargs["dep_py_files"] = py_deps
+    sm = SM.SavedModel.init(model, **kwargs)
     with runner.isolated_filesystem():
         art = wandb.Artifact("name", "type")
         art.add(sm, "model")
