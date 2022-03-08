@@ -70,8 +70,8 @@ def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str
 
 SavedModelObjType = TypeVar("SavedModelObjType")
 
-
-class SavedModel(WBValue, Generic[SavedModelObjType]):
+# Keeping this as underscore (_) private until the API is final
+class _SavedModel(WBValue, Generic[SavedModelObjType]):
     """SavedModel is a data type that can be used to store a model object
     inside of a W&B Artifact.
 
@@ -89,8 +89,8 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
     def __init__(
         self, obj_or_path: Union[SavedModelObjType, str], **kwargs: Any
     ) -> None:
-        super(SavedModel, self).__init__()
-        if self.__class__ == SavedModel:
+        super(_SavedModel, self).__init__()
+        if self.__class__ == _SavedModel:
             raise TypeError(
                 "Cannot instantiate abstract SavedModel class - please use SavedModel.init(...) instead."
             )
@@ -117,8 +117,8 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
             self._unset_obj()
 
     @staticmethod
-    def init(obj_or_path: Any, **kwargs: Any) -> "SavedModel":
-        maybe_instance = SavedModel._maybe_init(obj_or_path, **kwargs)
+    def init(obj_or_path: Any, **kwargs: Any) -> "_SavedModel":
+        maybe_instance = _SavedModel._maybe_init(obj_or_path, **kwargs)
         if maybe_instance is None:
             raise ValueError(
                 f"No suitable SavedModel subclass constructor found for obj_or_path: {obj_or_path}"
@@ -127,8 +127,8 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
 
     @classmethod
     def from_json(
-        cls: Type["SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
-    ) -> "SavedModel":
+        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "_SavedModel":
         path = json_obj["path"]
 
         # First, if the entry is a file, the download it.
@@ -218,8 +218,8 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
     # Private Class Methods
     @classmethod
     def _maybe_init(
-        cls: Type["SavedModel"], obj_or_path: Any, **kwargs: Any
-    ) -> Optional["SavedModel"]:
+        cls: Type["_SavedModel"], obj_or_path: Any, **kwargs: Any
+    ) -> Optional["_SavedModel"]:
         # _maybe_init is an exception-safe method that will return an instance of this class
         # (or any subclass of this class - recursively) OR None if no subclass constructor is found.
         # We first try the current class, then recursively call this method on children classes. This pattern
@@ -242,7 +242,7 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
         return None
 
     @classmethod
-    def _tmp_path(cls: Type["SavedModel"]) -> str:
+    def _tmp_path(cls: Type["_SavedModel"]) -> str:
         # Generates a tmp path under our MEDIA_TMP directory which confirms to the file
         # or folder preferences of the class.
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
@@ -288,7 +288,7 @@ def _get_cloudpickle() -> "cloudpickle":
 PicklingSavedModelObjType = TypeVar("PicklingSavedModelObjType")
 
 
-class _PicklingSavedModel(SavedModel[SavedModelObjType]):
+class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
     _dep_py_files: Optional[List[str]] = None
     _dep_py_files_path: Optional[str] = None
 
@@ -323,7 +323,7 @@ class _PicklingSavedModel(SavedModel[SavedModelObjType]):
 
     @classmethod
     def from_json(
-        cls: Type["SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "_PicklingSavedModel":
         backup_path = [p for p in sys.path]
         if (
@@ -419,7 +419,7 @@ def _get_tf_keras() -> "tensorflow.keras":
     ).keras
 
 
-class _TensorflowKerasSavedModel(SavedModel["tensorflow.keras.Model"]):
+class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
     _log_type = "tfkeras-model-file"
     _path_extension = ""
 
