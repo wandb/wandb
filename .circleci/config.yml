@@ -133,6 +133,10 @@ workflows:
          image: "python:3.7"
          toxenv: "func-s_sklearn-py37,func-covercircle"
       - test:
+         name: "func-s_metaflow-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_metaflow-py37,func-covercircle"
+      - test:
          name: "func-s_tf115-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_tf115-py37,func-covercircle"

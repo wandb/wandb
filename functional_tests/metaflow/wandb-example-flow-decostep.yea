@@ -2,6 +2,7 @@ id: metaflow.example.step
 plugin:
   - wandb
 tag:
+  shard: metaflow
   skips:
     - platform: win
 command:
