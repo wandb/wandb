@@ -212,7 +212,7 @@ def link_model(
     target_path: str,
     aliases: Optional[Union[str, List[str]]] = None,
 ) -> None:
-    """Links the given model to a portfolio (a promoted collection of models).
+    """Links the given model to a portfolio (a promoted collection which contains, in this case, model artifacts).
     Linking to a portfolio allows for useful model-centric workflows in the UI.
 
     Args:
@@ -259,19 +259,3 @@ def link_model(
             raise ValueError(
                 "Linking requires that the given SavedModel belongs to an artifact"
             )
-
-    # TODO: Will delete the below code/comments.
-
-    # Use Case: a user trains a model, calling log_model several times
-    # in a row and saves a reference to the best model every time.
-    # At the end, they want to link this model into a portfolio.
-
-    # Use Case: a user wants to evaluate a batch of models and
-    # link the best one into a portfolio.
-
-    # Use Case: a user wants to evaluate the latest models in a portfolio
-    # and choose the best one to link into the next stage (next portfolio).
-
-    # Automated retraining: a user wants to fire off a training run on new data
-    # with the same model architecture. They then want to link this model
-    # into one portfolio to compare against the production model.
