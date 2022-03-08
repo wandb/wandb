@@ -16,12 +16,18 @@ sklearn_model = saved_model_constructors.sklearn_model
 pytorch_model = saved_model_constructors.pytorch_model
 keras_model = saved_model_constructors.keras_model
 
+
 def test_SavedModel_sklearn(runner, mocker):
     savedModel_test(runner, mocker, sklearn_model())
 
 
 def test_SavedModel_pytorch(runner, mocker):
-    savedModel_test(runner, mocker, pytorch_model(), [os.path.abspath(saved_model_constructors.__file__)])
+    savedModel_test(
+        runner,
+        mocker,
+        pytorch_model(),
+        [os.path.abspath(saved_model_constructors.__file__)],
+    )
 
 
 @pytest.mark.skipif(
