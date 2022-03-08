@@ -21,7 +21,7 @@ def process_child(run):
     run.log({"s1": 21})
 
 
-def refernce_run():
+def reference_run():
     run = process_parent()
     process_child(run)
     run.finish()
@@ -38,7 +38,7 @@ def share_run():
 def main():
     wandb.require("service")
 
-    refernce_run()
+    reference_run()
     share_run()
 
 

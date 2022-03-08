@@ -41,7 +41,7 @@ def share_run():
         p.join()
 
 
-def refernce_run():
+def reference_run():
     with wandb.init() as run:
         process_parent(run)
         process_child(run=run)
@@ -50,7 +50,7 @@ def refernce_run():
 def main():
     wandb.require("service")
 
-    refernce_run()
+    reference_run()
 
     share_run()
 
