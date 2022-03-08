@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test parent and child processes sharing a run. Synchornize worker process to insure the order of logging."""
+"""Test parent and child processes sharing a run. Synchronize worker process to insure the order of logging."""
 
 import multiprocessing as mp
 
@@ -21,7 +21,7 @@ def main():
     counter = mp.Value("i", 0, lock=mp.RLock())
     workers = [
         mp.Process(target=worker_process, kwargs=dict(run=run, i=counter))
-        for i in range(4)
+        for _ in range(4)
     ]
 
     for w in workers:
