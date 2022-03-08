@@ -2,6 +2,8 @@
 """Tests that feature importance visualization is produced on elasticnet model
 ---
 id: 0.sklearn.feature_importance_attribute_exists_for_elasticnet
+tag:
+  shard: sklearn
 plugin:
     - wandb
 depend:
