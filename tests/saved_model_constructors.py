@@ -8,6 +8,7 @@ keras = tensorflow.keras
 svm = pytest.importorskip("sklearn.svm")
 np = pytest.importorskip("numpy")
 
+
 def sklearn_model():
     return svm.SVC()
 

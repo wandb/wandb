@@ -11,28 +11,29 @@ from wandb.sdk.wandb_artifacts import ArtifactEntry
 
 
 def sklearn_model():
-    module_name = f"smc_{wandb.util.generate_id()}.py"
-    shutil.copy("saved_model_constructors.py", module_name)
     from .saved_model_constructors import sklearn_model
-    os.remove(module_name)
+
     return sklearn_model()
 
 
 def pytorch_model():
     from .saved_model_constructors import pytorch_model
+
     return pytorch_model()
+
 
 def keras_model():
     from .saved_model_constructors import keras_model
+
     return keras_model()
 
 
-# def test_SavedModel_sklearn(runner, mocker):
-#     savedModel_test(runner, mocker, sklearn_model())
+def test_SavedModel_sklearn(runner, mocker):
+    savedModel_test(runner, mocker, sklearn_model())
 
 
 def test_SavedModel_pytorch(runner, mocker):
-    savedModel_test(runner, mocker, pytorch_model())
+    savedModel_test(runner, mocker, pytorch_model(), [".saved_model_constructors"])
 
 
 @pytest.mark.skipif(
@@ -42,13 +43,13 @@ def test_SavedModel_keras(runner, mocker):
     savedModel_test(runner, mocker, keras_model())
 
 
-# def test_SklearnSavedModel(runner):
-#     subclass_test(
-#         runner,
-#         SM._SklearnSavedModel,
-#         [sklearn_model()],
-#         [keras_model(), pytorch_model(),],
-#     )
+def test_SklearnSavedModel(runner):
+    subclass_test(
+        runner,
+        SM._SklearnSavedModel,
+        [sklearn_model()],
+        [keras_model(), pytorch_model(),],
+    )
 
 
 def test_PytorchSavedModel(runner):
@@ -70,7 +71,6 @@ def test_TensorflowKerasSavedModel(runner):
         [keras_model()],
         [sklearn_model(), pytorch_model()],
     )
-
 
 
 # These classes are used to patch the API
@@ -119,15 +119,17 @@ def make_local_artifact_public(art, mocker):
 
 
 # External SavedModel tests (user facing)
-def savedModel_test(runner, mocker, model):
+def savedModel_test(runner, mocker, model, py_deps=None):
     with pytest.raises(TypeError):
         _ = SM.SavedModel(model)
-    sm = SM.SavedModel.init(model)
+    kwargs = {}
+    if py_deps:
+        kwargs["dep_py_files"] = py_deps
+    sm = SM.SavedModel.init(model, **kwargs)
     with runner.isolated_filesystem():
         art = wandb.Artifact("name", "type")
         art.add(sm, "model")
         assert art.manifest.entries[f"model.{sm._log_type}.json"] is not None
-
         pub_art = make_local_artifact_public(art, mocker)
         sm2 = pub_art.get("model")
         assert sm2 is not None

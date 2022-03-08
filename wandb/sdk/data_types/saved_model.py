@@ -1,17 +1,18 @@
 import os
+import shutil
+import sys
 from typing import (
     Any,
     cast,
     ClassVar,
     Generic,
-    Optional,
     List,
+    Optional,
     Type,
     TYPE_CHECKING,
     TypeVar,
     Union,
 )
-import shutil
 
 
 import wandb
@@ -36,9 +37,9 @@ if TYPE_CHECKING:  # pragma: no cover
 DEBUG_MODE = False
 
 
-SavedModelObjType = TypeVar("SavedModelObjType")
-
-def _add_deterministic_dir_to_artifact(artifact: "LocalArtifact", dir_name: str, target_dir_root:str) -> None:
+def _add_deterministic_dir_to_artifact(
+    artifact: "LocalArtifact", dir_name: str, target_dir_root: str
+) -> str:
     file_paths = []
     for dirpath, _, filenames in os.walk(dir_name, topdown=True):
         for fn in filenames:
@@ -48,7 +49,8 @@ def _add_deterministic_dir_to_artifact(artifact: "LocalArtifact", dir_name: str,
     artifact.add_dir(dir_name, target_path)
     return target_path
 
-def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str):
+
+def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str) -> str:
     dl_path = None
 
     # Look through the entire manifest to find all of the files in the directory.
@@ -59,8 +61,14 @@ def _load_dir_from_artifact(source_artifact: "PublicArtifact", path: str):
             if dl_path is None:
                 root = example_path[: -len(p)]
                 dl_path = os.path.join(root, path)
-    
+
+    assert dl_path is not None, "Could not find directory in artifact"
+
     return dl_path
+
+
+SavedModelObjType = TypeVar("SavedModelObjType")
+
 
 class SavedModel(WBValue, Generic[SavedModelObjType]):
     """SavedModel is a data type that can be used to store a model object
@@ -77,7 +85,9 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
     _input_obj_or_path: Union[SavedModelObjType, str]
 
     # Public Methods
-    def __init__(self, obj_or_path: Union[SavedModelObjType, str]) -> None:
+    def __init__(
+        self, obj_or_path: Union[SavedModelObjType, str], **kwargs: Any
+    ) -> None:
         super(SavedModel, self).__init__()
         if self.__class__ == SavedModel:
             raise TypeError(
@@ -106,8 +116,8 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
             self._unset_obj()
 
     @staticmethod
-    def init(obj_or_path: Any) -> "SavedModel":
-        maybe_instance = SavedModel._maybe_init(obj_or_path)
+    def init(obj_or_path: Any, **kwargs: Any) -> "SavedModel":
+        maybe_instance = SavedModel._maybe_init(obj_or_path, **kwargs)
         if maybe_instance is None:
             raise ValueError(
                 f"No suitable SavedModel subclass constructor found for obj_or_path: {obj_or_path}"
@@ -163,7 +173,9 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
             # The directory must be named deterministically based on the contents of the directory,
             # but the files themselves need to have their name preserved.
             # FUTURE: Add this functionality to the artifact adder itself
-            json_obj["path"] = _add_deterministic_dir_to_artifact(artifact, self._path, os.path.join(".wb_data", "saved_models"))
+            json_obj["path"] = _add_deterministic_dir_to_artifact(
+                artifact, self._path, os.path.join(".wb_data", "saved_models")
+            )
         else:
             raise ValueError(
                 f"Expected a path to a file or directory, got {self._path}"
@@ -205,7 +217,7 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
     # Private Class Methods
     @classmethod
     def _maybe_init(
-        cls: Type["SavedModel"], obj_or_path: Any
+        cls: Type["SavedModel"], obj_or_path: Any, **kwargs: Any
     ) -> Optional["SavedModel"]:
         # _maybe_init is an exception-safe method that will return an instance of this class
         # (or any subclass of this class - recursively) OR None if no subclass constructor is found.
@@ -215,14 +227,14 @@ class SavedModel(WBValue, Generic[SavedModelObjType]):
         # The children subclasses will know how to serialize/deserialize their respective payloads, but the pytorch
         # parent class can know how to execute inference on the model - regardless of serialization strategy.
         try:
-            return cls(obj_or_path)
+            return cls(obj_or_path, **kwargs)
         except Exception as e:
             if DEBUG_MODE:
                 print(f"{cls}._maybe_init({obj_or_path}) failed: {e}")
             pass
 
         for child_cls in cls.__subclasses__():
-            maybe_instance = child_cls._maybe_init(obj_or_path)
+            maybe_instance = child_cls._maybe_init(obj_or_path, **kwargs)
             if maybe_instance is not None:
                 return maybe_instance
 
@@ -270,20 +282,25 @@ def _get_cloudpickle() -> "cloudpickle":
     )
 
 
-def _get_torch() -> "torch":
-    return cast("torch", util.get_module("torch", "ModelAdapter requires `torch`"),)
-
-
 # TODO: Add pip deps
 # TODO: potentially move this up to the saved model class
-class _PytorchSavedModel(SavedModel["torch.nn.Module"]):
-    _log_type = "pytorch-model-file"
-    _path_extension = "pt"
+PicklingSavedModelObjType = TypeVar("PicklingSavedModelObjType")
+
+
+class _PicklingSavedModel(SavedModel[SavedModelObjType]):
     _dep_py_files: Optional[List[str]] = None
     _dep_py_files_path: Optional[str] = None
 
-    def __init__(self, obj_or_path: Union[SavedModelObjType, str], dep_py_files:Optional[List[str]] = None):
-        super(_PytorchSavedModel, self).__init__(obj_or_path)
+    def __init__(
+        self,
+        obj_or_path: Union[SavedModelObjType, str],
+        dep_py_files: Optional[List[str]] = None,
+    ):
+        super(_PicklingSavedModel, self).__init__(obj_or_path)
+        if self.__class__ == _PicklingSavedModel:
+            raise TypeError(
+                "Cannot instantiate abstract _PicklingSavedModel class - please use SavedModel.init(...) instead."
+            )
         if dep_py_files is not None:
             self._dep_py_files = dep_py_files
             self._dep_py_files_path = os.path.abspath(
@@ -294,26 +311,51 @@ class _PytorchSavedModel(SavedModel["torch.nn.Module"]):
                 if os.path.isfile(extra_file):
                     shutil.copy(extra_file, self._dep_py_files_path)
                 elif os.path.isdir(extra_file):
-                    shutil.copytree(extra_file, os.path.join(self._dep_py_files_path, os.path.basename(extra_file)))
-
+                    shutil.copytree(
+                        extra_file,
+                        os.path.join(
+                            self._dep_py_files_path, os.path.basename(extra_file)
+                        ),
+                    )
 
     @classmethod
     def from_json(
         cls: Type["SavedModel"], json_obj: dict, source_artifact: "PublicArtifact"
-    ) -> "SavedModel":
-        inst = super(_PytorchSavedModel, cls).from_json(json_obj, source_artifact)
-        if "dep_py_files_path" in json_obj and json_obj["dep_py_files_path"] is not None:
-            dl_path = _load_dir_from_artifact(source_artifact, json_obj["dep_py_files_path"])
+    ) -> "_PicklingSavedModel":
+        backup_path = [p for p in sys.path]
+        if (
+            "dep_py_files_path" in json_obj
+            and json_obj["dep_py_files_path"] is not None
+        ):
+            dl_path = _load_dir_from_artifact(
+                source_artifact, json_obj["dep_py_files_path"]
+            )
             if dl_path is not None:
-                # TODO: Add DL path to sys path
-                pass
-        return inst
+                sys.path.append(dl_path)
+        inst = super(_PicklingSavedModel, cls).from_json(json_obj, source_artifact)  # type: ignore
+        sys.path = backup_path
+
+        return inst  # type: ignore
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_obj = super(_PytorchSavedModel, self).to_json(run_or_artifact)
+        json_obj = super(_PicklingSavedModel, self).to_json(run_or_artifact)
+        assert isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact)
         if self._dep_py_files_path is not None:
-            json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(run_or_artifact, self._dep_py_files_path, os.path.join(".wb_data", "extra_files"))
+            json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
+                run_or_artifact,
+                self._dep_py_files_path,
+                os.path.join(".wb_data", "extra_files"),
+            )
         return json_obj
+
+
+def _get_torch() -> "torch":
+    return cast("torch", util.get_module("torch", "ModelAdapter requires `torch`"),)
+
+
+class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
+    _log_type = "pytorch-model-file"
+    _path_extension = "pt"
 
     @staticmethod
     def _deserialize(dir_or_file_path: str) -> "torch.nn.Module":
@@ -330,41 +372,41 @@ class _PytorchSavedModel(SavedModel["torch.nn.Module"]):
         )
 
 
-# def _get_sklearn() -> "sklearn":
-#     return cast(
-#         "sklearn", util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
-#     )
+def _get_sklearn() -> "sklearn":
+    return cast(
+        "sklearn", util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
+    )
 
 
-# class _SklearnSavedModel(SavedModel["sklearn.base.BaseEstimator"]):
-#     _log_type = "sklearn-model-file"
-#     _path_extension = "pkl"
+class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
+    _log_type = "sklearn-model-file"
+    _path_extension = "pkl"
 
-#     @staticmethod
-#     def _deserialize(dir_or_file_path: str,) -> "sklearn.base.BaseEstimator":
-#         with open(dir_or_file_path, "rb") as file:
-#             model = _get_cloudpickle().load(file)
-#         return model
+    @staticmethod
+    def _deserialize(dir_or_file_path: str,) -> "sklearn.base.BaseEstimator":
+        with open(dir_or_file_path, "rb") as file:
+            model = _get_cloudpickle().load(file)
+        return model
 
-#     @staticmethod
-#     def _validate_obj(obj: Any) -> bool:
-#         dynamic_sklearn = _get_sklearn()
-#         return cast(
-#             bool,
-#             (
-#                 dynamic_sklearn.base.is_classifier(obj)
-#                 or dynamic_sklearn.base.is_outlier_detector(obj)
-#                 or dynamic_sklearn.base.is_regressor(obj)
-#             ),
-#         )
+    @staticmethod
+    def _validate_obj(obj: Any) -> bool:
+        dynamic_sklearn = _get_sklearn()
+        return cast(
+            bool,
+            (
+                dynamic_sklearn.base.is_classifier(obj)
+                or dynamic_sklearn.base.is_outlier_detector(obj)
+                or dynamic_sklearn.base.is_regressor(obj)
+            ),
+        )
 
-#     @staticmethod
-#     def _serialize(
-#         model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: str
-#     ) -> None:
-#         dynamic_cloudpickle = _get_cloudpickle()
-#         with open(dir_or_file_path, "wb") as file:
-#             dynamic_cloudpickle.dump(model_obj, file)
+    @staticmethod
+    def _serialize(
+        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: str
+    ) -> None:
+        dynamic_cloudpickle = _get_cloudpickle()
+        with open(dir_or_file_path, "wb") as file:
+            dynamic_cloudpickle.dump(model_obj, file)
 
 
 def _get_tf_keras() -> "tensorflow.keras":
