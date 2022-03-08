@@ -9,31 +9,19 @@ from wandb.apis.public import Artifact
 from wandb.apis.public import _DownloadedArtifactEntry
 from wandb.sdk.wandb_artifacts import ArtifactEntry
 
-
-def sklearn_model():
-    from .saved_model_constructors import sklearn_model
-
-    return sklearn_model()
+from . import saved_model_constructors
 
 
-def pytorch_model():
-    from .saved_model_constructors import pytorch_model
-
-    return pytorch_model()
-
-
-def keras_model():
-    from .saved_model_constructors import keras_model
-
-    return keras_model()
-
+sklearn_model = saved_model_constructors.sklearn_model
+pytorch_model = saved_model_constructors.pytorch_model
+keras_model = saved_model_constructors.keras_model
 
 def test_SavedModel_sklearn(runner, mocker):
     savedModel_test(runner, mocker, sklearn_model())
 
 
 def test_SavedModel_pytorch(runner, mocker):
-    savedModel_test(runner, mocker, pytorch_model(), [".saved_model_constructors"])
+    savedModel_test(runner, mocker, pytorch_model(), [os.path.abspath(saved_model_constructors.__file__)])
 
 
 @pytest.mark.skipif(

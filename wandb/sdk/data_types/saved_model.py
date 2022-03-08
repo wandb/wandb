@@ -302,7 +302,7 @@ class _PicklingSavedModel(SavedModel[SavedModelObjType]):
             raise TypeError(
                 "Cannot instantiate abstract _PicklingSavedModel class - please use SavedModel.init(...) instead."
             )
-        if dep_py_files is not None:
+        if dep_py_files is not None and len(dep_py_files) > 0:
             self._dep_py_files = dep_py_files
             self._dep_py_files_path = os.path.abspath(
                 os.path.join(MEDIA_TMP.name, str(util.generate_id()))
@@ -318,6 +318,8 @@ class _PicklingSavedModel(SavedModel[SavedModelObjType]):
                             self._dep_py_files_path, os.path.basename(extra_file)
                         ),
                     )
+                else:
+                    raise ValueError("Invalid dependency file: {}".format(extra_file))
 
     @classmethod
     def from_json(
