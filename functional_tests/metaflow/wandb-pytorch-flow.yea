@@ -1,7 +1,13 @@
 id: metaflow.pytorch.base
 plugin:
   - wandb
+depend:
+  requirements:
+    - "metaflow>=2.3.5"
+    - "torch==1.9.0+cpu"
+    - "torchvision==0.10.0+cpu"
 tag:
+  shard: metaflow
   skips:
     - platform: win
 command:
