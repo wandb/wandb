@@ -93,7 +93,7 @@ class Image(BatchableMedia):
     _log_type = "image-file"
 
     format: Optional[str]
-    _grouping: Optional[str]
+    _grouping: Optional[int]
     _caption: Optional[str]
     _width: Optional[int]
     _height: Optional[int]
@@ -107,7 +107,7 @@ class Image(BatchableMedia):
         data_or_path: "ImageDataOrPathType",
         mode: Optional[str] = None,
         caption: Optional[str] = None,
-        grouping: Optional[str] = None,
+        grouping: Optional[int] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
@@ -138,7 +138,7 @@ class Image(BatchableMedia):
 
     def _set_initialization_meta(
         self,
-        grouping: Optional[str] = None,
+        grouping: Optional[int] = None,
         caption: Optional[str] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,

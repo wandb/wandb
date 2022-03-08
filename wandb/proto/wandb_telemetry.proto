@@ -77,6 +77,10 @@ message Imports {
   bool huggingface_hub = 49;
   bool hydra = 50;
   bool datasets = 51;
+  bool sacred = 52;
+  bool joblib = 53;
+  bool dask = 54;
+  bool asyncio = 55;
 }
 
 message Feature {
