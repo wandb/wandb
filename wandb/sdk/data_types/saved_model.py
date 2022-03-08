@@ -46,7 +46,7 @@ def _add_deterministic_dir_to_artifact(
             file_paths.append(os.path.join(dirpath, fn))
     dirname = b64_string_to_hex(md5_files_b64(file_paths))[:20]
     target_path = os.path.join(target_dir_root, dirname)
-    artifact.add_dir(dir_name, target_path)
+    artifact.add_dir(dir_name, util.to_forward_slash_path(target_path))
     return target_path
 
 
