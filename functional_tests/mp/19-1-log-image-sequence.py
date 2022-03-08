@@ -30,8 +30,7 @@ def main():
     run = wandb.init()
     # Start a new run in parallel in a child process
     processes = [
-        mp.Process(target=process_child, kwargs=dict(attach_id=run._attach_id))
-        for _ in range(2)
+        mp.Process(target=process_child, kwargs=dict(run=run)) for _ in range(2)
     ]
 
     for p in processes:

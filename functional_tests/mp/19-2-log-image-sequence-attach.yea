@@ -1,5 +1,9 @@
 id: 0.mp.19-2-log-image-sequence-attach
+plugin:
     - wandb
+depend:
+    requirements:
+        - numpy
 tag:
     shard: service
 parametrize:
