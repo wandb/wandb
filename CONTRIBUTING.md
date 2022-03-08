@@ -407,7 +407,9 @@ If you update one of those files, you need to:
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
   - Merge and release `yea-wandb` (with `make release`).
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`), create a new client branch and copy/paste those changes over to the corresponding file in `tests/utils`. 
   - Point the client branch you are working on to the fresh release of `yea-wandb`.
+
 
 ### Regression Testing
 
