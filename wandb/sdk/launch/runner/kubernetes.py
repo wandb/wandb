@@ -91,7 +91,9 @@ class KubernetesRunner(AbstractRunner):
             raise LaunchError("No Kubernetes resource args specified. Specify args via --resource-args with a JSON file or string under top-level key kubernetes")
         
         config_file = resource_args.get("config_file")   # kubeconfig, if None then loads default in ~/.kube
-        kubernetes.config.load_kube_config(config_file)
+        if config_file is not None or os.path.exists("~/.kube/config"):
+            kubernetes.config.load_kube_config(config_file)
+
 
         batch_api = kubernetes.client.BatchV1Api()
         core_api = kubernetes.client.CoreV1Api()
