@@ -2157,8 +2157,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
-<<<<<<< HEAD
-    @_attach
+    @Attach._attach
     def link_artifact(
         self,
         artifact: Union[public.Artifact, Artifact],
@@ -2191,10 +2190,7 @@ class Run:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
 
-    @_attach
-=======
     @Attach._attach
->>>>>>> master
     def use_artifact(
         self,
         artifact_or_name: Union[str, public.Artifact, Artifact],
