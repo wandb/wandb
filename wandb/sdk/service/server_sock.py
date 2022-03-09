@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
-from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 from ..lib import tracelog
 from ..lib.proto_util import settings_dict_from_pbmap
@@ -145,19 +144,18 @@ class SockServerReadThread(threading.Thread):
 
         self._clients.add_client(self._sock_client)
         inform_attach_response = spb.ServerInformAttachResponse()
-        if stream_id not in self._mux._streams:
-            inform_attach_response._error.message = "stream does not exists"
+
+        if not self._mux.has_stream(stream_id):
+            inform_attach_response._error.message = (
+                "Trying to attach to a run that does not exist"
+            )
             inform_attach_response._error.code = 0
         else:
-            _pbmap_apply_dict(
-                inform_attach_response._settings_map,
-                self._mux._streams[stream_id]._settings,
-            )
+            iface = self._mux.get_stream(stream_id).interface
+            assert iface
+
         response = spb.ServerResponse(inform_attach_response=inform_attach_response)
         self._sock_client.send_server_response(response)
-        iface = self._mux.get_stream(stream_id).interface
-
-        assert iface
 
     def server_record_communicate(self, sreq: "spb.ServerRequest") -> None:
         record = sreq.record_communicate
