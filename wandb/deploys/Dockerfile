@@ -1,5 +1,5 @@
 FROM python:3.9-slim-bullseye
-USER root
+# USER root
 RUN mkdir -p /home/launch_agent
 WORKDIR /home/launch_agent
 
@@ -21,5 +21,8 @@ RUN rm -rf /var/lib/apt/lists
 RUN pip install git+https://github.com/wandb/client.git@gong/testy-branch
 RUN pip install wandb[launch]
 RUN pip install kubernetes
+
+RUN useradd -m -s /bin/bash -u 1000 -g 0 launch_agent
+USER launch_agent
 
 ENTRYPOINT ["wandb", "launch-agent"]
