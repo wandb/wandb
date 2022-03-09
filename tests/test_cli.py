@@ -3,6 +3,7 @@ from wandb.cli import cli
 from wandb.apis.internal import InternalApi
 import contextlib
 import datetime
+import tempfile
 import traceback
 import platform
 import getpass
@@ -625,27 +626,28 @@ def test_docker_digest(runner, docker):
 
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_default(runner, docker, local_settings):
-    result = runner.invoke(cli.local)
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
-    user = getpass.getuser()
-    docker.assert_called_with(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            "wandb:/vol",
-            "-p",
-            "8080:8080",
-            "--name",
-            "wandb-local",
-            "-e",
-            "LOCAL_USERNAME=%s" % user,
-            "-d",
-            "wandb/local",
-        ]
-    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.local)
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        user = getpass.getuser()
+        docker.assert_called_with(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                "wandb:/vol",
+                "-p",
+                "8080:8080",
+                "--name",
+                "wandb-local",
+                "-e",
+                "LOCAL_USERNAME=%s" % user,
+                "-d",
+                "wandb/local",
+            ]
+        )
 
 
 @pytest.mark.wandb_args(check_output=b"")
@@ -754,7 +756,7 @@ def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
     api = InternalApi({"project": "test"})
     monkeypatch.setattr(cli, "_api", api)
@@ -772,7 +774,7 @@ def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
     monkeypatch.setattr(subprocess, "check_call", lambda command: True)
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
@@ -785,7 +787,7 @@ def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch)
 
 
 def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
     monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["wandb/test/abcdef", "--no-git"])
@@ -796,7 +798,7 @@ def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
     monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["test/abcdef", "--no-git"])
@@ -807,7 +809,7 @@ def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_no_diff(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
     monkeypatch.setattr(subprocess, "check_call", lambda command: True)
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
@@ -818,7 +820,7 @@ def test_restore_no_diff(runner, mock_server, git_repo, docker, monkeypatch):
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Created branch wandb/abcdef" in result.output
-    # no patching operaations performed, whether successful or not
+    # no patching operations performed, whether successful or not
     assert "Applied patch" not in result.output
     assert "Filed to apply patch" not in result.output
 
@@ -994,8 +996,8 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
 
 
 def test_sync_summary(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        test_settings.update(mode="offline")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_settings.update(mode="offline", root_dir=tmpdir)
         run = wandb.init(settings=test_settings)
         offline_run_timespec = run.settings.timespec
         offline_run_id = run.id
@@ -1008,8 +1010,8 @@ def test_sync_summary(runner, live_mock_server, test_settings):
         run.log({"b": 2})
         run.finish()
 
+        os.chdir(tmpdir)
         result = runner.invoke(cli.sync)
-        print(result.output)
         assert result.exit_code == 0
 
         msgs = (
