@@ -60,8 +60,6 @@ class ServiceSockInterface(ServiceInterface):
 
         assert self._sock_client
         response = self._sock_client.send_and_recv(inform_attach=inform_attach)
-        if response is None:
-            raise Exception("No responese")  # FIXME (should we retry? error out?)
         return response.inform_attach_response
 
     def _svc_inform_teardown(self, exit_code: int) -> None:

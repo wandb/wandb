@@ -80,7 +80,10 @@ class SockClient:
             inform_finish=inform_finish,
             inform_teardown=inform_teardown,
         )
-        return self.read_server_response(timeout=1)
+        response = self.read_server_response(timeout=1)
+        if response is None:
+            raise Exception("No responese")  # FIXME (should we retry? error out?)
+        return response
 
     def send(
         self,
