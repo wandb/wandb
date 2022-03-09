@@ -1,0 +1,35 @@
+id: 0.mp.06-4-share-synchronize
+plugin:
+  - wandb
+tag:
+  shard: service
+parametrize:
+  permute:
+    - :yea:start_method:
+      - spawn
+      - forkserver
+      - fork
+var:
+  - history_0_len:
+      :fn:len: :wandb:runs[0][history]
+    
+ 
+assert:
+  - :wandb:runs_len: 1
+  
+  - :history_0_len: 4
+  - :wandb:runs[0][history][0][i]: 1
+  - :wandb:runs[0][history][0][_step]: 0
+
+  - :wandb:runs[0][history][1][i]: 2
+  - :wandb:runs[0][history][1][_step]: 1
+
+  - :wandb:runs[0][history][2][i]: 3
+  - :wandb:runs[0][history][2][_step]: 2
+
+  - :wandb:runs[0][history][3][i]: 4
+  - :wandb:runs[0][history][3][_step]: 3
+
+  - :wandb:runs[0][summary]: {i: 4}
+
+  - :wandb:runs[0][exitcode]: 0
