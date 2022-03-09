@@ -19,6 +19,7 @@ from ..docker import (
     generate_docker_image,
     get_env_vars_dict,
 )
+from ..builder import build
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -302,24 +303,22 @@ class KubernetesRunner(AbstractRunner):
             registry = resource_args.get("registry")
             if registry is None:
                 # allow local registry usage for eg local clusters but throw a warning
-                wandb.termlog(
-                    "Warning: No Docker registry specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
+                raise wandb.Error(
+                    "Error: No Docker registry specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
 
-            image_uri = construct_local_image_uri(launch_project)
-            if registry:
-                image_uri = os.path.join(registry, image_uri)
-            generate_docker_image(
+            image_uri = build.build_image_with_kaniko(
+                self._api,
                 launch_project,
-                image_uri,
+                registry,
                 entry_point,
                 docker_args,
                 runner_type="kubernetes",
             )
             containers[0]["image"] = image_uri
-            if registry:
-                repo, tag = image_uri.split(":")
-                docker.push(repo, tag)
+        given_env_vars = resource_args.get("env", {})
+        env_vars = get_env_vars_dict(launch_project, self._api)
+        merged_env_vars = {**env_vars, **given_env_vars}
 
         # reassemble spec
         given_env_vars = resource_args.get("env", {})
