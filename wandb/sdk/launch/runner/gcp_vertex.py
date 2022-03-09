@@ -132,7 +132,7 @@ class VertexRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        if docker_args:
+        if docker_args and list(docker_args) != ['docker_image']:
             wandb.termwarn(
                 "Docker args are not supported for GCP. Not using docker args"
             )

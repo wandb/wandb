@@ -1465,10 +1465,14 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
     return False
 
 
-def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
-    if os.path.splitext(config)[-1] == ".json":
+def load_json_yaml_dict(config: str) -> Any:
+    ext = os.path.splitext(config)[-1]
+    if ext == ".json":
         with open(config, "r") as f:
             return json.load(f)
+    elif ext == ".yaml":
+        with open(config, "r") as f:
+            return yaml.safe_load(f)
     else:
         try:
             return json.loads(config)

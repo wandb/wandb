@@ -1076,14 +1076,14 @@ def launch(
     args_dict = util._user_args_to_dict(args_list)
 
     if resource_args is not None:
-        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        resource_args = util.load_json_yaml_dict(resource_args)
         if resource_args is None:
             raise LaunchError("Invalid format for resource-args")
     else:
         resource_args = {}
 
     if config is not None:
-        config = util.load_as_json_file_or_load_dict_as_json(config)
+        config = util.load_json_yaml_dict(config)
         if config is None:
             raise LaunchError("Invalid format for config")
     else:
