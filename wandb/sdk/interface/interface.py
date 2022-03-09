@@ -492,7 +492,7 @@ class InterfaceBase(object):
         user_step: int,
         step: Optional[int] = None,
         flush: Optional[bool] = None,
-        publish_step: Optional[bool] = None,
+        publish_step: bool = True,
         run: Optional["Run"] = None,
     ) -> None:
         run = run or self._run
