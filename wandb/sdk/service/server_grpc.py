@@ -12,6 +12,7 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 from .. import lib as wandb_lib
 from ..lib.proto_util import settings_dict_from_pbmap
@@ -330,7 +331,11 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         self, request: spb.ServerInformAttachRequest, context: grpc.ServicerContext,
     ) -> spb.ServerInformAttachResponse:
         # TODO
+        stream_id = request._info.stream_id
         result = spb.ServerInformAttachResponse()
+        _pbmap_apply_dict(
+            result._settings_map, dict(self._mux._streams[stream_id]._settings),
+        )
         return result
 
     def ServerInformDetach(  # noqa: N802
