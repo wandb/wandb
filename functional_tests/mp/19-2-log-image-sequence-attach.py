@@ -11,12 +11,8 @@ def process_child(attach_id):
     rng = np.random.default_rng(os.getpid())
     height = width = 2
 
-    media = []
-    for _ in range(2):
-        media.append(wandb.Image(rng.random((height, width))))
-        run.log({"media": media}, commit=False)
-
-    run.log({"x": 1})
+    media = [wandb.Image(rng.random((height, width))) for _ in range(3)]
+    run.log({"media": media})
 
 
 def main():

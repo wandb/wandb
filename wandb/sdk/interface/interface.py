@@ -492,6 +492,7 @@ class InterfaceBase(object):
         user_step: int,
         step: Optional[int] = None,
         flush: Optional[bool] = None,
+        publish_step: Optional[bool] = None,
         run: Optional["Run"] = None,
     ) -> None:
         run = run or self._run
@@ -504,7 +505,7 @@ class InterfaceBase(object):
             item = partial_history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
-        if step is not None:
+        if publish_step and step is not None:
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush
