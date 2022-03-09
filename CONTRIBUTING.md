@@ -406,8 +406,9 @@ If you update one of those files, you need to:
     In `tox.ini`, search for `yea-wandb==<version>` and change it to
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
+  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`. 
   - Merge and release `yea-wandb` (with `make release`).
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file in `tests/utils`. 
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these and files and you do not sync them to the client, all client PRs will fail this Github Action.** 
   - Point the client branch you are working on to the fresh release of `yea-wandb`.
 
 
