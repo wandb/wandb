@@ -33,6 +33,7 @@ class LaunchSource(enum.IntEnum):
     WANDB: int = 1
     GIT: int = 2
     LOCAL: int = 3
+    DOCKER: int = 4
 
 
 class LaunchProject(object):
@@ -40,7 +41,7 @@ class LaunchProject(object):
 
     def __init__(
         self,
-        uri: str,
+        uri: Optional[str],
         api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
@@ -53,7 +54,7 @@ class LaunchProject(object):
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
     ):
-        if utils.is_bare_wandb_uri(uri):
+        if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
@@ -89,7 +90,12 @@ class LaunchProject(object):
         if "entry_point" in overrides:
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
-        if utils._is_wandb_uri(self.uri):
+        if self.uri is None:
+            if self.docker_image is None:
+                raise LaunchError("Run requires a URI or a docker image")
+            self.source = LaunchSource.DOCKER
+            self.project_dir = tempfile.mkdtemp()
+        elif utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
@@ -394,13 +400,12 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     Returns:
         An initialized `LaunchProject` object
     """
-    uri = launch_spec["uri"]
 
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
     return LaunchProject(
-        uri,
+        launch_spec.get("uri"),
         api,
         launch_spec,
         launch_spec["entity"],
@@ -428,11 +433,13 @@ def fetch_and_validate_project(
         A validated `LaunchProject` object.
 
     """
+    if launch_project.source == LaunchSource.DOCKER:
+        return launch_project
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
             launch_project.add_entry_point("main.py")
-    else:
+    elif launch_project.source != LaunchSource.DOCKER:
         launch_project._fetch_project_local(internal_api=api)
 
     # this prioritizes pip and we don't support any cases where both are present

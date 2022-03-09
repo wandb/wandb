@@ -477,9 +477,9 @@ class Run:
                     launch_run_config, user="launch", _allow_val_change=True
                 )
         elif (self._settings.launch):
-            if (os.environ.get("WANDB_CONFIG")):
+            if (os.environ.get("'WANDB_CONFIG'") or os.environ.get("WANDB_CONFIG")):
                 try:
-                    new_config = ast.literal_eval(os.environ.get("WANDB_CONFIG"))
+                    new_config = ast.literal_eval(os.environ.get("WANDB_CONFIG", os.environ.get("'WANDB_CONFIG'")))
                     self._config.update_locked(
                         new_config, user="launch", _allow_val_change=True
                     )

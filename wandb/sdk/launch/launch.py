@@ -33,7 +33,7 @@ def create_and_run_agent(
 
 
 def _run(
-    uri: str,
+    uri: Optional[str],
     name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
@@ -92,7 +92,7 @@ def _run(
 
 
 def run(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     entry_point: Optional[str] = None,
     version: Optional[str] = None,
