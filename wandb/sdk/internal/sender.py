@@ -715,7 +715,7 @@ class SendManager:
         # We subtract the previous runs runtime when resuming
         start_time = run.start_time.ToSeconds() - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
-        # the upsert know the resume state and fail transactionally
+        #  the upsert know the resume state and fail transactionally
         server_run, inserted = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
@@ -732,6 +732,12 @@ class SendManager:
             repo=run.git.remote_url or None,
             commit=run.git.last_commit or None,
         )
+        # import pdb
+        # pdb.set_trace()
+        # raise Exception((server_run, inserted))
+        with open("/Users/dimaduev/dev/client/1.txt", "a") as f:
+            content = str(server_run) + "\n" + str(inserted) + "\n"
+            f.write(content)
         self._run = run
         if self._resume_state.resumed:
             self._run.resumed = True

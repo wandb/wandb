@@ -458,3 +458,13 @@ def test_exit_poll_local(
         assert not out_of_date
     else:
         assert out_of_date == outdated
+
+
+def test_artifact_incremental_internal(
+    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
+):
+    with backend_interface() as interface:
+        proto_run = interface._make_run(mocked_run)
+        print(proto_run)
+        r = internal_sm.send_run(interface._make_record(run=proto_run))
+        r = internal_sm.send_run(interface._make_record(run=proto_run))
