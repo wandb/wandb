@@ -363,9 +363,9 @@ def get_runs(
     all_dirs = os.listdir(base)
     dirs = []
     if include_offline:
-        dirs += filter(lambda d: d.startswith("offline-run-"), all_dirs)
+        dirs += filter(lambda _d: _d.startswith("offline-run-"), all_dirs)
     if include_online:
-        dirs += filter(lambda d: d.startswith("run-"), all_dirs)
+        dirs += filter(lambda _d: _d.startswith("run-"), all_dirs)
     # find run file in each dir
     fnames = []
     dirs.sort()
@@ -388,9 +388,9 @@ def get_runs(
     for f in fnames:
         dname = os.path.dirname(f)
         # TODO(frz): online runs are assumed to be synced, verify from binary log.
-        if os.path.exists("{}{}".format(f, SYNCED_SUFFIX)) or os.path.basename(
-            dname
-        ).startswith("run-"):
+        if os.path.exists(f"{f}{SYNCED_SUFFIX}") or os.path.basename(dname).startswith(
+            "run-"
+        ):
             if include_synced:
                 filtered.append(_LocalRun(dname, True))
         else:

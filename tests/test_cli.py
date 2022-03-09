@@ -833,7 +833,29 @@ def test_restore_not_git(runner, mock_server, docker, monkeypatch):
         assert "Original run has no git history" in result.output
 
 
-def test_gc(runner):
+# TODO Investigate unrelated tests failing on Python 3.9
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Unrelated tests failing on Python 3.9"
+)
+@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
+def test_sweep_pause(runner, mock_server, test_settings, stop_method):
+    with runner.isolated_filesystem():
+        sweep_config = {
+            "name": "My Sweep",
+            "method": "grid",
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+        sweep_id = wandb.sweep(sweep_config)
+        assert sweep_id == "test"
+        assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+        assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+        if stop_method == "stop":
+            assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
+        else:
+            assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
+
+
+def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):
             os.mkdir("wandb")
@@ -868,27 +890,6 @@ def test_gc(runner):
             == 0
         )
         assert not os.path.exists(run1_dir)
-
-
-# TODO Investigate unrelated tests failing on Python 3.9
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="Unrelated tests failing on Python 3.9"
-)
-@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
-def test_sweep_pause(runner, mock_server, test_settings, stop_method):
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "grid",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-    sweep_id = wandb.sweep(sweep_config)
-    assert sweep_id == "test"
-    assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
-    assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
-    if stop_method == "stop":
-        assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
-    else:
-        assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
 
 
 @pytest.mark.skipif(
@@ -990,6 +991,35 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             "WARNING Found .wandb file, not streaming tensorboard metrics"
             in result.output
         )
+
+
+def test_sync_summary(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        test_settings.update(mode="offline")
+        run = wandb.init(settings=test_settings)
+        offline_run_timespec = run.settings.timespec
+        offline_run_id = run.id
+        run.log({"a": 1})
+        run.summary["lol"] = True
+        run.finish()
+
+        test_settings.update(mode="online")
+        run = wandb.init(settings=test_settings)
+        run.log({"b": 2})
+        run.finish()
+
+        result = runner.invoke(cli.sync)
+        print(result.output)
+        assert result.exit_code == 0
+
+        msgs = (
+            "Number of runs to be synced: 1",
+            f"offline-run-{offline_run_timespec}-{offline_run_id}",
+            "NOTE: use wandb sync --clean to delete 1 synced runs from local directory.",
+            "NOTE: use wandb sync --sync-all to sync 1 unsynced runs from local directory.",
+        )
+        for msg in msgs:
+            assert msg in result.output
 
 
 def test_cli_login_reprompts_when_no_key_specified(

@@ -524,30 +524,26 @@ def sync(
         for item in all_items:
             (synced if item.synced else unsynced).append(item)
         if sync_items:
-            wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
+            wandb.termlog(f"Number of runs to be synced: {len(sync_items)}")
             if show and show < len(sync_items):
-                wandb.termlog("Showing {} runs to be synced:".format(show))
+                wandb.termlog(f"Showing {show} runs to be synced:")
             for item in sync_items[: (show or len(sync_items))]:
-                wandb.termlog("  {}".format(item))
+                wandb.termlog(f"  {item}")
         else:
             wandb.termlog("No runs to be synced.")
         if synced:
             clean_cmd = click.style("wandb sync --clean", fg="yellow")
             wandb.termlog(
-                "NOTE: use {} to delete {} synced runs from local directory.".format(
-                    clean_cmd, len(synced)
-                )
+                f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
             )
         if unsynced:
             sync_cmd = click.style("wandb sync --sync-all", fg="yellow")
             wandb.termlog(
-                "NOTE: use {} to sync {} unsynced runs from local directory.".format(
-                    sync_cmd, len(unsynced)
-                )
+                f"NOTE: use {sync_cmd} to sync {len(unsynced)} unsynced runs from local directory."
             )
 
-    def _sync_path(path, sync_tensorboard):
-        if run_id and len(path) > 1:
+    def _sync_path(_path, _sync_tensorboard):
+        if run_id and len(_path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
         sm = SyncManager(
@@ -558,14 +554,13 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
-            sync_tensorboard=sync_tensorboard,
+            sync_tensorboard=_sync_tensorboard,
         )
-        for p in path:
+        for p in _path:
             sm.add(p)
         sm.start()
         while not sm.is_done():
             _ = sm.poll()
-            # print(status)
 
     def _sync_all():
         sync_items = get_runs(
@@ -589,8 +584,7 @@ def sync(
             if not clean_force:
                 click.confirm(
                     click.style(
-                        "Are you sure you want to remove %i runs?" % len(runs),
-                        bold=True,
+                        f"Are you sure you want to remove {len(runs)} runs?", bold=True,
                     ),
                     abort=True,
                 )
@@ -608,19 +602,17 @@ def sync(
         )
         since = datetime.datetime.now() - datetime.timedelta(hours=clean_old_hours)
         old_runs = [run for run in runs if run.datetime < since]
-        old_runs.sort(key=lambda run: run.datetime)
+        old_runs.sort(key=lambda _run: _run.datetime)
         if old_runs:
             click.echo(
-                "Found {} runs, {} are older than {} hours".format(
-                    len(runs), len(old_runs), clean_old_hours
-                )
+                f"Found {len(runs)} runs, {len(old_runs)} are older than {clean_old_hours} hours"
             )
             for run in old_runs:
                 click.echo(run.path)
             if not clean_force:
                 click.confirm(
                     click.style(
-                        "Are you sure you want to remove %i runs?" % len(old_runs),
+                        f"Are you sure you want to remove {len(old_runs)} runs?",
                         bold=True,
                     ),
                     abort=True,
@@ -631,7 +623,7 @@ def sync(
         else:
             click.echo(
                 click.style(
-                    "No runs older than %i hours found" % clean_old_hours, fg="red"
+                    f"No runs older than {clean_old_hours} hours found", fg="red"
                 )
             )
 
