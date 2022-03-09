@@ -31,6 +31,8 @@ def main():
     for p in processes:
         p.join()
 
+    run.finish()
+
 
 if __name__ == "__main__":
     yea.setup()  # Use ":yea:start_method:" to set mp.set_start_method()
