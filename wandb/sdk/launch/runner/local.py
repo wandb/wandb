@@ -19,6 +19,8 @@ from ..docker import (
     pull_docker_image,
     validate_docker_installation,
 )
+from ..builder import build
+
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,

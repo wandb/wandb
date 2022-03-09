@@ -45,3 +45,12 @@ spec:
             secretKeyRef:
               name: wandb-api-key
               key: password
+        volumeMounts:
+        - name: aws-secret
+          mountPath: /home/launch_agent/.aws
+          readOnly: true
+      volumes:
+      - name: aws-secret
+        secret:
+          secretName: aws-secret
+
