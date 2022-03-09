@@ -1164,13 +1164,14 @@ class Run:
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+            not_attached = not (self._init_pid != os.getpid() or self._is_attached)
 
             self._backend.interface.publish_partial_history(
                 row,
                 user_step=self._step,
                 step=step,
                 flush=commit,
-                publish_step=not_using_tensorboard,
+                publish_step=not_using_tensorboard and not_attached,
             )
 
     def _console_callback(self, name: str, data: str) -> None:
