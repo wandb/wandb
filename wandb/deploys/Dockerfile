@@ -18,11 +18,11 @@ RUN apt-get update
 RUN apt-get install -y docker-ce docker-ce-cli
 RUN rm -rf /var/lib/apt/lists
 
-RUN pip install git+https://github.com/wandb/client.git@gong/testy-branch
+RUN pip install git+https://github.com/wandb/client.git@jz/kaniko
 RUN pip install wandb[launch]
 RUN pip install kubernetes
 
 RUN useradd -m -s /bin/bash -u 1000 -g 0 launch_agent
-USER launch_agent
+USER root
 
 ENTRYPOINT ["wandb", "launch-agent"]
