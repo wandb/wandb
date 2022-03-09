@@ -384,19 +384,16 @@ _inspected_images = {}
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     """Checks if a specific image is already available,
     optionally raising an exception"""
-    _logger.info("Checking if base image exists...")
     try:
         data = docker.run(["docker", "image", "inspect", docker_image])
         # always true, since return stderr defaults to false
         assert isinstance(data, str)
         parsed = json.loads(data)[0]
         _inspected_images[docker_image] = parsed
-        _logger.info("Base image found. Won't generate new base image")
         return True
     except (DockerError, ValueError) as e:
         if should_raise:
             raise e
-        _logger.info("Base image not found. Generating new base image")
         return False
 
 
@@ -409,6 +406,9 @@ def docker_image_inspect(docker_image: str) -> Dict[str, Any]:
 
 def pull_docker_image(docker_image: str) -> None:
     """Pulls the requested docker image"""
+    if docker_image_exists(docker_image):
+        # don't pull images if they exist already, eg if they are local images
+        return
     try:
         docker.run(["docker", "pull", docker_image])
     except DockerError as e:

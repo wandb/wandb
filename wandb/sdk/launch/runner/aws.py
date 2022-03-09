@@ -49,7 +49,7 @@ class SagemakerSubmittedRun(AbstractRun):
             wandb.termlog(
                 f"Training job {self.training_job_name} status: {status_state}"
             )
-            if status_state in ["stopped", "failed", "finished"]:
+            if status_state != "running":
                 break
             time.sleep(5)
         return status_state == "finished"
@@ -149,7 +149,8 @@ class AWSSagemakerRunner(AbstractRunner):
             + f"/{ecr_repo_name}"
         )
 
-        if self.backend_config[PROJECT_DOCKER_ARGS]:
+        docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
+        if docker_args and list(docker_args) != ['docker_image']:
             wandb.termwarn(
                 "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )

@@ -21,7 +21,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-State = Literal["unknown", "starting", "running", "failed", "finished", "stopping"]
+State = Literal["unknown", "starting", "running", "failed", "finished", "stopping", "stopped"]
 
 
 class Status(object):
