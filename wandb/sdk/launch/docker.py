@@ -487,7 +487,7 @@ def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[
                 if len(name.split(" ")) == 2:
                     arg_name = name.split(" ")[0]
                     key = name.split(" ")[1]
-                    cmd += [f"-{arg_name}", f"{key}={value}"]
+                    cmd += [f"-{arg_name}", f"{shlex_quote(key)}={shlex_quote(value)}"]
                 # Passed name=value
                 elif len(name) == 1:
                     cmd += ["-" + name, value]
@@ -497,7 +497,7 @@ def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[
     cmd += [image]
     print("DOCKER COMMAND IS", cmd)
     print([shlex_quote(c) for c in cmd])
-    return [shlex_quote(c) for c in cmd]
+    return [shlex_quote(c) if not c.startswith("WANDB") else c for c in cmd]
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
