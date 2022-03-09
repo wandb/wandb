@@ -7,8 +7,7 @@ abstract methods.
 from abc import abstractmethod
 import datetime
 import enum
-from typing import Any, Dict
-from typing import TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.wandb_settings import Settings
@@ -61,7 +60,7 @@ class ServiceInterface:
         raise NotImplementedError
 
     @abstractmethod
-    def _svc_inform_attach(self, attach_id: str) -> None:
+    def _svc_inform_attach(self, attach_id: str) -> spb.ServerInformAttachResponse:
         raise NotImplementedError
 
     @abstractmethod

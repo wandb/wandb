@@ -64,9 +64,23 @@ class SockClient:
             # things like network status poll loop, there might be a better way to quiesce
             pass
 
-    def send_and_recv(self, **kwargs):
-        self.send(**kwargs)
-        return self.read_server_response(timeout=1)  # TODO is this reasonable timeout?
+    def send_and_recv(
+        self,
+        *,
+        inform_init: spb.ServerInformInitRequest = None,
+        inform_start: spb.ServerInformStartRequest = None,
+        inform_attach: spb.ServerInformAttachRequest = None,
+        inform_finish: spb.ServerInformFinishRequest = None,
+        inform_teardown: spb.ServerInformTeardownRequest = None
+    ) -> Optional[spb.ServerResponse]:
+        self.send(
+            inform_init=inform_init,
+            inform_start=inform_start,
+            inform_attach=inform_attach,
+            inform_finish=inform_finish,
+            inform_teardown=inform_teardown,
+        )
+        return self.read_server_response(timeout=1)
 
     def send(
         self,

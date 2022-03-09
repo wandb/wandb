@@ -147,7 +147,7 @@ class SockServerReadThread(threading.Thread):
         inform_attach_response = spb.ServerInformAttachResponse()
         _pbmap_apply_dict(
             inform_attach_response._settings_map,
-            self._mux._streams[stream_id]._settings,
+            dict(self._mux._streams[stream_id]._settings),
         )
         response = spb.ServerResponse(inform_attach_response=inform_attach_response)
         self._sock_client.send_server_response(response)

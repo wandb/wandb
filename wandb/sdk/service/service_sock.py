@@ -52,14 +52,17 @@ class ServiceSockInterface(ServiceInterface):
         inform_finish._info.stream_id = run_id
 
         assert self._sock_client
-        return self._sock_client.send_and_recv(inform_finish=inform_finish)  # FIXME
+        self._sock_client.send(inform_finish=inform_finish)
 
-    def _svc_inform_attach(self, attach_id: str) -> None:
+    def _svc_inform_attach(self, attach_id: str) -> spb.ServerInformAttachResponse:
         inform_attach = spb.ServerInformAttachRequest()
         inform_attach._info.stream_id = attach_id
 
         assert self._sock_client
-        return self._sock_client.send_and_recv(inform_attach=inform_attach)
+        response = self._sock_client.send_and_recv(inform_attach=inform_attach)
+        if response is None:
+            raise Exception("No responese")  # FIXME (should we retry? error out?)
+        return response.inform_attach_response
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)
