@@ -122,7 +122,7 @@ class KubernetesRunner(AbstractRunner):
 
         # allow top-level namespace override, otherwise take namespace specified at the job level, or default
         namespace = resource_args.get("namespace", job_metadata.get("namespace", "default"))
-        print(batch_api.list_namespace_job(namespace=namespace))
+        print(batch_api.list_namespaced_job(namespace=namespace))
 
         # name precedence: resource args override > name in spec file > generated name
         job_metadata['name'] = resource_args.get("job_name", job_metadata.get('name'))
