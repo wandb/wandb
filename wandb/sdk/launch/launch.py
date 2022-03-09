@@ -70,9 +70,11 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = (
-        launch_config["docker"] if launch_config else {}
-    )
+    runner_config[PROJECT_DOCKER_ARGS] = launch_config.get(launch_config.get("docker", {}).get("args", None), {})
+    
+    # (
+    #     launch_config["docker"] if launch_config else {}
+    # )
 
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
@@ -160,7 +162,6 @@ def run(
             docker_args["network"] = "host"
         if sys.platform == "linux" or sys.platform == "linux2":
             docker_args["add-host"] = "host.docker.internal:host-gateway"
-
     if config is None:
         config = {}
 

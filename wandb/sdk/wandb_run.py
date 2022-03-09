@@ -1,4 +1,5 @@
 import _thread as thread
+import ast
 import atexit
 from collections.abc import Mapping
 from datetime import timedelta
@@ -475,6 +476,40 @@ class Run:
                 self._config.update_locked(
                     launch_run_config, user="launch", _allow_val_change=True
                 )
+        elif (self._settings.launch):
+            if (os.environ.get("WANDB_CONFIG")):
+                try:
+                    new_config = ast.literal_eval(os.environ.get("WANDB_CONFIG"))
+                    self._config.update_locked(
+                        new_config, user="launch", _allow_val_change=True
+                    )
+                except Exception:
+                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+            if (os.environ.get("WANDB_ARTIFACTS")):
+                try:
+                    artifacts = ast.literal_eval(os.environ.get("WANDB_ARTIFACTS"))
+                    for key, item in artifacts.items():
+                        self._launch_artifact_mapping[key] = item
+                        artifact_sequence_tuple_or_slot = key.split(":")
+
+                        if len(artifact_sequence_tuple_or_slot) == 2:
+                            sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[
+                                -1
+                            ]
+                            if self._unique_launch_artifact_sequence_names.get(
+                                sequence_name
+                            ):
+                                self._unique_launch_artifact_sequence_names.pop(
+                                    sequence_name
+                                )
+                            else:
+                                self._unique_launch_artifact_sequence_names[
+                                    sequence_name
+                                ] = item
+                except Exception:
+                    pass
+                
+
         self._config._update(config, ignore_locked=True)
 
         # pid is set so we know if this run object was initialized by this process

@@ -76,6 +76,7 @@ class LaunchProject(object):
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.resource = resource
         self.resource_args = resource_args
         self.deps_type: Optional[str] = None

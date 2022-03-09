@@ -220,6 +220,38 @@ def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) 
     )
 
 
+def generate_env_vars(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
+    """Generates environment variables for the project.
+
+    Arguments:
+    launch_project: LaunchProject to generate environment variables for.
+
+    Returns:
+        Dictionary of environment variables.
+    """
+    env_vars = {}
+    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
+        _, _, port = api.settings("base_url").split(":")
+        base_url = "http://host.docker.internal:{}".format(port)
+    elif _is_wandb_dev_uri(api.settings("base_url")):
+        base_url = "http://host.docker.internal:9002"
+    else:
+        base_url = api.settings("base_url")
+    env_vars["e WANDB_BASE_URL"] = base_url
+
+    env_vars["e WANDB_API_KEY"] = api.api_key
+    env_vars["e WANDB_PROJECT"] = launch_project.target_project
+    env_vars["e WANDB_ENTITY"] = launch_project.target_entity
+    env_vars["e WANDB_LAUNCH"] = "True"
+    env_vars["e WANDB_RUN_ID"] = launch_project.run_id or None
+    env_vars["e WANDB_DOCKER"] = launch_project.docker_image
+
+    env_vars["e WANDB_CONFIG"] = json.dumps(launch_project.override_config)
+    #env_vars["e WANDB_ARTIFACTS"] = str(launch_project.override_artifacts)
+    
+    return env_vars
+
+
 def get_requirements_section(launch_project: LaunchProject) -> str:
     buildx_installed = docker.is_buildx_installed()
     if not buildx_installed:
@@ -440,23 +472,31 @@ def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[
     """
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
-
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
+            # if isinstance(name, str) and name.startswith("--env"):
+            #     cmd += [f"{name}={value}"]
+            #     print(f"{name}={value}")
             if isinstance(value, bool) and value:
                 if len(name) == 1:
                     cmd += ["-" + name]
                 else:
                     cmd += ["--" + name]
             else:
+                if len(name.split(" ")) == 2:
+                    arg_name = name.split(" ")[0]
+                    key = name.split(" ")[1]
+                    cmd += [f"-{arg_name}", f"{key}={value}"]
                 # Passed name=value
-                if len(name) == 1:
+                elif len(name) == 1:
                     cmd += ["-" + name, value]
                 else:
                     cmd += ["--" + name, value]
 
     cmd += [image]
+    print("DOCKER COMMAND IS", cmd)
+    print([shlex_quote(c) for c in cmd])
     return [shlex_quote(c) for c in cmd]
 
 

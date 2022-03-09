@@ -10,7 +10,9 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject
 from ..docker import (
     construct_local_image_uri,
+    docker_image_exists,
     generate_docker_image,
+    generate_env_vars,
     get_docker_command,
     pull_docker_image,
     validate_docker_installation,
@@ -76,11 +78,12 @@ class LocalRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         entry_point = launch_project.get_single_entry_point()
-
         if launch_project.docker_image:
             # user has provided their own docker image
+            print("USING THE USER PROVIDED IMAGE")
             _logger.info("Pulling user provided docker image")
-            pull_docker_image(launch_project.docker_image)
+            if not docker_image_exists(launch_project.docker_image):
+                pull_docker_image(launch_project.docker_image)
 
             wandb.termwarn(
                 "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
@@ -88,6 +91,8 @@ class LocalRunner(AbstractRunner):
                 )
             )
             image_uri = launch_project.docker_image
+            env_vars = generate_env_vars(launch_project, self._api)
+            docker_args.update(env_vars)
 
         else:
             # build our own image
