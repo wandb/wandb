@@ -695,8 +695,9 @@ def _attach(
 
     manager = _wl._get_manager()
     if manager:
-        response = manager._inform_attach(attach_id=attach_id)
-
+        error = manager._inform_attach(attach_id=attach_id)
+        if error:
+            raise Exception(error.message)
     # FIXME use Settings from `inform_attach`
     settings: Settings = copy.copy(_wl._settings)
     settings.update(run_id=attach_id, source=Source.INIT)

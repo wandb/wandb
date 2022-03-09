@@ -220,9 +220,22 @@ global___ServerInformFinishRequest = ServerInformFinishRequest
 
 class ServerInformFinishResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    _ERROR_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+
+    @property
+    def _error(self) -> global___ErrorStatus: ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
 
     def __init__(self,
+        *,
+        _error : typing.Optional[global___ErrorStatus] = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
         ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_error",b"_error",u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_error",b"_error",u"_info",b"_info"]) -> None: ...
 global___ServerInformFinishResponse = ServerInformFinishResponse
 
 class ServerInformAttachRequest(google.protobuf.message.Message):

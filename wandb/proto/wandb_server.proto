@@ -107,6 +107,8 @@ message ServerInformFinishRequest {
 }
 
 message ServerInformFinishResponse {
+  ErrorStatus _error = 100;
+  _RecordInfo _info = 200;
 }
 
 message ServerInformAttachRequest {

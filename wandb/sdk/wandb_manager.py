@@ -156,15 +156,17 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 
-    def _inform_attach(self, attach_id: str) -> "spb.ErrorStatus":
+    def _inform_attach(self, attach_id: str) -> Optional["spb.ErrorStatus"]:
         svc_iface = self._get_service_interface()
-        response = svc_iface._svc_inform_attach(attach_id=attach_id)
-        return response.inform_attach_response._error
+        inform_attach_response = svc_iface._svc_inform_attach(attach_id=attach_id)
+        if inform_attach_response.HasField("_error"):
+            return inform_attach_response._error
 
-    def _inform_finish(self, run_id: str = None) -> None:
+    def _inform_finish(self, run_id: str = None) -> Optional["spb.ErrorStatus"]:
         svc_iface = self._get_service_interface()
-        response = svc_iface._svc_inform_finish(run_id=run_id)
-        return response  # FIXME
+        inform_finish_response = svc_iface._svc_inform_finish(run_id=run_id)
+        if inform_finish_response.HasField("_error"):
+            return inform_finish_response._error
 
     def _inform_teardown(self, exit_code: int) -> None:
         svc_iface = self._get_service_interface()

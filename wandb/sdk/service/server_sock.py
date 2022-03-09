@@ -162,21 +162,32 @@ class SockServerReadThread(threading.Thread):
         # encode relay information so the right socket picks up the data
         record.control.relay_id = self._sock_client._sockid
         stream_id = record._info.stream_id
-        iface = self._mux.get_stream(stream_id).interface
+        iface = self._mux.get_stream(stream_id).interface  # TODO how to deal with this?
         assert iface.record_q
         iface.record_q.put(record)
 
     def server_record_publish(self, sreq: "spb.ServerRequest") -> None:
         record = sreq.record_publish
         stream_id = record._info.stream_id
-        iface = self._mux.get_stream(stream_id).interface
+        iface = self._mux.get_stream(stream_id).interface  # TODO how to deal with this?
         assert iface.record_q
         iface.record_q.put(record)
 
     def server_inform_finish(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_finish
         stream_id = request._info.stream_id
-        self._mux.drop_stream(stream_id)
+
+        inform_finish_response = spb.ServerInformFinishResponse()
+        if not self._mux.has_stream(stream_id):
+            inform_finish_response._error.message = (
+                "Trying to finish a run that does not exist"
+            )
+            inform_finish_response._error.code = 0
+        else:
+            self._mux.drop_stream(stream_id)
+
+        response = spb.ServerResponse(inform_finish_response=inform_finish_response)
+        self._sock_client.send_server_response(response)
 
     def server_inform_teardown(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_teardown
