@@ -93,7 +93,8 @@ class KubernetesRunner(AbstractRunner):
         config_file = resource_args.get("config_file")   # kubeconfig, if None then loads default in ~/.kube
         if config_file is not None or os.path.exists("~/.kube/config"):
             kubernetes.config.load_kube_config(config_file)
-
+        else:
+            kubernetes.config.load_incluster_config()
 
         batch_api = kubernetes.client.BatchV1Api()
         core_api = kubernetes.client.CoreV1Api()
