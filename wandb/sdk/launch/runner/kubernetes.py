@@ -201,7 +201,7 @@ class KubernetesRunner(AbstractRunner):
         job_dict['metadata'] = job_metadata
         job_dict['status'] = job_status
 
-        job_response = kubernetes.utils.create_from_yaml(api_client, yaml_objects=[job_dict])[0][0]   # create_from_yaml returns a nested list of k8s objects
+        job_response = kubernetes.utils.create_from_yaml(api_client, yaml_objects=[job_dict], namespace=namespace)[0][0]   # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.labels['job-name']
 
         pods = core_api.list_namespaced_pod(label_selector="job-name={}".format(job_name), namespace=namespace)
