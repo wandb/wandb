@@ -93,14 +93,14 @@ class KubernetesRunner(AbstractRunner):
         config_file = resource_args.get("config_file")   # kubeconfig, if None then loads default in ~/.kube
         if config_file is not None or os.path.exists("~/.kube/config"):
             print("Loading from kubeconfig")
-            kubernetes.config.load_kube_config(config_file)
+            config = kubernetes.config.load_kube_config(config_file)
         else:
             print("Loading from in-cluster config")
-            kubernetes.config.load_incluster_config()
+            config = kubernetes.config.load_incluster_config()
 
-        batch_api = kubernetes.client.BatchV1Api()
-        core_api = kubernetes.client.CoreV1Api()
-        api_client = kubernetes.client.ApiClient()
+        batch_api = kubernetes.client.BatchV1Api(config)
+        core_api = kubernetes.client.CoreV1Api(config)
+        api_client = kubernetes.client.ApiClient(config)
 
         # allow users to specify template or entire spec
         if resource_args.get("job_spec"):
