@@ -453,7 +453,7 @@ class Run:
                     self._config.update_locked(
                         new_config, user="launch", _allow_val_change=True
                     )
-                except Exception:
+                except (ValueError, SyntaxError):
                     wandb.termwarn("Malformed WANDB_CONFIG, using original config")
             if os.environ.get("WANDB_ARTIFACTS") is not None:
                 try:
@@ -461,8 +461,8 @@ class Run:
                         os.environ.get("WANDB_ARTIFACTS", '{}')
                     )
                     self._initialize_launch_artifact_maps(artifacts)
-                except Exception:
-                    pass
+                except (ValueError, SyntaxError):
+                    wandb.termwarn("Malformed WANDB_ARTIFACTS, using original artifacts")
 
         elif (
             self._settings.launch
