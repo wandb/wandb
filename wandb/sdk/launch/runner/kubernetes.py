@@ -102,8 +102,8 @@ class KubernetesRunner(AbstractRunner):
 
         resource_args = launch_project.resource_args.get("kubernetes")
         if resource_args is None:
-            raise LaunchError(
-                "No Kubernetes resource args specified. Specify args via --resource-args with a JSON file or string under top-level key kubernetes"
+            wandb.termlog(
+                "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
 
         config_file = resource_args.get("config_file")
