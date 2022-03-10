@@ -196,31 +196,7 @@ def get_base_setup(
     return base_setup
 
 
-def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) -> str:
-    """Fill in wandb-specific environment variables"""
-
-    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
-        _, _, port = api.settings("base_url").split(":")
-        base_url = "http://host.docker.internal:{}".format(port)
-    elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
-    else:
-        base_url = api.settings("base_url")
-    return "\n".join(
-        [
-            f"ENV WANDB_BASE_URL={base_url}",
-            f"ENV WANDB_API_KEY={api.api_key}",
-            f"ENV WANDB_PROJECT={launch_project.target_project}",
-            f"ENV WANDB_ENTITY={launch_project.target_entity}",
-            f"ENV WANDB_LAUNCH={True}",
-            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir, DEFAULT_LAUNCH_METADATA_PATH)}",
-            f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
-            f"ENV WANDB_DOCKER={launch_project.docker_image}",
-        ]
-    )
-
-
-def generate_env_vars(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
+def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
     """Generates environment variables for the project.
 
     Arguments:
@@ -237,17 +213,18 @@ def generate_env_vars(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    env_vars["e WANDB_BASE_URL"] = base_url
+    env_vars["WANDB_BASE_URL"] = base_url
 
-    env_vars["e WANDB_API_KEY"] = api.api_key
-    env_vars["e WANDB_PROJECT"] = launch_project.target_project
-    env_vars["e WANDB_ENTITY"] = launch_project.target_entity
-    env_vars["e WANDB_LAUNCH"] = "True"
-    env_vars["e WANDB_RUN_ID"] = launch_project.run_id or None
-    env_vars["e WANDB_DOCKER"] = launch_project.docker_image
+    env_vars["WANDB_API_KEY"] = api.api_key
+    env_vars["WANDB_PROJECT"] = launch_project.target_project
+    env_vars["WANDB_ENTITY"] = launch_project.target_entity
+    env_vars["WANDB_LAUNCH"] = "True"
+    env_vars["WANDB_RUN_ID"] = launch_project.run_id or None
+    env_vars["WANDB_DOCKER"] = launch_project.docker_image
 
-    env_vars["e WANDB_CONFIG"] = json.dumps(launch_project.override_config)
-    #env_vars["e WANDB_ARTIFACTS"] = str(launch_project.override_artifacts)
+    # TODO: handle env vars > 32760 characters
+    env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
+    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
     
     return env_vars
 
@@ -463,7 +440,7 @@ def construct_gcp_image_uri(
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
 
 
-def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
+def get_docker_command(image: str, env_vars: Dict[str, str], docker_args: Dict[str, Any] = None) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:
@@ -472,6 +449,10 @@ def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[
     """
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
+
+    # hacky handling of env vars, needs to be improved
+    for key, value in env_vars.items():
+        cmd += ["-e", f"{shlex_quote(key)}={shlex_quote(value)}"]
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
@@ -481,13 +462,8 @@ def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[
                 else:
                     cmd += ["--" + shlex_quote(name)]
             else:
-                # hacky handling of env vars, needs to be improved
-                if len(name.split(" ")) == 2:
-                    arg_name = name.split(" ")[0]
-                    key = name.split(" ")[1]
-                    cmd += [f"-{arg_name}", f"{shlex_quote(key)}={shlex_quote(value)}"]
                 # Passed name=value
-                elif len(name) == 1:
+                if len(name) == 1:
                     cmd += ["-" + shlex_quote(name), shlex_quote(value)]
                 else:
                     cmd += ["--" + shlex_quote(name), shlex_quote(value)]

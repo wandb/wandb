@@ -12,7 +12,7 @@ from ..docker import (
     construct_local_image_uri,
     docker_image_exists,
     generate_docker_image,
-    generate_env_vars,
+    get_env_vars_dict,
     get_docker_command,
     pull_docker_image,
     validate_docker_installation,
@@ -84,8 +84,6 @@ class LocalRunner(AbstractRunner):
             if not docker_image_exists(launch_project.docker_image):
                 pull_docker_image(launch_project.docker_image)
             image_uri = launch_project.docker_image
-            env_vars = generate_env_vars(launch_project, self._api)
-            docker_args.update(env_vars)
 
         else:
             # build our own image
@@ -103,7 +101,8 @@ class LocalRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        command_str = " ".join(get_docker_command(image_uri, docker_args))
+        env_vars = get_env_vars_dict(launch_project, self._api)
+        command_str = " ".join(get_docker_command(image_uri,env_vars,docker_args))
         wandb.termlog(
             "Launching run in docker with command: {}".format(
                 sanitize_wandb_api_key(command_str)
