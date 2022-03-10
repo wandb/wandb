@@ -18,6 +18,7 @@ from .._project_spec import LaunchProject
 from ..docker import (
     construct_gcp_image_uri,
     generate_docker_image,
+    get_env_vars_dict,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -162,8 +163,10 @@ class VertexRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
+        env_dict = get_env_vars_dict(launch_project, self._api)
+
         job = aiplatform.CustomContainerTrainingJob(
-            display_name=gcp_training_job_name, container_uri=image_uri,
+            display_name=gcp_training_job_name, container_uri=image_uri,model_serving_container_environment_variables=env_dict
         )
         submitted_run = VertexSubmittedRun(job)
 
