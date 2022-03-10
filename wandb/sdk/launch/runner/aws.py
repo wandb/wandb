@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 if False:
     import boto3  # type: ignore
 import wandb
+from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import LaunchError
 from wandb.util import get_module
@@ -21,6 +22,7 @@ from .._project_spec import (
 from ..docker import (
     construct_local_image_uri,
     generate_docker_image,
+    get_env_vars_dict,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -114,16 +116,13 @@ class AWSSagemakerRunner(AbstractRunner):
             given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
             is not None
         ):
-            wandb.termwarn(
-                "Launching sagemaker job with user provided ECR image, this image will not be able to swap artifacts"
-            )
             sagemaker_client = boto3.client(
                 "sagemaker",
                 region_name=region,
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             )
-            sagemaker_args = build_sagemaker_args(launch_project, account_id)
+            sagemaker_args = build_sagemaker_args(launch_project, self._api, account_id)
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
@@ -204,7 +203,7 @@ class AWSSagemakerRunner(AbstractRunner):
             )
         )
 
-        sagemaker_args = build_sagemaker_args(launch_project, account_id, aws_tag)
+        sagemaker_args = build_sagemaker_args(launch_project,self._api, account_id, aws_tag)
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
         if self.backend_config[PROJECT_SYNCHRONOUS]:
@@ -249,7 +248,7 @@ def merge_aws_tag_with_algorithm_specification(
 
 
 def build_sagemaker_args(
-    launch_project: LaunchProject, account_id: str, aws_tag: Optional[str] = None,
+    launch_project: LaunchProject, api: Api, account_id: str, aws_tag: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args = {}
     given_sagemaker_args = launch_project.resource_args.get("sagemaker")
@@ -295,6 +294,11 @@ def build_sagemaker_args(
         raise LaunchError(
             "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
         )
+
+    given_env = given_sagemaker_args.get("Environment", sagemaker_args.get("environment"))
+    calced_env = get_env_vars_dict(launch_project, api)
+    total_env = {**calced_env, **given_env}
+    sagemaker_args["Environment"] = total_env
 
     # remove args that were passed in for launch but not passed to sagemaker
     sagemaker_args.pop("EcrRepoName", None)

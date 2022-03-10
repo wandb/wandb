@@ -76,9 +76,6 @@ ENV SHELL /bin/bash
 WORKDIR {workdir}
 RUN chown -R {uid} {workdir}
 
-# add env vars
-{env_vars}
-
 # make artifacts cache dir unrelated to build
 RUN mkdir -p {workdir}/.cache && chown -R {uid} {workdir}/.cache
 
@@ -330,9 +327,6 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = "/home/{user}".format(user=username)
 
-    # add env vars
-    env_vars_section = get_env_vars_section(launch_project, api, workdir)
-
     # add entrypoint (eg sagemaker requires special entrypoint)
     entrypoint_section = get_entrypoint_setup(
         launch_project, entry_cmd, workdir, runner_type
@@ -345,7 +339,6 @@ def generate_dockerfile(
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
-        env_vars=env_vars_section,
         entrypoint_setup=entrypoint_section,
     )
 
