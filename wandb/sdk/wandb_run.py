@@ -215,6 +215,21 @@ class Attach:
                     cls._is_attaching = ""
                     raise e
                 cls._is_attaching = ""
+
+            elif getattr(self, "_attach_pid", None) != os.getpid():
+                message = "{}(...) ignored (called from pid={}, init called from pid={}). See: {}".format(
+                    func.__name__,
+                    os.getpid(),
+                    self._init_pid,
+                    wburls.get("multiprocess"),
+                )
+                if self._strict:
+                    wandb.termerror(message, repeat=False)
+                    raise errors.MultiprocessError(
+                        f"{func.__name__}(...) does not support multiprocessing"
+                    )
+                wandb.termwarn(message, repeat=False)
+                return
             return func(self, *args, **kwargs)
 
         return wrapper
@@ -403,6 +418,8 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
+        breakpoint()
+        self._strict = self._settings.strict
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -573,6 +590,8 @@ class Run:
             self._notes = settings.run_notes
         if settings.run_tags is not None:
             self._tags = settings.run_tags
+        if settings.strict is not None:
+            self._strict = settings.strict
 
     def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
@@ -612,23 +631,25 @@ class Run:
     def __getstate__(self) -> Any:
         """Custom pickler."""
         # We only pickle in service mode
-        if not self._settings or not self._settings._require_service:
-            return
+        # if not self._settings or not self._settings._require_service:
+        #     return
 
-        _attach_id = self._attach_id
-        if not _attach_id:
-            return
+        # _attach_id = self._attach_id
+        # if not _attach_id:
+        #     return
 
-        return dict(_attach_id=_attach_id, _init_pid=self._init_pid,)
+        return dict(
+            _attach_id=self._attach_id, _init_pid=self._init_pid, _strict=self._strict
+        )
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
         if not state:
             return
 
-        _attach_id = state.get("_attach_id")
-        if not _attach_id:
-            return
+        # _attach_id = state.get("_attach_id")
+        # if not _attach_id:
+        #     return
 
         if state["_init_pid"] == os.getpid():
             raise RuntimeError("attach in the same process is not supported currently")
@@ -1271,22 +1292,6 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
-        if (
-            not self._settings._require_service
-        ):  # TODO should it be general for all methods (in Attach._attach)
-            current_pid = os.getpid()
-            if current_pid != self._init_pid:
-                message = "log() ignored (called from pid={}, init called from pid={}). See: {}".format(
-                    current_pid, self._init_pid, wburls.get("multiprocess")
-                )
-                if self._settings.strict:
-                    wandb.termerror(message, repeat=False)
-                    raise errors.LogMultiprocessError(
-                        "log() does not support multiprocessing"
-                    )
-                wandb.termwarn(message, repeat=False)
-                return
-
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
