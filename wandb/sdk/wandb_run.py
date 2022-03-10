@@ -215,6 +215,12 @@ class Attach:
                     cls._is_attaching = ""
                     raise e
                 cls._is_attaching = ""
+            # This case means we are tyring to share a run without using service
+            elif getattr(self, "_attach_pid", None) != os.getpid():
+                raise wandb.UsageError(
+                    "To share a run between process please enable service, by adding `wandb.require('service')` to your script.\n"
+                    "For more usage details see: https://github.com/wandb/client/blob/master/docs/dev/wandb-service-user.md"
+                )
             return func(self, *args, **kwargs)
 
         return wrapper
