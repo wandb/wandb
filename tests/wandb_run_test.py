@@ -12,7 +12,7 @@ from unittest import mock
 
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import LogMultiprocessError, UsageError
+from wandb.errors import MultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
@@ -36,11 +36,11 @@ def test_deprecated_run_log_sync(fake_run, capsys):
 
 def test_run_log_mp_warn(fake_run, capsys):
     run = fake_run()
-    run._init_pid += 1
+    run._attach_pid += 1
     run.log(dict(this=1))
     _, stderr = capsys.readouterr()
     assert (
-        f"log() ignored (called from pid={os.getpid()}, init called from pid={run._init_pid})"
+        f"log(...) ignored (called from pid={os.getpid()}, init called from pid={run._init_pid})"
         in stderr
     )
 
@@ -48,10 +48,10 @@ def test_run_log_mp_warn(fake_run, capsys):
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
-    run._init_pid += 1
-    with pytest.raises(LogMultiprocessError) as excinfo:
+    run._attach_pid += 1
+    with pytest.raises(MultiprocessError) as excinfo:
         run.log(dict(this=1))
-        assert "log() does not support multiprocessing" in str(excinfo.value)
+        assert "log(...) does not support multiprocessing" in str(excinfo.value)
     run.finish()
 
 
