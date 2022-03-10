@@ -36,26 +36,26 @@ def test_deprecated_run_log_sync(fake_run, capsys):
 
 def test_run_log_mp_warn(fake_run, capsys):
     run = fake_run()
-    _attach_pid = run._attach_pid
-    run._attach_pid = _attach_pid + 1
+    _init_pid = run._init_pid
+    run._init_pid = _init_pid + 1
     run.log(dict(this=1))
     _, stderr = capsys.readouterr()
     assert (
-        f"log(...) ignored (called from pid={os.getpid()}, init called from pid={run._init_pid})"
+        f"`log` ignored (called from pid={os.getpid()}, `init` called from pid={run._init_pid})"
         in stderr
     )
-    run._attach_pid = _attach_pid
+    run._init_pid = _init_pid
 
 
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
-    _attach_pid = run._attach_pid
-    run._attach_pid = _attach_pid + 1
+    _init_pid = run._init_pid
+    run._init_pid = _init_pid + 1
     with pytest.raises(MultiprocessError) as excinfo:
         run.log(dict(this=1))
-        assert "log(...) does not support multiprocessing" in str(excinfo.value)
-    run._attach_pid = _attach_pid
+        assert "`log` does not support multiprocessing" in str(excinfo.value)
+    run._init_pid = _init_pid
     run.finish()
 
 
