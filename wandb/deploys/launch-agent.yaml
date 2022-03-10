@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: launch-agent
+  namespace: wandb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: launch-agent
+  template:
+    metadata:
+      labels:
+        app: launch-agent
+    spec:
+      serviceAccountName: wandb-launch-serviceaccount
+      containers:
+      - name: launch-agent
+        image: wandb/launch-agent-dev:42b7b2a5
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        env:
+        - name: WANDB_PROJECT
+          valueFrom:
+            configMapKeyRef:
+              name: wandb-setup
+              key: wandb-project
+        - name: WANDB_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: wandb-setup
+              key: wandb-base-url
+        - name: WANDB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wandb-api-key
+              key: password
