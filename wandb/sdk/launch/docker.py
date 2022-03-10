@@ -475,29 +475,25 @@ def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
-            # if isinstance(name, str) and name.startswith("--env"):
-            #     cmd += [f"{name}={value}"]
-            #     print(f"{name}={value}")
             if isinstance(value, bool) and value:
                 if len(name) == 1:
-                    cmd += ["-" + name]
+                    cmd += ["-" + shlex_quote(name)]
                 else:
-                    cmd += ["--" + name]
+                    cmd += ["--" + shlex_quote(name)]
             else:
+                # hacky handling of env vars, needs to be improved
                 if len(name.split(" ")) == 2:
                     arg_name = name.split(" ")[0]
                     key = name.split(" ")[1]
                     cmd += [f"-{arg_name}", f"{shlex_quote(key)}={shlex_quote(value)}"]
                 # Passed name=value
                 elif len(name) == 1:
-                    cmd += ["-" + name, value]
+                    cmd += ["-" + shlex_quote(name), shlex_quote(value)]
                 else:
-                    cmd += ["--" + name, value]
+                    cmd += ["--" + shlex_quote(name), shlex_quote(value)]
 
-    cmd += [image]
-    print("DOCKER COMMAND IS", cmd)
-    print([shlex_quote(c) for c in cmd])
-    return [shlex_quote(c) if not c.startswith("WANDB") else c for c in cmd]
+    cmd += [shlex_quote(image)]
+    return cmd
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
