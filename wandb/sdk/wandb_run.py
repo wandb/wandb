@@ -2439,6 +2439,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
