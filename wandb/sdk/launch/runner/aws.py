@@ -21,7 +21,6 @@ from .._project_spec import (
 from ..docker import (
     construct_local_image_uri,
     generate_docker_image,
-    pull_docker_image,
     validate_docker_installation,
 )
 from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
@@ -49,7 +48,7 @@ class SagemakerSubmittedRun(AbstractRun):
             wandb.termlog(
                 f"Training job {self.training_job_name} status: {status_state}"
             )
-            if status_state in ["stopped", "failed", "finished"]:
+            if status_state != "running":
                 break
             time.sleep(5)
         return status_state == "finished"
@@ -149,7 +148,8 @@ class AWSSagemakerRunner(AbstractRunner):
             + f"/{ecr_repo_name}"
         )
 
-        if self.backend_config[PROJECT_DOCKER_ARGS]:
+        docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
+        if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
                 "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )
@@ -157,8 +157,7 @@ class AWSSagemakerRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
-            _logger.info("Pulling user provided docker image")
-            pull_docker_image(launch_project.docker_image)
+            image = launch_project.docker_image
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
@@ -172,6 +171,7 @@ class AWSSagemakerRunner(AbstractRunner):
         if login_resp is None or "Login Succeeded" not in login_resp:
             raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
+        # todo: we don't always want to tag/push the image (eg if image already hosted on aws), figure this out
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
         docker.tag(image, aws_tag)
 
