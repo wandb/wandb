@@ -441,10 +441,15 @@ class Run:
                 sweep_config, user="sweep", _allow_val_change=True
             )
 
-        if (self._settings.launch and (os.environ.get("WANDB_CONFIG") is not None or os.environ.get("WANDB_ARTIFACTS") is not None)):
+        if self._settings.launch and (
+            os.environ.get("WANDB_CONFIG") is not None
+            or os.environ.get("WANDB_ARTIFACTS") is not None
+        ):
             if os.environ.get("WANDB_CONFIG") is not None:
                 try:
-                    new_config = ast.literal_eval(os.environ.get("WANDB_CONFIG", os.environ.get("'WANDB_CONFIG'")))
+                    new_config = ast.literal_eval(
+                        os.environ.get("WANDB_CONFIG", os.environ.get("'WANDB_CONFIG'"))
+                    )
                     self._config.update_locked(
                         new_config, user="launch", _allow_val_change=True
                     )
@@ -452,7 +457,9 @@ class Run:
                     wandb.termwarn("Malformed WANDB_CONFIG, using original config")
             if os.environ.get("WANDB_ARTIFACTS") is not None:
                 try:
-                    artifacts: Dict[str, Any] = ast.literal_eval(os.environ.get("WANDB_ARTIFACTS"))
+                    artifacts: Dict[str, Any] = ast.literal_eval(
+                        os.environ.get("WANDB_ARTIFACTS")
+                    )
                     self._initialize_launch_artifact_maps(artifacts)
                 except Exception:
                     pass
@@ -474,8 +481,6 @@ class Run:
                 self._config.update_locked(
                     launch_run_config, user="launch", _allow_val_change=True
                 )
-                
-
         self._config._update(config, ignore_locked=True)
 
         # pid is set so we know if this run object was initialized by this process
@@ -504,19 +509,11 @@ class Run:
             artifact_sequence_tuple_or_slot = key.split(":")
 
             if len(artifact_sequence_tuple_or_slot) == 2:
-                sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[
-                    -1
-                ]
-                if self._unique_launch_artifact_sequence_names.get(
-                    sequence_name
-                ):
-                    self._unique_launch_artifact_sequence_names.pop(
-                        sequence_name
-                    )
+                sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[-1]
+                if self._unique_launch_artifact_sequence_names.get(sequence_name):
+                    self._unique_launch_artifact_sequence_names.pop(sequence_name)
                 else:
-                    self._unique_launch_artifact_sequence_names[
-                        sequence_name
-                    ] = item
+                    self._unique_launch_artifact_sequence_names[sequence_name] = item
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)

@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-CORES = 1 # multiprocessing.cpu_count()
+CORES = 1  # multiprocessing.cpu_count()
 ONLY_INCLUDE = set(
     [x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""]
 )
@@ -66,7 +66,7 @@ def main():
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
                     # if req.startswith("wandb==") and "dev1" in req:
                     #     req = "wandb"
-                    if 'wandb' in req:
+                    if "wandb" in req:
                         req = "git+https://github.com/wandb/client.git@launch/no-build-case"
                     reqs.append(req.strip())
                 else:

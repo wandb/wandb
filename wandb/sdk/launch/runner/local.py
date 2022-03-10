@@ -77,7 +77,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        
+
         if launch_project.docker_image:
             # user has provided their own docker image
             _logger.info("Pulling user provided docker image")
@@ -102,7 +102,7 @@ class LocalRunner(AbstractRunner):
             return None
 
         env_vars = get_env_vars_dict(launch_project, self._api)
-        command_str = " ".join(get_docker_command(image_uri,env_vars,docker_args))
+        command_str = " ".join(get_docker_command(image_uri, env_vars, docker_args))
         wandb.termlog(
             "Launching run in docker with command: {}".format(
                 sanitize_wandb_api_key(command_str)

@@ -203,7 +203,9 @@ class AWSSagemakerRunner(AbstractRunner):
             )
         )
 
-        sagemaker_args = build_sagemaker_args(launch_project,self._api, account_id, aws_tag)
+        sagemaker_args = build_sagemaker_args(
+            launch_project, self._api, account_id, aws_tag
+        )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
         if self.backend_config[PROJECT_SYNCHRONOUS]:
@@ -248,7 +250,10 @@ def merge_aws_tag_with_algorithm_specification(
 
 
 def build_sagemaker_args(
-    launch_project: LaunchProject, api: Api, account_id: str, aws_tag: Optional[str] = None,
+    launch_project: LaunchProject,
+    api: Api,
+    account_id: str,
+    aws_tag: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args = {}
     given_sagemaker_args = launch_project.resource_args.get("sagemaker")
@@ -295,7 +300,9 @@ def build_sagemaker_args(
             "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
         )
 
-    given_env = given_sagemaker_args.get("Environment", sagemaker_args.get("environment"))
+    given_env = given_sagemaker_args.get(
+        "Environment", sagemaker_args.get("environment")
+    )
     calced_env = get_env_vars_dict(launch_project, api)
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env

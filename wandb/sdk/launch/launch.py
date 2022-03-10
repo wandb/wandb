@@ -70,8 +70,10 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = launch_config.get(launch_config.get("docker", {}).get("args", None), {})
-    
+    runner_config[PROJECT_DOCKER_ARGS] = launch_config.get(
+        launch_config.get("docker", {}).get("args", None), {}
+    )
+
     # (
     #     launch_config["docker"] if launch_config else {}
     # )

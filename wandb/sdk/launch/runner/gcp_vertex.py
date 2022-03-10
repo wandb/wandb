@@ -166,7 +166,9 @@ class VertexRunner(AbstractRunner):
         env_dict = get_env_vars_dict(launch_project, self._api)
 
         job = aiplatform.CustomContainerTrainingJob(
-            display_name=gcp_training_job_name, container_uri=image_uri,model_serving_container_environment_variables=env_dict
+            display_name=gcp_training_job_name,
+            container_uri=image_uri,
+            model_serving_container_environment_variables=env_dict,
         )
         submitted_run = VertexSubmittedRun(job)
 

@@ -222,7 +222,7 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
-    
+
     return env_vars
 
 
@@ -433,7 +433,9 @@ def construct_gcp_image_uri(
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
 
 
-def get_docker_command(image: str, env_vars: Dict[str, str], docker_args: Dict[str, Any] = None) -> List[str]:
+def get_docker_command(
+    image: str, env_vars: Dict[str, str], docker_args: Dict[str, Any] = None
+) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:

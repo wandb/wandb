@@ -1086,7 +1086,11 @@ def launch(
     else:
         config = {}
 
-    if uri is None and config.get("uri") is not None and config.get("docker", {}).get("docker_image") is None:
+    if (
+        uri is None
+        and config.get("uri") is not None
+        and config.get("docker", {}).get("docker_image") is None
+    ):
         raise LaunchError("Must pass a URI or a docker image to launch.")
 
     if queue is None:
