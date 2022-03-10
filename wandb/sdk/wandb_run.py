@@ -215,12 +215,6 @@ class Attach:
                     cls._is_attaching = ""
                     raise e
                 cls._is_attaching = ""
-            # This case means we are tyring to share a run without using service
-            elif getattr(self, "_attach_pid", None) != os.getpid():
-                raise wandb.UsageError(
-                    "To share a run between processes please enable service, by adding `wandb.require('service')` to your script.\n"
-                    "For more details see: https://github.com/wandb/client/blob/master/docs/dev/wandb-service-user.md"
-                )
             return func(self, *args, **kwargs)
 
         return wrapper
@@ -1277,11 +1271,13 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
-        if not self._settings._require_service:
+        if (
+            not self._settings._require_service
+        ):  # TODO should it be general for all methods (in Attach._attach)
             current_pid = os.getpid()
             if current_pid != self._init_pid:
-                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                    current_pid, self._init_pid
+                message = "log() ignored (called from pid={}, init called from pid={}). See: {}".format(
+                    current_pid, self._init_pid, wburls.get("multiprocess")
                 )
                 if self._settings.strict:
                     wandb.termerror(message, repeat=False)
