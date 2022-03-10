@@ -4,10 +4,10 @@ import argparse
 import os
 
 import torch
-import torch.optim as optim
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.multiprocessing as mp
+import torch.nn as nn
+import torch.nn.functional as F  # noqa: N812
+import torch.optim as optim
 from torchvision import datasets, transforms
 import wandb
 
