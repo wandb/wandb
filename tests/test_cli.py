@@ -995,6 +995,10 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         )
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Permissions error [WinError 32] when removing tmp dir on Windows",
+)
 def test_sync_summary(runner, live_mock_server, test_settings):
     with tempfile.TemporaryDirectory() as tmpdir:
         test_settings.update(mode="offline", root_dir=tmpdir)
