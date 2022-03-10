@@ -83,12 +83,6 @@ class LocalRunner(AbstractRunner):
             _logger.info("Pulling user provided docker image")
             if not docker_image_exists(launch_project.docker_image):
                 pull_docker_image(launch_project.docker_image)
-
-            wandb.termwarn(
-                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
-                    launch_project.docker_image
-                )
-            )
             image_uri = launch_project.docker_image
             env_vars = generate_env_vars(launch_project, self._api)
             docker_args.update(env_vars)
