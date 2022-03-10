@@ -442,7 +442,7 @@ class Run:
             )
 
         if (self._settings.launch and (os.environ.get("WANDB_CONFIG") is not None or os.environ.get("WANDB_ARTIFACTS") is not None)):
-            if (os.environ.get("'WANDB_CONFIG'") or os.environ.get("WANDB_CONFIG")):
+            if os.environ.get("WANDB_CONFIG") is not None:
                 try:
                     new_config = ast.literal_eval(os.environ.get("WANDB_CONFIG", os.environ.get("'WANDB_CONFIG'")))
                     self._config.update_locked(
@@ -450,7 +450,7 @@ class Run:
                     )
                 except Exception:
                     wandb.termwarn("Malformed WANDB_CONFIG, using original config")
-            if (os.environ.get("WANDB_ARTIFACTS")):
+            if os.environ.get("WANDB_ARTIFACTS") is not None:
                 try:
                     artifacts = ast.literal_eval(os.environ.get("WANDB_ARTIFACTS"))
                     for key, item in artifacts.items():
