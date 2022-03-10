@@ -447,9 +447,7 @@ class Run:
         ):
             if os.environ.get("WANDB_CONFIG") is not None:
                 try:
-                    new_config = ast.literal_eval(
-                        os.environ.get("WANDB_CONFIG", '{}')
-                    )
+                    new_config = ast.literal_eval(os.environ.get("WANDB_CONFIG", "{}"))
                     self._config.update_locked(
                         new_config, user="launch", _allow_val_change=True
                     )
@@ -458,11 +456,13 @@ class Run:
             if os.environ.get("WANDB_ARTIFACTS") is not None:
                 try:
                     artifacts: Dict[str, Any] = ast.literal_eval(
-                        os.environ.get("WANDB_ARTIFACTS", '{}')
+                        os.environ.get("WANDB_ARTIFACTS", "{}")
                     )
                     self._initialize_launch_artifact_maps(artifacts)
                 except (ValueError, SyntaxError):
-                    wandb.termwarn("Malformed WANDB_ARTIFACTS, using original artifacts")
+                    wandb.termwarn(
+                        "Malformed WANDB_ARTIFACTS, using original artifacts"
+                    )
 
         elif (
             self._settings.launch
