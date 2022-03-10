@@ -418,7 +418,6 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
-        breakpoint()
         self._strict = self._settings.strict
 
         self._output_writer = None
