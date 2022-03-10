@@ -195,7 +195,7 @@ class Attach:
 
             # * `_attach_id` is only assigned in service hence for all non-service cases
             # it will be a passthrough.
-            # * `_attach_pid` is only assigned in _init:
+            # * `_attach_pid` is only assigned in _init (using _attach_pid gurantees single attach):
             #   - for non-fork case the object is shared through pickling so will be None.
             #   - for fork case the new process share mem space hence the value would be of parent process.
             if (
@@ -223,10 +223,12 @@ class Attach:
     def _noop(cls, func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
-            if (
-                not getattr(self, "_attach_id", None)
-                and getattr(self, "_init_pid", None) != os.getpid()
-            ):
+            # * `_attach_id` is only assigned in service hence for all service cases
+            # it will be a passthrough.
+            # * `_init_pid` is only assigned in __init__ (this will be constant check for mp):
+            #   - for non-fork case the object is shared through pickling so will be the pid of the parent.
+            #   - for fork case the new process share mem space hence the value would be of parent process.
+            if not getattr(self, "_attach_id", None) and self._init_pid != os.getpid():
                 message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
                     func.__name__,
                     os.getpid(),
