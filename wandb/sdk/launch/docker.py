@@ -17,7 +17,6 @@ from wandb.errors import DockerError, ExecutionError, LaunchError
 
 from ._project_spec import (
     create_metadata_file,
-    DEFAULT_LAUNCH_METADATA_PATH,
     EntryPoint,
     get_entry_point_command,
     LaunchProject,
@@ -216,8 +215,9 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars["WANDB_PROJECT"] = launch_project.target_project
     env_vars["WANDB_ENTITY"] = launch_project.target_entity
     env_vars["WANDB_LAUNCH"] = "True"
-    env_vars["WANDB_RUN_ID"] = launch_project.run_id or None
-    env_vars["WANDB_DOCKER"] = launch_project.docker_image
+    env_vars["WANDB_RUN_ID"] = launch_project.run_id
+    if launch_project.docker_image:
+        env_vars["WANDB_DOCKER"] = launch_project.docker_image
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
@@ -446,8 +446,9 @@ def get_docker_command(
     cmd: List[Any] = [docker_path, "run", "--rm"]
 
     # hacky handling of env vars, needs to be improved
-    for key, value in env_vars.items():
-        cmd += ["-e", f"{shlex_quote(key)}={shlex_quote(value)}"]
+    for env_key, env_value in env_vars.items():
+        cmd += ["-e", f"{shlex_quote(env_key)}={shlex_quote(env_value)}"]
+
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
@@ -459,9 +460,9 @@ def get_docker_command(
             else:
                 # Passed name=value
                 if len(name) == 1:
-                    cmd += ["-" + shlex_quote(name), shlex_quote(value)]
+                    cmd += ["-" + shlex_quote(name), shlex_quote(str(value))]
                 else:
-                    cmd += ["--" + shlex_quote(name), shlex_quote(value)]
+                    cmd += ["--" + shlex_quote(name), shlex_quote(str(value))]
 
     cmd += [shlex_quote(image)]
     return cmd

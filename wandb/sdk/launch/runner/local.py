@@ -12,8 +12,8 @@ from ..docker import (
     construct_local_image_uri,
     docker_image_exists,
     generate_docker_image,
-    get_env_vars_dict,
     get_docker_command,
+    get_env_vars_dict,
     pull_docker_image,
     validate_docker_installation,
 )
