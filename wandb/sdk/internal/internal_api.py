@@ -2076,7 +2076,6 @@ class Api:
             template = template.replace(a, b)
 
         if server_id:
-            logger.debug("link_artifact using public artifact")
             replace("ID_TYPE", "$artifactID: ID")
             replace("ID_VALUE", "artifactID: $artifactID")
         elif client_id:
@@ -2097,8 +2096,7 @@ class Api:
 
         mutation = gql(template)
         response = self.gql(mutation, variable_values=variable_values)
-        logger.debug("Done with link_artifact mutation")
-        logger.debug(f"{response}")
+        return response["linkArtifact"]
 
     def use_artifact(
         self,

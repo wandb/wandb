@@ -16,7 +16,6 @@ import os
 from typing import Any, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
-import six
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -416,8 +415,7 @@ class InterfaceBase(object):
         link_artifact.portfolio_name = portfolio_name
         link_artifact.portfolio_entity = entity or run.entity
         link_artifact.portfolio_project = project or run.project
-        for alias in aliases:
-            link_artifact.portfolio_aliases.append(alias)
+        link_artifact.portfolio_aliases.extend(aliases)
 
         self._publish_link_artifact(link_artifact)
 
