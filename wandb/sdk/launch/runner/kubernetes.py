@@ -100,7 +100,7 @@ class KubernetesRunner(AbstractRunner):
             "kubernetes", "KubernetesRunner requires kubernetes to be installed"
         )
 
-        resource_args = launch_project.resource_args.get("kubernetes")
+        resource_args = launch_project.resource_args.get("kubernetes", {})
         if resource_args is None:
             wandb.termlog(
                 "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
