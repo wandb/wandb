@@ -202,6 +202,7 @@ class Attach:
                 getattr(self, "_attach_id", None)
                 and getattr(self, "_attach_pid", None) != os.getpid()
             ):
+
                 if cls._is_attaching:
                     message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{cls._is_attaching}`"
                     raise RuntimeError(message)
@@ -2037,6 +2038,21 @@ class Run:
             A metric object is returned that can be further specified.
 
         """
+        return self._define_metric(
+            name, step_metric, step_sync, hidden, summary, goal, overwrite, **kwargs
+        )
+
+    def _define_metric(
+        self,
+        name: str,
+        step_metric: Union[str, wandb_metric.Metric, None] = None,
+        step_sync: bool = None,
+        hidden: bool = None,
+        summary: str = None,
+        goal: str = None,
+        overwrite: bool = None,
+        **kwargs: Any,
+    ) -> wandb_metric.Metric:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
         for k in kwargs:
