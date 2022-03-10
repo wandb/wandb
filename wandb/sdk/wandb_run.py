@@ -638,7 +638,7 @@ class Run:
         #     return
 
         return dict(
-            _attach_id=self._attach_id, _init_pid=self._init_pid, _strict=self._strict
+            _attach_id=self._attach_id, _init_pid=self._init_pid, _strict=self._strict,
         )
 
     def __setstate__(self, state: Any) -> None:
