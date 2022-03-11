@@ -33,7 +33,7 @@ def create_and_run_agent(
 
 
 def _run(
-    uri: str,
+    uri: Optional[str],
     name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
@@ -70,9 +70,12 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = (
-        launch_config["docker"] if launch_config else {}
-    )
+    if launch_config is not None:
+        docker_info = launch_config.get("docker", {})
+        docker_args = docker_info.get("args", {})
+        runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    else:
+        runner_config[PROJECT_DOCKER_ARGS] = {}
 
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
@@ -90,7 +93,7 @@ def _run(
 
 
 def run(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     entry_point: Optional[str] = None,
     version: Optional[str] = None,
@@ -160,7 +163,6 @@ def run(
             docker_args["network"] = "host"
         if sys.platform == "linux" or sys.platform == "linux2":
             docker_args["add-host"] = "host.docker.internal:host-gateway"
-
     if config is None:
         config = {}
 

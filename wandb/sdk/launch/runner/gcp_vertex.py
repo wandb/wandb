@@ -19,6 +19,7 @@ from ..docker import (
     construct_gcp_image_uri,
     generate_docker_image,
     pull_docker_image,
+    get_env_vars_dict,
     validate_docker_installation,
 )
 from ..utils import (
@@ -144,7 +145,10 @@ class VertexRunner(AbstractRunner):
             image_uri = launch_project.docker_image
         else:
             image_uri = construct_gcp_image_uri(
-                launch_project, gcp_artifact_repo, gcp_project, gcp_docker_host,
+                launch_project,
+                gcp_artifact_repo,
+                gcp_project,
+                gcp_docker_host,
             )
 
             generate_docker_image(
@@ -162,8 +166,12 @@ class VertexRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
+        env_dict = get_env_vars_dict(launch_project, self._api)
+
         job = aiplatform.CustomContainerTrainingJob(
-            display_name=gcp_training_job_name, container_uri=image_uri,
+            display_name=gcp_training_job_name,
+            container_uri=image_uri,
+            model_serving_container_environment_variables=env_dict,
         )
         submitted_run = VertexSubmittedRun(job)
 
