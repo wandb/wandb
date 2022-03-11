@@ -39,3 +39,4 @@ absl-py
 .[launch]
 .[sweeps]
 .[azure]
+cloudpickle
