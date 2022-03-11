@@ -2165,6 +2165,7 @@ class Run:
         aliases: List[str],
     ) -> None:
         """Links the given artifact to a portfolio (a promoted collection of artifacts).
+
         The linked artifact will be visible in the UI for the specified portfolio.
 
         Arguments:
@@ -2178,7 +2179,6 @@ class Run:
             None
 
         """
-
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
 
         if self._backend and self._backend.interface:

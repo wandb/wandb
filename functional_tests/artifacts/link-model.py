@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F  # noqa
 import wandb
-from wandb.beta.workflows import log_model, link_model
+from wandb.beta.workflows import link_model, log_model
 
 
 class Net(nn.Module):

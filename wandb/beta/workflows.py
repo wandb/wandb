@@ -189,6 +189,10 @@ def use_model(aliased_path: str) -> "_SavedModel":
         sm = use_model("my-simple-model:latest")
         model = sm.model_obj()
     """
+    if ":" not in aliased_path:
+        raise ValueError(
+            "aliased_path must be of the form 'name:alias' or 'name:version'."
+        )
     parts = aliased_path.split(":")
     if len(parts) == 1:
         aliased_path += "latest"
