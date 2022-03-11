@@ -16,7 +16,6 @@ import os
 from typing import Any, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
-import six
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
@@ -140,7 +139,7 @@ class InterfaceBase(object):
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
-            for k, v in six.iteritems(data):
+            for k, v in data.items():
                 update = config.update.add()
                 update.key = k
                 update.value_json = json_dumps_safer(json_friendly(v)[0])
@@ -229,7 +228,7 @@ class InterfaceBase(object):
 
     def _make_summary_from_dict(self, summary_dict: dict) -> pb.SummaryRecord:
         summary = pb.SummaryRecord()
-        for k, v in six.iteritems(summary_dict):
+        for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
@@ -252,7 +251,7 @@ class InterfaceBase(object):
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in six.iteritems(value):
+            for key, value in value.items():
                 json_value[key] = self._summary_encode(
                     value, path_from_root + "." + key
                 )
@@ -488,14 +487,15 @@ class InterfaceBase(object):
     def publish_partial_history(
         self,
         data: dict,
-        step: int,
+        user_step: int,
+        step: Optional[int] = None,
         flush: Optional[bool] = None,
         publish_step: bool = True,
         run: Optional["Run"] = None,
     ) -> None:
         run = run or self._run
 
-        data = history_dict_to_json(run, data, step=step, ignore_copy_err=True)
+        data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
         partial_history = pb.PartialHistoryRequest()
@@ -503,8 +503,8 @@ class InterfaceBase(object):
             item = partial_history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
-        if publish_step:
-            assert step is not None
+        if publish_step and step is not None:
+            # assert step is not None
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush
@@ -524,7 +524,7 @@ class InterfaceBase(object):
             assert step is not None
             history.step.num = step
         data.pop("_step", None)
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)

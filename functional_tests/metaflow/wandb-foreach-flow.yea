@@ -1,7 +1,13 @@
 id: metaflow.foreach.base
 plugin:
   - wandb
+depend:
+  requirements:
+    - "metaflow>=2.3.5"
+    - pandas
+    - scikit-learn
 tag:
+  shard: metaflow
   skips:
     - platform: win
 command:
