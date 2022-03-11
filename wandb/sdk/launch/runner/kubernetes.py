@@ -243,7 +243,7 @@ class KubernetesRunner(AbstractRunner):
             if registry:
                 repo, tag = image_uri.split(":")
                 docker.push(repo, tag)
-        given_env_vars = resource_args.get("env")
+        given_env_vars = resource_args.get("env", {})
         env_vars = get_env_vars_dict(launch_project, self._api)
         merged_env_vars = {**env_vars, **given_env_vars}
 
