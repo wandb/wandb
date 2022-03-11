@@ -200,7 +200,6 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("node_selectors"):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
 
-        entry_point = launch_project.get_single_entry_point()
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
@@ -231,6 +230,7 @@ class KubernetesRunner(AbstractRunner):
             image_uri = construct_local_image_uri(launch_project)
             if registry:
                 image_uri = os.path.join(registry, image_uri)
+            entry_point = launch_project.get_single_entry_point()
             generate_docker_image(
                 self._api,
                 launch_project,
