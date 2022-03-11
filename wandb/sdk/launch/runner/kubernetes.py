@@ -15,6 +15,7 @@ from .._project_spec import LaunchProject
 from ..docker import (
     construct_local_image_uri,
     generate_docker_image,
+    get_env_vars_dict,
 )
 from ..utils import (
     PROJECT_DOCKER_ARGS,
@@ -107,7 +108,9 @@ class KubernetesRunner(AbstractRunner):
             )
 
         config_file = resource_args.get("config_file")
-        if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
+        if config_file is not None or os.path.exists(
+            os.path.expanduser("~/.kube/config")
+        ):
             # if config_file is None then loads default in ~/.kube
             config = kubernetes.config.load_kube_config(config_file)
         else:
@@ -207,15 +210,6 @@ class KubernetesRunner(AbstractRunner):
         user_provided_image = image or launch_project.docker_image
         if user_provided_image:
             containers[0]["image"] = user_provided_image
-            containers[0]["env"] = [
-                {"name": "WANDB_DOCKER", "value": user_provided_image},
-                {"name": "WANDB_RUN_ID", "value": launch_project.run_id},
-                {"name": "WANDB_BASE_URL", "value": self._api.settings("base_url")},
-                {"name": "WANDB_PROJECT", "value": launch_project.target_project},
-                {"name": "WANDB_API_KEY", "value": self._api.api_key},
-                {"name": "WANDB_LAUNCH", "value": "true"},
-                {"name": "WANDB_ENTITY", "value": launch_project.target_entity}
-            ]
         else:
             registry = resource_args.get("registry")
             if registry is None:
@@ -239,7 +233,13 @@ class KubernetesRunner(AbstractRunner):
             if registry:
                 repo, tag = image_uri.split(":")
                 docker.push(repo, tag)
+        given_env_vars = resource_args.get("env")
+        env_vars = get_env_vars_dict(launch_project, self._api)
+        merged_env_vars = {**env_vars, **given_env_vars}
 
+        containers[0]["env"] = [
+            {"name": k, "value": v} for k, v in merged_env_vars.items()
+        ]
         # reassemble spec
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec
