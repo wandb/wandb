@@ -66,6 +66,7 @@ def main():
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
                     # if req.startswith("wandb==") and "dev1" in req:
                     #     req = "wandb"
+                    # fix this before merging to master
                     if "wandb" in req:
                         req = "git+https://github.com/wandb/client.git@launch/no-build-case"
                     reqs.append(req.strip())
