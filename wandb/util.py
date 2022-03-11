@@ -1,7 +1,6 @@
 import base64
 import binascii
 import codecs
-from collections import defaultdict
 import colorsys
 import contextlib
 from datetime import date, datetime
@@ -1572,14 +1571,12 @@ def _parse_entity_project_item(path: str) -> tuple:
 
     """
     words = path.split("/")
-    if len(words) == 0 or len(words) > 3:
+    if len(words) > 3:
         raise ValueError(
-            "Invalid path: must be of the form {item}, {project}/{item}, or {entity}/{project}/{item}"
+            "Invalid path: must be str the form {item}, {project}/{item}, or {entity}/{project}/{item}"
         )
-    keys = ["item", "project", "entity"]
-    rev = reversed(words)
-    parsed = defaultdict(str, zip(keys, rev))
-    return tuple(parsed[key] for key in keys)
+    padded_words = [""] * (3 - len(words)) + words
+    return tuple(reversed(padded_words))
 
 
 def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
@@ -1602,7 +1599,11 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
     """
     if aliases is None:
         aliases = []
-    elif isinstance(aliases, str):
+
+    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
+        raise ValueError("`aliases` must either be None or of type str or list")
+
+    if isinstance(aliases, str):
         aliases = [aliases]
 
     if "latest" not in aliases:
