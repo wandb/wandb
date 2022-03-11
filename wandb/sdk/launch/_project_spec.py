@@ -441,7 +441,7 @@ def fetch_and_validate_project(
         if not launch_project._entry_points:
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
             launch_project.add_entry_point("main.py")
-    elif launch_project.source != LaunchSource.DOCKER:
+    else:
         launch_project._fetch_project_local(internal_api=api)
 
     # this prioritizes pip and we don't support any cases where both are present

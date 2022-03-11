@@ -80,9 +80,7 @@ class LocalRunner(AbstractRunner):
 
         if launch_project.docker_image:
             # user has provided their own docker image
-            _logger.info("Pulling user provided docker image")
-            if not docker_image_exists(launch_project.docker_image):
-                pull_docker_image(launch_project.docker_image)
+            pull_docker_image(launch_project.docker_image)
             image_uri = launch_project.docker_image
 
         else:

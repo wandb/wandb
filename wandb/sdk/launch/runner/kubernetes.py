@@ -233,8 +233,13 @@ class KubernetesRunner(AbstractRunner):
             if registry:
                 repo, tag = image_uri.split(":")
                 docker.push(repo, tag)
+        given_env_vars = resource_args.get("env")
         env_vars = get_env_vars_dict(launch_project, self._api)
-        containers[0]["env"] = [{"name": k, "value": v} for k, v in env_vars.items()]
+        merged_env_vars = {**env_vars, **given_env_vars}
+
+        containers[0]["env"] = [
+            {"name": k, "value": v} for k, v in merged_env_vars.items()
+        ]
         # reassemble spec
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec

@@ -412,6 +412,7 @@ def pull_docker_image(docker_image: str) -> None:
         # don't pull images if they exist already, eg if they are local images
         return
     try:
+        _logger.info("Pulling user provided docker image")
         docker.run(["docker", "pull", docker_image])
     except DockerError as e:
         raise LaunchError("Docker server returned error: {}".format(e))

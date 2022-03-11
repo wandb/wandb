@@ -70,11 +70,12 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = (
-        launch_config.get(launch_config.get("docker", {}).get("args", None), {})
-        if launch_config
-        else {}
-    )
+    if launch_config is not None:
+        docker_info = launch_config.get("docker", {})
+        docker_args = docker_info.get("args", {})
+        runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    else:
+        runner_config[PROJECT_DOCKER_ARGS] = {}
 
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
