@@ -3623,11 +3623,6 @@ class Artifact(artifacts.Artifact):
         entity = entity or r.entity or self.entity
         project = project or r.project or self.project
 
-        if project is None or entity is None:
-            raise ValueError(
-                "Please make sure `target_path` is of the format {entity}/{project}/{target_name}."
-            )
-
         mutation = gql(
             """
             mutation LinkArtifact($artifactID: ID!, $artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!]) {
