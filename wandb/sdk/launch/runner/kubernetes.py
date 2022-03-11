@@ -179,6 +179,16 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["resources"] = container_resources
         # todo: args and env vars would be added here, need to figure out what kind of overrides we want
 
+        containers[0]["security_context"] = {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {
+                "drop": ["ALL"]
+            },
+            "seccompProfile": {
+                "type": "RuntimeDefault"
+            }
+        }
+
         pod_spec["restartPolicy"] = resource_args.get("pod_restart_policy", "Never")
         if resource_args.get("pod_preemption_policy"):
             pod_spec["preemptionPolicy"] = resource_args.get("pod_preemption_policy")
