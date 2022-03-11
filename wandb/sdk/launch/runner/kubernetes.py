@@ -13,22 +13,26 @@ from wandb.util import get_module, load_json_yaml_dict
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject
-from ..docker import (
-    construct_local_image_uri,
-    generate_docker_image,
-)
+from ..docker import construct_local_image_uri, generate_docker_image, get_env_vars_dict
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = 60 # default 10 second loop time on the agent, this is 10 minutes
+MAX_KUBERNETES_RETRIES = (
+    60  # default 10 second loop time on the agent, this is 10 minutes
+)
 
 
 class KubernetesSubmittedRun(AbstractRun):
     def __init__(
-        self, batch_api: "BatchV1Api", core_api: "CoreV1Api", name: str, namespace: Optional[str] = "default", pod_names: List[str] = None
+        self,
+        batch_api: "BatchV1Api",
+        core_api: "CoreV1Api",
+        name: str,
+        namespace: Optional[str] = "default",
+        pod_names: List[str] = None,
     ) -> None:
         self.batch_api = batch_api
         self.core_api = core_api
@@ -61,16 +65,26 @@ class KubernetesSubmittedRun(AbstractRun):
         )
         status = job_response.status
         try:
-            self.core_api.read_namespaced_pod_log(name=self.pod_names[0], namespace=self.namespace)
+            self.core_api.read_namespaced_pod_log(
+                name=self.pod_names[0], namespace=self.namespace
+            )
         except Exception as e:
             if self._fail_count == 1:
-                wandb.termlog("Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(self.name))
+                wandb.termlog(
+                    "Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(
+                        self.name
+                    )
+                )
             self._fail_count += 1
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 if hasattr(e, "body") and hasattr(e.body, "message"):
-                    raise LaunchError(f"Failed to start job {self.name}, because of error {str(e.body.message)}")
+                    raise LaunchError(
+                        f"Failed to start job {self.name}, because of error {str(e.body.message)}"
+                    )
                 else:
-                    raise LaunchError(f"Failed to start job {self.name}, because of error {str(e)}")
+                    raise LaunchError(
+                        f"Failed to start job {self.name}, because of error {str(e)}"
+                    )
 
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         if status.succeeded == 1:
@@ -124,7 +138,9 @@ class KubernetesRunner(AbstractRunner):
             )
 
         config_file = resource_args.get("config_file")
-        if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
+        if config_file is not None or os.path.exists(
+            os.path.expanduser("~/.kube/config")
+        ):
             # if config_file is None then loads default in ~/.kube
             config = kubernetes.config.load_kube_config(config_file)
         else:
@@ -204,7 +220,6 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("node_selectors"):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
 
-        entry_point = launch_project.get_single_entry_point()
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
@@ -235,6 +250,7 @@ class KubernetesRunner(AbstractRunner):
             image_uri = construct_local_image_uri(launch_project)
             if registry:
                 image_uri = os.path.join(registry, image_uri)
+            entry_point = launch_project.get_single_entry_point()
             generate_docker_image(
                 self._api,
                 launch_project,
@@ -247,7 +263,12 @@ class KubernetesRunner(AbstractRunner):
             if registry:
                 repo, tag = image_uri.split(":")
                 docker.push(repo, tag)
-
+        given_env_vars = resource_args.get("env", {})
+        env_vars = get_env_vars_dict(launch_project, self._api)
+        merged_env_vars = {**env_vars, **given_env_vars}
+        containers[0]["env"] = [
+            {"name": k, "value": v} for k, v in merged_env_vars.items()
+        ]
         # reassemble spec
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec
@@ -292,7 +313,9 @@ class KubernetesRunner(AbstractRunner):
             )
         )
 
-        submitted_job = KubernetesSubmittedRun(batch_api,core_api, job_name, namespace, pod_names)
+        submitted_job = KubernetesSubmittedRun(
+            batch_api, core_api, job_name, namespace, pod_names
+        )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()

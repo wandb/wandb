@@ -220,6 +220,38 @@ def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) 
     )
 
 
+def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
+    """Generates environment variables for the project.
+    Arguments:
+    launch_project: LaunchProject to generate environment variables for.
+    Returns:
+        Dictionary of environment variables.
+    """
+    env_vars = {}
+    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
+        _, _, port = api.settings("base_url").split(":")
+        base_url = "http://host.docker.internal:{}".format(port)
+    elif _is_wandb_dev_uri(api.settings("base_url")):
+        base_url = "http://host.docker.internal:9002"
+    else:
+        base_url = api.settings("base_url")
+    env_vars["WANDB_BASE_URL"] = base_url
+
+    env_vars["WANDB_API_KEY"] = api.api_key
+    env_vars["WANDB_PROJECT"] = launch_project.target_project
+    env_vars["WANDB_ENTITY"] = launch_project.target_entity
+    env_vars["WANDB_LAUNCH"] = "True"
+    env_vars["WANDB_RUN_ID"] = launch_project.run_id
+    if launch_project.docker_image:
+        env_vars["WANDB_DOCKER"] = launch_project.docker_image
+
+    # TODO: handle env vars > 32760 characters
+    env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
+    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
+
+    return env_vars
+
+
 def get_requirements_section(launch_project: LaunchProject) -> str:
     buildx_installed = docker.is_buildx_installed()
     if not buildx_installed:
@@ -288,7 +320,10 @@ def get_entrypoint_setup(
 
 
 def generate_dockerfile(
-    api: Api, launch_project: LaunchProject, entry_cmd: str, runner_type: str,
+    api: Api,
+    launch_project: LaunchProject,
+    entry_cmd: str,
+    runner_type: str,
 ) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
@@ -423,13 +458,19 @@ def construct_local_image_uri(launch_project: LaunchProject) -> str:
 
 
 def construct_gcp_image_uri(
-    launch_project: LaunchProject, gcp_repo: str, gcp_project: str, gcp_registry: str,
+    launch_project: LaunchProject,
+    gcp_repo: str,
+    gcp_project: str,
+    gcp_registry: str,
 ) -> str:
     base_uri = construct_local_image_uri(launch_project)
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
 
 
-def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
+def get_docker_command(
+    image: str,
+    docker_args: Dict[str, Any] = None,
+) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:
@@ -503,13 +544,16 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
 
 
 def _create_docker_build_ctx(
-    launch_project: LaunchProject, dockerfile_contents: str,
+    launch_project: LaunchProject,
+    dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(
-        src=launch_project.project_dir, dst=dst_path, symlinks=True,
+        src=launch_project.project_dir,
+        dst=dst_path,
+        symlinks=True,
     )
     shutil.copy(
         os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
