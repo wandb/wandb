@@ -8,8 +8,5 @@ from .monkeypatch import patch, unpatch
 __all__ = [
     "patch",
     "unpatch",
-    "_log",
     "log",
-    "reset_state",
-    "tf_summary_to_dict",
 ]

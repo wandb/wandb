@@ -35,6 +35,11 @@ def patch(
             "from `wandb.init` or only call `wandb.tensorboard.patch` once."
         )
 
+    if wandb.run is None:
+        raise wandb.Error(
+            "You must call `wandb.init` before calling `wandb.tensorflow.patch`"
+        )
+
     # TODO: Some older versions of tensorflow don't require tensorboard to be present.
     # we may want to lift this requirement, but it's safer to have it for now
     wandb.util.get_module("tensorboard", required="Please install tensorboard package")
@@ -176,5 +181,4 @@ def _patch_file_writer(
 def _notify_tensorboard_logdir(
     logdir: str, save: bool = True, root_logdir: str = ""
 ) -> None:
-    if wandb.run is not None:
-        wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)
+    wandb.run._tensorboard_callback(logdir, save=save, root_logdir=root_logdir)
