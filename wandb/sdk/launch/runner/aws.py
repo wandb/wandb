@@ -301,7 +301,7 @@ def build_sagemaker_args(
         )
 
     given_env = given_sagemaker_args.get(
-        "Environment", sagemaker_args.get("environment")
+        "Environment", sagemaker_args.get("environment", {})
     )
     calced_env = get_env_vars_dict(launch_project, api)
     total_env = {**calced_env, **given_env}
