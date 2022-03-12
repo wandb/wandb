@@ -177,7 +177,6 @@ class KubernetesRunner(AbstractRunner):
             raise LaunchError(
                 "Resource overrides not supported for multiple containers. Multiple container configurations should be specified in a yaml file supplied via job_spec."
             )
-
         containers[0]["name"] = resource_args.get(
             "container_name", containers[0].get("name", "launch")
         )
@@ -188,11 +187,20 @@ class KubernetesRunner(AbstractRunner):
             container_resources["limits"] = resource_args.get("resource_limits")
         if container_resources:
             containers[0]["resources"] = container_resources
-
+        for c in containers:
+            c["security_context"] = {
+                "allowPrivilegeEscalation": False,
+                "capabilities": {
+                    "drop": ["ALL"]
+                },
+                "seccompProfile": {
+                    "type": "RuntimeDefault"
+                }
+            }
+    
         # env vars
         given_env_vars = resource_args.get("env", {})
         env_vars = get_env_vars_dict(launch_project, self._api)
-        import pdb; pdb.set_trace()
         merged_env_vars = {**env_vars, **given_env_vars}
         containers[0]["env"] = [
             {"name": k, "value": v} for k, v in merged_env_vars.items()
@@ -233,6 +241,7 @@ class KubernetesRunner(AbstractRunner):
             image_uri = construct_local_image_uri(launch_project)
             if registry:
                 image_uri = os.path.join(registry, image_uri)
+            entry_point = launch_project.get_single_entry_point()
             generate_docker_image(
                 launch_project,
                 image_uri,

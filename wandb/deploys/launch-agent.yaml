@@ -21,6 +21,14 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "1000m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         env:
         - name: WANDB_PROJECT
           valueFrom:
