@@ -272,9 +272,7 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
     return user_create
 
 
-def generate_dockerfile(
-    launch_project: LaunchProject, runner_type: str,
-) -> str:
+def generate_dockerfile(launch_project: LaunchProject, runner_type: str,) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]
@@ -304,8 +302,8 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = "/home/{user}".format(user=username)
 
-    sagemaker_entrypoint = ''
-    if runner_type == 'sagemaker':
+    sagemaker_entrypoint = ""
+    if runner_type == "sagemaker":
         sagemaker_entrypoint = 'ENTRYPOINT ["sh", "train"]'
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
@@ -329,7 +327,6 @@ def generate_docker_image(
     runner_type: str,
 ) -> str:
     dockerfile_str = generate_dockerfile(launch_project, runner_type)
-    print(dockerfile_str) # @@@
     entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
     create_metadata_file(
         launch_project,
@@ -349,9 +346,7 @@ def generate_docker_image(
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
     try:
-        docker.build(
-            tags=[image_uri], file=dockerfile, context_path=build_ctx_path
-        )
+        docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
     except DockerError as e:
         raise LaunchError("Error communicating with docker client: {}".format(e))
 

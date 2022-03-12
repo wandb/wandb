@@ -162,8 +162,14 @@ class VertexRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        env_prefix = ["{}={}".format(k, v) for k, v in get_env_vars_dict(launch_project, self._api).items()]
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[0].split()
+        # todo: this is super broken
+        env_prefix = [
+            "-e {}={}".format(k, v)
+            for k, v in get_env_vars_dict(launch_project, self._api).items()
+        ]
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[
+            0
+        ].split()
 
         job = aiplatform.CustomContainerTrainingJob(
             display_name=gcp_training_job_name,
@@ -217,5 +223,16 @@ def get_gcp_config(config: str = "default") -> Any:
 
 
 def exists_on_gcp(image: str, tag: str) -> bool:
-    out, err = run_shell(["gcloud", "artifacts", "docker", "images", "list", shlex_quote(image), "--include-tags", "--filter=tags:{}".format(shlex_quote(tag))])
+    out, err = run_shell(
+        [
+            "gcloud",
+            "artifacts",
+            "docker",
+            "images",
+            "list",
+            shlex_quote(image),
+            "--include-tags",
+            "--filter=tags:{}".format(shlex_quote(tag)),
+        ]
+    )
     return tag in out and "sha256:" in out

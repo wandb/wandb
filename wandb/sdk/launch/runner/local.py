@@ -98,8 +98,12 @@ class LocalRunner(AbstractRunner):
             return None
 
         env_vars = get_env_vars_dict(launch_project, self._api)
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[0]
-        command_str = " ".join(get_docker_command(image_uri, env_vars, entry_cmd, docker_args))
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[
+            0
+        ]
+        command_str = " ".join(
+            get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+        )
 
         wandb.termlog(
             "Launching run in docker with command: {}".format(
@@ -137,7 +141,10 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
 
 
 def get_docker_command(
-    image: str, env_vars: Dict[str, str], entry_cmd: str, docker_args: Dict[str, Any] = None,
+    image: str,
+    env_vars: Dict[str, str],
+    entry_cmd: str,
+    docker_args: Dict[str, Any] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
 

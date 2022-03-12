@@ -107,19 +107,38 @@ class KubernetesRunner(AbstractRunner):
                 "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
 
-        config_file = resource_args.get("config_file")
+        config_file = resource_args.get("config_file", None)
+        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
+            config_file
+        )
+        context = None
+        if resource_args.get("context"):
+            context_name = resource_args["context"]
+            for c in all_contexts:
+                if c["name"] == context_name:
+                    context = c
+                    break
+            if context is None:
+                raise LaunchError(
+                    "Specified context {} was not found.".format(context_name)
+                )
+        else:
+            context = active_context
+
         if config_file is not None or os.path.exists(
             os.path.expanduser("~/.kube/config")
         ):
             # if config_file is None then loads default in ~/.kube
-            config = kubernetes.config.load_kube_config(config_file)
+            kubernetes.config.load_kube_config(config_file, context["name"])
         else:
             # attempt to load cluster config
-            config = kubernetes.config.load_incluster_config()
+            kubernetes.config.load_incluster_config()
 
-        batch_api = kubernetes.client.BatchV1Api(config)
-        core_api = kubernetes.client.CoreV1Api(config)
-        api_client = kubernetes.client.ApiClient(config)
+        api_client = kubernetes.config.new_client_from_config(
+            config_file, context=context["name"]
+        )
+        batch_api = kubernetes.client.BatchV1Api(api_client)
+        core_api = kubernetes.client.CoreV1Api(api_client)
 
         # allow users to specify template or entire spec
         if resource_args.get("job_spec"):
@@ -139,9 +158,12 @@ class KubernetesRunner(AbstractRunner):
 
         # begin pulling resource arg overrides. all of these are optional
 
-        # allow top-level namespace override, otherwise take namespace specified at the job level, or default
+        # allow top-level namespace override, otherwise take namespace specified at the job level, or default in current context
         namespace = resource_args.get(
-            "namespace", job_metadata.get("namespace", "default")
+            "namespace",
+            job_metadata.get(
+                "namespace", context["context"].get("namespace", "default")
+            ),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -190,14 +212,10 @@ class KubernetesRunner(AbstractRunner):
         for c in containers:
             c["security_context"] = {
                 "allowPrivilegeEscalation": False,
-                "capabilities": {
-                    "drop": ["ALL"]
-                },
-                "seccompProfile": {
-                    "type": "RuntimeDefault"
-                }
+                "capabilities": {"drop": ["ALL"]},
+                "seccompProfile": {"type": "RuntimeDefault"},
             }
-    
+
         # env vars
         given_env_vars = resource_args.get("env", {})
         env_vars = get_env_vars_dict(launch_project, self._api)
@@ -207,17 +225,18 @@ class KubernetesRunner(AbstractRunner):
         ]
 
         # cmd
-        # @@@ allow resource arg command? allow resource arg image?
         entry_point = launch_project.get_single_entry_point()
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
                 "Docker args are not supported for Kubernetes. Not using docker args"
             )
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[0].split()
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[
+            0
+        ].split()
         containers[0]["command"] = entry_cmd
 
-        image = resource_args.get("image")  # @@@
+        image = resource_args.get("image")  # todo: maybe take this option out
         if image:
             if launch_project.docker_image and image != launch_project.docker_image:
                 raise LaunchError(
