@@ -1,10 +1,11 @@
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 if False:
     import kubernetes  # type: ignore  # noqa: F401
     from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
+    from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
 import wandb
 import wandb.docker as docker
 from wandb.errors import LaunchError
@@ -22,18 +23,22 @@ from ..utils import (
 )
 
 TIMEOUT = 5
+MAX_KUBERNETES_RETRIES = 60 # default 10 second loop time on the agent, this is 10 minutes
 
 
 class KubernetesSubmittedRun(AbstractRun):
     def __init__(
-        self, batch_api: "BatchV1Api", name: str, namespace: Optional[str] = "default"
+        self, batch_api: "BatchV1Api", core_api: "CoreV1Api", name: str, namespace: Optional[str] = "default", pod_names: List[str] = None
     ) -> None:
         self.batch_api = batch_api
+        self.core_api = core_api
         self.name = name
         self.namespace = namespace
         self.job = self.batch_api.read_namespaced_job(
             name=self.name, namespace=self.namespace
         )
+        self._fail_count = 0
+        self.pod_names = pod_names
 
     @property
     def id(self) -> str:
@@ -55,6 +60,18 @@ class KubernetesSubmittedRun(AbstractRun):
             name=self.name, namespace=self.namespace
         )
         status = job_response.status
+        try:
+            self.core_api.read_namespaced_pod_log(name=self.pod_names[0], namespace=self.namespace)
+        except Exception as e:
+            if self._fail_count == 1:
+                wandb.termlog("Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(self.name))
+            self._fail_count += 1
+            if self._fail_count > MAX_KUBERNETES_RETRIES:
+                if hasattr(e, "body") and hasattr(e.body, "message"):
+                    raise LaunchError(f"Failed to start job {self.name}, because of error {str(e.body.message)}")
+                else:
+                    raise LaunchError(f"Failed to start job {self.name}, because of error {str(e)}")
+
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         if status.succeeded == 1:
             return Status("finished")
@@ -275,7 +292,7 @@ class KubernetesRunner(AbstractRunner):
             )
         )
 
-        submitted_job = KubernetesSubmittedRun(batch_api, job_name, namespace)
+        submitted_job = KubernetesSubmittedRun(batch_api,core_api, job_name, namespace, pod_names)
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
