@@ -33,6 +33,7 @@ DEFAULT_CUDA_VERSION = "10.0"
 
 def validate_docker_installation() -> None:
     """Verify if Docker is installed on host machine."""
+    _logger.info("Validating docker installation")
     if not find_executable("docker"):
         raise ExecutionError(
             "Could not find Docker executable. "
@@ -83,8 +84,8 @@ COPY --chown={uid} src/ {workdir}
 
 ENV PYTHONUNBUFFERED=1
 
-# some resources (eg sagemaker) have unique entrypoint requirements
-{entrypoint_setup}
+# sagemaker requires a fixed entrypoint to a `train` file in the dockerfile
+{sagemaker_entrypoint}
 """
 
 # this goes into base_setup in TEMPLATE
@@ -138,12 +139,6 @@ RUN useradd \
     --gid 0 \
     --uid {uid} \
     {user} || echo ""
-"""
-
-SAGEMAKER_ENTRYPOINT_TEMPLATE = """
-COPY ./src/train {workdir}
-RUN chmod +x {workdir}/train
-ENTRYPOINT ["sh", "train"]
 """
 
 
@@ -277,26 +272,8 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
     return user_create
 
 
-def get_entrypoint_setup(
-    launch_project: LaunchProject, entry_cmd: str, workdir: str, runner_type: str
-) -> str:
-    if runner_type == "sagemaker":
-        # sagemaker automatically appends train after the entrypoint
-        # by redirecting to running a train script we can avoid issues
-        # with argparse, and hopefully if the user intends for the train
-        # argument to be present it is captured in the original jobs
-        # command arguments
-        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-            fp.write(entry_cmd)
-        return SAGEMAKER_ENTRYPOINT_TEMPLATE.format(workdir=workdir)
-
-    # json format to ensure argslist is formatted with double quotes
-    command_arr = json.dumps(entry_cmd.split())
-    return "ENTRYPOINT {}".format(command_arr)
-
-
 def generate_dockerfile(
-    api: Api, launch_project: LaunchProject, entry_cmd: str, runner_type: str,
+    launch_project: LaunchProject, runner_type: str,
 ) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
@@ -327,10 +304,9 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = "/home/{user}".format(user=username)
 
-    # add entrypoint (eg sagemaker requires special entrypoint)
-    entrypoint_section = get_entrypoint_setup(
-        launch_project, entry_cmd, workdir, runner_type
-    )
+    sagemaker_entrypoint = ''
+    if runner_type == 'sagemaker':
+        sagemaker_entrypoint = 'ENTRYPOINT ["sh", "train"]'
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -339,22 +315,22 @@ def generate_dockerfile(
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
-        entrypoint_setup=entrypoint_section,
+        sagemaker_entrypoint=sagemaker_entrypoint,
     )
 
     return dockerfile_contents
 
 
 def generate_docker_image(
-    api: Api,
     launch_project: LaunchProject,
     image_uri: str,
     entrypoint: EntryPoint,
     docker_args: Dict[str, Any],
     runner_type: str,
 ) -> str:
+    dockerfile_str = generate_dockerfile(launch_project, runner_type)
+    print(dockerfile_str) # @@@
     entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
-    dockerfile_str = generate_dockerfile(api, launch_project, entry_cmd, runner_type)
     create_metadata_file(
         launch_project,
         image_uri,
@@ -362,10 +338,18 @@ def generate_docker_image(
         docker_args,
         sanitize_wandb_api_key(dockerfile_str),
     )
+    if runner_type == "sagemaker":
+        # sagemaker automatically appends train after the entrypoint
+        # by redirecting to running a train script we can avoid issues
+        # with argparse, and hopefully if the user intends for the train
+        # argument to be present it is captured in the original jobs
+        # command arguments
+        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
+            fp.write(entry_cmd)
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
     try:
-        image = docker.build(
+        docker.build(
             tags=[image_uri], file=dockerfile, context_path=build_ctx_path
         )
     except DockerError as e:
@@ -377,7 +361,7 @@ def generate_docker_image(
         _logger.info(
             "Temporary docker context file %s was not deleted.", build_ctx_path
         )
-    return image
+    return image_uri
 
 
 _inspected_images = {}
@@ -432,41 +416,6 @@ def construct_gcp_image_uri(
 ) -> str:
     base_uri = construct_local_image_uri(launch_project)
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
-
-
-def get_docker_command(
-    image: str, env_vars: Dict[str, str], docker_args: Dict[str, Any] = None
-) -> List[str]:
-    """Constructs the docker command using the image and docker args.
-
-    Arguments:
-    image: a Docker image to be run
-    docker_args: a dictionary of additional docker args for the command
-    """
-    docker_path = "docker"
-    cmd: List[Any] = [docker_path, "run", "--rm"]
-
-    # hacky handling of env vars, needs to be improved
-    for env_key, env_value in env_vars.items():
-        cmd += ["-e", f"{shlex_quote(env_key)}={shlex_quote(env_value)}"]
-
-    if docker_args:
-        for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + shlex_quote(name)]
-                else:
-                    cmd += ["--" + shlex_quote(name)]
-            else:
-                # Passed name=value
-                if len(name) == 1:
-                    cmd += ["-" + shlex_quote(name), shlex_quote(str(value))]
-                else:
-                    cmd += ["--" + shlex_quote(name), shlex_quote(str(value))]
-
-    cmd += [shlex_quote(image)]
-    return cmd
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:

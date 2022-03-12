@@ -11,7 +11,7 @@ from wandb.errors import LaunchError
 from wandb.util import get_module, load_json_yaml_dict
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import LaunchProject
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     construct_local_image_uri,
     generate_docker_image,
@@ -161,10 +161,18 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("suspend"):
             job_spec["suspend"] = resource_args.get("suspend")
 
+        pod_spec["restartPolicy"] = resource_args.get("pod_restart_policy", "Never")
+        if resource_args.get("pod_preemption_policy"):
+            pod_spec["preemptionPolicy"] = resource_args.get("pod_preemption_policy")
+        if resource_args.get("node_name"):
+            pod_spec["nodeName"] = resource_args.get("node_name")
+        if resource_args.get("node_selectors"):
+            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+
         # only support container overrides for the single container case
         if any(
             arg in resource_args
-            for arg in ["container_name", "resource_requests", "resource_limits"]
+            for arg in ["container_name", "resource_requests", "resource_limits", "env"]
         ):
             raise LaunchError(
                 "Resource overrides not supported for multiple containers. Multiple container configurations should be specified in a yaml file supplied via job_spec."
@@ -180,24 +188,28 @@ class KubernetesRunner(AbstractRunner):
             container_resources["limits"] = resource_args.get("resource_limits")
         if container_resources:
             containers[0]["resources"] = container_resources
-        # todo: args and env vars would be added here, need to figure out what kind of overrides we want
 
-        pod_spec["restartPolicy"] = resource_args.get("pod_restart_policy", "Never")
-        if resource_args.get("pod_preemption_policy"):
-            pod_spec["preemptionPolicy"] = resource_args.get("pod_preemption_policy")
-        if resource_args.get("node_name"):
-            pod_spec["nodeName"] = resource_args.get("node_name")
-        if resource_args.get("node_selectors"):
-            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        # env vars
+        given_env_vars = resource_args.get("env", {})
+        env_vars = get_env_vars_dict(launch_project, self._api)
+        import pdb; pdb.set_trace()
+        merged_env_vars = {**env_vars, **given_env_vars}
+        containers[0]["env"] = [
+            {"name": k, "value": v} for k, v in merged_env_vars.items()
+        ]
 
+        # cmd
+        # @@@ allow resource arg command? allow resource arg image?
         entry_point = launch_project.get_single_entry_point()
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
                 "Docker args are not supported for Kubernetes. Not using docker args"
             )
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[0].split()
+        containers[0]["command"] = entry_cmd
 
-        image = resource_args.get("image")
+        image = resource_args.get("image")  # @@@
         if image:
             if launch_project.docker_image and image != launch_project.docker_image:
                 raise LaunchError(
@@ -222,7 +234,6 @@ class KubernetesRunner(AbstractRunner):
             if registry:
                 image_uri = os.path.join(registry, image_uri)
             generate_docker_image(
-                self._api,
                 launch_project,
                 image_uri,
                 entry_point,
@@ -233,13 +244,7 @@ class KubernetesRunner(AbstractRunner):
             if registry:
                 repo, tag = image_uri.split(":")
                 docker.push(repo, tag)
-        given_env_vars = resource_args.get("env")
-        env_vars = get_env_vars_dict(launch_project, self._api)
-        merged_env_vars = {**env_vars, **given_env_vars}
 
-        containers[0]["env"] = [
-            {"name": k, "value": v} for k, v in merged_env_vars.items()
-        ]
         # reassemble spec
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec
