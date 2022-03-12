@@ -16,7 +16,7 @@ metadata:
   name: wandb-launch-agent
 rules:
 - apiGroups: [""]
-  resources: ["pods", "configmaps", "secrets"]
+  resources: ["pods", "configmaps", "secrets", "pods/log"]
   verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 - apiGroups: ["batch"]
   resources: ["jobs", "jobs/status"]
@@ -29,7 +29,7 @@ metadata:
   name: job-creator
 rules:
 - apiGroups: [""]
-  resources: ["pods"]
+  resources: ["pods", "pods/log"]
   verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 - apiGroups: ["batch"]
   resources: ["jobs", "jobs/status"]
@@ -87,4 +87,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: ""  ### TODO: API KEY HERE
+  password: ""  ### API KEY HERE
