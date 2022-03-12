@@ -192,7 +192,7 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
 
         # only support container overrides for the single container case
-        if any(
+        if len(containers) > 1 and any(
             arg in resource_args
             for arg in ["container_name", "resource_requests", "resource_limits", "env"]
         ):
@@ -231,10 +231,12 @@ class KubernetesRunner(AbstractRunner):
             wandb.termwarn(
                 "Docker args are not supported for Kubernetes. Not using docker args"
             )
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[
-            0
-        ].split()
-        containers[0]["command"] = entry_cmd
+        entry_cmd = get_entry_point_command(
+            entry_point, launch_project.override_args
+        ).split()
+        if entry_cmd:
+            # if user hardcodes cmd into their image, we don't need to run on top of that
+            containers[0]["command"] = entry_cmd
 
         image = resource_args.get("image")  # todo: maybe take this option out
         if image:
@@ -260,7 +262,6 @@ class KubernetesRunner(AbstractRunner):
             image_uri = construct_local_image_uri(launch_project)
             if registry:
                 image_uri = os.path.join(registry, image_uri)
-            entry_point = launch_project.get_single_entry_point()
             generate_docker_image(
                 launch_project,
                 image_uri,

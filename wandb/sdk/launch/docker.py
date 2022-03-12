@@ -326,8 +326,11 @@ def generate_docker_image(
     docker_args: Dict[str, Any],
     runner_type: str,
 ) -> str:
+    if entrypoint is None:
+        raise LaunchError("No entrypoint found while building image")
+
     dockerfile_str = generate_dockerfile(launch_project, runner_type)
-    entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
+    entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
     create_metadata_file(
         launch_project,
         image_uri,

@@ -196,12 +196,14 @@ class AWSSagemakerRunner(AbstractRunner):
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
         )
-        command_args = list(itertools.chain(*[ca.split(" ") for ca in command_args]))
-        wandb.termlog(
-            "Launching run on sagemaker with entrypoint: {}".format(
-                " ".join(command_args)
+        if command_args:
+            wandb.termlog(
+                "Launching run on sagemaker with entrypoint: {}".format(command_args)
             )
-        )
+        else:
+            wandb.termlog(
+                "Launching run on sagemaker with user-provided entrypoint in image"
+            )
 
         sagemaker_args = build_sagemaker_args(
             launch_project, self._api, account_id, aws_tag

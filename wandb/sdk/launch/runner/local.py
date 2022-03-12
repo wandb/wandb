@@ -3,9 +3,11 @@ import os
 import signal
 import subprocess
 from typing import Any, Dict, List, Optional
+from pkg_resources import EntryPoint
 
 from six.moves import shlex_quote
 import wandb
+from wandb.errors import LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
@@ -77,6 +79,8 @@ class LocalRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
+        entry_point: Optional[EntryPoint] = launch_project.get_single_entry_point()
+
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.docker_image
@@ -85,7 +89,6 @@ class LocalRunner(AbstractRunner):
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            entry_point = launch_project.get_single_entry_point()
             generate_docker_image(
                 launch_project,
                 image_uri,
@@ -98,12 +101,11 @@ class LocalRunner(AbstractRunner):
             return None
 
         env_vars = get_env_vars_dict(launch_project, self._api)
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[
-            0
-        ]
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
+
         command_str = " ".join(
             get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
-        )
+        ).strip()
 
         wandb.termlog(
             "Launching run in docker with command: {}".format(

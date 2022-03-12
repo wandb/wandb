@@ -167,9 +167,9 @@ class VertexRunner(AbstractRunner):
             "-e {}={}".format(k, v)
             for k, v in get_env_vars_dict(launch_project, self._api).items()
         ]
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)[
-            0
-        ].split()
+        entry_cmd = get_entry_point_command(
+            entry_point, launch_project.override_args
+        ).split()
 
         job = aiplatform.CustomContainerTrainingJob(
             display_name=gcp_training_job_name,
