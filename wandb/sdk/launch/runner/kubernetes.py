@@ -38,7 +38,7 @@ class KubernetesSubmittedRun(AbstractRun):
         self.job = self.batch_api.read_namespaced_job(
             name=self.name, namespace=self.namespace
         )
-        self._count = 0
+        self._fail_count = 0
         self.pod_names = pod_names
 
     @property
@@ -65,8 +65,10 @@ class KubernetesSubmittedRun(AbstractRun):
             pod_status = self.core_api.read_namespaced_pod_log(name=self.pod_names[0], namespace=self.namespace)
             wandb.termlog(f"{pod_status}")
         except Exception as e:
-            self._count += 1
-            if self._count > MAX_KUBERNETES_RETRIES:
+            if self._fail_count == 1:
+                wandb.termlog("Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(self.name))
+            self._fail_count += 1
+            if self._fail_count > MAX_KUBERNETES_RETRIES:
                 if hasattr(e, "body") and hasattr(e.body, "message"):
                     raise LaunchError(f"Failed to start job {self.name}, because of error {str(e.body.message)}")
                 else:
