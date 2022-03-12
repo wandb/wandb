@@ -117,7 +117,10 @@ class LaunchAgent(object):
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
-        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+        try:
+            if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+                self.finish_job_id(job_id)
+        except LaunchError:
             self.finish_job_id(job_id)
 
     def _validate_and_fix_spec_project_entity(

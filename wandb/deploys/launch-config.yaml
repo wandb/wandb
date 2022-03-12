@@ -16,7 +16,7 @@ metadata:
   name: wandb-launch-agent
 rules:
 - apiGroups: [""]
-  resources: ["pods", "configmaps", "secrets"]
+  resources: ["pods", "configmaps", "secrets", "pods/log"]
   verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 - apiGroups: ["batch"]
   resources: ["jobs", "jobs/status"]
@@ -29,7 +29,7 @@ metadata:
   name: job-creator
 rules:
 - apiGroups: [""]
-  resources: ["pods"]
+  resources: ["pods", "pods/log"]
   verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 - apiGroups: ["batch"]
   resources: ["jobs", "jobs/status"]
@@ -74,7 +74,7 @@ roleRef:
 apiVersion: v1
 data:
   wandb-base-url: "https://api.wandb.ai" ### TODO: SET YOUR WANDB BASE URL
-  wandb-project: "launch_test" # TODO: SET YOUR ML PROJECT
+  wandb-project: "launch_demo" # TODO: SET YOUR ML PROJECT
 kind: ConfigMap
 metadata:
   name: wandb-setup
@@ -87,4 +87,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: ""  ### TODO: API KEY HERE
+  password: "746522ca910a3ebc5da0f1032fd8a6ffff0ef67d"  ### API KEY HERE

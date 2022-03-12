@@ -68,7 +68,7 @@ def main():
                     #     req = "wandb"
                     # fix this before merging to master
                     if "wandb" in req:
-                        req = "git+https://github.com/wandb/client.git@launch/no-build-case"
+                        req = "git+https://github.com/wandb/client.git@gong/deployable-launch-agent"
                     reqs.append(req.strip())
                 else:
                     print(
