@@ -372,4 +372,5 @@ def to_camel_case(maybe_snake_str: str) -> str:
 
 
 def run_shell(args: List[str]) -> str:
-    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
+    out = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()

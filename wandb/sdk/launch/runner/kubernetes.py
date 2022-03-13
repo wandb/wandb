@@ -12,7 +12,7 @@ from wandb.errors import LaunchError
 from wandb.util import get_module, load_json_yaml_dict
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import LaunchProject
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     construct_local_image_uri,
     generate_docker_image,
@@ -124,19 +124,38 @@ class KubernetesRunner(AbstractRunner):
                 "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
 
-        config_file = resource_args.get("config_file")
+        config_file = resource_args.get("config_file", None)
+        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
+            config_file
+        )
+        context = None
+        if resource_args.get("context"):
+            context_name = resource_args["context"]
+            for c in all_contexts:
+                if c["name"] == context_name:
+                    context = c
+                    break
+            if context is None:
+                raise LaunchError(
+                    "Specified context {} was not found.".format(context_name)
+                )
+        else:
+            context = active_context
+
         if config_file is not None or os.path.exists(
             os.path.expanduser("~/.kube/config")
         ):
             # if config_file is None then loads default in ~/.kube
-            config = kubernetes.config.load_kube_config(config_file)
+            kubernetes.config.load_kube_config(config_file, context["name"])
         else:
             # attempt to load cluster config
-            config = kubernetes.config.load_incluster_config()
+            kubernetes.config.load_incluster_config()
 
-        batch_api = kubernetes.client.BatchV1Api(config)
-        core_api = kubernetes.client.CoreV1Api(config)
-        api_client = kubernetes.client.ApiClient(config)
+        api_client = kubernetes.config.new_client_from_config(
+            config_file, context=context["name"]
+        )
+        batch_api = kubernetes.client.BatchV1Api(api_client)
+        core_api = kubernetes.client.CoreV1Api(api_client)
 
         # allow users to specify template or entire spec
         if resource_args.get("job_spec"):
@@ -156,9 +175,12 @@ class KubernetesRunner(AbstractRunner):
 
         # begin pulling resource arg overrides. all of these are optional
 
-        # allow top-level namespace override, otherwise take namespace specified at the job level, or default
+        # allow top-level namespace override, otherwise take namespace specified at the job level, or default in current context
         namespace = resource_args.get(
-            "namespace", job_metadata.get("namespace", "default")
+            "namespace",
+            job_metadata.get(
+                "namespace", context["context"].get("namespace", "default")
+            ),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -178,15 +200,22 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("suspend"):
             job_spec["suspend"] = resource_args.get("suspend")
 
+        pod_spec["restartPolicy"] = resource_args.get("pod_restart_policy", "Never")
+        if resource_args.get("pod_preemption_policy"):
+            pod_spec["preemptionPolicy"] = resource_args.get("pod_preemption_policy")
+        if resource_args.get("node_name"):
+            pod_spec["nodeName"] = resource_args.get("node_name")
+        if resource_args.get("node_selectors"):
+            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+
         # only support container overrides for the single container case
-        if any(
+        if len(containers) > 1 and any(
             arg in resource_args
-            for arg in ["container_name", "resource_requests", "resource_limits"]
+            for arg in ["container_name", "resource_requests", "resource_limits", "env"]
         ):
             raise LaunchError(
                 "Resource overrides not supported for multiple containers. Multiple container configurations should be specified in a yaml file supplied via job_spec."
             )
-
         containers[0]["name"] = resource_args.get(
             "container_name", containers[0].get("name", "launch")
         )
@@ -197,33 +226,36 @@ class KubernetesRunner(AbstractRunner):
             container_resources["limits"] = resource_args.get("resource_limits")
         if container_resources:
             containers[0]["resources"] = container_resources
-        # todo: args and env vars would be added here, need to figure out what kind of overrides we want
-
-        containers[0]["security_context"] = {
-            "allowPrivilegeEscalation": False,
-            "capabilities": {
-                "drop": ["ALL"]
-            },
-            "seccompProfile": {
-                "type": "RuntimeDefault"
+        for c in containers:
+            c["security_context"] = {
+                "allowPrivilegeEscalation": False,
+                "capabilities": {"drop": ["ALL"]},
+                "seccompProfile": {"type": "RuntimeDefault"},
             }
-        }
 
-        pod_spec["restartPolicy"] = resource_args.get("pod_restart_policy", "Never")
-        if resource_args.get("pod_preemption_policy"):
-            pod_spec["preemptionPolicy"] = resource_args.get("pod_preemption_policy")
-        if resource_args.get("node_name"):
-            pod_spec["nodeName"] = resource_args.get("node_name")
-        if resource_args.get("node_selectors"):
-            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        # env vars
+        given_env_vars = resource_args.get("env", {})
+        env_vars = get_env_vars_dict(launch_project, self._api)
+        merged_env_vars = {**env_vars, **given_env_vars}
+        containers[0]["env"] = [
+            {"name": k, "value": v} for k, v in merged_env_vars.items()
+        ]
 
+        # cmd
+        entry_point = launch_project.get_single_entry_point()
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
                 "Docker args are not supported for Kubernetes. Not using docker args"
             )
+        entry_cmd = get_entry_point_command(
+            entry_point, launch_project.override_args
+        ).split()
+        if entry_cmd:
+            # if user hardcodes cmd into their image, we don't need to run on top of that
+            containers[0]["command"] = entry_cmd
 
-        image = resource_args.get("image")
+        image = resource_args.get("image")  # todo: maybe take this option out
         if image:
             if launch_project.docker_image and image != launch_project.docker_image:
                 raise LaunchError(
@@ -247,9 +279,7 @@ class KubernetesRunner(AbstractRunner):
             image_uri = construct_local_image_uri(launch_project)
             if registry:
                 image_uri = os.path.join(registry, image_uri)
-            entry_point = launch_project.get_single_entry_point()
             generate_docker_image(
-                self._api,
                 launch_project,
                 image_uri,
                 entry_point,
@@ -260,13 +290,7 @@ class KubernetesRunner(AbstractRunner):
             if registry:
                 repo, tag = image_uri.split(":")
                 docker.push(repo, tag)
-        given_env_vars = resource_args.get("env", {})
-        env_vars = get_env_vars_dict(launch_project, self._api)
-        merged_env_vars = {**env_vars, **given_env_vars}
 
-        containers[0]["env"] = [
-            {"name": k, "value": v} for k, v in merged_env_vars.items()
-        ]
         # reassemble spec
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec

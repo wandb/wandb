@@ -162,7 +162,7 @@ class AWSSagemakerRunner(AbstractRunner):
             image_uri = construct_local_image_uri(launch_project)
             _logger.info("Building docker image")
             image = generate_docker_image(
-                self._api, launch_project, image_uri, entry_point, {}, "sagemaker"
+                launch_project, image_uri, entry_point, {}, "sagemaker"
             )
 
         _logger.info("Logging in to AWS ECR")
@@ -196,12 +196,14 @@ class AWSSagemakerRunner(AbstractRunner):
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
         )
-        command_args = list(itertools.chain(*[ca.split(" ") for ca in command_args]))
-        wandb.termlog(
-            "Launching run on sagemaker with entrypoint: {}".format(
-                " ".join(command_args)
+        if command_args:
+            wandb.termlog(
+                "Launching run on sagemaker with entrypoint: {}".format(command_args)
             )
-        )
+        else:
+            wandb.termlog(
+                "Launching run on sagemaker with user-provided entrypoint in image"
+            )
 
         sagemaker_args = build_sagemaker_args(
             launch_project, self._api, account_id, aws_tag
@@ -216,7 +218,7 @@ class AWSSagemakerRunner(AbstractRunner):
 def aws_ecr_login(region: str, registry: str) -> Optional[str]:
     pw_command = ["aws", "ecr", "get-login-password", "--region", region]
     try:
-        pw = run_shell(pw_command)
+        pw = run_shell(pw_command)[0]
     except subprocess.CalledProcessError:
         raise LaunchError(
             "Unable to get login password. Please ensure you have AWS credentials configured"

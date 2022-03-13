@@ -51,11 +51,7 @@ def build(tags: List[str], file: str, context_path: str) -> str:
     for tag in tags:
         build_tags += ["-t", tag]
     run(
-        ["docker"]
-        + command
-        + ["--progress=plain"]
-        + build_tags
-        + ["-f", file, context_path],
+        ["docker"] + command + build_tags + ["-f", file, context_path],
         capture_stderr=False,
         capture_stdout=False,
     )
@@ -216,9 +212,9 @@ def get_image_uid(image_name: str) -> int:
     return int(shell(["run", image_name, "id", "-u"]))
 
 
-def push(repo: str, tag: str) -> Optional[str]:
+def push(image: str, tag: str) -> Optional[str]:
     """Push an image to a remote registry"""
-    return shell(["push", f"{repo}:{tag}"])
+    return shell(["push", f"{image}:{tag}"])
 
 
 def login(username: str, password: str, registry: str) -> Optional[str]:
