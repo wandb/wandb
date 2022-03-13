@@ -39,7 +39,7 @@ def _pbmap_apply_dict(
             sv.float_value = v
         elif isinstance(v, str):
             sv.string_value = v
-        elif isinstance(v, tuple):
+        elif isinstance(v, (tuple, list)):
             sv.tuple_value.string_values.extend(v)
         m[k].CopyFrom(sv)
 
