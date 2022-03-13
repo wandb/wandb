@@ -193,9 +193,6 @@ def use_model(aliased_path: str) -> "_SavedModel":
         raise ValueError(
             "aliased_path must be of the form 'name:alias' or 'name:version'."
         )
-    parts = aliased_path.split(":")
-    if len(parts) == 1:
-        aliased_path += "latest"
 
     # Returns a _SavedModel instance
     if wandb.run:

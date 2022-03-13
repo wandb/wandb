@@ -34,9 +34,11 @@ class Net(nn.Module):
 def main():
     my_model = Net()
 
+    wandb.init()
+
     best_model = log_model(my_model, "my-model", aliases=["boom"], scope_project=True)
 
-    link_model(best_model, "entity/project/test_portfolio", aliases="best")
+    link_model(best_model, "entity/project/test_portfolio")
 
     wandb.finish()
 
