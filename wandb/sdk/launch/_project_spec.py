@@ -149,12 +149,16 @@ class LaunchProject(object):
             if self.override_args.get(key):
                 del self.override_config[key]
 
-    def get_single_entry_point(self) -> "EntryPoint":
-        """Returns the first entrypoint for the project."""
+    def get_single_entry_point(self) -> Optional["EntryPoint"]:
+        """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we wanna support multiple entry points or not
-        if len(self._entry_points) != 1:
-            raise Exception("LaunchProject must have exactly one entry point")
+        if not self._entry_points:
+            if not self.docker_image:
+                raise LaunchError(
+                    "Project must have at least one entry point unless docker image is specified."
+                )
+            return None
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
@@ -377,7 +381,7 @@ class EntryPoint(object):
 
 def get_entry_point_command(
     entry_point: "EntryPoint", parameters: Dict[str, Any]
-) -> List[str]:
+) -> str:
     """Returns the shell command to execute in order to run the specified entry point.
 
     Arguments:
@@ -387,9 +391,9 @@ def get_entry_point_command(
     Returns:
         List of strings representing the shell command to be executed
     """
-    commands = []
-    commands.append(entry_point.compute_command(parameters))
-    return commands
+    if entry_point is None:
+        return ""
+    return entry_point.compute_command(parameters)
 
 
 def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
