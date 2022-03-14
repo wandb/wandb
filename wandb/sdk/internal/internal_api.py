@@ -2169,6 +2169,7 @@ class Api:
         distributed_id=None,
         is_user_created=False,
         enable_digest_deduplication=False,
+        history_step=None,
     ):
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
@@ -2198,6 +2199,7 @@ class Api:
             %s
             %s
             %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -2211,6 +2213,7 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
                 %s
                 %s
                 %s
@@ -2239,10 +2242,13 @@ class Api:
             # For backwards compatibility with older backends that don't support
             # distributed writers or digest deduplication.
             (
+                "$historyStep: Int64!," if history_step not in [0, None] else "",
                 "$distributedID: String," if distributed_id else "",
                 "$clientID: ID!," if can_handle_client_id else "",
                 "$sequenceClientID: ID!," if can_handle_client_id else "",
                 "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
+                # line sep
+                "historyStep: $historyStep," if history_step not in [0, None] else "",
                 "distributedID: $distributedID," if distributed_id else "",
                 "clientID: $clientID," if can_handle_client_id else "",
                 "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
@@ -2256,9 +2262,9 @@ class Api:
         project_name = project_name or self.settings("project")
         if not is_user_created:
             run_name = run_name or self.current_run_id
-
         if aliases is None:
             aliases = []
+
         response = self.gql(
             mutation,
             variable_values={
@@ -2280,6 +2286,7 @@ class Api:
                 else None,
                 "distributedID": distributed_id,
                 "enableDigestDeduplication": enable_digest_deduplication,
+                "historyStep": history_step,
             },
         )
         av = response["createArtifact"]["artifact"]

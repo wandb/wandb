@@ -402,6 +402,7 @@ class InterfaceBase(object):
         run: "Run",
         artifact: Artifact,
         aliases: Iterable[str],
+        history_step: Optional[int] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -419,6 +420,8 @@ class InterfaceBase(object):
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
+        if history_step is not None:
+            log_artifact.history_step = history_step
         resp = self._communicate_artifact(log_artifact)
         return resp
 

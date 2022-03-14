@@ -83,6 +83,7 @@ class ArtifactSaver(object):
         labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
+        history_step: Optional[int] = None,
     ) -> Optional[Dict]:
         aliases = aliases or []
         alias_specs = []
@@ -115,6 +116,7 @@ class ArtifactSaver(object):
             client_id=client_id,
             sequence_client_id=sequence_client_id,
             enable_digest_deduplication=use_after_commit,  # Reuse logical duplicates in the `use_artifact` flow
+            history_step=history_step,
         )
 
         # TODO(artifacts):
