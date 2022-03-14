@@ -986,13 +986,9 @@ class SendManager:
             except Exception as e:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
         else:
-            logger.debug("link_artifact internal API was never called")
-            if not (client_id or server_id):
-                logger.debug("link_artifact params - client_id and server_id not set")
-            else:
-                logger.debug(
-                    f"link_artifact params portfolio_name, entity, project: {portfolio_name}, {entity}, {project}"
-                )
+            logger.debug(
+                "link_artifact never called, params - client_id, server_id, pfolio, entity, project: {client_id}, {server_id}, {portfolio_name}, {entity}, {project}"
+            )
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
