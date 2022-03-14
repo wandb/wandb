@@ -998,9 +998,10 @@ class SendManager:
         assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
+        history_step = record.request.log_artifact.history_step
 
         try:
-            res = self._send_artifact(artifact)
+            res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
             logger.info("logged artifact {} - {}".format(artifact.name, res))
@@ -1045,7 +1046,9 @@ class SendManager:
                 )
             )
 
-    def _send_artifact(self, artifact: "ArtifactRecord") -> Optional[Dict]:
+    def _send_artifact(
+        self, artifact: "ArtifactRecord", history_step: Optional[int] = None
+    ) -> Optional[Dict]:
         assert self._pusher
         saver = artifacts.ArtifactSaver(
             api=self._api,
@@ -1079,6 +1082,7 @@ class SendManager:
             distributed_id=artifact.distributed_id,
             finalize=artifact.finalize,
             incremental=artifact.incremental_beta1,
+            history_step=history_step,
         )
 
     def send_alert(self, record: "Record") -> None:
