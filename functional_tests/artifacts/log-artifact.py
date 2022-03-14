@@ -1,5 +1,6 @@
-import wandb
 import tempfile
+
+import wandb
 
 
 def main():
