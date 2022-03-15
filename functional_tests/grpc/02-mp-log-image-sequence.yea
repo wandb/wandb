@@ -4,6 +4,7 @@ plugin:
 depend:
     requirements:
         - numpy
+        - pillow
 tag:
     shard: grpc
 parametrize:
