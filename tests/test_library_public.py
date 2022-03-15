@@ -69,6 +69,7 @@ SYMBOLS_ROOT_OTHER = {
     "alert",
     "api",
     "apis",
+    "beta",
     "catboost",
     "data_types",
     "division",
@@ -123,6 +124,7 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_lib",
     "wandb_sdk",
     "wandb_torch",
+    "workflows",
     "xgboost",
     "cli",
 }
@@ -173,6 +175,7 @@ SYMBOLS_RUN = {
     "config_static",
     "log",
     "log_artifact",
+    "link_artifact",
     "upsert_artifact",
     "finish_artifact",
     "use_artifact",

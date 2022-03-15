@@ -514,6 +514,13 @@ def test_artifact_manual_log(runner, mock_server, api):
     assert True
 
 
+def test_artifact_manual_link(runner, mock_server, api):
+    run = api.run("test/test/test")
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    with pytest.raises(wandb.CommError):
+        art.link("portfolio_name:latest")
+
+
 def test_artifact_manual_error(runner, mock_server, api):
     run = api.run("test/test/test")
     art = wandb.Artifact("test", type="dataset")
