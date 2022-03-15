@@ -1164,7 +1164,7 @@ def test_image_array_old_wandb(
 
 def test_image_array_old_wandb_mp_warning(test_settings, capsys, monkeypatch):
     monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
-    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
+    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="true"):
         with wandb.init(settings=test_settings) as run:
             wb_image = [wandb.Image(image) for _ in range(5)]
             run._init_pid += 1
