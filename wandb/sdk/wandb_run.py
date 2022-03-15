@@ -2624,7 +2624,7 @@ class Run:
     # HEADER
     # ------------------------------------------------------------------------------
     # Note: All the header methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have acess to the run instance
+    # with the service execution path that doesn't have access to the run instance
     @staticmethod
     def _header(
         check_version: Optional["CheckVersionResponse"] = None,
