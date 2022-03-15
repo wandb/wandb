@@ -43,6 +43,7 @@ message Record {
     HeaderRecord    header = 21;
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;    
+    LinkArtifactRecord link_artifact = 24;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -400,6 +401,22 @@ message StoragePolicyConfigItem {
 
 message ArtifactResult {
 }
+
+message LinkArtifactResult {
+}
+
+/*
+ * LinkArtifactRecord: link artifact to portfolio
+ */
+ message LinkArtifactRecord {
+  string          client_id = 1;
+  string          server_id = 2;
+  string          portfolio_name = 3;
+  string          portfolio_entity = 4;
+  string          portfolio_project = 5;
+  repeated string portfolio_aliases = 6;
+  _RecordInfo     _info = 200;
+ }
 
 /*
  * TBRecord: store tb locations
