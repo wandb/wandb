@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-CORES = 1 # multiprocessing.cpu_count()
+CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = set(
     [x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""]
 )
@@ -44,10 +44,9 @@ def install_deps(deps, failed=None):
         if failed is None:
             failed = set()
         num_failed = len(failed)
-        for line in e.output.decode("utf8").split("\n"):
+        for line in e.output.decode("utf8"):
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
-        failed = failed.intersection(deps)
         if len(failed) > num_failed:
             return install_deps(list(set(deps) - failed), failed)
         else:
