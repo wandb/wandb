@@ -121,7 +121,7 @@ class _WandbInit(object):
                     "`wandb.init()` arguments, please refer to "
                     f"{self.printer.link(wburls.get('wandb_init'), 'the W&B docs')}."
                 )
-                self.printer.display(line)
+                self.printer.display(line, status="warn")
 
         self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
