@@ -111,10 +111,9 @@ class _WandbInit(object):
                 k: v for k, v in singleton._environ.items() if k.startswith("WANDB_")
             }
             os_env = {k: v for k, v in os.environ.items() if k.startswith("WANDB_")}
-            if (
-                set(singleton_env.keys()) != set(os_env.keys())
-                or set(singleton_env.values()) != set(os_env.values())
-            ):
+            if set(singleton_env.keys()) != set(os_env.keys()) or set(
+                singleton_env.values()
+            ) != set(os_env.values()):
                 line = (
                     "Changes to your `wandb` environment variables will be ignored "
                     "because your `wandb` session has already started. "
