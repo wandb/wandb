@@ -112,12 +112,12 @@ class _WandbInit(object):
                 singleton_env.values()
             ) != set(os_env.values()):
                 wandb.termwarn(
-                    "It appears that the `wandb`-related environment variables changed "
-                    "after the current `wandb` session was set up. These changes will be ignored. "
+                    "Changes to your `wandb` environment variables will be ignored "
+                    "because your `wandb` session has already started. "
                     "If you want to modify the corresponding settings at this point, "
                     "please pass the corresponding arguments to `wandb.init()`. "
                     "For more information, please refer to the documentation at "
-                    "https://docs.wandb.ai/ref/python/init."
+                    f"{wburls.get('wandb_init')}."
                 )
 
         self._wl = wandb_setup.setup()
