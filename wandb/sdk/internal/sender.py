@@ -972,6 +972,9 @@ class SendManager:
         entity = link.portfolio_entity
         project = link.portfolio_project
         aliases = link.portfolio_aliases
+        logger.debug(
+            f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
+        )
         if (
             (client_id or server_id)
             and portfolio_name
@@ -985,10 +988,6 @@ class SendManager:
                 )
             except Exception as e:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
-        else:
-            logger.debug(
-                "link_artifact never called, params - client_id, server_id, pfolio, entity, project: {client_id}, {server_id}, {portfolio_name}, {entity}, {project}"
-            )
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp

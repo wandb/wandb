@@ -262,5 +262,5 @@ def link_model(
             model._artifact_source.artifact.link(target_path, aliases)
         else:
             raise ValueError(
-                "Linking requires that the given _SavedModel belongs to an artifact"
+                "Linking requires that the given _SavedModel belongs to a logged artifact."
             )
