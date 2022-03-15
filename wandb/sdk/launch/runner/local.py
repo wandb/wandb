@@ -3,14 +3,12 @@ import os
 import signal
 import subprocess
 from typing import Any, Dict, List, Optional
-from pkg_resources import EntryPoint
 
 from six.moves import shlex_quote
 import wandb
-from wandb.errors import LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
+from .._project_spec import EntryPoint, get_entry_point_command, LaunchProject
 from ..docker import (
     construct_local_image_uri,
     docker_image_exists,

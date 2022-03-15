@@ -6,10 +6,10 @@
     "resource_args": {
         "gcp_vertex": {
             "gcp_project": "test-project",
-            "gcp_staging_bucket": "test-bucket",
-            "gcp_artifact_repo": "test-repo",
-            "gcp_machine_type": "n1-standard-4",
-            "gcp_job_name": "test-job-name"
+            "staging_bucket": "test-bucket",
+            "artifact_repo": "test-repo",
+            "machine_type": "n1-standard-4",
+            "job_name": "test-job-name"
         }
     }
 }

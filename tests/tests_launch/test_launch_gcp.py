@@ -44,9 +44,21 @@ def mock_aiplatform_init(project, location, staging_bucket, job_dict):
     job_dict["location"] = location
 
 
-def mock_aiplatform_CustomContainerTrainingJob(display_name, container_uri, job_dict):
+def mock_aiplatform_CustomJob(display_name, worker_pool_specs, job_dict):
     job_dict["display_name"] = display_name
+    job_dict["test_attrs"]["container_uri"] = worker_pool_specs[0]["container_spec"][
+        "image_uri"
+    ]
+    job_dict["test_attrs"]["command"] = worker_pool_specs[0]["container_spec"][
+        "command"
+    ]
+    job_dict["test_attrs"]["env"] = worker_pool_specs[0]["container_spec"]["env"]
     return MockDict(job_dict)
+
+
+class MockGCAResource(object):
+    def __init__(self):
+        self.name = "job-name"
 
 
 def setup_mock_aiplatform(status, monkeypatch):
@@ -62,7 +74,8 @@ def setup_mock_aiplatform(status, monkeypatch):
         "cancel": do_nothing,
         "state": status,
         "run": do_nothing,
-        "_gca_resource": "placeholder-value",
+        "_gca_resource": MockGCAResource(),
+        "test_attrs": {"container_uri": None, "command": [], "env": {},},
     }
 
     monkeypatch.setattr(
@@ -74,9 +87,9 @@ def setup_mock_aiplatform(status, monkeypatch):
     )
     monkeypatch.setattr(
         aiplatform,
-        "CustomContainerTrainingJob",
-        lambda display_name, container_uri: mock_aiplatform_CustomContainerTrainingJob(
-            display_name, container_uri, job_dict
+        "CustomJob",
+        lambda display_name, worker_pool_specs: mock_aiplatform_CustomJob(
+            display_name, worker_pool_specs, job_dict
         ),
     )
     monkeypatch.setattr(
@@ -108,8 +121,8 @@ def test_launch_gcp_vertex(
         "project": "test",
         "resource_args": {
             "gcp_vertex": {
-                "gcp_staging_bucket": "test-bucket",
-                "gcp_artifact_repo": "test_repo",
+                "staging_bucket": "test-bucket",
+                "artifact_repo": "test_repo",
             },
         },
     }
@@ -121,6 +134,7 @@ def test_launch_gcp_vertex(
     assert run.get_status().state == "finished"
     assert run.cancel() is None
     assert run.wait()
+    assert run._job.test_attrs["command"] == ["python", "train.py"]
 
 
 @pytest.mark.timeout(320)
@@ -145,8 +159,8 @@ def test_launch_gcp_vertex_failed(
         "project": "test",
         "resource_args": {
             "gcp_vertex": {
-                "gcp_staging_bucket": "test-bucket",
-                "gcp_artifact_repo": "test_repo",
+                "staging_bucket": "test-bucket",
+                "artifact_repo": "test_repo",
             },
         },
     }
@@ -185,7 +199,7 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
             in str(e)
         )
 
-    kwargs["resource_args"]["gcp_vertex"]["gcp_staging_bucket"] = "test-bucket"
+    kwargs["resource_args"]["gcp_vertex"]["staging_bucket"] = "test-bucket"
     try:
         launch.run(**kwargs)
     except LaunchError as e:
@@ -196,14 +210,6 @@ def test_vertex_supplied_docker_image(
     test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
-
-    def patched_pull_docker_image(docker_image):
-        return  # noop
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.gcp_vertex.pull_docker_image",
-        lambda docker_image: patched_pull_docker_image(docker_image),
-    )
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -218,8 +224,8 @@ def test_vertex_supplied_docker_image(
         "docker_image": "test:tag",
         "resource_args": {
             "gcp_vertex": {
-                "gcp_staging_bucket": "test-bucket",
-                "gcp_artifact_repo": "test_repo",
+                "staging_bucket": "test-bucket",
+                "artifact_repo": "test_repo",
             },
         },
     }
@@ -236,7 +242,7 @@ def test_run_shell():
 
 
 def test_get_gcp_config(monkeypatch):
-    def mock_gcp_config(args, stdout):
+    def mock_gcp_config(args, stdout, stderr):
         config_str = """
 is_active: true
 name: default
@@ -247,10 +253,14 @@ properties:
     account: test-account
     project: test-project
 """
-        return MockDict({"stdout": bytes(config_str, "utf-8")})
+        return MockDict(
+            {"stdout": bytes(config_str, "utf-8"), "stderr": bytes("", "utf-8")}
+        )
 
     monkeypatch.setattr(
-        subprocess, "run", lambda args, stdout: mock_gcp_config(args, stdout)
+        subprocess,
+        "run",
+        lambda args, stdout, stderr: mock_gcp_config(args, stdout, stderr),
     )
     result = get_gcp_config()
     assert result["properties"]["compute"]["zone"] == "us-east1-b"

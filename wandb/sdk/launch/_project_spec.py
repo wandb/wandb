@@ -9,7 +9,7 @@ import logging
 import os
 from shlex import quote
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
@@ -380,7 +380,7 @@ class EntryPoint(object):
 
 
 def get_entry_point_command(
-    entry_point: "EntryPoint", parameters: Dict[str, Any]
+    entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
 ) -> str:
     """Returns the shell command to execute in order to run the specified entry point.
 

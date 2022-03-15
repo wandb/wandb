@@ -4,7 +4,7 @@ import os
 import shutil
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -322,7 +322,7 @@ def generate_dockerfile(launch_project: LaunchProject, runner_type: str,) -> str
 def generate_docker_image(
     launch_project: LaunchProject,
     image_uri: str,
-    entrypoint: EntryPoint,
+    entrypoint: Optional[EntryPoint],
     docker_args: Dict[str, Any],
     runner_type: str,
 ) -> str:

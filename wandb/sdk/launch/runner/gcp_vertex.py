@@ -1,8 +1,7 @@
 import datetime
 import os
-import subprocess
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
@@ -101,30 +100,32 @@ class VertexRunner(AbstractRunner):
             "compute", {}
         ).get("zone")
         gcp_region = "-".join(gcp_zone.split("-")[:2])
-        gcp_staging_bucket = resource_args.get("gcp_staging_bucket")
+        gcp_staging_bucket = resource_args.get("staging_bucket")
         if not gcp_staging_bucket:
             raise LaunchError(
-                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key gcp_staging_bucket."
+                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
             )
-        gcp_artifact_repo = resource_args.get("gcp_artifact_repo")
+        gcp_artifact_repo = resource_args.get("artifact_repo")
         if not gcp_artifact_repo:
             raise LaunchError(
-                "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key gcp_artifact_repo."
+                "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key artifact_repo."
             )
         gcp_docker_host = resource_args.get(
-            "gcp_docker_host"
+            "docker_host"
         ) or "{region}-docker.pkg.dev".format(region=gcp_region)
-        gcp_machine_type = resource_args.get("gcp_machine_type") or "n1-standard-4"
+        gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
         gcp_accelerator_type = (
-            resource_args.get("gcp_accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
+            resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
         )
-        gcp_accelerator_count = int(resource_args.get("gcp_accelerator_count") or 0)
+        gcp_accelerator_count = int(resource_args.get("accelerator_count") or 0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         gcp_training_job_name = resource_args.get(
-            "gcp_job_name"
+            "job_name"
         ) or "{project}_{time}".format(
             project=launch_project.target_project, time=timestamp
         )
+        service_account = resource_args.get("service_account")
+        tensorboard = resource_args.get("tensorboard")
 
         aiplatform.init(
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
@@ -162,20 +163,33 @@ class VertexRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        # todo: this is super broken
-        env_prefix = [
-            "-e {}={}".format(k, v)
-            for k, v in get_env_vars_dict(launch_project, self._api).items()
-        ]
         entry_cmd = get_entry_point_command(
             entry_point, launch_project.override_args
         ).split()
 
-        job = aiplatform.CustomContainerTrainingJob(
-            display_name=gcp_training_job_name,
-            container_uri=image_uri,
-            command=env_prefix + entry_cmd,
+        worker_pool_specs = [
+            {
+                "machine_spec": {
+                    "machine_type": gcp_machine_type,
+                    "accelerator_type": gcp_accelerator_type,
+                    "accelerator_count": gcp_accelerator_count,
+                },
+                "replica_count": 1,
+                "container_spec": {
+                    "image_uri": image_uri,
+                    "command": entry_cmd,
+                    "env": [
+                        {"name": k, "value": v}
+                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                    ],
+                },
+            }
+        ]
+
+        job = aiplatform.CustomJob(
+            display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
         )
+
         submitted_run = VertexSubmittedRun(job)
 
         # todo: support gcp dataset?
@@ -189,15 +203,10 @@ class VertexRunner(AbstractRunner):
         # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
         # on this thread but continues to block the process on another thread. always set sync=False so we can get
         # the job info (dependent on job._gca_resource)
-        job.run(
-            machine_type=gcp_machine_type,
-            accelerator_type=gcp_accelerator_type,
-            accelerator_count=gcp_accelerator_count,
-            replica_count=1,
-            sync=False,
-        )
-        while job._gca_resource is None:
-            # give time for the gcp job object to be created, this should only loop a couple times max
+        job.run(service_account=service_account, tensorboard=tensorboard, sync=False)
+
+        while not getattr(job._gca_resource, "name", None):
+            # give time for the gcp job object to be created and named, this should only loop a couple times max
             time.sleep(1)
 
         wandb.termlog(
