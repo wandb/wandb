@@ -142,6 +142,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.ArtifactResult()
         return result
 
+    def LinkArtifact(  # noqa: N802
+        self, link_artifact: pb.LinkArtifactRecord, context: grpc.ServicerContext,
+    ) -> pb.LinkArtifactResult:
+        stream_id = link_artifact._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_link_artifact(link_artifact)
+        result = pb.LinkArtifactResult()
+        return result
+
     def ArtifactSend(  # noqa: N802
         self, art_send: pb.ArtifactSendRequest, context: grpc.ServicerContext
     ) -> pb.ArtifactSendResponse:

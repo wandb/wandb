@@ -28,6 +28,7 @@ service InternalService {
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
+  rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
 
   // rpc messages for async operations: Send, Poll, Cancel, Release
   rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}
