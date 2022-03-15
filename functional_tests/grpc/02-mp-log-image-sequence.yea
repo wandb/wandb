@@ -1,0 +1,41 @@
+id: 0.mp.19-1-log-image-sequence
+plugin:
+    - wandb
+depend:
+    requirements:
+        - numpy
+tag:
+    shard: service
+parametrize:
+    permute:
+        - :yea:start_method:
+            - spawn
+            - forkserver
+var:
+    - history_len:
+        :fn:len: :wandb:runs[0][history]
+    - filenames_0_len:
+         :fn:len: :wandb:runs[0][history][0][media][filenames]
+    - filenames_1_len:
+         :fn:len: :wandb:runs[0][history][1][media][filenames]
+assert:
+    - :wandb:runs_len: 1
+
+    - :wandb:runs[0][history][0][_step]: 0
+    - :wandb:runs[0][history][1][_step]: 1
+
+    - :history_len: 2
+
+    - :wandb:runs[0][history][0][media][_type]: images/separated
+    - :wandb:runs[0][history][0][media][width]: 2
+    - :wandb:runs[0][history][0][media][height]: 2
+    - :wandb:runs[0][history][0][media][count]: 3
+    - :filenames_0_len: 3
+
+    - :wandb:runs[0][history][1][media][_type]: images/separated
+    - :wandb:runs[0][history][1][media][width]: 2
+    - :wandb:runs[0][history][1][media][height]: 2
+    - :wandb:runs[0][history][1][media][count]: 3
+    - :filenames_1_len: 3
+
+    - :wandb:runs[0][exitcode]: 0
