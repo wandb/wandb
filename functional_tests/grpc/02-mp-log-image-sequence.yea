@@ -1,4 +1,4 @@
-id: 0.mp.19-1-log-image-sequence
+id: 0.grpc.02-mp-log-image-sequence
 plugin:
     - wandb
 depend:

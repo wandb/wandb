@@ -25,7 +25,6 @@ def main():
     os.environ["WANDB_SERVICE_TRANSPORT"] = "grpc"
 
     wandb.require("service")
-    wandb.setup()
     run = wandb.init()
 
     # Start a new run in parallel in a child process
