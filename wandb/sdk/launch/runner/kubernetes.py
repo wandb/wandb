@@ -207,6 +207,15 @@ class KubernetesRunner(AbstractRunner):
         user_provided_image = image or launch_project.docker_image
         if user_provided_image:
             containers[0]["image"] = user_provided_image
+            containers[0]["env"] = [
+                {"name": "WANDB_DOCKER", "value": user_provided_image},
+                {"name": "WANDB_RUN_ID", "value": launch_project.run_id},
+                {"name": "WANDB_BASE_URL", "value": self._api.settings("base_url")},
+                {"name": "WANDB_PROJECT", "value": launch_project.target_project},
+                {"name": "WANDB_API_KEY", "value": self._api.api_key},
+                {"name": "WANDB_LAUNCH", "value": "true"},
+                {"name": "WANDB_ENTITY", "value": launch_project.target_entity}
+            ]
         else:
             registry = resource_args.get("registry")
             if registry is None:
