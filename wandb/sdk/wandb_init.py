@@ -670,22 +670,8 @@ class _WandbInit(object):
             run.config.update({k: v}, allow_val_change=True)
 
         self.backend = backend
-        module.set_global(
-            run=run,
-            config=run.config,
-            log=run.log,
-            summary=run.summary,
-            save=run.save,
-            use_artifact=run.use_artifact,
-            log_artifact=run.log_artifact,
-            define_metric=run.define_metric,
-            plot_table=run.plot_table,
-            alert=run.alert,
-            mark_preempting=run.mark_preempting,
-        )
         self._reporter.set_context(run=run)
         run._on_start()
-
         logger.info("run started, returning control to user process")
         return run
 

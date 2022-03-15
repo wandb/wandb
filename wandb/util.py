@@ -386,7 +386,7 @@ def make_tarfile(
         tar_info.mtime = 0
         return tar_info if custom_filter is None else custom_filter(tar_info)
 
-    unzipped_filename = tempfile.mktemp()
+    descriptor, unzipped_filename = tempfile.mkstemp()
     try:
         with tarfile.open(unzipped_filename, "w") as tar:
             tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
@@ -397,6 +397,7 @@ def make_tarfile(
         ) as gzipped_tar, open(unzipped_filename, "rb") as tar_file:
             gzipped_tar.write(tar_file.read())
     finally:
+        os.close(descriptor)
         os.remove(unzipped_filename)
 
 
