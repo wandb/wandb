@@ -107,7 +107,7 @@ class KubernetesRunner(AbstractRunner):
             )
 
         config_file = resource_args.get("config_file")
-        if not config_file or os.path.exists("~/.kube/config"):
+        if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
             # if config_file is None then loads default in ~/.kube
             config = kubernetes.config.load_kube_config(config_file)
         else:
