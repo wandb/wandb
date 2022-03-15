@@ -114,9 +114,8 @@ class _WandbInit(object):
                 wandb.termwarn(
                     "Changes to your `wandb` environment variables will be ignored "
                     "because your `wandb` session has already started. "
-                    "If you want to modify the corresponding settings at this point, "
-                    "please pass the corresponding arguments to `wandb.init()`. "
-                    "For more information, please refer to the documentation at "
+                    "For more information on how to modify your settings with "
+                    "`wandb.init()` arguments, please refer to the documentation at "
                     f"{wburls.get('wandb_init')}."
                 )
 
