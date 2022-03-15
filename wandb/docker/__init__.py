@@ -213,7 +213,7 @@ def get_image_uid(image_name: str) -> int:
 
 
 def push(repo: str, tag: str) -> Optional[str]:
-    """Push an image to an ECR repository"""
+    """Push an image to a remote registry"""
     return shell(["push", f"{repo}:{tag}"])
 
 
