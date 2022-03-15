@@ -297,7 +297,6 @@ def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
 
 def setup(settings=None) -> Optional["_WandbSetup"]:
     ret = _setup(settings=settings)
-    # wandb.termlog("`wandb` session started.", repeat=False)
     return ret
 
 
