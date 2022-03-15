@@ -31,7 +31,7 @@ class WBURLs:
             doc_require="https://wandb.me/library-require",
             doc_start_err="https://docs.wandb.ai/library/init#init-start-error",
             upgrade_local="https://wandb.me/local-upgrade",
-            wandb_init="https://docs.wandb.ai/ref/python/init",
+            wandb_init="https://wandb.me/wandb-init",
         )
 
     def get(self, s: "URLS") -> str:
