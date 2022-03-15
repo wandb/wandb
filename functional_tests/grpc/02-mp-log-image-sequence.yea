@@ -5,7 +5,7 @@ depend:
     requirements:
         - numpy
 tag:
-    shard: service
+    shard: grpc
 parametrize:
     permute:
         - :yea:start_method:
