@@ -72,7 +72,7 @@ class SockClient:
         inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
         inform_teardown: spb.ServerInformTeardownRequest = None
-    ) -> Optional[spb.ServerResponse]:
+    ) -> spb.ServerResponse:
         self.send(
             inform_init=inform_init,
             inform_start=inform_start,
@@ -82,7 +82,7 @@ class SockClient:
         )
         response = self.read_server_response(timeout=1)
         if response is None:
-            raise Exception("No responese")  # FIXME (should we retry? error out?)
+            raise Exception("No responese")
         return response
 
     def send(
