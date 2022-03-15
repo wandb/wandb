@@ -28,3 +28,10 @@ def test_add_any():
             _add_any(artifact, ["invalid input type"], "invalid")
 
     assert True
+
+
+def test_offline_link_artifact(test_settings):
+    run = wandb.init(mode="offline", settings=test_settings)
+    with pytest.raises(NotImplementedError):
+        run.link_artifact(None, "entity/project/portfolio", "latest")
+    run.finish()
