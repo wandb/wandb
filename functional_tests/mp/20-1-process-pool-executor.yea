@@ -1,0 +1,24 @@
+id: 0.mp.20-1-process-pool-executor
+tag:
+  shard: service
+
+var:
+  - history_len:
+      :fn:len: :wandb:runs[0][history]
+
+parametrize:
+    permute:
+        - :yea:start_method:
+            - spawn
+            - forkserver
+            - fork
+plugin:
+  - wandb
+
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][history][0][a]: 0
+  - :wandb:runs[0][history][1][a]: 1
+  - :wandb:runs[0][history][2][a]: 2
+  - :history_len: 3
+  - :wandb:runs[0][exitcode]: 0
