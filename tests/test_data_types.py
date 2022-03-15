@@ -1171,6 +1171,6 @@ def test_image_array_old_wandb_mp_warning(test_settings, capsys, monkeypatch):
             run.log({"logged_images": wb_image})
     outerr = capsys.readouterr()
     assert (
-        "Trying to log a sequence of Image(s) from multiple processes might cause for data loss. Please upgrade your wandb server"
+        "Attempting to log a sequence of Image objects from multiple processes might result in data loss. Please upgrade your wandb server"
         in outerr.err
     )

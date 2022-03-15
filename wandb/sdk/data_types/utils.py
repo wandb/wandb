@@ -113,7 +113,7 @@ def val_to_json(
                     )
                 if run._attach_id and run._init_pid != os.getpid():
                     wandb.termwarn(
-                        f"Trying to log a sequence of {items[0].__class__.__name__}(s) from multiple processes might cause for data loss. Please upgrade your wandb server",
+                        f"Attempting to log a sequence of {items[0].__class__.__name__} objects from multiple processes might result in data loss. Please upgrade your wandb server",
                         repeat=False,
                     )
 

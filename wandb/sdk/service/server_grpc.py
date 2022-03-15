@@ -339,7 +339,6 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
     def ServerInformAttach(  # noqa: N802
         self, request: spb.ServerInformAttachRequest, context: grpc.ServicerContext,
     ) -> spb.ServerInformAttachResponse:
-        # TODO
         stream_id = request._info.stream_id
         result = spb.ServerInformAttachResponse()
         _pbmap_apply_dict(
