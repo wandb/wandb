@@ -198,13 +198,12 @@ def use_model(aliased_path: str) -> "_SavedModel":
     if wandb.run:
         run = wandb.run
         artifact = run.use_artifact(aliased_path)
-        try:
-            sm = artifact.get("index")
-        except Exception:
-            raise ValueError("Error - deserialization into model object failed.")
+        sm = artifact.get("index")
 
         if sm is None or not isinstance(sm, _SavedModel):
-            raise ValueError("_SavedModel instance was not initialized properly.")
+            raise ValueError(
+                "Deserialization into model object failed: _SavedModel instance could not be initialized properly."
+            )
 
         return sm
     else:
