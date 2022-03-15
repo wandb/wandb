@@ -951,7 +951,7 @@ def init(
 
     Pass a dictionary-style object as the `config` keyword argument to add
     metadata, like hyperparameters, to your run.
-    <!--yeadoc-test:init-set-config--->
+    <!--yeadoc-test:init-set-config-->
     ```python
     import wandb
 
