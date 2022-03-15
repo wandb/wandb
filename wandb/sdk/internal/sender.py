@@ -964,6 +964,31 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
+    def send_link_artifact(self, record: "Record") -> None:
+        link = record.link_artifact
+        client_id = link.client_id
+        server_id = link.server_id
+        portfolio_name = link.portfolio_name
+        entity = link.portfolio_entity
+        project = link.portfolio_project
+        aliases = link.portfolio_aliases
+        logger.debug(
+            f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
+        )
+        if (
+            (client_id or server_id)
+            and portfolio_name
+            and entity
+            and project
+            and aliases
+        ):
+            try:
+                self._api.link_artifact(
+                    client_id, server_id, portfolio_name, entity, project, aliases
+                )
+            except Exception as e:
+                logger.warning("Failed to link artifact to portfolio: %s", e)
+
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
         result = proto_util._result_from_record(record)
