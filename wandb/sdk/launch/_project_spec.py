@@ -479,8 +479,7 @@ def create_metadata_file(
     sanitized_dockerfile_contents: str,
 ) -> None:
     with open(
-        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
-        "w",
+        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
     ) as f:
         json.dump(
             {
