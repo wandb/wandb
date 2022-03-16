@@ -25,22 +25,30 @@ def line_series(
         A plot object, to be passed to wandb.log()
 
     Example:
-        ```
-        When logging a singular array for x, all ys are plotted against that x
-        x = [i for i in range(10)]
-        ys = [
-            [i for i in range(10)],
-            [i**2 for i in range(10)]
-        ]
-        wandb.log({'line-series-plot1': wandb.plot.line_series(x, ys, "title", "step")})
+        When logging a singular array for xs, all ys are plotted against that xs
+        ```python
+        <!--yeadoc-test:plot-line-series-single-->
+        import wandb
 
+        run = wandb.init()
+        xs = [i for i in range(10)]
+        ys = [[i for i in range(10)], [i**2 for i in range(10)]]
+        run.log(
+            {"line-series-plot1": wandb.plot.line_series(xs, ys, title="title", xname="step")}
+        )
+        run.finish()
+        ```
         xs can also contain an array of arrays for having different steps for each metric
+        ```python
+        <!--yeadoc-test:plot-line-series-double-->
+        import wandb
+
+        run = wandb.init()
         xs = [[i for i in range(10)], [2*i for i in range(10)]]
-        ys = [
-            [i for i in range(10)],
-            [i**2 for i in range(10)]
-        ]
-        wandb.log({'line-series-plot1': wandb.plot.line_series(xs, ys, "title", "step")})
+        ys = [[i for i in range(10)], [i**2 for i in range(10)]]
+        run.log(
+            {'line-series-plot2': wandb.plot.line_series(xs, ys, title="title", xname="step")})
+        run.finish()
         ```
     """
     if not isinstance(xs, Iterable):
