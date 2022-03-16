@@ -51,7 +51,7 @@ def build(tags: List[str], file: str, context_path: str) -> str:
     for tag in tags:
         build_tags += ["-t", tag]
     run(
-        ["docker"] + command + ["--progress=plain"] + build_tags + ["-f", file, context_path],
+        ["docker"] + command + build_tags + ["-f", file, context_path],
         capture_stderr=False,
         capture_stdout=False,
     )
