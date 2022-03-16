@@ -50,7 +50,7 @@ class SagemakerSubmittedRun(AbstractRun):
             wandb.termlog(
                 f"Training job {self.training_job_name} status: {status_state}"
             )
-            if status_state in ["stopped", "failed", "finished"]:
+            if status_state in != "running":
                 break
             time.sleep(5)
         return status_state == "finished"
@@ -147,7 +147,8 @@ class AWSSagemakerRunner(AbstractRunner):
             + f"/{ecr_repo_name}"
         )
 
-        if self.backend_config[PROJECT_DOCKER_ARGS]:
+        docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
+        if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
                 "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )
@@ -169,6 +170,7 @@ class AWSSagemakerRunner(AbstractRunner):
         if login_resp is None or "Login Succeeded" not in login_resp:
             raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
+        # todo: we don't always want to tag/push the image (eg if image already hosted on aws), figure this out
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
         docker.tag(image, aws_tag)
 

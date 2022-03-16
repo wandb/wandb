@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Union
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
 
@@ -83,7 +84,10 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue, entity=self._entity, project=self._project, agent_id=self._id,
+                queue,
+                entity=self._entity,
+                project=self._project,
+                agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
@@ -116,7 +120,10 @@ class LaunchAgent(object):
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
-        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+        try:
+            if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+                self.finish_job_id(job_id)
+        except LaunchError:
             self.finish_job_id(job_id)
 
     def _validate_and_fix_spec_project_entity(

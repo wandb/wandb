@@ -218,7 +218,9 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True, _disable_viewer=relogin, anonymous=anon_mode,
+        _cli_only_mode=True,
+        _disable_viewer=relogin,
+        anonymous=anon_mode,
     )
     if host is not None:
         login_settings["base_url"] = host
@@ -363,7 +365,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -899,9 +903,18 @@ def sweep(
 
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module(
+        "docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "chardet",
+        required=req_string,
+    )
     _ = util.get_module("iso8601", required=req_string)
 
 
@@ -1073,14 +1086,14 @@ def launch(
     args_dict = util._user_args_to_dict(args_list)
 
     if resource_args is not None:
-        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        resource_args = util.load_json_yaml_dict(resource_args)
         if resource_args is None:
             raise LaunchError("Invalid format for resource-args")
     else:
         resource_args = {}
 
     if config is not None:
-        config = util.load_as_json_file_or_load_dict_as_json(config)
+        config = util.load_json_yaml_dict(config)
         if config is None:
             raise LaunchError("Invalid format for config")
     else:
@@ -1567,7 +1580,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

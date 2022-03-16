@@ -87,7 +87,11 @@ class LaunchProject(object):
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if "entry_point" in overrides:
+        if (
+            "entry_point" in overrides
+            and overrides["entry_point"] is not None
+            and overrides["entry_point"] != ""
+        ):
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
         if self.uri is None:
@@ -475,7 +479,8 @@ def create_metadata_file(
     sanitized_dockerfile_contents: str,
 ) -> None:
     with open(
-        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
+        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
+        "w",
     ) as f:
         json.dump(
             {
