@@ -1,14 +1,23 @@
-from six.moves.collections_abc import Sequence
+from collections import Iterable
+import typing as t
+
 import wandb
 
 
-def line_series(xs, ys, keys=None, title=None, xname=None):
+def line_series(
+    xs: t.Union[t.Iterable, t.Iterable[t.Iterable]],
+    ys: t.Iterable[t.Iterable],
+    keys: t.Optional[t.Iterable] = None,
+    title: t.Optional[str] = None,
+    xname: t.Optional[str] = None,
+):
     """
     Construct a line series plot.
 
     Arguments:
         xs (array of arrays, or array): Array of arrays of x values
         ys (array of arrays): Array of y values
+        keys (array): Array of labels for the line plots
         title (string): Plot title.
         xname: Title of x-axis
 
@@ -34,17 +43,30 @@ def line_series(xs, ys, keys=None, title=None, xname=None):
         wandb.log({'line-series-plot1': wandb.plot.line_series(xs, ys, "title", "step")})
         ```
     """
-    data = []
-    if not isinstance(xs[0], Sequence):
+    if not isinstance(xs, Iterable):
+        raise TypeError(f"Expected xs to be an array instead got {type(xs)}")
+
+    if not isinstance(ys, Iterable):
+        raise TypeError(f"Expected ys to be an array instead got {type(xs)}")
+
+    for y in ys:
+        if not isinstance(y, Iterable):
+            raise TypeError(
+                f"Expected ys to be an array of arrays instead got {type(y)}"
+            )
+
+    if not isinstance(xs[0], Iterable) or isinstance(xs[0], (str, bytes)):
         xs = [xs for _ in range(len(ys))]
     assert len(xs) == len(ys), "Number of x-lines and y-lines must match"
-    for i, series in enumerate([list(zip(xs[i], ys[i])) for i in range(len(xs))]):
-        for x, y in series:
-            if keys is None:
-                key = "key_{}".format(i)
-            else:
-                key = keys[i]
-            data.append([x, key, y])
+
+    if keys is not None:
+        assert len(keys) == len(ys), "Number of keys and y-lines must match"
+
+    data = [
+        [x, f"key_{i}" if keys is None else keys[i], y]
+        for i, (xx, yy) in enumerate(zip(xs, ys))
+        for x, y in zip(xx, yy)
+    ]
 
     table = wandb.Table(data=data, columns=["step", "lineKey", "lineVal"])
 
