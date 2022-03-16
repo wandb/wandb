@@ -35,7 +35,7 @@ def validate_docker_installation() -> None:
     """Verify if Docker is installed on host machine."""
     _logger.info("Validating docker installation")
     if not find_executable("docker"):
-        raise ExecutionError(
+        raise LaunchError(
             "Could not find Docker executable. "
             "Ensure Docker is installed as per the instructions "
             "at https://docs.docker.com/install/overview/."
