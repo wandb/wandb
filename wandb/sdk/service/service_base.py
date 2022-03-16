@@ -5,10 +5,10 @@ abstract methods.
 """
 
 from abc import abstractmethod
+from collections.abc import Iterable, Mapping
 import datetime
 import enum
-from typing import Any, Dict
-from typing import TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.wandb_settings import Settings
@@ -39,8 +39,10 @@ def _pbmap_apply_dict(
             sv.float_value = v
         elif isinstance(v, str):
             sv.string_value = v
-        elif hasattr(v, "__iter__") and not isinstance(v, (str, bytes)):
+        elif isinstance(v, Iterable) and not isinstance(v, (str, bytes, Mapping)):
             sv.tuple_value.string_values.extend(v)
+        else:
+            raise Exception("unsupported type")
         m[k].CopyFrom(sv)
 
 
