@@ -60,7 +60,7 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: wandb-launch-role-binding
+  name: wandb-launch-cluster-role-binding
   namespace: default #TODO: SET YOUR TRAINING NAMESPACE
 subjects:
 - kind: ServiceAccount
