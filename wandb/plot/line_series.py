@@ -26,8 +26,8 @@ def line_series(
 
     Example:
         When logging a singular array for xs, all ys are plotted against that xs
-        ```python
         <!--yeadoc-test:plot-line-series-single-->
+        ```python
         import wandb
 
         run = wandb.init()
@@ -39,8 +39,8 @@ def line_series(
         run.finish()
         ```
         xs can also contain an array of arrays for having different steps for each metric
-        ```python
         <!--yeadoc-test:plot-line-series-double-->
+        ```python
         import wandb
 
         run = wandb.init()
