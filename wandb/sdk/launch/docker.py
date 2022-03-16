@@ -320,7 +320,7 @@ def generate_dockerfile(launch_project: LaunchProject, runner_type: str,) -> str
 def generate_docker_image(
     launch_project: LaunchProject,
     image_uri: str,
-    entrypoint: EntryPoint,
+    entrypoint: Optional[EntryPoint],
     docker_args: Dict[str, Any],
     runner_type: str,
 ) -> str:

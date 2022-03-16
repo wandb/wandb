@@ -4,7 +4,6 @@ import signal
 import subprocess
 from typing import Any, Dict, List, Optional
 
-from pkg_resources import EntryPoint
 from six.moves import shlex_quote
 import wandb
 
@@ -78,7 +77,7 @@ class LocalRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
-        entry_point: Optional[EntryPoint] = launch_project.get_single_entry_point()
+        entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
             # user has provided their own docker image
@@ -151,6 +150,8 @@ def get_docker_command(
 
     Arguments:
     image: a Docker image to be run
+    env_vars: a dictionary of environment variables for the command
+    entry_cmd: the entry point command to run
     docker_args: a dictionary of additional docker args for the command
     """
     docker_path = "docker"
