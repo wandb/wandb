@@ -165,13 +165,14 @@ class KubernetesRunner(AbstractRunner):
             context = self._set_context(kubernetes, config_file, resource_args)
             # if config_file is None then loads default in ~/.kube
             kubernetes.config.load_kube_config(config_file, context["name"])
+            api_client = kubernetes.config.new_client_from_config(
+                config_file, context=context["name"]
+            )
         else:
             # attempt to load cluster config
             kubernetes.config.load_incluster_config()
+            api_client = kubernetes.client.api_client.ApiClient()
 
-        api_client = kubernetes.config.new_client_from_config(
-            config_file, context=(context["name"] if context else None)
-        )
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
 
