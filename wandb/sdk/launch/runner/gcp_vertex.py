@@ -1,8 +1,7 @@
 import datetime
 import os
-import subprocess
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
