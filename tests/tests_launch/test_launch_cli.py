@@ -4,6 +4,7 @@ import os
 import wandb
 from wandb.cli import cli
 from wandb.apis.internal import InternalApi
+from wandb.errors import LaunchError
 import pytest
 from tests import utils
 
@@ -122,6 +123,24 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         )
 
     assert "Shutting down, active jobs" in result.output
+
+
+def test_agent_launch_error_continue(
+    runner, test_settings, live_mock_server, monkeypatch
+):
+    def raise_(ex):
+        raise ex
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.run_job",
+        lambda _: raise_(LaunchError("blah blah")),
+    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
+        )
+        assert result.exit_code == 0
+        assert "blah blah" in result.output
 
 
 # this test includes building a docker container which can take some time.
