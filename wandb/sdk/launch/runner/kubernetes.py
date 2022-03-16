@@ -24,12 +24,19 @@ from ..utils import (
 )
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = 60 # default 10 second loop time on the agent, this is 10 minutes
+MAX_KUBERNETES_RETRIES = (
+    60  # default 10 second loop time on the agent, this is 10 minutes
+)
 
 
 class KubernetesSubmittedRun(AbstractRun):
     def __init__(
-        self, batch_api: "BatchV1Api", core_api: "CoreV1Api", name: str, namespace: Optional[str] = "default", pod_names: List[str] = None
+        self,
+        batch_api: "BatchV1Api",
+        core_api: "CoreV1Api",
+        name: str,
+        namespace: Optional[str] = "default",
+        pod_names: List[str] = None,
     ) -> None:
         self.batch_api = batch_api
         self.core_api = core_api
@@ -62,16 +69,26 @@ class KubernetesSubmittedRun(AbstractRun):
         )
         status = job_response.status
         try:
-            self.core_api.read_namespaced_pod_log(name=self.pod_names[0], namespace=self.namespace)
+            self.core_api.read_namespaced_pod_log(
+                name=self.pod_names[0], namespace=self.namespace
+            )
         except Exception as e:
             if self._fail_count == 1:
-                wandb.termlog("Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(self.name))
+                wandb.termlog(
+                    "Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(
+                        self.name
+                    )
+                )
             self._fail_count += 1
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 if hasattr(e, "body") and hasattr(e.body, "message"):
-                    raise LaunchError(f"Failed to start job {self.name}, because of error {str(e.body.message)}")
+                    raise LaunchError(
+                        f"Failed to start job {self.name}, because of error {str(e.body.message)}"
+                    )
                 else:
-                    raise LaunchError(f"Failed to start job {self.name}, because of error {str(e)}")
+                    raise LaunchError(
+                        f"Failed to start job {self.name}, because of error {str(e)}"
+                    )
 
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         if status.succeeded == 1:
@@ -113,6 +130,21 @@ class KubernetesSubmittedRun(AbstractRun):
 
 
 class KubernetesRunner(AbstractRunner):
+    def _set_context(self, kubernetes, config_file, resource_args):
+        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
+            config_file
+        )
+        if resource_args.get("context"):
+            context_name = resource_args["context"]
+            for c in all_contexts:
+                if c["name"] == context_name:
+                    return c
+            raise LaunchError(
+                "Specified context {} was not found.".format(context_name)
+            )
+        else:
+            return active_context
+
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:  # noqa: C901
         kubernetes = get_module(  # noqa: F811
             "kubernetes", "KubernetesRunner requires kubernetes to be installed"
@@ -125,26 +157,12 @@ class KubernetesRunner(AbstractRunner):
             )
 
         config_file = resource_args.get("config_file", None)
-        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
-            config_file
-        )
         context = None
-        if resource_args.get("context"):
-            context_name = resource_args["context"]
-            for c in all_contexts:
-                if c["name"] == context_name:
-                    context = c
-                    break
-            if context is None:
-                raise LaunchError(
-                    "Specified context {} was not found.".format(context_name)
-                )
-        else:
-            context = active_context
-
         if config_file is not None or os.path.exists(
             os.path.expanduser("~/.kube/config")
         ):
+            # context only exist in the non-incluster case
+            context = self._set_context(kubernetes, config_file, resource_args)
             # if config_file is None then loads default in ~/.kube
             kubernetes.config.load_kube_config(config_file, context["name"])
         else:
@@ -152,7 +170,7 @@ class KubernetesRunner(AbstractRunner):
             kubernetes.config.load_incluster_config()
 
         api_client = kubernetes.config.new_client_from_config(
-            config_file, context=context["name"]
+            config_file, context=(context["name"] if context else None)
         )
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
@@ -176,11 +194,11 @@ class KubernetesRunner(AbstractRunner):
         # begin pulling resource arg overrides. all of these are optional
 
         # allow top-level namespace override, otherwise take namespace specified at the job level, or default in current context
+        default = (
+            context["context"].get("namespace", "default") if context else "default"
+        )
         namespace = resource_args.get(
-            "namespace",
-            job_metadata.get(
-                "namespace", context["context"].get("namespace", "default")
-            ),
+            "namespace", job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -335,7 +353,9 @@ class KubernetesRunner(AbstractRunner):
             )
         )
 
-        submitted_job = KubernetesSubmittedRun(batch_api,core_api, job_name, namespace, pod_names)
+        submitted_job = KubernetesSubmittedRun(
+            batch_api, core_api, job_name, namespace, pod_names
+        )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
