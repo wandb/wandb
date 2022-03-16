@@ -1,15 +1,5 @@
 #!/usr/bin/env python
-"""Test stdin timeout
----
-id: 0.login.1-timeout
-plugin:
-  - wandb
-tag:
-  skips:
-    - platform: win
-assert:
-  - :yea:exit: 0
-"""
+"""Test stdin timeout"""
 
 import time
 
