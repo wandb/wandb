@@ -14,16 +14,17 @@ from wandb.util import get_module
 import yaml
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import LaunchProject
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     construct_gcp_image_uri,
     generate_docker_image,
-    pull_docker_image,
+    get_env_vars_dict,
     validate_docker_installation,
 )
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    run_shell,
 )
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -140,15 +141,16 @@ class VertexRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
-            pull_docker_image(launch_project.docker_image)
             image_uri = launch_project.docker_image
         else:
             image_uri = construct_gcp_image_uri(
-                launch_project, gcp_artifact_repo, gcp_project, gcp_docker_host,
+                launch_project,
+                gcp_artifact_repo,
+                gcp_project,
+                gcp_docker_host,
             )
 
             generate_docker_image(
-                self._api,
                 launch_project,
                 image_uri,
                 entry_point,
@@ -156,14 +158,26 @@ class VertexRunner(AbstractRunner):
                 runner_type="gcp-vertex",
             )
 
-        repo, tag = image_uri.split(":")
-        docker.push(repo, tag)
+        image, tag = image_uri.split(":")
+        if not exists_on_gcp(image, tag):
+            docker.push(image, tag)
 
         if not self.ack_run_queue_item(launch_project):
             return None
 
+        # todo: this is super broken
+        env_prefix = [
+            "-e {}={}".format(k, v)
+            for k, v in get_env_vars_dict(launch_project, self._api).items()
+        ]
+        entry_cmd = get_entry_point_command(
+            entry_point, launch_project.override_args
+        ).split()
+
         job = aiplatform.CustomContainerTrainingJob(
-            display_name=gcp_training_job_name, container_uri=image_uri,
+            display_name=gcp_training_job_name,
+            container_uri=image_uri,
+            command=env_prefix + entry_cmd,
         )
         submitted_run = VertexSubmittedRun(job)
 
@@ -203,13 +217,25 @@ class VertexRunner(AbstractRunner):
         return submitted_run
 
 
-def run_shell(args: List[str]) -> str:
-    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
-
-
 def get_gcp_config(config: str = "default") -> Any:
     return yaml.safe_load(
         run_shell(
             ["gcloud", "config", "configurations", "describe", shlex_quote(config)]
-        )
+        )[0]
     )
+
+
+def exists_on_gcp(image: str, tag: str) -> bool:
+    out, err = run_shell(
+        [
+            "gcloud",
+            "artifacts",
+            "docker",
+            "images",
+            "list",
+            shlex_quote(image),
+            "--include-tags",
+            "--filter=tags:{}".format(shlex_quote(tag)),
+        ]
+    )
+    return tag in out and "sha256:" in out

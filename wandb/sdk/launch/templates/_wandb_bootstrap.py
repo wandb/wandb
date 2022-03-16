@@ -1,10 +1,9 @@
 import json
-import multiprocessing
 import os
 import subprocess
 import sys
 
-CORES = multiprocessing.cpu_count()
+CORES = 1
 ONLY_INCLUDE = set(
     [x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""]
 )

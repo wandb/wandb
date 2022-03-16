@@ -232,7 +232,7 @@ def test_vertex_supplied_docker_image(
 
 
 def test_run_shell():
-    assert run_shell(["echo", "hello"]) == "hello"
+    assert run_shell(["echo", "hello"])[0] == "hello"
 
 
 def test_get_gcp_config(monkeypatch):

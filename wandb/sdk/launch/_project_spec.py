@@ -33,6 +33,7 @@ class LaunchSource(enum.IntEnum):
     WANDB: int = 1
     GIT: int = 2
     LOCAL: int = 3
+    DOCKER: int = 4
 
 
 class LaunchProject(object):
@@ -40,7 +41,7 @@ class LaunchProject(object):
 
     def __init__(
         self,
-        uri: str,
+        uri: Optional[str],
         api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
@@ -53,7 +54,7 @@ class LaunchProject(object):
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
     ):
-        if utils.is_bare_wandb_uri(uri):
+        if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
@@ -76,6 +77,7 @@ class LaunchProject(object):
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.resource = resource
         self.resource_args = resource_args
         self.deps_type: Optional[str] = None
@@ -88,7 +90,12 @@ class LaunchProject(object):
         if "entry_point" in overrides:
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
-        if utils._is_wandb_uri(self.uri):
+        if self.uri is None:
+            if self.docker_image is None:
+                raise LaunchError("Run requires a URI or a docker image")
+            self.source = LaunchSource.DOCKER
+            self.project_dir = tempfile.mkdtemp()
+        elif utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
@@ -142,12 +149,16 @@ class LaunchProject(object):
             if self.override_args.get(key):
                 del self.override_config[key]
 
-    def get_single_entry_point(self) -> "EntryPoint":
-        """Returns the first entrypoint for the project."""
+    def get_single_entry_point(self) -> Optional["EntryPoint"]:
+        """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we wanna support multiple entry points or not
-        if len(self._entry_points) != 1:
-            raise Exception("LaunchProject must have exactly one entry point")
+        if not self._entry_points:
+            if not self.docker_image:
+                raise LaunchError(
+                    "Project must have at least one entry point unless docker image is specified."
+                )
+            return None
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
@@ -177,6 +188,8 @@ class LaunchProject(object):
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
         _logger.info("Fetching project locally...")
+        if self.uri is None:
+            raise LaunchError("Uri is none, but trying to fetch project locally")
         if utils._is_wandb_uri(self.uri):
             source_entity, source_project, source_run_name = utils.parse_wandb_uri(
                 self.uri
@@ -368,7 +381,7 @@ class EntryPoint(object):
 
 def get_entry_point_command(
     entry_point: "EntryPoint", parameters: Dict[str, Any]
-) -> List[str]:
+) -> str:
     """Returns the shell command to execute in order to run the specified entry point.
 
     Arguments:
@@ -378,9 +391,9 @@ def get_entry_point_command(
     Returns:
         List of strings representing the shell command to be executed
     """
-    commands = []
-    commands.append(entry_point.compute_command(parameters))
-    return commands
+    if entry_point is None:
+        return ""
+    return entry_point.compute_command(parameters)
 
 
 def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
@@ -393,13 +406,12 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     Returns:
         An initialized `LaunchProject` object
     """
-    uri = launch_spec["uri"]
 
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
     return LaunchProject(
-        uri,
+        launch_spec.get("uri"),
         api,
         launch_spec,
         launch_spec["entity"],
@@ -427,6 +439,8 @@ def fetch_and_validate_project(
         A validated `LaunchProject` object.
 
     """
+    if launch_project.source == LaunchSource.DOCKER:
+        return launch_project
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
