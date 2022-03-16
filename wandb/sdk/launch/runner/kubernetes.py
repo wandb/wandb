@@ -199,7 +199,8 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         namespace = resource_args.get(
-            "namespace", job_metadata.get("namespace", default),
+            "namespace",
+            job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -253,12 +254,7 @@ class KubernetesRunner(AbstractRunner):
             }
 
         # env vars
-        given_env_vars = resource_args.get("env", {})
         env_vars = get_env_vars_dict(launch_project, self._api)
-        merged_env_vars = {**env_vars, **given_env_vars}
-        containers[0]["env"] = [
-            {"name": k, "value": v} for k, v in merged_env_vars.items()
-        ]
 
         # cmd
         entry_point = launch_project.get_single_entry_point()
@@ -286,6 +282,8 @@ class KubernetesRunner(AbstractRunner):
                 )
         user_provided_image = image or launch_project.docker_image
         if user_provided_image:
+            # dont specify run id if user provided image, could have multiple runs
+            env_vars.pop("WANDB_RUN_ID")
             containers[0]["image"] = user_provided_image
         else:
             registry = resource_args.get("registry")
@@ -311,6 +309,11 @@ class KubernetesRunner(AbstractRunner):
                 docker.push(repo, tag)
 
         # reassemble spec
+        given_env_vars = resource_args.get("env", {})
+        merged_env_vars = {**env_vars, **given_env_vars}
+        containers[0]["env"] = [
+            {"name": k, "value": v} for k, v in merged_env_vars.items()
+        ]
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
