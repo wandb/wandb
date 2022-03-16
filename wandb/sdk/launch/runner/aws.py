@@ -50,7 +50,7 @@ class SagemakerSubmittedRun(AbstractRun):
             wandb.termlog(
                 f"Training job {self.training_job_name} status: {status_state}"
             )
-            if status_state in != "running":
+            if status_state != "running":
                 break
             time.sleep(5)
         return status_state == "finished"
@@ -156,7 +156,7 @@ class AWSSagemakerRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
-            image_uri = launch_project.docker_image
+            image = launch_project.docker_image
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
