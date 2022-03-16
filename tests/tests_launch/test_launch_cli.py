@@ -64,7 +64,7 @@ def test_launch_agent_base(
     test_settings,
     live_mock_server,
     mocked_fetchable_git_repo,
-    kill_agent_on_empty_queue,
+    kill_agent_on_update_job,
 ):
 
     with runner.isolated_filesystem():
@@ -292,7 +292,7 @@ def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
 
 
 def test_launch_agent_project_environment_variable(
-    runner, test_settings, live_mock_server, monkeypatch, kill_agent_on_empty_queue
+    runner, test_settings, live_mock_server, monkeypatch,
 ):
     monkeypatch.setenv("WANDB_PROJECT", "test_project")
     monkeypatch.setattr(
