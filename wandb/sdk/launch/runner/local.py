@@ -3,11 +3,10 @@ import os
 import signal
 import subprocess
 from typing import Any, Dict, List, Optional
-from pkg_resources import EntryPoint
 
+from pkg_resources import EntryPoint
 from six.moves import shlex_quote
 import wandb
-from wandb.errors import LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject

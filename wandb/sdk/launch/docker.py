@@ -4,7 +4,7 @@ import os
 import shutil
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -13,7 +13,7 @@ from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
-from wandb.errors import DockerError, ExecutionError, LaunchError
+from wandb.errors import DockerError, LaunchError
 
 from ._project_spec import (
     create_metadata_file,

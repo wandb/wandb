@@ -1,5 +1,4 @@
 import configparser
-import itertools
 import logging
 import os
 import subprocess

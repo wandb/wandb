@@ -9,7 +9,7 @@ import logging
 import os
 from shlex import quote
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
