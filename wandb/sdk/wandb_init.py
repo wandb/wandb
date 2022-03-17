@@ -31,7 +31,9 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
+from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
@@ -87,6 +89,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
         self.notebook = None
+        self.printer = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
 
@@ -97,7 +100,30 @@ class _WandbInit(object):
         """
         self.kwargs = kwargs
 
-        self._wl = wandb_setup._setup()
+        # if the user ran, for example, `wandb.login(`) before `wandb.init()`,
+        # the singleton will already be set up and so if e.g. env vars are set
+        # in between, they will be ignored, which we need to inform the user about.
+        singleton = wandb_setup._WandbSetup._instance
+        if singleton is not None:
+            self.printer = get_printer(singleton._settings._jupyter)
+            # check if environment variables have changed
+            singleton_env = {
+                k: v for k, v in singleton._environ.items() if k.startswith("WANDB_")
+            }
+            os_env = {k: v for k, v in os.environ.items() if k.startswith("WANDB_")}
+            if set(singleton_env.keys()) != set(os_env.keys()) or set(
+                singleton_env.values()
+            ) != set(os_env.values()):
+                line = (
+                    "Changes to your `wandb` environment variables will be ignored "
+                    "because your `wandb` session has already started. "
+                    "For more information on how to modify your settings with "
+                    "`wandb.init()` arguments, please refer to "
+                    f"{self.printer.link(wburls.get('wandb_init'), 'the W&B docs')}."
+                )
+                self.printer.display(line, status="warn")
+
+        self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())
 
@@ -603,7 +629,9 @@ class _WandbInit(object):
                 if active_start_method != "fork":
                     error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
                     error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
-                    error_message += "\nFor more info see: https://docs.wandb.ai/library/init#init-start-error"
+                    error_message += (
+                        f"\nFor more info see: {wburls.get('doc_start_err')}"
+                    )
             elif run_result.error:
                 error_message = run_result.error.message
             if error_message:
@@ -645,22 +673,8 @@ class _WandbInit(object):
             run.config.update({k: v}, allow_val_change=True)
 
         self.backend = backend
-        module.set_global(
-            run=run,
-            config=run.config,
-            log=run.log,
-            summary=run.summary,
-            save=run.save,
-            use_artifact=run.use_artifact,
-            log_artifact=run.log_artifact,
-            define_metric=run.define_metric,
-            plot_table=run.plot_table,
-            alert=run.alert,
-            mark_preempting=run.mark_preempting,
-        )
         self._reporter.set_context(run=run)
         run._on_start()
-
         logger.info("run started, returning control to user process")
         return run
 
@@ -673,7 +687,10 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+    attach_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    *,
+    run: Optional["Run"] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
@@ -681,10 +698,18 @@ def _attach(
         attach_id: (str, optional) The id of the run or an attach identifier
             that maps to a run.
         run_id: (str, optional) The id of the run to attach to.
+        run: (Run, optional) The run instance to attach
     """
     attach_id = attach_id or run_id
+    if not ((attach_id is None) ^ (run is None)):
+        raise UsageError("Either (`attach_id` or `run_id`) or `run` must be specified")
+
+    attach_id = attach_id or run._attach_id
+
     if attach_id is None:
-        raise UsageError("attach_id or run_id must be specified")
+        raise UsageError(
+            "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
+        )
     wandb._assert_is_user_process()
 
     _wl = wandb_setup._setup()
@@ -706,7 +731,10 @@ def _attach(
     backend.server_connect()
     logger.info("attach backend started and connected")
 
-    run = Run(settings=settings)
+    if run is None:
+        run = Run(settings=settings)
+    else:
+        run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
@@ -923,7 +951,7 @@ def init(
 
     Pass a dictionary-style object as the `config` keyword argument to add
     metadata, like hyperparameters, to your run.
-    <!--yeadoc-test:init-set-config--->
+    <!--yeadoc-test:init-set-config-->
     ```python
     import wandb
 

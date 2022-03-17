@@ -99,7 +99,7 @@ workflows:
       - test:
          name: "code-check"
          image: "python:3.6"
-         toxenv: "protocheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
+         toxenv: "protocheck,generatecheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
       - test:
          name: "unit-s_base-lin-py36"
          image: "python:3.6"
@@ -128,6 +128,14 @@ workflows:
          name: "func-s_base-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_base-py37,func-covercircle"
+      - test:
+         name: "func-s_sklearn-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_sklearn-py37,func-covercircle"
+      - test:
+         name: "func-s_metaflow-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_metaflow-py37,func-covercircle"
       - test:
          name: "func-s_tf115-lin-py37"
          image: "python:3.7"
@@ -188,6 +196,10 @@ workflows:
          name: "func-s_imports6-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_imports6-py37"
+      - test:
+         name: "func-s_imports7-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_imports7-py37"
       #
       # functional win tests
       #
