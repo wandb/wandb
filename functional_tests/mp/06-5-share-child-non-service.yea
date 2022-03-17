@@ -5,7 +5,6 @@ parametrize:
   permute:
     - :yea:start_method:
       - spawn
-      - forkserver
       - fork
 var:
   - history_0_len:
