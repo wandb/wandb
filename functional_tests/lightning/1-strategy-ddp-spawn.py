@@ -1,17 +1,13 @@
 #!/usr/bin/env python
-
 import os
 
 from pl_base import BoringModel, RandomDataset
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
-import wandb
-
 
 def main():
     # Use concurrency experiment
-    wandb.require(experiment="service")
     print("PIDPID", os.getpid())
 
     # Set up data
@@ -29,14 +25,15 @@ def main():
     # Initialize a trainer
     trainer = Trainer(
         max_epochs=1,
-        gpus=2,
+        progress_bar_refresh_rate=20,
+        num_processes=2,
         strategy="ddp_spawn",
         logger=wandb_logger,
     )
 
     # Train the model
     trainer.fit(model, train, val)
-    trainer.test(test_dataloaders=test)
+    trainer.test(dataloaders=test)
 
 
 if __name__ == "__main__":
