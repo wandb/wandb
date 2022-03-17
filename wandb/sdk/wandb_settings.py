@@ -742,7 +742,7 @@ class Settings:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
-        if value.startswith("local") and self.base_url == "https://api.wandb.ai":
+        if value.startswith("local") and not self.is_local:
             raise UsageError(
                 "Attempting to use a local API key to connect to https://api.wandb.ai"
             )
