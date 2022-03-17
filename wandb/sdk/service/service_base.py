@@ -5,6 +5,7 @@ abstract methods.
 """
 
 from abc import abstractmethod
+from collections.abc import Iterable, Mapping
 import datetime
 import enum
 from typing import Any, Dict, TYPE_CHECKING
@@ -36,10 +37,12 @@ def _pbmap_apply_dict(
             sv.float_value = v
         elif isinstance(v, str):
             sv.string_value = v
-        elif isinstance(v, tuple):
+        elif isinstance(v, Iterable) and not isinstance(v, (str, bytes, Mapping)):
             sv.tuple_value.string_values.extend(v)
         elif isinstance(v, datetime.datetime):
             sv.timestamp_value = datetime.datetime.strftime(v, "%Y%m%d_%H%M%S")
+        else:
+            raise Exception("unsupported type")
         m[k].CopyFrom(sv)
 
 
