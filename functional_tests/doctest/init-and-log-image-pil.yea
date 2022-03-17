@@ -26,3 +26,7 @@ assert:
         - random field 1
         - random field 2
     - :filenames_len: 3
+
+    - :op:contains_regex:
+      - :wandb:runs[0][summary][examples][filenames]
+      - "^media/images/examples_0_[a-f0-9]{20}.png$"

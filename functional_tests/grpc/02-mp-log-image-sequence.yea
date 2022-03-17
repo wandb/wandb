@@ -39,4 +39,24 @@ assert:
     - :wandb:runs[0][history][1][media][count]: 3
     - :filenames_1_len: 3
 
+    - :op:contains_regex:
+        - :wandb:runs[0][history][0][media][filenames]
+        - "^media/images/media_0_[a-f0-9]{20}.png$"
+
+    - :op:contains_regex:
+        - :wandb:runs[0][history][1][media][filenames]
+        - "^media/images/media_0_[a-f0-9]{20}.png$"
+
+    - :op:!=:
+        - :wandb:runs[0][history][0][media][filenames][0]
+        - :wandb:runs[0][history][1][media][filenames][0]
+
+    - :op:!=:
+        - :wandb:runs[0][history][0][media][filenames][1]
+        - :wandb:runs[0][history][1][media][filenames][1]
+    
+    - :op:!=:
+        - :wandb:runs[0][history][0][media][filenames][2]
+        - :wandb:runs[0][history][1][media][filenames][2]
+
     - :wandb:runs[0][exitcode]: 0
