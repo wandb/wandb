@@ -26,12 +26,13 @@ class WBURLs:
 
     def _get_urls(self) -> Dict["URLS", str]:
         return dict(
-            cli_launch="http://wandb.me/launch",
+            cli_launch="https://wandb.me/launch",
             doc_run="https://wandb.me/run",
-            doc_require="http://wandb.me/library-require",
+            doc_require="https://wandb.me/library-require",
             doc_start_err="https://docs.wandb.ai/library/init#init-start-error",
             upgrade_local="https://wandb.me/local-upgrade",
             multiprocess="http://wandb.me/init-multiprocess",
+            wandb_init="https://wandb.me/wandb-init",
         )
 
     def get(self, s: "URLS") -> str:

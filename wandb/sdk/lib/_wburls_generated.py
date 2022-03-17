@@ -14,4 +14,5 @@ URLS = Literal[
     "doc_start_err",
     "upgrade_local",
     "multiprocess",
+    "wandb_init",
 ]

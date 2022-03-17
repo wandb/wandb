@@ -1,0 +1,10 @@
+id: 0.artifacts.log-artifact
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]:
+      metric: 5
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:artifacts[test-artifact][type]: test-type

@@ -90,6 +90,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.ArtifactRecord,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactResult: ...
 
+    def LinkArtifact(self,
+        request: wandb.proto.wandb_internal_pb2.LinkArtifactRecord,
+    ) -> wandb.proto.wandb_internal_pb2.LinkArtifactResult: ...
+
     def ArtifactSend(self,
         request: wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactSendResponse: ...
@@ -267,6 +271,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ArtifactRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactResult: ...
+
+    @abc.abstractmethod
+    def LinkArtifact(self,
+        request: wandb.proto.wandb_internal_pb2.LinkArtifactRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.LinkArtifactResult: ...
 
     @abc.abstractmethod
     def ArtifactSend(self,
