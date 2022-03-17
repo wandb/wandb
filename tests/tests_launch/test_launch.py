@@ -21,6 +21,12 @@ import wandb.util as util
 from ..utils import fixture_open, notebook_path
 
 
+EMPTY_BACKEND_CONFIG = {
+    PROJECT_DOCKER_ARGS: {},
+    PROJECT_SYNCHRONOUS: True,
+}
+
+
 @pytest.fixture
 def mocked_fetchable_git_repo():
     m = mock.Mock()
@@ -124,12 +130,13 @@ def mock_load_backend_agent():
 def check_project_spec(
     project_spec,
     api,
-    uri,
+    uri=None,
     project=None,
     entity=None,
     config=None,
     resource="local",
     resource_args=None,
+    docker_image=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -150,29 +157,28 @@ def check_project_spec(
         assert set([(k, v) for k, v in resource_args.items()]) == set(
             [(k, v) for k, v in project_spec.resource_args.items()]
         )
-
-    with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
-        contents = fp.read()
-        assert contents == "testing"
+    if project_spec.source == _project_spec.LaunchSource.WANDB:
+        with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
+            contents = fp.read()
+            assert contents == "testing"
 
 
 def check_backend_config(config, expected_backend_config):
     for key, item in config.items():
-        if key not in [PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS]:
-            assert item == expected_backend_config[key]
+        assert item == expected_backend_config[key]
 
 
-def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
+def check_mock_run_info(mock_with_run_info, expected_backend_config, kwargs):
     for arg in mock_with_run_info.args:
         if isinstance(arg, _project_spec.LaunchProject):
             check_project_spec(arg, **kwargs)
         if isinstance(arg, dict):
-            check_backend_config(arg, expected_config)
+            check_backend_config(arg, expected_backend_config)
     for arg in mock_with_run_info.kwargs.items():
         if isinstance(arg, _project_spec.LaunchProject):
             check_project_spec(arg, **kwargs)
         if isinstance(arg, dict):
-            check_backend_config(arg, expected_config)
+            check_backend_config(arg, expected_backend_config)
 
 
 @pytest.mark.skipif(
@@ -203,7 +209,6 @@ def test_launch_base_case(
     monkeypatch.setattr(
         wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
     )
-    expected_config = {}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
@@ -212,7 +217,7 @@ def test_launch_base_case(
         "project": "test",
     }
     mock_with_run_info = launch.run(**kwargs)
-    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+    check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
 @pytest.mark.skipif(
@@ -226,7 +231,6 @@ def test_launch_resource_args(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    expected_config = {}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
@@ -237,7 +241,7 @@ def test_launch_resource_args(
         "resource_args": {"a": "b", "c": "d"},
     }
     mock_with_run_info = launch.run(**kwargs)
-    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+    check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
 def test_launch_add_base(live_mock_server):
@@ -261,9 +265,8 @@ def test_launch_specified_project(
         "project": "new_test_project",
         "entity": "mock_server_entity",
     }
-    expected_config = {}
     mock_with_run_info = launch.run(**kwargs)
-    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+    check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
 def test_launch_unowned_project(
@@ -278,9 +281,8 @@ def test_launch_unowned_project(
         "project": "new_test_project",
         "entity": "mock_server_entity",
     }
-    expected_config = {}
     mock_with_run_info = launch.run(**kwargs)
-    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+    check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
 def test_launch_run_config_in_spec(
@@ -475,7 +477,6 @@ def test_launch_code_artifact(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    expected_config = {}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
@@ -484,7 +485,7 @@ def test_launch_code_artifact(
         "project": "test",
     }
     mock_with_run_info = launch.run(**kwargs)
-    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+    check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
 def test_run_in_launch_context_with_artifact_name_string_used_as_config(
@@ -873,7 +874,6 @@ def test_bare_wandb_uri(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    expected_config = {}
     uri = "/mock_server_entity/test/runs/12345678"
     kwargs = {
         "uri": uri,
@@ -884,4 +884,74 @@ def test_bare_wandb_uri(
 
     mock_with_run_info = launch.run(**kwargs)
     kwargs["uri"] = live_mock_server.base_url + uri
-    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+    check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
+
+
+def test_launch_project_spec_docker_image(
+    live_mock_server, test_settings, mock_load_backend
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    kwargs = {
+        "uri": None,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+        "docker_image": "my-image:v0",
+    }
+
+    mock_with_run_info = launch.run(**kwargs)
+    print(mock_with_run_info)
+    check_mock_run_info(mock_with_run_info, {}, kwargs)
+
+
+def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
+    monkeypatch.setattr("wandb.sdk.launch.docker.docker_image_exists", lambda x: True)
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, project_dir: (cmd, project_dir),
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    image_name = "my-image:v0"
+    kwargs = {
+        "uri": None,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+        "docker_image": image_name,
+        "synchronous": False,
+    }
+    test_base_url = api.settings("base_url").replace(
+        "localhost", "host.docker.internal"
+    )
+    expected_command = [
+        "docker",
+        "run",
+        "--rm",
+        "-e",
+        f"WANDB_BASE_URL={test_base_url}",
+        "-e",
+        f"WANDB_API_KEY={api.settings('api_key')}",
+        "-e",
+        "WANDB_PROJECT=test",
+        "-e",
+        "WANDB_ENTITY=mock_server_entity",
+        "-e",
+        "WANDB_LAUNCH=True",
+        "-e",
+        f"WANDB_DOCKER={image_name}",
+        "-e",
+        "WANDB_CONFIG='{}'",
+        "-e",
+        "WANDB_ARTIFACTS='{}'",
+        image_name,
+    ]
+
+    returned_command, project_dir = launch.run(**kwargs)
+    print(returned_command.split(" "))
+    print(expected_command)
+    assert project_dir is None
+    assert returned_command.split(" ") == expected_command

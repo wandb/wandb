@@ -98,7 +98,7 @@ class LaunchProject(object):
             if self.docker_image is None:
                 raise LaunchError("Run requires a URI or a docker image")
             self.source = LaunchSource.DOCKER
-            self.project_dir = tempfile.mkdtemp()
+            self.project_dir = None
         elif utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
