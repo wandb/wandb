@@ -184,9 +184,12 @@ class RunStatusChecker:
         self._retry_thread.join()
 
 
-class _run_decorator:
+class _run_decorator:  # noqa: N801
 
     _is_attaching: str = ""
+
+    class Dummy:
+        ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -219,8 +222,8 @@ class _run_decorator:
 
         return wrapper
 
-    @staticmethod
-    def _noop(func: Callable) -> Callable:
+    @classmethod
+    def _noop(cls, func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
             # `_attach_id` is only assigned in service hence for all service cases
@@ -239,13 +242,14 @@ class _run_decorator:
                     # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
                     # - for fork case will use the settings of the parent process
                     # - only point of incosistent behavior from forked and non-forked cases
-                    if getattr(self, "_settings", {}).get("_strict", None):
+                    settings = getattr(self, "_settings", None)
+                    if settings and settings["strict"]:
                         wandb.termerror(message, repeat=False)
                         raise errors.MultiprocessError(
                             f"`{func.__name__}` does not support multiprocessing"
                         )
                     wandb.termwarn(message, repeat=False)
-                    return
+                    return cls.Dummy()
 
             return func(self, *args, **kwargs)
 
@@ -697,8 +701,8 @@ class Run:
         return self._config
 
     @property  # type: ignore
-    @_run_decorator._noop
     @_run_decorator._attach
+    @_run_decorator._noop
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
