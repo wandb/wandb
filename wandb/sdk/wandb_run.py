@@ -232,11 +232,12 @@ class _run_decorator:  # noqa: N801
                 # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
                 #   - for non-fork case the object is shared through pickling and we don't pickle non-service so will be None
                 #   - for fork case the new process share mem space hence the value would be of parent process.
-                if getattr(self, "_init_pid", None) != os.getpid():
+                _init_pid = getattr(self, "_init_pid", None)
+                if _init_pid != os.getpid():
                     message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
                         func.__name__,
                         os.getpid(),
-                        self._init_pid,
+                        _init_pid,
                         wburls.get("multiprocess"),
                     )
                     # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
