@@ -9,6 +9,7 @@ soundfile
 boto3
 google-cloud-storage
 google-cloud-aiplatform
+kubernetes
 moviepy; python_version >= '3.5'
 imageio; python_version >= '3.5'
 ipython; python_version >= '3.5'
