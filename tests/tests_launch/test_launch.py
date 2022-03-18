@@ -1009,6 +1009,6 @@ def test_run_in_launch_context_with_malformed_env_vars(
         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         run.finish()
-        err = capsys.readouterr()
+        _, err = capsys.readouterr()
         assert "Malformed WANDB_CONFIG, using original config" in err
         assert "Malformed WANDB_ARTIFACTS, using original artifacts" in err
