@@ -237,29 +237,26 @@ def test_launch_queue_error(runner):
 
 
 def test_launch_supplied_docker_image(
-    runner, monkeypatch, live_mock_server, mocked_fetchable_git_repo
+    runner, monkeypatch, live_mock_server,
 ):
-    def patched_pull_docker_image(docker_image):
-        return  # noop
+    def patched_run_run_entry(cmd, dir):
+        print(f"running command: {cmd}")
+        return cmd  # noop
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local.pull_docker_image",
-        lambda docker_image: patched_pull_docker_image(docker_image),
+        "wandb.sdk.launch.runner.local.pull_docker_image", lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local._run_entry_point", patched_run_run_entry,
     )
     with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            [
-                "https://github.com/test/repo.git",
-                "--entry-point",
-                "train.py",
-                "--docker-image",
-                "test:tag",
-            ],
-        )
+        result = runner.invoke(cli.launch, ["--async", "--docker-image", "test:tag",],)
 
     assert result.exit_code == 0
-    assert "Using supplied docker image: test:tag" in result.output
+    assert "-e WANDB_DOCKER=test:tag" in result.output
+    assert " -e WANDB_CONFIG='{}'" in result.output
+    assert "-e WANDB_ARTIFACTS='{}'" in result.output
+    assert "test:tag" in result.output
 
 
 @pytest.mark.timeout(320)

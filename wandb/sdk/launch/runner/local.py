@@ -77,18 +77,16 @@ class LocalRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
-        entry_point = None
+        entry_point = launch_project.get_single_entry_point()
         env_vars = get_env_vars_dict(launch_project, self._api)
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.docker_image
-            if not docker_image_exists(image_uri):
-                pull_docker_image(image_uri)
+            pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            entry_point = launch_project.get_single_entry_point()
             generate_docker_image(
                 launch_project,
                 image_uri,
@@ -113,6 +111,7 @@ class LocalRunner(AbstractRunner):
         )
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
+            print("callin wait")
             run.wait()
         return run
 

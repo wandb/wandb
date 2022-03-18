@@ -1088,6 +1088,7 @@ def launch(
 
     if (
         uri is None
+        and docker_image is None
         and config.get("uri") is not None
         and config.get("docker", {}).get("docker_image") is None
     ):

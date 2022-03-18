@@ -902,7 +902,7 @@ def test_launch_project_spec_docker_image(
     }
 
     mock_with_run_info = launch.run(**kwargs)
-    print(mock_with_run_info)
+
     check_mock_run_info(mock_with_run_info, {}, kwargs)
 
 
@@ -924,15 +924,12 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "docker_image": image_name,
         "synchronous": False,
     }
-    test_base_url = api.settings("base_url").replace(
-        "localhost", "host.docker.internal"
-    )
     expected_command = [
         "docker",
         "run",
         "--rm",
         "-e",
-        f"WANDB_BASE_URL={test_base_url}",
+        f"WANDB_BASE_URL={live_mock_server.base_url}",
         "-e",
         f"WANDB_API_KEY={api.settings('api_key')}",
         "-e",
@@ -951,7 +948,11 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
     ]
 
     returned_command, project_dir = launch.run(**kwargs)
-    print(returned_command.split(" "))
-    print(expected_command)
     assert project_dir is None
-    assert returned_command.split(" ") == expected_command
+
+    list_command = returned_command.split(" ")
+    # exclude base url, since testing locally converts
+    # localhost:port to host.docker.internal but not
+    # in CI
+    assert list_command[:4] == expected_command[:4]
+    assert list_command[5:] == expected_command[5:]
