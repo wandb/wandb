@@ -42,15 +42,19 @@ from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 
-# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+# Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = tempfile.gettempdir()
 
-# Create log file name with random element
-_, _wandb_log_path = tempfile.mkstemp(
-    dir=_wandb_dir, prefix="wandb-debug-cli-", suffix=".log"
-)
+try:
+    _username = getpass.getuser()
+except KeyError:
+    # getuser() could raise KeyError in restricted environments like
+    # chroot jails or docker containers. Return user id in these cases.
+    _username = str(os.getuid())
+
+_wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
 
 logging.basicConfig(
     filename=_wandb_log_path,
