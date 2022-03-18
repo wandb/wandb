@@ -44,7 +44,7 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(400)
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
@@ -126,7 +126,7 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(400)
 def test_launch_cli_with_config_file_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -157,7 +157,7 @@ def test_launch_cli_with_config_file_and_params(
         assert "Launching run in docker with command: docker run" in result.output
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(400)
 def test_launch_cli_with_config_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -194,7 +194,7 @@ def test_launch_no_docker_exec(
     assert "Could not find Docker executable" in str(result.exception)
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(400)
 def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
     with runner.isolated_filesystem():
         result = runner.invoke(
@@ -205,7 +205,7 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
     assert "Launching run in docker with command: docker run" in result.output
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(400)
 def test_launch_local_dir(runner):
     with runner.isolated_filesystem():
         os.mkdir("repo")
@@ -259,7 +259,7 @@ def test_launch_supplied_docker_image(
     assert "test:tag" in result.output
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(400)
 def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
     args = [
         "https://wandb.ai/mock_server_entity/test_project/runs/run",

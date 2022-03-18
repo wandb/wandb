@@ -116,7 +116,7 @@ class LocalRunner(AbstractRunner):
         return run
 
 
-def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -126,6 +126,8 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     Returns:
         An instance of `LocalSubmittedRun`
     """
+    if work_dir is None:
+        work_dir = os.getcwd()
     env = os.environ.copy()
     if os.name == "nt":
         # we are running on windows

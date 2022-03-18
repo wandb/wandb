@@ -5,6 +5,7 @@ import shutil
 import sys
 import tempfile
 from typing import Any, Dict, Optional, Tuple
+from click import launch
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -230,9 +231,14 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
         prefix = "RUN WANDB_DISABLE_CACHE=true"
 
     if launch_project.deps_type == "pip":
-        requirements_files = ["src/requirements.txt"]
-        pip_install_line = "pip install -r requirements.txt"
-        if os.path.exists(
+        requirements_files = []
+        if launch_project.project_dir is not None and os.path.exists(
+            os.path.join(launch_project.project_dir, "requirements.txt")
+        ):
+            requirements_files += ["src/requirements.txt"]
+            pip_install_line = "pip install -r requirements.txt"
+
+        if launch_project.project_dir is not None and os.path.exists(
             os.path.join(launch_project.project_dir, "requirements.frozen.txt")
         ):
             # if we have frozen requirements stored, copy those over and have them take precedence
@@ -336,7 +342,7 @@ def generate_docker_image(
         docker_args,
         sanitize_wandb_api_key(dockerfile_str),
     )
-    if runner_type == "sagemaker":
+    if runner_type == "sagemaker" and launch_project.project_dir is not None:
         # sagemaker automatically appends train after the entrypoint
         # by redirecting to running a train script we can avoid issues
         # with argparse, and hopefully if the user intends for the train
@@ -399,6 +405,9 @@ def pull_docker_image(docker_image: str) -> None:
 
 
 def construct_local_image_uri(launch_project: LaunchProject) -> str:
+    if launch_project.project_dir is None and launch_project.docker_image is None:
+        raise LaunchError("Must specify either project_dir or docker_image")
+    assert launch_project.project_dir is not None
     image_uri = _get_docker_image_uri(
         name=launch_project.image_name,
         work_dir=launch_project.project_dir,
@@ -416,6 +425,7 @@ def construct_gcp_image_uri(
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
     requirements_line = ""
+    assert launch_project.project_dir is not None
     base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
     if os.path.exists(base_requirements):
         include_only = set()
@@ -462,6 +472,7 @@ def _create_docker_build_ctx(
     launch_project: LaunchProject, dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
+    assert launch_project.project_dir is not None
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(

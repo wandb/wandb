@@ -900,7 +900,6 @@ def sweep(
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
     _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
     _ = util.get_module("chardet", required=req_string,)
     _ = util.get_module("iso8601", required=req_string)
 

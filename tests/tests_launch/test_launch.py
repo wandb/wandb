@@ -764,7 +764,7 @@ def test_launch_notebook(
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(400)
 def test_launch_full_build_new_image(
     live_mock_server, test_settings, mocked_fetchable_git_repo
 ):
@@ -956,3 +956,43 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
     # in CI
     assert list_command[:4] == expected_command[:4]
     assert list_command[5:] == expected_command[5:]
+
+
+def test_run_in_launch_context_with_config_env_var(
+    runner, live_mock_server, test_settings, monkeypatch
+):
+    config_env_var = json.dumps({"epochs": 10})
+    monkeypatch.setenv("WANDB_CONFIG", config_env_var)
+    test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+    run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+    assert run.config.epochs == 10
+    assert run.config.lr == 0.004
+    run.finish()
+
+
+def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
+    runner, live_mock_server, test_settings, monkeypatch
+):
+    live_mock_server.set_ctx({"swappable_artifacts": True})
+    arti = {
+        "name": "test:v0",
+        "project": "test",
+        "entity": "test",
+        "_version": "v0",
+        "_type": "artifactVersion",
+        "id": "QXJ0aWZhY3Q6NTI1MDk4",
+    }
+    artifacts_env_var = json.dumps({"old_name:v0": arti})
+    config_env_var = json.dumps({"epochs": 10})
+    with runner.isolated_filesystem():
+        monkeypatch.setenv("WANDB_ARTIFACTS", artifacts_env_var)
+        monkeypatch.setenv("WANDB_CONFIG", config_env_var)
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        arti_inst = run.use_artifact("old_name:v0")
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+        run.finish()
+        assert arti_inst.name == "test:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "old_name:v0"
