@@ -304,7 +304,7 @@ class _WandbSetup:
 
 
 def _setup(
-    settings=None, _reset: bool = False, _no_manager=False
+    settings=None, _reset: bool = False, _no_manager: bool = False
 ) -> Optional["_WandbSetup"]:
     """Setup library context."""
     if _reset:
