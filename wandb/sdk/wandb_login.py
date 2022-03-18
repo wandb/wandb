@@ -21,6 +21,7 @@ from wandb.old.settings import Settings as OldSettings
 from .internal.internal_api import Api
 from .lib import apikey
 from .wandb_settings import Settings, Source
+from .wandb_setup import _setup as _wandb_setup
 from ..apis import InternalApi
 
 
@@ -70,7 +71,7 @@ def login(
     """
 
     _handle_host_wandb_setting(host)
-    if wandb.setup()._settings._noop:
+    if _wandb_setup(_no_manager=True)._settings._noop:
         return True
     kwargs = dict(locals())
     configured = _login(**kwargs)
@@ -106,13 +107,13 @@ class _WandbLogin:
                 login_settings._apply_settings(settings_param)
             elif isinstance(settings_param, dict):
                 login_settings.update(settings_param, source=Source.LOGIN)
-        _logger = wandb.setup()._get_logger()
+        _logger = _wandb_setup(_no_manager=True)._get_logger()
         # Do not save relogin into settings as we just want to relogin once
         self._relogin = kwargs.pop("relogin", None)
         login_settings._apply_login(kwargs, _logger=_logger)
 
         # make sure they are applied globally
-        self._wl = wandb.setup(settings=login_settings)
+        self._wl = _wandb_setup(settings=login_settings, _no_manager=True)
         self._settings = self._wl.settings
 
     def is_apikey_configured(self):
@@ -171,7 +172,7 @@ class _WandbLogin:
     def update_session(
         self, key: Optional[str], status: ApiKeyStatus = ApiKeyStatus.VALID
     ) -> None:
-        _logger = wandb.setup()._get_logger()
+        _logger = _wandb_setup(_no_manager=True)._get_logger()
         login_settings = dict()
         if status == ApiKeyStatus.OFFLINE:
             login_settings = dict(mode="offline")

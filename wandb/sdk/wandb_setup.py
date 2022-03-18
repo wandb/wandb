@@ -81,12 +81,14 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
     _manager: Optional[wandb_manager._Manager]
+    _no_manager: bool
 
     def __init__(
         self,
         settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         environ: Optional[Dict[str, Any]] = None,
         pid: Optional[int] = None,
+        _no_manager: bool = False,
     ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
@@ -94,6 +96,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._server = None
         self._manager = None
         self._pid = pid
+        self._no_manager = _no_manager
 
         # keep track of multiple runs, so we can unwind with join()s
         self._global_run_stack = []
@@ -137,18 +140,29 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         return s
 
     def _update(
-        self, settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None
+        self,
+        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
+        _no_manager=False,
     ) -> None:
-        if settings is None:
-            return
-        # self._settings.unfreeze()
-        if isinstance(settings, wandb_settings.Settings):
-            # todo: check the logic here. this _only_ comes up in tests?
-            self._settings._apply_settings(settings)
-        elif isinstance(settings, dict):
-            # if it is a mapping, update the settings with it
-            self._settings.update(settings, source=wandb_settings.Source.SETUP)
-        # self._settings.freeze()
+        if settings:
+            # self._settings.unfreeze()
+            if isinstance(settings, wandb_settings.Settings):
+                # todo: check the logic here. this _only_ comes up in tests?
+                self._settings._apply_settings(settings)
+            elif isinstance(settings, dict):
+                # if it is a mapping, update the settings with it
+                self._settings.update(settings, source=wandb_settings.Source.SETUP)
+            # self._settings.freeze()
+
+        # Allow the manager to be setup late if the object was setup originally without a manager
+        # TODO: remove this when we make require_service the default
+        if self._no_manager and not _no_manager:
+            req_service_env = "WANDB_REQUIRE_SERVICE"
+            req_service = os.environ.get(req_service_env)
+            if req_service:
+                self._settings._apply_env_vars({req_service_env: req_service})
+            self._no_manager = _no_manager
+            self._setup_manager()
 
     def _update_user_settings(self, settings=None):
         settings = settings or self._settings
@@ -244,6 +258,10 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._teardown_manager(exit_code=exit_code)
 
     def _setup_manager(self) -> None:
+        if self._manager:
+            return
+        if self._no_manager:
+            return
         if not self._settings._require_service:
             return
         # Temporary setting to allow use of grpc so that we can keep
@@ -272,18 +290,22 @@ class _WandbSetup:
 
     _instance = None
 
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings=None, _no_manager=False) -> None:
         pid = os.getpid()
         if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
-            _WandbSetup._instance._update(settings=settings)
+            _WandbSetup._instance._update(settings=settings, _no_manager=_no_manager)
             return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
+        _WandbSetup._instance = _WandbSetup__WandbSetup(
+            settings=settings, pid=pid, _no_manager=_no_manager
+        )
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
 
 
-def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
+def _setup(
+    settings=None, _reset: bool = False, _no_manager=False
+) -> Optional["_WandbSetup"]:
     """Setup library context."""
     if _reset:
         setup_instance = _WandbSetup._instance
@@ -291,7 +313,7 @@ def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
             setup_instance._teardown()
         _WandbSetup._instance = None
         return
-    wl = _WandbSetup(settings=settings)
+    wl = _WandbSetup(settings=settings, _no_manager=_no_manager)
     return wl
 
 
