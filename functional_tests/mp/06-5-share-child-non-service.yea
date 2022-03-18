@@ -1,10 +1,13 @@
 id: 0.mp.06-5-share-child-non-service
 plugin:
   - wandb
+skips:
+  - platform: win
 parametrize:
   permute:
     - :yea:start_method:
       - spawn
+      - forkserver
       - fork
 var:
   - history_0_len:
