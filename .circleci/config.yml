@@ -403,7 +403,6 @@ jobs:
                 pip3 install tox==3.24.0
                 pip3 install chardet
                 pip3 install iso8601
-                docker pull 
         - run:
             name: pull base docker images
             command: |
