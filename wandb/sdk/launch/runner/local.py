@@ -11,7 +11,6 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     construct_local_image_uri,
-    docker_image_exists,
     generate_docker_image,
     get_env_vars_dict,
     pull_docker_image,

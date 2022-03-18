@@ -5,7 +5,6 @@ import shutil
 import sys
 import tempfile
 from typing import Any, Dict, Optional, Tuple
-from click import launch
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
