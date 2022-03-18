@@ -961,13 +961,14 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
 def test_run_in_launch_context_with_config_env_var(
     runner, live_mock_server, test_settings, monkeypatch
 ):
-    config_env_var = json.dumps({"epochs": 10})
-    monkeypatch.setenv("WANDB_CONFIG", config_env_var)
-    test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-    run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-    assert run.config.epochs == 10
-    assert run.config.lr == 0.004
-    run.finish()
+    with runner.isolated_filesystem():
+        config_env_var = json.dumps({"epochs": 10})
+        monkeypatch.setenv("WANDB_CONFIG", config_env_var)
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        run.finish()
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
 
 
 def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
@@ -996,3 +997,18 @@ def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
         assert arti_inst.name == "test:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "old_name:v0"
+
+
+def test_run_in_launch_context_with_malformed_env_vars(
+    runner, live_mock_server, test_settings, monkeypatch, capsys
+):
+    live_mock_server.set_ctx({"swappable_artifacts": True})
+    with runner.isolated_filesystem():
+        monkeypatch.setenv("WANDB_ARTIFACTS", '{"epochs: 6}')
+        monkeypatch.setenv("WANDB_CONFIG", '{"old_name": {"name": "test:v0"')
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        run.finish()
+        err = capsys.readouterr()
+        assert "Malformed WANDB_CONFIG, using original config" in err
+        assert "Malformed WANDB_ARTIFACTS, using original artifacts" in err
