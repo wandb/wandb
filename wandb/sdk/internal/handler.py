@@ -1,5 +1,6 @@
 """Handle Manager."""
 
+from collections import defaultdict
 import json
 import logging
 import math
@@ -110,7 +111,7 @@ class HandleManager(object):
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
-        self._sampled_history = dict()
+        self._sampled_history = defaultdict(sample.UniformSampleAccumulator)
         self._partial_history = dict()
         self._metric_defines = dict()
         self._metric_globs = dict()
@@ -226,7 +227,6 @@ class HandleManager(object):
             k = item.key
             v = json.loads(item.value_json)
             if isinstance(v, numbers.Real):
-                self._sampled_history.setdefault(k, sample.UniformSampleAccumulator())
                 self._sampled_history[k].add(v)
 
     def _update_summary_metrics(
