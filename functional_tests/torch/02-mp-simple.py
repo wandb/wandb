@@ -2,13 +2,11 @@
 import torch
 import torch.multiprocessing as mp
 
-from helper import parser, MyDatatse, MyModel, train, transform
+from torch_helper import MyDatatse, MyModel, train, transform, SEED
 import wandb
 
 
 if __name__ == "__main__":
-
-    args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MyModel().to(device)
@@ -17,15 +15,15 @@ if __name__ == "__main__":
 
     dataset = MyDatatse(transform=transform)
 
-    torch.manual_seed(args.seed)
+    torch.manual_seed(SEED)
     mp.set_start_method("spawn")
 
     wandb.require("service")
     run = wandb.init()
 
     processes = []
-    for rank in range(args.num_processes):
-        p = mp.Process(target=train, args=(run, rank, args, model, device, dataset))
+    for rank in range(2):
+        p = mp.Process(target=train, args=(run, rank, model, device, dataset))
         # We first train the model across `num_processes` processes
         p.start()
         processes.append(p)

@@ -1,6 +1,16 @@
-id: 0.torch.01-sparse-tensors
+id: 0.torch.02-mp-simple
 plugin:
   - wandb
+depend:
+  requirements:
+    - torch
+    - torchvision
+    - pillow
+
+var:
+  - history_0_len:
+      :fn:len: :wandb:runs[0][history]
+
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0
@@ -10,3 +20,4 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][2]  # Import (finish)
     - 1  # torch
+  - :history_0_len: 20

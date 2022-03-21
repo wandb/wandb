@@ -1,6 +1,4 @@
 # see also: https://github.com/pytorch/examples/tree/main/distributed
-
-import argparse
 import os
 
 from PIL import Image
@@ -11,48 +9,10 @@ import torch.optim as optim
 from torchvision import transforms
 
 
-parser = argparse.ArgumentParser(description="PyTorch Example")
-parser.add_argument(
-    "--batch-size",
-    type=int,
-    default=32,
-    metavar="N",
-    help="input batch size for training (default: 64)",
-)
-parser.add_argument(
-    "--epochs",
-    type=int,
-    default=2,
-    metavar="N",
-    help="number of epochs to train (default: 10)",
-)
-parser.add_argument(
-    "--lr", type=float, default=0.01, metavar="LR", help="learning rate (default: 0.01)"
-)
-parser.add_argument(
-    "--momentum",
-    type=float,
-    default=0.5,
-    metavar="M",
-    help="SGD momentum (default: 0.5)",
-)
-parser.add_argument(
-    "--seed", type=int, default=1, metavar="S", help="random seed (default: 1)"
-)
-parser.add_argument(
-    "--log-interval",
-    type=int,
-    default=10,
-    metavar="N",
-    help="how many batches to wait before logging training status",
-)
-parser.add_argument(
-    "--num-processes",
-    type=int,
-    default=2,
-    metavar="N",
-    help="how many training processes to use (default: 2)",
-)
+SEED = 1
+BATCH_SIZE = 32
+EPOCHS = 2
+LOG_INTERVAL = 10
 
 
 class MyModel(nn.Module):
@@ -75,7 +35,7 @@ class MyModel(nn.Module):
 
 
 class MyDatatse(torch.utils.data.Dataset):
-    def __init__(self, transform, size=1600) -> None:
+    def __init__(self, transform, size=BATCH_SIZE * LOG_INTERVAL * 5) -> None:
         self.data = torch.randint(0, 256, (size, 28, 28), dtype=torch.uint8)
         self.targets = torch.randint(0, 10, (size,))
         self.transform = transform
@@ -94,19 +54,19 @@ class MyDatatse(torch.utils.data.Dataset):
         return len(self.data)
 
 
-def train(run, rank, args, model, device, dataset):
-    torch.manual_seed(1 + rank)
+def train(run, rank, model, device, dataset):
+    torch.manual_seed(SEED + rank)
 
-    dataloader_kwargs = {"batch_size": args.batch_size, "shuffle": True}
+    dataloader_kwargs = {"batch_size": BATCH_SIZE, "shuffle": True}
     train_loader = torch.utils.data.DataLoader(dataset, **dataloader_kwargs)
 
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
     run.define_metric(f"step_{os.getpid}")
-    for epoch in range(1, args.epochs + 1):
-        train_epoch(run, epoch, args, model, device, train_loader, optimizer)
+    for epoch in range(1, EPOCHS + 1):
+        train_epoch(run, epoch, model, device, train_loader, optimizer)
 
 
-def train_epoch(run, epoch, args, model, device, data_loader, optimizer):
+def train_epoch(run, epoch, model, device, data_loader, optimizer):
     model.train()
     pid = os.getpid()
     for batch_idx, (data, target) in enumerate(data_loader):
@@ -115,7 +75,7 @@ def train_epoch(run, epoch, args, model, device, data_loader, optimizer):
         loss = F.nll_loss(output, target.to(device))
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
+        if batch_idx % LOG_INTERVAL == 0:
             print(
                 "{}\tTrain Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
                     pid,
