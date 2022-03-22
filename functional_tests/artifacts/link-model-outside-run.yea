@@ -1,0 +1,6 @@
+id: 0.artifacts.link-model-outside-run
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 0
+  - :yea:exit: 1

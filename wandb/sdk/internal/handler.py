@@ -1,5 +1,6 @@
 """Handle Manager."""
 
+from collections import defaultdict
 import json
 import logging
 import math
@@ -110,10 +111,10 @@ class HandleManager(object):
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
-        self._sampled_history = dict()
+        self._sampled_history = defaultdict(sample.UniformSampleAccumulator)
         self._partial_history = dict()
-        self._metric_defines = dict()
-        self._metric_globs = dict()
+        self._metric_defines = defaultdict(MetricRecord)
+        self._metric_globs = defaultdict(MetricRecord)
         self._metric_track = dict()
         self._metric_copy = dict()
 
@@ -198,6 +199,9 @@ class HandleManager(object):
     def handle_files(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_link_artifact(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
@@ -223,7 +227,6 @@ class HandleManager(object):
             k = item.key
             v = json.loads(item.value_json)
             if isinstance(v, numbers.Real):
-                self._sampled_history.setdefault(k, sample.UniformSampleAccumulator())
                 self._sampled_history[k].add(v)
 
     def _update_summary_metrics(
@@ -710,13 +713,9 @@ class HandleManager(object):
     def _handle_defined_metric(self, record: Record) -> None:
         metric = record.metric
         if metric._control.overwrite:
-            self._metric_defines.setdefault(metric.name, MetricRecord()).CopyFrom(
-                metric
-            )
+            self._metric_defines[metric.name].CopyFrom(metric)
         else:
-            self._metric_defines.setdefault(metric.name, MetricRecord()).MergeFrom(
-                metric
-            )
+            self._metric_defines[metric.name].MergeFrom(metric)
 
         # before dispatching, make sure step_metric is defined, if not define it and
         # dispatch it locally first
@@ -734,13 +733,9 @@ class HandleManager(object):
     def _handle_glob_metric(self, record: Record) -> None:
         metric = record.metric
         if metric._control.overwrite:
-            self._metric_globs.setdefault(metric.glob_name, MetricRecord()).CopyFrom(
-                metric
-            )
+            self._metric_globs[metric.glob_name].CopyFrom(metric)
         else:
-            self._metric_globs.setdefault(metric.glob_name, MetricRecord()).MergeFrom(
-                metric
-            )
+            self._metric_globs[metric.glob_name].MergeFrom(metric)
         self._dispatch_record(record)
 
     def handle_metric(self, record: Record) -> None:
