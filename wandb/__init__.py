@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Use wandb to track machine learning work.
 
 The most commonly used functions/objects are:
@@ -79,7 +78,7 @@ from wandb.data_types import JoinedTable
 from wandb.wandb_agent import agent
 
 # from wandb.core import *
-from wandb.viz import visualize
+from wandb.viz import plot_table, visualize
 from wandb import plot
 from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
@@ -142,9 +141,6 @@ mark_preempting = _preinit.PreInitCallable(
     "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting
 )
 
-plot_table = _preinit.PreInitCallable(
-    "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
-)
 alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)
 
 # record of patched libraries

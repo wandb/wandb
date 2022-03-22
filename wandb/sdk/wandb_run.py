@@ -51,8 +51,7 @@ from wandb.util import (
     to_forward_slash_path,
 )
 from wandb.viz import (
-    create_custom_chart,
-    custom_chart_panel_config,
+    custom_chart_user_query,
     CustomChart,
     Visualize,
 )
@@ -433,7 +432,8 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            settings_dict=self._settings, process_context="user",
+            settings_dict=self._settings,
+            process_context="user",
         )
 
         # Populate config
@@ -536,7 +536,8 @@ class Run:
     @staticmethod
     def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
-            pytorch_ignite="ignite", transformers_huggingface="transformers",
+            pytorch_ignite="ignite",
+            transformers_huggingface="transformers",
         )
 
         # calculate mod_map, a mapping from module_name to telem_name
@@ -618,7 +619,10 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id, _init_pid=self._init_pid,)
+        return dict(
+            _attach_id=_attach_id,
+            _init_pid=self._init_pid,
+        )
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -1068,10 +1072,9 @@ class Run:
         val: Any = None,
         data: Dict[str, object] = None,
     ) -> None:
-        logger.info("config_cb %s %s %s", key, val, data)
-        if not self._backend or not self._backend.interface:
-            return
-        self._backend.interface.publish_config(key=key, val=val, data=data)
+        logger.info(f"config_cb {key} {val} {data}")
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact]
@@ -1122,30 +1125,22 @@ class Run:
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
-        custom_charts = {}
         for k in row:
             if isinstance(row[k], Visualize):
-                config = {
-                    "id": row[k].viz_id,
-                    "historyFieldSettings": {"key": k, "x-axis": "_step"},
-                }
-                row[k] = row[k].value
-                self._config_callback(val=config, key=("_wandb", "viz", k))
+                key = row[k].get_config_key(k)
+                value, key = row[k].get_config_value(k)
+                row[k] = row[k]._data
             elif isinstance(row[k], CustomChart):
-                custom_charts[k] = row[k]
-                custom_chart = row[k]
+                key = row[k].get_config_key(k)
 
-        for k, custom_chart in custom_charts.items():
-            # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
-            row.pop(k)
-            # add the table under a different key
-            table_key = k + "_table"
-            row[table_key] = custom_chart.table
-            # add the panel
-            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
-            self._add_panel(k, "Vega2", panel_config)
+                value = row[k].get_config_value(
+                    "Vega2", custom_chart_user_query(f"{k}_table")
+                )
+                # TODO: is this really the right move? what if the user logs
+                #     a non-custom chart to this key?
+                row[f"{k}_table"] = row.pop(k)._data
+
+            self._config_callback(val=value, key=key)
 
         return row
 
@@ -1229,7 +1224,8 @@ class Run:
         self._step = self._get_starting_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            process_context="user", settings_dict=self._settings,
+            process_context="user",
+            settings_dict=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1668,9 +1664,13 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
-    # TODO(jhr): annotate this
     @staticmethod
-    def plot_table(vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
+    def plot_table(
+        vega_spec_name: str,
+        data_table: "wandb.Table",
+        fields: Dict[str, Any],
+        string_fields: Optional[Dict[str, Any]] = None,
+    ) -> CustomChart:
         """Creates a custom plot on a table.
 
         Arguments:
@@ -1683,10 +1683,7 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        visualization = create_custom_chart(
-            vega_spec_name, data_table, fields, string_fields or {}
-        )
-        return visualization
+        return wandb.plot_table(vega_spec_name, data_table, fields, string_fields or {})
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -1707,7 +1704,6 @@ class Run:
             use_artifact=self.use_artifact,
             log_artifact=self.log_artifact,
             define_metric=self.define_metric,
-            plot_table=self.plot_table,
             alert=self.alert,
             mark_preempting=self.mark_preempting,
         )
@@ -1948,7 +1944,8 @@ class Run:
                 )
                 logger.info(f"got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    self._poll_exit_response, printer=self._printer,
+                    self._poll_exit_response,
+                    printer=self._printer,
                 )
             time.sleep(0.1)
 
@@ -1977,10 +1974,15 @@ class Run:
         )
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1989,8 +1991,13 @@ class Run:
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2130,8 +2137,8 @@ class Run:
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -2184,7 +2191,12 @@ class Run:
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
-                    self, artifact, portfolio, aliases, entity, project,
+                    self,
+                    artifact,
+                    portfolio,
+                    aliases,
+                    entity,
+                    project,
                 )
             else:
                 # TODO: implement offline mode + sync
@@ -2253,7 +2265,8 @@ class Run:
                     )
                 self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2663,7 +2676,9 @@ class Run:
 
     @staticmethod
     def _header_wandb_version_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         if settings.quiet or settings.silent:
             return
@@ -2673,7 +2688,9 @@ class Run:
 
     @staticmethod
     def _header_sync_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2695,7 +2712,9 @@ class Run:
 
     @staticmethod
     def _header_run_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         if settings._offline or settings.silent:
@@ -3003,7 +3022,9 @@ class Run:
         if log_dir:
             # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
-            printer.display(f"Find logs at: {printer.files(log_dir)}",)
+            printer.display(
+                f"Find logs at: {printer.files(log_dir)}",
+            )
 
     @staticmethod
     def _footer_history_summary_info(
@@ -3041,7 +3062,10 @@ class Run:
                 if sparkline:
                     history_rows.append([key, sparkline])
             if history_rows:
-                history_grid = printer.grid(history_rows, "Run history:",)
+                history_grid = printer.grid(
+                    history_rows,
+                    "Run history:",
+                )
                 panel.append(history_grid)
 
         # Render summary if available
@@ -3066,7 +3090,10 @@ class Run:
                     continue
 
             if summary_rows:
-                summary_grid = printer.grid(summary_rows, "Run summary:",)
+                summary_grid = printer.grid(
+                    summary_rows,
+                    "Run summary:",
+                )
                 panel.append(summary_grid)
 
         if panel:

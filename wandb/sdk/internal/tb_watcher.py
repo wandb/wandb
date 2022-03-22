@@ -6,17 +6,16 @@ tensor b watcher.
 import glob
 import logging
 import os
+import queue
 import socket
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
-import six
-from six.moves import queue
 import wandb
 from wandb import util
-from wandb.viz import custom_chart_panel_config, CustomChart
+from wandb.viz import custom_chart_user_query, CustomChart
 
 from . import run as internal_run
 
@@ -26,11 +25,11 @@ if TYPE_CHECKING:
     from .settings_static import SettingsStatic
     from typing import Dict, List, Optional
     from wandb.proto.wandb_internal_pb2 import RunRecord
-    from six.moves.queue import PriorityQueue
+    from queue import PriorityQueue
     from tensorboard.compat.proto.event_pb2 import ProtoEvent
     from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
 
-    HistoryDict = Dict[str, object]
+    HistoryDict = Dict[str, Any]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -166,9 +165,9 @@ class TBWatcher(object):
         tbdir_watcher.start()
 
     def finish(self) -> None:
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.shutdown()
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.finish()
         if self._consumer:
             self._consumer.finish()
@@ -373,7 +372,9 @@ class TBEventConsumer(object):
             self._handle_event(event, history=self.tb_history)
             items = self.tb_history._get_and_reset()
             for item in items:
-                self._save_row(item,)
+                self._save_row(
+                    item,
+                )
         self._thread.join()
 
     def _thread_except_body(self) -> None:
@@ -403,7 +404,9 @@ class TBEventConsumer(object):
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:
-                    self._save_row(item,)
+                    self._save_row(
+                        item,
+                    )
         # flush uncommitted data
         self.tb_history._flush()
         items = self.tb_history._get_and_reset()
@@ -419,21 +422,14 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row: "HistoryDict") -> None:
-        chart_keys = []
-        for key, item in row.items():
-            if isinstance(item, CustomChart):
-                panel_config = custom_chart_panel_config(item, key, key + "_table")
-                config = {"panel_type": "Vega2", "panel_config": panel_config}
-                chart_keys.append(key)
-                self._tbwatcher._interface.publish_config(
-                    val=config, key=("_wandb", "visualize", key)
+        for k in row:
+            if isinstance(row[k], CustomChart):
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(
+                    "Vega2", custom_chart_user_query(f"{k}_table")
                 )
-                row[key] = item.table
-
-        for chart_key in chart_keys:
-            table = row[chart_key]
-            row.pop(chart_key)
-            row[chart_key + "_table"] = table
+                row[f"{k}_table"] = row.pop(k)._data
+                self._tbwatcher._interface.publish_config(val=value, key=key)
 
         self._tbwatcher._interface.publish_history(
             row, run=self._internal_run, publish_step=False

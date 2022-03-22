@@ -1,7 +1,8 @@
+from typing import Optional
 import wandb
 
 
-def bar(table, label, value, title=None):
+def bar(table: wandb.Table, label: str, value: str, title: Optional[str] = None):
     """
     Construct a bar plot.
 

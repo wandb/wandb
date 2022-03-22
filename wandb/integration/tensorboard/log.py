@@ -5,7 +5,6 @@ from typing import Any, Optional, TYPE_CHECKING
 import six
 import wandb
 from wandb.sdk.lib import telemetry
-from wandb.viz import create_custom_chart
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.tb_watcher import TBHistory
@@ -187,7 +186,8 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                 data = sorted(data, key=lambda x: (x[0], -x[1]))
                 data_table = wandb.Table(data=data, columns=["recall", "precision"])
                 name = namespaced_tag(value.tag, namespace)
-                values[name] = create_custom_chart(
+
+                values[name] = wandb.plot_table(
                     "wandb/line/v0",
                     data_table,
                     {"x": "recall", "y": "precision"},
