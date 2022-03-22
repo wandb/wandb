@@ -53,7 +53,7 @@ def login(
 
     Arguments:
         anonymous: (string, optional) Can be "must", "allow", or "never".
-            If set to "must" we'll always login anonymously, if set to
+            If set to "must" we'll always log in anonymously, if set to
             "allow" we'll only create an anonymous user if the user
             isn't already logged in.
         key: (string, optional) authentication key.

@@ -27,7 +27,7 @@ def test_login_timeout(notebook, monkeypatch):
         output = nb.cell_output(1)
         print(output)
         print(type(output))
-        assert output[0]["data"]["text/plain"] == ""
+        assert output[-1]["data"]["text/plain"] == ""
 
 
 def test_one_cell(notebook):
