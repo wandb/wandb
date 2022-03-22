@@ -733,12 +733,18 @@ def generate_id(length: int = 8) -> str:
 
 def dumps(obj: Any, **kwargs: Any) -> str:
     """Wrapper for orjson.dumps"""
-    return orjson.dumps(obj, **kwargs).decode()
+    try:
+        return orjson.dumps(obj, **kwargs).decode()
+    except Exception:
+        return json.dumps(obj, **kwargs)
 
 
 def loads(obj: Union[str, bytes]) -> Any:
     """Wrapper for orjson.loads"""
-    return orjson.loads(obj)
+    try:
+        return orjson.loads(obj)
+    except Exception:
+        return json.loads(obj)
 
 
 def parse_tfjob_config() -> Any:
