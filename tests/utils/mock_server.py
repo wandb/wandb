@@ -61,6 +61,7 @@ def default_ctx():
         "artifacts": {},
         "artifacts_by_id": {},
         "artifacts_created": {},
+        "portfolio_links": {},
         "upsert_bucket_count": 0,
         "out_of_date": False,
         "empty_query": False,
@@ -1006,6 +1007,9 @@ def create_app(user_ctx=None):
                     }
                 )
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
+        if "mutation LinkArtifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.link(variables=body["variables"])
         if "mutation CreateArtifact(" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create(variables=body["variables"])
@@ -2161,6 +2165,10 @@ class ParseCTX(object):
     @property
     def artifacts(self):
         return self._ctx.get("artifacts_created") or {}
+
+    @property
+    def portfolio_links(self):
+        return self._ctx.get("portfolio_links") or {}
 
     @property
     def tags(self):

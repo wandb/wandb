@@ -13,7 +13,7 @@ from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
-from wandb.errors import DockerError, ExecutionError, LaunchError
+from wandb.errors import DockerError, LaunchError
 
 from ._project_spec import (
     create_metadata_file,
@@ -35,7 +35,7 @@ def validate_docker_installation() -> None:
     """Verify if Docker is installed on host machine."""
     _logger.info("Validating docker installation")
     if not find_executable("docker"):
-        raise ExecutionError(
+        raise LaunchError(
             "Could not find Docker executable. "
             "Ensure Docker is installed as per the instructions "
             "at https://docs.docker.com/install/overview/."
@@ -138,7 +138,7 @@ RUN useradd \
     --shell /bin/bash \
     --gid 0 \
     --uid {uid} \
-    {user} || echo ""
+    {user}
 """
 
 
@@ -231,10 +231,13 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
 
     if launch_project.deps_type == "pip":
         requirements_files = []
-        if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")):
+        if launch_project.project_dir is not None and os.path.exists(
+            os.path.join(launch_project.project_dir, "requirements.txt")
+        ):
             requirements_files += ["src/requirements.txt"]
             pip_install_line = "pip install -r requirements.txt"
-        if os.path.exists(
+
+        if launch_project.project_dir is not None and os.path.exists(
             os.path.join(launch_project.project_dir, "requirements.frozen.txt")
         ):
             # if we have frozen requirements stored, copy those over and have them take precedence
@@ -338,7 +341,7 @@ def generate_docker_image(
         docker_args,
         sanitize_wandb_api_key(dockerfile_str),
     )
-    if runner_type == "sagemaker":
+    if runner_type == "sagemaker" and launch_project.project_dir is not None:
         # sagemaker automatically appends train after the entrypoint
         # by redirecting to running a train script we can avoid issues
         # with argparse, and hopefully if the user intends for the train
@@ -401,6 +404,9 @@ def pull_docker_image(docker_image: str) -> None:
 
 
 def construct_local_image_uri(launch_project: LaunchProject) -> str:
+    if launch_project.project_dir is None and launch_project.docker_image is None:
+        raise LaunchError("Must specify either project_dir or docker_image")
+    assert launch_project.project_dir is not None
     image_uri = _get_docker_image_uri(
         name=launch_project.image_name,
         work_dir=launch_project.project_dir,
@@ -418,6 +424,7 @@ def construct_gcp_image_uri(
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
     requirements_line = ""
+    assert launch_project.project_dir is not None
     base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
     if os.path.exists(base_requirements):
         include_only = set()
@@ -464,6 +471,7 @@ def _create_docker_build_ctx(
     launch_project: LaunchProject, dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
+    assert launch_project.project_dir is not None
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(

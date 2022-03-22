@@ -10,6 +10,7 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+from collections import namedtuple
 import datetime
 from functools import partial
 import json
@@ -3606,6 +3607,49 @@ class Artifact(artifacts.Artifact):
     def _use_as(self, use_as):
         self._attrs["_use_as"] = use_as
         return use_as
+
+    @normalize_exceptions
+    def link(self, target_path: str, aliases=None):
+        if ":" in target_path:
+            raise ValueError(
+                f"target_path {target_path} cannot contain `:` because it is not an alias."
+            )
+
+        portfolio, project, entity = util._parse_entity_project_item(target_path)
+        aliases = util._resolve_aliases(aliases)
+
+        EmptyRunProps = namedtuple("Empty", "entity project")
+        r = wandb.run if wandb.run else EmptyRunProps(entity=None, project=None)
+        entity = entity or r.entity or self.entity
+        project = project or r.project or self.project
+
+        mutation = gql(
+            """
+            mutation LinkArtifact($artifactID: ID!, $artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!]) {
+    linkArtifact(input: {artifactID: $artifactID, artifactPortfolioName: $artifactPortfolioName,
+        entityName: $entityName,
+        projectName: $projectName,
+        aliases: $aliases
+    }) {
+            versionIndex
+    }
+}
+        """
+        )
+        self.client.execute(
+            mutation,
+            variable_values={
+                "artifactID": self.id,
+                "artifactPortfolioName": portfolio,
+                "entityName": entity,
+                "projectName": project,
+                "aliases": [
+                    {"alias": alias, "artifactCollectionName": portfolio}
+                    for alias in aliases
+                ],
+            },
+        )
+        return True
 
     @normalize_exceptions
     def delete(self, delete_aliases=False):

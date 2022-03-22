@@ -8,7 +8,7 @@ from six.moves import shlex_quote
 import wandb
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import EntryPoint, get_entry_point_command, LaunchProject
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     construct_local_image_uri,
     docker_image_exists,
@@ -77,13 +77,13 @@ class LocalRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
-        entry_point: Optional[EntryPoint] = launch_project.get_single_entry_point()
-
+        entry_point = launch_project.get_single_entry_point()
+        env_vars = get_env_vars_dict(launch_project, self._api)
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.docker_image
-            if not docker_image_exists(image_uri):
-                pull_docker_image(image_uri)
+            pull_docker_image(image_uri)
+            env_vars.pop("WANDB_RUN_ID")
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
@@ -98,7 +98,6 @@ class LocalRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        env_vars = get_env_vars_dict(launch_project, self._api)
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 
         command_str = " ".join(
@@ -112,11 +111,12 @@ class LocalRunner(AbstractRunner):
         )
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
+            print("callin wait")
             run.wait()
         return run
 
 
-def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -126,6 +126,8 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     Returns:
         An instance of `LocalSubmittedRun`
     """
+    if work_dir is None:
+        work_dir = os.getcwd()
     env = os.environ.copy()
     if os.name == "nt":
         # we are running on windows
@@ -150,6 +152,8 @@ def get_docker_command(
 
     Arguments:
     image: a Docker image to be run
+    env_vars: a dictionary of environment variables for the command
+    entry_cmd: the entry point command to run
     docker_args: a dictionary of additional docker args for the command
     """
     docker_path = "docker"

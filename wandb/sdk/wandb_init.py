@@ -31,6 +31,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
@@ -88,6 +89,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
         self.notebook = None
+        self.printer = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
 
@@ -98,7 +100,30 @@ class _WandbInit(object):
         """
         self.kwargs = kwargs
 
-        self._wl = wandb_setup._setup()
+        # if the user ran, for example, `wandb.login(`) before `wandb.init()`,
+        # the singleton will already be set up and so if e.g. env vars are set
+        # in between, they will be ignored, which we need to inform the user about.
+        singleton = wandb_setup._WandbSetup._instance
+        if singleton is not None:
+            self.printer = get_printer(singleton._settings._jupyter)
+            # check if environment variables have changed
+            singleton_env = {
+                k: v for k, v in singleton._environ.items() if k.startswith("WANDB_")
+            }
+            os_env = {k: v for k, v in os.environ.items() if k.startswith("WANDB_")}
+            if set(singleton_env.keys()) != set(os_env.keys()) or set(
+                singleton_env.values()
+            ) != set(os_env.values()):
+                line = (
+                    "Changes to your `wandb` environment variables will be ignored "
+                    "because your `wandb` session has already started. "
+                    "For more information on how to modify your settings with "
+                    "`wandb.init()` arguments, please refer to "
+                    f"{self.printer.link(wburls.get('wandb_init'), 'the W&B docs')}."
+                )
+                self.printer.display(line, status="warn")
+
+        self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())
 
@@ -648,22 +673,8 @@ class _WandbInit(object):
             run.config.update({k: v}, allow_val_change=True)
 
         self.backend = backend
-        module.set_global(
-            run=run,
-            config=run.config,
-            log=run.log,
-            summary=run.summary,
-            save=run.save,
-            use_artifact=run.use_artifact,
-            log_artifact=run.log_artifact,
-            define_metric=run.define_metric,
-            plot_table=run.plot_table,
-            alert=run.alert,
-            mark_preempting=run.mark_preempting,
-        )
         self._reporter.set_context(run=run)
         run._on_start()
-
         logger.info("run started, returning control to user process")
         return run
 
@@ -940,7 +951,7 @@ def init(
 
     Pass a dictionary-style object as the `config` keyword argument to add
     metadata, like hyperparameters, to your run.
-    <!--yeadoc-test:init-set-config--->
+    <!--yeadoc-test:init-set-config-->
     ```python
     import wandb
 

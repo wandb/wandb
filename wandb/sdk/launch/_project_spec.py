@@ -87,14 +87,18 @@ class LaunchProject(object):
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if "entry_point" in overrides:
+        if (
+            "entry_point" in overrides
+            and overrides["entry_point"] is not None
+            and overrides["entry_point"] != ""
+        ):
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
         if self.uri is None:
             if self.docker_image is None:
                 raise LaunchError("Run requires a URI or a docker image")
             self.source = LaunchSource.DOCKER
-            self.project_dir = tempfile.mkdtemp()
+            self.project_dir = None
         elif utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
@@ -186,7 +190,10 @@ class LaunchProject(object):
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
+        # these asserts are all guaranteed to pass, but are required by mypy
         assert self.source != LaunchSource.LOCAL
+        assert isinstance(self.uri, str)
+        assert self.project_dir is not None
         _logger.info("Fetching project locally...")
         if self.uri is None:
             raise LaunchError("Uri is none, but trying to fetch project locally")
@@ -448,6 +455,7 @@ def fetch_and_validate_project(
     else:
         launch_project._fetch_project_local(internal_api=api)
 
+    assert launch_project.project_dir is not None
     # this prioritizes pip and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
@@ -474,6 +482,7 @@ def create_metadata_file(
     docker_args: Dict[str, Any],
     sanitized_dockerfile_contents: str,
 ) -> None:
+    assert launch_project.project_dir is not None
     with open(
         os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
     ) as f:
