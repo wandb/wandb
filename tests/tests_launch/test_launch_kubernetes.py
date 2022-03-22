@@ -7,7 +7,7 @@ import kubernetes
 import wandb
 from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
-from wandb.sdk.launch.runner.kubernetes import KubernetesRunner
+from wandb.sdk.launch.runner.kubernetes import KubernetesRunner, MAX_KUBERNETES_RETRIES
 import pytest
 from tests import utils
 
@@ -182,6 +182,19 @@ def test_launch_kube(
         default_settings=test_settings, load_settings=False
     )
 
+    multi_spec = {
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {"image": "container1:tag",},
+                        {"image": "container2:tag",},
+                    ]
+                }
+            }
+        }
+    }
+
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
@@ -191,6 +204,7 @@ def test_launch_kube(
         "project": "test",
         "resource_args": {
             "kubernetes": {
+                "job_spec": json.dumps(multi_spec),
                 "registry": "test.registry",
                 "job_name": "test-job",
                 "job_labels": {"test-label": "test-val"},
@@ -204,8 +218,13 @@ def test_launch_kube(
             },
         },
     }
-    run = launch.run(**kwargs)
 
+    with pytest.raises(LaunchError) as e:
+        run = launch.run(**kwargs)
+        assert "Launch only builds one container at a time" in str(e.value)
+    del kwargs["resource_args"]["kubernetes"]["job_spec"]
+
+    run = launch.run(**kwargs)
     assert run.id == "test-job"
     assert run.namespace == "active-namespace"
     assert run.pod_names == ["pod1"]
@@ -338,6 +357,19 @@ def test_kube_user_container(
         default_settings=test_settings, load_settings=False
     )
 
+    multi_spec = {
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {"image": "container1:tag",},
+                        {"image": "container2:tag",},
+                    ]
+                }
+            }
+        }
+    }
+
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
@@ -347,8 +379,13 @@ def test_kube_user_container(
         "project": "test",
         "docker_image": "test:tag",
         "config": {"docker": {"args": {"test-arg": "unused"}}},
-        "resource_args": {"kubernetes": {}},
+        "resource_args": {"kubernetes": {"job_spec": json.dumps(multi_spec)}},
     }
+    with pytest.raises(LaunchError) as e:
+        run = launch.run(**kwargs)
+        assert "Multiple container configurations should be specified" in str(e.value)
+    del kwargs["resource_args"]["kubernetes"]["job_spec"]
+
     run = launch.run(**kwargs)
     out, err = capsys.readouterr()
     assert "Docker args are not supported for Kubernetes" in err
@@ -427,3 +464,45 @@ def test_kube_multi_container(
     container2 = job.spec.template.spec.containers[1]
     assert container2.image == "container2:tag"
     assert container2.resources["requests"]["cpu"] == 1
+
+
+@pytest.mark.timeout(320)
+def test_get_status_failed(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+):
+    def read_namespaced_pod_log_error(c, name, namespace):
+        raise Exception("test read_namespaced_pod_log_error")
+
+    jobs = {}
+    status = MockDict({"succeeded": 0, "failed": 0, "active": 0, "conditions": None,})
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+
+    monkeypatch.setattr(
+        MockCoreV1Api, "read_namespaced_pod_log", read_namespaced_pod_log_error
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "kubernetes",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {"kubernetes": {}},
+        "synchronous": False,
+    }
+
+    run = launch.run(**kwargs)
+    run.get_status()  # fail count => 1
+    out, err = capsys.readouterr()
+    assert "Failed to get pod status for job" in err
+
+    run._fail_count = MAX_KUBERNETES_RETRIES
+    with pytest.raises(LaunchError) as e:
+        status = run.get_status()
+        assert "Failed to start job" in str(e.value)

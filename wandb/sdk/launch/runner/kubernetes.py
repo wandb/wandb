@@ -79,13 +79,13 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.pod_names[0], namespace=self.namespace
             )
         except Exception as e:
+            self._fail_count += 1
             if self._fail_count == 1:
                 wandb.termlog(
-                    "Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(
+                    "Failed to get pod status for job: {}. Will wait up to 10 minutes for job to start.".format(
                         self.name
                     )
                 )
-            self._fail_count += 1
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 if hasattr(e, "body") and hasattr(e.body, "message"):
                     raise LaunchError(
