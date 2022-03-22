@@ -2158,6 +2158,39 @@ class Run:
         pass
 
     @Attach._attach
+    def link_artifact(
+        self,
+        artifact: Union[public.Artifact, Artifact],
+        target_path: str,
+        aliases: List[str],
+    ) -> None:
+        """Links the given artifact to a portfolio (a promoted collection of artifacts).
+
+        The linked artifact will be visible in the UI for the specified portfolio.
+
+        Arguments:
+            artifact: the (public or local) artifact which will be linked
+            target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
+                or {entity}/{project}/{portfolio}
+            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact inside the portfolio.
+            The alias "latest" will always be applied to the latest version of an artifact that is linked.
+
+        Returns:
+            None
+
+        """
+        portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+
+        if self._backend and self._backend.interface:
+            if not self._settings._offline:
+                self._backend.interface.publish_link_artifact(
+                    self, artifact, portfolio, aliases, entity, project,
+                )
+            else:
+                # TODO: implement offline mode + sync
+                raise NotImplementedError
+
+    @Attach._attach
     def use_artifact(
         self,
         artifact_or_name: Union[str, public.Artifact, Artifact],
@@ -2439,6 +2472,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -2590,7 +2624,7 @@ class Run:
     # HEADER
     # ------------------------------------------------------------------------------
     # Note: All the header methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have acess to the run instance
+    # with the service execution path that doesn't have access to the run instance
     @staticmethod
     def _header(
         check_version: Optional["CheckVersionResponse"] = None,

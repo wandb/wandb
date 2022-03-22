@@ -72,7 +72,9 @@ def _get_wandb_dir(root_dir: str) -> str:
 
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
-        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory.")
+        wandb.termwarn(
+            f"Path {path} wasn't writable, using system temp directory.", repeat=False,
+        )
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
     return os.path.expanduser(path)
@@ -736,11 +738,16 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
-    @staticmethod
-    def _validate_api_key(value: str) -> bool:
+    def _validate_api_key(self, value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
+
+        if value.startswith("local") and not self.is_local:
+            raise UsageError(
+                "Attempting to use a local API key to connect to https://api.wandb.ai"
+            )
         # todo: move here the logic from sdk/lib/apikey.py
+
         return True
 
     @staticmethod

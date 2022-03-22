@@ -622,6 +622,12 @@ def test_add_obj_using_brackets(runner):
         image = artifact["my-image"]
 
 
+def test_artifact_interface_link():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        _ = art.link("boom")
+
+
 def test_artifact_interface_get_item():
     art = wandb.wandb_sdk.interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):

@@ -3,13 +3,14 @@ config tests.
 """
 
 import os
-import sys
-import numpy as np
 import pickle
 import platform
-import pytest
+import sys
+import tempfile
 from unittest import mock
 
+import numpy as np
+import pytest
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import LogMultiprocessError, UsageError
