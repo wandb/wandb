@@ -252,7 +252,7 @@ class InterfaceBase(object):
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in value.items():
+            for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
                     value, path_from_root + "." + key
                 )
