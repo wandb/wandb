@@ -1,3 +1,4 @@
+# based on the following example: https://github.com/pytorch/examples/blob/main/distributed/ddp/main.py
 import os
 
 import torch
@@ -43,7 +44,6 @@ def demo_basic(rank, world_size):
         device = torch.device("cpu")
         device_ids = []
 
-    # based on the following example: https://github.com/pytorch/examples/blob/main/distributed/ddp/main.py
     # create model and move it to GPU with id rank
     model = ToyModel().to(device)
     ddp_model = DistributedDataParallel(model, device_ids=device_ids)
