@@ -1139,7 +1139,7 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.argument("project", nargs=1, required=False)
+@click.argument("project", nargs=1)
 @click.option(
     "--entity",
     "-e",
@@ -1165,13 +1165,6 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     wandb.termlog(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
-    if project is None:
-        project = os.environ.get("WANDB_PROJECT")
-
-        if project is None:
-            raise LaunchError(
-                "You must specify a project name or set WANDB_PROJECT environment variable."
-            )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:

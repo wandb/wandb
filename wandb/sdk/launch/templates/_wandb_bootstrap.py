@@ -43,10 +43,9 @@ def install_deps(deps, failed=None):
         if failed is None:
             failed = set()
         num_failed = len(failed)
-        for line in e.output.decode("utf8").split("\n"):
+        for line in e.output.decode("utf8"):
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
-        failed = failed.intersection(deps)
         if len(failed) > num_failed:
             return install_deps(list(set(deps) - failed), failed)
         else:
@@ -63,11 +62,8 @@ def main():
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
-                    # if req.startswith("wandb==") and "dev1" in req:
-                    #     req = "wandb"
-                    # fix this before merging to master
-                    if "wandb" in req:
-                        req = "git+https://github.com/wandb/client.git@gong/deployable-launch-agent"
+                    if req.startswith("wandb==") and "dev1" in req:
+                        req = "wandb"
                     reqs.append(req.strip())
                 else:
                     print(

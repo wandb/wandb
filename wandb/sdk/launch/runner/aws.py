@@ -49,7 +49,7 @@ class SagemakerSubmittedRun(AbstractRun):
             wandb.termlog(
                 f"Training job {self.training_job_name} status: {status_state}"
             )
-            if status_state != "running":
+            if status_state in ["stopped", "failed", "finished"]:
                 break
             time.sleep(5)
         return status_state == "finished"

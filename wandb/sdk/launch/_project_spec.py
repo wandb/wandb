@@ -195,8 +195,6 @@ class LaunchProject(object):
         assert isinstance(self.uri, str)
         assert self.project_dir is not None
         _logger.info("Fetching project locally...")
-        if self.uri is None:
-            raise LaunchError("Uri is none, but trying to fetch project locally")
         if utils._is_wandb_uri(self.uri):
             source_entity, source_project, source_run_name = utils.parse_wandb_uri(
                 self.uri

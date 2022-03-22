@@ -202,6 +202,13 @@ class LaunchAgent(object):
             while True:
                 self._ticks += 1
                 job = None
+                if self._running < self._max_jobs:
+                    # only check for new jobs if we're not at max
+                    for queue in self._queues:
+                        job = self.pop_from_queue(queue)
+                        if job:
+                            self.run_job(job)
+                            break  # do a full housekeeping loop before popping more jobs
 
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
@@ -212,17 +219,6 @@ class LaunchAgent(object):
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
-                if self._running < self._max_jobs:
-                    # only check for new jobs if we're not at max
-                    for queue in self._queues:
-                        job = self.pop_from_queue(queue)
-                        if job:
-                            try:
-                                self.run_job(job)
-                            except LaunchError as e:
-                                wandb.termerror(f"Error running job: {e}")
-                                self._api.ack_run_queue_item(job["runQueueItemId"])
-                            break  # do a full housekeeping loop before popping more jobs
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
