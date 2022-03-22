@@ -6,6 +6,7 @@ if False:
     import kubernetes  # type: ignore  # noqa: F401
     from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
     from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
+    from kubernetes.client.models.v1_job import V1Job  # type: ignore
 import wandb
 import wandb.docker as docker
 from wandb.errors import LaunchError
@@ -51,6 +52,11 @@ class KubernetesSubmittedRun(AbstractRun):
     @property
     def id(self) -> str:
         return self.name
+
+    def get_job(self) -> "V1Job":
+        return self.batch_api.read_namespaced_job(
+            name=self.name, namespace=self.namespace
+        )
 
     def wait(self) -> bool:
         while True:
@@ -151,7 +157,7 @@ class KubernetesRunner(AbstractRunner):
         )
 
         resource_args = launch_project.resource_args.get("kubernetes", {})
-        if resource_args is None:
+        if not resource_args:
             wandb.termlog(
                 "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
@@ -199,8 +205,7 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         namespace = resource_args.get(
-            "namespace",
-            job_metadata.get("namespace", default),
+            "namespace", job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -213,8 +218,8 @@ class KubernetesRunner(AbstractRunner):
 
         if resource_args.get("backoff_limit"):
             job_spec["backoffLimit"] = resource_args.get("backoff_limit")
-        if resource_args.get("job_completions"):
-            job_spec["completions"] = resource_args.get("job_completions")
+        if resource_args.get("completions"):
+            job_spec["completions"] = resource_args.get("completions")
         if resource_args.get("parallelism"):
             job_spec["parallelism"] = resource_args.get("parallelism")
         if resource_args.get("suspend"):
