@@ -7,7 +7,6 @@ import base64
 from copy import deepcopy
 import datetime
 from io import BytesIO
-import json
 import os
 from pkg_resources import parse_version  # type: ignore
 import re
@@ -28,6 +27,7 @@ from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from wandb.util import dumps, loads
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
@@ -728,7 +728,7 @@ class Api:
             # we only need to fetch this config once
             if variable_values["includeConfig"]:
                 commit = run["commit"]
-                config = json.loads(run["config"] or "{}")
+                config = loads(run["config"] or "{}")
                 variable_values["includeConfig"] = False
             if run["files"] is not None:
                 for file_edge in run["files"]["edges"]:
@@ -990,7 +990,7 @@ class Api:
         }
         """
         )
-        spec_json = json.dumps(launch_spec)
+        spec_json = dumps(launch_spec)
         response = self.gql(
             mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
         )
@@ -1263,7 +1263,7 @@ class Api:
         """
         )
         if config is not None:
-            config = json.dumps(config)
+            config = dumps(config)
         if not description or description.isspace():
             description = None
 
@@ -1673,7 +1673,7 @@ class Api:
                 or e.response.status_code == 429
             ):
                 return True
-            body = json.loads(e.response.content)
+            body = loads(e.response.content)
             raise UsageError(body["errors"][0]["message"])
 
         response = self.gql(
@@ -1727,8 +1727,8 @@ class Api:
                 mutation,
                 variable_values={
                     "id": agent_id,
-                    "metrics": json.dumps(metrics),
-                    "runState": json.dumps(run_states),
+                    "metrics": dumps(metrics),
+                    "runState": dumps(run_states),
                 },
                 timeout=60,
             )
@@ -1738,7 +1738,7 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            return json.loads(response["agentHeartbeat"]["commands"])
+            return loads(response["agentHeartbeat"]["commands"])
 
     @staticmethod
     def _validate_config_and_fill_distribution(config):
@@ -1860,7 +1860,7 @@ class Api:
                 or e.response.status_code == 429
             ):
                 return True
-            body = json.loads(e.response.content)
+            body = loads(e.response.content)
             raise UsageError(body["errors"][0]["message"])
 
         # TODO(dag): replace this with a query for protocol versioning
@@ -2328,10 +2328,8 @@ class Api:
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
-                "labels": json.dumps(util.make_safe_for_json(labels))
-                if labels
-                else None,
-                "metadata": json.dumps(util.make_safe_for_json(metadata))
+                "labels": dumps(util.make_safe_for_json(labels)) if labels else None,
+                "metadata": dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
                 "distributedID": distributed_id,

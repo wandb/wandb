@@ -48,6 +48,7 @@ from typing import (
 import urllib
 from urllib.parse import quote
 
+import orjson
 import requests
 import sentry_sdk  # type: ignore
 from sentry_sdk import capture_exception, capture_message
@@ -326,7 +327,7 @@ def app_url(api_url: str) -> str:
 
 
 def get_full_typename(o: Any) -> Any:
-    """We determine types based on type names so we don't have to import
+    """We determine types based on type names, so we don't have to import
     (and therefore depend on) PyTorch, TensorFlow, etc.
     """
     instance_name = o.__class__.__module__ + "." + o.__class__.__name__
@@ -730,6 +731,16 @@ def generate_id(length: int = 8) -> str:
     return str(run_gen.random(length))
 
 
+def dumps(obj: Any, **kwargs: Any) -> str:
+    """Wrapper for orjson.dumps"""
+    return orjson.dumps(obj, **kwargs).decode()
+
+
+def loads(obj: Union[str, bytes]) -> Any:
+    """Wrapper for orjson.loads"""
+    return orjson.loads(obj)
+
+
 def parse_tfjob_config() -> Any:
     """Attempts to parse TFJob config, returning False if it can't find it"""
     if os.getenv("TF_CONFIG"):
@@ -797,7 +808,8 @@ def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
 
 def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+    # return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+    return dumps(obj, default=WandBJSONEncoder.default, **kwargs)
 
 
 # This is used for dumping raw json into files
@@ -808,7 +820,9 @@ def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types, including histograms"""
-    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+    # return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+    # return rapidjson.dumps(obj, default=WandBHistoryJSONEncoder.default, **kwargs)
+    return dumps(obj, default=WandBHistoryJSONEncoder.default, **kwargs)
 
 
 def make_json_if_not_number(
@@ -1654,6 +1668,6 @@ def _get_max_cli_version() -> Union[str, None]:
 
 
 def _is_offline() -> bool:
-    return (  # type: ignore [no-any-return]
+    return (  # type: ignore[no-any-return]
         wandb.run is not None and wandb.run.settings._offline
     ) or wandb.setup().settings._offline

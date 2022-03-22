@@ -8,7 +8,6 @@ from __future__ import print_function
 
 from collections import defaultdict
 from datetime import datetime
-import json
 import logging
 import os
 import time
@@ -23,6 +22,7 @@ import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.util import dumps, loads
 
 from . import artifacts
 from . import file_stream
@@ -354,7 +354,7 @@ class SendManager:
         self._api.reauth()
         viewer = self.get_viewer_info()
         server_info = self.get_server_info()
-        # self._login_flags = json.loads(viewer.get("flags", "{}"))
+        # self._login_flags = loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
         if server_info:
             logger.info("Login server info: {}".format(server_info))
@@ -520,16 +520,16 @@ class SendManager:
         try:
             events_rt = 0
             history_rt = 0
-            history = json.loads(resume_status["historyTail"])
+            history = loads(resume_status["historyTail"])
             if history:
-                history = json.loads(history[-1])
+                history = loads(history[-1])
                 history_rt = history.get("_runtime", 0)
-            events = json.loads(resume_status["eventsTail"])
+            events = loads(resume_status["eventsTail"])
             if events:
-                events = json.loads(events[-1])
+                events = loads(events[-1])
                 events_rt = events.get("_runtime", 0)
-            config = json.loads(resume_status["config"] or "{}")
-            summary = json.loads(resume_status["summaryMetrics"] or "{}")
+            config = loads(resume_status["config"] or "{}")
+            summary = loads(resume_status["summaryMetrics"] or "{}")
             new_runtime = summary.get("_wandb", {}).get("runtime", None)
             if new_runtime is not None:
                 self._resume_state.wandb_runtime = new_runtime
@@ -817,7 +817,7 @@ class SendManager:
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
-            self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
+            self._fs.push(filenames.HISTORY_FNAME, dumps(history_dict))
 
     def send_history(self, record: "Record") -> None:
         history = record.history
@@ -834,7 +834,7 @@ class SendManager:
         summary_dict.pop("_wandb", None)
         if self._metadata_summary:
             summary_dict["_wandb"] = self._metadata_summary
-        json_summary = json.dumps(summary_dict)
+        json_summary = dumps(summary_dict)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
         # TODO(jhr): we should only write this at the end of the script
@@ -854,13 +854,13 @@ class SendManager:
         now = stats.timestamp.seconds
         d = dict()
         for item in stats.item:
-            d[item.key] = json.loads(item.value_json)
+            d[item.key] = loads(item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
         row["_timestamp"] = now
         row["_runtime"] = int(now - self._run.start_time.ToSeconds())
-        self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
+        self._fs.push(filenames.EVENTS_FNAME, dumps(row))
         # TODO(jhr): check fs.push results?
 
     def send_output(self, record: "Record") -> None:
@@ -1064,7 +1064,7 @@ class SendManager:
                 )
                 return None
 
-        metadata = json.loads(artifact.metadata) if artifact.metadata else None
+        metadata = loads(artifact.metadata) if artifact.metadata else None
         return saver.save(
             type=artifact.type,
             name=artifact.name,

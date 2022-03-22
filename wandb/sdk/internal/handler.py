@@ -1,7 +1,6 @@
 """Handle Manager."""
 
 from collections import defaultdict
-import json
 import logging
 import math
 import numbers
@@ -31,6 +30,7 @@ from wandb.proto.wandb_internal_pb2 import (
     SummaryItem,
     SummaryRecord,
 )
+from wandb.util import dumps, loads
 
 from . import meta, sample, stats, tb_watcher
 from .settings_static import SettingsStatic
@@ -213,7 +213,7 @@ class HandleManager(object):
         for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
-            update.value_json = json.dumps(v)
+            update.value_json = dumps(v)
         record = Record(summary=summary)
         if flush:
             self._dispatch_record(record)
@@ -225,7 +225,7 @@ class HandleManager(object):
         for item in history.item:
             # TODO(jhr) save nested keys?
             k = item.key
-            v = json.loads(item.value_json)
+            v = loads(item.value_json)
             if isinstance(v, numbers.Real):
                 self._sampled_history[k].add(v)
 
@@ -378,11 +378,11 @@ class HandleManager(object):
         if has_step:
             step = history.step.num
             history_dict["_step"] = step
-            item.value_json = json.dumps(step)
+            item.value_json = dumps(step)
             self._step = step + 1
         else:
             history_dict["_step"] = self._step
-            item.value_json = json.dumps(self._step)
+            item.value_json = dumps(self._step)
             self._step += 1
 
     def _history_define_metric(self, hkey: str) -> Optional[MetricRecord]:
@@ -465,7 +465,7 @@ class HandleManager(object):
             for k, v in update_history.items():
                 item = history.item.add()
                 item.key = k
-                item.value_json = json.dumps(v)
+                item.value_json = dumps(v)
 
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
@@ -488,7 +488,7 @@ class HandleManager(object):
             for k, v in self._partial_history.items():
                 item = history.item.add()
                 item.key = k
-                item.value_json = json.dumps(v)
+                item.value_json = dumps(v)
             if step is not None:
                 history.step.num = step
             self.handle_history(Record(history=history))
@@ -542,7 +542,7 @@ class HandleManager(object):
                 target = target[prop]
 
             # use the last element of the key to write the leaf:
-            target[key[-1]] = json.loads(item.value_json)
+            target[key[-1]] = loads(item.value_json)
 
         for item in summary.remove:
             if len(item.nested_key) > 0:
@@ -699,7 +699,7 @@ class HandleManager(object):
         for key, value in self._consolidated_summary.items():
             item = SummaryItem()
             item.key = key
-            item.value_json = json.dumps(value)
+            item.value_json = dumps(value)
             result.response.get_summary_response.item.append(item)
         self._respond_result(result)
 
@@ -811,4 +811,4 @@ class HandleManager(object):
         )
         item = history.item.add()
         item.key = "_runtime"
-        item.value_json = json.dumps(history_dict[item.key])
+        item.value_json = dumps(history_dict[item.key])

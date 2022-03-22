@@ -10,7 +10,6 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 """
 
 from abc import abstractmethod
-import json
 import logging
 import os
 from typing import Any, Iterable, Optional, Tuple, Union
@@ -20,6 +19,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
+    dumps,
     get_h5_typename,
     json_dumps_safer,
     json_dumps_safer_history,
@@ -232,7 +232,7 @@ class InterfaceBase(object):
         for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
-            update.value_json = json.dumps(v)
+            update.value_json = dumps(v)
         return summary
 
     def _summary_encode(self, value: Any, path_from_root: str) -> dict:
@@ -289,9 +289,7 @@ class InterfaceBase(object):
             json_value = self._summary_encode(item.value, path_from_root)
             json_value, _ = json_friendly(json_value)  # type: ignore
 
-            pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
-            )
+            pb_summary_item.value_json = dumps(json_value, cls=WandBJSONEncoderOld,)
 
         for item in summary_record.remove:
             pb_summary_item = pb_summary_record.remove.add()
@@ -363,7 +361,7 @@ class InterfaceBase(object):
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+            proto_artifact.metadata = dumps(json_friendly_val(artifact.metadata))
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -378,7 +376,7 @@ class InterfaceBase(object):
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
-            cfg.value_json = json.dumps(v)
+            cfg.value_json = dumps(v)
 
         for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
             proto_entry = proto_manifest.contents.add()
@@ -395,7 +393,7 @@ class InterfaceBase(object):
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k
-                proto_extra.value_json = json.dumps(v)
+                proto_extra.value_json = dumps(v)
         return proto_manifest
 
     def publish_link_artifact(

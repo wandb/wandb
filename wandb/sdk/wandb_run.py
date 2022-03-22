@@ -2865,6 +2865,8 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         # todo: is this same as settings._offline?
+        #   dd: no! that must be also checked,
+        #       otherwise flashes "0.000 MB of 0.000 MB (0.000%)" at the end
         if not poll_exit_response:
             return
 
