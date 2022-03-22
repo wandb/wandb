@@ -2,6 +2,7 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 from typing import Any, Dict, List, Optional
 
 from six.moves import shlex_quote
@@ -17,6 +18,7 @@ from ..docker import (
     validate_docker_installation,
 )
 from ..utils import (
+    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
@@ -75,6 +77,14 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+
+        if _is_wandb_local_uri(self._api.settings("base_url")):
+            if sys.platform == "win32":
+                docker_args["net"] = "host"
+            else:
+                docker_args["network"] = "host"
+            if sys.platform == "linux" or sys.platform == "linux2":
+                docker_args["add-host"] = "host.docker.internal:host-gateway"
 
         entry_point = launch_project.get_single_entry_point()
         env_vars = get_env_vars_dict(launch_project, self._api)

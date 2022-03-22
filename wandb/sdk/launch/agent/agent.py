@@ -4,7 +4,6 @@ Implementation of launch agent.
 
 import logging
 import os
-import sys
 import time
 from typing import Any, Dict, Iterable, List, Union
 
@@ -18,7 +17,6 @@ from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
-    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -168,22 +166,8 @@ class LaunchAgent(object):
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-        if _is_wandb_local_uri(self._base_url):
-            _logger.info(
-                "Noted a local URI. Setting local network arguments for docker"
-            )
-            if sys.platform == "win32":
-                backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
-            else:
-                backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
-            if sys.platform == "linux" or sys.platform == "linux2":
-                backend_config[PROJECT_DOCKER_ARGS][
-                    "add-host"
-                ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
-        backend_config[PROJECT_DOCKER_ARGS].update(launch_spec.get("docker", {}))
-        backend_config[PROJECT_DOCKER_ARGS].pop("docker_image", None)
         _logger.info("Loading backend")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()

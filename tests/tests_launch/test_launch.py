@@ -764,7 +764,7 @@ def test_launch_notebook(
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(400)
+@pytest.mark.timeout(320)
 def test_launch_full_build_new_image(
     live_mock_server, test_settings, mocked_fetchable_git_repo
 ):
@@ -944,6 +944,8 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "WANDB_CONFIG='{}'",
         "-e",
         "WANDB_ARTIFACTS='{}'",
+        "--network",
+        "host",
         image_name,
     ]
 

@@ -1,5 +1,4 @@
 import logging
-import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
@@ -10,7 +9,6 @@ from .agent import LaunchAgent
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
-    _is_wandb_local_uri,
     construct_launch_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -71,11 +69,8 @@ def _run(
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     if launch_config is not None:
-        docker_args = launch_config.get("docker", {})
-        # if user provided docker image in docker key, pop it out
-        # TODO: should docker args be a in an arg subkey?
-        docker_args.pop("docker_image", None)
-        runner_config[PROJECT_DOCKER_ARGS] = docker_args
+        given_docker_args = launch_config.get("docker", {}).get("args", {})
+        runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
     else:
         runner_config[PROJECT_DOCKER_ARGS] = {}
 
@@ -156,21 +151,8 @@ def run(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-    docker_args = {}
-
-    if _is_wandb_local_uri(api.settings("base_url")):
-        if sys.platform == "win32":
-            docker_args["net"] = "host"
-        else:
-            docker_args["network"] = "host"
-        if sys.platform == "linux" or sys.platform == "linux2":
-            docker_args["add-host"] = "host.docker.internal:host-gateway"
     if config is None:
         config = {}
-
-    if "docker" in config:
-        docker_args.update(config["docker"])  # userprovided args override
-    config["docker"] = docker_args
 
     submitted_run_obj = _run(
         uri=uri,
