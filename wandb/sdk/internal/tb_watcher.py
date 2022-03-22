@@ -372,9 +372,7 @@ class TBEventConsumer(object):
             self._handle_event(event, history=self.tb_history)
             items = self.tb_history._get_and_reset()
             for item in items:
-                self._save_row(
-                    item,
-                )
+                self._save_row(item,)
         self._thread.join()
 
     def _thread_except_body(self) -> None:
@@ -404,9 +402,7 @@ class TBEventConsumer(object):
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:
-                    self._save_row(
-                        item,
-                    )
+                    self._save_row(item,)
         # flush uncommitted data
         self.tb_history._flush()
         items = self.tb_history._get_and_reset()
