@@ -9,7 +9,6 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.viz import create_custom_chart
 
 
 def test_log_step(live_mock_server, test_settings, parse_ctx):
@@ -22,7 +21,7 @@ def test_log_step(live_mock_server, test_settings, parse_ctx):
 
 def test_log_custom_chart(live_mock_server, test_settings, parse_ctx):
     with wandb.init(settings=test_settings) as run:
-        custom_chart = create_custom_chart(
+        custom_chart = wandb.plot_table(
             "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
         )
         run.log({"my_custom_chart": custom_chart})

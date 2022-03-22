@@ -15,7 +15,7 @@ from typing import Any, TYPE_CHECKING
 
 import wandb
 from wandb import util
-from wandb.viz import custom_chart_user_query, CustomChart
+from wandb.viz import CustomChart
 
 from . import run as internal_run
 
@@ -422,7 +422,7 @@ class TBEventConsumer(object):
             if isinstance(row[k], CustomChart):
                 key = row[k].get_config_key(k)
                 value = row[k].get_config_value(
-                    "Vega2", custom_chart_user_query(f"{k}_table")
+                    "Vega2", row[k].user_query(f"{k}_table")
                 )
                 row[f"{k}_table"] = row.pop(k)._data
                 self._tbwatcher._interface.publish_config(val=value, key=key)

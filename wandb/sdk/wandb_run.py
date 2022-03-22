@@ -51,7 +51,6 @@ from wandb.util import (
     to_forward_slash_path,
 )
 from wandb.viz import (
-    custom_chart_user_query,
     CustomChart,
     Visualize,
 )
@@ -1123,20 +1122,19 @@ class Run:
         for k in row:
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
-                value, key = row[k].get_config_value(k)
+                value = row[k].get_config_value(k)
                 row[k] = row[k]._data
+                self._config_callback(val=value, key=key)
             elif isinstance(row[k], CustomChart):
                 key = row[k].get_config_key(k)
 
                 value = row[k].get_config_value(
-                    "Vega2", custom_chart_user_query(f"{k}_table")
+                    "Vega2", row[k].user_query(f"{k}_table")
                 )
                 # TODO: is this really the right move? what if the user logs
                 #     a non-custom chart to this key?
                 row[f"{k}_table"] = row.pop(k)._data
-
-            self._config_callback(val=value, key=key)
-
+                self._config_callback(val=value, key=key)
         return row
 
     def _partial_history_callback(

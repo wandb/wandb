@@ -51,26 +51,26 @@ class CustomChart:
     def get_config_key(key: str) -> Tuple[str]:
         return ("_wandb", "visualize", key)
 
-
-def custom_chart_user_query(table_key: str) -> Dict[str, Any]:
-    return {
-        "queryFields": [
-            {
-                "name": "runSets",
-                "args": [{"name": "runSets", "value": "${runSets}"}],
-                "fields": [
-                    {"name": "id", "fields": []},
-                    {"name": "name", "fields": []},
-                    {"name": "_defaultColorIndex", "fields": []},
-                    {
-                        "name": "summaryTable",
-                        "args": [{"name": "tableKey", "value": table_key}],
-                        "fields": [],
-                    },
-                ],
-            }
-        ],
-    }
+    @staticmethod
+    def user_query(table_key: str) -> Dict[str, Any]:
+        return {
+            "queryFields": [
+                {
+                    "name": "runSets",
+                    "args": [{"name": "runSets", "value": "${runSets}"}],
+                    "fields": [
+                        {"name": "id", "fields": []},
+                        {"name": "name", "fields": []},
+                        {"name": "_defaultColorIndex", "fields": []},
+                        {
+                            "name": "summaryTable",
+                            "args": [{"name": "tableKey", "value": table_key}],
+                            "fields": [],
+                        },
+                    ],
+                }
+            ],
+        }
 
 
 def plot_table(
