@@ -1,13 +1,11 @@
 import os
-from git import Commit
+
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel
 import torch.optim as optim
-
-from torch.nn.parallel import DistributedDataParallel as DDP
-
 import wandb
 
 
@@ -48,7 +46,7 @@ def demo_basic(rank, world_size):
     # based on the following example: https://github.com/pytorch/examples/blob/main/distributed/ddp/main.py
     # create model and move it to GPU with id rank
     model = ToyModel().to(device)
-    ddp_model = DDP(model, device_ids=device_ids)
+    ddp_model = DistributedDataParallel(model, device_ids=device_ids)
 
     with wandb.init(group="ddp-basic") as run:
         run.watch(models=ddp_model, log_freq=1, log_graph=True)
