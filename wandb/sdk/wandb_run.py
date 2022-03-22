@@ -1119,6 +1119,7 @@ class Run:
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
+        chart_keys = set()
         for k in row:
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
@@ -1126,15 +1127,19 @@ class Run:
                 row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
             elif isinstance(row[k], CustomChart):
+                chart_keys.add(k)
                 key = row[k].get_config_key(k)
-
                 value = row[k].get_config_value(
                     "Vega2", row[k].user_query(f"{k}_table")
                 )
-                # TODO: is this really the right move? what if the user logs
-                #     a non-custom chart to this key?
-                row[f"{k}_table"] = row.pop(k)._data
+                row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
+
+        for k in chart_keys:
+            # remove the chart key from the row
+            # TODO: is this really the right move? what if the user logs
+            #     a non-custom chart to this key?
+            row[f"{k}_table"] = row.pop(k)
         return row
 
     def _partial_history_callback(
