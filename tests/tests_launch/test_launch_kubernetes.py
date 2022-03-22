@@ -7,7 +7,7 @@ import kubernetes
 import wandb
 from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
-from wandb.sdk.launch.runner.kubernetes import KubernetesRunner
+from wandb.sdk.launch.runner.kubernetes import KubernetesRunner, MAX_KUBERNETES_RETRIES
 import pytest
 from tests import utils
 
@@ -427,3 +427,45 @@ def test_kube_multi_container(
     container2 = job.spec.template.spec.containers[1]
     assert container2.image == "container2:tag"
     assert container2.resources["requests"]["cpu"] == 1
+
+
+@pytest.mark.timeout(320)
+def test_get_status_failed(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+):
+    def read_namespaced_pod_log_error(c, name, namespace):
+        raise Exception("test read_namespaced_pod_log_error")
+
+
+    jobs = {}
+    status = MockDict({"succeeded": 0, "failed": 0, "active": 0, "conditions": None,})
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+
+    monkeypatch.setattr(MockCoreV1Api, "read_namespaced_pod_log", read_namespaced_pod_log_error)
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "kubernetes",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {"kubernetes": {}},
+        "synchronous": False,
+    }
+
+    run = launch.run(**kwargs)
+    run.get_status() # fail count => 1
+    out, err = capsys.readouterr()
+    assert "Failed to get pod status for job" in err
+
+    run._fail_count = MAX_KUBERNETES_RETRIES
+    with pytest.raises(LaunchError) as e:
+        status = run.get_status()
+        assert "Failed to start job" in str(e.value)
+
