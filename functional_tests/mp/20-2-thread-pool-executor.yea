@@ -1,0 +1,55 @@
+id: 0.mp.20-2-thread-pool-executor
+tag:
+  shard: service
+  skip: true
+
+plugin:
+  - wandb
+
+var:
+  - run_2:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][init]: 2
+
+  - run_12:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][init]: 12
+
+  - run_17:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][init]: 17
+
+  - run_40:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][init]: 40
+
+assert:
+  - :wandb:runs_len: 4
+  - :run_2[history][0][i]: 2
+  - :run_2[history][1][i]: 3
+  - :run_2[history][2][i]: 4
+
+  - :run_12[history][0][i]: 12
+  - :run_12[history][1][i]: 13
+  - :run_12[history][2][i]: 14
+
+  - :run_17[history][0][i]: 17
+  - :run_17[history][1][i]: 18
+  - :run_17[history][2][i]: 19
+
+  - :run_40[history][0][i]: 40
+  - :run_40[history][1][i]: 41
+  - :run_40[history][2][i]: 42
+
+  - :run_2[exitcode]: 0
+  - :run_12[exitcode]: 0
+  - :run_17[exitcode]: 0
+  - :run_40[exitcode]: 0
