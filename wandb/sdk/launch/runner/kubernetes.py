@@ -276,17 +276,16 @@ class KubernetesRunner(AbstractRunner):
             containers[0]["command"] = entry_cmd
 
         image = resource_args.get("image")  # todo: maybe take this option out
-        if image:
-            if launch_project.docker_image and image != launch_project.docker_image:
-                raise LaunchError(
-                    "Conflicting Docker images specified in launch and resource args."
-                )
+        if image and launch_project.docker_image and image != launch_project.docker_image:
+            raise LaunchError(
+                "Conflicting Docker images specified in launch and resource args."
+            )
+        user_provided_image = image or launch_project.docker_image
+        if user_provided_image:
             if len(containers) > 1:
                 raise LaunchError(
                     "Multiple container configurations should be specified in a yaml file supplied via job_spec."
                 )
-        user_provided_image = image or launch_project.docker_image
-        if user_provided_image:
             # dont specify run id if user provided image, could have multiple runs
             env_vars.pop("WANDB_RUN_ID")
             containers[0]["image"] = user_provided_image

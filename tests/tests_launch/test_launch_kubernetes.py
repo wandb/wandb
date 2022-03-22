@@ -168,8 +168,6 @@ def pods(job_name):
     )
 
 
-# 'conditions': [MockDict({'type': 'Suspended'})],
-
 
 @pytest.mark.timeout(320)
 def test_launch_kube(
@@ -252,7 +250,11 @@ def test_launch_kube_suspend_cancel(
         "resource": "kubernetes",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {"kubernetes": {},},
+        "resource_args": {
+            "kubernetes": {
+                'suspend': False,
+            },
+        },
         "synchronous": False,
     }
     run = launch.run(**kwargs)
@@ -363,3 +365,66 @@ def test_kube_user_container(
     container = job.spec.template.spec.containers[0]
     assert container.image == "test:tag"
     assert "WANDB_RUN_ID" not in [ev["name"] for ev in container.env]
+
+
+@pytest.mark.timeout(320)
+def test_kube_multi_container(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+):
+    jobs = {}
+    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    spec = {
+                    'spec': {
+                        'template': {
+                            'spec': {
+                                'containers': [
+                                    {
+                                        'image': 'container1:tag',
+                                    },
+                                    {
+                                        'image': 'container2:tag',
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "kubernetes",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "docker_image": "test:tag",
+        "config": {"docker": {"args": {"test-arg": "unused"}}},
+        "resource_args": {
+            "kubernetes": {
+                "job_spec": json.dumps(spec),
+                'resource_requests': {'cpu': 1}
+            }
+        },
+    }
+    with pytest.raises(LaunchError) as e:
+        run = launch.run(**kwargs)
+        assert "Resource overrides not supported for multiple containers" in str(e.value)
+
+    spec['spec']['template']['spec']['containers'].pop(0)
+    kwargs["resource_args"]["kubernetes"]["job_spec"] = json.dumps(spec)
+    run = launch.run(**kwargs)
+    job = run.get_job()
+    container = job.spec.template.spec.containers[0]
+    assert container.image == "container2:tag"
+    assert container.resources['requests']['cpu'] == 1
+
+    kwargs['resource_args']['image'] = 'test:tag'
+    with pytest.raises(LaunchError) as e:
+        run = launch.run(**kwargs)
+        assert "Multiple container configurations should be specified in a yaml" in str(e.value)
