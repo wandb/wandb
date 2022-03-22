@@ -105,7 +105,8 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         pod_spec.node_name = pod_spec.get("nodeName", None)
         pod_spec.node_selector = pod_spec.get("nodeSelectors", {})
         pod_spec.containers = pod_spec.get("containers")
-        pod_spec.containers[0] = MockDict(pod_spec.containers[0])
+        for i, cont in enumerate(pod_spec.containers):
+            pod_spec.containers[i] = MockDict(cont)
 
         job_spec.template = MockDict({"spec": pod_spec,})
         mock_job = MockDict(
@@ -166,9 +167,6 @@ def pods(job_name):
             )
         ]
     )
-
-
-# 'conditions': [MockDict({'type': 'Suspended'})],
 
 
 @pytest.mark.timeout(320)
@@ -252,7 +250,7 @@ def test_launch_kube_suspend_cancel(
         "resource": "kubernetes",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {"kubernetes": {},},
+        "resource_args": {"kubernetes": {"suspend": False,},},
         "synchronous": False,
     }
     run = launch.run(**kwargs)
@@ -349,13 +347,8 @@ def test_kube_user_container(
         "project": "test",
         "docker_image": "test:tag",
         "config": {"docker": {"args": {"test-arg": "unused"}}},
-        "resource_args": {"kubernetes": {"image": "conflict:image",}},
+        "resource_args": {"kubernetes": {}},
     }
-    with pytest.raises(LaunchError) as e:
-        run = launch.run(**kwargs)
-        assert "Conflicting Docker images specified" in str(e.value)
-
-    del kwargs["resource_args"]["kubernetes"]["image"]
     run = launch.run(**kwargs)
     out, err = capsys.readouterr()
     assert "Docker args are not supported for Kubernetes" in err
@@ -363,3 +356,74 @@ def test_kube_user_container(
     container = job.spec.template.spec.containers[0]
     assert container.image == "test:tag"
     assert "WANDB_RUN_ID" not in [ev["name"] for ev in container.env]
+
+
+@pytest.mark.timeout(320)
+def test_kube_multi_container(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+):
+    jobs = {}
+    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    spec = {
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {"image": "container1:tag",},
+                        {"image": "container2:tag",},
+                    ]
+                }
+            }
+        }
+    }
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "kubernetes",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "kubernetes": {
+                "job_spec": json.dumps(spec),
+                "container_name": "broken-name",
+            }
+        },
+    }
+    kwargs["docker_image"] = "test:tag"
+    with pytest.raises(LaunchError) as e:
+        run = launch.run(**kwargs)
+        assert "Multiple container configurations should be specified in a yaml" in str(
+            e.value
+        )
+    del kwargs["docker_image"]
+
+    with pytest.raises(LaunchError) as e:
+        run = launch.run(**kwargs)
+        assert "Container name override not supported for multiple containers" in str(
+            e.value
+        )
+
+    del kwargs["resource_args"]["kubernetes"]["container_name"]
+    kwargs["resource_args"]["kubernetes"]["resource_requests"] = {"cpu": 1}
+
+    run = launch.run(**kwargs)
+    out, err = capsys.readouterr()
+    assert (
+        "Container overrides (e.g. resource limits) were provided with multiple containers specified"
+        in err
+    )
+    job = run.get_job()
+    container1 = job.spec.template.spec.containers[0]
+    assert container1.image == "container1:tag"
+    assert container1.resources["requests"]["cpu"] == 1
+    container2 = job.spec.template.spec.containers[1]
+    assert container2.image == "container2:tag"
+    assert container2.resources["requests"]["cpu"] == 1
