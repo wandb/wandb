@@ -1,4 +1,6 @@
 id: 0.torch.03-ddp-basic
+tag:
+  shard: service
 plugin:
   - wandb
 depend:
@@ -14,11 +16,18 @@ assert:
     - :wandb:runs[0][telemetry][2]  # Import (finish)
     - 1  # torch
   - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 1  # watch
+  
+  - :op:contains:
     - :wandb:runs[1][telemetry][1]  # Import (init)
     - 1  # torch
   - :op:contains:
     - :wandb:runs[1][telemetry][2]  # Import (finish)
     - 1  # torch
+  - :op:contains:
+    - :wandb:runs[1][telemetry][3]  # feature
+    - 1  # watch
 
   - :wandb:runs[0][group]: ddp-basic
   - :wandb:runs[1][group]: ddp-basic

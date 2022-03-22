@@ -1,4 +1,6 @@
 id: 0.torch.02-mp-simple
+tag:
+  shard: service
 plugin:
   - wandb
 depend:
