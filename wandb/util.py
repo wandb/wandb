@@ -1557,6 +1557,65 @@ def load_json_yaml_dict(config: str) -> Any:
             return None
 
 
+def _parse_entity_project_item(path: str) -> tuple:
+    """Parses paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
+
+    Args:
+        path: `str`, input path; must be between 0 and 3 in length.
+
+    Returns:
+        tuple of length 3 - (item, project, entity)
+
+    Example:
+        alias, project, entity = _parse_entity_project_item("myproj/mymodel:best")
+
+        assert entity   == ""
+        assert project  == "myproj"
+        assert alias    == "mymodel:best"
+
+    """
+    words = path.split("/")
+    if len(words) > 3:
+        raise ValueError(
+            "Invalid path: must be str the form {item}, {project}/{item}, or {entity}/{project}/{item}"
+        )
+    padded_words = [""] * (3 - len(words)) + words
+    return tuple(reversed(padded_words))
+
+
+def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+    """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
+    Ensures that "latest" is always present in the returned list.
+
+    Args:
+        aliases: `Optional[Union[str, List[str]]]`
+
+    Returns:
+        List[str], with "latest" always present.
+
+    Example:
+        aliases = _resolve_aliases(["best", "dev"])
+        assert aliases == ["best", "dev", "latest"]
+
+        aliases = _resolve_aliases("boom")
+        assert aliases == ["boom", "latest"]
+
+    """
+    if aliases is None:
+        aliases = []
+
+    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
+        raise ValueError("`aliases` must either be None or of type str or list")
+
+    if isinstance(aliases, str):
+        aliases = [aliases]
+
+    if "latest" not in aliases:
+        aliases.append("latest")
+
+    return aliases
+
+
 def _is_artifact(v: Any) -> bool:
     return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
 
