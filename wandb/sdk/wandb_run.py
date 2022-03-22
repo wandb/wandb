@@ -339,6 +339,16 @@ class Run:
     _is_attached: bool
     _settings: Settings
 
+    def __new__(cls, *args, **kwargs) -> "Run":
+
+        obj = super().__new__(cls)
+        module.set_global(run=obj,)
+
+        return obj
+
+    def __getnewargs__(self):
+        return (None, None, None)
+
     def __init__(
         self,
         settings: Settings,
