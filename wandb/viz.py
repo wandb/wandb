@@ -19,6 +19,10 @@ class Visualize:
     def get_config_key(key: str) -> Tuple[str]:
         return ("_wandb", "viz", key)
 
+    @property
+    def value(self) -> Table:
+        return self._data
+
 
 class CustomChart:
     def __init__(
@@ -71,6 +75,18 @@ class CustomChart:
                 }
             ],
         }
+
+    @property
+    def table(self) -> Table:
+        return self._data
+
+    @property
+    def fields(self) -> Dict[str, Any]:
+        return self._fields
+
+    @property
+    def string_fields(self) -> Dict[str, Any]:
+        return self._string_fields
 
 
 def plot_table(
