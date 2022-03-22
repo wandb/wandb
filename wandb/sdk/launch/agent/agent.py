@@ -182,6 +182,8 @@ class LaunchAgent(object):
                 ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
+        backend_config[PROJECT_DOCKER_ARGS].update(launch_spec.get("docker", {}))
+        backend_config[PROJECT_DOCKER_ARGS].pop("docker_image", None)
         _logger.info("Loading backend")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()

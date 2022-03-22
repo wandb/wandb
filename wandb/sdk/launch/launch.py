@@ -71,8 +71,10 @@ def _run(
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     if launch_config is not None:
-        docker_info = launch_config.get("docker", {})
-        docker_args = docker_info.get("args", {})
+        docker_args = launch_config.get("docker", {})
+        # if user provided docker image in docker key, pop it out
+        # TODO: should docker args be a in an arg subkey?
+        docker_args.pop("docker_image", None)
         runner_config[PROJECT_DOCKER_ARGS] = docker_args
     else:
         runner_config[PROJECT_DOCKER_ARGS] = {}
