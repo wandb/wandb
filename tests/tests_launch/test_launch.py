@@ -957,7 +957,10 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
     # localhost:port to host.docker.internal but not
     # in CI
     assert list_command[:4] == expected_command[:4]
-    assert list_command[5:] == expected_command[5:]
+    # testing on linux injects the `add-host` docker argument
+    # testing on mac does not. So we check up the the 16th element
+    assert list_command[5:16] == expected_command[5:16]
+    assert list_command[-1] == image_name
 
 
 def test_run_in_launch_context_with_config_env_var(
