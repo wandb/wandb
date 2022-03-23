@@ -1151,7 +1151,7 @@ def launch(
     "--max-jobs",
     "-j",
     default=1,
-    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1.",
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
 )
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):

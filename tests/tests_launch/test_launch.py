@@ -744,6 +744,11 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     assert get_agent_response["stopPolling"] == False
 
 
+def test_agent_inf_jobs(test_settings, live_mock_server):
+    agent = LaunchAgent("mock_server_entity", "test_project", ["default"], max_jobs=-1)
+    assert agent._max_jobs == float("inf")
+
+
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
