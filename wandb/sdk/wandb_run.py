@@ -339,15 +339,17 @@ class Run:
     _is_attached: bool
     _settings: Settings
 
-    def __new__(cls, *args, **kwargs) -> "Run":
+    # def __new__(cls, *args, **kwargs) -> "Run":
 
-        obj = super().__new__(cls)
-        module.set_global(run=obj,)
+    #     obj = super().__new__(cls)
+    #     module.set_global(
+    #         run=obj,
+    #     )
 
-        return obj
+    #     return obj
 
-    def __getnewargs__(self):
-        return (None, None, None)
+    # def __getnewargs__(self):
+    #     return (None, None, None)
 
     def __init__(
         self,
@@ -643,6 +645,7 @@ class Run:
             raise RuntimeError("attach in the same process is not supported currently")
 
         self.__dict__.update(state)
+        self._set_globals()
 
     @property
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":
