@@ -233,8 +233,8 @@ def test_settings(test_dir, mocker, live_mock_server):
     )
     yield settings
     # Just in case someone forgets to join in tests. ...well, please don't!
-    if wandb.run is not None:
-        wandb.run.finish()
+    # if wandb.run is not None:
+    #     wandb.run.finish()
 
 
 @pytest.fixture
