@@ -40,7 +40,7 @@ spec:
             configMapKeyRef:
               name: wandb-setup
               key: wandb-base-url
-        -name: WANDB_LAUNCH_MAX_JOBS
+        - name: WANDB_LAUNCH_MAX_JOBS
           valueFrom:
             configMapKeyRef:
               name: wandb-setup
