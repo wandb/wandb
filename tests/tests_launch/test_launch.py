@@ -946,8 +946,10 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "WANDB_ARTIFACTS='{}'",
         "--network",
         "host",
-        image_name,
     ]
+    if sys.platform == "linux" or sys.platform == "linux2":
+        expected_command += ["--add-host", "host.docker.internal:host-gateway"]
+    expected_command += [image_name]
 
     returned_command, project_dir = launch.run(**kwargs)
     assert project_dir is None
@@ -957,10 +959,7 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
     # localhost:port to host.docker.internal but not
     # in CI
     assert list_command[:4] == expected_command[:4]
-    # testing on linux injects the `add-host` docker argument
-    # testing on mac does not. So we check up the the 16th element
-    assert list_command[5:16] == expected_command[5:16]
-    assert list_command[-1] == image_name
+    assert list_command[5:] == expected_command[5:]
 
 
 def test_run_in_launch_context_with_config_env_var(
