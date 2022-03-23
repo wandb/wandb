@@ -49,7 +49,7 @@ class LaunchAgent(object):
         entity: str,
         project: str,
         queues: Iterable[str] = None,
-        max_jobs: int = None,
+        max_jobs: float = None,
     ):
         self._entity = entity
         self._project = project
@@ -62,7 +62,10 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._max_jobs = max_jobs or 1
+        if max_jobs == -1:
+            self._max_jobs = float("inf")
+        else:
+            self._max_jobs = max_jobs or 1
 
         # serverside creation
         self.gorilla_supports_agents = (
