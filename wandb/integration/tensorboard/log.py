@@ -330,22 +330,16 @@ def _log(
             or timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS
         ):
             if history is None:
-                if wandb.run is None:
-                    raise wandb.Error(
-                        "You must call `wandb.init()` before calling `wandb.tensorflow._log`"
-                    )
-                wandb.run._log({})
+                if wandb.run is not None:
+                    wandb.run._log({})
             else:
                 history.add({})
 
         STEPS["global"]["last_log"] = timestamp
 
     if history is None:
-        if wandb.run is None:
-            raise wandb.Error(
-                "You must call `wandb.init()` before calling `wandb.tensorflow._log`"
-            )
-        wandb.run._log(log_dict, commit=False)
+        if wandb.run is not None:
+            wandb.run._log(log_dict, commit=False)
     else:
         history._row_update(log_dict)
 

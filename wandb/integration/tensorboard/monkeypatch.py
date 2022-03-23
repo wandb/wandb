@@ -133,11 +133,9 @@ def _patch_file_writer(
     writer: Any, module: Any, save: bool = True, root_logdir: str = "",
 ) -> None:
     # This configures non-TensorFlow Tensorboard logging, or tensorflow <= 1.15
-    old_efw_class = writer.EventFileWriter
-
     logdir_hist = []
 
-    class TBXEventFileWriter(old_efw_class):  # type: ignore
+    class TBXEventFileWriter(writer.EventFileWriter):  # type: ignore
         def __init__(self, logdir: str, *args: Any, **kwargs: Any) -> None:
             logdir_hist.append(logdir)
             root_logdir_arg = root_logdir
@@ -168,7 +166,7 @@ def _patch_file_writer(
 
             super(TBXEventFileWriter, self).__init__(logdir, *args, **kwargs)
 
-    writer.orig_EventFileWriter = old_efw_class
+    writer.orig_EventFileWriter = writer.EventFileWriter
     writer.EventFileWriter = TBXEventFileWriter
     wandb.patched["tensorboard"].append([module, "EventFileWriter"])
 
