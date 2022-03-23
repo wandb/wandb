@@ -33,6 +33,7 @@ media_requirements = [
     "rdkit-pypi",
 ]
 launch_requirements = [
+    "docker",
     "nbconvert",
     "chardet",
     "iso8601",
