@@ -314,7 +314,7 @@ class Image(BatchableMedia):
         # If the media obj belongs to an artifact, skip adding the files to the run itself
         if self._get_artifact_entry_ref_url() is not None:
             return
-            
+
         super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
