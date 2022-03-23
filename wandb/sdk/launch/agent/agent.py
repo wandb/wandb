@@ -9,7 +9,6 @@ from typing import Any, Dict, Iterable, List, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
 
@@ -121,7 +120,7 @@ class LaunchAgent(object):
         try:
             if self._jobs[job_id].get_status().state in ["failed", "finished"]:
                 self.finish_job_id(job_id)
-        except LaunchError:
+        except Exception:
             self.finish_job_id(job_id)
 
     def _validate_and_fix_spec_project_entity(
