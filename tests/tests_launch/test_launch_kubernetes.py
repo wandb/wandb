@@ -211,8 +211,8 @@ def test_launch_kube(
                 "backoff_limit": 3,
                 "completions": 4,
                 "parallelism": 5,
-                "pod_restart_policy": "OnFailure",
-                "pod_preemption_policy": "Never",
+                "restart_policy": "OnFailure",
+                "preemption_policy": "Never",
                 "node_name": "test-node-name",
                 "node_selectors": {"test-selector": "test-value"},
             },
@@ -236,8 +236,8 @@ def test_launch_kube(
     assert job.spec.backoff_limit == args["backoff_limit"]
     assert job.spec.completions == args["completions"]
     assert job.spec.parallelism == args["parallelism"]
-    assert job.spec.template.spec.restart_policy == args["pod_restart_policy"]
-    assert job.spec.template.spec.preemption_policy == args["pod_preemption_policy"]
+    assert job.spec.template.spec.restart_policy == args["restart_policy"]
+    assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
     assert job.spec.template.spec.node_name == args["node_name"]
     assert (
         job.spec.template.spec.node_selector["test-selector"]

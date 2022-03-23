@@ -225,9 +225,9 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("suspend"):
             job_spec["suspend"] = resource_args.get("suspend")
 
-        pod_spec["restartPolicy"] = resource_args.get("pod_restart_policy", "Never")
-        if resource_args.get("pod_preemption_policy"):
-            pod_spec["preemptionPolicy"] = resource_args.get("pod_preemption_policy")
+        pod_spec["restartPolicy"] = resource_args.get("restart_policy", "Never")
+        if resource_args.get("preemption_policy"):
+            pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
         if resource_args.get("node_name"):
             pod_spec["nodeName"] = resource_args.get("node_name")
         if resource_args.get("node_selectors"):
