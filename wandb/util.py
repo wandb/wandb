@@ -732,19 +732,29 @@ def generate_id(length: int = 8) -> str:
 
 
 def dumps(obj: Any, **kwargs: Any) -> str:
-    """Wrapper for orjson.dumps"""
+    """Wrapper for <json|orjson>.dumps"""
+    cls = kwargs.pop("cls", None)
     try:
-        return orjson.dumps(obj, **kwargs).decode()
+        _kwargs = kwargs.copy()
+        if cls:
+            _kwargs["default"] = cls.default
+        encoded = orjson.dumps(obj, **_kwargs).decode()
     except Exception:
-        return json.dumps(obj, **kwargs)
+        _kwargs = kwargs.copy()
+        if cls:
+            _kwargs["cls"] = cls
+        encoded = json.dumps(obj, **_kwargs)
+
+    return encoded
 
 
 def loads(obj: Union[str, bytes]) -> Any:
     """Wrapper for orjson.loads"""
     try:
-        return orjson.loads(obj)
+        decoded = orjson.loads(obj)
     except Exception:
-        return json.loads(obj)
+        decoded = json.loads(obj)
+    return decoded
 
 
 def parse_tfjob_config() -> Any:
@@ -815,7 +825,7 @@ def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
 def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types."""
     # return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
-    return dumps(obj, default=WandBJSONEncoder.default, **kwargs)
+    return dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
 
 # This is used for dumping raw json into files
@@ -828,7 +838,7 @@ def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types, including histograms"""
     # return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
     # return rapidjson.dumps(obj, default=WandBHistoryJSONEncoder.default, **kwargs)
-    return dumps(obj, default=WandBHistoryJSONEncoder.default, **kwargs)
+    return dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(
