@@ -890,3 +890,47 @@ def test_bare_wandb_uri(
     mock_with_run_info = launch.run(**kwargs)
     kwargs["uri"] = live_mock_server.base_url + uri
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+def test_launch_local_cuda_command(
+    live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    kwargs = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+        "synchronous": False,
+        "cuda": True,
+    }
+
+    returned_command = launch.run(**kwargs)
+    assert "--gpus all" in returned_command
+
+
+def test_launch_local_cuda_config(
+    live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    kwargs = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+        "synchronous": False,
+        "config": {"cuda": True},
+    }
+
+    returned_command = launch.run(**kwargs)
+    assert "--gpus all" in returned_command
