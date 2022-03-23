@@ -77,6 +77,8 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        if launch_project.cuda:
+            docker_args["gpus"] = "all"
 
         if _is_wandb_local_uri(self._api.settings("base_url")):
             if sys.platform == "win32":

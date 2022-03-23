@@ -158,7 +158,8 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
-    launch_spec["cuda"] = cuda
+    if cuda is not None:
+        launch_spec["cuda"] = cuda
 
     return launch_spec
 
