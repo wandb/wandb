@@ -313,9 +313,9 @@ class BoundingBoxes2D(JSONMetadata):
         return True
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-
+        json_dict = super(BoundingBoxes2D, self).to_json(run_or_artifact)
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
-            return super(BoundingBoxes2D, self).to_json(run_or_artifact)
+            return json_dict
         elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output
