@@ -4,7 +4,6 @@ Implementation of launch agent.
 
 import logging
 import os
-import sys
 import time
 from typing import Any, Dict, Iterable, List, Union
 
@@ -18,7 +17,6 @@ from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
-    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -120,7 +118,10 @@ class LaunchAgent(object):
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
-        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+        try:
+            if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+                self.finish_job_id(job_id)
+        except Exception:
             self.finish_job_id(job_id)
 
     def _validate_and_fix_spec_project_entity(
@@ -168,18 +169,6 @@ class LaunchAgent(object):
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-        if _is_wandb_local_uri(self._base_url):
-            _logger.info(
-                "Noted a local URI. Setting local network arguments for docker"
-            )
-            if sys.platform == "win32":
-                backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
-            else:
-                backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
-            if sys.platform == "linux" or sys.platform == "linux2":
-                backend_config[PROJECT_DOCKER_ARGS][
-                    "add-host"
-                ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
