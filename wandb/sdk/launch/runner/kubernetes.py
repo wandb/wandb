@@ -6,6 +6,7 @@ if False:
     import kubernetes  # type: ignore  # noqa: F401
     from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
     from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
+    from kubernetes.client.models.v1_job import V1Job  # type: ignore
 import wandb
 import wandb.docker as docker
 from wandb.errors import LaunchError
@@ -52,6 +53,11 @@ class KubernetesSubmittedRun(AbstractRun):
     def id(self) -> str:
         return self.name
 
+    def get_job(self) -> "V1Job":
+        return self.batch_api.read_namespaced_job(
+            name=self.name, namespace=self.namespace
+        )
+
     def wait(self) -> bool:
         while True:
             status = self.get_status()
@@ -73,13 +79,13 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.pod_names[0], namespace=self.namespace
             )
         except Exception as e:
+            self._fail_count += 1
             if self._fail_count == 1:
                 wandb.termlog(
-                    "Failed to get pod status for job: {}. Will wait 10 minutes for job to start.".format(
+                    "Failed to get pod status for job: {}. Will wait up to 10 minutes for job to start.".format(
                         self.name
                     )
                 )
-            self._fail_count += 1
             if self._fail_count > MAX_KUBERNETES_RETRIES:
                 if hasattr(e, "body") and hasattr(e.body, "message"):
                     raise LaunchError(
@@ -151,7 +157,7 @@ class KubernetesRunner(AbstractRunner):
         )
 
         resource_args = launch_project.resource_args.get("kubernetes", {})
-        if resource_args is None:
+        if not resource_args:
             wandb.termlog(
                 "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
@@ -199,8 +205,7 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         namespace = resource_args.get(
-            "namespace",
-            job_metadata.get("namespace", default),
+            "namespace", job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -213,45 +218,51 @@ class KubernetesRunner(AbstractRunner):
 
         if resource_args.get("backoff_limit"):
             job_spec["backoffLimit"] = resource_args.get("backoff_limit")
-        if resource_args.get("job_completions"):
-            job_spec["completions"] = resource_args.get("job_completions")
+        if resource_args.get("completions"):
+            job_spec["completions"] = resource_args.get("completions")
         if resource_args.get("parallelism"):
             job_spec["parallelism"] = resource_args.get("parallelism")
         if resource_args.get("suspend"):
             job_spec["suspend"] = resource_args.get("suspend")
 
-        pod_spec["restartPolicy"] = resource_args.get("pod_restart_policy", "Never")
-        if resource_args.get("pod_preemption_policy"):
-            pod_spec["preemptionPolicy"] = resource_args.get("pod_preemption_policy")
+        pod_spec["restartPolicy"] = resource_args.get("restart_policy", "Never")
+        if resource_args.get("preemption_policy"):
+            pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
         if resource_args.get("node_name"):
             pod_spec["nodeName"] = resource_args.get("node_name")
         if resource_args.get("node_selectors"):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
 
-        # only support container overrides for the single container case
-        if len(containers) > 1 and any(
-            arg in resource_args
-            for arg in ["container_name", "resource_requests", "resource_limits", "env"]
-        ):
-            raise LaunchError(
-                "Resource overrides not supported for multiple containers. Multiple container configurations should be specified in a yaml file supplied via job_spec."
-            )
-        containers[0]["name"] = resource_args.get(
-            "container_name", containers[0].get("name", "launch")
-        )
-        container_resources = containers[0].get("resources", {})
-        if resource_args.get("resource_requests"):
-            container_resources["requests"] = resource_args.get("resource_requests")
-        if resource_args.get("resource_limits"):
-            container_resources["limits"] = resource_args.get("resource_limits")
-        if container_resources:
-            containers[0]["resources"] = container_resources
-        for c in containers:
-            c["security_context"] = {
+        if resource_args.get("container_name"):
+            if len(containers) > 1:
+                raise LaunchError(
+                    "Container name override not supported for multiple containers. Specify in yaml file supplied via job_spec."
+                )
+            containers[0]["name"] = resource_args["container_name"]
+        else:
+            for i, cont in enumerate(containers):
+                cont["name"] = cont.get("name", "launch" + str(i))
+        multi_container_override = len(containers) > 1
+        for cont in containers:
+            container_resources = cont.get("resources", {})
+            if resource_args.get("resource_requests"):
+                container_resources["requests"] = resource_args.get("resource_requests")
+            if resource_args.get("resource_limits"):
+                container_resources["limits"] = resource_args.get("resource_limits")
+            if container_resources:
+                multi_container_override &= (
+                    cont.get("resources") != container_resources
+                )  # if multiple containers and we changed something
+                cont["resources"] = container_resources
+            cont["security_context"] = {
                 "allowPrivilegeEscalation": False,
                 "capabilities": {"drop": ["ALL"]},
                 "seccompProfile": {"type": "RuntimeDefault"},
             }
+        if multi_container_override:
+            wandb.termwarn(
+                "Container overrides (e.g. resource limits) were provided with multiple containers specified: overrides will be applied to all containers."
+            )
 
         # env vars
         env_vars = get_env_vars_dict(launch_project, self._api)
@@ -268,24 +279,26 @@ class KubernetesRunner(AbstractRunner):
         ).split()
         if entry_cmd:
             # if user hardcodes cmd into their image, we don't need to run on top of that
-            containers[0]["command"] = entry_cmd
+            for cont in containers:
+                cont["command"] = entry_cmd
 
-        image = resource_args.get("image")  # todo: maybe take this option out
-        if image:
-            if launch_project.docker_image and image != launch_project.docker_image:
-                raise LaunchError(
-                    "Conflicting Docker images specified in launch and resource args."
-                )
+        if launch_project.docker_image:
             if len(containers) > 1:
                 raise LaunchError(
                     "Multiple container configurations should be specified in a yaml file supplied via job_spec."
                 )
-        user_provided_image = image or launch_project.docker_image
-        if user_provided_image:
             # dont specify run id if user provided image, could have multiple runs
             env_vars.pop("WANDB_RUN_ID")
-            containers[0]["image"] = user_provided_image
+            containers[0]["image"] = launch_project.docker_image
+        elif any(["image" in cont for cont in containers]):
+            # user specified image configurations via kubernetes yaml, could have multiple images
+            # dont specify run id if user provided image, could have multiple runs
+            env_vars.pop("WANDB_RUN_ID")
         else:
+            if len(containers) > 1:
+                raise LaunchError(
+                    "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
+                )
             registry = resource_args.get("registry")
             if registry is None:
                 # allow local registry usage for eg local clusters but throw a warning
@@ -311,9 +324,8 @@ class KubernetesRunner(AbstractRunner):
         # reassemble spec
         given_env_vars = resource_args.get("env", {})
         merged_env_vars = {**env_vars, **given_env_vars}
-        containers[0]["env"] = [
-            {"name": k, "value": v} for k, v in merged_env_vars.items()
-        ]
+        for cont in containers:
+            cont["env"] = [{"name": k, "value": v} for k, v in merged_env_vars.items()]
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
