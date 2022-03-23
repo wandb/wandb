@@ -100,6 +100,11 @@ class Media(WBValue):
         put the file associated with this object, from which other Runs can
         refer to it.
         """
+
+        # If the media obj belongs to an artifact, skip adding the files to the run itself
+        if self._get_artifact_entry_ref_url() is not None:
+            return
+
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
 
@@ -165,28 +170,9 @@ class Media(WBValue):
 
         json_obj = {}
         if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
-            if not self.is_bound():
-                raise RuntimeError(
-                    "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
-                        type(self).__name__
-                    )
-                )
-
-            assert (
-                self._run is run
-            ), "We don't support referring to media files across runs."
-
-            # The following two assertions are guaranteed to pass
-            # by definition is_bound, but are needed for
-            # mypy to understand that these are strings below.
-            assert isinstance(self._path, str)
-
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-                    "path": util.to_forward_slash_path(
-                        os.path.relpath(self._path, self._run.dir)
-                    ),
                     "sha256": self._sha256,
                     "size": self._size,
                 }
@@ -194,6 +180,26 @@ class Media(WBValue):
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is not None:
                 json_obj["artifact_path"] = artifact_entry_url
+            else:
+                if not self.is_bound():
+                    raise RuntimeError(
+                        "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
+                            type(self).__name__
+                        )
+                    )
+
+                assert (
+                    self._run is run
+                ), "We don't support referring to media files across runs."
+
+                # The following two assertions are guaranteed to pass
+                # by definition is_bound, but are needed for
+                # mypy to understand that these are strings below.
+                assert isinstance(self._path, str)
+
+                json_obj["path"] = util.to_forward_slash_path(
+                    os.path.relpath(self._path, self._run.dir)
+                )
             artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
             if artifact_entry_latest_url is not None:
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url

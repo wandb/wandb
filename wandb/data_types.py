@@ -505,6 +505,11 @@ class Table(Media):
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publically say 200k is the limit.
+        
+        # If the media obj belongs to an artifact, skip adding the files to the run itself
+        if self._get_artifact_entry_ref_url() is not None:
+            return
+
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
