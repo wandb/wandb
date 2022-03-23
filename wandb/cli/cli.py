@@ -1143,7 +1143,7 @@ def launch(
 @click.option(
     "--max-jobs",
     "-j",
-    default=1,
+    default=None,
     help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
 )
 @display_error
@@ -1174,6 +1174,8 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
 
     if entity is None:
         entity = api.default_entity
+    if max_jobs is None:
+        max_jobs = float(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))
 
     wandb.termlog("Starting launch agent ✨")
 
