@@ -194,10 +194,13 @@ def notebook_metadata(silent):
         # In colab we can request the most recent contents
         ipynb = attempt_colab_load_ipynb()
         if ipynb:
+            nb_name = ipynb["metadata"]["colab"]["name"]
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
             ret = {
                 "root": "/content",
-                "path": ipynb["metadata"]["colab"]["name"],
-                "name": ipynb["metadata"]["colab"]["name"] + ".ipynb",
+                "path": nb_name,
+                "name": nb_name,
             }
 
             try:
