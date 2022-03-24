@@ -1007,7 +1007,9 @@ def test_table_logging(mocked_run, live_mock_server, test_settings):
 
 
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
-def test_reference_table_logging(mocked_run, live_mock_server, test_settings, max_cli_version):
+def test_reference_table_logging(
+    mocked_run, live_mock_server, test_settings, max_cli_version
+):
     live_mock_server.set_ctx({"max_cli_version": max_cli_version})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
