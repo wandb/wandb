@@ -331,7 +331,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
     _logger.info("Converting notebook to script")
     new_name = fname.rstrip(".ipynb") + ".py"
-    with open(os.path.join(project_dir, fname), "r") as fh:
+    with open(os.path.join(project_dir, "_session_history.ipynb"), "r") as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
 
     exporter = nbconvert.PythonExporter()
