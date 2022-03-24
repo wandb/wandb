@@ -392,13 +392,10 @@ class Notebook(object):
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
             nb_name = colab_ipynb["metadata"]["colab"]["name"]
-            if '.ipynb' not in nb_name:
-                nb_name += '.ipynb'
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
             with open(
-                os.path.join(
-                    self.settings._tmp_code_dir,
-                    nb_name,
-                ),
+                os.path.join(self.settings._tmp_code_dir, nb_name,),
                 "w",
                 encoding="utf-8",
             ) as f:

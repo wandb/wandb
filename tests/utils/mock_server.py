@@ -190,6 +190,7 @@ def run(ctx):
         "updatedAt": datetime.now().isoformat(),
         "runInfo": {
             "program": program_name,
+            "codePath": program_name,
             "args": [],
             "os": platform.system(),
             "python": platform.python_version(),
