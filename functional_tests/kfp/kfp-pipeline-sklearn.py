@@ -12,8 +12,9 @@ from wandb_probe import wandb_probe_package
 
 def add_wandb_env_variables(op):
     env = {
-        "WANDB_API_KEY": os.environ["WANDB_API_KEY"],
-        "WANDB_BASE_URL": os.environ["WANDB_BASE_URL"],
+        "WANDB_API_KEY": os.getenv("WANDB_API_KEY"),
+        "WANDB_BASE_URL": os.getenv("WANDB_BASE_URL"),
+        "WANDB_KUBEFLOW_BASE_PATH": os.getenv("WANDB_KUBEFLOW_BASE_PATH"),
         "WANDB_PROJECT": "wandb_kfp_integration_test",
     }
 
