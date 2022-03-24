@@ -1,5 +1,6 @@
 import wandb
 import argparse
+import os
 
 
 def main():
@@ -8,11 +9,14 @@ def main():
     parser.add_argument("-lr", type=float, default=0.01)
     parser.add_argument("-b", type=float, default=2)
     args, _ = parser.parse_known_args()
-
+    run_id = os.environ.get("WANDB_RUN_ID")
     run = wandb.init(
         config={"epochs": args.e, "lr": args.lr, "b": args.b},
         group="test",
         project="multi-run-test",
+        id=run_id,
+        reinit=True,
+        resume=True,
     )
 
     for i in range(run.config.epochs):
