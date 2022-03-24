@@ -738,8 +738,9 @@ def dumps(obj: Any, **kwargs: Any) -> str:
         _kwargs = kwargs.copy()
         if cls:
             _kwargs["default"] = cls.default
-        encoded = orjson.dumps(obj, **_kwargs).decode()
-    except Exception:
+        encoded = orjson.dumps(obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs).decode()
+    except Exception as e:
+        logger.exception(f"Error using orjson.dumps: {e}")
         _kwargs = kwargs.copy()
         if cls:
             _kwargs["cls"] = cls
