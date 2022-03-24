@@ -184,7 +184,7 @@ class LaunchProject(object):
             run_info = utils.fetch_wandb_project_run_info(
                 source_entity, source_project, source_run_name, internal_api
             )
-            entry_point = run_info.get("codePath", run_info["program"])
+            entry_point = run_info.get("codePath") or run_info["program"]
 
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
@@ -216,6 +216,8 @@ class LaunchProject(object):
                 internal_api,
                 self.project_dir,
             )
+
+            import pdb; pdb.set_trace()
 
             if downloaded_code_artifact:
                 self.build_image = True
