@@ -1648,8 +1648,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
 
 
 def _get_max_cli_version() -> Union[str, None]:
-    _, server_info = wandb.api.viewer_server_info()
-    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
 
 

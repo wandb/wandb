@@ -126,7 +126,7 @@ class Api:
             None,
         )
 
-        self._viewer, self._server_info = {}, {}
+        self._max_cli_version = None
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -383,6 +383,14 @@ class Api:
         res = self.gql(query)
         return res.get("viewer") or {}
 
+    def max_cli_version(self):
+        if self._max_cli_version is None:
+            _, server_info = self.viewer_server_info()
+            self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
+                "max_cli_version"
+            )
+        return self._max_cli_version
+
     @normalize_exceptions
     def viewer_server_info(self):
         local_query = """
@@ -415,9 +423,6 @@ class Api:
             _CLI_QUERY_
         }
         """
-        if self._viewer and self._server_info:
-            return self._viewer, self._server_info
-
         query_types, server_info_types = self.server_info_introspection()
 
         cli_version_exists = (
@@ -437,11 +442,7 @@ class Api:
         )
         query = gql(query_string)
         res = self.gql(query)
-        self._viewer, self._server_info = (
-            res.get("viewer") or {},
-            res.get("serverInfo") or {},
-        )
-        return self._viewer, self._server_info
+        return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
     def list_projects(self, entity=None):
