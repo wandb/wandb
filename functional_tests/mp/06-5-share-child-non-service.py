@@ -17,7 +17,7 @@ def process_parent():
 
 
 def process_child(run):
-    run.config.c2 = 22
+    # run.config.c2 = 22
     run.log({"s1": 21})
 
 
