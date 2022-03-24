@@ -75,6 +75,8 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        if launch_project.cuda:
+            docker_args["gpus"] = "all"
         entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
