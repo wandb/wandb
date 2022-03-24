@@ -184,7 +184,7 @@ class LaunchProject(object):
             run_info = utils.fetch_wandb_project_run_info(
                 source_entity, source_project, source_run_name, internal_api
             )
-            entry_point = run_info.get("codePath", run_info["program"])
+            entry_point = run_info.get("codePath") or run_info["program"]
 
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
@@ -254,7 +254,7 @@ class LaunchProject(object):
                     # need to rebuild image with new code
                     self.build_image = True
 
-            if entry_point.endswith("ipynb"):
+            if "_session_history.ipynb" in os.listdir(self.project_dir):
                 entry_point = utils.convert_jupyter_notebook_to_script(
                     entry_point, self.project_dir
                 )
