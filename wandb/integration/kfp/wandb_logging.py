@@ -39,6 +39,10 @@ def wandb_log(  # noqa: C901
 
     def get_iframe_html(run):
         return f'<iframe src="{run.url}?kfp=true" style="border:none;width:100%;height:100%;min-width:900px;min-height:600px;"></iframe>'
+    
+    def get_link_back_to_kubeflow():
+        kubeflow_base_path = os.getenv('WANDB_KUBEFLOW_BASE_PATH')
+        return f"{kubeflow_base_path}/#/runs/details/{{workflow.uid}}"
 
     def log_input_scalar(name, data, run=None):
         run.config[name] = data
@@ -127,6 +131,10 @@ def wandb_log(  # noqa: C901
                 job_type=func.__name__,
                 group="{{workflow.annotations.pipelines.kubeflow.org/run_name}}",
             ) as run:
+                
+                # Link back to the kfp UI
+                run.notes = get_link_back_to_kubeflow()
+                               
                 iframe_html = get_iframe_html(run)
                 metadata = {
                     "outputs": [
