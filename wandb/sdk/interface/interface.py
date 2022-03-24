@@ -252,7 +252,7 @@ class InterfaceBase(object):
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in value.items():
+            for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
                     value, path_from_root + "." + key
                 )
@@ -498,13 +498,11 @@ class InterfaceBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str]
-    ) -> None:
+    def publish_tbdata(self, log_dir: str, save: bool, root_logdir: str = "") -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
+        tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
     @abstractmethod
