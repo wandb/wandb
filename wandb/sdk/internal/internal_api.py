@@ -383,7 +383,17 @@ class Api:
         res = self.gql(query)
         return res.get("viewer") or {}
 
+    @normalize_exceptions
     def max_cli_version(self):
+        query_types, server_info_types = self.server_info_introspection()
+
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+
+        if not cli_version_exists:
+            return None
+
         if self._max_cli_version is None:
             _, server_info = self.viewer_server_info()
             self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
