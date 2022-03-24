@@ -471,8 +471,7 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            settings_dict=self._settings,
-            process_context="user",
+            settings_dict=self._settings, process_context="user",
         )
 
         # Populate config
@@ -575,8 +574,7 @@ class Run:
     @staticmethod
     def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
-            pytorch_ignite="ignite",
-            transformers_huggingface="transformers",
+            pytorch_ignite="ignite", transformers_huggingface="transformers",
         )
 
         # calculate mod_map, a mapping from module_name to telem_name
@@ -1293,8 +1291,7 @@ class Run:
         self._step = self._get_starting_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            process_context="user",
-            settings_dict=self._settings,
+            process_context="user", settings_dict=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -2004,8 +2001,7 @@ class Run:
                 )
                 logger.info(f"got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    self._poll_exit_response,
-                    printer=self._printer,
+                    self._poll_exit_response, printer=self._printer,
                 )
             time.sleep(0.1)
 
@@ -2034,15 +2030,10 @@ class Run:
         )
 
     def _save_job_spec(self) -> None:
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
+        envdict = dict(python="python3.6", requirements=[],)
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
+            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2051,13 +2042,8 @@ class Run:
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(
-            dataset="v1",
-        )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
+        artifactsdict = dict(dataset="v1",)
+        inputdict = dict(config=configdict, artifacts=artifactsdict,)
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2215,8 +2201,8 @@ class Run:
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = (
-                self._unique_launch_artifact_sequence_names.get(sequence_name)
+            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
+                sequence_name
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -2270,12 +2256,7 @@ class Run:
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
-                    self,
-                    artifact,
-                    portfolio,
-                    aliases,
-                    entity,
-                    project,
+                    self, artifact, portfolio, aliases, entity, project,
                 )
             else:
                 # TODO: implement offline mode + sync
@@ -2345,8 +2326,7 @@ class Run:
                     )
                 self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
-                artifact.id,
-                use_as=use_as or artifact_or_name,
+                artifact.id, use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2761,9 +2741,7 @@ class Run:
 
     @staticmethod
     def _header_wandb_version_info(
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
+        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         if settings.quiet or settings.silent:
             return
@@ -2773,9 +2751,7 @@ class Run:
 
     @staticmethod
     def _header_sync_info(
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
+        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2797,9 +2773,7 @@ class Run:
 
     @staticmethod
     def _header_run_info(
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
+        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         if settings._offline or settings.silent:
@@ -3107,9 +3081,7 @@ class Run:
         if log_dir:
             # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
-            printer.display(
-                f"Find logs at: {printer.files(log_dir)}",
-            )
+            printer.display(f"Find logs at: {printer.files(log_dir)}",)
 
     @staticmethod
     def _footer_history_summary_info(
@@ -3147,10 +3119,7 @@ class Run:
                 if sparkline:
                     history_rows.append([key, sparkline])
             if history_rows:
-                history_grid = printer.grid(
-                    history_rows,
-                    "Run history:",
-                )
+                history_grid = printer.grid(history_rows, "Run history:",)
                 panel.append(history_grid)
 
         # Render summary if available
@@ -3175,10 +3144,7 @@ class Run:
                     continue
 
             if summary_rows:
-                summary_grid = printer.grid(
-                    summary_rows,
-                    "Run summary:",
-                )
+                summary_grid = printer.grid(summary_rows, "Run summary:",)
                 panel.append(summary_grid)
 
         if panel:
