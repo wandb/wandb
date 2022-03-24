@@ -753,7 +753,8 @@ def loads(obj: Union[str, bytes]) -> Any:
     """Wrapper for orjson.loads"""
     try:
         decoded = orjson.loads(obj)
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Error using orjson.loads: {e}")
         decoded = json.loads(obj)
     return decoded
 
