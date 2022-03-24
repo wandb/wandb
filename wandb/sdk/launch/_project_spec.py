@@ -217,8 +217,6 @@ class LaunchProject(object):
                 self.project_dir,
             )
 
-            import pdb; pdb.set_trace()
-
             if downloaded_code_artifact:
                 self.build_image = True
             elif not downloaded_code_artifact:
@@ -256,7 +254,7 @@ class LaunchProject(object):
                     # need to rebuild image with new code
                     self.build_image = True
 
-            if entry_point.endswith("ipynb"):
+            if "_session_history.ipynb" in os.listdir(self.project_dir):
                 entry_point = utils.convert_jupyter_notebook_to_script(
                     entry_point, self.project_dir
                 )
