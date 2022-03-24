@@ -208,7 +208,7 @@ class LaunchAgent(object):
                         if job:
                             try:
                                 self.run_job(job)
-                            except LaunchError as e:
+                            except Exception as e:
                                 wandb.termerror(f"Error running job: {e}")
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
                             break  # do a full housekeeping loop before popping more jobs

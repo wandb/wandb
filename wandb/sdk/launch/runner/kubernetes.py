@@ -205,8 +205,7 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         namespace = resource_args.get(
-            "namespace",
-            job_metadata.get("namespace", default),
+            "namespace", job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
