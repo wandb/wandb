@@ -191,6 +191,7 @@ def notebook_metadata(silent):
         "the WANDB_NOTEBOOK_NAME environment variable to enable code saving."
     )
     try:
+        import pdb; pdb.set_trace()
         # In colab we can request the most recent contents
         ipynb = attempt_colab_load_ipynb()
         if ipynb:
