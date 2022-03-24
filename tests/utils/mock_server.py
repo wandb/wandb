@@ -481,7 +481,7 @@ def create_app(user_ctx=None):
             ctx = snoop.context_enrich(ctx)
             return json.dumps(ctx)
         elif request.method == "DELETE":
-            app.logger.info("reseting context")
+            app.logger.info("resetting context")
             set_ctx(default_ctx())
             return json.dumps(get_ctx())
         else:
