@@ -6,6 +6,7 @@ def wandb_log(  # noqa: C901
     """Wrap a standard python function and log to W&B
     """
     import json
+    import os
     from functools import wraps
     from inspect import Parameter, signature
 
