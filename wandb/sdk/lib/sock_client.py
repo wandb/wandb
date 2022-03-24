@@ -80,6 +80,9 @@ class SockClient:
             inform_finish=inform_finish,
             inform_teardown=inform_teardown,
         )
+        # TODO: this solution is fragile, but for checking attach
+        # it should be relatively stable.
+        # This pass would be solved as part of the fix in https://wandb.atlassian.net/browse/WB-8709
         response = self.read_server_response(timeout=1)
         if response is None:
             raise Exception("No responese")

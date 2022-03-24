@@ -126,6 +126,8 @@ class Api:
             None,
         )
 
+        self._viewer, self._server_info = {}, {}
+
     def reauth(self):
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = ("api", self.api_key or "")
@@ -306,7 +308,6 @@ class Api:
                 }
             }
         """
-
         if self.query_types is None or self.server_info_types is None:
             query = gql(query_string)
             res = self.gql(query)
@@ -414,6 +415,9 @@ class Api:
             _CLI_QUERY_
         }
         """
+        if self._viewer and self._server_info:
+            return self._viewer, self._server_info
+
         query_types, server_info_types = self.server_info_introspection()
 
         cli_version_exists = (
@@ -433,7 +437,11 @@ class Api:
         )
         query = gql(query_string)
         res = self.gql(query)
-        return res.get("viewer") or {}, res.get("serverInfo") or {}
+        self._viewer, self._server_info = (
+            res.get("viewer") or {},
+            res.get("serverInfo") or {},
+        )
+        return self._viewer, self._server_info
 
     @normalize_exceptions
     def list_projects(self, entity=None):
