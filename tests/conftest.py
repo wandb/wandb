@@ -217,7 +217,7 @@ def reinit_internal_api():
 
 
 @pytest.fixture
-def test_settings(test_dir, mocker, live_mock_server):
+def test_settings(test_dir, mocker, live_mock_server, reinit_internal_api):
     """Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False

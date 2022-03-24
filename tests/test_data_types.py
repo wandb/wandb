@@ -993,9 +993,7 @@ def test_ndarrays_in_tables():
     )
 
 
-def test_table_logging(
-    mocked_run, live_mock_server, test_settings, reinit_internal_api
-):
+def test_table_logging(mocked_run, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     run.log(
         {
@@ -1009,9 +1007,7 @@ def test_table_logging(
 
 
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
-def test_reference_table_logging(
-    mocked_run, live_mock_server, test_settings, reinit_internal_api, max_cli_version
-):
+def test_reference_table_logging(mocked_run, live_mock_server, test_settings, max_cli_version):
     live_mock_server.set_ctx({"max_cli_version": max_cli_version})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
@@ -1021,9 +1017,7 @@ def test_reference_table_logging(
     assert True
 
 
-def test_reference_table_artifacts(
-    mocked_run, live_mock_server, test_settings, reinit_internal_api
-):
+def test_reference_table_artifacts(mocked_run, live_mock_server, test_settings):
     live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
@@ -1052,18 +1046,14 @@ def test_table_reference(runner, live_mock_server, test_settings):
     assert True
 
 
-def test_partitioned_table_logging(
-    mocked_run, live_mock_server, test_settings, reinit_internal_api
-):
+def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
     run.finish()
     assert True
 
 
-def test_joined_table_logging(
-    mocked_run, live_mock_server, test_settings, reinit_internal_api
-):
+def test_joined_table_logging(mocked_run, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     art = wandb.Artifact("A", "dataset")
     t1 = wandb.Table(
