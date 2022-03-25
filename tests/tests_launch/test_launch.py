@@ -774,13 +774,14 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
     assert agent._max_jobs == float("inf")
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+# @pytest.mark.flaky
+# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_notebook(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_ipython
+    live_mock_server, test_settings, mocked_fetchable_git_repo_ipython, monkeypatch
 ):
     live_mock_server.set_ctx({"return_jupyter_in_run_info": True})
+
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
