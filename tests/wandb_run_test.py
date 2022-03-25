@@ -146,14 +146,13 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         with open("test.py", "w") as f:
             f.write('print("test")')
 
-        # first, ditch user preference for code saving
-        # since it has higher priority for policy settings
-        live_mock_server.set_ctx({"code_saving_enabled": None})
-        # note that save_code is a policy by definition
+        # simulate user turning on code saving in UI
+        live_mock_server.set_ctx({"code_saving_enabled": True})
         test_settings.update(
-            save_code=None,
-            code_dir=".",
-            source=wandb.sdk.wandb_settings.Source.SETTINGS,
+            save_code=None, source=wandb.sdk.wandb_settings.Source.BASE,
+        )
+        test_settings.update(
+            code_dir=".", source=wandb.sdk.wandb_settings.Source.SETTINGS
         )
         run = wandb.init(settings=test_settings)
         assert run._settings.save_code is save_code
