@@ -108,9 +108,15 @@ class _WandbInit(object):
             self.printer = get_printer(singleton._settings._jupyter)
             # check if environment variables have changed
             singleton_env = {
-                k: v for k, v in singleton._environ.items() if k.startswith("WANDB_")
+                k: v
+                for k, v in singleton._environ.items()
+                if k.startswith("WANDB_") and k != "WANDB_SERVICE"
             }
-            os_env = {k: v for k, v in os.environ.items() if k.startswith("WANDB_")}
+            os_env = {
+                k: v
+                for k, v in os.environ.items()
+                if k.startswith("WANDB_") and k != "WANDB_SERVICE"
+            }
             if set(singleton_env.keys()) != set(os_env.keys()) or set(
                 singleton_env.values()
             ) != set(os_env.values()):
