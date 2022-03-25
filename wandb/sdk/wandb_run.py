@@ -679,7 +679,6 @@ class Run:
         return self._torch_history
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
@@ -688,14 +687,12 @@ class Run:
         return cp
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
@@ -703,12 +700,10 @@ class Run:
 
     @property  # type: ignore
     @_run_decorator._attach
-    # @_run_decorator._noop
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
@@ -731,7 +726,6 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
@@ -752,7 +746,6 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
@@ -772,7 +765,6 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def id(self) -> str:
         """Returns the identifier for this run."""
@@ -781,7 +773,6 @@ class Run:
         return self._run_id
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
@@ -796,7 +787,6 @@ class Run:
         return "/".join(parts)
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def path(self) -> str:
         """Returns the path to the run.
@@ -814,7 +804,6 @@ class Run:
         )
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
@@ -824,21 +813,18 @@ class Run:
         return self._starting_step if not self._run_obj else self._run_obj.starting_step
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
         return self._get_starting_step()
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
         return self._run_obj.resumed if self._run_obj else False
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def step(self) -> int:
         """Returns the current value of the step.
@@ -852,7 +838,6 @@ class Run:
         return run_obj.project if run_obj else ""
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
@@ -866,13 +851,11 @@ class Run:
         return "dryrun" if self._settings._offline else "run"
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def offline(self) -> bool:
         return self._settings._offline
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def disabled(self) -> bool:
         return self._settings._noop
@@ -882,7 +865,6 @@ class Run:
         return run_obj.run_group if run_obj else ""
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
@@ -897,20 +879,17 @@ class Run:
         return self._get_group()
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
         return self.project_name()
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def log_code(
         self,
@@ -996,14 +975,12 @@ class Run:
         return self._settings.sweep_url
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def url(self) -> Optional[str]:
         """Returns the W&B url associated with the run."""
         return self.get_url()
 
     @property  # type: ignore
-    # @_run_decorator._noop
     @_run_decorator._attach
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
@@ -1097,7 +1074,6 @@ class Run:
         if lines:
             self._label_probe_lines(lines)
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Displays this run in jupyter."""
@@ -1108,7 +1084,6 @@ class Run:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generates HTML containing an iframe displaying the current run."""
@@ -1549,7 +1524,6 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def save(
         self,
@@ -1653,7 +1627,6 @@ class Run:
             self._backend.interface.publish_files(files_dict)
         return files
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def restore(
         self,
@@ -2059,7 +2032,6 @@ class Run:
             print(s, file=f)
         self._save(spec_filename)
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def define_metric(
         self,
@@ -2171,13 +2143,11 @@ class Run:
         return m
 
     # TODO(jhr): annotate this
-    # @_run_decorator._noop
     @_run_decorator._attach
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    # @_run_decorator._noop
     @_run_decorator._attach
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
@@ -2228,7 +2198,6 @@ class Run:
     def _detach(self) -> None:
         pass
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def link_artifact(
         self,
@@ -2262,7 +2231,6 @@ class Run:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def use_artifact(
         self,
@@ -2369,7 +2337,6 @@ class Run:
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def log_artifact(
         self,
@@ -2406,7 +2373,6 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def upsert_artifact(
         self,
@@ -2460,7 +2426,6 @@ class Run:
             finalize=False,
         )
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def finish_artifact(
         self,
@@ -2640,7 +2605,6 @@ class Run:
         artifact.finalize()
         return artifact, aliases
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def alert(
         self,
@@ -2688,7 +2652,6 @@ class Run:
         self._finish(exit_code)
         return exc_type is None
 
-    # @_run_decorator._noop
     @_run_decorator._attach
     def mark_preempting(self) -> None:
         """Marks this run as preempting.

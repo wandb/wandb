@@ -41,7 +41,7 @@ class LogMultiprocessError(LogError):
 
 
 class MultiprocessError(Error):
-    """Raised when wandb.log() fails because of multiprocessing"""
+    """Raised when fails because of multiprocessing"""
 
     pass
 
