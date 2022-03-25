@@ -1,4 +1,3 @@
-#
 from pkg_resources import parse_version
 import requests
 import six
@@ -6,10 +5,11 @@ import wandb
 
 
 def _find_available(current_version):
-    pypi_url = "https://pypi.org/pypi/%s/json" % wandb._wandb_module
+    pypi_url = f"https://pypi.org/pypi/{wandb._wandb_module}/json"
 
     yanked_dict = {}
     try:
+        # raise Exception("test")
         async_requests_get = wandb.util.async_call(requests.get, timeout=5)
         data, thread = async_requests_get(pypi_url, timeout=3)
         if not data or isinstance(data, Exception):
