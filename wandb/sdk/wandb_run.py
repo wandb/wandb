@@ -219,6 +219,10 @@ class Attach:
         return wrapper
 
 
+def _is_py_path(path):
+    return path.endswith(".py")
+
+
 class Run:
     """A unit of computation logged by wandb. Typically this is an ML experiment.
 
@@ -857,7 +861,7 @@ class Run:
         self,
         root: str = ".",
         name: str = None,
-        include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
+        include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """Saves the current state of your code to a W&B Artifact.
