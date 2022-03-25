@@ -190,7 +190,6 @@ def run(ctx):
         "updatedAt": datetime.now().isoformat(),
         "runInfo": {
             "program": program_name,
-            "codePath": program_name,
             "args": [],
             "os": platform.system(),
             "python": platform.python_version(),
@@ -1786,10 +1785,14 @@ def create_app(user_ctx=None):
                     },
                 }
         elif file == "wandb-metadata.json":
+            if ctx["return_jupyter_in_run_info"]:
+                code_path = "one_cell.ipynb"
+            else:
+                code_path = "train.py"
             result = {
                 "docker": "test/docker",
                 "program": "train.py",
-                "codePath": "train.py",
+                "codePath": code_path,
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
