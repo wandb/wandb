@@ -45,6 +45,7 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.util import (
     _is_artifact_string,
+    _is_py_path,
     add_import_hook,
     parse_artifact_string,
     sentry_set_scope,
@@ -255,10 +256,6 @@ class _run_decorator:  # noqa: N801
             return func(self, *args, **kwargs)
 
         return wrapper
-
-
-def _is_py_path(path):
-    return path.endswith(".py")
 
 
 class Run:
