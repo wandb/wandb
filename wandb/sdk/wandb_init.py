@@ -256,7 +256,7 @@ class _WandbInit(object):
             settings._apply_user(user_settings)
 
         # ensure that user settings don't set saving to true
-        # if user explicitly set these to false
+        # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
 
