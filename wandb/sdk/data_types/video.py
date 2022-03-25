@@ -55,7 +55,7 @@ class Video(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO"],
+        data_or_path: Union["np.ndarray", str, "TextIO", "BytesIO"],
         caption: Optional[str] = None,
         fps: int = 4,
         format: Optional[str] = None,
