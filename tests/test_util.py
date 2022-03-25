@@ -475,3 +475,32 @@ def test_is_databricks():
         dbutils.shell.sc = mock.MagicMock()
         dbutils.shell.sc.appName = "Databricks Shell"
         assert util._is_databricks()
+
+
+def test_parse_entity_project_item():
+    def f(*args, **kwargs):
+        return util._parse_entity_project_item(*args, **kwargs)
+
+    with pytest.raises(ValueError):
+        f("boom/a/b/c")
+
+    item, project, entity = f("myproj/mymodel:latest")
+    assert item == "mymodel:latest"
+    assert project == "myproj"
+    assert entity == ""
+
+    item, project, entity = f("boom")
+    assert item == "boom"
+    assert project == ""
+    assert entity == ""
+
+
+def test_resolve_aliases():
+    with pytest.raises(ValueError):
+        util._resolve_aliases(5)
+
+    aliases = util._resolve_aliases(["best", "dev"])
+    assert aliases == ["best", "dev", "latest"]
+
+    aliases = util._resolve_aliases("boom")
+    assert aliases == ["boom", "latest"]

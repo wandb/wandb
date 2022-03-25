@@ -72,7 +72,9 @@ def _get_wandb_dir(root_dir: str) -> str:
 
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
-        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory.")
+        wandb.termwarn(
+            f"Path {path} wasn't writable, using system temp directory.", repeat=False,
+        )
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
     return os.path.expanduser(path)
@@ -516,8 +518,8 @@ class Settings:
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
             },
-            disable_code={"preprocessor": _str_as_bool, "is_policy": True},
-            disable_git={"preprocessor": _str_as_bool, "is_policy": True},
+            disable_code={"preprocessor": _str_as_bool},
+            disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -586,7 +588,7 @@ class Settings:
             },
             run_url={"hook": lambda _: self._run_url(), "auto_hook": True},
             sagemaker_disable={"preprocessor": _str_as_bool},
-            save_code={"preprocessor": _str_as_bool, "is_policy": True},
+            save_code={"preprocessor": _str_as_bool},
             settings_system={
                 "value": os.path.join("~", ".config", "wandb", "settings"),
                 "hook": lambda x: self._path_convert(x),
@@ -736,11 +738,16 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
-    @staticmethod
-    def _validate_api_key(value: str) -> bool:
+    def _validate_api_key(self, value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
+
+        if value.startswith("local") and not self.is_local:
+            raise UsageError(
+                "Attempting to use a local API key to connect to https://api.wandb.ai"
+            )
         # todo: move here the logic from sdk/lib/apikey.py
+
         return True
 
     @staticmethod

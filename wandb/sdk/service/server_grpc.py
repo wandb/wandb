@@ -12,6 +12,7 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 from .. import lib as wandb_lib
 from ..lib.proto_util import settings_dict_from_pbmap
@@ -139,6 +140,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         iface = self._mux.get_stream(stream_id).interface
         iface._publish_artifact(art_data)
         result = pb.ArtifactResult()
+        return result
+
+    def LinkArtifact(  # noqa: N802
+        self, link_artifact: pb.LinkArtifactRecord, context: grpc.ServicerContext,
+    ) -> pb.LinkArtifactResult:
+        stream_id = link_artifact._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_link_artifact(link_artifact)
+        result = pb.LinkArtifactResult()
         return result
 
     def ArtifactSend(  # noqa: N802
@@ -329,8 +339,11 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
     def ServerInformAttach(  # noqa: N802
         self, request: spb.ServerInformAttachRequest, context: grpc.ServicerContext,
     ) -> spb.ServerInformAttachResponse:
-        # TODO
+        stream_id = request._info.stream_id
         result = spb.ServerInformAttachResponse()
+        _pbmap_apply_dict(
+            result._settings_map, dict(self._mux._streams[stream_id]._settings),
+        )
         return result
 
     def ServerInformDetach(  # noqa: N802

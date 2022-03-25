@@ -386,7 +386,7 @@ def make_tarfile(
         tar_info.mtime = 0
         return tar_info if custom_filter is None else custom_filter(tar_info)
 
-    unzipped_filename = tempfile.mktemp()
+    descriptor, unzipped_filename = tempfile.mkstemp()
     try:
         with tarfile.open(unzipped_filename, "w") as tar:
             tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
@@ -397,6 +397,7 @@ def make_tarfile(
         ) as gzipped_tar, open(unzipped_filename, "rb") as tar_file:
             gzipped_tar.write(tar_file.read())
     finally:
+        os.close(descriptor)
         os.remove(unzipped_filename)
 
 
@@ -1444,6 +1445,10 @@ def _is_databricks() -> bool:
     return False
 
 
+def _is_py_path(path: str) -> bool:
+    return path.endswith(".py")
+
+
 def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
     """Consolidate violation strings from wandb/sweeps describing the ways in which a
     sweep config violates the allowed schema as a single string.
@@ -1552,6 +1557,65 @@ def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
             return None
 
 
+def _parse_entity_project_item(path: str) -> tuple:
+    """Parses paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
+
+    Args:
+        path: `str`, input path; must be between 0 and 3 in length.
+
+    Returns:
+        tuple of length 3 - (item, project, entity)
+
+    Example:
+        alias, project, entity = _parse_entity_project_item("myproj/mymodel:best")
+
+        assert entity   == ""
+        assert project  == "myproj"
+        assert alias    == "mymodel:best"
+
+    """
+    words = path.split("/")
+    if len(words) > 3:
+        raise ValueError(
+            "Invalid path: must be str the form {item}, {project}/{item}, or {entity}/{project}/{item}"
+        )
+    padded_words = [""] * (3 - len(words)) + words
+    return tuple(reversed(padded_words))
+
+
+def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+    """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
+    Ensures that "latest" is always present in the returned list.
+
+    Args:
+        aliases: `Optional[Union[str, List[str]]]`
+
+    Returns:
+        List[str], with "latest" always present.
+
+    Example:
+        aliases = _resolve_aliases(["best", "dev"])
+        assert aliases == ["best", "dev", "latest"]
+
+        aliases = _resolve_aliases("boom")
+        assert aliases == ["boom", "latest"]
+
+    """
+    if aliases is None:
+        aliases = []
+
+    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
+        raise ValueError("`aliases` must either be None or of type str or list")
+
+    if isinstance(aliases, str):
+        aliases = [aliases]
+
+    if "latest" not in aliases:
+        aliases.append("latest")
+
+    return aliases
+
+
 def _is_artifact(v: Any) -> bool:
     return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
 
@@ -1588,8 +1652,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
 
 
 def _get_max_cli_version() -> Union[str, None]:
-    _, server_info = wandb.api.viewer_server_info()
-    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
 
 

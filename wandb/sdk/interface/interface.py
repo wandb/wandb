@@ -16,6 +16,7 @@ import os
 from typing import Any, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
@@ -251,7 +252,7 @@ class InterfaceBase(object):
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in value.items():
+            for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
                     value, path_from_root + "." + key
                 )
@@ -397,11 +398,37 @@ class InterfaceBase(object):
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
+    def publish_link_artifact(
+        self,
+        run: "Run",
+        artifact: Union[Artifact, PublicArtifact],
+        portfolio_name: str,
+        aliases: Iterable[str],
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
+        link_artifact = pb.LinkArtifactRecord()
+        if isinstance(artifact, Artifact):
+            link_artifact.client_id = artifact._client_id
+        else:
+            link_artifact.server_id = artifact.id if artifact.id else ""
+        link_artifact.portfolio_name = portfolio_name
+        link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_project = project or run.project
+        link_artifact.portfolio_aliases.extend(aliases)
+
+        self._publish_link_artifact(link_artifact)
+
+    @abstractmethod
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        raise NotImplementedError
+
     def communicate_artifact(
         self,
         run: "Run",
         artifact: Artifact,
         aliases: Iterable[str],
+        history_step: Optional[int] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -419,6 +446,8 @@ class InterfaceBase(object):
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
+        if history_step is not None:
+            log_artifact.history_step = history_step
         resp = self._communicate_artifact(log_artifact)
         return resp
 
@@ -469,13 +498,11 @@ class InterfaceBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str]
-    ) -> None:
+    def publish_tbdata(self, log_dir: str, save: bool, root_logdir: str = "") -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
+        tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
     @abstractmethod
@@ -506,7 +533,6 @@ class InterfaceBase(object):
             item.key = k
             item.value_json = json_dumps_safer_history(v)
         if publish_step and step is not None:
-            # assert step is not None
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush

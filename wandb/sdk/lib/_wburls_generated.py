@@ -7,4 +7,12 @@ else:
     from typing_extensions import Literal
 
 
-URLS = Literal["cli_launch", "doc_run", "doc_require", "doc_start_err", "upgrade_local"]
+URLS = Literal[
+    "cli_launch",
+    "doc_run",
+    "doc_require",
+    "doc_start_err",
+    "upgrade_local",
+    "multiprocess",
+    "wandb_init",
+]
