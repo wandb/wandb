@@ -1445,6 +1445,10 @@ def _is_databricks() -> bool:
     return False
 
 
+def _is_py_path(path: str) -> bool:
+    return path.endswith(".py")
+
+
 def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
     """Consolidate violation strings from wandb/sweeps describing the ways in which a
     sweep config violates the allowed schema as a single string.

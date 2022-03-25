@@ -45,6 +45,7 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.util import (
     _is_artifact_string,
+    _is_py_path,
     add_import_hook,
     parse_artifact_string,
     sentry_set_scope,
@@ -897,7 +898,7 @@ class Run:
         self,
         root: str = ".",
         name: str = None,
-        include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
+        include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """Saves the current state of your code to a W&B Artifact.
