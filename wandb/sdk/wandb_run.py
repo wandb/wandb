@@ -184,9 +184,12 @@ class RunStatusChecker:
         self._retry_thread.join()
 
 
-class Attach:
+class _run_decorator:  # noqa: N801
 
     _is_attaching: str = ""
+
+    class Dummy:
+        ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -195,13 +198,14 @@ class Attach:
 
             # * `_attach_id` is only assigned in service hence for all non-service cases
             # it will be a passthrough.
-            # * `_attach_pid` is only assigned in _init:
+            # * `_attach_pid` is only assigned in _init (using _attach_pid gurantees single attach):
             #   - for non-fork case the object is shared through pickling so will be None.
             #   - for fork case the new process share mem space hence the value would be of parent process.
             if (
                 getattr(self, "_attach_id", None)
                 and getattr(self, "_attach_pid", None) != os.getpid()
             ):
+
                 if cls._is_attaching:
                     message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{cls._is_attaching}`"
                     raise RuntimeError(message)
@@ -214,6 +218,40 @@ class Attach:
                     cls._is_attaching = ""
                     raise e
                 cls._is_attaching = ""
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    @classmethod
+    def _noop(cls, func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+            # `_attach_id` is only assigned in service hence for all service cases
+            # it will be a passthrough. We don't pickle non-service so again a way to see that we are in non-service case
+            if getattr(self, "_attach_id", None) is None:
+                # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
+                #   - for non-fork case the object is shared through pickling and we don't pickle non-service so will be None
+                #   - for fork case the new process share mem space hence the value would be of parent process.
+                _init_pid = getattr(self, "_init_pid", None)
+                if _init_pid != os.getpid():
+                    message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
+                        func.__name__,
+                        os.getpid(),
+                        _init_pid,
+                        wburls.get("multiprocess"),
+                    )
+                    # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
+                    # - for fork case will use the settings of the parent process
+                    # - only point of incosistent behavior from forked and non-forked cases
+                    settings = getattr(self, "_settings", None)
+                    if settings and settings["strict"]:
+                        wandb.termerror(message, repeat=False)
+                        raise errors.MultiprocessError(
+                            f"`{func.__name__}` does not support multiprocessing"
+                        )
+                    wandb.termwarn(message, repeat=False)
+                    return cls.Dummy()
+
             return func(self, *args, **kwargs)
 
         return wrapper
@@ -620,7 +658,7 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id, _init_pid=self._init_pid,)
+        return dict(_attach_id=self._attach_id, _init_pid=self._init_pid)
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -643,7 +681,7 @@ class Run:
         return self._torch_history
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
         cp = self._settings.copy()
@@ -651,24 +689,24 @@ class Run:
         return cp
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
 
@@ -690,7 +728,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
 
@@ -710,7 +748,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
         if self._tags:
@@ -729,7 +767,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def id(self) -> str:
         """Returns the identifier for this run."""
         if TYPE_CHECKING:
@@ -737,7 +775,7 @@ class Run:
         return self._run_id
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
         if not self._run_obj:
@@ -751,7 +789,7 @@ class Run:
         return "/".join(parts)
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def path(self) -> str:
         """Returns the path to the run.
 
@@ -768,7 +806,7 @@ class Run:
         )
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
         return self._get_start_time()
@@ -777,19 +815,19 @@ class Run:
         return self._starting_step if not self._run_obj else self._run_obj.starting_step
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
         return self._get_starting_step()
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
         return self._run_obj.resumed if self._run_obj else False
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def step(self) -> int:
         """Returns the current value of the step.
 
@@ -802,7 +840,7 @@ class Run:
         return run_obj.project if run_obj else ""
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         deprecate.deprecate(
@@ -815,12 +853,12 @@ class Run:
         return "dryrun" if self._settings._offline else "run"
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def offline(self) -> bool:
         return self._settings._offline
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def disabled(self) -> bool:
         return self._settings._noop
 
@@ -829,7 +867,7 @@ class Run:
         return run_obj.run_group if run_obj else ""
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
 
@@ -843,18 +881,18 @@ class Run:
         return self._get_group()
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
         return self.project_name()
 
-    @Attach._attach
+    @_run_decorator._attach
     def log_code(
         self,
         root: str = ".",
@@ -939,13 +977,13 @@ class Run:
         return self._settings.sweep_url
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def url(self) -> Optional[str]:
         """Returns the W&B url associated with the run."""
         return self.get_url()
 
     @property  # type: ignore
-    @Attach._attach
+    @_run_decorator._attach
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
 
@@ -1038,7 +1076,7 @@ class Run:
         if lines:
             self._label_probe_lines(lines)
 
-    @Attach._attach
+    @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Displays this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
@@ -1048,7 +1086,7 @@ class Run:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
-    @Attach._attach
+    @_run_decorator._attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generates HTML containing an iframe displaying the current run."""
         url = self._settings.run_url + "?jupyter=true"
@@ -1271,20 +1309,6 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
-        if not self._settings._require_service:
-            current_pid = os.getpid()
-            if current_pid != self._init_pid:
-                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                    current_pid, self._init_pid
-                )
-                if self._settings.strict:
-                    wandb.termerror(message, repeat=False)
-                    raise errors.LogMultiprocessError(
-                        "log() does not support multiprocessing"
-                    )
-                wandb.termwarn(message, repeat=False)
-                return
-
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
@@ -1313,7 +1337,8 @@ class Run:
         if (step is None and commit is None) or commit:
             self._step += 1
 
-    @Attach._attach
+    @_run_decorator._noop
+    @_run_decorator._attach
     def log(
         self,
         data: Dict[str, Any],
@@ -1501,7 +1526,7 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
-    @Attach._attach
+    @_run_decorator._attach
     def save(
         self,
         glob_str: Optional[str] = None,
@@ -1604,7 +1629,7 @@ class Run:
             self._backend.interface.publish_files(files_dict)
         return files
 
-    @Attach._attach
+    @_run_decorator._attach
     def restore(
         self,
         name: str,
@@ -1619,7 +1644,8 @@ class Run:
             root or self._settings.files_dir,
         )
 
-    @Attach._attach
+    @_run_decorator._noop
+    @_run_decorator._attach
     def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
@@ -1658,7 +1684,8 @@ class Run:
         if manager:
             manager._inform_finish(run_id=self._run_id)
 
-    @Attach._attach
+    @_run_decorator._noop
+    @_run_decorator._attach
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
@@ -2007,7 +2034,7 @@ class Run:
             print(s, file=f)
         self._save(spec_filename)
 
-    @Attach._attach
+    @_run_decorator._attach
     def define_metric(
         self,
         name: str,
@@ -2038,6 +2065,21 @@ class Run:
             A metric object is returned that can be further specified.
 
         """
+        return self._define_metric(
+            name, step_metric, step_sync, hidden, summary, goal, overwrite, **kwargs
+        )
+
+    def _define_metric(
+        self,
+        name: str,
+        step_metric: Union[str, wandb_metric.Metric, None] = None,
+        step_sync: bool = None,
+        hidden: bool = None,
+        summary: str = None,
+        goal: str = None,
+        overwrite: bool = None,
+        **kwargs: Any,
+    ) -> wandb_metric.Metric:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
         for k in kwargs:
@@ -2103,12 +2145,12 @@ class Run:
         return m
 
     # TODO(jhr): annotate this
-    @Attach._attach
+    @_run_decorator._attach
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    @Attach._attach
+    @_run_decorator._attach
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
@@ -2158,7 +2200,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
-    @Attach._attach
+    @_run_decorator._attach
     def link_artifact(
         self,
         artifact: Union[public.Artifact, Artifact],
@@ -2191,7 +2233,7 @@ class Run:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
 
-    @Attach._attach
+    @_run_decorator._attach
     def use_artifact(
         self,
         artifact_or_name: Union[str, public.Artifact, Artifact],
@@ -2297,7 +2339,7 @@ class Run:
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
-    @Attach._attach
+    @_run_decorator._attach
     def log_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2333,7 +2375,7 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
-    @Attach._attach
+    @_run_decorator._attach
     def upsert_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2386,7 +2428,7 @@ class Run:
             finalize=False,
         )
 
-    @Attach._attach
+    @_run_decorator._attach
     def finish_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2565,7 +2607,7 @@ class Run:
         artifact.finalize()
         return artifact, aliases
 
-    @Attach._attach
+    @_run_decorator._attach
     def alert(
         self,
         title: str,
@@ -2612,7 +2654,7 @@ class Run:
         self._finish(exit_code)
         return exc_type is None
 
-    @Attach._attach
+    @_run_decorator._attach
     def mark_preempting(self) -> None:
         """Marks this run as preempting.
 
