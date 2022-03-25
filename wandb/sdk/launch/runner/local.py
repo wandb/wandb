@@ -122,7 +122,6 @@ class LocalRunner(AbstractRunner):
         )
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            print("callin wait")
             run.wait()
         return run
 

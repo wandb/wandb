@@ -1,5 +1,4 @@
 import _thread as thread
-import ast
 import atexit
 from collections.abc import Mapping
 from datetime import timedelta
@@ -458,7 +457,7 @@ class Run:
         ):
             if os.environ.get("WANDB_CONFIG") is not None:
                 try:
-                    new_config = ast.literal_eval(os.environ.get("WANDB_CONFIG", "{}"))
+                    new_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
                     self._config.update_locked(
                         new_config, user="launch", _allow_val_change=True
                     )
@@ -466,7 +465,7 @@ class Run:
                     wandb.termwarn("Malformed WANDB_CONFIG, using original config")
             if os.environ.get("WANDB_ARTIFACTS") is not None:
                 try:
-                    artifacts: Dict[str, Any] = ast.literal_eval(
+                    artifacts: Dict[str, Any] = json.loads(
                         os.environ.get("WANDB_ARTIFACTS", "{}")
                     )
                     self._initialize_launch_artifact_maps(artifacts)
