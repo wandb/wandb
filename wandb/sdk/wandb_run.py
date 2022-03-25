@@ -859,9 +859,9 @@ class Run:
         self,
         root: str = ".",
         name: str = None,
-        include_fn: Callable[[str], bool] = lambda path: path.endswith(
+        include_fn: Callable[[str], bool] = lambda path: path.endswith(  # noqa: B008
             ".py"
-        ),  # noqa: B008
+        ),
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """Saves the current state of your code to a W&B Artifact.
