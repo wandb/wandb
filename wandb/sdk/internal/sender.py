@@ -181,8 +181,8 @@ class SendManager:
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
-        """This is a helper class method to setup a standalone SendManager.
-        Currently we're using this primarily for `sync.py`.
+        """This is a helper class method to set up a standalone SendManager.
+        Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
         sd: SettingsDict = dict(

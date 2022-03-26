@@ -8,6 +8,7 @@ import getpass
 import json
 import logging
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -406,6 +407,52 @@ def init(ctx, project, entity, reset, mode):
             run=click.style("python <train.py>", bold=True),
         )
     )
+
+
+@cli.command(
+    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
+)
+@click.pass_context
+@click.argument("path", nargs=-1, type=click.Path(exists=True))
+@display_error
+def syn(
+    ctx,
+    path=None,
+    view=None,
+    verbose=None,
+    run_id=None,
+    project=None,
+    entity=None,
+    sync_tensorboard=None,
+    include_globs=None,
+    exclude_globs=None,
+    include_online=None,
+    include_offline=None,
+    include_synced=None,
+    mark_synced=None,
+    sync_all=None,
+    ignore=None,
+    show=None,
+    clean=None,
+    clean_old_hours=24,
+    clean_force=None,
+):
+    # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
+    os.environ["WANDB_DIR"] = TMPDIR.name
+    api = _get_cling_api()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to sync offline runs")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    path = [pathlib.Path(p).absolute() for p in path]
+    print(path)
+
+    from wandb.sync.newsync import Manager
+
+    manager = Manager()
+    manager.sync_items.extend(path)
+    manager.run()
 
 
 @cli.command(

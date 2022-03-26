@@ -133,7 +133,7 @@ class DataStore(object):
             pad_check = strtobytes("\x00" * space_left)
             pad = self._fp.read(space_left)
             # verify they are zero
-            assert pad == pad_check, "invald padding"
+            assert pad == pad_check, "invalid padding"
             self._index += space_left
 
         record = self.scan_record()
