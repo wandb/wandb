@@ -104,8 +104,20 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         assert result.exit_code != 0
 
 
-def test_agent_update_failed(runner, test_settings, live_mock_server):
+def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatch):
     live_mock_server.set_ctx({"launch_agent_update_fail": True})
+    monkeypatch.setattr(
+        wandb.sdk.launch.agent.agent.LaunchAgent, "pop_from_queue", lambda *args: None,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.agent.agent.LaunchAgent,
+        "print_status",
+        lambda x: raise_(KeyboardInterrupt),
+    )
+
+    # m = mock.Mock()
+    # m.sleep = lambda x: raise_(KeyboardInterrupt)
+    # with mock.patch.dict("sys.modules", time=m):
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
