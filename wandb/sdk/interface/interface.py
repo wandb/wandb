@@ -533,7 +533,6 @@ class InterfaceBase(object):
             item.key = k
             item.value_json = json_dumps_safer_history(v)
         if publish_step and step is not None:
-            # assert step is not None
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush

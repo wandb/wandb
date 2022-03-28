@@ -1445,6 +1445,10 @@ def _is_databricks() -> bool:
     return False
 
 
+def _is_py_path(path: str) -> bool:
+    return path.endswith(".py")
+
+
 def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
     """Consolidate violation strings from wandb/sweeps describing the ways in which a
     sweep config violates the allowed schema as a single string.
@@ -1648,8 +1652,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
 
 
 def _get_max_cli_version() -> Union[str, None]:
-    _, server_info = wandb.api.viewer_server_info()
-    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
 
 

@@ -141,7 +141,7 @@ RUN useradd \
     --shell /bin/bash \
     --gid 0 \
     --uid {uid} \
-    {user}
+    {user} || echo ""
 """
 
 SAGEMAKER_ENTRYPOINT_TEMPLATE = """
@@ -229,8 +229,10 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
         prefix = "RUN WANDB_DISABLE_CACHE=true"
 
     if launch_project.deps_type == "pip":
-        requirements_files = ["src/requirements.txt"]
-        pip_install_line = "pip install -r requirements.txt"
+        requirements_files = []
+        if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")):
+            requirements_files += ["src/requirements.txt"]
+            pip_install_line = "pip install -r requirements.txt"
         if os.path.exists(
             os.path.join(launch_project.project_dir, "requirements.frozen.txt")
         ):
