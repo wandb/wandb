@@ -138,7 +138,7 @@ RUN useradd \
     --shell /bin/bash \
     --gid 0 \
     --uid {uid} \
-    {user}
+    {user} || echo ""
 """
 
 
@@ -275,7 +275,10 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
     return user_create
 
 
-def generate_dockerfile(launch_project: LaunchProject, runner_type: str,) -> str:
+def generate_dockerfile(
+    launch_project: LaunchProject,
+    runner_type: str,
+) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]
@@ -416,7 +419,10 @@ def construct_local_image_uri(launch_project: LaunchProject) -> str:
 
 
 def construct_gcp_image_uri(
-    launch_project: LaunchProject, gcp_repo: str, gcp_project: str, gcp_registry: str,
+    launch_project: LaunchProject,
+    gcp_repo: str,
+    gcp_project: str,
+    gcp_registry: str,
 ) -> str:
     base_uri = construct_local_image_uri(launch_project)
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
@@ -468,14 +474,17 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
 
 
 def _create_docker_build_ctx(
-    launch_project: LaunchProject, dockerfile_contents: str,
+    launch_project: LaunchProject,
+    dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     assert launch_project.project_dir is not None
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(
-        src=launch_project.project_dir, dst=dst_path, symlinks=True,
+        src=launch_project.project_dir,
+        dst=dst_path,
+        symlinks=True,
     )
     shutil.copy(
         os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),

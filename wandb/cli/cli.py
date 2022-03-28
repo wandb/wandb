@@ -1139,7 +1139,7 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.argument("project", nargs=1)
+@click.argument("project", nargs=1, required=False)
 @click.option(
     "--entity",
     "-e",
@@ -1150,7 +1150,7 @@ def launch(
 @click.option(
     "--max-jobs",
     "-j",
-    default=1,
+    default=None,
     help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
 )
 @display_error
@@ -1165,6 +1165,13 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     wandb.termlog(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
+    if project is None:
+        project = os.environ.get("WANDB_PROJECT")
+
+        if project is None:
+            raise LaunchError(
+                "You must specify a project name or set WANDB_PROJECT environment variable."
+            )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1174,6 +1181,8 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
 
     if entity is None:
         entity = api.default_entity
+    if max_jobs is None:
+        max_jobs = float(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))
 
     wandb.termlog("Starting launch agent ✨")
 

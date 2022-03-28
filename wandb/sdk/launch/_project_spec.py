@@ -272,7 +272,10 @@ class LaunchProject(object):
                     # need to rebuild image with new code
                     self.build_image = True
 
-            if "_session_history.ipynb" in os.listdir(self.project_dir):
+            if (
+                "_session_history.ipynb" in os.listdir(self.project_dir)
+                or ".ipynb" in entry_point
+            ):
                 entry_point = utils.convert_jupyter_notebook_to_script(
                     entry_point, self.project_dir
                 )

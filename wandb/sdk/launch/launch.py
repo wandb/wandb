@@ -22,7 +22,7 @@ def create_and_run_agent(
     entity: str,
     project: str,
     queues: Optional[List[str]] = None,
-    max_jobs: int = None,
+    max_jobs: float = None,
 ) -> None:
     if queues is None:
         queues = []
