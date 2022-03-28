@@ -125,6 +125,7 @@ class Api:
             None,
             None,
         )
+        self._max_cli_version = None
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -306,7 +307,6 @@ class Api:
                 }
             }
         """
-
         if self.query_types is None or self.server_info_types is None:
             query = gql(query_string)
             res = self.gql(query)
@@ -381,6 +381,25 @@ class Api:
         )
         res = self.gql(query)
         return res.get("viewer") or {}
+
+    @normalize_exceptions
+    def max_cli_version(self):
+
+        if self._max_cli_version is not None:
+            return self._max_cli_version
+
+        query_types, server_info_types = self.server_info_introspection()
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+        if not cli_version_exists:
+            return None
+
+        _, server_info = self.viewer_server_info()
+        self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version"
+        )
+        return self._max_cli_version
 
     @normalize_exceptions
     def viewer_server_info(self):
