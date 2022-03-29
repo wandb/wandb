@@ -1,9 +1,6 @@
-#
-# -*- coding: utf-8 -*-
 """
 static settings.
 """
-
 from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
@@ -15,6 +12,7 @@ class SettingsStatic:
     _disable_stats: "Optional[bool]"
     _disable_meta: "Optional[bool]"
     _start_time: float
+    _start_datetime: str
     files_dir: str
     log_internal: str
     _internal_check_process: bool
@@ -41,6 +39,9 @@ class SettingsStatic:
 
     def keys(self) -> "Iterable[str]":
         return self.__dict__.keys()
+
+    def items(self) -> "Iterable[Any]":
+        return self.__dict__.items()
 
     def __getitem__(self, key: str) -> "Any":
         return self.__dict__[key]

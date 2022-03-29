@@ -60,7 +60,7 @@ class Config(object):
 
         Nested configs
         ```python
-        wandb.config['train']['epochs] = 4
+        wandb.config['train']['epochs'] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
             # train
