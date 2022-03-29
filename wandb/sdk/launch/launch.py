@@ -1,5 +1,4 @@
 import logging
-import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
@@ -10,7 +9,6 @@ from .agent import LaunchAgent
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
-    _is_wandb_local_uri,
     construct_launch_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -33,7 +31,7 @@ def create_and_run_agent(
 
 
 def _run(
-    uri: str,
+    uri: Optional[str],
     name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
@@ -70,9 +68,11 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = (
-        launch_config["docker"] if launch_config else {}
-    )
+    if launch_config is not None:
+        given_docker_args = launch_config.get("docker", {}).get("args", {})
+        runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
+    else:
+        runner_config[PROJECT_DOCKER_ARGS] = {}
 
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
@@ -90,7 +90,7 @@ def _run(
 
 
 def run(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     entry_point: Optional[str] = None,
     version: Optional[str] = None,
@@ -151,22 +151,8 @@ def run(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-    docker_args = {}
-
-    if _is_wandb_local_uri(api.settings("base_url")):
-        if sys.platform == "win32":
-            docker_args["net"] = "host"
-        else:
-            docker_args["network"] = "host"
-        if sys.platform == "linux" or sys.platform == "linux2":
-            docker_args["add-host"] = "host.docker.internal:host-gateway"
-
     if config is None:
         config = {}
-
-    if "docker" in config:
-        docker_args.update(config["docker"])  # userprovided args override
-    config["docker"] = docker_args
 
     submitted_run_obj = _run(
         uri=uri,
