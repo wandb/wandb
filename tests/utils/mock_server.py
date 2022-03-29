@@ -477,6 +477,8 @@ def create_app(user_ctx=None):
     def update_ctx():
         """Updating context for live_mock_server"""
         ctx = get_ctx()
+        # in Flask/Werkzeug 2.1.0 get_json raises an exception on
+        # empty json, so we try/catch here
         try:
             body = request.get_json()
         except BadRequest:
