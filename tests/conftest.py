@@ -91,7 +91,7 @@ def start_mock_server(worker_id):
     server.base_url = f"http://localhost:{server._port}"
 
     def get_ctx():
-        return requests.get(server.base_url + "/ctx").json()
+        return requests.get(server.base_url + "/ctx", json={}).json()
 
     def set_ctx(payload):
         return requests.put(server.base_url + "/ctx", json=payload).json()
@@ -349,7 +349,8 @@ def notebook(live_mock_server, test_dir):
             setupcell = setupnb["cells"][0]
             # Ensure the notebooks talks to our mock server
             new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__", live_mock_server.base_url,
+                "__WANDB_BASE_URL__",
+                live_mock_server.base_url,
             )
             if save_code:
                 new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
@@ -621,7 +622,9 @@ class MockProcess:
 @pytest.fixture()
 def _internal_sender(record_q, internal_result_q, internal_process):
     return InterfaceQueue(
-        record_q=record_q, result_q=internal_result_q, process=internal_process,
+        record_q=record_q,
+        result_q=internal_result_q,
+        process=internal_process,
     )
 
 
@@ -810,7 +813,10 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
 
 @pytest.fixture
 def publish_util(
-    mocked_run, mock_server, backend_interface, parse_ctx,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     def fn(
         metrics=None,
