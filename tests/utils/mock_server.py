@@ -13,6 +13,7 @@ import gzip
 import functools
 import time
 import requests
+from werkzeug.exceptions import BadRequest
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -476,7 +477,11 @@ def create_app(user_ctx=None):
     def update_ctx():
         """Updating context for live_mock_server"""
         ctx = get_ctx()
-        body = request.get_json()
+        try:
+            body = request.get_json()
+        except BadRequest:
+            body = None
+
         if request.method == "GET":
             ctx = snoop.context_enrich(ctx)
             return json.dumps(ctx)

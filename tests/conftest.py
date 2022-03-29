@@ -91,13 +91,13 @@ def start_mock_server(worker_id):
     server.base_url = f"http://localhost:{server._port}"
 
     def get_ctx():
-        return requests.get(server.base_url + "/ctx", json={}).json()
+        return requests.get(server.base_url + "/ctx").json()
 
     def set_ctx(payload):
         return requests.put(server.base_url + "/ctx", json=payload).json()
 
     def reset_ctx():
-        return requests.delete(server.base_url + "/ctx", json={}).json()
+        return requests.delete(server.base_url + "/ctx").json()
 
     server.get_ctx = get_ctx
     server.set_ctx = set_ctx
@@ -106,7 +106,7 @@ def start_mock_server(worker_id):
     started = False
     for i in range(10):
         try:
-            res = requests.get("%s/ctx" % server.base_url, json={}, timeout=5)
+            res = requests.get("%s/ctx" % server.base_url, timeout=5)
             if res.status_code == 200:
                 started = True
                 break
