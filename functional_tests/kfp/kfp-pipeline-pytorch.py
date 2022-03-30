@@ -14,7 +14,7 @@ def add_wandb_env_variables(op):
     env = {
         "WANDB_API_KEY": os.getenv("WANDB_API_KEY"),
         "WANDB_BASE_URL": os.getenv("WANDB_BASE_URL"),
-        "WANDB_KUBEFLOW_BASE_PATH": os.getenv("WANDB_KUBEFLOW_BASE_PATH"),
+        "WANDB_KUBEFLOW_URL": os.getenv("WANDB_KUBEFLOW_URL"),
         "WANDB_PROJECT": "wandb_kfp_integration_test",
     }
 
