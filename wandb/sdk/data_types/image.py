@@ -314,24 +314,28 @@ class Image(BatchableMedia):
     ) -> None:
         # For Images, we are going to avoid copying the image file to the run.
         # We should make this common functionality for all media types, but that
-        # requires a broader UI refactor.
-        if self._get_artifact_entry_ref_url() is not None:
-            return
+        # requires a broader UI refactor. This model can easily be moved to the
+        # higher level Media class, but that will require every UI surface area
+        # that depends on the `path` to be able to instead consume
+        # `artifact_path`. I (Tim) think the media panel makes up most of this
+        # space, but there are also custom charts, and maybe others. Let's
+        # commit to getting all that fixed up before moving this to  the top
+        # level Media class.
+        if self._get_artifact_entry_ref_url() is None:
+            super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
+            if self._boxes is not None:
+                for i, k in enumerate(self._boxes):
+                    id_ = "{}{}".format(id_, i) if id_ is not None else None
+                    self._boxes[k].bind_to_run(
+                        run, key, step, id_, ignore_copy_err=ignore_copy_err
+                    )
 
-        super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
-        if self._boxes is not None:
-            for i, k in enumerate(self._boxes):
-                id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._boxes[k].bind_to_run(
-                    run, key, step, id_, ignore_copy_err=ignore_copy_err
-                )
-
-        if self._masks is not None:
-            for i, k in enumerate(self._masks):
-                id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._masks[k].bind_to_run(
-                    run, key, step, id_, ignore_copy_err=ignore_copy_err
-                )
+            if self._masks is not None:
+                for i, k in enumerate(self._masks):
+                    id_ = "{}{}".format(id_, i) if id_ is not None else None
+                    self._masks[k].bind_to_run(
+                        run, key, step, id_, ignore_copy_err=ignore_copy_err
+                    )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Image, self).to_json(run_or_artifact)
