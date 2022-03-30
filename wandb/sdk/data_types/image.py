@@ -288,6 +288,7 @@ class Image(BatchableMedia):
             _boxes = {}
             for key in boxes:
                 _boxes[key] = BoundingBoxes2D.from_json(boxes[key], source_artifact)
+                _boxes[key]._set_artifact_source(source_artifact)
                 _boxes[key]._key = key
 
         return cls(
