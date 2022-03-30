@@ -307,7 +307,7 @@ def test_launch_kube_failed(
         "resource": "kubernetes",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {"config_file": "dummy.yaml",},
+        "resource_args": {"kubernetes": {"config_file": "dummy.yaml"}},
     }
     run = launch.run(**kwargs)
 

@@ -87,14 +87,9 @@ class KubernetesSubmittedRun(AbstractRun):
                     )
                 )
             if self._fail_count > MAX_KUBERNETES_RETRIES:
-                if hasattr(e, "body") and hasattr(e.body, "message"):
-                    raise LaunchError(
-                        f"Failed to start job {self.name}, because of error {str(e.body.message)}"
-                    )
-                else:
-                    raise LaunchError(
-                        f"Failed to start job {self.name}, because of error {str(e)}"
-                    )
+                raise LaunchError(
+                    f"Failed to start job {self.name}, because of error {str(e)}"
+                )
 
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         if status.succeeded == 1:
@@ -138,7 +133,7 @@ class KubernetesSubmittedRun(AbstractRun):
 class KubernetesRunner(AbstractRunner):
     def _set_context(
         self,
-        kubernetes: Any,
+        kubernetes: Any,  # noqa: F811
         config_file: str,
         resource_args: Dict[str, Any],  # noqa: F811
     ) -> Any:
