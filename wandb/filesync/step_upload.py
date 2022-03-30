@@ -1,25 +1,49 @@
 """Batching file prepare requests to our API."""
 
-import collections
 import threading
+from typing import Any, Callable, NamedTuple, Union
 from six.moves import queue
 
 from wandb.filesync import upload_job
 from wandb.errors.term import termerror
 
 
-RequestUpload = collections.namedtuple(
+RequestUpload = NamedTuple(
     "EventStartUploadJob",
-    ("path", "save_name", "artifact_id", "md5", "copied", "save_fn", "digest"),
+    (
+        ("path", str),
+        ("save_name", str),
+        ("artifact_id", str),
+        ("md5", str),
+        ("copied", bool),
+        ("save_fn", Callable[..., Any]),
+        ("digest", Any),
+    ),
 )
-RequestCommitArtifact = collections.namedtuple(
-    "RequestCommitArtifact", ("artifact_id", "finalize", "before_commit", "on_commit")
+RequestCommitArtifact = NamedTuple(
+    "RequestCommitArtifact",
+    (
+        ("artifact_id", str),
+        ("finalize", bool),
+        ("before_commit", Callable[..., Any]),
+        ("on_commit", Callable[..., Any]),
+    ),
 )
-RequestFinish = collections.namedtuple("RequestFinish", ("callback"))
+RequestFinish = NamedTuple("RequestFinish", (("callback", Callable[..., Any]),))
+
+Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish]
 
 
 class StepUpload(object):
-    def __init__(self, api, stats, event_queue, max_jobs, file_stream, silent=False):
+    def __init__(
+        self,
+        api,
+        stats,
+        event_queue: "queue.Queue[Event]",
+        max_jobs,
+        file_stream,
+        silent=False,
+    ):
         self._api = api
         self._stats = stats
         self._event_queue = event_queue

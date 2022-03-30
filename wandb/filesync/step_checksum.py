@@ -1,37 +1,56 @@
 """Batching file prepare requests to our API."""
 
-import collections
 import os
+import queue
 import shutil
 import threading
+from typing import Any, Callable, NamedTuple, Union
 import wandb.util
 
 from wandb.filesync import step_upload
 
 
-RequestUpload = collections.namedtuple(
+RequestUpload = NamedTuple(
     "RequestUpload",
     (
-        "path",
-        "save_name",
-        "artifact_id",
-        "copy",
-        "use_prepare_flow",
-        "save_fn",
-        "digest",
+        ("path", str),
+        ("save_name", str),
+        ("artifact_id", str),
+        ("copy", bool),
+        ("use_prepare_flow", bool),
+        ("save_fn", Callable[..., Any]),
+        ("digest", Any),
     ),
 )
-RequestStoreManifestFiles = collections.namedtuple(
-    "RequestStoreManifestFiles", ("manifest", "artifact_id", "save_fn")
+RequestStoreManifestFiles = NamedTuple(
+    "RequestStoreManifestFiles",
+    (("manifest", Any), ("artifact_id", str), ("save_fn", Callable[..., Any])),
 )
-RequestCommitArtifact = collections.namedtuple(
-    "RequestCommitArtifact", ("artifact_id", "finalize", "before_commit", "on_commit")
+RequestCommitArtifact = NamedTuple(
+    "RequestCommitArtifact",
+    (
+        ("artifact_id", str),
+        ("finalize", bool),
+        ("before_commit", Callable[..., Any]),
+        ("on_commit", Callable[..., Any]),
+    ),
 )
-RequestFinish = collections.namedtuple("RequestFinish", ("callback"))
+RequestFinish = NamedTuple("RequestFinish", (("callback", Callable[..., Any]),))
+
+Event = Union[
+    RequestUpload, RequestStoreManifestFiles, RequestCommitArtifact, RequestFinish
+]
 
 
 class StepChecksum(object):
-    def __init__(self, api, tempdir, request_queue, output_queue, stats):
+    def __init__(
+        self,
+        api,
+        tempdir,
+        request_queue: "queue.Queue[Event]",
+        output_queue: "queue.Queue[step_upload.Event]",
+        stats,
+    ):
         self._api = api
         self._tempdir = tempdir
         self._request_queue = request_queue

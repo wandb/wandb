@@ -1,20 +1,32 @@
 """Batching file prepare requests to our API."""
 
-import collections
 import threading
 import time
+from typing import Any, Callable, NamedTuple, Sequence, Union
 from six.moves import queue
 
 # Request for a file to be prepared.
-RequestPrepare = collections.namedtuple(
-    "RequestPrepare", ("prepare_fn", "on_prepare", "response_queue")
+RequestPrepare = NamedTuple(
+    "RequestPrepare",
+    (
+        ("prepare_fn", Callable[..., Any]),
+        ("on_prepare", Callable[..., Any]),
+        ("response_queue", "queue.Queue[ResponsePrepare]"),
+    ),
 )
 
-RequestFinish = collections.namedtuple("RequestFinish", ())
+RequestFinish = NamedTuple("RequestFinish", ())
 
-ResponsePrepare = collections.namedtuple(
-    "ResponsePrepare", ("upload_url", "upload_headers", "birth_artifact_id")
+ResponsePrepare = NamedTuple(
+    "ResponsePrepare",
+    (
+        ("upload_url", str),
+        ("upload_headers", Sequence[str]),
+        ("birth_artifact_id", str),
+    ),
 )
+
+Event = Union[RequestPrepare, RequestFinish, ResponsePrepare]
 
 
 class StepPrepare(object):
