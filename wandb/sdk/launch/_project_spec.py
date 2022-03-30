@@ -165,22 +165,12 @@ class LaunchProject(object):
             return None
         return list(self._entry_points.values())[0]
 
-    def add_entry_point(self, entry_point: str) -> "EntryPoint":
+    def add_entry_point(self, command: str) -> "EntryPoint":
         """Adds an entry point to the project."""
-        _, file_extension = os.path.splitext(entry_point)
-        ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
-        if file_extension in ext_to_cmd:
-            command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
-            new_entrypoint = EntryPoint(name=entry_point, command=command)
-            self._entry_points[entry_point] = new_entrypoint
-            return new_entrypoint
-        raise ExecutionError(
-            "Could not find {0} among entry points {1} or interpret {0} as a "
-            "runnable script. Supported script file extensions: "
-            "{2}".format(
-                entry_point, list(self._entry_points.keys()), list(ext_to_cmd.keys())
-            )
-        )
+        entry_point = command.split(" ")[-1]
+        new_entrypoint = EntryPoint(name=entry_point, command=command)
+        self._entry_points[entry_point] = new_entrypoint
+        return new_entrypoint
 
     def get_entry_point(self, entry_point: str) -> "EntryPoint":
         """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
@@ -202,7 +192,7 @@ class LaunchProject(object):
             run_info = utils.fetch_wandb_project_run_info(
                 source_entity, source_project, source_run_name, internal_api
             )
-            entry_point = run_info.get("codePath") or run_info["program"]
+            program_name = run_info.get("codePath") or run_info["program"]
 
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
@@ -254,13 +244,13 @@ class LaunchProject(object):
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
                 # For cases where the entry point wasn't checked into git
-                if not os.path.exists(os.path.join(self.project_dir, entry_point)):
+                if not os.path.exists(os.path.join(self.project_dir, program_name)):
                     downloaded_entrypoint = utils.download_entry_point(
                         source_entity,
                         source_project,
                         source_run_name,
                         internal_api,
-                        entry_point,
+                        program_name,
                         self.project_dir,
                     )
                     if not downloaded_entrypoint:
@@ -274,10 +264,10 @@ class LaunchProject(object):
 
             if (
                 "_session_history.ipynb" in os.listdir(self.project_dir)
-                or ".ipynb" in entry_point
+                or ".ipynb" in program_name
             ):
-                entry_point = utils.convert_jupyter_notebook_to_script(
-                    entry_point, self.project_dir
+                program_name = utils.convert_jupyter_notebook_to_script(
+                    program_name, self.project_dir
                 )
 
             # Download any frozen requirements
@@ -293,6 +283,15 @@ class LaunchProject(object):
             self.python_version = run_info.get("python", "3")
 
             if not self._entry_points:
+                _, ext = os.path.splitext(program_name)
+                if ext == ".py":
+                    entry_point = f"python {program_name}"
+                elif ext == ".sh":
+                    command = os.environ.get("SHELL", "bash")
+                    entry_point = f"{command} {program_name}"
+                else:
+                    raise LaunchError("Unsupported entrypoint: {}".format(program_name))
+
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
@@ -304,9 +303,9 @@ class LaunchProject(object):
 
             if not self._entry_points:
                 wandb.termlog(
-                    "Entry point for repo not specified, defaulting to main.py"
+                    "Entry point for repo not specified, defaulting to python main.py"
                 )
-                self.add_entry_point("main.py")
+                self.add_entry_point("python main.py")
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
