@@ -31,6 +31,7 @@ class WBURLs:
             doc_require="https://wandb.me/library-require",
             doc_start_err="https://docs.wandb.ai/library/init#init-start-error",
             upgrade_local="https://wandb.me/local-upgrade",
+            multiprocess="http://wandb.me/init-multiprocess",
             wandb_init="https://wandb.me/wandb-init",
         )
 

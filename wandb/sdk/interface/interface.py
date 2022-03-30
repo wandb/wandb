@@ -498,13 +498,11 @@ class InterfaceBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str]
-    ) -> None:
+    def publish_tbdata(self, log_dir: str, save: bool, root_logdir: str = "") -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
+        tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
     @abstractmethod
@@ -535,7 +533,6 @@ class InterfaceBase(object):
             item.key = k
             item.value_json = json_dumps_safer_history(v)
         if publish_step and step is not None:
-            # assert step is not None
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush

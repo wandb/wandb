@@ -1445,6 +1445,10 @@ def _is_databricks() -> bool:
     return False
 
 
+def _is_py_path(path: str) -> bool:
+    return path.endswith(".py")
+
+
 def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
     """Consolidate violation strings from wandb/sweeps describing the ways in which a
     sweep config violates the allowed schema as a single string.
@@ -1542,10 +1546,14 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
     return False
 
 
-def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
-    if os.path.splitext(config)[-1] == ".json":
+def load_json_yaml_dict(config: str) -> Any:
+    ext = os.path.splitext(config)[-1]
+    if ext == ".json":
         with open(config, "r") as f:
             return json.load(f)
+    elif ext == ".yaml":
+        with open(config, "r") as f:
+            return yaml.safe_load(f)
     else:
         try:
             return json.loads(config)
@@ -1648,8 +1656,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
 
 
 def _get_max_cli_version() -> Union[str, None]:
-    _, server_info = wandb.api.viewer_server_info()
-    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
 
 

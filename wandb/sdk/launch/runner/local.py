@@ -2,20 +2,23 @@ import logging
 import os
 import signal
 import subprocess
-from typing import Any, Dict, Optional
+import sys
+from typing import Any, Dict, List, Optional
 
+from six.moves import shlex_quote
 import wandb
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import LaunchProject
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     construct_local_image_uri,
     generate_docker_image,
-    get_docker_command,
+    get_env_vars_dict,
     pull_docker_image,
     validate_docker_installation,
 )
 from ..utils import (
+    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
@@ -71,29 +74,31 @@ class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
-        _logger.info("Validating docker installation")
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        entry_point = launch_project.get_single_entry_point()
+        if launch_project.cuda:
+            docker_args["gpus"] = "all"
 
+        if _is_wandb_local_uri(self._api.settings("base_url")):
+            if sys.platform == "win32":
+                docker_args["net"] = "host"
+            else:
+                docker_args["network"] = "host"
+            if sys.platform == "linux" or sys.platform == "linux2":
+                docker_args["add-host"] = "host.docker.internal:host-gateway"
+
+        entry_point = launch_project.get_single_entry_point()
+        env_vars = get_env_vars_dict(launch_project, self._api)
         if launch_project.docker_image:
             # user has provided their own docker image
-            _logger.info("Pulling user provided docker image")
-            pull_docker_image(launch_project.docker_image)
-
-            wandb.termwarn(
-                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
-                    launch_project.docker_image
-                )
-            )
             image_uri = launch_project.docker_image
-
+            pull_docker_image(image_uri)
+            env_vars.pop("WANDB_RUN_ID")
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
             generate_docker_image(
-                self._api,
                 launch_project,
                 image_uri,
                 entry_point,
@@ -104,7 +109,12 @@ class LocalRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        command_str = " ".join(get_docker_command(image_uri, docker_args))
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
+
+        command_str = " ".join(
+            get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+        ).strip()
+
         wandb.termlog(
             "Launching run in docker with command: {}".format(
                 sanitize_wandb_api_key(command_str)
@@ -116,7 +126,7 @@ class LocalRunner(AbstractRunner):
         return run
 
 
-def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -126,6 +136,8 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     Returns:
         An instance of `LocalSubmittedRun`
     """
+    if work_dir is None:
+        work_dir = os.getcwd()
     env = os.environ.copy()
     if os.name == "nt":
         # we are running on windows
@@ -138,3 +150,44 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
 
     return LocalSubmittedRun(process)
+
+
+def get_docker_command(
+    image: str,
+    env_vars: Dict[str, str],
+    entry_cmd: str,
+    docker_args: Dict[str, Any] = None,
+) -> List[str]:
+    """Constructs the docker command using the image and docker args.
+
+    Arguments:
+    image: a Docker image to be run
+    env_vars: a dictionary of environment variables for the command
+    entry_cmd: the entry point command to run
+    docker_args: a dictionary of additional docker args for the command
+    """
+    docker_path = "docker"
+    cmd: List[Any] = [docker_path, "run", "--rm"]
+
+    # hacky handling of env vars, needs to be improved
+    for env_key, env_value in env_vars.items():
+        cmd += ["-e", f"{shlex_quote(env_key)}={shlex_quote(env_value)}"]
+
+    if docker_args:
+        for name, value in docker_args.items():
+            # Passed just the name as boolean flag
+            if isinstance(value, bool) and value:
+                if len(name) == 1:
+                    cmd += ["-" + shlex_quote(name)]
+                else:
+                    cmd += ["--" + shlex_quote(name)]
+            else:
+                # Passed name=value
+                if len(name) == 1:
+                    cmd += ["-" + shlex_quote(name), shlex_quote(str(value))]
+                else:
+                    cmd += ["--" + shlex_quote(name), shlex_quote(str(value))]
+
+    cmd += [shlex_quote(image)]
+    cmd += [entry_cmd]
+    return cmd

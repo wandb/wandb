@@ -2,7 +2,11 @@
 wandb integration tensorboard module.
 """
 
+from .log import _log, log, reset_state, tf_summary_to_dict  # noqa: F401
 from .monkeypatch import patch, unpatch
-from .log import _log, log, tf_summary_to_dict, reset_state
 
-__all__ = ["patch"]
+__all__ = [
+    "patch",
+    "unpatch",
+    "log",
+]
