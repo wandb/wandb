@@ -4,7 +4,10 @@ tag:
 
 plugin:
   - wandb
-  - joblib
+
+depend:
+  requirements:
+    - joblib
 
 var:
   - run_0:
