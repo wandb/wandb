@@ -88,7 +88,7 @@ Event Handler Classes
 import os.path
 import logging
 import re
-from pathtools.patterns import match_any_paths
+from .patterns import match_any_paths
 from watchdog.utils import has_attribute
 from watchdog.utils import unicode_paths
 

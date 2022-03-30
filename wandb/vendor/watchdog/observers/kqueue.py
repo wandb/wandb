@@ -87,14 +87,7 @@ import stat
 import os
 
 # See the notes for this module in the documentation above ^.
-#import select
-# if not has_attribute(select, 'kqueue') or sys.version_info < (2, 7, 0):
-if sys.version_info < (2, 7, 0):
-    import select_backport as select
-else:
-    import select
-
-from pathtools.path import absolute_path
+import select
 
 from watchdog.observers.api import (
     BaseObserver,
@@ -141,6 +134,19 @@ WATCHDOG_KQ_FFLAGS = (
     select.KQ_NOTE_RENAME |
     select.KQ_NOTE_REVOKE
 )
+
+
+def absolute_path(path):
+    """
+    Returns the absolute path for the given path and normalizes the path.
+
+    :param path:
+        Path for which the absolute normalized path will be found.
+    :returns:
+        Absolute normalized path.
+    """
+    return os.path.abspath(os.path.normpath(path))
+
 
 # Flag tests.
 
