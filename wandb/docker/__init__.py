@@ -203,7 +203,7 @@ def image_id(image_name: str) -> Optional[str]:
         return image_name
     else:
         return shell(
-            ["inspect", image_name, "--format", "{{index .RepoDigests 0}}"]
+            ["inspect", image_name, "--format", "{{.Id}}"]
         ) or image_id_from_registry(image_name)
 
 
