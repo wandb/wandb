@@ -3,15 +3,29 @@ import os
 
 import wandb
 from wandb.cli import cli
-from wandb.apis.internal import InternalApi
+from wandb.errors import LaunchError
 import pytest
-from tests import utils
 
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
 
-def test_launch(runner, test_settings, live_mock_server, mocked_fetchable_git_repo):
-    pass
+def raise_(ex):
+    raise ex
+
+
+@pytest.fixture
+def kill_agent_on_update_job(monkeypatch):
+    def patched_update_finished(self, job_id):
+        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+            self.finish_job_id(job_id)
+            if self._running == 0:
+                # only 1 run in test so kill after it's done
+                raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent._update_finished",
+        lambda c, job_id: patched_update_finished(c, job_id),
+    )
 
 
 def test_launch_add_default(runner, test_settings, live_mock_server):
@@ -46,26 +60,20 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_agent_base(
-    runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
+    runner,
+    test_settings,
+    live_mock_server,
+    mocked_fetchable_git_repo,
+    kill_agent_on_update_job,
 ):
-    def patched_update_finished(self, job_id):
-        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
-            self.finish_job_id(job_id)
-            if self._running == 0:
-                # only 1 run in test so kill after it's done
-                raise KeyboardInterrupt
 
     with runner.isolated_filesystem():
-        monkeypatch.setattr(
-            "wandb.sdk.launch.agent.LaunchAgent._update_finished",
-            lambda c, job_id: patched_update_finished(c, job_id),
-        )
         result = runner.invoke(cli.launch_agent, "test_project")
         ctx = live_mock_server.get_ctx()
         assert ctx["num_popped"] == 1
         assert ctx["num_acked"] == 1
         assert len(ctx["launch_agents"].keys()) == 1
-        assert ctx["run_queues_return_default"] == True
+        assert ctx["run_queues_return_default"] is True
         assert "Shutting down, active jobs" in result.output
         assert "polling on project" in result.output
 
@@ -96,8 +104,20 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         assert result.exit_code != 0
 
 
-def test_agent_update_failed(runner, test_settings, live_mock_server):
+def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatch):
     live_mock_server.set_ctx({"launch_agent_update_fail": True})
+    monkeypatch.setattr(
+        wandb.sdk.launch.agent.agent.LaunchAgent, "pop_from_queue", lambda *args: None,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.agent.agent.LaunchAgent,
+        "print_status",
+        lambda x: raise_(KeyboardInterrupt),
+    )
+
+    # m = mock.Mock()
+    # m.sleep = lambda x: raise_(KeyboardInterrupt)
+    # with mock.patch.dict("sys.modules", time=m):
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
@@ -237,29 +257,26 @@ def test_launch_queue_error(runner):
 
 
 def test_launch_supplied_docker_image(
-    runner, monkeypatch, live_mock_server, mocked_fetchable_git_repo
+    runner, monkeypatch, live_mock_server,
 ):
-    def patched_pull_docker_image(docker_image):
-        return  # noop
+    def patched_run_run_entry(cmd, dir):
+        print(f"running command: {cmd}")
+        return cmd  # noop
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local.pull_docker_image",
-        lambda docker_image: patched_pull_docker_image(docker_image),
+        "wandb.sdk.launch.runner.local.pull_docker_image", lambda docker_image: None,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local._run_entry_point", patched_run_run_entry,
     )
     with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            [
-                "https://github.com/test/repo.git",
-                "--entry-point",
-                "train.py",
-                "--docker-image",
-                "test:tag",
-            ],
-        )
+        result = runner.invoke(cli.launch, ["--async", "--docker-image", "test:tag",],)
 
     assert result.exit_code == 0
-    assert "Using supplied docker image: test:tag" in result.output
+    assert "-e WANDB_DOCKER=test:tag" in result.output
+    assert " -e WANDB_CONFIG='{}'" in result.output
+    assert "-e WANDB_ARTIFACTS='{}'" in result.output
+    assert "test:tag" in result.output
 
 
 @pytest.mark.timeout(320)
@@ -281,3 +298,51 @@ def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
         result = runner.invoke(cli.launch, args + ["--cuda", "asdf"],)
     assert result.exit_code != 0
     assert "Invalid value for --cuda:" in result.output
+
+
+def test_launch_agent_project_environment_variable(
+    runner, test_settings, live_mock_server, monkeypatch,
+):
+    monkeypatch.setenv("WANDB_PROJECT", "test_project")
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.run_job",
+        lambda a, b: raise_(KeyboardInterrupt),
+    )
+    result = runner.invoke(cli.launch_agent)
+    assert (
+        "You must specify a project name or set WANDB_PROJECT environment variable."
+        not in str(result.output)
+    )
+
+
+def test_launch_agent_no_project(runner, test_settings, live_mock_server):
+    result = runner.invoke(cli.launch_agent)
+    print(result.exit_code, result.output, result.exception)
+    assert result.exit_code == 1
+    assert (
+        "You must specify a project name or set WANDB_PROJECT environment variable."
+        in str(result.output)
+    )
+
+
+def test_launch_agent_launch_error_continue(
+    runner, test_settings, live_mock_server, monkeypatch
+):
+    def print_then_exit():
+        print("except caught, acked item")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.run_job",
+        lambda a, b: raise_(LaunchError("blah blah")),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.ack_run_queue_item",
+        lambda a, b: print_then_exit(),
+    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
+        )
+        assert "blah blah" in result.output
+        assert "except caught, acked item" in result.output

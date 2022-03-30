@@ -65,17 +65,20 @@ def sanitize_wandb_api_key(s: str) -> str:
 
 
 def set_project_entity_defaults(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
 ) -> Tuple[str, str]:
     # set the target project and entity if not provided
-    if _is_wandb_uri(uri):
-        _, uri_project, _ = parse_wandb_uri(uri)
-    elif _is_git_uri(uri):
-        uri_project = os.path.splitext(os.path.basename(uri))[0]
+    if uri is not None:
+        if _is_wandb_uri(uri):
+            _, uri_project, _ = parse_wandb_uri(uri)
+        elif _is_git_uri(uri):
+            uri_project = os.path.splitext(os.path.basename(uri))[0]
+        else:
+            uri_project = UNCATEGORIZED_PROJECT
     else:
         uri_project = UNCATEGORIZED_PROJECT
     if project is None:
@@ -96,7 +99,7 @@ def set_project_entity_defaults(
 
 
 def construct_launch_spec(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     name: Optional[str],
     project: Optional[str],
@@ -113,7 +116,8 @@ def construct_launch_spec(
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
-    launch_spec["uri"] = uri
+    if uri is not None:
+        launch_spec["uri"] = uri
     project, entity = set_project_entity_defaults(
         uri, api, project, entity, launch_config,
     )
@@ -368,5 +372,6 @@ def to_camel_case(maybe_snake_str: str) -> str:
     return "".join(x.title() if x else "_" for x in components)
 
 
-def run_shell(args: List[str]) -> str:
-    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
+def run_shell(args: List[str]) -> Tuple[str, str]:
+    out = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()

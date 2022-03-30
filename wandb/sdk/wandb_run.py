@@ -492,7 +492,30 @@ class Run:
                 sweep_config, user="sweep", _allow_val_change=True
             )
 
-        if (
+        if self._settings.launch and (
+            os.environ.get("WANDB_CONFIG") is not None
+            or os.environ.get("WANDB_ARTIFACTS") is not None
+        ):
+            if os.environ.get("WANDB_CONFIG") is not None:
+                try:
+                    new_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+                    self._config.update_locked(
+                        new_config, user="launch", _allow_val_change=True
+                    )
+                except (ValueError, SyntaxError):
+                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+            if os.environ.get("WANDB_ARTIFACTS") is not None:
+                try:
+                    artifacts: Dict[str, Any] = json.loads(
+                        os.environ.get("WANDB_ARTIFACTS", "{}")
+                    )
+                    self._initialize_launch_artifact_maps(artifacts)
+                except (ValueError, SyntaxError):
+                    wandb.termwarn(
+                        "Malformed WANDB_ARTIFACTS, using original artifacts"
+                    )
+
+        elif (
             self._settings.launch
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
@@ -501,26 +524,8 @@ class Run:
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
-                for key, item in (
-                    launch_config.get("overrides").get("artifacts").items()
-                ):
-                    self._launch_artifact_mapping[key] = item
-                    artifact_sequence_tuple_or_slot = key.split(":")
-
-                    if len(artifact_sequence_tuple_or_slot) == 2:
-                        sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[
-                            -1
-                        ]
-                        if self._unique_launch_artifact_sequence_names.get(
-                            sequence_name
-                        ):
-                            self._unique_launch_artifact_sequence_names.pop(
-                                sequence_name
-                            )
-                        else:
-                            self._unique_launch_artifact_sequence_names[
-                                sequence_name
-                            ] = item
+                artifacts = launch_config.get("overrides").get("artifacts")
+                self._initialize_launch_artifact_maps(artifacts)
 
             launch_run_config = launch_config.get("overrides", {}).get("run_config")
             if launch_run_config:
@@ -547,6 +552,18 @@ class Run:
 
     def _set_iface_port(self, iface_port: int) -> None:
         self._iface_port = iface_port
+
+    def _initialize_launch_artifact_maps(self, artifacts: Dict[str, Any]) -> None:
+        for key, item in artifacts.items():
+            self._launch_artifact_mapping[key] = item
+            artifact_sequence_tuple_or_slot = key.split(":")
+
+            if len(artifact_sequence_tuple_or_slot) == 2:
+                sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[-1]
+                if self._unique_launch_artifact_sequence_names.get(sequence_name):
+                    self._unique_launch_artifact_sequence_names.pop(sequence_name)
+                else:
+                    self._unique_launch_artifact_sequence_names[sequence_name] = item
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
