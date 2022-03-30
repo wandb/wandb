@@ -137,15 +137,14 @@ class KubernetesSubmittedRun(AbstractRun):
 
 class KubernetesRunner(AbstractRunner):
     def _set_context(
-        self, kubernetes: Any, config_file: str, resource_args: dict[str, Any]
-    ) -> Any:  # noqa: F811
+        self,
+        kubernetes: Any,
+        config_file: str,
+        resource_args: Dict[str, Any],  # noqa: F811
+    ) -> Any:
         all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
             config_file
         )
-        assert {
-            "name": "active-context",
-            "context": {"namespace": "active-namespace"},
-        } in all_contexts   # @@@
         if resource_args.get("context"):
             context_name = resource_args["context"]
             for c in all_contexts:

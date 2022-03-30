@@ -202,6 +202,7 @@ def test_launch_kube(
         "resource_args": {
             "kubernetes": {
                 "job_spec": json.dumps(multi_spec),
+                "config_file": "dummy.yaml",
                 "registry": "test.registry",
                 "job_name": "test-job",
                 "job_labels": {"test-label": "test-val"},
@@ -266,7 +267,9 @@ def test_launch_kube_suspend_cancel(
         "resource": "kubernetes",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {"kubernetes": {"suspend": False,},},
+        "resource_args": {
+            "kubernetes": {"config_file": "dummy.yaml", "suspend": False,},
+        },
         "synchronous": False,
     }
     run = launch.run(**kwargs)
@@ -304,7 +307,7 @@ def test_launch_kube_failed(
         "resource": "kubernetes",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {},
+        "resource_args": {"config_file": "dummy.yaml",},
     }
     run = launch.run(**kwargs)
 
