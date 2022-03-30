@@ -910,7 +910,6 @@ def sweep(
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
     _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
     _ = util.get_module("chardet", required=req_string,)
     _ = util.get_module("iso8601", required=req_string)
 
@@ -920,7 +919,7 @@ def _check_launch_imports():
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
-@click.argument("uri")
+@click.argument("uri", nargs=1, required=False)
 @click.option(
     "--entry-point",
     "-E",
@@ -1083,18 +1082,26 @@ def launch(
     args_dict = util._user_args_to_dict(args_list)
 
     if resource_args is not None:
-        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        resource_args = util.load_json_yaml_dict(resource_args)
         if resource_args is None:
             raise LaunchError("Invalid format for resource-args")
     else:
         resource_args = {}
 
     if config is not None:
-        config = util.load_as_json_file_or_load_dict_as_json(config)
+        config = util.load_json_yaml_dict(config)
         if config is None:
             raise LaunchError("Invalid format for config")
     else:
         config = {}
+
+    if (
+        uri is None
+        and docker_image is None
+        and config.get("uri") is not None
+        and config.get("docker", {}).get("docker_image") is None
+    ):
+        raise LaunchError("Must pass a URI or a docker image to launch.")
 
     if queue is None:
         # direct launch
@@ -1142,7 +1149,7 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.argument("project", nargs=1)
+@click.argument("project", nargs=1, required=False)
 @click.option(
     "--entity",
     "-e",
@@ -1153,7 +1160,7 @@ def launch(
 @click.option(
     "--max-jobs",
     "-j",
-    default=1,
+    default=None,
     help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
 )
 @display_error
@@ -1168,6 +1175,13 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     wandb.termlog(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
+    if project is None:
+        project = os.environ.get("WANDB_PROJECT")
+
+        if project is None:
+            raise LaunchError(
+                "You must specify a project name or set WANDB_PROJECT environment variable."
+            )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1177,6 +1191,8 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
 
     if entity is None:
         entity = api.default_entity
+    if max_jobs is None:
+        max_jobs = float(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))
 
     wandb.termlog("Starting launch agent ✨")
 

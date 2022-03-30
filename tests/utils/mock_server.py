@@ -13,6 +13,7 @@ import gzip
 import functools
 import time
 import requests
+from werkzeug.exceptions import BadRequest
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -476,7 +477,13 @@ def create_app(user_ctx=None):
     def update_ctx():
         """Updating context for live_mock_server"""
         ctx = get_ctx()
-        body = request.get_json()
+        # in Flask/Werkzeug 2.1.0 get_json raises an exception on
+        # empty json, so we try/catch here
+        try:
+            body = request.get_json()
+        except BadRequest:
+            body = None
+
         if request.method == "GET":
             ctx = snoop.context_enrich(ctx)
             return json.dumps(ctx)
@@ -1785,10 +1792,14 @@ def create_app(user_ctx=None):
                     },
                 }
         elif file == "wandb-metadata.json":
+            if ctx["return_jupyter_in_run_info"]:
+                code_path = "one_cell.ipynb"
+            else:
+                code_path = "train.py"
             result = {
                 "docker": "test/docker",
                 "program": "train.py",
-                "codePath": "train.py",
+                "codePath": code_path,
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }

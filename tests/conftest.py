@@ -29,6 +29,7 @@ from wandb import wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.lib.module import unset_globals
 from wandb.sdk.lib.git import GitRepo
@@ -207,6 +208,12 @@ def git_repo_with_remote_and_empty_pass(runner):
 @pytest.fixture
 def dummy_api_key():
     return DUMMY_API_KEY
+
+
+@pytest.fixture
+def reinit_internal_api():
+    with mock.patch("wandb.api", InternalApi()):
+        yield
 
 
 @pytest.fixture
