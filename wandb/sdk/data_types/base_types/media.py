@@ -165,28 +165,9 @@ class Media(WBValue):
 
         json_obj = {}
         if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
-            if not self.is_bound():
-                raise RuntimeError(
-                    "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
-                        type(self).__name__
-                    )
-                )
-
-            assert (
-                self._run is run
-            ), "We don't support referring to media files across runs."
-
-            # The following two assertions are guaranteed to pass
-            # by definition is_bound, but are needed for
-            # mypy to understand that these are strings below.
-            assert isinstance(self._path, str)
-
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-                    "path": util.to_forward_slash_path(
-                        os.path.relpath(self._path, self._run.dir)
-                    ),
                     "sha256": self._sha256,
                     "size": self._size,
                 }
@@ -197,6 +178,27 @@ class Media(WBValue):
             artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
             if artifact_entry_latest_url is not None:
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
+
+            if artifact_entry_url is None:
+                if not self.is_bound():
+                    raise RuntimeError(
+                        "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
+                            type(self).__name__
+                        )
+                    )
+
+                assert (
+                    self._run is run
+                ), "We don't support referring to media files across runs."
+
+                # The following two assertions are guaranteed to pass
+                # by definition is_bound, but are needed for
+                # mypy to understand that these are strings below.
+                assert isinstance(self._path, str)
+                json_obj["path"] = util.to_forward_slash_path(
+                    os.path.relpath(self._path, self._run.dir)
+                )
+
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
@@ -245,6 +247,8 @@ class Media(WBValue):
                             self._path, name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
+                        if self._artifact_target is None:
+                            self._set_artifact_target(artifact, name)
 
                 json_obj["path"] = name
                 json_obj["sha256"] = self._sha256
