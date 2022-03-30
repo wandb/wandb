@@ -225,7 +225,7 @@ class Molecule(BatchableMedia):
 
         for obj in jsons:
             expected = util.to_forward_slash_path(cls.get_media_subdir())
-            if "path" in obj and not obj["path"].startswith(expected):
+            if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Molecule's must be in the {} directory, not {}".format(
                         cls.get_media_subdir(), obj["path"]
@@ -234,7 +234,7 @@ class Molecule(BatchableMedia):
 
         return {
             "_type": "molecule",
-            "filenames": [obj.get("path", obj.get("artifact_path")) for obj in jsons],
+            "filenames": [obj["path"] for obj in jsons],
             "count": len(jsons),
             "captions": Media.captions(seq),
         }

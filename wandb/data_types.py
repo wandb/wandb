@@ -505,20 +505,12 @@ class Table(Media):
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publically say 200k is the limit.
-
-        # This media type does not set its file right away, so we need to set the
-        # file even if short circuting. This is because we need it for sha256 calculation.
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-
-        # If the media obj belongs to an artifact, skip adding the files to the run itself
-        if self._get_artifact_entry_ref_url() is not None:
-            return
-
         super(Table, self).bind_to_run(*args, **kwargs)
 
     @classmethod

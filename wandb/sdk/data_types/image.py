@@ -313,11 +313,6 @@ class Image(BatchableMedia):
         ignore_copy_err: Optional[bool] = None,
     ) -> None:
         super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
-
-        # If the media obj belongs to an artifact, skip adding the files to the run itself
-        if self._get_artifact_entry_ref_url() is not None:
-            return
-
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
@@ -440,7 +435,7 @@ class Image(BatchableMedia):
 
         for obj in jsons:
             expected = util.to_forward_slash_path(media_dir)
-            if "path" in obj and not obj["path"].startswith(expected):
+            if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
                         cls.get_media_subdir(), obj["path"]
@@ -469,9 +464,7 @@ class Image(BatchableMedia):
             "count": num_images_to_log,
         }
         if _server_accepts_image_filenames():
-            meta["filenames"] = [
-                obj.get("path", obj.get("artifact_path")) for obj in jsons
-            ]
+            meta["filenames"] = [obj["path"] for obj in jsons]
         else:
             wandb.termwarn(
                 "Unable to log image array filenames. In some cases, this can prevent images from being"

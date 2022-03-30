@@ -240,11 +240,6 @@ class BoundingBoxes2D(JSONMetadata):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
-
-        # If the media obj belongs to an artifact, skip adding the files to the run itself
-        if self._get_artifact_entry_ref_url() is not None:
-            return
-
         run._add_singleton(
             "bounding_box/class_labels",
             str(key) + "_wandb_delimeter_" + self._key,
@@ -313,9 +308,9 @@ class BoundingBoxes2D(JSONMetadata):
         return True
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(BoundingBoxes2D, self).to_json(run_or_artifact)
+
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
-            return json_dict
+            return super(BoundingBoxes2D, self).to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output
