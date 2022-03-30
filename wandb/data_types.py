@@ -506,7 +506,7 @@ class Table(Media):
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publically say 200k is the limit.
 
-        # This media type does not set it's file right away, so we need to set the
+        # This media type does not set its file right away, so we need to set the
         # file even if short circuting. This is because we need it for sha256 calculation.
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
