@@ -239,12 +239,12 @@ class BoundingBoxes2D(JSONMetadata):
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
+        super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
 
         # If the media obj belongs to an artifact, skip adding the files to the run itself
         if self._get_artifact_entry_ref_url() is not None:
             return
 
-        super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
         run._add_singleton(
             "bounding_box/class_labels",
             str(key) + "_wandb_delimeter_" + self._key,
