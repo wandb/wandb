@@ -448,7 +448,7 @@ def syn(
     path = [pathlib.Path(p).absolute() for p in path]
     print(path)
 
-    from wandb.sync.newsync import Manager
+    from wandb.sync.newsync2 import Manager
 
     manager = Manager()
     manager.sync_items.extend(path)
