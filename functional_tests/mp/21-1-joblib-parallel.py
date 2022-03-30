@@ -1,7 +1,9 @@
-# based on issue https://wandb.atlassian.net/browse/CLI-548
+#!/usr/bin/env python
 
-from joblib import Parallel, delayed
+# based on issue https://wandb.atlassian.net/browse/CLI-548
 from math import sqrt
+
+from joblib import delayed, Parallel
 import wandb
 
 
