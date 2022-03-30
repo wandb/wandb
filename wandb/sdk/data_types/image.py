@@ -438,8 +438,7 @@ class Image(BatchableMedia):
 
         for obj in jsons:
             expected = util.to_forward_slash_path(media_dir)
-            path = obj["path"] if "path" in obj else obj["artifact_path"] if "artifact_path" in obj else ""
-            if not path.startswith(expected):
+            if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
                         cls.get_media_subdir(), obj["path"]
@@ -468,7 +467,7 @@ class Image(BatchableMedia):
             "count": num_images_to_log,
         }
         if _server_accepts_image_filenames():
-            meta["filenames"] = [obj["path"] if "path" in obj else obj["artifact_path"] for obj in jsons]
+            meta["filenames"] = [obj["path"] for obj in jsons if "path" in obj]
         else:
             wandb.termwarn(
                 "Unable to log image array filenames. In some cases, this can prevent images from being"
