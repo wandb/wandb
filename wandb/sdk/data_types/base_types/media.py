@@ -56,12 +56,11 @@ class Media(WBValue):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
-        if extension is not None and not path.endswith(extension):
-            raise ValueError(
-                'Media file extension "{}" must occur at the end of path "{}".'.format(
-                    extension, path
-                )
-            )
+        assert extension is None or path.endswith(
+            extension
+        ), 'Media file extension "{}" must occur at the end of path "{}".'.format(
+            extension, path
+        )
 
         with open(self._path, "rb") as f:
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
@@ -100,8 +99,7 @@ class Media(WBValue):
         put the file associated with this object, from which other Runs can
         refer to it.
         """
-        if not self.file_is_set():
-            raise AssertionError("bind_to_run called before _set_file")
+        assert self.file_is_set(), "bind_to_run called before _set_file"
 
         if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
             raise ValueError(
@@ -114,12 +112,8 @@ class Media(WBValue):
         assert isinstance(self._path, str)
         assert isinstance(self._sha256, str)
 
-        if run is None:
-            raise TypeError('Argument "run" must not be None.')
+        assert run is not None, 'Argument "run" must not be None.'
         self._run = run
-
-        # Following assertion required for mypy
-        assert self._run is not None
 
         if self._extension is None:
             _, extension = os.path.splitext(os.path.basename(self._path))
