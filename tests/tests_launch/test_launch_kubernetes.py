@@ -186,10 +186,7 @@ def test_launch_kube(
         "spec": {
             "template": {
                 "spec": {
-                    "containers": [
-                        {"name": "container1",},
-                        {"name": "container2",},
-                    ]
+                    "containers": [{"name": "container1",}, {"name": "container2",},]
                 }
             }
         }

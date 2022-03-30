@@ -36,8 +36,8 @@ class KubernetesSubmittedRun(AbstractRun):
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         name: str,
+        pod_names: List[str],
         namespace: Optional[str] = "default",
-        pod_names: List[str] = None,
     ) -> None:
         self.batch_api = batch_api
         self.core_api = core_api
@@ -136,10 +136,16 @@ class KubernetesSubmittedRun(AbstractRun):
 
 
 class KubernetesRunner(AbstractRunner):
-    def _set_context(self, kubernetes, config_file, resource_args):
+    def _set_context(
+        self, kubernetes: Any, config_file: str, resource_args: dict[str, Any]
+    ) -> Any:  # noqa: F811
         all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
             config_file
         )
+        assert {
+            "name": "active-context",
+            "context": {"namespace": "active-namespace"},
+        } in all_contexts   # @@@
         if resource_args.get("context"):
             context_name = resource_args["context"]
             for c in all_contexts:
@@ -370,7 +376,7 @@ class KubernetesRunner(AbstractRunner):
         )
 
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, namespace, pod_names
+            batch_api, core_api, job_name, pod_names, namespace,
         )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:
