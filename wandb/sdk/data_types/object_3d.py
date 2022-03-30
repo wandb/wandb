@@ -188,7 +188,10 @@ class Object3D(BatchableMedia):
         return {
             "_type": "object3D",
             "filenames": [
-                os.path.relpath(j["path"], cls.get_media_subdir()) if "path" in j else j["artifact_path"] for j in jsons
+                os.path.relpath(j["path"], cls.get_media_subdir())
+                if "path" in j
+                else j["artifact_path"]
+                for j in jsons
             ],
             "count": len(jsons),
             "objects": jsons,

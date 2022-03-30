@@ -468,7 +468,9 @@ class Image(BatchableMedia):
             "count": num_images_to_log,
         }
         if _server_accepts_image_filenames():
-            meta["filenames"] = [obj.get("path", obj.get("artifact_path")) for obj in jsons]
+            meta["filenames"] = [
+                obj.get("path", obj.get("artifact_path")) for obj in jsons
+            ]
         else:
             wandb.termwarn(
                 "Unable to log image array filenames. In some cases, this can prevent images from being"
