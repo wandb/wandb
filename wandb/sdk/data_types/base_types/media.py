@@ -179,7 +179,7 @@ class Media(WBValue):
             if artifact_entry_latest_url is not None:
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
 
-            if artifact_entry_url is None:
+            if artifact_entry_url is None or self.is_bound():
                 if not self.is_bound():
                     raise RuntimeError(
                         "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
