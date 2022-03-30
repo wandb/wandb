@@ -1,0 +1,88 @@
+id: 0.mp.21-1-joblib-parallel
+tag:
+  shard: service
+
+plugin:
+  - wandb
+  - joblib
+
+var:
+  - run_0:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][x]: 0
+
+  - run_1:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][x]: 1
+
+  - run_2:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][x]: 4
+
+  - run_3:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][x]: 9
+
+assert:
+  - :wandb:runs_len: 4
+  - :run_0[history][0][i]: 0
+  - :run_0[history][1][i]: 0
+  - :run_0[history][2][i]: 0
+
+  - :run_1[history][0][i]: 0
+  - :run_1[history][1][i]: 1
+  - :run_1[history][2][i]: 2
+
+  - :run_2[history][0][i]: 0
+  - :run_2[history][1][i]: 4
+  - :run_2[history][2][i]: 8
+
+  - :run_3[history][0][i]: 0
+  - :run_3[history][1][i]: 9
+  - :run_3[history][2][i]: 18
+
+  - :op:contains:
+    - :run_0[telemetry][3]  # feature
+    - 23  # service
+
+  - :op:contains:
+    - :run_0[telemetry][1]  # import init
+    - 53  # joblib
+
+  - :op:contains:
+    - :run_1[telemetry][3]  # feature
+    - 23  # service
+
+  - :op:contains:
+    - :run_1[telemetry][1]  # import init
+    - 53  # joblib
+
+  - :op:contains:
+    - :run_2[telemetry][3]  # feature
+    - 23  # service
+
+  - :op:contains:
+    - :run_2[telemetry][1]  # import init
+    - 53  # joblib
+
+  - :op:contains:
+    - :run_2[telemetry][3]  # feature
+    - 23  # service
+
+  - :op:contains:
+    - :run_3[telemetry][1]  # import init
+    - 53  # joblib
+
+
+  - :run_0[exitcode]: 0
+  - :run_1[exitcode]: 0
+  - :run_2[exitcode]: 0
+  - :run_3[exitcode]: 0
