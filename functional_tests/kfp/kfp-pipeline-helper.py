@@ -13,7 +13,7 @@ def add_wandb_env_variables(op):
     env = {
         "WANDB_API_KEY": os.getenv("WANDB_API_KEY"),
         "WANDB_BASE_URL": os.getenv("WANDB_BASE_URL"),
-        "WANDB_KUBEFLOW_BASE_PATH": os.getenv("WANDB_KUBEFLOW_BASE_PATH"),
+        "WANDB_KUBEFLOW_URL": os.getenv("WANDB_KUBEFLOW_URL"),
         "WANDB_PROJECT": "wandb_kfp_integration_test",
     }
 
@@ -64,7 +64,7 @@ def preprocess_data(
         with open(mlpipeline_ui_metadata_path, "w") as metadata_file:
             json.dump(metadata, metadata_file)
 
-    with wandb.init(project="wandb_kfp_integration_test") as run:
+    with wandb.init() as run:
         add_wandb_visualization(run, mlpipeline_ui_metadata_path)
 
         X, y = datasets.load_iris(return_X_y=True)  # noqa: N806
@@ -125,7 +125,7 @@ def train_model(
         with open(mlpipeline_ui_metadata_path, "w") as metadata_file:
             json.dump(metadata, metadata_file)
 
-    with wandb.init(project="wandb_kfp_integration_test") as run:
+    with wandb.init() as run:
         add_wandb_visualization(run, mlpipeline_ui_metadata_path)
 
         with open(X_train_path, "rb") as f:
@@ -185,7 +185,7 @@ def test_model(
         with open(mlpipeline_ui_metadata_path, "w") as metadata_file:
             json.dump(metadata, metadata_file)
 
-    with wandb.init(project="wandb_kfp_integration_test") as run:
+    with wandb.init() as run:
         add_wandb_visualization(run, mlpipeline_ui_metadata_path)
 
     with open(X_test_path, "rb") as f:
