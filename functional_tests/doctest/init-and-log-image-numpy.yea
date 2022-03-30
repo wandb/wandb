@@ -6,23 +6,27 @@ tag:
 depend:
     requirements:
         - numpy
+var:
+  - filenames_len:
+      :fn:len: :wandb:runs[0][summary][examples][filenames]
 assert:
     - :wandb:runs_len: 1
     - :op:contains:
       - :wandb:runs[0][summary]
       - examples
     - :wandb:runs[0][exitcode]: 0
-    - :wandb:runs[0][summary][examples]:
-        _type: images/separated
-        width: 100
-        height: 100
-        format: png
-        count: 3
-        captions:
-          - random field 0
-          - random field 1
-          - random field 2
-        filenames:
-          - media/images/examples_0_0.png
-          - media/images/examples_0_1.png
-          - media/images/examples_0_2.png
+    - :wandb:runs[0][summary][examples][_type]: images/separated
+    - :wandb:runs[0][summary][examples][width]: 100
+    - :wandb:runs[0][summary][examples][height]: 100
+    - :wandb:runs[0][summary][examples][format]: png
+    - :wandb:runs[0][summary][examples][count]: 3
+    - :wandb:runs[0][summary][examples][captions]: 
+        - random field 0
+        - random field 1
+        - random field 2
+    - :filenames_len: 3
+
+    - :op:contains_regex:
+      - :wandb:runs[0][summary][examples][filenames]
+      - "^media/images/examples_0_[a-f0-9]{20}.png$"
+

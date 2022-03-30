@@ -1,4 +1,5 @@
 #
+from datetime import datetime
 import json
 from typing import Any, Dict, Union
 from typing import TYPE_CHECKING
@@ -62,7 +63,7 @@ def settings_dict_from_pbmap(
     for k in pbmap:
         v_obj = pbmap[k]
         v_type = v_obj.WhichOneof("value_type")
-        v: Union[int, str, float, None, tuple] = None
+        v: Union[int, str, float, None, tuple, datetime] = None
         if v_type == "int_value":
             v = v_obj.int_value
         elif v_type == "string_value":
@@ -75,6 +76,8 @@ def settings_dict_from_pbmap(
             v = None
         elif v_type == "tuple_value":
             v = tuple(v_obj.tuple_value.string_values)
+        elif v_type == "timestamp_value":
+            v = datetime.strptime(v_obj.timestamp_value, "%Y%m%d_%H%M%S")
         d[k] = v
     return d
 

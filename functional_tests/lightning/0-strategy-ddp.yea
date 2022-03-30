@@ -1,26 +1,23 @@
-id: 0.lightning.ddp
+id: 0.lightning.strategy.ddp
 plugin:
   - wandb
 tag:
   shard: service
-command:
-  program: train-ddp.py
 depend:
   requirements:
-    - git+https://github.com/wandb/pytorch-lightning.git@wandb-service-attach
-    - setuptools<=59.5.0
+    - pytorch-lightning
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][some_hparam]: Logged Before Trainer starts DDP
-  - :wandb:runs[0][summary][epoch]: 1
-  - :wandb:runs[0][summary][trainer/global_step]: 1563
+  - :wandb:runs[0][summary][epoch]: 0
+  - :wandb:runs[0][history][30][trainer/global_step]: 1549
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
     - 23  # service
-  - :op:>:
+  - :op:>=:
     - :wandb:runs[0][summary][loss]
     - 0
-  - :op:>:
+  - :op:>=:
     - :wandb:runs[0][summary][fake_test_acc]
     - 0

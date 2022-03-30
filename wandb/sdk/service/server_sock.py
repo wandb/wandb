@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
+from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 from ..lib import tracelog
 from ..lib.proto_util import settings_dict_from_pbmap
@@ -151,6 +152,10 @@ class SockServerReadThread(threading.Thread):
             )
             inform_attach_response._error.code = 0
         else:
+            _pbmap_apply_dict(
+                inform_attach_response._settings_map,
+                dict(self._mux._streams[stream_id]._settings),
+            )
             iface = self._mux.get_stream(stream_id).interface
             assert iface
 

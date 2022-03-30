@@ -5,10 +5,11 @@ Create a grpc manager channel.
 
 import atexit
 import os
-from typing import Callable, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 
 from wandb import env
 from wandb.sdk.lib.exit_hooks import ExitHooks
+from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
 
 
 if TYPE_CHECKING:
@@ -158,9 +159,10 @@ class _Manager:
 
     def _inform_attach(self, attach_id: str) -> Optional["spb.ErrorStatus"]:
         svc_iface = self._get_service_interface()
-        inform_attach_response = svc_iface._svc_inform_attach(attach_id=attach_id)
-        if inform_attach_response.HasField("_error"):
-            return inform_attach_response._error
+        response = svc_iface._svc_inform_attach(attach_id=attach_id)
+        settings = settings_dict_from_pbmap(response._settings_map)
+        error = response._error if response.HasField("_error") else None
+        return error, settings
 
     def _inform_finish(self, run_id: str = None) -> Optional["spb.ErrorStatus"]:
         svc_iface = self._get_service_interface()
