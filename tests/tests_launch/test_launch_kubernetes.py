@@ -307,12 +307,11 @@ def test_launch_kube_failed(
         "resource": "kubernetes",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {"kubernetes": {"config_file": "dummy.yaml"}},
+        "resource_args": {},
     }
     run = launch.run(**kwargs)
 
     assert run.id == "launch-asdfasdf"
-    assert run.namespace == "active-namespace"
     assert run.pod_names == ["pod1"]
     assert run.get_status().state == "failed"
     out, err = capsys.readouterr()
