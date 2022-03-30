@@ -119,7 +119,11 @@ def construct_launch_spec(
     if uri is not None:
         launch_spec["uri"] = uri
     project, entity = set_project_entity_defaults(
-        uri, api, project, entity, launch_config,
+        uri,
+        api,
+        project,
+        entity,
+        launch_config,
     )
     launch_spec["entity"] = entity
 

@@ -3,8 +3,7 @@ def wandb_log(  # noqa: C901
     # /,  # py38 only
     log_component_file=True,
 ):
-    """Wrap a standard python function and log to W&B
-    """
+    """Wrap a standard python function and log to W&B"""
     import json
     from functools import wraps
     from inspect import Parameter, signature

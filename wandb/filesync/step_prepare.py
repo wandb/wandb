@@ -93,7 +93,7 @@ class StepPrepare(object):
 
     def prepare_async(self, prepare_fn, on_prepare=None):
         """Request the backend to prepare a file for upload.
-        
+
         Returns:
             response_queue: a queue containing the prepare result. The prepare result is
                 either a file upload url, or None if the file doesn't need to be uploaded.

@@ -669,7 +669,11 @@ def test_object3d_numpy(mocked_run):
 
 
 def test_object3d_dict(mocked_run):
-    obj = wandb.Object3D({"type": "lidar/beta",})
+    obj = wandb.Object3D(
+        {
+            "type": "lidar/beta",
+        }
+    )
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
     wandb.finish()
@@ -677,7 +681,11 @@ def test_object3d_dict(mocked_run):
 
 def test_object3d_dict_invalid(mocked_run):
     with pytest.raises(ValueError):
-        obj = wandb.Object3D({"type": "INVALID",})
+        obj = wandb.Object3D(
+            {
+                "type": "INVALID",
+            }
+        )
     wandb.finish()
 
 
@@ -853,9 +861,41 @@ def test_graph():
 def test_numpy_arrays_to_list():
     conv = _numpy_arrays_to_lists
     assert conv(np.array(1)) == [1]
-    assert conv(np.array((1, 2,))) == [1, 2]
-    assert conv([np.array((1, 2,))]) == [[1, 2]]
-    assert conv(np.array(({"a": [np.array((1, 2,))]}, 3,))) == [{"a": [[1, 2]]}, 3]
+    assert conv(
+        np.array(
+            (
+                1,
+                2,
+            )
+        )
+    ) == [1, 2]
+    assert conv(
+        [
+            np.array(
+                (
+                    1,
+                    2,
+                )
+            )
+        ]
+    ) == [[1, 2]]
+    assert conv(
+        np.array(
+            (
+                {
+                    "a": [
+                        np.array(
+                            (
+                                1,
+                                2,
+                            )
+                        )
+                    ]
+                },
+                3,
+            )
+        )
+    ) == [{"a": [[1, 2]]}, 3]
 
 
 def test_partitioned_table_from_json(runner, mock_server, api):
@@ -1000,7 +1040,8 @@ def test_table_logging(
     run.log(
         {
             "logged_table": wandb.Table(
-                columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+                columns=["a"],
+                data=[[wandb.Image(np.ones(shape=(32, 32)))]],
             )
         }
     )
@@ -1014,7 +1055,10 @@ def test_reference_table_logging(
 ):
     live_mock_server.set_ctx({"max_cli_version": max_cli_version})
     run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
     run.log({"logged_table": t})
     run.log({"logged_table": t})
     run.finish()
@@ -1026,7 +1070,10 @@ def test_reference_table_artifacts(
 ):
     live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
 
     art = wandb.Artifact("A", "dataset")
     art.add(t, "table")
@@ -1067,10 +1114,12 @@ def test_joined_table_logging(
     run = wandb.init(settings=test_settings)
     art = wandb.Artifact("A", "dataset")
     t1 = wandb.Table(
-        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+        columns=["id", "a"],
+        data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
     )
     t2 = wandb.Table(
-        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+        columns=["id", "a"],
+        data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
     )
     art.add(t1, "t1")
     art.add(t2, "t2")

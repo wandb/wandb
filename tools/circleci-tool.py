@@ -41,7 +41,13 @@ CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
 platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
-py_name_dict = dict(py27="py27", py36="py36", py37="py37", py38="py38", py39="py39",)
+py_name_dict = dict(
+    py27="py27",
+    py36="py36",
+    py37="py37",
+    py38="py38",
+    py39="py39",
+)
 py_image_dict = dict(
     py27="python:2.7",
     py36="python:3.6",
@@ -184,8 +190,10 @@ def grab(args, vhash, bnum):
         os.mkdir(cachedir)
     if os.path.exists(cfname):
         return
-    url = "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(
-        bnum
+    url = (
+        "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(
+            bnum
+        )
     )
     r = requests.get(url, auth=(args.api_token, ""))
     assert r.status_code == 200, "Error making api request: {}".format(r)

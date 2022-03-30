@@ -453,7 +453,11 @@ def test_add_http_reference_path(runner):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         mock_http(
-            artifact, headers={"ETag": '"abc"', "Content-Length": "256",},
+            artifact,
+            headers={
+                "ETag": '"abc"',
+                "Content-Length": "256",
+            },
         )
         artifact.add_reference("http://example.com/file1.txt")
 
@@ -463,7 +467,9 @@ def test_add_http_reference_path(runner):
             "digest": "abc",
             "ref": "http://example.com/file1.txt",
             "size": 256,
-            "extra": {"etag": '"abc"',},
+            "extra": {
+                "etag": '"abc"',
+            },
         }
 
 
@@ -804,7 +810,7 @@ def test_add_obj_wbtable_images(runner):
                 "size": 64,
             },
             "media/images/641e917f31888a48f546/2x2.png": {
-                "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-table.table.json": {"digest": "apPaCuFMSlFoP7rztfZq5Q==", "size": 1290},
@@ -985,7 +991,11 @@ def test_interface_commit_hash(runner):
 # todo: investigate why this test is flaking
 @pytest.mark.xfail(reason="flaky test")
 def test_artifact_incremental_internal(
-    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
+    mocked_run,
+    mock_server,
+    internal_sm,
+    backend_interface,
+    parse_ctx,
 ):
     artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
 

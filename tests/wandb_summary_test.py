@@ -55,8 +55,12 @@ class MockCallback(object):
 # def create_summary_and_mock(current_dict: t.Dict):
 def create_summary_and_mock(current_dict):
     m = MockCallback(current_dict)
-    s = wandb_sdk.Summary(m.get_current_summary_callback,)
-    s._set_update_callback(m.update_callback,)
+    s = wandb_sdk.Summary(
+        m.get_current_summary_callback,
+    )
+    s._set_update_callback(
+        m.update_callback,
+    )
 
     return s, m
 
