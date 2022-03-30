@@ -900,7 +900,6 @@ def sweep(
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
     _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
     _ = util.get_module("chardet", required=req_string,)
     _ = util.get_module("iso8601", required=req_string)
 
@@ -910,7 +909,7 @@ def _check_launch_imports():
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
-@click.argument("uri")
+@click.argument("uri", nargs=1, required=False)
 @click.option(
     "--entry-point",
     "-E",
@@ -1073,18 +1072,26 @@ def launch(
     args_dict = util._user_args_to_dict(args_list)
 
     if resource_args is not None:
-        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        resource_args = util.load_json_yaml_dict(resource_args)
         if resource_args is None:
             raise LaunchError("Invalid format for resource-args")
     else:
         resource_args = {}
 
     if config is not None:
-        config = util.load_as_json_file_or_load_dict_as_json(config)
+        config = util.load_json_yaml_dict(config)
         if config is None:
             raise LaunchError("Invalid format for config")
     else:
         config = {}
+
+    if (
+        uri is None
+        and docker_image is None
+        and config.get("uri") is not None
+        and config.get("docker", {}).get("docker_image") is None
+    ):
+        raise LaunchError("Must pass a URI or a docker image to launch.")
 
     if queue is None:
         # direct launch
