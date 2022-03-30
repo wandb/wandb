@@ -50,6 +50,37 @@ message Imports {
   bool deepctr = 22;
   // bool deeppavlov = 23;
   // bool detectron = 24;
+  // bool paddle = 25;
+  // bool parlai = 26;
+  // bool prophet = 27;
+  bool pycaret = 28;
+  bool pytorchvideo = 29;
+  bool ray = 30;
+  bool simpletransformers = 31;
+  bool skorch = 32;
+  bool spacy = 33;
+  bool flash = 34;
+  bool optuna = 35;
+  bool recbole = 36;
+  bool mmcv = 37; 
+  bool mmdet = 38;
+  bool torchdrug = 39;
+  bool torchtext = 40;
+  bool torchvision = 41;
+  bool elegy = 42;
+  bool detectron2 = 43;
+  bool flair = 44;
+  bool flax = 45;
+  bool syft = 46;
+  bool TTS = 47;
+  bool monai = 48;
+  bool huggingface_hub = 49;
+  bool hydra = 50;
+  bool datasets = 51;
+  bool sacred = 52;
+  bool joblib = 53;
+  bool dask = 54;
+  bool asyncio = 55;
 }
 
 message Feature {
@@ -83,6 +114,12 @@ message Feature {
   bool catboost_log_summary = 28; // catboost log summary used
   bool tensorboard_log = 29; // wandb.tensorflow.log or wandb.tensorboard.log used
   bool estimator_hook = 30; // wandb.tensorflow.WandbHook used
+  bool xgboost_wandb_callback = 31; // xgboost callback used
+  bool xgboost_old_wandb_callback = 32; // xgboost old callback used (to be depreciated)
+  bool attach = 33; // attach to a run in another process
+  bool tensorboard_patch = 34; // wandb.tensorboard.patch(...)
+  bool tensorboard_sync = 35; // wandb.init(sync_tensorboard=True)
+  bool kfp_wandb_log = 36; // wandb.integration.kfp.wandb_log
 }
 
 message Env {

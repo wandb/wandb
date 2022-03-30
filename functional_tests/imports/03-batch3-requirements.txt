@@ -1,15 +1,19 @@
-icevision
-jax
-keras
-lightgbm
+# jax
+# keras
+# lightgbm
 lightning-flash
+openmim # handles dependencies for mmlab projects
 mmcv
 mmdet
-mmf
-nemo_toolkit[all]
-nni
-onmt
-optuna
+# mmf
+monai
+# nemo_toolkit[all]
 nltk>=3.6.6 # not directly required, pinned by Snyk to avoid a vulnerability
+# nni
+# onmt
+optuna
+recbole
+torchdrug
 torchtext>=0.10.0 # not directly required, pinned by Snyk to avoid a vulnerability
+torchvision>=0.11.2
 urllib3>=1.26.5 # not directly required, pinned by Snyk to avoid a vulnerability

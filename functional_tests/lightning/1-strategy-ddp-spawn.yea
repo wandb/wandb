@@ -1,0 +1,24 @@
+id: 1.lightning.strategy.ddp.spawn
+plugin:
+  - wandb
+tag:
+  shard: service
+depend:
+  requirements:
+    - torch
+    - git+https://github.com/PytorchLightning/pytorch-lightning.git
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config][some_hparam]: Logged Before Trainer starts DDP
+  - :wandb:runs[0][summary][epoch]: 0
+  - :wandb:runs[0][history][30][trainer/global_step]: 1549
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 23  # service
+  - :op:>=:
+    - :wandb:runs[0][summary][loss]
+    - 0
+  - :op:>=:
+    - :wandb:runs[0][summary][fake_test_acc]
+    - 0

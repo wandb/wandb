@@ -2,6 +2,8 @@
 """Demonstrate basic API of plot_summary_metrics.
 ---
 id: 0.sklearn.plot_summary_metrics-basic
+tag:
+  shard: sklearn
 plugin:
     - wandb
 depend:

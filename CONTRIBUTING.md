@@ -34,6 +34,7 @@ Please make sure to update the ToC when you update this page.
 - [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
 - [Documentation Generation](#documentation-generation)
 - [Deprecating Features](#deprecating-features)
+- [Adding URLs](#adding-urls)
 
 ## Development workflow
 
@@ -405,8 +406,11 @@ If you update one of those files, you need to:
     In `tox.ini`, search for `yea-wandb==<version>` and change it to
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
+  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`. 
   - Merge and release `yea-wandb` (with `make release`).
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.** 
   - Point the client branch you are working on to the fresh release of `yea-wandb`.
+
 
 ### Regression Testing
 
@@ -740,4 +744,14 @@ deprecate.deprecate(
     field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1
     warning_message="This feature is deprecated and will be removed in a future release.",
 )
+```
+
+## Adding URLs
+
+All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
+ensure that URLs do not lead to broken links.
+
+Once you add the URL to that file you will need to run:
+```shell
+python tools/generate-tool.py --generate
 ```

@@ -1,5 +1,6 @@
 import wandb
 from wandb import data_types
+from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 import numpy as np
 import pytest
 import PIL
@@ -13,18 +14,12 @@ from . import utils
 from .utils import dummy_data
 import matplotlib
 import rdkit.Chem
-from wandb import Api
-import time
+from unittest import mock
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 data = np.random.randint(255, size=(1000))
-
-
-@pytest.fixture
-def api(runner):
-    return Api()
 
 
 def test_wb_value(live_mock_server, test_settings):
@@ -210,7 +205,10 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types._prune_max_seq(large_list), mocked_run, "test2", 0
+        wandb.wandb_sdk.data_types.utils._prune_max_seq(large_list),
+        mocked_run,
+        "test2",
+        0,
     )
     expected = {
         "_type": "images/separated",
@@ -853,7 +851,7 @@ def test_graph():
 
 
 def test_numpy_arrays_to_list():
-    conv = data_types._numpy_arrays_to_lists
+    conv = _numpy_arrays_to_lists
     assert conv(np.array(1)) == [1]
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
@@ -995,7 +993,9 @@ def test_ndarrays_in_tables():
     )
 
 
-def test_table_logging(mocked_run, live_mock_server, test_settings, api):
+def test_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     run = wandb.init(settings=test_settings)
     run.log(
         {
@@ -1008,8 +1008,11 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
     assert True
 
 
-def test_reference_table_logging(mocked_run, live_mock_server, test_settings, api):
-    live_mock_server.set_ctx({"max_cli_version": "0.10.33"})
+@pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
+def test_reference_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api, max_cli_version
+):
+    live_mock_server.set_ctx({"max_cli_version": max_cli_version})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
     run.log({"logged_table": t})
@@ -1017,16 +1020,10 @@ def test_reference_table_logging(mocked_run, live_mock_server, test_settings, ap
     run.finish()
     assert True
 
-    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
-    run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
-    run.log({"logged_table": t})
-    run.log({"logged_table": t})
-    run.finish()
-    assert True
 
-
-def test_reference_table_artifacts(mocked_run, live_mock_server, test_settings, api):
+def test_reference_table_artifacts(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
@@ -1055,14 +1052,18 @@ def test_table_reference(runner, live_mock_server, test_settings):
     assert True
 
 
-def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings, api):
+def test_partitioned_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     run = wandb.init(settings=test_settings)
     run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
     run.finish()
     assert True
 
 
-def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
+def test_joined_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     run = wandb.init(settings=test_settings)
     art = wandb.Artifact("A", "dataset")
     t1 = wandb.Table(
@@ -1091,6 +1092,29 @@ def test_fail_to_make_file(mocked_run):
         assert " is invalid. Please remove invalid filename characters" in str(e)
 
 
+def test_log_with_dir_sep_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+    run.log({"train/image": wb_image})
+    run.finish()
+    assert True
+
+
+def test_log_with_back_slash_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+
+    # windows doesnt allow a backslash in media keys right now
+    if platform.system() == "Windows":
+        with pytest.raises(ValueError):
+            run.log({"train\image": wb_image})
+    else:
+        run.log({"train\image": wb_image})
+
+    run.finish()
+    assert True
+
+
 runbindable_media = [
     wandb.Image(image, masks={"overlay": standard_mask}),
     wandb.data_types.ImageMask(
@@ -1116,3 +1140,34 @@ def test_media_keys_escaped_as_glob_for_publish(mocked_run, media):
     ]
     assert not any(weird_key in g for g in published_globs), published_globs
     assert any(glob.escape(weird_key) in g for g in published_globs), published_globs
+
+
+def test_image_array_old_wandb(
+    live_mock_server, test_settings, monkeypatch, capsys, parse_ctx
+):
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+    run = wandb.init(settings=test_settings)
+    im_count = 5
+    wb_image = [wandb.Image(image) for i in range(im_count)]
+    run.log({"logged_images": wb_image})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    outerr = capsys.readouterr()
+    assert "Unable to log image array filenames. In some cases, this can prevent images from being"
+    "viewed in the UI. Please upgrade your wandb server." in outerr.err
+    summary = ctx_util.summary
+    assert "filenames" not in list(summary["logged_images"].keys())
+
+
+def test_image_array_old_wandb_mp_warning(test_settings, capsys, monkeypatch):
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="true"):
+        with wandb.init(settings=test_settings) as run:
+            wb_image = [wandb.Image(image) for _ in range(5)]
+            run._init_pid += 1
+            run.log({"logged_images": wb_image})
+    outerr = capsys.readouterr()
+    assert (
+        "Attempting to log a sequence of Image objects from multiple processes might result in data loss. Please upgrade your wandb server"
+        in outerr.err
+    )

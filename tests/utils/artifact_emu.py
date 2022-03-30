@@ -9,6 +9,7 @@ class ArtifactEmulator:
         self._artifacts_by_id = {}
         self._files = {}
         self._base_url = base_url
+        self._portfolio_links = {}
 
     def create(self, variables):
         collection_name = variables["artifactCollectionNames"][0]
@@ -58,6 +59,26 @@ class ArtifactEmulator:
         if art_type:
             self._ctx["artifacts_created"][collection_name]["type"] = art_type
 
+        return response
+
+    def link(self, variables):
+        pfolio_name = variables.get("artifactPortfolioName")
+        artifact_id = variables.get("artifactID") or variables.get("clientID")
+        if not pfolio_name or not artifact_id:
+            raise ValueError(
+                "query variables must contain artifactPortfolioName and either artifactID or clientID"
+            )
+        aliases = variables.get("aliases")
+        # We automatically create a portfolio for the user if we can't find the one given.
+        links = self._portfolio_links.setdefault(pfolio_name, [])
+        if not any(map(lambda x: x["id"] == artifact_id, links)):
+            art = {"id": artifact_id, "aliases": [a["alias"] for a in aliases]}
+            links.append(art)
+
+        self._ctx["portfolio_links"].setdefault(pfolio_name, {})
+        num = len(links)
+        self._ctx["portfolio_links"][pfolio_name]["num"] = num
+        response = {"data": {"linkArtifact": {"versionIndex": num - 1}}}
         return response
 
     def create_files(self, variables):

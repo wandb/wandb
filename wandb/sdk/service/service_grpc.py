@@ -56,18 +56,18 @@ class ServiceGrpcInterface(ServiceInterface):
 
     def _svc_inform_finish(self, run_id: str = None) -> None:
         assert run_id
-        inform_fin = spb.ServerInformFinishRequest()
-        inform_fin._info.stream_id = run_id
+        inform_finish = spb.ServerInformFinishRequest()
+        inform_finish._info.stream_id = run_id
 
         assert self._stub
-        _ = self._stub.ServerInformFinish(inform_fin)
+        _ = self._stub.ServerInformFinish(inform_finish)
 
-    def _svc_inform_attach(self, attach_id: str) -> None:
+    def _svc_inform_attach(self, attach_id: str) -> spb.ServerInformAttachResponse:
         assert self._stub
 
         inform_attach = spb.ServerInformAttachRequest()
         inform_attach._info.stream_id = attach_id
-        _ = self._stub.ServerInformAttach(inform_attach)
+        return self._stub.ServerInformAttach(inform_attach)
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)

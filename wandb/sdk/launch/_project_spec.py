@@ -9,7 +9,7 @@ import logging
 import os
 from shlex import quote
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
@@ -33,6 +33,7 @@ class LaunchSource(enum.IntEnum):
     WANDB: int = 1
     GIT: int = 2
     LOCAL: int = 3
+    DOCKER: int = 4
 
 
 class LaunchProject(object):
@@ -40,7 +41,7 @@ class LaunchProject(object):
 
     def __init__(
         self,
-        uri: str,
+        uri: Optional[str],
         api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
@@ -53,7 +54,7 @@ class LaunchProject(object):
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
     ):
-        if utils.is_bare_wandb_uri(uri):
+        if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
@@ -76,6 +77,7 @@ class LaunchProject(object):
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.resource = resource
         self.resource_args = resource_args
         self.deps_type: Optional[str] = None
@@ -85,10 +87,19 @@ class LaunchProject(object):
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if "entry_point" in overrides:
+        if (
+            "entry_point" in overrides
+            and overrides["entry_point"] is not None
+            and overrides["entry_point"] != ""
+        ):
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
-        if utils._is_wandb_uri(self.uri):
+        if self.uri is None:
+            if self.docker_image is None:
+                raise LaunchError("Run requires a URI or a docker image")
+            self.source = LaunchSource.DOCKER
+            self.project_dir = None
+        elif utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
@@ -115,6 +126,11 @@ class LaunchProject(object):
     def base_image(self) -> str:
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
+
+        # don't make up a separate base image name if user provides a docker image
+        if self.docker_image is not None:
+            return self.docker_image
+
         python_version = (self.python_version or "3").replace("+", "dev")
         generated_name = "{}_base:{}".format(
             self.target_project.replace(" ", "-"), python_version
@@ -137,12 +153,16 @@ class LaunchProject(object):
             if self.override_args.get(key):
                 del self.override_config[key]
 
-    def get_single_entry_point(self) -> "EntryPoint":
-        """Returns the first entrypoint for the project."""
+    def get_single_entry_point(self) -> Optional["EntryPoint"]:
+        """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we wanna support multiple entry points or not
-        if len(self._entry_points) != 1:
-            raise Exception("LaunchProject must have exactly one entry point")
+        if not self._entry_points:
+            if not self.docker_image:
+                raise LaunchError(
+                    "Project must have at least one entry point unless docker image is specified."
+                )
+            return None
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
@@ -170,7 +190,10 @@ class LaunchProject(object):
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
+        # these asserts are all guaranteed to pass, but are required by mypy
         assert self.source != LaunchSource.LOCAL
+        assert isinstance(self.uri, str)
+        assert self.project_dir is not None
         _logger.info("Fetching project locally...")
         if utils._is_wandb_uri(self.uri):
             source_entity, source_project, source_run_name = utils.parse_wandb_uri(
@@ -179,7 +202,7 @@ class LaunchProject(object):
             run_info = utils.fetch_wandb_project_run_info(
                 source_entity, source_project, source_run_name, internal_api
             )
-            entry_point = run_info.get("codePath", run_info["program"])
+            entry_point = run_info.get("codePath") or run_info["program"]
 
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
@@ -249,7 +272,10 @@ class LaunchProject(object):
                     # need to rebuild image with new code
                     self.build_image = True
 
-            if entry_point.endswith("ipynb"):
+            if (
+                "_session_history.ipynb" in os.listdir(self.project_dir)
+                or ".ipynb" in entry_point
+            ):
                 entry_point = utils.convert_jupyter_notebook_to_script(
                     entry_point, self.project_dir
                 )
@@ -362,8 +388,8 @@ class EntryPoint(object):
 
 
 def get_entry_point_command(
-    entry_point: "EntryPoint", parameters: Dict[str, Any]
-) -> List[str]:
+    entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
+) -> str:
     """Returns the shell command to execute in order to run the specified entry point.
 
     Arguments:
@@ -373,9 +399,9 @@ def get_entry_point_command(
     Returns:
         List of strings representing the shell command to be executed
     """
-    commands = []
-    commands.append(entry_point.compute_command(parameters))
-    return commands
+    if entry_point is None:
+        return ""
+    return entry_point.compute_command(parameters)
 
 
 def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
@@ -388,13 +414,12 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     Returns:
         An initialized `LaunchProject` object
     """
-    uri = launch_spec["uri"]
 
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
     return LaunchProject(
-        uri,
+        launch_spec.get("uri"),
         api,
         launch_spec,
         launch_spec["entity"],
@@ -422,6 +447,8 @@ def fetch_and_validate_project(
         A validated `LaunchProject` object.
 
     """
+    if launch_project.source == LaunchSource.DOCKER:
+        return launch_project
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
@@ -429,6 +456,7 @@ def fetch_and_validate_project(
     else:
         launch_project._fetch_project_local(internal_api=api)
 
+    assert launch_project.project_dir is not None
     # this prioritizes pip and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
@@ -455,6 +483,7 @@ def create_metadata_file(
     docker_args: Dict[str, Any],
     sanitized_dockerfile_contents: str,
 ) -> None:
+    assert launch_project.project_dir is not None
     with open(
         os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
     ) as f:

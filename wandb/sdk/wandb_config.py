@@ -8,7 +8,12 @@ import logging
 
 import six
 import wandb
-from wandb.util import check_dict_contains_nested_artifact, json_friendly_val
+from wandb.util import (
+    _is_artifact,
+    _is_artifact_string,
+    check_dict_contains_nested_artifact,
+    json_friendly_val,
+)
 
 from . import wandb_helper
 from .lib import config_util
@@ -55,7 +60,7 @@ class Config(object):
 
         Nested configs
         ```python
-        wandb.config['train']['epochs] = 4
+        wandb.config['train']['epochs'] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
             # train
@@ -96,11 +101,15 @@ class Config(object):
         object.__setattr__(self, "_users_cnt", 0)
         object.__setattr__(self, "_callback", None)
         object.__setattr__(self, "_settings", None)
+        object.__setattr__(self, "_artifact_callback", None)
 
         self._load_defaults()
 
     def _set_callback(self, cb):
         object.__setattr__(self, "_callback", cb)
+
+    def _set_artifact_callback(self, cb):
+        object.__setattr__(self, "_artifact_callback", cb)
 
     def _set_settings(self, settings):
         object.__setattr__(self, "_settings", settings)
@@ -229,6 +238,8 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
+        if _is_artifact_string(val) or _is_artifact(val):
+            val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
         if not (
             isinstance(val, wandb.Artifact)
