@@ -303,6 +303,7 @@ class InterfaceShared(InterfaceBase):
         req = self._make_request(attach=attach)
         resp = self._communicate(req)
         if resp is None:
+            wandb.termwarn(str(req))
             return None
         return resp.response.attach_response
 

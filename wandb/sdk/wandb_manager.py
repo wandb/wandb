@@ -159,7 +159,8 @@ class _Manager:
     def _inform_attach(self, attach_id: str) -> Dict[str, Any]:
         svc_iface = self._get_service_interface()
         response = svc_iface._svc_inform_attach(attach_id=attach_id)
-        return settings_dict_from_pbmap(response._settings_map)
+        # return settings_dict_from_pbmap(response._settings_map)
+        return None
 
     def _inform_finish(self, run_id: str = None) -> None:
         svc_iface = self._get_service_interface()

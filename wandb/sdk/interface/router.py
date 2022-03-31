@@ -3,7 +3,7 @@
 Router to manage responses.
 
 """
-
+import time
 from abc import abstractmethod
 import logging
 import threading
@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from typing import TYPE_CHECKING
 import uuid
 
-
+import wandb
 from .message_future import MessageFuture
 from ..lib import tracelog
 
@@ -47,7 +47,7 @@ class MessageRouter(object):
 
     def __init__(self) -> None:
         self._pending_reqs = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         self._join_event = threading.Event()
         self._thread = threading.Thread(target=self.message_loop)
@@ -82,17 +82,21 @@ class MessageRouter(object):
     def send_and_receive(
         self, rec: "pb.Record", local: Optional[bool] = None
     ) -> MessageFuture:
-        rec.control.req_resp = True
-        if local:
-            rec.control.local = local
-        rec.uuid = uuid.uuid4().hex
-        future = MessageFutureObject()
         with self._lock:
+            rec.control.req_resp = True
+            if local:
+                rec.control.local = local
+            rec.uuid = uuid.uuid4().hex
+            future = MessageFutureObject()
+
+            # import os
+            # import threading
+            # wandb.termlog(f"SEND: {os.getpid()}, {os.getppid()}, {threading.get_ident()}")
             self._pending_reqs[rec.uuid] = future
 
-        self._send_message(rec)
+            self._send_message(rec)
 
-        return future
+            return future
 
     def join(self) -> None:
         self._join_event.set()
@@ -100,14 +104,32 @@ class MessageRouter(object):
 
     def _handle_msg_rcv(self, msg: "pb.Result") -> None:
         with self._lock:
+            # import os
+            # import threading
+            # wandb.termlog(f"HANDLE: {os.getpid()}, {os.getppid()}, {threading.get_ident()}")
+            # time.sleep(0.01)
+            pending_request_ids = [r for r in self._pending_reqs]
             future = self._pending_reqs.pop(msg.uuid, None)
-        if future is None:
-            # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
-            # could point to other issues.
-            if msg.uuid != "":
-                tracelog.log_message_assert(msg)
-                logger.warning(
-                    "No listener found for msg with uuid %s (%s)", msg.uuid, msg
+            # time.sleep(0.05)
+            # future = self._pending_reqs.pop(msg.uuid, None)
+            wandb.termerror(
+                ">>>>>>>>>>>>>>>>" + str(future) + "\n"
+                + str(pending_request_ids) + "\n"
+                + str(msg.uuid)# if len(str(msg)) else "PUSTO"
+            )
+            if future is None:
+                pending_request_ids = [r for r in self._pending_reqs]
+                wandb.termwarn(
+                    ">>>>>>>>>>>>>>>>LOLWUT\n"
+                    + str(pending_request_ids) + "\n"
+                    + str(msg.uuid)# if len(str(msg)) else "PUSTO"
                 )
-            return
-        future._set_object(msg)
+                # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
+                # could point to other issues.
+                if msg.uuid != "":
+                    tracelog.log_message_assert(msg)
+                    logger.warning(
+                        "No listener found for msg with uuid %s (%s)", msg.uuid, msg
+                    )
+                return
+            future._set_object(msg)

@@ -725,6 +725,7 @@ def _attach(
         raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
+    response = dict()
     if manager:
         response = manager._inform_attach(attach_id=attach_id)
 
@@ -732,8 +733,8 @@ def _attach(
     settings.update(
         {
             "run_id": attach_id,
-            "_start_time": response["_start_time"],
-            "_start_datetime": response["_start_datetime"],
+            # "_start_time": response.get("_start_time"),
+            # "_start_datetime": response.get("_start_datetime"),
         },
         source=Source.INIT,
     )

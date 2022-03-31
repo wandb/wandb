@@ -4,6 +4,7 @@ from typing import Any, Optional
 from typing import TYPE_CHECKING
 import uuid
 
+import wandb
 from wandb.proto import wandb_server_pb2 as spb
 
 from . import tracelog
@@ -33,6 +34,7 @@ class SockClient:
 
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # s.setblocking(True)
         s.connect(("localhost", port))
         self._sock = s
 
@@ -156,12 +158,32 @@ class SockClient:
             if timeout:
                 self._sock.settimeout(timeout)
             try:
+                # import select
+                # read_sockets, write_sockets, error_sockets = select.select(
+                #     [self._sock], [], []
+                # )
                 data = self._sock.recv(4096)
-            except socket.timeout:
+                # data = read_sockets[0].recv(4096)
+            except socket.timeout as e:
+                # wandb.termwarn(f"YYYYYYYYYYYY: {(read_sockets, write_sockets, error_sockets)}")
+                wandb.termwarn(f"YYYYYYYYYYYY: {e}")
+                continue
                 break
-            except ConnectionResetError:
+            except ConnectionResetError as e:
+                # wandb.termwarn(f"BBBBBBBBBBBB: {(read_sockets, write_sockets, error_sockets)}")
+                # wandb.termwarn(f"BBBBBBBBBBBB: {e}")
+                # try:
+                #     import time
+                #     time.sleep(0.1)
+                #     data = read_sockets[0].recv(4096)
+                # except OSError:
                 raise SockClientClosedError()
-            except OSError:
+            except OSError as e:
+                import errno
+                # wandb.termwarn(f"AAAAAAAAAAAA: {(read_sockets, write_sockets, error_sockets)}")
+                wandb.termwarn(f"AAAAAAAAAAAA: {e}")
+                if e.errno == errno.EAGAIN:
+                    continue
                 raise SockClientClosedError()
             finally:
                 if timeout:
@@ -169,6 +191,8 @@ class SockClient:
             if len(data) == 0:
                 # socket.recv() will return 0 bytes if socket was shutdown
                 # caller will handle this condition like other connection problems
+                # wandb.termwarn(f"CCCCCCCCCCCC: {(read_sockets, write_sockets, error_sockets)}")
+                wandb.termwarn(f"CCCCCCCCCCCC: {data}")
                 raise SockClientClosedError()
             self._data += data
         return None
