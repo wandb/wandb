@@ -1,18 +1,41 @@
-from collections import deque
+from collections import defaultdict, deque
 import concurrent.futures
 import heapq
+from itertools import cycle, islice
 import multiprocessing as mp
 import numpy as np
 import os
 import sys
 import threading
 import time
+from typing import Dict, Tuple
 
 # fix numpy seed
 np.random.seed(0)
 
 MAX_MEMORY = 400
 MAX_HEAP_SIZE = 2
+
+
+def roundrobin(*iterables):
+    """
+    Merge multiple iterables into a single iterable
+    roundrobin('ABC', 'D', 'EF') --> A D E B F C
+    """
+    # Recipe credited to George Sakkis
+    pending = len(iterables)
+    next_items = cycle(iter(it).__next__ for it in iterables)
+    while pending:
+        try:
+            for next_item in next_items:
+                yield next_item()
+        except StopIteration:
+            pending -= 1
+            next_items = cycle(islice(next_items, pending))
+
+
+def minus_one():
+    return -1
 
 
 def init_queue(queue: mp.Queue):
@@ -22,7 +45,7 @@ def init_queue(queue: mp.Queue):
     globals()["results_queue"] = queue
 
 
-def svd_of_random_matrix(i: int, n: int = 10):
+def svd_of_random_matrix(i: int, item: str, n: int = 10):
     """
     Generate a random matrix and compute its SVD a bunch of times
     to simulate a task with high-CPU usage.
@@ -31,31 +54,35 @@ def svd_of_random_matrix(i: int, n: int = 10):
     u, s, v = np.linalg.svd(a)
     for _ in range(100_000):
         u, s, v = np.linalg.svd(a)
-    print(f"task {i} finished")
+    print(f"item {item} task {i} finished")
     # print(id(globals()["results_queue"]))
     # return i, u, s, v
-    globals()["results_queue"].put((i, v[0][0]))
+    globals()["results_queue"].put((item, i, v[0][0]))
 
 
 class Manager:
     def __init__(self):
-        self.tasks = deque()
+        # store tasks in deque per item (i.e. run)
+        self.tasks: Dict[str, deque] = defaultdict(deque)
+        # store the (unsorted) results in a global multiprocessing queue
         self.results_queue = mp.Queue()
         # print(id(self.results_queue))
-        self.results_heap = []
-        self.current_chunk_number = -1
-        # track memory usage of each task
-        self.memory_usage = dict()
+        # use heaps to ensure sequential order of results
+        self.result_heaps: Dict[str, list] = defaultdict(list)
+        # sequential number of the most-recently-processed chunk
+        self.current_chunk_number: Dict[str, int] = defaultdict(minus_one)
+        # track memory usage of each (task, item) pair
+        self.memory_usage: Dict[Tuple[str, int], int] = defaultdict(int)
         # track total memory usage
         self.total_memory = 0
 
-        self.sleep_time = 0.5
+        self.sleep_time: float = 0.5
 
-        self.running = True
+        self.running: bool = True
         self.harvester = threading.Thread(target=self.get_results)
-        self.dumper = threading.Thread(target=self.post_results)
+        # self.dumper = threading.Thread(target=self.post_results)
         self.harvester.start()
-        self.dumper.start()
+        # self.dumper.start()
 
     def get_results(self):
         """
@@ -65,9 +92,11 @@ class Manager:
             print("harvester is running")
             if not self.results_queue.empty():
                 result = self.results_queue.get()
-                heapq.heappush(self.results_heap, result)
-                self.total_memory -= self.memory_usage[result[0]]
-                del self.memory_usage[result[0]]
+                item = result[0]
+                heapq.heappush(self.result_heaps[item], result[1:])
+                key = (item, result[1])
+                self.total_memory -= self.memory_usage[key]
+                del self.memory_usage[key]
                 print(f"harvester got result: {result}; total_memory: {self.total_memory}")
             else:
                 time.sleep(self.sleep_time)
@@ -79,7 +108,7 @@ class Manager:
         """
         while self.running:
             print("dumper is running")
-            if self.results_heap and self.results_heap[0][0] == self.current_chunk_number + 1:
+            if self.result_heaps and self.results_heap[0][0] == self.current_chunk_number + 1:
                 chunk = heapq.heappop(self.results_heap)
                 with open("junk020.log", "a") as f:
                     f.write(f"chunk {chunk[0]}: {chunk[1]}\n")
@@ -92,9 +121,21 @@ class Manager:
         """
         Generate tasks and run them in parallel.
         """
-        for i in range(10):
-            # simulate different memory usage per task
-            self.tasks.append({"i": i, "n": 10, "mem": np.random.randint(1, 100)})
+        # simulate a situation with multiple runs of different length to be synced,
+        # with different memory usage per task within each run
+        for name, n_tasks, (lower_memory, upper_memory) in [
+            ("run_1", 10, (1, 100)),
+            ("run_2", 5, (20, 200)),
+            ("run_3", 7, (1, 60)),
+        ]:
+            for i in range(n_tasks):
+                self.tasks[name].append(i)
+
+        # self.tasks = list(roundrobin(run_1, run_2, run_3))
+
+        # for i in range(10):
+        #     # simulate different memory usage per task
+        #     self.tasks.append({"i": i, "n": 10, "mem": np.random.randint(1, 100)})
 
         # concurrent.futures will manage the task queue for us under the hood
         with concurrent.futures.ProcessPoolExecutor(
