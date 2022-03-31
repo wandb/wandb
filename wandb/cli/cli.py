@@ -218,7 +218,9 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True, _disable_viewer=relogin, anonymous=anon_mode,
+        _cli_only_mode=True,
+        _disable_viewer=relogin,
+        anonymous=anon_mode,
     )
     if host is not None:
         login_settings["base_url"] = host
@@ -363,7 +365,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -899,8 +903,14 @@ def sweep(
 
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module(
+        "docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "chardet",
+        required=req_string,
+    )
     _ = util.get_module("iso8601", required=req_string)
 
 
@@ -1165,13 +1175,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     wandb.termlog(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
-    if project is None:
-        project = os.environ.get("WANDB_PROJECT")
 
-        if project is None:
-            raise LaunchError(
-                "You must specify a project name or set WANDB_PROJECT environment variable."
-            )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1179,14 +1183,26 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    if entity is None:
-        entity = api.default_entity
-    if max_jobs is None:
-        max_jobs = float(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))
+    agent_config = wandb_launch.resolve_agent_config(
+        api, entity, project, max_jobs, queues
+    )
+    if agent_config.get("project") is None:
+        raise LaunchError(
+            "You must specify a project name or set WANDB_PROJECT environment variable."
+        )
+
+    if agent_config.get("entity") is None:
+        agent_config["entity"] = api.default_entity
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs)
+    wandb_launch.create_and_run_agent(
+        api,
+        agent_config["entity"],
+        agent_config["project"],
+        agent_config["queues"],
+        agent_config["max_jobs"],
+    )
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1576,7 +1592,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

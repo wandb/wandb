@@ -1,4 +1,8 @@
+from collections import defaultdict
+import configparser
+import enum
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
@@ -10,11 +14,49 @@ from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     construct_launch_spec,
+    LAUNCH_AGENT_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
 
 _logger = logging.getLogger(__name__)
+
+
+def resolve_agent_config(
+    api: Api,
+    entity: str,
+    project: Optional[str],
+    max_jobs: Optional[float],
+    queues: Optional[List[str]],
+):
+    defaults = {
+        "entity": api.default_entity,
+        "max_jobs": 1,
+        "queues": ["default"],
+    }
+    resolved_config = defaultdict(lambda x: defaults[x])
+    if os.path.exists(LAUNCH_AGENT_CONFIG_FILE):
+        config = configparser.ConfigParser()
+        config.read(LAUNCH_AGENT_CONFIG_FILE)
+        resolved_config.update(dict(config.items("launch_agent")))
+
+    if os.environ.get("WANDB_PROJECT") is not None:
+        resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
+    if os.environ.get("WANDB_ENTITY") is not None:
+        resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
+    if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
+        resolved_config.update({"max_jobs": os.environ.get("WANDB_LAUNCH_MAX_JOBS")})
+
+    if project is not None:
+        resolved_config.update({"project": project})
+    if entity is not None:
+        resolved_config.update({"entity": entity})
+    if max_jobs is not None:
+        resolved_config.update({"max_jobs": max_jobs})
+    if queues is not None:
+        resolved_config.update({"queues": queues})
+
+    return resolved_config
 
 
 def create_and_run_agent(

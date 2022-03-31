@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=always
-ExecStart=wandb launch-agent --max_jobs $ARG0 --project=$ARG1
+ExecStart=wandb launch-agent
 
 [Install]
 WantedBy=multi-user.target
