@@ -167,8 +167,11 @@ class LaunchProject(object):
 
     def add_entry_point(self, command: str) -> "EntryPoint":
         """Adds an entry point to the project."""
-        entry_point = command.split(" ")[-1]
-        new_entrypoint = EntryPoint(name=entry_point, command=command)
+        command = command.split(" ")
+        entry_point = command[-1]
+        cmd = [quote(c) for c in command]
+        print("CMD", cmd)
+        new_entrypoint = EntryPoint(name=entry_point, command=" ".join(cmd))
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
 
@@ -450,8 +453,10 @@ def fetch_and_validate_project(
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
-            wandb.termlog("Entry point for repo not specified, defaulting to main.py")
-            launch_project.add_entry_point("main.py")
+            wandb.termlog(
+                "Entry point for repo not specified, defaulting to python main.py"
+            )
+            launch_project.add_entry_point("python main.py")
     else:
         launch_project._fetch_project_local(internal_api=api)
 
