@@ -1,9 +1,10 @@
 from collections import defaultdict
 import configparser
-import enum
+
 import logging
 import os
 from typing import Any, Dict, List, Optional
+import yaml
 
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError
@@ -35,10 +36,14 @@ def resolve_agent_config(
         "queues": ["default"],
     }
     resolved_config = defaultdict(lambda x: defaults[x])
-    if os.path.exists(LAUNCH_AGENT_CONFIG_FILE):
-        config = configparser.ConfigParser()
-        config.read(LAUNCH_AGENT_CONFIG_FILE)
-        resolved_config.update(dict(config.items("launch_agent")))
+    if os.path.exists(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)):
+        config = {}
+        with open(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)) as f:
+            try:
+                config = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                print(e)
+        resolved_config.update(dict(config))
 
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
