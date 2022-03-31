@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=always
-ExecStart=wandb launch-agent
+ExecStart=path/to/installed/wandb launch-agent
 
 [Install]
 WantedBy=multi-user.target
