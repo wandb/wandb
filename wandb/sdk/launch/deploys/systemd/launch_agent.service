@@ -1,0 +1,11 @@
+[Unit]
+Description= Weights & Biases launch agent service
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=wandb launch-agent --max_jobs $ARG0 --project=$ARG1
+
+[Install]
+WantedBy=multi-user.target
