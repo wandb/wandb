@@ -276,6 +276,14 @@ class LaunchProject(object):
                 "_session_history.ipynb" in os.listdir(self.project_dir)
                 or ".ipynb" in entry_point
             ):
+                # if the notebook was logged as an artifact it won't be
+                # in the project dir under its name, instead use
+                # the session history
+                if "_session_history.ipynb" in os.listdir(
+                    self.project_dir
+                ) and entry_point not in os.listdir(self.project_dir):
+                    entry_point = "_session_history.ipynb"
+
                 entry_point = utils.convert_jupyter_notebook_to_script(
                     entry_point, self.project_dir
                 )
