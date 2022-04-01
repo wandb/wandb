@@ -34,9 +34,7 @@ media_requirements = [
 ]
 launch_requirements = [
     "nbconvert",
-    "chardet",
-    "iso8601",
-    "typing_extensions",
+    "nbformat",
 ]
 
 

@@ -897,13 +897,6 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
-def _check_launch_imports():
-    req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
-    _ = util.get_module("iso8601", required=req_string)
-
-
 @cli.command(
     help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
@@ -1044,7 +1037,6 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
@@ -1158,7 +1150,6 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
 
