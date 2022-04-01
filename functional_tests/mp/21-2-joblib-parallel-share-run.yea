@@ -1,7 +1,6 @@
 id: 0.mp.21-2-joblib-parallel-share-run
 tag:
   shard: service
-  skip: true
 
 plugin:
   - wandb
