@@ -1,13 +1,16 @@
 import argparse
 import dataclasses
 import glob
+from importlib.metadata import files
+import itertools
 from pathlib import Path
 import time
 from typing import MutableSequence
 import wandb
 
-parser = argparse.ArgumentParser(description="Upload files to wandb")
-parser.add_argument("dir", type=Path, help="Directory to upload")
+parser = argparse.ArgumentParser(description="Try to reproduce Motorola's slow upload issues")
+parser.add_argument("n", type=int, help="number of images to upload")
+parser.add_argument("dir", type=Path, help="directory to upload images from")
 
 @dataclasses.dataclass
 class Timer:
@@ -28,6 +31,7 @@ class Timer:
 
 def main(args):
 
+    n: int = args.n
     dir: Path = args.dir
     if not dir.is_dir():
         raise ValueError(f"{dir} is not a directory")
@@ -35,10 +39,13 @@ def main(args):
     timer = Timer()
     with wandb.init(project="slow-uploads"):
 
-
+        print(f'Starting run took {timer.tick(time.time())}s')
         table = wandb.Table(["Image"])
-        for img in glob.glob(str(dir) + "/*"):
-            table.add_data(wandb.Image(img))
+        files_to_upload = list(itertools.islice(dir.iterdir(), n))
+        if len(files_to_upload) != n:
+            raise ValueError(f"wanted {n} images, but only found {len(files_to_upload)} in {dir}")
+        for f in files_to_upload:
+            table.add_data(wandb.Image(str(f)))
         print(f'Adding dir to table took {timer.tick(time.time())}s')
 
         art = wandb.Artifact('rand_small', 'dataset')
