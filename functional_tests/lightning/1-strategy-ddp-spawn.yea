@@ -6,7 +6,7 @@ tag:
 depend:
   requirements:
     - torch
-    - git+https://github.com/PytorchLightning/pytorch-lightning.git
+    - pytorch-lightning
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][some_hparam]: Logged Before Trainer starts DDP
