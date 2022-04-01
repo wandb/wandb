@@ -11,6 +11,7 @@ import wandb
 parser = argparse.ArgumentParser(description="Try to reproduce Motorola's slow upload issues")
 parser.add_argument("n", type=int, help="number of images to upload")
 parser.add_argument("dir", type=Path, help="directory to upload images from")
+parser.add_argument("--profile-output", type=Path, default=Path('run.profile'), help="directory to upload images from")
 
 @dataclasses.dataclass
 class Timer:
@@ -35,6 +36,11 @@ def main(args):
     dir: Path = args.dir
     if not dir.is_dir():
         raise ValueError(f"{dir} is not a directory")
+    profile_output: Path = args.profile_output
+
+    import cProfile
+    profile = cProfile.Profile()
+    profile.enable()
 
     timer = Timer()
     with wandb.init(project="slow-uploads"):
@@ -58,6 +64,9 @@ def main(args):
 
     print(f'Finishing run took {timer.tick(time.time())}s')
     print(f'Total time: {timer.total}s')
+
+    profile.disable()
+    profile.dump_stats(str(profile_output))
 
 
 if __name__ == "__main__":
