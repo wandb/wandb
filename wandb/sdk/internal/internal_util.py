@@ -50,6 +50,9 @@ class ExceptionThread(threading.Thread):
         raise NotImplementedError
 
     def run(self) -> None:
+        import cProfile
+        profiler = cProfile.Profile()
+        profiler.enable()
         try:
             self._run()
         except Exception:
@@ -57,6 +60,8 @@ class ExceptionThread(threading.Thread):
         finally:
             if self.__exception and self.__stopped:
                 self.__stopped.set()
+            profiler.disable()
+            profiler.dump_stats(f"wandb_thread_{self.name}.profile")
 
     def get_exception(self) -> "Optional[ExceptionType]":
         return self.__exception

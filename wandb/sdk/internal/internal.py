@@ -58,7 +58,7 @@ def wandb_internal(
     port: int = None,
     user_pid: int = None,
 ) -> None:
-    """Internal process function entrypoint.
+  """Internal process function entrypoint.
 
     Read from record queue and dispatch work to various threads.
 
@@ -68,6 +68,10 @@ def wandb_internal(
         result_q: for sending results back
 
     """
+  import cProfile
+  profiler = cProfile.Profile()
+  profiler.enable()
+  try:
     # mark this process as internal
     wandb._set_internal_process()
     _setup_tracelog()
@@ -174,7 +178,9 @@ def wandb_internal(
                 # and potentially just fail the one stream.
                 os._exit(-1)
             sys.exit(-1)
-
+  finally:
+    profiler.disable()
+    profiler.dump_stats("wandb_internal.profile")
 
 def _setup_tracelog() -> None:
     # TODO: remove this temporary hack, need to find a better way to pass settings
