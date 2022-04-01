@@ -35,10 +35,6 @@ def roundrobin(*iterables):
             next_items = cycle(islice(next_items, pending))
 
 
-def minus_one():
-    return -1
-
-
 def init_queue(queue: mp.Queue):
     """
     Initialize the queue like this to ensure both fork and spawn start methods work.
@@ -63,16 +59,16 @@ def svd_of_random_matrix(i: int, item: str, n: int = 10):
 
 class Manager:
     def __init__(self):
-        # store tasks in deque per item (i.e. run)
+        # store tasks in deque per "item" (i.e. run)
         self.tasks: Dict[str, deque] = defaultdict(deque)
         # store the (unsorted) results in a global multiprocessing queue
         self.results_queue = mp.Queue()
         # print(id(self.results_queue))
-        # use heaps to ensure sequential order of results
+        # use heaps to ensure sequential order of results, per "item" (run)
         self.result_heaps: Dict[str, list] = defaultdict(list)
-        # sequential number of the most-recently-processed chunk
-        self.current_chunk_number: Dict[str, int] = defaultdict(minus_one)
-        # track memory usage of each (task, item) pair
+        # sequential number of the most-recently-processed chunk, per "item" (run)
+        self.current_chunk_number: Dict[str, int] = defaultdict(lambda: -1)
+        # track memory usage of each ("run_id", "task_id") pair
         self.memory_usage: Dict[Tuple[str, int], int] = defaultdict(int)
         # track total memory usage
         self.total_memory = 0
@@ -87,25 +83,32 @@ class Manager:
 
     def get_results(self):
         """
-        Get results from the global multiprocessing queue and put them into the heap
+        Get results from the global multiprocessing queue and put them into the heaps
         """
         while self.running:
             print("harvester is running")
             if not self.results_queue.empty():
                 result = self.results_queue.get()
+                # run id:
                 item = result[0]
-                heapq.heappush(self.result_heaps[item], result[1:])
-                key = (item, result[1])
-                self.total_memory -= self.memory_usage[key]
-                del self.memory_usage[key]
-                print(f"harvester got result: {result}; total_memory: {self.total_memory}")
+                with threading.RLock():
+                    heapq.heappush(self.result_heaps[item], result[1:])
+                    # fixme: merge this with post_results to avoid potential race conditions
+                    #  i.e., immediately dump it if it's the chunk we're waiting for
+                    #  ???? think deeper... need a lock for the heap access to avoid "racing"?
+                    # run_id, task_id
+                    key = (item, result[1])
+                    self.total_memory -= self.memory_usage[key]
+                    del self.memory_usage[key]
+                    print(f"harvester got result: {result}; total_memory: {self.total_memory}")
             else:
                 time.sleep(self.sleep_time)
 
     def post_results(self):
         """
-        Dump results from the heap respecting the order of the tasks.
-        Wait for the <self.current_chunk_number>-th result to become available and dump it.
+        Dump results from the heaps respecting the order of the tasks.
+        Wait for the corresponding <self.current_chunk_number>-th result
+        to become available and dump it.
         """
         while self.running:
             print("dumper is running")
@@ -119,7 +122,8 @@ class Manager:
                     self.result_heaps[item]
                     and self.result_heaps[item][0][0] == self.current_chunk_number[item] + 1
                 ):
-                    chunk = heapq.heappop(self.result_heaps[item])
+                    with threading.RLock():
+                        chunk = heapq.heappop(self.result_heaps[item])
                     with open(f"{item}.log", "a") as f:
                         f.write(f"chunk {chunk[0]}: {chunk[1]}\n")
                     self.current_chunk_number[item] += 1
@@ -205,7 +209,7 @@ class Manager:
             # KeyboardInterrupt was caught, exit
             sys.exit(1)
 
-        while self.memory_usage or any([heap for heap in self.result_heaps.values()]):
+        while self.memory_usage or any([len(heap) for heap in self.result_heaps.values()]):
             print("waiting for final results to arrive and get dumped...")
             time.sleep(self.sleep_time)
 
@@ -215,8 +219,8 @@ class Manager:
 
 
 if __name__ == "__main__":
-    start_method = "spawn"
-    # start_method = "fork"
+    # start_method = "spawn"
+    start_method = "fork"
     mp.set_start_method(method=start_method)
     m = Manager()
     m.run()
