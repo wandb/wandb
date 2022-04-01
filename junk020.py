@@ -1,5 +1,7 @@
+import asyncio
 from collections import defaultdict, deque
 import concurrent.futures
+import datetime
 import heapq
 from itertools import cycle, islice
 import multiprocessing as mp
@@ -80,9 +82,9 @@ class Manager:
 
         self.running: bool = True
         self.harvester = threading.Thread(target=self.get_results)
-        # self.dumper = threading.Thread(target=self.post_results)
+        self.dumper = threading.Thread(target=self.post_results)
         self.harvester.start()
-        # self.dumper.start()
+        self.dumper.start()
 
     def get_results(self):
         """
@@ -108,14 +110,62 @@ class Manager:
         """
         while self.running:
             print("dumper is running")
-            if self.result_heaps and self.results_heap[0][0] == self.current_chunk_number + 1:
-                chunk = heapq.heappop(self.results_heap)
-                with open("junk020.log", "a") as f:
-                    f.write(f"chunk {chunk[0]}: {chunk[1]}\n")
-                self.current_chunk_number += 1
-                print(f"dumper posted result: {chunk}")
-            else:
+
+            if not any(self.result_heaps[item] for item in self.tasks):
                 time.sleep(self.sleep_time)
+                continue
+
+            for item in self.tasks:
+                if (
+                    self.result_heaps[item]
+                    and self.result_heaps[item][0][0] == self.current_chunk_number[item] + 1
+                ):
+                    chunk = heapq.heappop(self.result_heaps[item])
+                    with open(f"{item}.log", "a") as f:
+                        f.write(f"chunk {chunk[0]}: {chunk[1]}\n")
+                    self.current_chunk_number[item] += 1
+                    print(f"dumper posted result: {item}/{chunk}")
+
+    async def process_tasks(self, executor, task_name):
+        while self.tasks[task_name]:
+            # before submitting a task to the executor, ensure that
+            # the memory usage of the currently running tasks is not too high
+            # and the size of the heap with the results is not too large
+            if not (
+                self.total_memory + self.tasks[task_name][0]["mem"] <= MAX_MEMORY
+                and len(self.result_heaps[task_name]) <= MAX_HEAP_SIZE
+            ):
+                print(
+                    f"{task_name}: too much memory pressure, waiting... "
+                    f"[tasks left: {len(self.tasks[task_name])}]"
+                )
+                await asyncio.sleep(self.sleep_time)
+                continue
+            task_item = self.tasks[task_name].popleft()
+            self.total_memory += task_item["mem"]
+            self.memory_usage[(task_name, task_item["i"])] = task_item["mem"]
+            print(
+                datetime.datetime.now(),
+                f"task: {task_name}/{task_item}; total_memory: {self.total_memory}"
+            )
+            executor.submit(
+                svd_of_random_matrix,
+                task_item["i"],
+                task_name,
+                task_item["n"],
+            )
+
+    # asynchronously iterate over multiple lists one element at a time
+    async def schedule_tasks(
+        self,
+        executor: concurrent.futures.ProcessPoolExecutor,
+        tasks: Dict[str, deque],
+    ):
+        async_tasks = []
+        for task_name in tasks.keys():
+            task = asyncio.create_task(self.process_tasks(executor, task_name))
+            async_tasks.append(task)
+        await asyncio.gather(*async_tasks)
 
     def run(self):
         """
@@ -123,19 +173,22 @@ class Manager:
         """
         # simulate a situation with multiple runs of different length to be synced,
         # with different memory usage per task within each run
-        for name, n_tasks, (lower_memory, upper_memory) in [
-            ("run_1", 10, (1, 100)),
-            ("run_2", 5, (20, 200)),
-            ("run_3", 7, (1, 60)),
+        # tasks = defaultdict(deque)
+        for name, n_tasks, matrix_size, (lower_memory, upper_memory) in [
+            ("run_1", 10, 10, (1, 100)),
+            ("run_2", 5, 20, (20, 200)),
+            ("run_3", 7, 8, (1, 60)),
         ]:
             for i in range(n_tasks):
-                self.tasks[name].append(i)
-
-        # self.tasks = list(roundrobin(run_1, run_2, run_3))
-
-        # for i in range(10):
-        #     # simulate different memory usage per task
-        #     self.tasks.append({"i": i, "n": 10, "mem": np.random.randint(1, 100)})
+                self.tasks[name].append(
+                    {
+                        "name": name,
+                        "i": i,
+                        "n": matrix_size,
+                        "mem": np.random.randint(lower_memory, upper_memory)
+                    }
+                )
+        # self.tasks = deque(roundrobin(*tasks.values()))
 
         # concurrent.futures will manage the task queue for us under the hood
         with concurrent.futures.ProcessPoolExecutor(
@@ -143,43 +196,22 @@ class Manager:
             initializer=init_queue,
             initargs=(self.results_queue, ),
         ) as executor:
-            while self.tasks:
-                try:
-                    # before submitting a task to the executor, ensure that
-                    # the memory usage of the currently running tasks is not too high
-                    # and the size of the heap with the results is not too large
-                    if (
-                        self.total_memory + self.tasks[0]["mem"] <= MAX_MEMORY
-                        and len(self.results_heap) <= MAX_HEAP_SIZE
-                    ):
-                        task = self.tasks.popleft()
-                        self.total_memory += task["mem"]
-                        self.memory_usage[task["i"]] = task["mem"]
-                        print(f"task: {task}; total_memory: {self.total_memory}")
-                        # executor.submit(svd_of_random_matrix, task["i"], task["n"])
-                        executor.submit(
-                            svd_of_random_matrix,
-                            task["i"],
-                            task["n"],
-                        )
-                    else:
-                        print("too much memory pressure, waiting...")
-                        time.sleep(self.sleep_time)
-                except KeyboardInterrupt:
-                    self.running = False
-                    break
+            try:
+                asyncio.run(self.schedule_tasks(executor, self.tasks))
+            except KeyboardInterrupt:
+                self.running = False
 
         if not self.running:
             # KeyboardInterrupt was caught, exit
             sys.exit(1)
 
-        while self.memory_usage or self.results_heap:
+        while self.memory_usage or any([heap for heap in self.result_heaps.values()]):
             print("waiting for final results to arrive and get dumped...")
             time.sleep(self.sleep_time)
 
         self.running = False
         print(self.memory_usage, self.total_memory)
-        print(self.results_heap)
+        print(self.result_heaps)
 
 
 if __name__ == "__main__":
