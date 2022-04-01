@@ -1296,7 +1296,8 @@ class Settings:
         if os.path.exists("/usr/local/cuda/version.txt"):
             with open("/usr/local/cuda/version.txt") as f:
                 settings["_cuda"] = f.read().split(" ")[-1].strip()
-        settings["_args"] = sys.argv[1:]
+        if not self._jupyter:
+            settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
         # hack to make sure we don't hang on windows
