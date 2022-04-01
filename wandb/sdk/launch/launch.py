@@ -1,14 +1,13 @@
 from collections import defaultdict
-import configparser
-
 import logging
 import os
-from typing import Any, Dict, List, Optional
-import yaml
+from typing import Any, Dict, List, Optional, Tuple
+
 
 from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError
+import yaml
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
@@ -30,7 +29,7 @@ def resolve_agent_config(
     project: Optional[str],
     max_jobs: Optional[float],
     queues: Optional[List[str]],
-):
+) -> Tuple[Dict[str, Any], Api]:
     defaults = {
         "entity": api.default_entity,
         "max_jobs": 1,
@@ -38,7 +37,14 @@ def resolve_agent_config(
         "api_key": api.api_key,
         "base_url": api.settings("base_url"),
     }
-    resolved_config = defaultdict(lambda x: defaults[x])
+
+    def default_dict_populator(key: Optional[str] = None) -> Any:
+        if key is None:
+            return
+        else:
+            return defaults.get(key)
+
+    resolved_config: Dict[str, Any] = defaultdict(default_dict_populator)
     if os.path.exists(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)):
         config = {}
         with open(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)) as f:
