@@ -7,6 +7,7 @@ from wandb.errors import LaunchError
 from .abstract import AbstractRunner
 from .aws import AWSSagemakerRunner
 from .gcp_vertex import VertexRunner
+from .kubernetes import KubernetesRunner
 from .local import LocalRunner
 
 
@@ -18,6 +19,7 @@ WANDB_RUNNERS: Dict[str, Type["AbstractRunner"]] = {
     "local": LocalRunner,
     "gcp-vertex": VertexRunner,
     "sagemaker": AWSSagemakerRunner,
+    "kubernetes": KubernetesRunner,
 }
 
 
