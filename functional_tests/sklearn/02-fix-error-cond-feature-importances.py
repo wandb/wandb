@@ -31,7 +31,7 @@ assert:
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 import wandb
-
+wandb.require("service")
 wandb.init()
 
 # Load data
@@ -47,3 +47,4 @@ model.fit(X, y)
 # before the fix in wb-6697 this should have produced a warning and
 # caused the feature importances not to be logged
 wandb.sklearn.plot_feature_importances(model)
+wandb.finish()

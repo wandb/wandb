@@ -296,6 +296,7 @@ def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
 
 
 def setup(settings=None) -> Optional["_WandbSetup"]:
+    wandb.require("service")
     ret = _setup(settings=settings)
     return ret
 
