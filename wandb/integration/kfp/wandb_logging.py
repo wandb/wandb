@@ -136,7 +136,7 @@ def wandb_log(  # noqa: C901
                 # Link back to the kfp UI
                 kubeflow_url = get_link_back_to_kubeflow()
                 run.notes = kubeflow_url
-                run.config["WANDB_KUBEFLOW_URL"] = kubeflow_url
+                run.config["LINK_TO_KUBEFLOW_RUN"] = kubeflow_url
 
                 iframe_html = get_iframe_html(run)
                 metadata = {
