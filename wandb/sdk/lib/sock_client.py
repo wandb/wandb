@@ -167,7 +167,7 @@ class SockClient:
             except socket.timeout as e:
                 # wandb.termwarn(f"YYYYYYYYYYYY: {(read_sockets, write_sockets, error_sockets)}")
                 wandb.termwarn(f"YYYYYYYYYYYY: {e}")
-                continue
+                # continue
                 break
             except ConnectionResetError as e:
                 # wandb.termwarn(f"BBBBBBBBBBBB: {(read_sockets, write_sockets, error_sockets)}")
@@ -182,8 +182,8 @@ class SockClient:
                 import errno
                 # wandb.termwarn(f"AAAAAAAAAAAA: {(read_sockets, write_sockets, error_sockets)}")
                 wandb.termwarn(f"AAAAAAAAAAAA: {e}")
-                if e.errno == errno.EAGAIN:
-                    continue
+                # if e.errno == errno.EAGAIN:
+                #     continue
                 raise SockClientClosedError()
             finally:
                 if timeout:

@@ -112,18 +112,18 @@ class MessageRouter(object):
             future = self._pending_reqs.pop(msg.uuid, None)
             # time.sleep(0.05)
             # future = self._pending_reqs.pop(msg.uuid, None)
-            wandb.termerror(
-                ">>>>>>>>>>>>>>>>" + str(future) + "\n"
-                + str(pending_request_ids) + "\n"
-                + str(msg.uuid)# if len(str(msg)) else "PUSTO"
-            )
+            # wandb.termerror(
+            #     ">>>>>>>>>>>>>>>>" + str(future) + "\n"
+            #     + str(pending_request_ids) + "\n"
+            #     + str(msg.uuid)# if len(str(msg)) else "PUSTO"
+            # )
             if future is None:
                 pending_request_ids = [r for r in self._pending_reqs]
-                wandb.termwarn(
-                    ">>>>>>>>>>>>>>>>LOLWUT\n"
-                    + str(pending_request_ids) + "\n"
-                    + str(msg.uuid)# if len(str(msg)) else "PUSTO"
-                )
+                # wandb.termwarn(
+                #     ">>>>>>>>>>>>>>>>LOLWUT\n"
+                #     + str(pending_request_ids) + "\n"
+                #     + str(msg.uuid)# if len(str(msg)) else "PUSTO"
+                # )
                 # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
                 # could point to other issues.
                 if msg.uuid != "":

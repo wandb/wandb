@@ -15,7 +15,7 @@ def f(run_id, x):
     run = wandb.attach(run_id)
     run.config.x = x
     run.define_metric(f"step_{x}")
-    for i in range(3):
+    for i in range(10):
         # Log metrics with wandb
         run.log({f"i_{x}": i * x, f"step_{x}": i})
     return sqrt(x)
