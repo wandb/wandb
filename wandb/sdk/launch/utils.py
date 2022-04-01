@@ -35,7 +35,7 @@ PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 
-LAUNCH_AGENT_CONFIG_FILE = "~/.config/wandb/launch_config.yml"
+LAUNCH_AGENT_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)

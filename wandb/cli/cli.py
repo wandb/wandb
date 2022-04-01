@@ -1165,15 +1165,11 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     wandb.termlog(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
-    if project is None:
-        project = os.environ.get("WANDB_PROJECT")
-
-        if project is None:
-            raise LaunchError(
-                "You must specify a project name or set WANDB_PROJECT environment variable."
-            )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
+    agent_config, api = wandb_launch.resolve_agent_config(
+        api, entity, project, max_jobs, queues
+    )
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the launch agent feature")
         ctx.invoke(login, no_offline=True)
@@ -1186,7 +1182,13 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs)
+    wandb_launch.create_and_run_agent(
+        api,
+        agent_config["entity"],
+        agent_config["project"],
+        agent_config["queues"],
+        agent_config["max_jobs"],
+    )
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

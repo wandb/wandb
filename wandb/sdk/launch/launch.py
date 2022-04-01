@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List, Optional
 import yaml
 
+from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError
 
@@ -34,6 +35,8 @@ def resolve_agent_config(
         "entity": api.default_entity,
         "max_jobs": 1,
         "queues": ["default"],
+        "api_key": api.api_key,
+        "base_url": api.settings("base_url"),
     }
     resolved_config = defaultdict(lambda x: defaults[x])
     if os.path.exists(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)):
@@ -51,6 +54,8 @@ def resolve_agent_config(
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
         resolved_config.update({"max_jobs": os.environ.get("WANDB_LAUNCH_MAX_JOBS")})
+    if os.environ.get("WANDB_BASE_URL") is not None:
+        resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
 
     if project is not None:
         resolved_config.update({"project": project})
@@ -61,7 +66,19 @@ def resolve_agent_config(
     if queues is not None:
         resolved_config.update({"queues": queues})
 
-    return resolved_config
+    if (
+        resolved_config["entity"] != defaults["entity"]
+        or resolved_config["api_key"] != defaults["api_key"]
+        or resolved_config["base_url"] != defaults["base_url"]
+    ):
+        settings = Settings(
+            api_key=resolved_config["api_key"],
+            base_url=resolved_config["base_url"],
+            project="test",
+        )
+        api = Api(default_settings=settings, load_settings=False)
+
+    return resolved_config, api
 
 
 def create_and_run_agent(
