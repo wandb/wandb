@@ -6,7 +6,6 @@ import heapq
 from itertools import cycle, islice
 import multiprocessing as mp
 import numpy as np
-import os
 import sys
 import threading
 import time
@@ -200,6 +199,7 @@ class Manager:
                 asyncio.run(self.schedule_tasks(executor, self.tasks))
             except KeyboardInterrupt:
                 self.running = False
+                print("Keyboard interrupt caught, stopping...")
 
         if not self.running:
             # KeyboardInterrupt was caught, exit
@@ -215,8 +215,8 @@ class Manager:
 
 
 if __name__ == "__main__":
-    # start_method = "spawn"
-    start_method = "fork"
+    start_method = "spawn"
+    # start_method = "fork"
     mp.set_start_method(method=start_method)
     m = Manager()
     m.run()
