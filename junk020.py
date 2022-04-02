@@ -6,9 +6,7 @@ import heapq
 from itertools import cycle, islice
 import multiprocessing as mp
 import numpy as np
-import sys
-import threading
-import time
+import os
 from typing import Dict, Tuple
 
 # fix numpy seed
@@ -16,6 +14,16 @@ np.random.seed(0)
 
 MAX_MEMORY = 400
 MAX_HEAP_SIZE = 2
+
+
+def get_n_cpu():
+    if hasattr(os, "sched_getaffinity"):
+        return len(os.sched_getaffinity(0))
+    return mp.cpu_count()
+
+
+# N_CPU = get_n_cpu()
+N_CPU = 4
 
 
 def roundrobin(*iterables):
@@ -35,14 +43,14 @@ def roundrobin(*iterables):
             next_items = cycle(islice(next_items, pending))
 
 
-def init_queue(queue: mp.Queue):
+def init_queue(queue: mp.Queue) -> None:
     """
     Initialize the queue like this to ensure both fork and spawn start methods work.
     """
     globals()["results_queue"] = queue
 
 
-def svd_of_random_matrix(i: int, item: str, n: int = 10):
+def svd_of_random_matrix(i: int, item: str, n: int = 10) -> None:
     """
     Generate a random matrix and compute its SVD a bunch of times
     to simulate a task with high-CPU usage.
@@ -58,7 +66,7 @@ def svd_of_random_matrix(i: int, item: str, n: int = 10):
 
 
 class Manager:
-    def __init__(self):
+    def __init__(self) -> None:
         # store tasks in deque per "item" (i.e. run)
         self.tasks: Dict[str, deque] = defaultdict(deque)
         # store the (unsorted) results in a global multiprocessing queue
@@ -77,7 +85,11 @@ class Manager:
 
         self.running: bool = True
 
-    async def process_tasks(self, executor, task_name):
+    async def _process_tasks(
+        self,
+        executor: concurrent.futures.ProcessPoolExecutor,
+        task_name: str,
+    ) -> None:
         """
         Submit tasks to the executor, taking memory usage into account.
         """
@@ -109,7 +121,7 @@ class Manager:
                 task_item["n"],
             )
 
-    async def watch(self):
+    async def _watch(self) -> None:
         """
         Watch the tasks and the results and decide when to stop
         """
@@ -130,7 +142,7 @@ class Manager:
             print(self.result_heaps)
             self.running = False
 
-    async def harvest(self):
+    async def _harvest(self) -> None:
         """
         Get results from the global multiprocessing queue and put them into the heaps.
         """
@@ -150,7 +162,7 @@ class Manager:
             else:
                 await asyncio.sleep(self.sleep_time)
 
-    async def dump(self):
+    async def _dump(self) -> None:
         """
         Dump results from the heaps respecting the order of the tasks.
         Wait for the corresponding <self.current_chunk_number>-th result
@@ -178,22 +190,23 @@ class Manager:
     async def async_run(
         self,
         executor: concurrent.futures.ProcessPoolExecutor,
-    ):
+    ) -> None:
         """
         Map tasks to the executor, harvest and dump results.
         """
         async_tasks = []
+        # schedule async task per run
         for task_name in self.tasks.keys():
-            task = asyncio.create_task(self.process_tasks(executor, task_name))
+            task = asyncio.create_task(self._process_tasks(executor, task_name))
             async_tasks.append(task)
 
-        async_tasks.append(asyncio.create_task(self.watch()))
-        async_tasks.append(asyncio.create_task(self.harvest()))
-        async_tasks.append(asyncio.create_task(self.dump()))
+        async_tasks.append(asyncio.create_task(self._watch()))
+        async_tasks.append(asyncio.create_task(self._harvest()))
+        async_tasks.append(asyncio.create_task(self._dump()))
 
         await asyncio.gather(*async_tasks)
 
-    def run(self):
+    def run(self, n_cpu: int = N_CPU) -> None:
         """
         Generate tasks and run them in parallel.
         """
@@ -216,7 +229,7 @@ class Manager:
 
         # concurrent.futures will manage the task queue for us under the hood
         with concurrent.futures.ProcessPoolExecutor(
-            max_workers=2,
+            max_workers=n_cpu,
             initializer=init_queue,
             initargs=(self.results_queue, ),
         ) as executor:
