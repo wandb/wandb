@@ -59,10 +59,10 @@ class ServiceSockInterface(ServiceInterface):
         inform_attach._info.stream_id = attach_id
 
         assert self._sock_client
-        response = self._sock_client.send_and_recv(inform_attach=inform_attach)
-        # response = self._sock_client.send(inform_attach=inform_attach)
-        return response.inform_attach_response
-        # return None
+        # response = self._sock_client.send_and_recv(inform_attach=inform_attach)
+        response = self._sock_client.send(inform_attach=inform_attach)
+        # return response.inform_attach_response
+        return None
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)

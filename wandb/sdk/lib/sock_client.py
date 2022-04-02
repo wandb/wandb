@@ -1,5 +1,6 @@
 import socket
 import struct
+import time
 from typing import Any, Optional
 from typing import TYPE_CHECKING
 import uuid
@@ -182,8 +183,9 @@ class SockClient:
                 import errno
                 # wandb.termwarn(f"AAAAAAAAAAAA: {(read_sockets, write_sockets, error_sockets)}")
                 wandb.termwarn(f"AAAAAAAAAAAA: {e}")
-                # if e.errno == errno.EAGAIN:
-                #     continue
+                if e.errno == errno.EAGAIN:
+                    time.sleep(0.001)
+                    continue
                 raise SockClientClosedError()
             finally:
                 if timeout:

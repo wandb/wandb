@@ -4,7 +4,7 @@ Compare to a run in a single process, base usage of `run.log`"""
 import multiprocessing as mp
 
 import wandb
-import yea
+# import yea
 
 
 def process_parent():
@@ -38,10 +38,10 @@ def share_run():
 def main():
     wandb.require("service")
 
-    reference_run()
+    # reference_run()
     share_run()
 
 
 if __name__ == "__main__":
-    yea.setup()  # Use ":yea:start_method:" to set mp.set_start_method()
+    # yea.setup()  # Use ":yea:start_method:" to set mp.set_start_method()
     main()
