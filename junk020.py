@@ -76,60 +76,11 @@ class Manager:
         self.sleep_time: float = 0.5
 
         self.running: bool = True
-        self.harvester = threading.Thread(target=self.get_results)
-        self.dumper = threading.Thread(target=self.post_results)
-        self.harvester.start()
-        self.dumper.start()
-
-    def get_results(self):
-        """
-        Get results from the global multiprocessing queue and put them into the heaps
-        """
-        while self.running:
-            print("harvester is running")
-            if not self.results_queue.empty():
-                result = self.results_queue.get()
-                # run id:
-                item = result[0]
-                with threading.RLock():
-                    heapq.heappush(self.result_heaps[item], result[1:])
-                    # fixme: merge this with post_results to avoid potential race conditions
-                    #  i.e., immediately dump it if it's the chunk we're waiting for
-                    #  ???? think deeper... need a lock for the heap access to avoid "racing"?
-                    # run_id, task_id
-                    key = (item, result[1])
-                    self.total_memory -= self.memory_usage[key]
-                    del self.memory_usage[key]
-                    print(f"harvester got result: {result}; total_memory: {self.total_memory}")
-            else:
-                time.sleep(self.sleep_time)
-
-    def post_results(self):
-        """
-        Dump results from the heaps respecting the order of the tasks.
-        Wait for the corresponding <self.current_chunk_number>-th result
-        to become available and dump it.
-        """
-        while self.running:
-            print("dumper is running")
-
-            if not any(self.result_heaps[item] for item in self.tasks):
-                time.sleep(self.sleep_time)
-                continue
-
-            for item in self.tasks:
-                if (
-                    self.result_heaps[item]
-                    and self.result_heaps[item][0][0] == self.current_chunk_number[item] + 1
-                ):
-                    with threading.RLock():
-                        chunk = heapq.heappop(self.result_heaps[item])
-                    with open(f"{item}.log", "a") as f:
-                        f.write(f"chunk {chunk[0]}: {chunk[1]}\n")
-                    self.current_chunk_number[item] += 1
-                    print(f"dumper posted result: {item}/{chunk}")
 
     async def process_tasks(self, executor, task_name):
+        """
+        Submit tasks to the executor, taking memory usage into account.
+        """
         while self.tasks[task_name]:
             # before submitting a task to the executor, ensure that
             # the memory usage of the currently running tasks is not too high
@@ -158,16 +109,88 @@ class Manager:
                 task_item["n"],
             )
 
-    # asynchronously iterate over multiple lists one element at a time
-    async def schedule_tasks(
+    async def watch(self):
+        """
+        Watch the tasks and the results and decide when to stop
+        """
+        while self.running:
+            print("watcher is running")
+            if (
+                # more tasks to schedule?
+                any([len(self.tasks[task]) for task in self.tasks])
+                # any tasks running?
+                or self.memory_usage
+                # any results to dump?
+                or any([len(heap) for heap in self.result_heaps.values()])
+            ):
+                await asyncio.sleep(self.sleep_time)
+                continue
+            print("All tasks finished, shutting down")
+            print(self.memory_usage, self.total_memory)
+            print(self.result_heaps)
+            self.running = False
+
+    async def harvest(self):
+        """
+        Get results from the global multiprocessing queue and put them into the heaps.
+        """
+        while self.running:
+            print("harvester is running")
+            if not self.results_queue.empty():
+                result = self.results_queue.get()
+                # run id:
+                item = result[0]
+                async with asyncio.Lock():
+                    heapq.heappush(self.result_heaps[item], result[1:])
+                    # run_id, task_id
+                    key = (item, result[1])
+                    self.total_memory -= self.memory_usage[key]
+                    del self.memory_usage[key]
+                    print(f"harvester got result: {result}; total_memory: {self.total_memory}")
+            else:
+                await asyncio.sleep(self.sleep_time)
+
+    async def dump(self):
+        """
+        Dump results from the heaps respecting the order of the tasks.
+        Wait for the corresponding <self.current_chunk_number>-th result
+        to become available and dump it.
+        """
+        while self.running:
+            print("dumper is running")
+
+            if not any(self.result_heaps[item] for item in self.tasks):
+                await asyncio.sleep(self.sleep_time)
+                continue
+
+            for item in self.tasks:
+                if (
+                    self.result_heaps[item]
+                    and self.result_heaps[item][0][0] == self.current_chunk_number[item] + 1
+                ):
+                    async with asyncio.Lock():
+                        chunk = heapq.heappop(self.result_heaps[item])
+                    with open(f"{item}.log", "a") as f:
+                        f.write(f"chunk {chunk[0]}: {chunk[1]}\n")
+                    self.current_chunk_number[item] += 1
+                    print(f"dumper posted result: {item}/{chunk}")
+
+    async def async_run(
         self,
         executor: concurrent.futures.ProcessPoolExecutor,
-        tasks: Dict[str, deque],
     ):
+        """
+        Map tasks to the executor, harvest and dump results.
+        """
         async_tasks = []
-        for task_name in tasks.keys():
+        for task_name in self.tasks.keys():
             task = asyncio.create_task(self.process_tasks(executor, task_name))
             async_tasks.append(task)
+
+        async_tasks.append(asyncio.create_task(self.watch()))
+        async_tasks.append(asyncio.create_task(self.harvest()))
+        async_tasks.append(asyncio.create_task(self.dump()))
+
         await asyncio.gather(*async_tasks)
 
     def run(self):
@@ -176,7 +199,6 @@ class Manager:
         """
         # simulate a situation with multiple runs of different length to be synced,
         # with different memory usage per task within each run
-        # tasks = defaultdict(deque)
         for name, n_tasks, matrix_size, (lower_memory, upper_memory) in [
             ("run_1", 10, 10, (1, 100)),
             ("run_2", 5, 20, (20, 200)),
@@ -191,7 +213,6 @@ class Manager:
                         "mem": np.random.randint(lower_memory, upper_memory)
                     }
                 )
-        # self.tasks = deque(roundrobin(*tasks.values()))
 
         # concurrent.futures will manage the task queue for us under the hood
         with concurrent.futures.ProcessPoolExecutor(
@@ -200,22 +221,10 @@ class Manager:
             initargs=(self.results_queue, ),
         ) as executor:
             try:
-                asyncio.run(self.schedule_tasks(executor, self.tasks))
+                asyncio.run(self.async_run(executor))
             except KeyboardInterrupt:
                 self.running = False
                 print("Keyboard interrupt caught, stopping...")
-
-        if not self.running:
-            # KeyboardInterrupt was caught, exit
-            sys.exit(1)
-
-        while self.memory_usage or any([len(heap) for heap in self.result_heaps.values()]):
-            print("waiting for final results to arrive and get dumped...")
-            time.sleep(self.sleep_time)
-
-        self.running = False
-        print(self.memory_usage, self.total_memory)
-        print(self.result_heaps)
 
 
 if __name__ == "__main__":
