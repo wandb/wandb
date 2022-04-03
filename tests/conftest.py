@@ -20,7 +20,7 @@ import nbformat
 import psutil
 import pytest
 import requests
-from six.moves import queue, urllib
+import queue, urllib
 import webbrowser
 
 from tests import utils
@@ -276,6 +276,12 @@ def runner(monkeypatch, mocker):
 def reset_setup():
     wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
 
+
+# @pytest.fixture(autouse=True)
+# def reset_service():
+#     #SETUP
+#     yield
+#     #TEARDOWN
 
 @pytest.fixture(autouse=True)
 def local_netrc(monkeypatch):
