@@ -1,3 +1,4 @@
+import aiofiles
 import asyncio
 from collections import defaultdict, deque
 import concurrent.futures
@@ -182,8 +183,10 @@ class Manager:
                 ):
                     async with asyncio.Lock():
                         chunk = heapq.heappop(self.result_heaps[item])
-                    with open(f"{item}.log", "a") as f:
-                        f.write(f"chunk {chunk[0]}: {chunk[1]}\n")
+                    # with open(f"{item}.log", "a") as f:
+                    #     f.write(f"chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n")
+                    async with aiofiles.open(f"{item}.log", "a") as f:
+                        await f.write(f"chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n")
                     self.current_chunk_number[item] += 1
                     print(f"dumper posted result: {item}/{chunk}")
 
@@ -204,7 +207,8 @@ class Manager:
         async_tasks.append(asyncio.create_task(self._harvest()))
         async_tasks.append(asyncio.create_task(self._dump()))
 
-        await asyncio.gather(*async_tasks)
+        # await asyncio.gather(*async_tasks)
+        await asyncio.wait(async_tasks)
 
     def run(self, n_cpu: int = N_CPU) -> None:
         """
