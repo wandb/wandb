@@ -215,15 +215,17 @@ class StreamMux:
 
     def _process_del(self, action: StreamAction) -> None:
         with self._streams_lock:
-            stream = self._streams.pop(action._stream_id)
-            stream.join()
+            if action._stream_id in self._streams:
+                stream = self._streams.pop(action._stream_id)
+                stream.join()
         # TODO: we assume stream has already been shutdown.  should we verify?
 
     def _process_drop(self, action: StreamAction) -> None:
         with self._streams_lock:
-            stream = self._streams.pop(action._stream_id)
-            stream.drop()
-            stream.join()
+            if action._stream_id in self._streams:
+                stream = self._streams.pop(action._stream_id)
+                stream.drop()
+                stream.join()
 
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
