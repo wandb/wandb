@@ -164,6 +164,7 @@ class ImageMask(Media):
         
         # Add default class mapping
         if "class_labels" not in val:
+            np = util.get_module("numpy", required="Image mask support requires numpy")
             classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
             class_labels = dict((c, "class_" + str(c)) for c in classes)
             val["class_labels"] = class_labels
