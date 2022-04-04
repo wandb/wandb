@@ -126,7 +126,6 @@ class Video(BatchableMedia):
                 )
             self.encode()
 
-
     def encode(self) -> None:
         mpy = util.get_module(
             "moviepy.editor",
