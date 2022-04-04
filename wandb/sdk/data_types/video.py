@@ -97,6 +97,8 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             self.encode()
+        
+        print("VIDEO SHA", self._sha256)
 
     def encode(self) -> None:
         mpy = util.get_module(
