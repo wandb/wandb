@@ -322,7 +322,6 @@ class Image(BatchableMedia):
         # level Media class.
         if self._get_artifact_entry_ref_url() is None:
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
-        
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
