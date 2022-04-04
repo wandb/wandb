@@ -322,19 +322,20 @@ class Image(BatchableMedia):
         # level Media class.
         if self._get_artifact_entry_ref_url() is None:
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
-            if self._boxes is not None:
-                for i, k in enumerate(self._boxes):
-                    id_ = "{}{}".format(id_, i) if id_ is not None else None
-                    self._boxes[k].bind_to_run(
-                        run, key, step, id_, ignore_copy_err=ignore_copy_err
-                    )
+        
+        if self._boxes is not None:
+            for i, k in enumerate(self._boxes):
+                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                self._boxes[k].bind_to_run(
+                    run, key, step, id_, ignore_copy_err=ignore_copy_err
+                )
 
-            if self._masks is not None:
-                for i, k in enumerate(self._masks):
-                    id_ = "{}{}".format(id_, i) if id_ is not None else None
-                    self._masks[k].bind_to_run(
-                        run, key, step, id_, ignore_copy_err=ignore_copy_err
-                    )
+        if self._masks is not None:
+            for i, k in enumerate(self._masks):
+                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                self._masks[k].bind_to_run(
+                    run, key, step, id_, ignore_copy_err=ignore_copy_err
+                )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Image, self).to_json(run_or_artifact)
