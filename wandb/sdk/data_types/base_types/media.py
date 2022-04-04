@@ -240,8 +240,6 @@ class Media(WBValue):
                             self._path, name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
-                        if self._artifact_target is None:
-                            self._set_artifact_target(artifact, name)
 
                 json_obj["path"] = name
                 json_obj["sha256"] = self._sha256
