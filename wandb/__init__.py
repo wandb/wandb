@@ -193,6 +193,8 @@ if wandb_sdk.lib.ipython.in_jupyter():
 
     load_ipython_extension(get_ipython())
 
+wandb.require("service")
+
 
 __all__ = [
     "__version__",
