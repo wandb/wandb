@@ -98,7 +98,7 @@ class Video(BatchableMedia):
                 )
             self.encode()
         
-        print("VIDEO SHA", self._sha256)
+        print("VIDEO SHA", self._sha256, self._size)
 
     def encode(self) -> None:
         mpy = util.get_module(
@@ -135,6 +135,7 @@ class Video(BatchableMedia):
                     clip.write_gif(filename, **kwargs)
                 else:
                     clip.write_videofile(filename, **kwargs)
+        print("VIDEO FILE:", filename)
         self._set_file(filename, is_tmp=True)
 
     @classmethod
