@@ -259,6 +259,7 @@ class Media(WBValue):
         return cls(source_artifact.get_path(json_obj["path"]).download())
 
     def __eq__(self, other: object) -> bool:
+        print(self, other, self._sha256 if hasattr(self, "_sha256") else None,  other._sha256 if hasattr(other, "_sha256") else None)
         """Likely will need to override for any more complicated media objects"""
         return (
             isinstance(other, self.__class__)
