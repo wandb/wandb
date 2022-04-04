@@ -275,13 +275,10 @@ def runner(monkeypatch, mocker):
 @pytest.fixture(autouse=True)
 def reset_setup():
     wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+    yield
+    if wandb.wandb_sdk.wandb_setup._WandbSetup._instance is not None:
+        wandb.wandb_sdk.wandb_setup._WandbSetup._instance._manager._atexit_teardown()
 
-
-# @pytest.fixture(autouse=True)
-# def reset_service():
-#     #SETUP
-#     yield
-#     #TEARDOWN
 
 @pytest.fixture(autouse=True)
 def local_netrc(monkeypatch):
