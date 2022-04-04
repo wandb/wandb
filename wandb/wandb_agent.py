@@ -373,9 +373,8 @@ class Agent(object):
         flags = []
         for param, config in command["args"].items():
             # Parameters specified as argparse flags are ommitted if false
-            if config.get("meta", None) is not None and\
-                config["meta"].get("is_flag", None) is not None and\
-                config["meta"]["is_flag"] == True and\
+            if config.get("is_flag", None) is not None and\
+                config["is_flag"] == True and\
                 config["value"] == False:
                     continue
             else:
