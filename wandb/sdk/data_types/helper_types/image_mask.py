@@ -149,16 +149,7 @@ class ImageMask(Media):
             self._set_file(val["path"])
         else:
             np = util.get_module("numpy", required="Image mask support requires numpy")
-            # Add default class mapping
-            if "class_labels" not in val:
-                classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
-                class_labels = dict((c, "class_" + str(c)) for c in classes)
-                val["class_labels"] = class_labels
-
             self.validate(val)
-            self._val = val
-            self._key = key
-
             ext = "." + self.type_name() + ".png"
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
 
@@ -170,6 +161,15 @@ class ImageMask(Media):
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
+        
+        # Add default class mapping
+        if "class_labels" not in val:
+            classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
+            class_labels = dict((c, "class_" + str(c)) for c in classes)
+            val["class_labels"] = class_labels
+
+        self._val = val
+        self._key = key
 
     def bind_to_run(
         self,
