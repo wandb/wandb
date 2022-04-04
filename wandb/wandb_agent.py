@@ -370,7 +370,16 @@ class Agent(object):
             (param, config["value"]) for param, config in command["args"].items()
         ]
         flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
-        flags = ["--" + flag for flag in flags_no_hyphens]
+        flags = []
+        for param, config in command["args"].items():
+            # Parameters specified as argparse flags are ommitted if false
+            if config.get("meta", None) is not None and\
+                config["meta"].get("is_flag", None) is not None and\
+                config["meta"]["is_flag"] == True and\
+                config["value"] == False:
+                    continue
+            else:
+                flags.append("--{}={}".format(param, config["value"]))
         flags_dict = dict(flags_list)
         flags_json = json.dumps(flags_dict)
 
