@@ -29,7 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
 #
 # Except, we close the writer!
 def write_gif_with_image_io(
-    clip: mpy.ImageSequenceClip, filename: str, fps: Optional[int] = None
+    clip: "mpy.ImageSequenceClip", filename: str, fps: Optional[int] = None
 ) -> None:
     imageio = util.get_module(
         "imageio",
