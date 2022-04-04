@@ -276,7 +276,10 @@ def runner(monkeypatch, mocker):
 def reset_setup():
     wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
     yield
-    wandb.teardown()
+    try:
+        wandb.teardown()
+    except Exception as e:
+        print(e)
 
 
 @pytest.fixture(autouse=True)
