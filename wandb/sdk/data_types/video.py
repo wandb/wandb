@@ -12,6 +12,7 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
+    import moviepy.editor as mpy
     import numpy as np  # type: ignore
 
     from ..wandb_artifacts import Artifact as LocalArtifact
@@ -27,7 +28,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # See https://github.com/Zulko/moviepy/blob/7e3e8bb1b739eb6d1c0784b0cb2594b587b93b39/moviepy/video/io/gif_writers.py#L428
 #
 # Except, we close the writer!
-def write_gif_with_image_io(clip: any, filename: str, fps=None):
+def write_gif_with_image_io(
+    clip: mpy.ImageSequenceClip, filename: str, fps: Optional[int] = None
+) -> None:
     imageio = util.get_module(
         "imageio",
         required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
