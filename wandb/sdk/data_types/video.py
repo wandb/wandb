@@ -1,7 +1,7 @@
 from io import BytesIO
 import logging
 import os
-from typing import Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
+from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
 
 from wandb import util
 
@@ -12,7 +12,6 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    import moviepy.editor as mpy
     import numpy as np  # type: ignore
 
     from ..wandb_artifacts import Artifact as LocalArtifact
@@ -29,7 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover
 #
 # Except, we close the writer!
 def write_gif_with_image_io(
-    clip: "mpy.ImageSequenceClip", filename: str, fps: Optional[int] = None
+    clip: Any, filename: str, fps: Optional[int] = None
 ) -> None:
     imageio = util.get_module(
         "imageio",
