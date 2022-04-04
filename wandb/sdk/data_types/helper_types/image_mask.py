@@ -182,7 +182,7 @@ class ImageMask(Media):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
-        if self._val != None and "class_labels" in self._val:
+        if hasattr(self, "_val") and "class_labels" in self._val:
             class_labels = self._val["class_labels"]
 
             run._add_singleton(
