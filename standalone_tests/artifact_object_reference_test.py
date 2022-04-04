@@ -370,8 +370,8 @@ def test_get_artifact_obj_by_name():
     TODO: test more robustly for every Media type, nested objects (eg. Table -> Image),
     and references
     """
+
     with wandb.init() as run:
-        print(run.entity, run.name)
         artifact = wandb.Artifact("A2", "database")
         image = _make_wandb_image()
         table = _make_wandb_table()
@@ -817,29 +817,28 @@ def test_distributed_artifact_simple():
 
 
 if __name__ == "__main__":
-    print("Starting")
     _cleanup()
     test_fns = [
-        # test_artifact_add_reference_via_url,
-        # test_add_reference_via_artifact_entry,
-        # test_adding_artifact_by_object,
+        test_artifact_add_reference_via_url,
+        test_add_reference_via_artifact_entry,
+        test_adding_artifact_by_object,
         test_get_artifact_obj_by_name,
-        # test_image_reference_artifact,
-        # test_nested_reference_artifact,
-        # test_table_slice_reference_artifact,
-        # test_image_refs,
-        # test_point_cloud_refs,
-        # test_bokeh_refs,
-        # test_html_refs,
-        # test_video_refs,
-        # test_table_refs,
-        # test_joined_table_refs,
-        # test_audio_refs,
-        # test_joined_table_referential,
-        # test_joined_table_add_by_path,
-        # test_image_reference_with_preferred_path,
+        test_image_reference_artifact,
+        test_nested_reference_artifact,
+        test_table_slice_reference_artifact,
+        test_image_refs,
+        test_point_cloud_refs,
+        test_bokeh_refs,
+        test_html_refs,
+        test_video_refs,
+        test_table_refs,
+        test_joined_table_refs,
+        test_audio_refs,
+        test_joined_table_referential,
+        test_joined_table_add_by_path,
+        test_image_reference_with_preferred_path,
         # test_distributed_artifact_simple,
-        # test_simple_partition_table,
+        test_simple_partition_table,
     ]
     for ndx, test_fn in enumerate(test_fns):
         try:
