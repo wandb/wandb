@@ -370,8 +370,8 @@ def test_get_artifact_obj_by_name():
     TODO: test more robustly for every Media type, nested objects (eg. Table -> Image),
     and references
     """
-
     with wandb.init() as run:
+        print(run.entity, run.name)
         artifact = wandb.Artifact("A2", "database")
         image = _make_wandb_image()
         table = _make_wandb_table()
@@ -817,6 +817,7 @@ def test_distributed_artifact_simple():
 
 
 if __name__ == "__main__":
+    print("Starting")
     _cleanup()
     test_fns = [
         # test_artifact_add_reference_via_url,
