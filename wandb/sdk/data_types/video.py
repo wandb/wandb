@@ -18,6 +18,34 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_run import Run as LocalRun
 
 
+# This helper function is a workaround for the issue discussed here:
+# https://weightsandbiases.slack.com/archives/C0108SLEP6K/p1648994909865859
+#
+# Essentially, the issue is that moviepy's write_gif function fails to close
+# the open write / file descripter returned from `imageio.save`. The following
+# function is a simplified copy of the function in the moviepy source code.
+# See https://github.com/Zulko/moviepy/blob/7e3e8bb1b739eb6d1c0784b0cb2594b587b93b39/moviepy/video/io/gif_writers.py#L428
+#
+# Except, we close the writer!
+def write_gif_with_image_io(
+    clip: any, filename: str, fps=None
+):
+    """Writes the gif with the Python library ImageIO (calls FreeImage)."""
+    imageio = util.get_module(
+        "imageio",
+        required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
+    )
+
+    writer = imageio.save(
+        filename, duration=1.0 / clip.fps, quantizer=0, palettesize=256, loop=0
+    )
+
+    for frame in clip.iter_frames(fps=fps, dtype="uint8"):
+        writer.append_data(frame)
+
+    writer.close()
+
+
 class Video(BatchableMedia):
     """Format a video for logging to W&B.
 
@@ -97,8 +125,7 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             self.encode()
-        
-        print("VIDEO SHA", self._sha256, self._size)
+
 
     def encode(self) -> None:
         mpy = util.get_module(
@@ -117,7 +144,7 @@ class Video(BatchableMedia):
         try:  # older versions of moviepy do not support logger argument
             kwargs = {"logger": None}
             if self._format == "gif":
-                clip.write_gif(filename, **kwargs)
+                write_gif_with_image_io(clip, filename)
             else:
                 clip.write_videofile(filename, **kwargs)
         except TypeError:
@@ -135,7 +162,6 @@ class Video(BatchableMedia):
                     clip.write_gif(filename, **kwargs)
                 else:
                     clip.write_videofile(filename, **kwargs)
-        print("VIDEO FILE:", filename)
         self._set_file(filename, is_tmp=True)
 
     @classmethod
