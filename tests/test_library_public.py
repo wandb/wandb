@@ -155,6 +155,7 @@ def test_library_root():
         - SYMBOLS_ROOT_SDK
         - SYMBOLS_ROOT_OTHER
         - SYMBOLS_TYPING
+        - SYMBOLS_SERVICE
     )
     assert symbol_unknown == set()
 
@@ -218,6 +219,12 @@ SYMBOLS_RUN_OTHER = {
     "project_name",
 }
 
+SYMBOLS_SERVICE = {
+    "attach",
+    "detach",
+    "teardown"
+}
+
 
 def test_library_run():
     Run = wandb.wandb_sdk.wandb_run.Run
@@ -230,6 +237,7 @@ def test_library_run():
         - SYMBOLS_RUN_RESUME
         - SYMBOLS_RUN_OTHER
         - SYMBOLS_TYPING
+        - SYMBOLS_SERVICE
     )
     assert symbol_unknown == set()
 
