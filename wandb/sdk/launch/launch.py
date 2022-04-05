@@ -36,7 +36,7 @@ def _run(
     project: Optional[str],
     entity: Optional[str],
     docker_image: Optional[str],
-    entry_point: Optional[List[str]],
+    entry_point: Optional[str],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
     resource: str,
@@ -92,7 +92,7 @@ def _run(
 def run(
     uri: Optional[str],
     api: Api,
-    entry_point: Optional[List[str]] = None,
+    entry_point: Optional[str] = None,
     version: Optional[str] = None,
     parameters: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
