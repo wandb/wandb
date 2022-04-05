@@ -377,7 +377,7 @@ class Agent(object):
         flags = []
         for param, config in command["args"].items():
             # Parameters specified in command_flags are omitted if false
-            if param in self._sweep_command_flags and isinstance(param, bool) and param == False:
+            if param in self._sweep_command_flags and isinstance(param, bool) and param is False:
                 continue
             else:
                 flags.append("--{}={}".format(param, config["value"]))
