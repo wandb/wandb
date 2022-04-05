@@ -276,11 +276,7 @@ def runner(monkeypatch, mocker):
 def reset_setup():
     wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
     yield
-    try:
-        wandb.teardown()
-    except Exception as e:
-        print(e)
-
+    wandb.teardown()
 
 @pytest.fixture(autouse=True)
 def local_netrc(monkeypatch):
@@ -467,15 +463,15 @@ def wandb_init_run(request, runner, mocker, mock_server):
         with mock.patch.dict(os.environ, {k: v for k, v in args["env"].items()}):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
-            #  We want to run setup every time in tests
-            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
+            # #  We want to run setup every time in tests
+            # wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+            # with mock.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock):
             run = wandb.init(
-                settings=dict(console="off", mode="offline", _except_exit=False),
+                    settings=dict(console="off", mode="offline", _except_exit=False),
                 **args["wandb_init"],
-            )
+                )
             yield run
-            wandb.finish()
+            run.finish()
     finally:
         unset_globals()
 
@@ -488,8 +484,8 @@ def wandb_init(request, runner, mocker, mock_server):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
             #  We want to run setup every time in tests
-            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
+            # wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+            # mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
             return wandb.init(
                 settings=dict(console="off", mode="offline", _except_exit=False),
                 *args,

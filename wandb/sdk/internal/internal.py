@@ -42,7 +42,7 @@ from ..lib import tracelog
 if TYPE_CHECKING:
     from .settings_static import SettingsDict, SettingsStatic
     from typing import Any, List, Optional
-    from six.moves.queue import Queue
+    from queue import Queue
     from .internal_util import RecordLoopThread
     from wandb.proto.wandb_internal_pb2 import Record, Result
     from threading import Event
