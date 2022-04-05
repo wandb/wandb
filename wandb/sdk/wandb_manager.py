@@ -61,6 +61,9 @@ class _ManagerToken:
         self._host = host
         self._port = int(port_str)
 
+    def reset_environment(self) -> None:
+        os.environ.pop(env.SERVICE, None)
+
     @property
     def token(self) -> str:
         return self._token_str
@@ -138,6 +141,7 @@ class _Manager:
         result = self._service.join()
         if result and not self._settings._jupyter:
             os._exit(result)
+        self._token.reset_environment()
 
     def _get_service(self) -> "service._Service":
         return self._service

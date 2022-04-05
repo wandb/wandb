@@ -1,7 +1,7 @@
 from io import BytesIO
 import logging
 import os
-from typing import Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
+from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
 
 from wandb import util
 
@@ -16,6 +16,33 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
+
+
+# This helper function is a workaround for the issue discussed here:
+# https://github.com/wandb/client/issues/3472
+#
+# Essentially, the issue is that moviepy's write_gif function fails to close
+# the open write / file descripter returned from `imageio.save`. The following
+# function is a simplified copy of the function in the moviepy source code.
+# See https://github.com/Zulko/moviepy/blob/7e3e8bb1b739eb6d1c0784b0cb2594b587b93b39/moviepy/video/io/gif_writers.py#L428
+#
+# Except, we close the writer!
+def write_gif_with_image_io(
+    clip: Any, filename: str, fps: Optional[int] = None
+) -> None:
+    imageio = util.get_module(
+        "imageio",
+        required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
+    )
+
+    writer = imageio.save(
+        filename, duration=1.0 / clip.fps, quantizer=0, palettesize=256, loop=0
+    )
+
+    for frame in clip.iter_frames(fps=fps, dtype="uint8"):
+        writer.append_data(frame)
+
+    writer.close()
 
 
 class Video(BatchableMedia):
@@ -115,7 +142,7 @@ class Video(BatchableMedia):
         try:  # older versions of moviepy do not support logger argument
             kwargs = {"logger": None}
             if self._format == "gif":
-                clip.write_gif(filename, **kwargs)
+                write_gif_with_image_io(clip, filename)
             else:
                 clip.write_videofile(filename, **kwargs)
         except TypeError:
