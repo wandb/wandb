@@ -325,6 +325,18 @@ class Api(object):
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
 
+    def create_user(self, email, admin=False):
+        """Creates a new user
+
+        Arguments:
+            email: (str) The name of the team
+            admin: (bool) Whether this user should be a global instance admin
+
+        Returns:
+            A `User` object
+        """
+        return User.create(self, email, admin)
+
     def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
         """Sync a local directory containing tfevent files to wandb"""
         from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
@@ -574,7 +586,7 @@ class Api(object):
         Returns:
             A `Team` object
         """
-        return Team.create(self.client, team, admin_username)
+        return Team.create(self, team, admin_username)
 
     def team(self, team):
         return Team(self.client, team)
@@ -877,6 +889,22 @@ class Paginator(object):
 
 
 class User(Attrs):
+    CREATE_USER_MUTATION = gql(
+        """
+    mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
+        createUser(input: {email: $email, admin: $admin}) {
+            user {
+                id
+                name
+                username
+                email
+                admin
+            }
+        }
+    }
+        """
+    )
+
     DELETE_API_KEY_MUTATION = gql(
         """
     mutation DeleteApiKey($id: String!) {
@@ -902,6 +930,24 @@ class User(Attrs):
     def __init__(self, client, attrs):
         super(User, self).__init__(attrs)
         self._client = client
+
+    @classmethod
+    def create(cls, api, email, admin=False):
+        """Creates a new user
+
+        Arguments:
+            api: (`Api`) The api instance to use
+            email: (str) The name of the team
+            admin: (bool) Whether this user should be a global instance admin
+
+        Returns:
+            A `User` object
+        """
+        res = api.client.execute(
+            cls.CREATE_USER_MUTATION,
+            {"email": email, "admin": admin},
+        )
+        return User(api.client, res["createUser"]["user"])
 
     @property
     def api_keys(self):
@@ -1081,13 +1127,13 @@ class Team(Attrs):
             A `Team` object
         """
         try:
-            api.execute(
+            api.client.execute(
                 cls.CREATE_TEAM_MUTATION,
                 {"teamName": team, "teamAdminUserName": admin_username},
             )
         except requests.exceptions.HTTPError:
             pass
-        return Team(api, team)
+        return Team(api.client, team)
 
     def invite(self, username_or_email, admin=False):
         """Invites a user to a team

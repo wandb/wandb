@@ -42,12 +42,22 @@ from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 
-# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+# Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = tempfile.gettempdir()
+
+try:
+    _username = getpass.getuser()
+except KeyError:
+    # getuser() could raise KeyError in restricted environments like
+    # chroot jails or docker containers. Return user id in these cases.
+    _username = str(os.getuid())
+
+_wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
+
 logging.basicConfig(
-    filename=os.path.join(_wandb_dir, "debug-cli.log"),
+    filename=_wandb_log_path,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -901,19 +911,6 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
-def _check_launch_imports():
-    req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module(
-        "docker",
-        required=req_string,
-    )
-    _ = util.get_module(
-        "chardet",
-        required=req_string,
-    )
-    _ = util.get_module("iso8601", required=req_string)
-
-
 @cli.command(
     help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
@@ -1054,7 +1051,6 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
@@ -1168,7 +1164,6 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
 
