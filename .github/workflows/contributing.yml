@@ -29,7 +29,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install wheel
           pip install -e .
-          curl https://pyenv.run | bash
+          curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
           cat << EOF > ~/.bashrc
           export PYENV_ROOT="$HOME/.pyenv"
           export PATH="$HOME/.pyenv/bin:$PATH"
