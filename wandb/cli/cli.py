@@ -414,6 +414,59 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
+@click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
+@click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
+@click.option("--id", "run_id", help="The run you want to upload to.")
+@click.option("--project", "-p", help="The project you want to upload to.")
+@click.option("--entity", "-e", help="The entity to scope to.")
+@click.option(
+    "--sync-tensorboard/--no-sync-tensorboard",
+    is_flag=True,
+    default=None,
+    help="Stream tfevent files to wandb.",
+)
+@click.option("--include-globs", help="Comma seperated list of globs to include.")
+@click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
+@click.option(
+    "--include-online/--no-include-online",
+    is_flag=True,
+    default=None,
+    help="Include online runs",
+)
+@click.option(
+    "--include-offline/--no-include-offline",
+    is_flag=True,
+    default=None,
+    help="Include offline runs",
+)
+@click.option(
+    "--include-synced/--no-include-synced",
+    is_flag=True,
+    default=None,
+    help="Include synced runs",
+)
+@click.option(
+    "--mark-synced/--no-mark-synced",
+    is_flag=True,
+    default=True,
+    help="Mark runs as synced",
+)
+@click.option("--sync-all", is_flag=True, default=False, help="Sync all runs")
+@click.option("--clean", is_flag=True, default=False, help="Delete synced runs")
+@click.option(
+    "--clean-old-hours",
+    default=24,
+    help="Delete runs created before this many hours. To be used alongside --clean flag.",
+    type=int,
+)
+@click.option(
+    "--clean-force",
+    is_flag=True,
+    default=False,
+    help="Clean without confirmation prompt.",
+)
+@click.option("--ignore", hidden=True)
+@click.option("--show", default=5, help="Number of runs to show")
 @display_error
 def syn(
     ctx,
@@ -445,14 +498,83 @@ def syn(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    path = [pathlib.Path(p).absolute() for p in path]
-    print(path)
+    if ignore:
+        exclude_globs = ignore
+    if include_globs:
+        include_globs = include_globs.split(",")
+    if exclude_globs:
+        exclude_globs = exclude_globs.split(",")
 
-    from wandb.sync.newsync2 import Manager
+    def _summary():
+        all_items = get_runs(
+            include_online=True,
+            include_offline=True,
+            include_synced=True,
+            include_unsynced=True,
+        )
+        sync_items = get_runs(
+            include_online=include_online if include_online is not None else True,
+            include_offline=include_offline if include_offline is not None else True,
+            include_synced=include_synced if include_synced is not None else False,
+            include_unsynced=True,
+            exclude_globs=exclude_globs,
+            include_globs=include_globs,
+        )
+        synced = []
+        unsynced = []
+        for item in all_items:
+            (synced if item.synced else unsynced).append(item)
+        if sync_items:
+            wandb.termlog(f"Number of runs to be synced: {len(sync_items)}")
+            if show and show < len(sync_items):
+                wandb.termlog(f"Showing {show} runs to be synced:")
+            for item in sync_items[: (show or len(sync_items))]:
+                wandb.termlog(f"  {item}")
+        else:
+            wandb.termlog("No runs to be synced.")
+        if synced:
+            clean_cmd = click.style("wandb sync --clean", fg="yellow")
+            wandb.termlog(
+                f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
+            )
+        if unsynced:
+            sync_cmd = click.style("wandb sync --sync-all", fg="yellow")
+            wandb.termlog(
+                f"NOTE: use {sync_cmd} to sync {len(unsynced)} unsynced runs from local directory."
+            )
 
-    manager = Manager()
-    manager.sync_items.extend(path)
-    manager.run()
+    def _sync_path(_path):
+        if run_id and len(_path) > 1:
+            wandb.termerror("`id` can only be set for a single run.")
+            sys.exit(1)
+        _path = [str(pathlib.Path(p).absolute()) for p in _path]
+
+        from wandb.sync.newsync import SyncManager as Manager
+
+        manager = Manager(
+            sync_items=_path,
+            project=project,
+            entity=entity,
+            run_id=run_id,
+            mark_synced=mark_synced,
+            app_url=api.app_url,
+            view=view,
+            verbose=verbose,
+        )
+        # manager.sync_items.extend(_path)
+        manager.run()
+    if sync_all:
+        # _sync_all()
+        pass
+    elif clean:
+        # _clean()
+        pass
+    elif path:
+        # # When syncing a specific path, default to syncing tensorboard
+        # sync_tb = sync_tensorboard if sync_tensorboard is not None else True
+        _sync_path(path)
+    else:
+        _summary()
 
 
 @cli.command(
