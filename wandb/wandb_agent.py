@@ -164,7 +164,7 @@ class Agent(object):
 
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
-            exit codes in the first FLAPPING_MAX_SECONDS"""
+        exit codes in the first FLAPPING_MAX_SECONDS"""
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
@@ -189,7 +189,9 @@ class Agent(object):
                     if sweep_command and isinstance(sweep_command, list):
                         self._sweep_command = sweep_command
                         sweep_command_flags = sweep_config.get("command_flags")
-                        if sweep_command_flags and isinstance(sweep_command_flags, list):
+                        if sweep_command_flags and isinstance(
+                            sweep_command_flags, list
+                        ):
                             self._sweep_command_flags = sweep_command_flags
 
         # TODO: include sweep ID
@@ -377,7 +379,11 @@ class Agent(object):
         flags = []
         for param, config in command["args"].items():
             # Parameters specified in command_flags are omitted if false
-            if param in self._sweep_command_flags and isinstance(param, bool) and param is False:
+            if (
+                param in self._sweep_command_flags
+                and isinstance(param, bool)
+                and param is False
+            ):
                 continue
             else:
                 flags.append("--{}={}".format(param, config["value"]))
