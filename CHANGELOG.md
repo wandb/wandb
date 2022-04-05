@@ -10,6 +10,7 @@
 * Use Artifacts when put into run config. Accept a string to represent an artifact in the run config by @KyleGoyette in https://github.com/wandb/client/pull/3203
 * Improve xgboost `wandb_callback` (#2929) by @ayulockin in https://github.com/wandb/client/pull/3025
 * Add initial kubeflow pipeline support by @andrewtruong in https://github.com/wandb/client/pull/3206
+* Add boolean sweep arg support by @hugo.ponte in https://github.com/wandb/client/pull/3473
 
 #### :bug: Bug Fix
 * Fix logging of images with special characters in the key by @speezepearson in https://github.com/wandb/client/pull/3187
