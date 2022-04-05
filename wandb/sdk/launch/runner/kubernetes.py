@@ -2,6 +2,8 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
+
 if False:
     import kubernetes  # type: ignore  # noqa: F401
     from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
@@ -152,7 +154,9 @@ class KubernetesRunner(AbstractRunner):
         else:
             return active_context
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:  # noqa: C901
+    def run(
+        self, launch_project: LaunchProject, builder: AbstractBuilder
+    ) -> Optional[AbstractRun]:  # noqa: C901
         kubernetes = get_module(  # noqa: F811
             "kubernetes", "KubernetesRunner requires kubernetes to be installed"
         )
@@ -206,7 +210,8 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         namespace = resource_args.get(
-            "namespace", job_metadata.get("namespace", default),
+            "namespace",
+            job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -307,7 +312,7 @@ class KubernetesRunner(AbstractRunner):
                     "Error: No Docker registry specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
 
-            image_uri = build.build_image_with_kaniko(
+            image_uri = builder.build_image(
                 self._api,
                 launch_project,
                 registry,
@@ -369,7 +374,11 @@ class KubernetesRunner(AbstractRunner):
         )
 
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, pod_names, namespace,
+            batch_api,
+            core_api,
+            job_name,
+            pod_names,
+            namespace,
         )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:

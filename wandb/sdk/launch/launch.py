@@ -6,6 +6,8 @@ from wandb.errors import ExecutionError
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
+from .builder.abstract import AbstractBuilder
+from .builder import loader as builder_loader
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
@@ -74,6 +76,10 @@ def _run(
     else:
         runner_config[PROJECT_DOCKER_ARGS] = {}
 
+    # TODO: infer builder??
+    # TODO: share client between builder/runner in kaniko/kubernetes case
+    builder_type = "kaniko"
+    builder = builder_loader.load_builder(builder_type)
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
         submitted_run = backend.run(launch_project)

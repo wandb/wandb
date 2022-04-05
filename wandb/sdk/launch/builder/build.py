@@ -366,7 +366,9 @@ def build_image_with_kaniko(
         sanitize_wandb_api_key(dockerfile_str),
     )
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-    return kaniko.build_image(launch_project.run_id, registry, image_uri, build_ctx_path)
+    return kaniko.build_image(
+        launch_project.run_id, registry, image_uri, build_ctx_path
+    )
 
 
 def generate_docker_image(
