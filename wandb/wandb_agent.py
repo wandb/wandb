@@ -150,6 +150,7 @@ class Agent(object):
         self._failed = 0
         self._count = count
         self._sweep_command = []
+        self._sweep_command_flags = []
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
         )
@@ -187,6 +188,9 @@ class Agent(object):
                     sweep_command = sweep_config.get("command")
                     if sweep_command and isinstance(sweep_command, list):
                         self._sweep_command = sweep_command
+                        sweep_command_flags = sweep_config.get("command_flags")
+                        if sweep_command_flags and isinstance(sweep_command_flags, list):
+                            self._sweep_command_flags = sweep_command_flags
 
         # TODO: include sweep ID
         agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
@@ -370,7 +374,13 @@ class Agent(object):
             (param, config["value"]) for param, config in command["args"].items()
         ]
         flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
-        flags = ["--" + flag for flag in flags_no_hyphens]
+        flags = []
+        for param, config in command["args"].items():
+            # Parameters specified in command_flags are omitted if false
+            if param in self._sweep_command_flags and isinstance(param, bool) and param == False:
+                continue
+            else:
+                flags.append("--{}={}".format(param, config["value"]))
         flags_dict = dict(flags_list)
         flags_json = json.dumps(flags_dict)
 
