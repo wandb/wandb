@@ -326,11 +326,11 @@ def merge_parameters(
 
 
 def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
-    nbformat = wandb.util.get_module(
-        "nbformat", "nbformat is required to use launch with jupyter notebooks"
-    )
     nbconvert = wandb.util.get_module(
-        "nbconvert", "nbconvert is required to use launch with jupyter notebooks"
+        "nbconvert", "nbformat and nbconvert are required to use launch with notebooks"
+    )
+    nbformat = wandb.util.get_module(
+        "nbformat", "nbformat and nbconvert are required to use launch with notebooks"
     )
 
     _logger.info("Converting notebook to script")
