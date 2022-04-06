@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Use wandb to track machine learning work.
 
 The most commonly used functions/objects are:

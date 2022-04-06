@@ -197,7 +197,7 @@ class AWSSagemakerRunner(AbstractRunner):
         )
         if command_args:
             wandb.termlog(
-                "Launching run on sagemaker with entrypoint: {}".format(command_args)
+                f"Launching run on sagemaker with entrypoint: {command_args}"
             )
         else:
             wandb.termlog(

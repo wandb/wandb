@@ -698,7 +698,7 @@ class Settings:
                 raise UsageError(
                     f'Invalid project name "{value}": exceeded 128 characters'
                 )
-            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            invalid_chars = {char for char in invalid_chars_list if char in value}
             if invalid_chars:
                 raise UsageError(
                     f'Invalid project name "{value}": '

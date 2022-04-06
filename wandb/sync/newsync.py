@@ -405,7 +405,7 @@ class SyncManager:
                 {
                     "chunk_number": chunk_number,
                     "chunk": chunk,
-                    "chunk_memory": sum([task["memory"] for task in chunk]),
+                    "chunk_memory": sum(task["memory"] for task in chunk),
                 }
                 for chunk_number, chunk
                 in enumerate(split_into_chunks(self.tasks[sync_item], chunk_size))
@@ -413,7 +413,7 @@ class SyncManager:
             self.tasks[sync_item] = deque(chunked_tasks)
 
             # print total memory usage in megabytes
-            total_memory = sum([task['chunk_memory'] for task in chunked_tasks])
+            total_memory = sum(task['chunk_memory'] for task in chunked_tasks)
             print(
                 f"memory: {sync_item}: {total_memory / 1024 / 1024} MB"
             )

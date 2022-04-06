@@ -1,13 +1,9 @@
-from __future__ import print_function
-
 import os
 import pytest
-import six
-from six.moves import queue
+import queue
 import threading
 import time
 import shutil
-import sys
 
 import wandb
 from wandb.util import mkdir_exists_ok

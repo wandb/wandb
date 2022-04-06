@@ -157,12 +157,10 @@ class _WandbLogin:
     def configure_api_key(self, key):
         if self._settings._jupyter and not self._settings.silent:
             wandb.termwarn(
-                (
                     "If you're specifying your api key in code, ensure this "
                     "code is not shared publicly.\nConsider setting the "
                     "WANDB_API_KEY environment variable, or running "
                     "`wandb login` from the command line."
-                )
             )
         apikey.write_key(self._settings, key)
         self.update_session(key)

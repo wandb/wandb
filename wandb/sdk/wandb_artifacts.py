@@ -1,4 +1,3 @@
-#
 import base64
 import contextlib
 import hashlib
@@ -21,9 +20,9 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
+from urllib.parse import quote, urlparse
 
 import requests
-from six.moves.urllib.parse import quote, urlparse
 import wandb
 from wandb import env
 from wandb import util
@@ -69,7 +68,7 @@ _REQUEST_POOL_MAXSIZE = 64
 ARTIFACT_TMP = tempfile.TemporaryDirectory("wandb-artifacts")
 
 
-class _AddedObj(object):
+class _AddedObj:
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
         self.entry = entry
         self.obj = obj
@@ -355,7 +354,7 @@ class Artifact(ArtifactInterface):
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
             raise ValueError(
-                'File with name "%s" already exists at "%s"' % (name, path)
+                f'File with name "{name}" already exists at "{path}"'
             )
 
         util.mkdir_exists_ok(os.path.dirname(path))
@@ -761,7 +760,7 @@ class ArtifactManifestV1(ArtifactManifest):
         storage_policy: StoragePolicy,
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
     ) -> None:
-        super(ArtifactManifestV1, self).__init__(
+        super().__init__(
             artifact, storage_policy, entries=entries
         )
 
@@ -796,9 +795,9 @@ class ArtifactManifestV1(ArtifactManifest):
 
     def digest(self) -> str:
         hasher = hashlib.md5()
-        hasher.update("wandb-artifact-manifest-v1\n".encode())
+        hasher.update(b"wandb-artifact-manifest-v1\n")
         for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
-            hasher.update("{}:{}\n".format(name, entry.digest).encode())
+            hasher.update(f"{name}:{entry.digest}\n".encode())
         return hasher.hexdigest()
 
 
@@ -834,7 +833,7 @@ class ArtifactManifestEntry(ArtifactEntry):
 
     def __repr__(self) -> str:
         if self.ref is not None:
-            summary = "ref: %s/%s" % (self.ref, self.path)
+            summary = f"ref: {self.ref}/{self.path}"
         else:
             summary = "digest: %s" % self.digest
 
@@ -954,7 +953,7 @@ class WandbStoragePolicy(StoragePolicy):
                 md5_hex,
             )
         else:
-            raise Exception("unrecognized storage layout: {}".format(storage_layout))
+            raise Exception(f"unrecognized storage layout: {storage_layout}")
 
     def store_file(
         self,
@@ -1196,7 +1195,7 @@ class LocalFileHandler(StorageHandler):
         local: bool = False,
     ) -> str:
         url = urlparse(manifest_entry.ref)
-        local_path = "%s%s" % (str(url.netloc), str(url.path))
+        local_path = f"{str(url.netloc)}{str(url.path)}"
         if not os.path.exists(local_path):
             raise ValueError(
                 "Local file reference: Failed to find file at path %s" % local_path
@@ -1231,7 +1230,7 @@ class LocalFileHandler(StorageHandler):
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactEntry]:
         url = urlparse(path)
-        local_path = "%s%s" % (url.netloc, url.path)
+        local_path = f"{url.netloc}{url.path}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory

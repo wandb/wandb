@@ -155,26 +155,26 @@ def get_base_setup(
     """Fill in the Dockerfile templates for stage 2 of build. CPU version is built on python, GPU
     version is built on nvidia:cuda"""
 
-    python_base_image = "python:{}-buster".format(py_version)
+    python_base_image = f"python:{py_version}-buster"
     if launch_project.cuda:
         cuda_version = launch_project.cuda_version or DEFAULT_CUDA_VERSION
         # cuda image doesn't come with python tooling
         if py_major == "2":
             python_packages = [
-                "python{}".format(py_version),
-                "libpython{}".format(py_version),
+                f"python{py_version}",
+                f"libpython{py_version}",
                 "python-pip",
                 "python-setuptools",
             ]
         else:
             python_packages = [
-                "python{}".format(py_version),
-                "libpython{}".format(py_version),
+                f"python{py_version}",
+                f"libpython{py_version}",
                 "python3-pip",
                 "python3-setuptools",
             ]
         base_setup = CUDA_SETUP_TEMPLATE.format(
-            cuda_base_image="nvidia/cuda:{}-runtime".format(cuda_version),
+            cuda_base_image=f"nvidia/cuda:{cuda_version}-runtime",
             python_packages=" \\\n".join(python_packages),
             py_version=py_version,
         )
@@ -199,7 +199,7 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars = {}
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
         _, _, port = api.settings("base_url").split(":")
-        base_url = "http://host.docker.internal:{}".format(port)
+        base_url = f"http://host.docker.internal:{port}"
     elif _is_wandb_dev_uri(api.settings("base_url")):
         base_url = "http://host.docker.internal:9002"
     else:
@@ -271,7 +271,7 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
         # sagemaker must run as root
         return "USER root"
     user_create = USER_CREATE_TEMPLATE.format(uid=userid, user=username)
-    user_create += "\nUSER {}".format(username)
+    user_create += f"\nUSER {username}"
     return user_create
 
 
@@ -306,7 +306,7 @@ def generate_dockerfile(
     # set up user info
     username, userid = get_docker_user(launch_project, runner_type)
     user_setup = get_user_setup(username, userid, runner_type)
-    workdir = "/home/{user}".format(user=username)
+    workdir = f"/home/{username}"
 
     sagemaker_entrypoint = ""
     if runner_type == "sagemaker":
@@ -357,7 +357,7 @@ def generate_docker_image(
     try:
         docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
     except DockerError as e:
-        raise LaunchError("Error communicating with docker client: {}".format(e))
+        raise LaunchError(f"Error communicating with docker client: {e}")
 
     try:
         os.remove(build_ctx_path)
@@ -403,7 +403,7 @@ def pull_docker_image(docker_image: str) -> None:
         _logger.info("Pulling user provided docker image")
         docker.run(["docker", "pull", docker_image])
     except DockerError as e:
-        raise LaunchError("Docker server returned error: {}".format(e))
+        raise LaunchError(f"Docker server returned error: {e}")
 
 
 def construct_local_image_uri(launch_project: LaunchProject) -> str:

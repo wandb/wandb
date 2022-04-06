@@ -1,7 +1,8 @@
 import logging
 from typing import Any
-import click
 import sys
+
+import click
 
 
 LOG_STRING = click.style("wandb", fg="blue", bold=True)
@@ -46,7 +47,7 @@ def termlog(
 
 
 def termwarn(string: str, **kwargs: Any) -> None:
-    string = "\n".join(["{} {}".format(WARN_STRING, s) for s in string.split("\n")])
+    string = "\n".join([f"{WARN_STRING} {s}" for s in string.split("\n")])
     _log(
         string=string,
         newline=True,
@@ -57,7 +58,7 @@ def termwarn(string: str, **kwargs: Any) -> None:
 
 
 def termerror(string: str, **kwargs: Any) -> None:
-    string = "\n".join(["{} {}".format(ERROR_STRING, s) for s in string.split("\n")])
+    string = "\n".join([f"{ERROR_STRING} {s}" for s in string.split("\n")])
     _log(
         string=string,
         newline=True,
@@ -75,7 +76,7 @@ def _log(
     if string:
         if prefix:
             line = "\n".join(
-                ["{}: {}".format(LOG_STRING, s) for s in string.split("\n")]
+                [f"{LOG_STRING}: {s}" for s in string.split("\n")]
             )
         else:
             line = string

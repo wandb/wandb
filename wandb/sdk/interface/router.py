@@ -31,7 +31,7 @@ class MessageRouterClosedError(Exception):
 
 class MessageFutureObject(MessageFuture):
     def __init__(self) -> None:
-        super(MessageFutureObject, self).__init__()
+        super().__init__()
 
     def get(self, timeout: int = None) -> Optional["pb.Result"]:
         is_set = self._object_ready.wait(timeout)
@@ -40,7 +40,7 @@ class MessageFutureObject(MessageFuture):
         return None
 
 
-class MessageRouter(object):
+class MessageRouter:
     _pending_reqs: Dict[str, MessageFutureObject]
     _request_queue: "Queue[pb.Record]"
     _response_queue: "Queue[pb.Result]"

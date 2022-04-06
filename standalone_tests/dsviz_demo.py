@@ -26,7 +26,7 @@ import wandb
 NUM_EXAMPLES = 10
 DL_URL = "https://raw.githubusercontent.com/wandb/dsviz-demo/master/bdd20_small.tgz" #"https://storage.googleapis.com/l2kzone/bdd100k.tgz"
 LOCAL_FOLDER_NAME = "bdd20_small" #"bdd100k"
-LOCAL_ASSET_NAME = "{}.tgz".format(LOCAL_FOLDER_NAME)
+LOCAL_ASSET_NAME = f"{LOCAL_FOLDER_NAME}.tgz"
 
 
 BDD_CLASSES = [
@@ -67,10 +67,10 @@ def cleanup():
 def download_data():
     global train_ids
     if not os.path.exists(LOCAL_ASSET_NAME):
-        os.system("curl {} --output {}".format(DL_URL, LOCAL_ASSET_NAME))
+        os.system(f"curl {DL_URL} --output {LOCAL_ASSET_NAME}")
     
     if not os.path.exists(LOCAL_FOLDER_NAME):
-        os.system("tar xzf {}".format(LOCAL_ASSET_NAME))
+        os.system(f"tar xzf {LOCAL_ASSET_NAME}")
         
     train_ids = [name.split(".")[0] for name in os.listdir(train_dir) if name.split(".")[0] != ""]
 

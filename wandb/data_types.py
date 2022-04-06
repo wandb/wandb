@@ -8,11 +8,10 @@ For more on logging media, see [our guide](https://docs.wandb.com/guides/track/l
 For more on logging structured data for interactive dataset and model analysis,
 see [our guide to W&B Tables](https://docs.wandb.com/guides/data-vis).
 
-All of these special data types are subclasses of WBValue. All of the data types
+All of these special data types are subclasses of WBValue. All the data types
 serialize to JSON, since that is what wandb uses to save the objects locally
 and upload them to the W&B server.
 """
-from __future__ import print_function
 
 import base64
 import binascii
@@ -28,7 +27,6 @@ import sys
 import tempfile
 from typing import Optional
 
-import six
 import wandb
 from wandb import util
 
@@ -52,7 +50,7 @@ from .sdk.data_types.saved_model import _SavedModel
 from .sdk.data_types.video import Video
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
-# Once we fully type this file and move it all into sdk, then we will need to cleanup the
+# Once we fully type this file and move it all into sdk, then we will need to clean up the
 # other internal imports
 
 __all__ = [
@@ -76,12 +74,12 @@ __all__ = [
 ]
 
 
-# Staging directory so we can encode raw data into files, then hash them before
+# Staging directory, so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
-class _TableLinkMixin(object):
+class _TableLinkMixin:
     def set_table(self, table):
         self._table = table
 
@@ -252,7 +250,7 @@ class Table(Media):
         allow_mixed_types=False,
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
-        super(Table, self).__init__()
+        super().__init__()
         self._pk_col = None
         self._fk_cols = set()
         if allow_mixed_types:
@@ -345,7 +343,7 @@ class Table(Media):
         Arguments:
             col_name: (str) - name of the column to cast
             dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - the target dtype. Can be one of
-                normal python class, internal WB type, or an example object (eg. an instance of wandb.Image or wandb.Classes)
+                normal python class, internal WB type, or an example object (e.g. an instance of wandb.Image or wandb.Classes)
             optional: (bool) - if the column should allow Nones
         """
         assert col_name in self.columns
@@ -504,14 +502,14 @@ class Table(Media):
         # We set `warn=False` since Tables will now always be logged to both
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
-        # users given that we publically say 200k is the limit.
+        # users given that we publicly say 200k is the limit.
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-        super(Table, self).bind_to_run(*args, **kwargs)
+        super().bind_to_run(*args, **kwargs)
 
     @classmethod
     def get_media_subdir(cls):
@@ -581,7 +579,7 @@ class Table(Media):
         return new_obj
 
     def to_json(self, run_or_artifact):
-        json_dict = super(Table, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict.update(
@@ -609,7 +607,7 @@ class Table(Media):
                             ndarray_type = t
 
                 # Do not serialize 1d arrays - these are likely embeddings and
-                # will not have the some cost as higher dimensional arrays
+                # will not have the same cost as higher dimensional arrays
                 is_1d_array = (
                     ndarray_type is not None
                     and "shape" in ndarray_type._params
@@ -721,7 +719,7 @@ class Table(Media):
             # If we removed the PK
             if _pk_col is None and self._pk_col is not None:
                 raise AssertionError(
-                    "Cannot unset primary key (column {})".format(self._pk_col)
+                    f"Cannot unset primary key (column {self._pk_col})"
                 )
             # If there is a removed FK
             if len(self._fk_cols - _fk_cols) > 0:
@@ -803,7 +801,7 @@ class Table(Media):
         is_first_col = len(self.columns) == 0
         assert is_first_col or len(data) == len(
             self.data
-        ), "Expected length {}, found {}".format(len(self.data), len(data))
+        ), f"Expected length {len(self.data)}, found {len(data)}"
 
         # Add the new data
         for ndx in range(max(len(data), len(self.data))):
@@ -925,7 +923,7 @@ class PartitionedTable(Media):
         Args:
             parts_path (str): path to a directory of tables in the artifact
         """
-        super(PartitionedTable, self).__init__()
+        super().__init__()
         self.parts_path = parts_path
         self._loaded_part_entries = {}
 
@@ -1012,12 +1010,12 @@ class Audio(BatchableMedia):
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data."""
-        super(Audio, self).__init__()
+        super().__init__()
         self._duration = None
         self._sample_rate = sample_rate
         self._caption = caption
 
-        if isinstance(data_or_path, six.string_types):
+        if isinstance(data_or_path, str):
             if Audio.path_is_reference(data_or_path):
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
@@ -1067,7 +1065,7 @@ class Audio(BatchableMedia):
         return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def to_json(self, run):
-        json_dict = super(Audio, self).to_json(run)
+        json_dict = super().to_json(run)
         json_dict.update(
             {
                 "_type": self._log_type,
@@ -1142,7 +1140,7 @@ class Audio(BatchableMedia):
                 and self._caption == other._caption
             )
 
-        return super(Audio, self).__eq__(other) and self._caption == other._caption
+        return super().__eq__(other) and self._caption == other._caption
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -1163,7 +1161,7 @@ class JoinedTable(Media):
     _log_type = "joined-table"
 
     def __init__(self, table1, table2, join_key):
-        super(JoinedTable, self).__init__()
+        super().__init__()
 
         if not isinstance(join_key, str) and (
             not isinstance(join_key, list) or len(join_key) != 2
@@ -1215,7 +1213,7 @@ class JoinedTable(Media):
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
         """Helper method to add the table to the incoming artifact. Returns the path"""
         if isinstance(table, Table) or isinstance(table, PartitionedTable):
-            table_name = "t{}_{}".format(table_ndx, str(id(self)))
+            table_name = f"t{table_ndx}_{str(id(self))}"
             if (
                 table._artifact_source is not None
                 and table._artifact_source.name is not None
@@ -1297,10 +1295,10 @@ class Bokeh(Media):
     _log_type = "bokeh-file"
 
     def __init__(self, data_or_path):
-        super(Bokeh, self).__init__()
+        super().__init__()
         bokeh = util.get_module("bokeh", required=True)
         if isinstance(data_or_path, str) and os.path.exists(data_or_path):
-            with open(data_or_path, "r") as file:
+            with open(data_or_path) as file:
                 b_json = json.load(file)
             self.b_obj = bokeh.document.Document.from_json(b_json)
             self._set_file(data_or_path, is_tmp=False, extension=".bokeh.json")
@@ -1308,7 +1306,7 @@ class Bokeh(Media):
             _data = bokeh.document.Document()
             _data.add_root(data_or_path)
             # serialize/deserialize pairing followed by sorting attributes ensures
-            # that the file's shas are equivalent in subsequent calls
+            # that the file's sha's are equivalent in subsequent calls
             self.b_obj = bokeh.document.Document.from_json(_data.to_json())
             b_json = self.b_obj.to_json()
             if "references" in b_json["roots"]:
@@ -1330,7 +1328,7 @@ class Bokeh(Media):
         # TODO: (tss) this is getting redundant for all the media objects. We can probably
         # pull this into Media#to_json and remove this type override for all the media types.
         # There are only a few cases where the type is different between artifacts and runs.
-        json_dict = super(Bokeh, self).to_json(run)
+        json_dict = super().to_json(run)
         json_dict["_type"] = self._log_type
         return json_dict
 
@@ -1374,7 +1372,7 @@ class Graph(Media):
     _log_type = "graph-file"
 
     def __init__(self, format="keras"):
-        super(Graph, self).__init__()
+        super().__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
         self.format = format
         self.nodes = []
@@ -1386,7 +1384,7 @@ class Graph(Media):
         self.root = None  # optional root Node if applicable
 
     def _to_graph_json(self, run=None):
-        # Needs to be it's own function for tests
+        # Needs to be its own function for tests
         return {
             "format": self.format,
             "nodes": [node.to_json() for node in self.nodes],
@@ -1402,14 +1400,14 @@ class Graph(Media):
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
-        super(Graph, self).bind_to_run(*args, **kwargs)
+        super().bind_to_run(*args, **kwargs)
 
     @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "graph")
 
     def to_json(self, run):
-        json_dict = super(Graph, self).to_json(run)
+        json_dict = super().to_json(run)
         json_dict["_type"] = self._log_type
         return json_dict
 
@@ -1854,18 +1852,16 @@ class _ImageFileType(_dtypes.Type):
                     str(key): set(py_obj._boxes[key]._class_labels.keys())
                     for key in py_obj._boxes.keys()
                 }
-                box_score_keys = set(
-                    [
+                box_score_keys = {
                         key
                         for val in py_obj._boxes.values()
                         for box in val._val
                         for key in box.get("scores", {}).keys()
-                    ]
-                )
+                }
 
             else:
                 box_layers = {}
-                box_score_keys = set([])
+                box_score_keys = set()
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
@@ -1956,9 +1952,9 @@ class _ForeignKeyType(_dtypes.Type):
             return cls(py_obj._table, py_obj._col_name)
 
     def to_json(self, artifact=None):
-        res = super(_ForeignKeyType, self).to_json(artifact)
+        res = super().to_json(artifact)
         if artifact is not None:
-            table_name = "media/tables/t_{}".format(util.generate_id())
+            table_name = f"media/tables/t_{util.generate_id()}"
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:
@@ -2016,9 +2012,9 @@ class _ForeignIndexType(_dtypes.Type):
             return cls(py_obj._table)
 
     def to_json(self, artifact=None):
-        res = super(_ForeignIndexType, self).to_json(artifact)
+        res = super().to_json(artifact)
         if artifact is not None:
-            table_name = "media/tables/t_{}".format(util.generate_id())
+            table_name = f"media/tables/t_{util.generate_id()}"
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:

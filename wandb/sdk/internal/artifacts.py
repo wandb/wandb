@@ -1,4 +1,3 @@
-#
 import json
 import os
 import tempfile
@@ -37,7 +36,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
         }
     else:
         raise Exception(
-            "unknown artifact manifest version: {}".format(manifest.version)
+            f"unknown artifact manifest version: {manifest.version}"
         )
 
     return {
@@ -51,7 +50,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
     }
 
 
-class ArtifactSaver(object):
+class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
     def __init__(
@@ -249,7 +248,7 @@ class ArtifactSaver(object):
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
                         raise RuntimeError(
-                            "Could not resolve client id {}".format(client_id)
+                            f"Could not resolve client id {client_id}"
                         )
                     entry.ref = "wandb-artifact://{}/{}".format(
                         util.b64_to_hex_id(artifact_id), artifact_file_path

@@ -1,4 +1,3 @@
-#
 """leveldb log datastore.
 
 Format is described at:
@@ -16,7 +15,6 @@ header :=
   magic: uint16
   version: uint8
 """
-from __future__ import print_function
 
 import logging
 import os
@@ -57,7 +55,7 @@ except Exception:
     # bytestostr = str
 
 
-class DataStore(object):
+class DataStore:
     def __init__(self):
         self._opened_for_scan = False
         self._fp = None
@@ -145,7 +143,7 @@ class DataStore(object):
 
         assert (
             dtype == LEVELDBLOG_FIRST
-        ), "expected record to be type {} but found {}".format(LEVELDBLOG_FIRST, dtype)
+        ), f"expected record to be type {LEVELDBLOG_FIRST} but found {dtype}"
         while True:
             offset = self._index % LEVELDBLOG_BLOCK_LEN
             record = self.scan_record()

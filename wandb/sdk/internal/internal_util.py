@@ -1,20 +1,17 @@
-#
-# -*- coding: utf-8 -*-
 """Internal utility routines.
 
 Collection of classes to support the internal process.
 
 """
 
-from __future__ import print_function
 
 import logging
+import queue
 import sys
 import threading
 import time
 from typing import TYPE_CHECKING
 
-from six.moves import queue
 
 from ..lib import tracelog
 

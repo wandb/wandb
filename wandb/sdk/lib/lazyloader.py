@@ -1,13 +1,7 @@
-#
-# -*- coding: utf-8 -*-
 """
 module lazyloader
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import importlib
 import sys
@@ -33,7 +27,7 @@ class LazyLoader(types.ModuleType):
         self._parent_module_globals = parent_module_globals
         self._warning = warning
 
-        super(LazyLoader, self).__init__(str(name))
+        super().__init__(str(name))
 
     def _load(self):
         """Load the module and insert it into the parent's globals."""
