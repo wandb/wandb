@@ -47,7 +47,12 @@ class EmbModel(nn.Module):
         self.emb2 = nn.Embedding(x, y)
 
     def forward(self, x):
-        return {"key": {"emb1": self.emb1(x), "emb2": self.emb2(x),}}
+        return {
+            "key": {
+                "emb1": self.emb1(x),
+                "emb2": self.emb2(x),
+            }
+        }
 
 
 class EmbModelWrapper(nn.Module):

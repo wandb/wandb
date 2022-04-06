@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 class WriteManager(object):
     def __init__(
-        self, settings, record_q, result_q,
+        self,
+        settings,
+        record_q,
+        result_q,
     ):
         self._settings = settings
         self._record_q = record_q

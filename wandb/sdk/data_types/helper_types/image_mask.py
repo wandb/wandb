@@ -200,7 +200,8 @@ class ImageMask(Media):
         cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            key="",
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:

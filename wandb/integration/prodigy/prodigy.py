@@ -30,7 +30,7 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 def named_entity(docs):
-    """ Creates a named entity visualization.
+    """Creates a named entity visualization.
     Taken from https://github.com/wandb/client/blob/master/wandb/plots/named_entity.py
     """
 
@@ -54,7 +54,7 @@ def named_entity(docs):
 
 
 def merge(dict1, dict2):
-    """ Return a new dictionary by merging two dictionaries recursively. """
+    """Return a new dictionary by merging two dictionaries recursively."""
     result = deepcopy(dict1)
 
     for key, value in dict2.items():
@@ -176,7 +176,7 @@ def standardize(item, structure, array_dict_types):
 
 
 def create_table(data):
-    """ Create a W&B Table.
+    """Create a W&B Table.
 
     - Create/decode images from URL/Base64
     - Uses spacy to translate NER span data to visualizations.
@@ -269,7 +269,7 @@ def create_table(data):
 
 
 def upload_dataset(dataset_name):
-    """ Uploads dataset from local database to Weights & Biases.
+    """Uploads dataset from local database to Weights & Biases.
 
     Args:
         dataset_name: The name of the dataset in the Prodigy database.

@@ -23,6 +23,7 @@ exclude = '''
 | tools/vendor_sweeps.sh
 | tools/verify_sweeps.sh
 | .sweeps_ref
+| __pycache__
 '''
 include = '''
   wandb/

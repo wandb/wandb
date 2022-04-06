@@ -221,7 +221,10 @@ class HandleManager(object):
             tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
-    def _save_history(self, history: HistoryRecord,) -> None:
+    def _save_history(
+        self,
+        history: HistoryRecord,
+    ) -> None:
         for item in history.item:
             # TODO(jhr) save nested keys?
             k = item.key
@@ -293,7 +296,10 @@ class HandleManager(object):
         return updated
 
     def _update_summary_leaf(
-        self, kl: List[str], v: Any, d: Optional[MetricRecord] = None,
+        self,
+        kl: List[str],
+        v: Any,
+        d: Optional[MetricRecord] = None,
     ) -> bool:
         has_summary = d and d.HasField("summary")
         if len(kl) == 1:
@@ -324,7 +330,10 @@ class HandleManager(object):
         return False
 
     def _update_summary_list(
-        self, kl: List[str], v: Any, d: Optional[MetricRecord] = None,
+        self,
+        kl: List[str],
+        v: Any,
+        d: Optional[MetricRecord] = None,
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
@@ -370,7 +379,9 @@ class HandleManager(object):
         return updated
 
     def _history_assign_step(
-        self, history: HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
         has_step = history.HasField("step")
         item = history.item.add()
@@ -447,7 +458,9 @@ class HandleManager(object):
         )
 
     def _history_update(
-        self, history: HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
 
         #  if syncing an old run, we can skip this logic
@@ -482,7 +495,10 @@ class HandleManager(object):
         if updated:
             self._save_summary(self._consolidated_summary)
 
-    def _flush_partial_history(self, step: Optional[int] = None,) -> None:
+    def _flush_partial_history(
+        self,
+        step: Optional[int] = None,
+    ) -> None:
         if self._partial_history:
             history = HistoryRecord()
             for k, v in self._partial_history.items():
@@ -797,7 +813,9 @@ class HandleManager(object):
     next = __next__
 
     def _history_assign_runtime(
-        self, history: HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:

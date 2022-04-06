@@ -125,7 +125,8 @@ class TypeRegistry:
 
 
 def _params_obj_to_json_obj(
-    params_obj: t.Any, artifact: t.Optional["ArtifactInCreation"] = None,
+    params_obj: t.Any,
+    artifact: t.Optional["ArtifactInCreation"] = None,
 ) -> t.Any:
     """Helper method"""
     if params_obj.__class__ == dict:
@@ -420,8 +421,7 @@ class PythonObjectType(Type):
 
 
 class ConstType(Type):
-    """Represents a constant value (currently only primitives supported)
-    """
+    """Represents a constant value (currently only primitives supported)"""
 
     name = "const"
     types: t.ClassVar[t.List[type]] = []
@@ -514,14 +514,14 @@ def _union_assigner(
 
 
 class UnionType(Type):
-    """Represents an "or" of types
-    """
+    """Represents an "or" of types"""
 
     name = "union"
     types: t.ClassVar[t.List[type]] = []
 
     def __init__(
-        self, allowed_types: t.Optional[t.Sequence[ConvertableToType]] = None,
+        self,
+        allowed_types: t.Optional[t.Sequence[ConvertableToType]] = None,
     ):
         assert allowed_types is None or (allowed_types.__class__ == list)
         if allowed_types is None:
@@ -583,8 +583,7 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
 
 
 class ListType(Type):
-    """Represents a list of homogenous types
-    """
+    """Represents a list of homogenous types"""
 
     name = "list"
     types: t.ClassVar[t.List[type]] = [list, tuple, set, frozenset]
@@ -684,8 +683,7 @@ class ListType(Type):
 
 
 class NDArrayType(Type):
-    """Represents a list of homogenous types
-    """
+    """Represents a list of homogenous types"""
 
     name = "ndarray"
     types: t.ClassVar[t.List[type]] = []  # will manually add type if np is available
@@ -774,15 +772,15 @@ if np:
 
 
 class TypedDictType(Type):
-    """Represents a dictionary object where each key can have a type
-    """
+    """Represents a dictionary object where each key can have a type"""
 
     name = "typedDict"
     legacy_names = ["dictionary"]
     types: t.ClassVar[t.List[type]] = [dict]
 
     def __init__(
-        self, type_map: t.Optional[t.Dict[str, ConvertableToType]] = None,
+        self,
+        type_map: t.Optional[t.Dict[str, ConvertableToType]] = None,
     ):
         if type_map is None:
             type_map = {}

@@ -233,7 +233,9 @@ def test_launch_base_case(
         _project_spec.create_metadata_file(*args, **kwargs)
 
     monkeypatch.setattr(
-        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
+        wandb.sdk.launch.docker,
+        "create_metadata_file",
+        mock_create_metadata_file,
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
@@ -280,7 +282,10 @@ def test_launch_add_base(live_mock_server):
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -464,7 +469,8 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.update(
-            launch=True, source=wandb.sdk.wandb_settings.Source.INIT,
+            launch=True,
+            source=wandb.sdk.wandb_settings.Source.INIT,
         )
         test_settings.update(
             launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
@@ -738,7 +744,10 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
     )
     try:
         launch.create_and_run_agent(
-            api, "mock_server_entity", "test_project", ["nonexistent_queue"],
+            api,
+            "mock_server_entity",
+            "test_project",
+            ["nonexistent_queue"],
         )
     except Exception as e:
         assert (
@@ -824,7 +833,9 @@ def test_launch_no_server_info(
     )
     try:
         launch.run(
-            "https://wandb.ai/mock_server_entity/test/runs/1", api, project="new-test",
+            "https://wandb.ai/mock_server_entity/test/runs/1",
+            api,
+            project="new-test",
         )
     except wandb.errors.LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)
@@ -1053,7 +1064,8 @@ def test_launch_local_cuda_command(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1075,7 +1087,8 @@ def test_launch_local_cuda_config(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1101,7 +1114,8 @@ def test_launch_cuda_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1126,7 +1140,8 @@ def test_launch_cuda_false_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1152,7 +1167,8 @@ def test_launch_cuda_config_false_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
