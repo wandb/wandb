@@ -25,8 +25,9 @@ class Timer:
     def total(self) -> float:
         return self.tick_times[-1] - self.tick_times[0]
 
-    def tick(self, now: float) -> float:
+    def tick(self) -> float:
         '''Update the last-tick-time and return the time elapsed since.'''
+        now = time.time()
         self.tick_times.append(now)
         return now - self.tick_times[-2]
 
@@ -45,24 +46,22 @@ def main(args):
     timer = Timer()
     with wandb.init(project="slow-uploads"):
 
-        print(f'Starting run took {timer.tick(time.time())}s')
+        print(f'Starting run took {timer.tick()}s')
         table = wandb.Table(["Image"])
         files_to_upload = list(itertools.islice(dir.iterdir(), n))
         if len(files_to_upload) != n:
             raise ValueError(f"wanted {n} images, but only found {len(files_to_upload)} in {dir}")
         for f in files_to_upload:
             table.add_data(wandb.Image(str(f)))
-        print(f'Adding dir to table took {timer.tick(time.time())}s')
+        print(f'Adding dir to table took {timer.tick()}s')
 
         art = wandb.Artifact('rand_small', 'dataset')
         art.add(table, 'table')
-        t2 = time.time()
-        print(f'Adding table to artifact took {timer.tick(time.time())}s')
+        print(f'Adding table to artifact took {timer.tick()}s')
         art.save()
-        t3 = time.time()
-        print(f'Saving artifact took {timer.tick(time.time())}s')
+        print(f'Saving artifact took {timer.tick()}s')
 
-    print(f'Finishing run took {timer.tick(time.time())}s')
+    print(f'Finishing run took {timer.tick()}s')
     print(f'Total time: {timer.total}s')
 
     profile.disable()
