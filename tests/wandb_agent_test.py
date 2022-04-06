@@ -79,3 +79,29 @@ def test_agent_ignore_runid(live_mock_server):
 
     assert len(sweep_run_ids) == 1
     assert sweep_run_ids[0] == "mocker-sweep-run-x91"
+
+def test_agent_command_flags(live_mock_server):
+    sweep_config = {
+        "method": "grid",
+        "parameters":{
+            "foo_flag" :{
+            "values": [True, False],
+        },
+        },
+        "command_flags": ["foo_flag"],
+    }
+    sweep_callable = lambda: sweep_config
+    sweep_id = wandb.sweep(sweep_callable, project="test", entity="test")
+    wandb.agent(sweep_id, function=sweep_callable, count=1)
+
+    # TODO: test to make sure the command being executed 
+    # import multiprocessing
+    # from wandb.wandb_agent import Agent
+    
+    # agent = Agent(
+    #     wandb.InternalApi(),
+    #     multiprocessing.Queue(),
+    #     sweep_id
+    # )
+    
+    # assert 'foo_flag' in agent._sweep_command_flags
