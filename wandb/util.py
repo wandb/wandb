@@ -1677,7 +1677,9 @@ def _is_offline() -> bool:
     ) or wandb.setup().settings._offline
 
 
-def ensure_text(string: Union[str, bytes], encoding: str = "utf-8", errors: str = "strict") -> str:
+def ensure_text(
+    string: Union[str, bytes], encoding: str = "utf-8", errors: str = "strict"
+) -> str:
     """Coerce s to str."""
     if isinstance(string, bytes):
         return string.decode(encoding, errors)

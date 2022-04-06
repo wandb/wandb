@@ -75,9 +75,7 @@ def start_mock_server(worker_id):
     env = os.environ
     env["PORT"] = str(port)
     env["PYTHONPATH"] = root
-    logfname = os.path.join(
-        root, "tests", "logs", f"live_mock_server-{worker_id}.log"
-    )
+    logfname = os.path.join(root, "tests", "logs", f"live_mock_server-{worker_id}.log")
     logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,

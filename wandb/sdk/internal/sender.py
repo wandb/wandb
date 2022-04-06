@@ -1100,9 +1100,7 @@ class SendManager:
                     wait_duration=alert.wait_duration,
                 )
             except Exception as e:
-                logger.error(
-                    f'send_alert: failed for alert "{alert.title}": {e}'
-                )
+                logger.error(f'send_alert: failed for alert "{alert.title}": {e}')
 
     def finish(self) -> None:
         logger.info("shutting down sender")

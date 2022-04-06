@@ -53,7 +53,7 @@ def termwarn(string: str, **kwargs: Any) -> None:
         newline=True,
         silent=not _show_warnings,
         level=logging.WARNING,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -64,7 +64,7 @@ def termerror(string: str, **kwargs: Any) -> None:
         newline=True,
         silent=not _show_errors,
         level=logging.ERROR,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -75,9 +75,7 @@ def _log(
     silent = silent or _silent
     if string:
         if prefix:
-            line = "\n".join(
-                [f"{LOG_STRING}: {s}" for s in string.split("\n")]
-            )
+            line = "\n".join([f"{LOG_STRING}: {s}" for s in string.split("\n")])
         else:
             line = string
     else:

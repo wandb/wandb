@@ -155,9 +155,7 @@ class AuthConfig(dict):
         conf = {}
         for registry, entry in entries.items():
             if not isinstance(entry, dict):
-                log.debug(
-                    f"Config entry for key {registry} is not auth config"
-                )
+                log.debug(f"Config entry for key {registry} is not auth config")
                 # We sometimes fall back to parsing the whole config as if it
                 # was the auth config by itself, for legacy purposes. In that
                 # case, we fail silently and return an empty conf if any of the
@@ -168,9 +166,7 @@ class AuthConfig(dict):
                     )
                 return {}
             if "identitytoken" in entry:
-                log.debug(
-                    f"Found an IdentityToken entry for registry {registry}"
-                )
+                log.debug(f"Found an IdentityToken entry for registry {registry}")
                 conf[registry] = {"IdentityToken": entry["identitytoken"]}
                 continue  # Other values are irrelevant if we have a token
 

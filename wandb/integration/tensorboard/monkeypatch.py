@@ -112,7 +112,7 @@ def _patch_tensorflow2(
         # In this case, the generated logdir
         # is generated and ends with the hostname, update the root_logdir to match.
         hostname = socket.gethostname()
-        search = re.search(fr"-\d+_{hostname}", logdir)
+        search = re.search(rf"-\d+_{hostname}", logdir)
         if search:
             root_logdir_arg = logdir[: search.span()[1]]
         elif root_logdir is not None and not os.path.abspath(logdir).startswith(
@@ -155,7 +155,7 @@ def _patch_file_writer(
             # In this case, the logdir is generated and ends with the hostname,
             # update the root_logdir to match.
             hostname = socket.gethostname()
-            search = re.search(fr"-\d+_{hostname}", logdir)
+            search = re.search(rf"-\d+_{hostname}", logdir)
             if search:
                 root_logdir_arg = logdir[: search.span()[1]]
 

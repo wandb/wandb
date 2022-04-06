@@ -93,9 +93,7 @@ class PolicyLive(FileEventHandler):
     RATE_LIMIT_SIZE_INCREASE = 1.2
 
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
-        super().__init__(
-            file_path, save_name, api, file_pusher, *args, **kwargs
-        )
+        super().__init__(file_path, save_name, api, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
 

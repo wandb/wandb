@@ -196,9 +196,7 @@ class AWSSagemakerRunner(AbstractRunner):
             entry_point, launch_project.override_args
         )
         if command_args:
-            wandb.termlog(
-                f"Launching run on sagemaker with entrypoint: {command_args}"
-            )
+            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_args}")
         else:
             wandb.termlog(
                 "Launching run on sagemaker with user-provided entrypoint in image"

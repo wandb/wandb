@@ -39,7 +39,12 @@ class Object3D(BatchableMedia):
     """
 
     SUPPORTED_TYPES: ClassVar[Set[str]] = {
-        "obj", "gltf", "glb", "babylon", "stl", "pts.json"
+        "obj",
+        "gltf",
+        "glb",
+        "babylon",
+        "stl",
+        "pts.json",
     }
     _log_type: ClassVar[str] = "object3D-file"
 

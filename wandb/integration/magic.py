@@ -428,9 +428,7 @@ def _monkey_argparse():
             return args
 
         def parse_known_args(self, *args, **kwargs):
-            args, unknown = super().parse_known_args(
-                *args, **kwargs
-            )
+            args, unknown = super().parse_known_args(*args, **kwargs)
             if self._callback:
                 self._callback(args, unknown=unknown)
             return args, unknown

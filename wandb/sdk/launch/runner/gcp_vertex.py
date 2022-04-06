@@ -110,9 +110,9 @@ class VertexRunner(AbstractRunner):
             raise LaunchError(
                 "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key artifact_repo."
             )
-        gcp_docker_host = resource_args.get(
-            "docker_host"
-        ) or f"{gcp_region}-docker.pkg.dev"
+        gcp_docker_host = (
+            resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
+        )
         gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
         gcp_accelerator_type = (
             resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"

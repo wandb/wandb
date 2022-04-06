@@ -15,9 +15,7 @@ def parse_config(params, exclude=None, include=None):
     if include:
         params = {key: value for key, value in params.items() if key in include}
     if exclude:
-        params = {
-            key: value for key, value in params.items() if key not in exclude
-        }
+        params = {key: value for key, value in params.items() if key not in exclude}
     return params
 
 

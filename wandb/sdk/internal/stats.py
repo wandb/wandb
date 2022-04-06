@@ -43,12 +43,12 @@ def gpu_in_use_by_this_process(gpu_handle: GPUHandle) -> bool:
     our_pids = {process.pid for process in our_processes}
 
     compute_pids = {
-            process.pid
-            for process in pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
+        process.pid
+        for process in pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
     }
     graphics_pids = {
-            process.pid
-            for process in pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
+        process.pid
+        for process in pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
     }
 
     pids_using_device = compute_pids | graphics_pids

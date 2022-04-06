@@ -1430,9 +1430,7 @@ class Api:
             result = {file["name"]: file for file in self._flatten_edges(run["files"])}
             return run["id"], run["files"]["uploadHeaders"], result
         else:
-            raise CommError(
-                f"Run does not exist {entity}/{project}/{run_id}."
-            )
+            raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
 
     @normalize_exceptions
     def download_urls(self, project, run=None, entity=None):

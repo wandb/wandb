@@ -576,6 +576,7 @@ def syn(
         )
         # manager.sync_items.extend(_path)
         manager.run()
+
     if sync_all:
         # _sync_all()
         pass
@@ -766,7 +767,8 @@ def sync(
             if not clean_force:
                 click.confirm(
                     click.style(
-                        f"Are you sure you want to remove {len(runs)} runs?", bold=True,
+                        f"Are you sure you want to remove {len(runs)} runs?",
+                        bold=True,
                     ),
                     abort=True,
                 )
@@ -962,9 +964,7 @@ def sweep(
 
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
         if not found:
-            wandb.termerror(
-                f"Could not find sweep {entity}/{project}/{sweep_id}"
-            )
+            wandb.termerror(f"Could not find sweep {entity}/{project}/{sweep_id}")
             return
         sweep_obj_id = found["id"]
 

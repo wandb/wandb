@@ -471,9 +471,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.monitor_op = operator.lt
                 self.best = float("inf")
         # Get the previous best metric for resumed runs
-        previous_best = wandb.run.summary.get(
-            f"{self.log_best_prefix}{self.monitor}"
-        )
+        previous_best = wandb.run.summary.get(f"{self.log_best_prefix}{self.monitor}")
         if previous_best is not None:
             self.best = previous_best
 

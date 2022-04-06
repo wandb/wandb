@@ -145,9 +145,7 @@ class KubernetesRunner(AbstractRunner):
             for c in all_contexts:
                 if c["name"] == context_name:
                     return c
-            raise LaunchError(
-                f"Specified context {context_name} was not found."
-            )
+            raise LaunchError(f"Specified context {context_name} was not found.")
         else:
             return active_context
 

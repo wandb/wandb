@@ -4,9 +4,7 @@ import subprocess
 import sys
 
 CORES = 1
-ONLY_INCLUDE = {
-    x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""
-}
+ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
 OPTS = []
 # If the builder doesn't support buildx no need to use the cache
 if os.getenv("WANDB_DISABLE_CACHE"):
@@ -67,9 +65,7 @@ def main():
                         req = "wandb"
                     reqs.append(req.strip())
                 else:
-                    print(
-                        f"Ignoring requirement: {req} from frozen requirements"
-                    )
+                    print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:
                     deps_failed = install_deps(reqs)
                     reqs = []

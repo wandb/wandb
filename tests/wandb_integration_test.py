@@ -77,13 +77,11 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
             print("Files from server", files)
             assert (
                 sorted(
-                    
-                        f
-                        for f in files
-                        if not f.endswith(".patch")
-                        and not f.endswith("pt.trace.json")
-                        and f != "output.log"
-                    
+                    f
+                    for f in files
+                    if not f.endswith(".patch")
+                    and not f.endswith("pt.trace.json")
+                    and f != "output.log"
                 )
                 == files_sorted
             )

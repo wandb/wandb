@@ -1598,9 +1598,9 @@ class Run:
             if os.path.isabs(glob_str):
                 base_path = os.path.dirname(glob_str)
                 wandb.termwarn(
-                        "Saving files without folders. If you want to preserve "
-                        "sub directories pass base_path to wandb.save, i.e. "
-                        'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
+                    "Saving files without folders. If you want to preserve "
+                    "sub directories pass base_path to wandb.save, i.e. "
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
                 )
             else:
                 base_path = "."
@@ -2147,18 +2147,14 @@ class Run:
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
-                    raise wandb.Error(
-                        f"Unhandled define_metric() arg: summary op: {i}"
-                    )
+                    raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
-                raise wandb.Error(
-                    f"Unhandled define_metric() arg: goal: {goal}"
-                )
+                raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2995,32 +2991,26 @@ class Run:
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
         total_files = sum(
-            
-                sum(
-                    [
-                        response.file_counts.wandb_count,
-                        response.file_counts.media_count,
-                        response.file_counts.artifact_count,
-                        response.file_counts.other_count,
-                    ]
-                )
-                for response in poll_exit_responses
-                if response and response.file_counts
-            
+            sum(
+                [
+                    response.file_counts.wandb_count,
+                    response.file_counts.media_count,
+                    response.file_counts.artifact_count,
+                    response.file_counts.other_count,
+                ]
+            )
+            for response in poll_exit_responses
+            if response and response.file_counts
         )
         uploaded = sum(
-            
-                response.pusher_stats.uploaded_bytes
-                for response in poll_exit_responses
-                if response and response.pusher_stats
-            
+            response.pusher_stats.uploaded_bytes
+            for response in poll_exit_responses
+            if response and response.pusher_stats
         )
         total = sum(
-            
-                response.pusher_stats.total_bytes
-                for response in poll_exit_responses
-                if response and response.pusher_stats
-            
+            response.pusher_stats.total_bytes
+            for response in poll_exit_responses
+            if response and response.pusher_stats
         )
 
         line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"

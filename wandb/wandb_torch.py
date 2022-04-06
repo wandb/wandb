@@ -140,9 +140,7 @@ class TorchHistory:
         # checking for inheritance from _TensorBase didn't work for some reason
         if not hasattr(tensor, "shape"):
             cls = type(tensor)
-            raise TypeError(
-                f"Expected Tensor, not {cls.__module__}.{cls.__name__}"
-            )
+            raise TypeError(f"Expected Tensor, not {cls.__module__}.{cls.__name__}")
 
         # HalfTensors on cpu do not support view(), upconvert to 32bit
         if isinstance(tensor, torch.HalfTensor):

@@ -76,7 +76,7 @@ def split_into_chunks(
         data = list(data)
 
     def make_chunks(_data: List[Any]) -> List[List[Any]]:
-        return [_data[i:i + chunk_size] for i in range(0, len(_data), chunk_size)]
+        return [_data[i : i + chunk_size] for i in range(0, len(_data), chunk_size)]
 
     chunked_data = make_chunks(data)
     if not round_robin:
@@ -114,7 +114,7 @@ def process_data(sync_item: str, data: Dict[str, Union[int, List[dict]]]) -> Non
     for item in chunk:
         record_type, protobuf = parse_protobuf(item["record"])
         if True:
-            short_run_id = sync_item.split('-')[-1].split('.wandb')[0]
+            short_run_id = sync_item.split("-")[-1].split(".wandb")[0]
             # print(
             #     f"run_id: {short_run_id}, chunk: {chunk_number}, "
             #     f"item: {item['record_number']} finished"
@@ -123,9 +123,7 @@ def process_data(sync_item: str, data: Dict[str, Union[int, List[dict]]]) -> Non
         # results.append(
         #     (sync_item, item["record_number"], record_type, protobuf)
         # )
-        results_queue.put(
-            (sync_item, item["record_number"], record_type, protobuf)
-        )
+        results_queue.put((sync_item, item["record_number"], record_type, protobuf))
     # for result in results:
     #     results_queue.put(result)
 
@@ -208,8 +206,9 @@ class SyncManager:
             # and the size of the heap with the results is not too large
             chunk_memory = self.tasks[run_id][0]["chunk_memory"]
             if not (
-                    self.total_memory + chunk_memory <= self.max_memory
-                    # and len(self.result_heaps[run_id]) <= MAX_HEAP_SIZE
+                self.total_memory + chunk_memory
+                <= self.max_memory
+                # and len(self.result_heaps[run_id]) <= MAX_HEAP_SIZE
             ):
                 if self._verbose:
                     print(
@@ -227,7 +226,7 @@ class SyncManager:
             if self._verbose:
                 print(
                     datetime.datetime.now(),
-                    f"run_id: {run_id}; total_memory: {self.total_memory}"
+                    f"run_id: {run_id}; total_memory: {self.total_memory}",
                 )
             executor.submit(
                 process_data,
@@ -278,7 +277,9 @@ class SyncManager:
                     if self._verbose:
                         pass
                         # print(f"harvester got result: {result}; total_memory: {self.total_memory}")
-                        print(f"harvester got result for: {key}; total_memory: {self.total_memory}")
+                        print(
+                            f"harvester got result for: {key}; total_memory: {self.total_memory}"
+                        )
                         print(f"heap min: {self.result_heaps[run_id][0][0]}")
             else:
                 await asyncio.sleep(self.sleep_time)
@@ -293,11 +294,14 @@ class SyncManager:
         """
         while self.running:
             if self._verbose:
-                print(f"dumper is running for {task_name.split('-')[-1].split('.wandb')[0]}")
+                print(
+                    f"dumper is running for {task_name.split('-')[-1].split('.wandb')[0]}"
+                )
 
             has_data_to_dump = (
                 self.result_heaps[task_name]
-                and self.result_heaps[task_name][0][0] == self.current_chunk_number[task_name] + 1
+                and self.result_heaps[task_name][0][0]
+                == self.current_chunk_number[task_name] + 1
             )
 
             if not has_data_to_dump:
@@ -314,8 +318,10 @@ class SyncManager:
                 chunk = heapq.heappop(self.result_heaps[task_name])
                 if self._verbose:
                     pass
-                short_run_id = task_name.split('-')[-1].split('.wandb')[0]
-                print(f"dumper posted result: {short_run_id}: chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n")
+                short_run_id = task_name.split("-")[-1].split(".wandb")[0]
+                print(
+                    f"dumper posted result: {short_run_id}: chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n"
+                )
                 self.current_chunk_number[task_name] += 1
                 if self._verbose:
                     pass
@@ -392,7 +398,7 @@ class SyncManager:
                 print(
                     "\n",
                     [len(self.tasks[task_name]) for task_name in self.tasks.keys()],
-                    time.time() - tic
+                    time.time() - tic,
                 )
 
             # chunk tasks, number the resulting chunks, and track memory usage per chunk
@@ -407,31 +413,34 @@ class SyncManager:
                     "chunk": chunk,
                     "chunk_memory": sum(task["memory"] for task in chunk),
                 }
-                for chunk_number, chunk
-                in enumerate(split_into_chunks(self.tasks[sync_item], chunk_size))
+                for chunk_number, chunk in enumerate(
+                    split_into_chunks(self.tasks[sync_item], chunk_size)
+                )
             ]
             self.tasks[sync_item] = deque(chunked_tasks)
 
             # print total memory usage in megabytes
-            total_memory = sum(task['chunk_memory'] for task in chunked_tasks)
-            print(
-                f"memory: {sync_item}: {total_memory / 1024 / 1024} MB"
-            )
+            total_memory = sum(task["chunk_memory"] for task in chunked_tasks)
+            print(f"memory: {sync_item}: {total_memory / 1024 / 1024} MB")
 
             # create a dump thread for each task
-            self.dumpers.append(
-                threading.Thread(target=self._dump, args=(sync_item,))
-            )
+            self.dumpers.append(threading.Thread(target=self._dump, args=(sync_item,)))
             self.dumpers[-1].start()
 
-        print("\n", [{task_name: len(self.tasks[task_name])} for task_name in self.tasks.keys()])
+        print(
+            "\n",
+            [
+                {task_name: len(self.tasks[task_name])}
+                for task_name in self.tasks.keys()
+            ],
+        )
         input("\n>")
 
         # concurrent.futures will manage the task queue for us under the hood
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=n_cpu,
             initializer=init_queue,
-            initargs=(self.results_queue, ),
+            initargs=(self.results_queue,),
         ) as executor:
             try:
                 asyncio.run(self.async_run(executor))

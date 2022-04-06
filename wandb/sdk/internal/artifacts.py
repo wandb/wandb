@@ -35,9 +35,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
             for content in manifest.contents
         }
     else:
-        raise Exception(
-            f"unknown artifact manifest version: {manifest.version}"
-        )
+        raise Exception(f"unknown artifact manifest version: {manifest.version}")
 
     return {
         "version": manifest.version,
@@ -247,9 +245,7 @@ class ArtifactSaver:
                     artifact_file_path = util.uri_from_path(entry.ref)
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
-                        raise RuntimeError(
-                            f"Could not resolve client id {client_id}"
-                        )
+                        raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = "wandb-artifact://{}/{}".format(
                         util.b64_to_hex_id(artifact_id), artifact_file_path
                     )

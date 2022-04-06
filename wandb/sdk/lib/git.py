@@ -111,9 +111,7 @@ class GitRepo:
             hostname += ":" + str(parsed.port)
         if parsed.password is not None:
 
-            return urlunparse(
-                parsed._replace(netloc=f"{parsed.username}:@{hostname}")
-            )
+            return urlunparse(parsed._replace(netloc=f"{parsed.username}:@{hostname}"))
         return urlunparse(parsed._replace(netloc=hostname))
 
     @property

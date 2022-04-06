@@ -811,9 +811,7 @@ class Attrs:
         elif name in self._attrs.keys():
             return self._attrs[name]
         else:
-            raise AttributeError(
-                f"'{repr(self)}' object has no attribute '{name}'"
-            )
+            raise AttributeError(f"'{repr(self)}' object has no attribute '{name}'")
 
 
 class Paginator:
@@ -2971,9 +2969,7 @@ class ProjectArtifactCollections(Paginator):
             "artifactTypeName": type_name,
         }
 
-        super().__init__(
-            client, variable_values, per_page
-        )
+        super().__init__(client, variable_values, per_page)
 
     @property
     def length(self):
