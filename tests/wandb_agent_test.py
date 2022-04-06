@@ -3,6 +3,8 @@ import pytest
 import wandb
 import os
 
+from typing import Dict, List, Tuple
+
 
 def test_agent_basic(live_mock_server):
     sweep_ids = []
@@ -80,28 +82,47 @@ def test_agent_ignore_runid(live_mock_server):
     assert len(sweep_run_ids) == 1
     assert sweep_run_ids[0] == "mocker-sweep-run-x91"
 
+
+def test_agent_filter_command_flags(live_mock_server):
+
+    from wandb.wandb_agent import Agent
+    import functools
+
+    mock_command: Dict = {
+        "args": {
+            "a": {"value": True},
+            "b": {"value": False},
+        }
+    }
+
+    no_hyphen_return: List[str] = Agent._filter_flags(
+        mock_command, return_style="no_hyphens"
+    )
+    assert no_hyphen_return == ["a=True", "b=False"]
+
+    tuple_return: List[Tuple] = Agent._filter_flags(mock_command, return_style="tuple")
+    assert tuple_return == [("a", True), ("b", False)]
+
+    flag_return: List = Agent._filter_flags(
+        mock_command,
+        return_style="flag",
+        filter_func=functools.partial(
+            Agent._boolean_flag_filter, filter_list=["a", "b"]
+        ),
+    )
+    assert flag_return == ["--a=True"]
+
+
 def test_agent_command_flags(live_mock_server):
     sweep_config = {
         "method": "grid",
-        "parameters":{
-            "foo_flag" :{
-            "values": [True, False],
-        },
+        "parameters": {
+            "foo_flag": {
+                "values": [True, False],
+            },
         },
         "command_flags": ["foo_flag"],
     }
     sweep_callable = lambda: sweep_config
     sweep_id = wandb.sweep(sweep_callable, project="test", entity="test")
     wandb.agent(sweep_id, function=sweep_callable, count=1)
-
-    # TODO: test to make sure the command being executed 
-    # import multiprocessing
-    # from wandb.wandb_agent import Agent
-    
-    # agent = Agent(
-    #     wandb.InternalApi(),
-    #     multiprocessing.Queue(),
-    #     sweep_id
-    # )
-    
-    # assert 'foo_flag' in agent._sweep_command_flags

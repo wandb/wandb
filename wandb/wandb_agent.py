@@ -10,6 +10,9 @@ import sys
 import time
 import traceback
 
+from typing import Dict, List, Callable, Any
+import functools
+
 import six
 from six.moves import queue
 import wandb
@@ -323,6 +326,32 @@ class Agent(object):
 
         return response
 
+    @staticmethod
+    def _boolean_flag_filter(param: str, value: Any, filter_list: List[str]) -> bool:
+        """Filter out false boolean flags used for args in commands."""
+        return param in filter_list and isinstance(value, bool) and value is False
+
+    @staticmethod
+    def _filter_flags(
+        command: Dict, filter_func: Callable = None, return_style: str = "args"
+    ) -> List:
+        """Return filtered flags given a command and style."""
+        flags: List = []
+        for param, config in command["args"].items():
+            if filter_func(param, config["value"]):
+                continue
+            elif return_style == "tuple":
+                flags.append((param, config["value"]))
+            elif return_style == "flags":
+                flags.append("--{}={}".format(param, config["value"]))
+            elif return_style == "no_hyphens":
+                flags.append("{}={}".format(param, config["value"]))
+            else:
+                raise ValueError(
+                    'flag return style must be one of ["tuple", "flags", "no_hyphens"]'
+                )
+        return flags
+
     def _command_run(self, command):
         logger.info(
             "Agent starting run with config:\n"
@@ -372,21 +401,7 @@ class Agent(object):
 
         env = dict(os.environ)
 
-        flags_list = [
-            (param, config["value"]) for param, config in command["args"].items()
-        ]
-        flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
-        flags = []
-        for param, config in command["args"].items():
-            # Parameters specified in command_flags are omitted if false
-            if (
-                param in self._sweep_command_flags
-                and isinstance(param, bool)
-                and param is False
-            ):
-                continue
-            else:
-                flags.append("--{}={}".format(param, config["value"]))
+        flags_list = Agent._filter_flags(command, return_style="tuple")
         flags_dict = dict(flags_list)
         flags_json = json.dumps(flags_dict)
 
@@ -407,8 +422,15 @@ class Agent(object):
             sweep_vars = dict(
                 interpreter=["python"],
                 program=[command["program"]],
-                args=flags,
-                args_no_hyphens=flags_no_hyphens,
+                args=self._filter_flags(
+                    command,
+                    return_style="flags",
+                    filter_func=functools.partial(
+                        Agent._boolean_flag_filter,
+                        filter_list=self._sweep_command_flags,
+                    ),
+                ),
+                args_no_hyphens=Agent._filter_flags(command, return_style="no_hyphens"),
                 args_json=[flags_json],
                 args_json_file=[json_file],
                 env=["/usr/bin/env"],
