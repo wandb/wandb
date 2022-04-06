@@ -1069,7 +1069,10 @@ class Audio(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {"_type": self._log_type, "caption": self._caption,}
+            {
+                "_type": self._log_type,
+                "caption": self._caption,
+            }
         )
         return json_dict
 
@@ -1193,7 +1196,11 @@ class JoinedTable(Media):
         if t2 is None:
             t2 = json_obj["table2"]
 
-        return cls(t1, t2, json_obj["join_key"],)
+        return cls(
+            t1,
+            t2,
+            json_obj["join_key"],
+        )
 
     @staticmethod
     def _validate_table_input(table):
@@ -1248,7 +1255,11 @@ class JoinedTable(Media):
             table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
             table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)
             json_obj.update(
-                {"table1": table1, "table2": table2, "join_key": self._join_key,}
+                {
+                    "table1": table1,
+                    "table2": table2,
+                    "join_key": self._join_key,
+                }
             )
         return json_obj
 
@@ -1958,7 +1969,9 @@ class _ForeignKeyType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict, artifact,
+        cls,
+        json_dict,
+        artifact,
     ):
         table = None
         col_name = None
@@ -2016,7 +2029,9 @@ class _ForeignIndexType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict, artifact,
+        cls,
+        json_dict,
+        artifact,
     ):
         table = None
         if artifact is None:

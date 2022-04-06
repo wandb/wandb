@@ -153,7 +153,8 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         # simulate user turning on code saving in UI
         live_mock_server.set_ctx({"code_saving_enabled": True})
         test_settings.update(
-            save_code=None, source=wandb.sdk.wandb_settings.Source.BASE,
+            save_code=None,
+            source=wandb.sdk.wandb_settings.Source.BASE,
         )
         test_settings.update(
             code_dir=".", source=wandb.sdk.wandb_settings.Source.SETTINGS

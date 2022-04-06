@@ -262,7 +262,8 @@ def _infer_single_example_keyed_processor(
         and shape[0] == len(class_labels_table.data)
     ):
         np = wandb.util.get_module(
-            "numpy", required="Infering processors require numpy",
+            "numpy",
+            required="Infering processors require numpy",
         )
         # Assume these are logits
         class_names = class_labels_table.get_column("label")
@@ -296,7 +297,8 @@ def _infer_single_example_keyed_processor(
             processors["val"] = lambda n, d, p: d[0]
     elif len(shape) == 1:
         np = wandb.util.get_module(
-            "numpy", required="Infering processors require numpy",
+            "numpy",
+            required="Infering processors require numpy",
         )
         # This could be anything
         if shape[0] <= 10:
@@ -357,7 +359,9 @@ def _infer_validation_row_processor(
             for p_key in key_processors:
                 single_processors["{}:{}".format(key, p_key)] = _bind(
                     lambda ndx, row, key_processor, key: key_processor(
-                        ndx, row[key], None,
+                        ndx,
+                        row[key],
+                        None,
                     ),
                     key_processor=key_processors[p_key],
                     key=key,
@@ -368,7 +372,9 @@ def _infer_validation_row_processor(
         for p_key in key_processors:
             single_processors["{}:{}".format(key, p_key)] = _bind(
                 lambda ndx, row, key_processor, key: key_processor(
-                    ndx, row[key], None,
+                    ndx,
+                    row[key],
+                    None,
                 ),
                 key_processor=key_processors[p_key],
                 key=key,
@@ -382,7 +388,9 @@ def _infer_validation_row_processor(
             for p_key in key_processors:
                 single_processors["{}:{}".format(key, p_key)] = _bind(
                     lambda ndx, row, key_processor, key: key_processor(
-                        ndx, row[key], None,
+                        ndx,
+                        row[key],
+                        None,
                     ),
                     key_processor=key_processors[p_key],
                     key=key,
@@ -431,7 +439,9 @@ def _infer_prediction_row_processor(
             for p_key in key_processors:
                 single_processors["{}:{}".format(key, p_key)] = _bind(
                     lambda ndx, row, key_processor, key: key_processor(
-                        ndx, row[key], None,
+                        ndx,
+                        row[key],
+                        None,
                     ),
                     key_processor=key_processors[p_key],
                     key=key,

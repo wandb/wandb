@@ -64,7 +64,6 @@ try:
             run.log_artifact(artifact)
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
-
 except ImportError:
     print(
         "Warning: `pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
@@ -103,7 +102,6 @@ try:
             run.log_artifact(artifact)
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
-
 except ImportError:
     print(
         "Warning: `pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
@@ -140,7 +138,6 @@ try:
                 pickle.dump(data, f)
             run.log_artifact(artifact)
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
-
 
 except ImportError:
     print(

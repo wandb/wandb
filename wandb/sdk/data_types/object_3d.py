@@ -115,7 +115,11 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                    data,
+                    fp,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                    indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif util.is_numpy_array(data_or_path):
@@ -142,7 +146,11 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                    list_data,
+                    fp,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                    indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
