@@ -175,7 +175,8 @@ class SyncManager:
 
         self.running: bool = True
         # FIXME: turn these into an asyncio task once SyncManager is async
-        self.dumpers: List[threading.Thread] = []
+        self.dumper = threading.Thread(target=self._dump)
+        self.dumper.start()
 
         if self._verbose:
             print("Hello from the shiny new SyncManager!")
@@ -283,7 +284,7 @@ class SyncManager:
             else:
                 await asyncio.sleep(self.sleep_time)
 
-    def _dump(self, task_name: str) -> None:
+    def _dump(self) -> None:
         """
         Dump results from the heaps respecting the order of the tasks.
         Wait for the corresponding <self.current_chunk_number>-th result
@@ -292,34 +293,47 @@ class SyncManager:
         TODO: using threading for now because SendManager is not async-friendly yet.
         """
         while self.running:
-            if self._verbose:
-                print(f"dumper is running for {task_name.split('-')[-1].split('.wandb')[0]}")
-
-            has_data_to_dump = (
-                self.result_heaps[task_name]
-                and self.result_heaps[task_name][0][0] == self.current_chunk_number[task_name] + 1
-            )
-
-            if not has_data_to_dump:
-                # if self._verbose and self.result_heaps[task_name]:
-                if self.result_heaps[task_name]:
-                    print(
-                        "dumper waiting for data to dump: "
-                        f"{self.result_heaps[task_name][0][0]} {self.current_chunk_number[task_name] + 1}"
-                    )
-                time.sleep(self.sleep_time / 10)
+            if (
+                not any(
+                    len(self.result_heaps[run_id])
+                    and self.result_heaps[run_id][0][0] == self.current_chunk_number[run_id] + 1
+                    for run_id in self.tasks
+                )
+            ):
+                time.sleep(self.sleep_time)
                 continue
 
-            with threading.Lock():
-                chunk = heapq.heappop(self.result_heaps[task_name])
+            for run_id in self.tasks:
                 if self._verbose:
-                    pass
-                short_run_id = task_name.split('-')[-1].split('.wandb')[0]
-                print(f"dumper posted result: {short_run_id}: chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n")
-                self.current_chunk_number[task_name] += 1
-                if self._verbose:
-                    pass
-                    # print(f"dumper posted result: {task_name}/{chunk}")
+                    print(f"dumper is running for {run_id.split('-')[-1].split('.wandb')[0]}")
+
+                has_data_to_dump = (
+                    len(self.result_heaps[run_id])
+                    and self.result_heaps[run_id][0][0] == self.current_chunk_number[run_id] + 1
+                )
+
+                if not has_data_to_dump:
+                    # if self._verbose and self.result_heaps[task_name]:
+                    if len(self.result_heaps[run_id]):
+                        print(
+                            "dumper waiting for data to dump: "
+                            f"{self.result_heaps[run_id][0][0]} {self.current_chunk_number[run_id] + 1}"
+                        )
+                    continue
+
+                with threading.Lock():
+                    chunk = heapq.heappop(self.result_heaps[run_id])
+                    if self._verbose:
+                        pass
+                    short_run_id = run_id.split('-')[-1].split('.wandb')[0]
+                    print(
+                        f"dumper posted result: {short_run_id}: "
+                        f"chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n"
+                    )
+                    self.current_chunk_number[run_id] += 1
+                    if self._verbose:
+                        pass
+                        # print(f"dumper posted result: {task_name}/{chunk}")
 
     async def async_run(
         self,
@@ -330,8 +344,8 @@ class SyncManager:
         """
         async_tasks = []
         # schedule async task per wandb run to be synced
-        for task_name in self.tasks.keys():
-            task = asyncio.create_task(self._process_tasks(executor, task_name))
+        for run_id in self.tasks.keys():
+            task = asyncio.create_task(self._process_tasks(executor, run_id))
             async_tasks.append(task)
 
         async_tasks.append(asyncio.create_task(self._watch()))
@@ -417,12 +431,6 @@ class SyncManager:
             print(
                 f"memory: {sync_item}: {total_memory / 1024 / 1024} MB"
             )
-
-            # create a dump thread for each task
-            self.dumpers.append(
-                threading.Thread(target=self._dump, args=(sync_item,))
-            )
-            self.dumpers[-1].start()
 
         print("\n", [{task_name: len(self.tasks[task_name])} for task_name in self.tasks.keys()])
         input("\n>")
