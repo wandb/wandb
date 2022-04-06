@@ -29,7 +29,8 @@ def test_login_timeout(mock_tty):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="mock_tty doesnt support windows input yet",
+    platform.system() == "Windows",
+    reason="mock_tty doesnt support windows input yet",
 )
 def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")

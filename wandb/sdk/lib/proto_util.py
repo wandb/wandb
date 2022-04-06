@@ -82,7 +82,9 @@ def settings_dict_from_pbmap(
     return d
 
 
-def message_to_dict(message: "Message",) -> Dict[str, Any]:
+def message_to_dict(
+    message: "Message",
+) -> Dict[str, Any]:
     """
     Converts a protobuf message into a dictionary.
     """

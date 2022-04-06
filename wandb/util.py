@@ -86,7 +86,14 @@ def get_platform_name() -> str:
         return PLATFORM_DARWIN
     elif sys.platform.startswith("linux"):
         return PLATFORM_LINUX
-    elif sys.platform.startswith(("dragonfly", "freebsd", "netbsd", "openbsd",)):
+    elif sys.platform.startswith(
+        (
+            "dragonfly",
+            "freebsd",
+            "netbsd",
+            "openbsd",
+        )
+    ):
         return PLATFORM_BSD
     else:
         return PLATFORM_UNKNOWN
@@ -107,23 +114,23 @@ if error_reporting_enabled():
     )
 
 POW_10_BYTES = [
-    ("B", 10 ** 0),
-    ("KB", 10 ** 3),
-    ("MB", 10 ** 6),
-    ("GB", 10 ** 9),
-    ("TB", 10 ** 12),
-    ("PB", 10 ** 15),
-    ("EB", 10 ** 18),
+    ("B", 10**0),
+    ("KB", 10**3),
+    ("MB", 10**6),
+    ("GB", 10**9),
+    ("TB", 10**12),
+    ("PB", 10**15),
+    ("EB", 10**18),
 ]
 
 POW_2_BYTES = [
-    ("B", 2 ** 0),
-    ("KiB", 2 ** 10),
-    ("MiB", 2 ** 20),
-    ("GiB", 2 ** 30),
-    ("TiB", 2 ** 40),
-    ("PiB", 2 ** 50),
-    ("EiB", 2 ** 60),
+    ("B", 2**0),
+    ("KiB", 2**10),
+    ("MiB", 2**20),
+    ("GiB", 2**30),
+    ("TiB", 2**40),
+    ("PiB", 2**50),
+    ("EiB", 2**60),
 ]
 
 
@@ -1111,7 +1118,10 @@ def class_colors(class_count: int) -> List[List[int]]:
     ]
 
 
-def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+def _prompt_choice(
+    input_timeout: int = None,
+    jupyter: bool = False,
+) -> str:
     input_fn: Callable = input
     prompt = term.LOG_STRING
     if input_timeout is not None:
@@ -1132,7 +1142,9 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
 
 
 def prompt_choices(
-    choices: Sequence[str], input_timeout: int = None, jupyter: bool = False,
+    choices: Sequence[str],
+    input_timeout: int = None,
+    jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):

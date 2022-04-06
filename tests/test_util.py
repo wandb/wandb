@@ -358,7 +358,9 @@ def test_make_tarfile():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = os.path.join(tmpdir, "foo.tar.gz")
         util.make_tarfile(
-            output_filename=tmpfile, source_dir=tmpdir, archive_name="lol",
+            output_filename=tmpfile,
+            source_dir=tmpdir,
+            archive_name="lol",
         )
         assert os.path.exists(tmpfile)
         assert tarfile.is_tarfile(tmpfile)
