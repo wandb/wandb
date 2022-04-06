@@ -6,12 +6,14 @@ import itertools
 from pathlib import Path
 import time
 from typing import MutableSequence
+
+import numpy
 import wandb
 
 parser = argparse.ArgumentParser(description="Try to reproduce Motorola's slow upload issues")
-parser.add_argument("n", type=int, help="number of images to upload")
-parser.add_argument("dir", type=Path, help="directory to upload images from")
-parser.add_argument("--profile-output", type=Path, default=Path('run.profile'), help="directory to upload images from")
+parser.add_argument("-n", "--n-images", type=float, required=True, help="number of files to upload")
+parser.add_argument("-s", "--image-bytes", type=float, required=True, help="approximate size of files to upload, in bytes")
+parser.add_argument("--profile-output", type=Path, default=Path('run.profile'))
 
 @dataclasses.dataclass
 class Timer:
@@ -33,11 +35,12 @@ class Timer:
 
 def main(args):
 
-    n: int = args.n
-    dir: Path = args.dir
-    if not dir.is_dir():
-        raise ValueError(f"{dir} is not a directory")
+    num_images = int(args.n_images)
+    approx_image_bytes = int(args.image_bytes)
     profile_output: Path = args.profile_output
+
+    image_width = int(numpy.sqrt(approx_image_bytes / 3))
+    mkimg = lambda: numpy.random.random((image_width, image_width, 3))
 
     import cProfile
     profile = cProfile.Profile()
@@ -48,12 +51,9 @@ def main(args):
 
         print(f'Starting run took {timer.tick()}s')
         table = wandb.Table(["Image"])
-        files_to_upload = list(itertools.islice(dir.iterdir(), n))
-        if len(files_to_upload) != n:
-            raise ValueError(f"wanted {n} images, but only found {len(files_to_upload)} in {dir}")
-        for f in files_to_upload:
-            table.add_data(wandb.Image(str(f)))
-        print(f'Adding dir to table took {timer.tick()}s')
+        for _ in range(num_images):
+            table.add_data(wandb.Image(mkimg()))
+        print(f'Creating images and adding them to the table took {timer.tick()}s')
 
         art = wandb.Artifact('rand_small', 'dataset')
         art.add(table, 'table')
