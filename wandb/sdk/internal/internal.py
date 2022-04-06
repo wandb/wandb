@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 import psutil
 from six.moves import queue
 import wandb
-from wandb.util import sentry_exc
+from wandb.util import sentry_exc, sentry_set_scope
 
 from . import handler
 from . import internal_util
@@ -72,6 +72,9 @@ def wandb_internal(
     wandb._set_internal_process()
     _setup_tracelog()
     started = time.time()
+
+    # any sentry events in the internal process will be tagged as such
+    sentry_set_scope(process_context="internal")
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register
@@ -166,6 +169,10 @@ def wandb_internal(
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
             wandb.termerror("Internal wandb error: file data was not synced")
+            if settings.get("_require_service"):
+                # TODO: We can make this more graceful by returning an error to streams.py
+                # and potentially just fail the one stream.
+                os._exit(-1)
             sys.exit(-1)
 
 
@@ -339,7 +346,9 @@ class WriterThread(internal_util.RecordLoopThread):
 
     def _setup(self) -> None:
         self._wm = writer.WriteManager(
-            settings=self._settings, record_q=self._record_q, result_q=self._result_q,
+            settings=self._settings,
+            record_q=self._record_q,
+            result_q=self._result_q,
         )
 
     def _process(self, record: "Record") -> None:

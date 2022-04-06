@@ -1,5 +1,6 @@
 import tensorflow as tf
 import wandb
+from wandb.sdk.lib import telemetry
 
 
 if hasattr(tf.estimator, "SessionRunHook"):
@@ -28,7 +29,12 @@ class WandbHook(SessionRunHook):
         self._steps_per_log = steps_per_log
         self._history = history
 
+        with telemetry.context() as tel:
+            tel.feature.estimator_hook = True
+
     def begin(self):
+        if wandb.run is None:
+            raise wandb.Error("You must call `wandb.init()` before calling `WandbHook`")
         if self._summary_op is None:
             self._summary_op = merge_all_summaries()
         self._step = -1
@@ -41,6 +47,8 @@ class WandbHook(SessionRunHook):
     def after_run(self, run_context, run_values):
         step = run_values.results["global_step"]
         if step % self._steps_per_log == 0:
-            wandb.tensorboard.log(
-                run_values.results["summary"], history=self._history, step=step,
+            wandb.tensorboard._log(
+                run_values.results["summary"],
+                history=self._history,
+                step=step,
             )

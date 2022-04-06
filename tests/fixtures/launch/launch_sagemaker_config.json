@@ -16,7 +16,7 @@
                 "S3OutputPath": "s3://test-bucket/test-output"
             },
             "StoppingCondition": {
-                "MaxRuntimeInSeconds": "60"
+                "MaxRuntimeInSeconds": 60
             },
             "ResourceConfig": {
                 "InstanceCount": 1,

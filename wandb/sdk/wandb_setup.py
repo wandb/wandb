@@ -95,7 +95,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._manager = None
         self._pid = pid
 
-        # keep track of multiple runs so we can unwind with join()s
+        # keep track of multiple runs, so we can unwind with join()s
         self._global_run_stack = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
@@ -249,7 +249,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
         use_grpc = self._settings._service_transport == "grpc"
-        self._manager = wandb_manager._Manager(_use_grpc=use_grpc)
+        self._manager = wandb_manager._Manager(
+            _use_grpc=use_grpc, settings=self._settings
+        )
 
     def _teardown_manager(self, exit_code: int) -> None:
         if not self._manager:
@@ -270,7 +272,7 @@ class _WandbSetup:
 
     _instance = None
 
-    def __init__(self, settings=None):
+    def __init__(self, settings=None) -> None:
         pid = os.getpid()
         if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
@@ -281,7 +283,7 @@ class _WandbSetup:
         return getattr(self._instance, name)
 
 
-def _setup(settings=None, _reset=None):
+def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
     """Setup library context."""
     if _reset:
         setup_instance = _WandbSetup._instance
@@ -293,7 +295,7 @@ def _setup(settings=None, _reset=None):
     return wl
 
 
-def setup(settings=None):
+def setup(settings=None) -> Optional["_WandbSetup"]:
     ret = _setup(settings=settings)
     return ret
 

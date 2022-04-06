@@ -10,6 +10,7 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+from collections import namedtuple
 import datetime
 from functools import partial
 import json
@@ -23,9 +24,6 @@ import time
 from typing import Optional
 
 from dateutil.relativedelta import relativedelta
-from gql import Client, gql
-from gql.client import RetryError
-from gql.transport.requests import RequestsHTTPTransport
 import requests
 import six
 from six.moves import urllib
@@ -39,6 +37,9 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
+from wandb_gql.transport.requests import RequestsHTTPTransport
 
 
 logger = logging.getLogger(__name__)
@@ -324,6 +325,18 @@ class Api(object):
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
 
+    def create_user(self, email, admin=False):
+        """Creates a new user
+
+        Arguments:
+            email: (str) The name of the team
+            admin: (bool) Whether this user should be a global instance admin
+
+        Returns:
+            A `User` object
+        """
+        return User.create(self, email, admin)
+
     def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
         """Sync a local directory containing tfevent files to wandb"""
         from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
@@ -573,7 +586,7 @@ class Api(object):
         Returns:
             A `Team` object
         """
-        return Team.create(self.client, team, admin_username)
+        return Team.create(self, team, admin_username)
 
     def team(self, team):
         return Team(self.client, team)
@@ -876,6 +889,22 @@ class Paginator(object):
 
 
 class User(Attrs):
+    CREATE_USER_MUTATION = gql(
+        """
+    mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
+        createUser(input: {email: $email, admin: $admin}) {
+            user {
+                id
+                name
+                username
+                email
+                admin
+            }
+        }
+    }
+        """
+    )
+
     DELETE_API_KEY_MUTATION = gql(
         """
     mutation DeleteApiKey($id: String!) {
@@ -901,6 +930,24 @@ class User(Attrs):
     def __init__(self, client, attrs):
         super(User, self).__init__(attrs)
         self._client = client
+
+    @classmethod
+    def create(cls, api, email, admin=False):
+        """Creates a new user
+
+        Arguments:
+            api: (`Api`) The api instance to use
+            email: (str) The name of the team
+            admin: (bool) Whether this user should be a global instance admin
+
+        Returns:
+            A `User` object
+        """
+        res = api.client.execute(
+            cls.CREATE_USER_MUTATION,
+            {"email": email, "admin": admin},
+        )
+        return User(api.client, res["createUser"]["user"])
 
     @property
     def api_keys(self):
@@ -1080,13 +1127,13 @@ class Team(Attrs):
             A `Team` object
         """
         try:
-            api.execute(
+            api.client.execute(
                 cls.CREATE_TEAM_MUTATION,
                 {"teamName": team, "teamAdminUserName": admin_username},
             )
         except requests.exceptions.HTTPError:
             pass
-        return Team(api, team)
+        return Team(api.client, team)
 
     def invite(self, username_or_email, admin=False):
         """Invites a user to a team
@@ -3397,7 +3444,10 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
+        response = client.execute(
+            Artifact.QUERY,
+            variable_values={"id": artifact_id},
+        )
 
         name = None
         if response.get("artifact") is not None:
@@ -3608,6 +3658,49 @@ class Artifact(artifacts.Artifact):
         return use_as
 
     @normalize_exceptions
+    def link(self, target_path: str, aliases=None):
+        if ":" in target_path:
+            raise ValueError(
+                f"target_path {target_path} cannot contain `:` because it is not an alias."
+            )
+
+        portfolio, project, entity = util._parse_entity_project_item(target_path)
+        aliases = util._resolve_aliases(aliases)
+
+        EmptyRunProps = namedtuple("Empty", "entity project")
+        r = wandb.run if wandb.run else EmptyRunProps(entity=None, project=None)
+        entity = entity or r.entity or self.entity
+        project = project or r.project or self.project
+
+        mutation = gql(
+            """
+            mutation LinkArtifact($artifactID: ID!, $artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!]) {
+    linkArtifact(input: {artifactID: $artifactID, artifactPortfolioName: $artifactPortfolioName,
+        entityName: $entityName,
+        projectName: $projectName,
+        aliases: $aliases
+    }) {
+            versionIndex
+    }
+}
+        """
+        )
+        self.client.execute(
+            mutation,
+            variable_values={
+                "artifactID": self.id,
+                "artifactPortfolioName": portfolio,
+                "entityName": entity,
+                "projectName": project,
+                "aliases": [
+                    {"alias": alias, "artifactCollectionName": portfolio}
+                    for alias in aliases
+                ],
+            },
+        )
+        return True
+
+    @normalize_exceptions
     def delete(self, delete_aliases=False):
         """
         Delete an artifact and its files.
@@ -3642,7 +3735,10 @@ class Artifact(artifacts.Artifact):
         )
         self.client.execute(
             mutation,
-            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
+            variable_values={
+                "artifactID": self.id,
+                "deleteAliases": delete_aliases,
+            },
         )
         return True
 
@@ -3901,7 +3997,10 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
+                    {
+                        "artifactCollectionName": self._sequence_name,
+                        "alias": alias,
+                    }
                     for alias in self._aliases
                 ],
             },
@@ -4070,7 +4169,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         # yes, "name" is actually id
         runs = [
             Run(
@@ -4108,7 +4210,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(

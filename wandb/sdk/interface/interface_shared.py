@@ -33,7 +33,9 @@ class InterfaceShared(InterfaceBase):
     _router: Optional[MessageRouter]
 
     def __init__(
-        self, process: BaseProcess = None, process_check: bool = True,
+        self,
+        process: BaseProcess = None,
+        process_check: bool = True,
     ) -> None:
         super().__init__()
         self._process = process
@@ -52,6 +54,12 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         rec = self._make_record(tbrecord=tbrecord)
+        self._publish(rec)
+
+    def _publish_partial_history(
+        self, partial_history: pb.PartialHistoryRequest
+    ) -> None:
+        rec = self._make_request(partial_history=partial_history)
         self._publish(rec)
 
     def _publish_history(self, history: pb.HistoryRecord) -> None:
@@ -82,7 +90,7 @@ class InterfaceShared(InterfaceBase):
             login.api_key = api_key
         return login
 
-    def _make_request(
+    def _make_request(  # noqa: C901
         self,
         login: pb.LoginRequest = None,
         get_summary: pb.GetSummaryRequest = None,
@@ -92,6 +100,7 @@ class InterfaceShared(InterfaceBase):
         stop_status: pb.StopStatusRequest = None,
         network_status: pb.NetworkStatusRequest = None,
         poll_exit: pb.PollExitRequest = None,
+        partial_history: pb.PartialHistoryRequest = None,
         sampled_history: pb.SampledHistoryRequest = None,
         run_start: pb.RunStartRequest = None,
         check_version: pb.CheckVersionRequest = None,
@@ -119,6 +128,8 @@ class InterfaceShared(InterfaceBase):
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
+        elif partial_history:
+            request.partial_history.CopyFrom(partial_history)
         elif sampled_history:
             request.sampled_history.CopyFrom(sampled_history)
         elif run_start:
@@ -144,7 +155,7 @@ class InterfaceShared(InterfaceBase):
         record.control.local = True
         return record
 
-    def _make_record(
+    def _make_record(  # noqa: C901
         self,
         run: pb.RunRecord = None,
         config: pb.ConfigRecord = None,
@@ -163,6 +174,7 @@ class InterfaceShared(InterfaceBase):
         request: pb.Request = None,
         telemetry: tpb.TelemetryRecord = None,
         preempting: pb.RunPreemptingRecord = None,
+        link_artifact: pb.LinkArtifactRecord = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -199,6 +211,8 @@ class InterfaceShared(InterfaceBase):
             record.metric.CopyFrom(metric)
         elif preempting:
             record.preempting.CopyFrom(preempting)
+        elif link_artifact:
+            record.link_artifact.CopyFrom(link_artifact)
         else:
             raise Exception("Invalid record")
         return record
@@ -323,6 +337,10 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_files(self, files: pb.FilesRecord) -> None:
         rec = self._make_record(files=files)
+        self._publish(rec)
+
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> Any:
+        rec = self._make_record(link_artifact=link_artifact)
         self._publish(rec)
 
     def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:

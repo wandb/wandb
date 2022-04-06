@@ -49,6 +49,7 @@ class BackendMock(object):
         self.interface = None
         self.last_queued = None
         self.history = []
+        self.partial_history = []
         self.summary = {}
         self.config = {}
         self.files = {}
@@ -79,6 +80,12 @@ class BackendMock(object):
         return d
 
     def _publish(self, rec):
+        if rec.request.WhichOneof("request_type") == "partial_history":
+            if len(rec.request.partial_history.item) > 0:
+                hist = self._proto_to_dict(rec.request.partial_history.item)
+                if rec.history.HasField("step"):
+                    hist["_step"] = rec.request.partial_history.step.num
+                self.partial_history.append(hist)
         if len(rec.history.item) > 0:
             hist = self._proto_to_dict(rec.history.item)
             # handle case where step is not passed in items
@@ -103,7 +110,9 @@ class BackendMock(object):
         print("Fake Backend Launched")
         wandb_process = ProcessMock()
         self.interface = InterfaceQueue(
-            process=wandb_process, record_q=self.record_q, result_q=self.result_q,
+            process=wandb_process,
+            record_q=self.record_q,
+            result_q=self.result_q,
         )
         self.interface._communicate = self._communicate
         self.interface._orig_publish = self.interface._publish

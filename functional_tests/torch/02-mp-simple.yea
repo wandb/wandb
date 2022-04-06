@@ -1,0 +1,25 @@
+id: 0.torch.02-mp-simple
+tag:
+  shard: service
+plugin:
+  - wandb
+depend:
+  requirements:
+    - torch
+    - torchvision
+    - pillow
+
+var:
+  - history_0_len:
+      :fn:len: :wandb:runs[0][history]
+
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # Import (init)
+    - 1  # torch
+  - :op:contains:
+    - :wandb:runs[0][telemetry][2]  # Import (finish)
+    - 1  # torch
+  - :history_0_len: 20

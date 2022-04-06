@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
+import configparser
 import copy
 import datetime
 from functools import wraps
@@ -23,7 +23,6 @@ from click.exceptions import ClickException
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 import six
-from six.moves import configparser
 import wandb
 from wandb import Config
 from wandb import env, util
@@ -35,6 +34,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -42,12 +42,22 @@ from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 
-# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+# Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = tempfile.gettempdir()
+
+try:
+    _username = getpass.getuser()
+except KeyError:
+    # getuser() could raise KeyError in restricted environments like
+    # chroot jails or docker containers. Return user id in these cases.
+    _username = str(os.getuid())
+
+_wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
+
 logging.basicConfig(
-    filename=os.path.join(_wandb_dir, "debug-cli.log"),
+    filename=_wandb_log_path,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -211,9 +221,6 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
-    if host and not host.startswith("http"):
-        raise ClickException("host must start with http(s)://")
-
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
@@ -221,7 +228,9 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True, _disable_viewer=relogin, anonymous=anon_mode,
+        _cli_only_mode=True,
+        _disable_viewer=relogin,
+        anonymous=anon_mode,
     )
     if host is not None:
         login_settings["base_url"] = host
@@ -366,7 +375,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -900,20 +911,12 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
-def _check_launch_imports():
-    req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
-    _ = util.get_module("iso8601", required=req_string)
-
-
 @cli.command(
     help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
-@click.argument("uri")
+@click.argument("uri", nargs=1, required=False)
 @click.option(
     "--entry-point",
     "-E",
@@ -938,15 +941,6 @@ def _check_launch_imports():
     help="An argument for the run, of the form -a name=value. Provided arguments that "
     "are not in the list of arguments for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
-)
-@click.option(  # todo: maybe take these out it's confusing with the docker image stuff
-    "--docker-args",
-    "-A",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="A `docker run` argument or flag, of the form -A name=value (e.g. -A gpus=all) "
-    "or -A name (e.g. -A t). The argument will then be passed as "
-    "`docker run --name value` or `docker run --name` respectively. ",
 )
 @click.option(
     "--name",
@@ -1020,13 +1014,20 @@ def _check_launch_imports():
     "as resource args to the compute resource. The exact content which should be "
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
+@click.option(
+    "--cuda",
+    is_flag=False,
+    flag_value=True,
+    default=None,
+    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
+    "built by default and you must set --cuda=False to build a CPU-only image.",
+)
 @display_error
 def launch(
     uri,
     entry_point,
     git_version,
     args_list,
-    docker_args,
     name,
     resource,
     entity,
@@ -1036,6 +1037,7 @@ def launch(
     queue,
     run_async,
     resource_args,
+    cuda,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
@@ -1049,11 +1051,10 @@ def launch(
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
-    _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
-        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
 
@@ -1062,22 +1063,41 @@ def launch(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
 
+    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
+    if cuda is not None:
+        # preserve cuda=None as unspecified, otherwise convert to bool
+        if cuda == "True":
+            cuda = True
+        elif cuda == "False":
+            cuda = False
+        else:
+            raise LaunchError(
+                "Invalid value for --cuda: '{}' is not a valid boolean.".format(cuda)
+            )
+
     args_dict = util._user_args_to_dict(args_list)
-    docker_args_dict = util._user_args_to_dict(docker_args)
 
     if resource_args is not None:
-        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        resource_args = util.load_json_yaml_dict(resource_args)
         if resource_args is None:
             raise LaunchError("Invalid format for resource-args")
     else:
         resource_args = {}
 
     if config is not None:
-        config = util.load_as_json_file_or_load_dict_as_json(config)
+        config = util.load_json_yaml_dict(config)
         if config is None:
             raise LaunchError("Invalid format for config")
     else:
         config = {}
+
+    if (
+        uri is None
+        and docker_image is None
+        and config.get("uri") is not None
+        and config.get("docker", {}).get("docker_image") is None
+    ):
+        raise LaunchError("Must pass a URI or a docker image to launch.")
 
     if queue is None:
         # direct launch
@@ -1092,11 +1112,11 @@ def launch(
                 docker_image=docker_image,
                 name=name,
                 parameters=args_dict,
-                docker_args=docker_args_dict,
                 resource=resource,
                 resource_args=resource_args,
                 config=config,
                 synchronous=(not run_async),
+                cuda=cuda,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1119,12 +1139,13 @@ def launch(
             docker_image,
             args_dict,
             resource_args,
+            cuda=cuda,
         )
 
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.argument("project", nargs=1)
+@click.argument("project", nargs=1, required=False)
 @click.option(
     "--entity",
     "-e",
@@ -1135,21 +1156,27 @@ def launch(
 @click.option(
     "--max-jobs",
     "-j",
-    default=1,
-    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1.",
+    default=None,
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
 )
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
-        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
+    if project is None:
+        project = os.environ.get("WANDB_PROJECT")
+
+        if project is None:
+            raise LaunchError(
+                "You must specify a project name or set WANDB_PROJECT environment variable."
+            )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1159,6 +1186,8 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
 
     if entity is None:
         entity = api.default_entity
+    if max_jobs is None:
+        max_jobs = float(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))
 
     wandb.termlog("Starting launch agent ✨")
 
@@ -1552,7 +1581,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

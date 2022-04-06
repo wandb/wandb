@@ -28,6 +28,7 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
+API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
@@ -59,18 +60,25 @@ def _is_git_uri(uri: str) -> bool:
     return bool(_GIT_URI_REGEX.match(uri))
 
 
+def sanitize_wandb_api_key(s: str) -> str:
+    return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
+
+
 def set_project_entity_defaults(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     project: Optional[str],
     entity: Optional[str],
     launch_config: Optional[Dict[str, Any]],
 ) -> Tuple[str, str]:
     # set the target project and entity if not provided
-    if _is_wandb_uri(uri):
-        _, uri_project, _ = parse_wandb_uri(uri)
-    elif _is_git_uri(uri):
-        uri_project = os.path.splitext(os.path.basename(uri))[0]
+    if uri is not None:
+        if _is_wandb_uri(uri):
+            _, uri_project, _ = parse_wandb_uri(uri)
+        elif _is_git_uri(uri):
+            uri_project = os.path.splitext(os.path.basename(uri))[0]
+        else:
+            uri_project = UNCATEGORIZED_PROJECT
     else:
         uri_project = UNCATEGORIZED_PROJECT
     if project is None:
@@ -91,7 +99,7 @@ def set_project_entity_defaults(
 
 
 def construct_launch_spec(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     name: Optional[str],
     project: Optional[str],
@@ -103,13 +111,19 @@ def construct_launch_spec(
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
+    cuda: Optional[bool],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
-    launch_spec["uri"] = uri
+    if uri is not None:
+        launch_spec["uri"] = uri
     project, entity = set_project_entity_defaults(
-        uri, api, project, entity, launch_config,
+        uri,
+        api,
+        project,
+        entity,
+        launch_config,
     )
     launch_spec["entity"] = entity
 
@@ -148,6 +162,8 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
+    if cuda is not None:
+        launch_spec["cuda"] = cuda
 
     return launch_spec
 
@@ -204,6 +220,8 @@ def fetch_wandb_project_run_info(
             _, response = api.download_file(metadata["url"])
             data = response.json()
             result["codePath"] = data.get("codePath")
+            result["cudaVersion"] = data.get("cuda", None)
+
     if result.get("args") is not None:
         result["args"] = util._user_args_to_dict(result["args"])
     return result
@@ -227,12 +245,10 @@ def download_entry_point(
 def download_wandb_python_deps(
     entity: str, project: str, run_name: str, api: Api, dir: str
 ) -> Optional[str]:
-    metadata = api.download_url(
-        project, "requirements.txt", run=run_name, entity=entity
-    )
-    if metadata is not None:
+    reqs = api.download_url(project, "requirements.txt", run=run_name, entity=entity)
+    if reqs is not None:
         _logger.info("Downloading python dependencies")
-        _, response = api.download_file(metadata["url"])
+        _, response = api.download_file(reqs["url"])
 
         with util.fsync_open(
             os.path.join(dir, "requirements.frozen.txt"), "wb"
@@ -314,11 +330,11 @@ def merge_parameters(
 
 
 def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
-    nbformat = wandb.util.get_module(
-        "nbformat", "nbformat is required to use launch with jupyter notebooks"
-    )
     nbconvert = wandb.util.get_module(
-        "nbconvert", "nbconvert is required to use launch with jupyter notebooks"
+        "nbconvert", "nbformat and nbconvert are required to use launch with notebooks"
+    )
+    nbformat = wandb.util.get_module(
+        "nbformat", "nbformat and nbconvert are required to use launch with notebooks"
     )
 
     _logger.info("Converting notebook to script")
@@ -360,5 +376,6 @@ def to_camel_case(maybe_snake_str: str) -> str:
     return "".join(x.title() if x else "_" for x in components)
 
 
-def run_shell(args: List[str]) -> str:
-    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
+def run_shell(args: List[str]) -> Tuple[str, str]:
+    out = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()

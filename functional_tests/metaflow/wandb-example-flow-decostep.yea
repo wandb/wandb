@@ -1,6 +1,13 @@
 id: metaflow.example.step
 plugin:
   - wandb
+depend:
+  requirements:
+    - "metaflow>=2.3.5"
+tag:
+  shard: metaflow
+  skips:
+    - platform: win
 command:
     args:
         - --no-pylint

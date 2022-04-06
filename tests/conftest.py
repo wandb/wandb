@@ -29,10 +29,12 @@ from wandb import wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.lib.module import unset_globals
 from wandb.sdk.lib.git import GitRepo
 from wandb.util import mkdir_exists_ok
+from wandb import Api
 
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
@@ -209,6 +211,12 @@ def dummy_api_key():
 
 
 @pytest.fixture
+def reinit_internal_api():
+    with mock.patch("wandb.api", InternalApi()):
+        yield
+
+
+@pytest.fixture
 def test_settings(test_dir, mocker, live_mock_server):
     """Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
@@ -314,17 +322,18 @@ def live_mock_server(request, worker_id):
     server = servers[worker_id]
     name = urllib.parse.quote(request.node.name)
     # We set the username so the mock backend can namespace state
-    os.environ["WANDB_USERNAME"] = name
-    os.environ["WANDB_BASE_URL"] = server.base_url
-    os.environ["WANDB_ERROR_REPORTING"] = "false"
-    os.environ["WANDB_API_KEY"] = DUMMY_API_KEY
-    # clear mock server ctx
-    server.reset_ctx()
-    yield server
-    del os.environ["WANDB_USERNAME"]
-    del os.environ["WANDB_BASE_URL"]
-    del os.environ["WANDB_ERROR_REPORTING"]
-    del os.environ["WANDB_API_KEY"]
+    with mock.patch.dict(
+        os.environ,
+        {
+            "WANDB_USERNAME": name,
+            "WANDB_BASE_URL": server.base_url,
+            "WANDB_ERROR_REPORTING": "false",
+            "WANDB_API_KEY": DUMMY_API_KEY,
+        },
+    ):
+        # clear mock server ctx
+        server.reset_ctx()
+        yield server
 
 
 @pytest.fixture
@@ -340,7 +349,8 @@ def notebook(live_mock_server, test_dir):
             setupcell = setupnb["cells"][0]
             # Ensure the notebooks talks to our mock server
             new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__", live_mock_server.base_url,
+                "__WANDB_BASE_URL__",
+                live_mock_server.base_url,
             )
             if save_code:
                 new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
@@ -450,23 +460,20 @@ def wandb_init_run(request, runner, mocker, mock_server):
         args.update(marker.kwargs)
     try:
         mocks_from_args(mocker, args, mock_server)
-        for k, v in args["env"].items():
-            os.environ[k] = v
-        #  TODO: likely not the right thing to do, we shouldn't be setting this
-        wandb._IS_INTERNAL_PROCESS = False
-        #  We want to run setup every time in tests
-        wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-        mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
-        run = wandb.init(
-            settings=dict(console="off", mode="offline", _except_exit=False),
-            **args["wandb_init"],
-        )
-        yield run
-        wandb.finish()
+        with mock.patch.dict(os.environ, {k: v for k, v in args["env"].items()}):
+            #  TODO: likely not the right thing to do, we shouldn't be setting this
+            wandb._IS_INTERNAL_PROCESS = False
+            #  We want to run setup every time in tests
+            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
+            run = wandb.init(
+                settings=dict(console="off", mode="offline", _except_exit=False),
+                **args["wandb_init"],
+            )
+            yield run
+            wandb.finish()
     finally:
         unset_globals()
-        for k, v in args["env"].items():
-            del os.environ[k]
 
 
 @pytest.fixture
@@ -615,7 +622,9 @@ class MockProcess:
 @pytest.fixture()
 def _internal_sender(record_q, internal_result_q, internal_process):
     return InterfaceQueue(
-        record_q=record_q, result_q=internal_result_q, process=internal_process,
+        record_q=record_q,
+        result_q=internal_result_q,
+        process=internal_process,
     )
 
 
@@ -804,7 +813,10 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
 
 @pytest.fixture
 def publish_util(
-    mocked_run, mock_server, backend_interface, parse_ctx,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     def fn(
         metrics=None,
@@ -943,3 +955,8 @@ def mock_tty(monkeypatch):
 
     del sys.stdin.isatty
     del sys.stdout.isatty
+
+
+@pytest.fixture
+def api(runner):
+    return Api()

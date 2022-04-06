@@ -39,8 +39,8 @@ class InterfaceGrpc(InterfaceBase):
 
     def _hack_set_run(self, run: "Run") -> None:
         super(InterfaceGrpc, self)._hack_set_run(run)
-        assert run.id
-        self._stream_id = run.id
+        assert run._run_id
+        self._stream_id = run._run_id
 
     def _connect(self, stub: pbgrpc.InternalServiceStub) -> None:
         self._stub = stub
@@ -110,6 +110,13 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(telem)
         _ = self._stub.Telemetry(telem)
 
+    def _publish_partial_history(
+        self, partial_history: pb.PartialHistoryRequest
+    ) -> None:
+        assert self._stub
+        self._assign(partial_history)
+        _ = self._stub.PartialLog(partial_history)
+
     def _publish_history(self, history: pb.HistoryRecord) -> None:
         assert self._stub
         self._assign(history)
@@ -152,6 +159,11 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(proto_artifact)
         _ = self._stub.Artifact(proto_artifact)
+
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        assert self._stub
+        self._assign(link_artifact)
+        _ = self._stub.LinkArtifact(link_artifact)
 
     def _communicate_artifact(
         self, log_artifact: pb.LogArtifactRequest

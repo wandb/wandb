@@ -44,8 +44,24 @@ def md5_hash_file(path):
     return hash_md5
 
 
+def md5_hash_files(paths: List[str]):
+    hash_md5 = hashlib.md5()
+    # Create a mutable copy to sort
+    paths = [path for path in paths]
+    paths.sort()
+    for path in paths:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(64 * 1024), b""):
+                hash_md5.update(chunk)
+    return hash_md5
+
+
 def md5_file_b64(path: str) -> str:
     return base64.b64encode(md5_hash_file(path).digest()).decode("ascii")
+
+
+def md5_files_b64(paths: List[str]) -> str:
+    return base64.b64encode(md5_hash_files(paths).digest()).decode("ascii")
 
 
 def md5_file_hex(path: str) -> str:
@@ -646,6 +662,21 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
+        """
+        Links this artifact to a portfolio (a promoted collection of artifacts), with aliases.
+
+        Arguments:
+            target_path: (str) The path to the portfolio. It must take the form
+                {portfolio}, {project}/{portfolio} or {entity}/{project}/{portfolio}.
+            aliases: (Optional[List[str]]) A list of strings which uniquely
+                identifies the artifact inside the specified portfolio.
+
+        Returns:
+            None
+        """
+        raise NotImplementedError
+
     def delete(self) -> None:
         """
         Deletes this artifact, cleaning up all files associated with it.
@@ -791,7 +822,10 @@ class StorageHandler(object):
         pass
 
     def load_path(
-        self, artifact: Artifact, manifest_entry: ArtifactEntry, local: bool = False,
+        self,
+        artifact: Artifact,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
     ) -> str:
         """
         Loads the file or directory within the specified artifact given its

@@ -16,6 +16,7 @@ from typing import Sequence, Union
 import wandb
 from wandb.errors import RequireError
 from wandb.sdk import wandb_run
+from wandb.sdk.lib.wburls import wburls
 
 
 class _Requires(object):
@@ -56,7 +57,7 @@ class _Requires(object):
 
         if last_message:
             wandb.termerror(
-                "Supported wandb.require() features can be found at: http://wandb.me/library-require"
+                f"Supported wandb.require() features can be found at: {wburls.get('doc_require')}"
             )
             raise RequireError(last_message)
 

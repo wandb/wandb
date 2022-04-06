@@ -1,6 +1,6 @@
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from wandb_gql import Client, gql  # type: ignore
+from wandb_gql.client import RetryError  # type: ignore
+from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
 import ast
 import base64
@@ -125,6 +125,7 @@ class Api:
             None,
             None,
         )
+        self._max_cli_version = None
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -306,7 +307,6 @@ class Api:
                 }
             }
         """
-
         if self.query_types is None or self.server_info_types is None:
             query = gql(query_string)
             res = self.gql(query)
@@ -381,6 +381,25 @@ class Api:
         )
         res = self.gql(query)
         return res.get("viewer") or {}
+
+    @normalize_exceptions
+    def max_cli_version(self):
+
+        if self._max_cli_version is not None:
+            return self._max_cli_version
+
+        query_types, server_info_types = self.server_info_introspection()
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+        if not cli_version_exists:
+            return None
+
+        _, server_info = self.viewer_server_info()
+        self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version"
+        )
+        return self._max_cli_version
 
     @normalize_exceptions
     def viewer_server_info(self):
@@ -782,7 +801,11 @@ class Api:
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1453,7 +1476,12 @@ class Api:
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -1563,7 +1591,8 @@ class Api:
             else:
                 md5 = None
             content_settings = self._azure_blob_module.ContentSettings(
-                content_md5=md5, content_type=extra_headers.get("Content-Type"),
+                content_md5=md5,
+                content_type=extra_headers.get("Content-Type"),
             )
             client.upload_blob(
                 file,
@@ -2048,6 +2077,56 @@ class Api:
             open_file.close()
         return responses
 
+    def link_artifact(
+        self, client_id, server_id, portfolio_name, entity, project, aliases
+    ):
+        template = """
+                mutation LinkArtifact(
+                    $artifactPortfolioName: String!,
+                    $entityName: String!,
+                    $projectName: String!,
+                    $aliases: [ArtifactAliasInput!],
+                    ID_TYPE
+                    ) {
+                        linkArtifact(input: {
+                            artifactPortfolioName: $artifactPortfolioName,
+                            entityName: $entityName,
+                            projectName: $projectName,
+                            aliases: $aliases,
+                            ID_VALUE
+                        }) {
+                            versionIndex
+                        }
+                    }
+            """
+
+        def replace(a, b):
+            nonlocal template
+            template = template.replace(a, b)
+
+        if server_id:
+            replace("ID_TYPE", "$artifactID: ID")
+            replace("ID_VALUE", "artifactID: $artifactID")
+        elif client_id:
+            replace("ID_TYPE", "$clientID: ID")
+            replace("ID_VALUE", "clientID: $clientID")
+
+        variable_values = {
+            "clientID": client_id,
+            "artifactID": server_id,
+            "artifactPortfolioName": portfolio_name,
+            "entityName": entity,
+            "projectName": project,
+            "aliases": [
+                {"alias": alias, "artifactCollectionName": portfolio_name}
+                for alias in aliases
+            ],
+        }
+
+        mutation = gql(template)
+        response = self.gql(mutation, variable_values=variable_values)
+        return response["linkArtifact"]
+
     def use_artifact(
         self,
         artifact_id,
@@ -2169,6 +2248,7 @@ class Api:
         distributed_id=None,
         is_user_created=False,
         enable_digest_deduplication=False,
+        history_step=None,
     ):
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
@@ -2198,6 +2278,7 @@ class Api:
             %s
             %s
             %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -2211,6 +2292,7 @@ class Api:
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
                 %s
                 %s
                 %s
@@ -2239,10 +2321,13 @@ class Api:
             # For backwards compatibility with older backends that don't support
             # distributed writers or digest deduplication.
             (
+                "$historyStep: Int64!," if history_step not in [0, None] else "",
                 "$distributedID: String," if distributed_id else "",
                 "$clientID: ID!," if can_handle_client_id else "",
                 "$sequenceClientID: ID!," if can_handle_client_id else "",
                 "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
+                # line sep
+                "historyStep: $historyStep," if history_step not in [0, None] else "",
                 "distributedID: $distributedID," if distributed_id else "",
                 "clientID: $clientID," if can_handle_client_id else "",
                 "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
@@ -2256,9 +2341,9 @@ class Api:
         project_name = project_name or self.settings("project")
         if not is_user_created:
             run_name = run_name or self.current_run_id
-
         if aliases is None:
             aliases = []
+
         response = self.gql(
             mutation,
             variable_values={
@@ -2280,6 +2365,7 @@ class Api:
                 else None,
                 "distributedID": distributed_id,
                 "enableDigestDeduplication": enable_digest_deduplication,
+                "historyStep": history_step,
             },
         )
         av = response["createArtifact"]["artifact"]
@@ -2447,7 +2533,8 @@ class Api:
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2462,7 +2549,12 @@ class Api:
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")

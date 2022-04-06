@@ -81,7 +81,7 @@ def parse(value):
     _group_pairs(tokens)
 
     challenges = CaseFoldedOrderedDict()
-    for name, tokens in _group_challenges(tokens):
+    for name, tokens in _group_challenges(tokens):  # noqa: B020
         args, kwargs = [], {}
         for token_name, value in tokens:
             if token_name == "token":

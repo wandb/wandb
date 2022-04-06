@@ -194,10 +194,13 @@ def notebook_metadata(silent):
         # In colab we can request the most recent contents
         ipynb = attempt_colab_load_ipynb()
         if ipynb:
+            nb_name = ipynb["metadata"]["colab"]["name"]
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
             ret = {
                 "root": "/content",
-                "path": ipynb["metadata"]["colab"]["name"],
-                "name": ipynb["metadata"]["colab"]["name"],
+                "path": nb_name,
+                "name": nb_name,
             }
 
             try:
@@ -388,10 +391,13 @@ class Notebook(object):
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
+            nb_name = colab_ipynb["metadata"]["colab"]["name"]
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
             with open(
                 os.path.join(
                     self.settings._tmp_code_dir,
-                    colab_ipynb["metadata"]["colab"]["name"],
+                    nb_name,
                 ),
                 "w",
                 encoding="utf-8",

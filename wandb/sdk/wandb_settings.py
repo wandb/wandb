@@ -27,7 +27,7 @@ from typing import (
     Tuple,
     Union,
 )
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse, urlsplit
 
 import wandb
 from wandb import util
@@ -72,7 +72,10 @@ def _get_wandb_dir(root_dir: str) -> str:
 
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
-        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory.")
+        wandb.termwarn(
+            f"Path {path} wasn't writable, using system temp directory.",
+            repeat=False,
+        )
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
     return os.path.expanduser(path)
@@ -93,7 +96,8 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
 
     # fixme: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. ", repeat=False,
+        f"Could not parse value {val} as a bool. ",
+        repeat=False,
     )
     raise UsageError(f"Could not parse value {val} as a bool.")
 
@@ -354,6 +358,7 @@ class Settings:
     # and to help with IDE autocomplete.
     _args: Sequence[str]
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _colab: bool
     _config_dict: Config
     _console: SettingsConsole
     _cuda: str
@@ -372,6 +377,7 @@ class Settings:
     _noop: bool
     _offline: bool
     _os: str
+    _platform: str
     _python: str
     _require_service: str
     _runqueue_item_id: str
@@ -390,6 +396,7 @@ class Settings:
     code_dir: str
     config_paths: Sequence[str]
     console: str
+    deployment: str
     disable_code: bool
     disable_git: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
@@ -471,6 +478,10 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _colab={
+                "hook": lambda _: "google.colab" in sys.modules,
+                "auto_hook": True,
+            },
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
@@ -488,6 +499,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True},
             _tmp_code_dir={
                 "value": "code",
@@ -501,12 +513,16 @@ class Settings:
             api_key={"validator": self._validate_api_key},
             base_url={
                 "value": "https://api.wandb.ai",
-                "preprocessor": lambda x: str(x).rstrip("/"),
+                "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
             console={"value": "auto", "validator": self._validate_console},
-            disable_code={"preprocessor": _str_as_bool, "is_policy": True},
-            disable_git={"preprocessor": _str_as_bool, "is_policy": True},
+            deployment={
+                "hook": lambda _: "local" if self.is_local else "cloud",
+                "auto_hook": True,
+            },
+            disable_code={"preprocessor": _str_as_bool},
+            disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -575,7 +591,7 @@ class Settings:
             },
             run_url={"hook": lambda _: self._run_url(), "auto_hook": True},
             sagemaker_disable={"preprocessor": _str_as_bool},
-            save_code={"preprocessor": _str_as_bool, "is_policy": True},
+            save_code={"preprocessor": _str_as_bool},
             settings_system={
                 "value": os.path.join("~", ".config", "wandb", "settings"),
                 "hook": lambda x: self._path_convert(x),
@@ -725,23 +741,119 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
-    @staticmethod
-    def _validate_api_key(value: str) -> bool:
+    def _validate_api_key(self, value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
+
+        if value.startswith("local") and not self.is_local:
+            raise UsageError(
+                "Attempting to use a local API key to connect to https://api.wandb.ai"
+            )
         # todo: move here the logic from sdk/lib/apikey.py
+
         return True
 
     @staticmethod
     def _validate_base_url(value: Optional[str]) -> bool:
-        if value is not None:
-            if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
-                # user might guess app.wandb.ai or wandb.ai is the default cloud server
-                raise UsageError(
-                    f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
-                )
-            elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
-                raise UsageError("http is not secure, please use https://api.wandb.ai")
+        """
+        Validate the base url of the wandb server.
+
+        param value: URL to validate
+
+        Based on the Django URLValidator, but with a few additional checks.
+
+        Copyright (c) Django Software Foundation and individual contributors.
+        All rights reserved.
+
+        Redistribution and use in source and binary forms, with or without modification,
+        are permitted provided that the following conditions are met:
+
+            1. Redistributions of source code must retain the above copyright notice,
+               this list of conditions and the following disclaimer.
+
+            2. Redistributions in binary form must reproduce the above copyright
+               notice, this list of conditions and the following disclaimer in the
+               documentation and/or other materials provided with the distribution.
+
+            3. Neither the name of Django nor the names of its contributors may be used
+               to endorse or promote products derived from this software without
+               specific prior written permission.
+
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+        ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+        WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+        ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+        (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+        LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+        ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+        SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        """
+        if value is None:
+            return True
+
+        ul = "\u00a1-\uffff"  # Unicode letters range (must not be a raw string).
+
+        # IP patterns
+        ipv4_re = (
+            r"(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)"
+            r"(?:\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}"
+        )
+        ipv6_re = r"\[[0-9a-f:.]+\]"  # (simple regex, validated later)
+
+        # Host patterns
+        hostname_re = (
+            r"[a-z" + ul + r"0-9](?:[a-z" + ul + r"0-9-]{0,61}[a-z" + ul + r"0-9])?"
+        )
+        # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
+        domain_re = r"(?:\.(?!-)[a-z" + ul + r"0-9-]{1,63}(?<!-))*"
+        tld_re = (
+            r"\."  # dot
+            r"(?!-)"  # can't start with a dash
+            r"(?:[a-z" + ul + "-]{2,63}"  # domain label
+            r"|xn--[a-z0-9]{1,59})"  # or punycode label
+            r"(?<!-)"  # can't end with a dash
+            r"\.?"  # may have a trailing dot
+        )
+        # host_re = "(" + hostname_re + domain_re + tld_re + "|localhost)"
+        # fixme?: allow hostname to be just a hostname (no tld)?
+        host_re = "(" + hostname_re + domain_re + f"({tld_re})?" + "|localhost)"
+
+        regex = re.compile(
+            r"^(?:[a-z0-9.+-]*)://"  # scheme is validated separately
+            r"(?:[^\s:@/]+(?::[^\s:@/]*)?@)?"  # user:pass authentication
+            r"(?:" + ipv4_re + "|" + ipv6_re + "|" + host_re + ")"
+            r"(?::[0-9]{1,5})?"  # port
+            r"(?:[/?#][^\s]*)?"  # resource path
+            r"\Z",
+            re.IGNORECASE,
+        )
+        schemes = {"http", "https"}
+        unsafe_chars = frozenset("\t\r\n")
+
+        scheme = value.split("://")[0].lower()
+        split_url = urlsplit(value)
+        parsed_url = urlparse(value)
+
+        if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+            # user might guess app.wandb.ai or wandb.ai is the default cloud server
+            raise UsageError(
+                f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
+            )
+        elif re.match(r".*wandb\.ai[^\.]*$", value) and scheme != "https":
+            raise UsageError("http is not secure, please use https://api.wandb.ai")
+        elif parsed_url.netloc == "":
+            raise UsageError(f"Invalid URL: {value}")
+        elif unsafe_chars.intersection(value):
+            raise UsageError("URL cannot contain unsafe characters")
+        elif scheme not in schemes:
+            raise UsageError("URL must start with `http(s)://`")
+        elif not regex.search(value):
+            raise UsageError(f"{value} is not a valid server address")
+        elif split_url.hostname is None or len(split_url.hostname) > 253:
+            raise UsageError("hostname is invalid")
+
         return True
 
     # other helper methods
@@ -866,7 +978,11 @@ class Settings:
                 object.__setattr__(
                     self,
                     prop,
-                    Property(name=prop, validator=validators, source=Source.BASE,),
+                    Property(
+                        name=prop,
+                        validator=validators,
+                        source=Source.BASE,
+                    ),
                 )
 
             # fixme: this is to collect stats on preprocessing and validation errors
@@ -1036,7 +1152,9 @@ class Settings:
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
     def _apply_settings(
-        self, settings: "Settings", _logger: Optional[_EarlyLogger] = None,
+        self,
+        settings: "Settings",
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Apply settings from a Settings object."""
         if _logger is not None:
@@ -1073,7 +1191,8 @@ class Settings:
             if _logger is not None:
                 _logger.info(f"Loading settings from {self.settings_system}")
             self.update(
-                self._load_config_file(self.settings_system), source=Source.SYSTEM,
+                self._load_config_file(self.settings_system),
+                source=Source.SYSTEM,
             )
         if self.settings_workspace is not None:
             if _logger is not None:
@@ -1084,7 +1203,9 @@ class Settings:
             )
 
     def _apply_env_vars(
-        self, environ: Mapping[str, Any], _logger: Optional[_EarlyLogger] = None,
+        self,
+        environ: Mapping[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
@@ -1203,7 +1324,8 @@ class Settings:
         self.update(settings, source=Source.ENV)
 
     def _infer_run_settings_from_environment(
-        self, _logger: Optional[_EarlyLogger] = None,
+        self,
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Modify settings based on environment (for runs only)."""
         # If there's not already a program file, infer it now.

@@ -17,6 +17,7 @@ from __future__ import print_function
 import base64
 import binascii
 import codecs
+import datetime
 import hashlib
 import json
 import logging
@@ -25,44 +26,53 @@ import pprint
 import re
 import sys
 import tempfile
+from typing import Optional
 
 import six
 import wandb
 from wandb import util
-from wandb.sdk.data_types import (
+
+from .sdk.data_types import _dtypes
+from .sdk.data_types.base_types.media import (
     _numpy_arrays_to_lists,
     BatchableMedia,
-    BoundingBoxes2D,
-    Classes,
-    Histogram,
-    history_dict_to_json,
-    Html,
-    Image,
-    ImageMask,
     Media,
-    Molecule,
-    Object3D,
-    Plotly,
-    val_to_json,
-    Video,
-    WBValue,
 )
-from wandb.sdk.interface import _dtypes
+from .sdk.data_types.base_types.wb_value import WBValue
+from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
+from .sdk.data_types.helper_types.classes import Classes
+from .sdk.data_types.helper_types.image_mask import ImageMask
+from .sdk.data_types.histogram import Histogram
+from .sdk.data_types.html import Html
+from .sdk.data_types.image import Image
+from .sdk.data_types.molecule import Molecule
+from .sdk.data_types.object_3d import Object3D
+from .sdk.data_types.plotly import Plotly
+from .sdk.data_types.saved_model import _SavedModel
+from .sdk.data_types.video import Video
+
+# Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
+# Once we fully type this file and move it all into sdk, then we will need to cleanup the
+# other internal imports
 
 __all__ = [
+    # Untyped Exports
     "Audio",
+    "Table",
+    "Bokeh",
+    # Typed Exports
     "Histogram",
-    "Object3D",
-    "Molecule",
     "Html",
+    "Image",
+    "Molecule",
+    "Object3D",
+    "Plotly",
     "Video",
+    "_SavedModel",
+    # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
     "BoundingBoxes2D",
     "Classes",
-    "Image",
-    "Plotly",
-    "history_dict_to_json",
-    "val_to_json",
 ]
 
 
@@ -102,8 +112,34 @@ def _json_helper(val, artifact):
         for key in val:
             res[key] = _json_helper(val[key], artifact)
         return res
-    elif hasattr(val, "tolist"):
-        return util.json_friendly(val.tolist())[0]
+
+    if hasattr(val, "tolist"):
+        return _json_helper(val.tolist(), artifact)
+    elif hasattr(val, "item"):
+        return _json_helper(val.item(), artifact)
+
+    if isinstance(val, datetime.datetime):
+        if val.tzinfo is None:
+            val = datetime.datetime(
+                val.year,
+                val.month,
+                val.day,
+                val.hour,
+                val.minute,
+                val.second,
+                val.microsecond,
+                tzinfo=datetime.timezone.utc,
+            )
+        return int(val.timestamp() * 1000)
+    elif isinstance(val, datetime.date):
+        return int(
+            datetime.datetime(
+                val.year, val.month, val.day, tzinfo=datetime.timezone.utc
+            ).timestamp()
+            * 1000
+        )
+    elif isinstance(val, (list, tuple)):
+        return [_json_helper(i, artifact) for i in val]
     else:
         return util.json_friendly(val)[0]
 
@@ -1020,18 +1056,23 @@ class Audio(BatchableMedia):
             caption=json_obj["caption"],
         )
 
-    def bind_to_run(self, run, key, step, id_=None):
+    def bind_to_run(
+        self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
+    ):
         if Audio.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return super(Audio, self).bind_to_run(run, key, step, id_)
+        return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {"_type": self._log_type, "caption": self._caption,}
+            {
+                "_type": self._log_type,
+                "caption": self._caption,
+            }
         )
         return json_dict
 
@@ -1107,13 +1148,6 @@ class Audio(BatchableMedia):
         return not self.__eq__(other)
 
 
-def is_numpy_array(data):
-    np = util.get_module(
-        "numpy", required="Logging raw point cloud data requires numpy"
-    )
-    return isinstance(data, np.ndarray)
-
-
 class JoinedTable(Media):
     """Joins two tables for visualization in the Artifact UI
 
@@ -1162,7 +1196,11 @@ class JoinedTable(Media):
         if t2 is None:
             t2 = json_obj["table2"]
 
-        return cls(t1, t2, json_obj["join_key"],)
+        return cls(
+            t1,
+            t2,
+            json_obj["join_key"],
+        )
 
     @staticmethod
     def _validate_table_input(table):
@@ -1217,7 +1255,11 @@ class JoinedTable(Media):
             table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
             table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)
             json_obj.update(
-                {"table1": table1, "table2": table2, "join_key": self._join_key,}
+                {
+                    "table1": table1,
+                    "table2": table2,
+                    "join_key": self._join_key,
+                }
             )
         return json_obj
 
@@ -1927,7 +1969,9 @@ class _ForeignKeyType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict, artifact,
+        cls,
+        json_dict,
+        artifact,
     ):
         table = None
         col_name = None
@@ -1985,7 +2029,9 @@ class _ForeignIndexType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict, artifact,
+        cls,
+        json_dict,
+        artifact,
     ):
         table = None
         if artifact is None:

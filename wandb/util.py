@@ -46,6 +46,7 @@ from typing import (
     Union,
 )
 import urllib
+from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
@@ -62,13 +63,41 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile('[<>:"/?*]')
+RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
     SENTRY_ENV = "development"
 else:
     SENTRY_ENV = "production"
+
+
+PLATFORM_WINDOWS = "windows"
+PLATFORM_LINUX = "linux"
+PLATFORM_BSD = "bsd"
+PLATFORM_DARWIN = "darwin"
+PLATFORM_UNKNOWN = "unknown"
+
+
+def get_platform_name() -> str:
+    if sys.platform.startswith("win"):
+        return PLATFORM_WINDOWS
+    elif sys.platform.startswith("darwin"):
+        return PLATFORM_DARWIN
+    elif sys.platform.startswith("linux"):
+        return PLATFORM_LINUX
+    elif sys.platform.startswith(
+        (
+            "dragonfly",
+            "freebsd",
+            "netbsd",
+            "openbsd",
+        )
+    ):
+        return PLATFORM_BSD
+    else:
+        return PLATFORM_UNKNOWN
+
 
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
 # side effect of loading a module.
@@ -85,23 +114,23 @@ if error_reporting_enabled():
     )
 
 POW_10_BYTES = [
-    ("B", 10 ** 0),
-    ("KB", 10 ** 3),
-    ("MB", 10 ** 6),
-    ("GB", 10 ** 9),
-    ("TB", 10 ** 12),
-    ("PB", 10 ** 15),
-    ("EB", 10 ** 18),
+    ("B", 10**0),
+    ("KB", 10**3),
+    ("MB", 10**6),
+    ("GB", 10**9),
+    ("TB", 10**12),
+    ("PB", 10**15),
+    ("EB", 10**18),
 ]
 
 POW_2_BYTES = [
-    ("B", 2 ** 0),
-    ("KiB", 2 ** 10),
-    ("MiB", 2 ** 20),
-    ("GiB", 2 ** 30),
-    ("TiB", 2 ** 40),
-    ("PiB", 2 ** 50),
-    ("EiB", 2 ** 60),
+    ("B", 2**0),
+    ("KiB", 2**10),
+    ("MiB", 2**20),
+    ("GiB", 2**30),
+    ("TiB", 2**40),
+    ("PiB", 2**50),
+    ("EiB", 2**60),
 ]
 
 
@@ -146,22 +175,77 @@ def sentry_reraise(exc: Any) -> None:
 
 
 def sentry_set_scope(
-    process_context: Optional[str],
-    entity: Optional[str],
-    project: Optional[str],
-    email: Optional[str] = None,
-    url: Optional[str] = None,
+    settings_dict: Optional[
+        Union[
+            "wandb.sdk.wandb_settings.Settings",
+            "wandb.sdk.internal.settings_static.SettingsStatic",
+        ]
+    ] = None,
+    process_context: Optional[str] = None,
 ) -> None:
     # Using GLOBAL_HUB means these tags will persist between threads.
     # Normally there is one hub per thread.
+
+    # Tags come from two places: settings and args passed into this func.
+    args = dict(locals())
+    del args["settings_dict"]
+
+    settings_tags = [
+        "entity",
+        "project",
+        "run_id",
+        "run_url",
+        "sweep_url",
+        "sweep_id",
+        "deployment",
+        "_require_service",
+    ]
+
+    s = settings_dict
+
+    # convenience function for getting attr from settings
+    def get(key: str) -> Any:
+        return getattr(s, key, None)
+
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
-        scope.set_tag("process_context", process_context)
-        scope.set_tag("entity", entity)
-        scope.set_tag("project", project)
-        if email:
-            scope.user = {"email": email}
-        if url:
-            scope.set_tag("url", url)
+        scope.set_tag("platform", get_platform_name())
+
+        # apply settings tags
+        if s is not None:
+            for tag in settings_tags:
+                val = get(tag)
+                if val not in [None, ""]:
+                    scope.set_tag(tag, val)
+
+            python_runtime = (
+                "colab"
+                if get("_colab")
+                else ("jupyter" if get("_jupyter") else "python")
+            )
+            scope.set_tag("python_runtime", python_runtime)
+
+            # Hack for constructing run_url and sweep_url given run_id and sweep_id
+            required = ["entity", "project", "base_url"]
+            params = {key: get(key) for key in required}
+            if all(params.values()):
+                # here we're guaranteed that entity, project, base_url all have valid values
+                app_url = wandb.util.app_url(params["base_url"])
+                e, p = [quote(params[k]) for k in ["entity", "project"]]
+
+                # TODO: the settings object will be updated to contain run_url and sweep_url
+                # This is done by passing a settings_map in the run_start protocol buffer message
+                for word in ["run", "sweep"]:
+                    _url, _id = f"{word}_url", f"{word}_id"
+                    if not get(_url) and get(_id):
+                        scope.set_tag(_url, f"{app_url}/{e}/{p}/{word}s/{get(_id)}")
+
+            if hasattr(s, "email"):
+                scope.user = {"email": s.email}
+
+        # apply directly passed-in tags
+        for tag, value in args.items():
+            if value is not None and value != "":
+                scope.set_tag(tag, value)
 
 
 def vendor_setup() -> Callable:
@@ -309,7 +393,7 @@ def make_tarfile(
         tar_info.mtime = 0
         return tar_info if custom_filter is None else custom_filter(tar_info)
 
-    unzipped_filename = tempfile.mktemp()
+    descriptor, unzipped_filename = tempfile.mkstemp()
     try:
         with tarfile.open(unzipped_filename, "w") as tar:
             tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
@@ -320,6 +404,7 @@ def make_tarfile(
         ) as gzipped_tar, open(unzipped_filename, "rb") as tar_file:
             gzipped_tar.write(tar_file.read())
     finally:
+        os.close(descriptor)
         os.remove(unzipped_filename)
 
 
@@ -856,7 +941,7 @@ def get_log_file_path() -> str:
     """
     # TODO(jhr, cvp): refactor
     if wandb.run is not None:
-        return wandb.run._settings.log_internal  # type: ignore
+        return wandb.run._settings.log_internal
     return os.path.join("wandb", "debug-internal.log")
 
 
@@ -1033,7 +1118,10 @@ def class_colors(class_count: int) -> List[List[int]]:
     ]
 
 
-def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+def _prompt_choice(
+    input_timeout: int = None,
+    jupyter: bool = False,
+) -> str:
     input_fn: Callable = input
     prompt = term.LOG_STRING
     if input_timeout is not None:
@@ -1054,7 +1142,9 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
 
 
 def prompt_choices(
-    choices: Sequence[str], input_timeout: int = None, jupyter: bool = False,
+    choices: Sequence[str],
+    input_timeout: int = None,
+    jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
@@ -1299,9 +1389,8 @@ def uri_from_path(path: Optional[str]) -> str:
 
 def is_unicode_safe(stream: TextIO) -> bool:
     """returns true if the stream supports UTF-8"""
-    if not hasattr(stream, "encoding"):
-        return False
-    return stream.encoding.lower() in {"utf-8", "utf_8"}
+    encoding = getattr(stream, "encoding", None)
+    return encoding.lower() in {"utf-8", "utf_8"} if encoding else False
 
 
 def _has_internet() -> bool:
@@ -1366,6 +1455,10 @@ def _is_databricks() -> bool:
                 if hasattr(sc, "appName"):
                     return bool(sc.appName == "Databricks Shell")
     return False
+
+
+def _is_py_path(path: str) -> bool:
+    return path.endswith(".py")
 
 
 def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
@@ -1435,7 +1528,6 @@ def artifact_to_json(
 ) -> Dict[str, Any]:
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
-
     if hasattr(artifact, "_sequence_name"):
         sequence_name = artifact._sequence_name  # type: ignore
     else:
@@ -1460,17 +1552,127 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
         elif (
             isinstance(item, wandb.Artifact)
             or isinstance(item, wandb.apis.public.Artifact)
+            or _is_artifact_string(item)
         ) and nested:
             return True
     return False
 
 
-def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
-    if os.path.splitext(config)[-1] == ".json":
+def load_json_yaml_dict(config: str) -> Any:
+    ext = os.path.splitext(config)[-1]
+    if ext == ".json":
         with open(config, "r") as f:
             return json.load(f)
+    elif ext == ".yaml":
+        with open(config, "r") as f:
+            return yaml.safe_load(f)
     else:
         try:
             return json.loads(config)
         except ValueError:
             return None
+
+
+def _parse_entity_project_item(path: str) -> tuple:
+    """Parses paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
+
+    Args:
+        path: `str`, input path; must be between 0 and 3 in length.
+
+    Returns:
+        tuple of length 3 - (item, project, entity)
+
+    Example:
+        alias, project, entity = _parse_entity_project_item("myproj/mymodel:best")
+
+        assert entity   == ""
+        assert project  == "myproj"
+        assert alias    == "mymodel:best"
+
+    """
+    words = path.split("/")
+    if len(words) > 3:
+        raise ValueError(
+            "Invalid path: must be str the form {item}, {project}/{item}, or {entity}/{project}/{item}"
+        )
+    padded_words = [""] * (3 - len(words)) + words
+    return tuple(reversed(padded_words))
+
+
+def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+    """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
+    Ensures that "latest" is always present in the returned list.
+
+    Args:
+        aliases: `Optional[Union[str, List[str]]]`
+
+    Returns:
+        List[str], with "latest" always present.
+
+    Example:
+        aliases = _resolve_aliases(["best", "dev"])
+        assert aliases == ["best", "dev", "latest"]
+
+        aliases = _resolve_aliases("boom")
+        assert aliases == ["boom", "latest"]
+
+    """
+    if aliases is None:
+        aliases = []
+
+    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
+        raise ValueError("`aliases` must either be None or of type str or list")
+
+    if isinstance(aliases, str):
+        aliases = [aliases]
+
+    if "latest" not in aliases:
+        aliases.append("latest")
+
+    return aliases
+
+
+def _is_artifact(v: Any) -> bool:
+    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+
+
+def _is_artifact_string(v: Any) -> bool:
+    return isinstance(v, six.string_types) and v.startswith("wandb-artifact://")
+
+
+def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
+    if not v.startswith("wandb-artifact://"):
+        raise ValueError(f"Invalid artifact string: {v}")
+    parsed_v = v[len("wandb-artifact://") :]
+    base_uri = None
+    url_info = urllib.parse.urlparse(parsed_v)
+    if url_info.scheme != "":
+        base_uri = f"{url_info.scheme}://{url_info.netloc}"
+        parts = url_info.path.split("/")[1:]
+    else:
+        parts = parsed_v.split("/")
+    if parts[0] == "_id":
+        # for now can't fetch paths but this will be supported in the future
+        # when we allow passing typed media objects, this can be extended
+        # to include paths
+        return parts[1], base_uri
+
+    if len(parts) < 3:
+        raise ValueError(f"Invalid artifact string: {v}")
+
+    # for now can't fetch paths but this will be supported in the future
+    # when we allow passing typed media objects, this can be extended
+    # to include paths
+    entity, project, name_and_alias_or_version = parts[:3]
+    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
+
+
+def _get_max_cli_version() -> Union[str, None]:
+    max_cli_version = wandb.api.max_cli_version()
+    return str(max_cli_version) if max_cli_version is not None else None
+
+
+def _is_offline() -> bool:
+    return (  # type: ignore [no-any-return]
+        wandb.run is not None and wandb.run.settings._offline
+    ) or wandb.setup().settings._offline

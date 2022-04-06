@@ -24,9 +24,22 @@ from ..utils import fixture_open
 import pytest
 
 
+def mock_create_training_job(*args, **kwargs):
+    print(kwargs)
+    print(f'Project: {kwargs["Environment"]["WANDB_PROJECT"]}')
+    print(f'Entity: {kwargs["Environment"]["WANDB_ENTITY"]}')
+    print(f'Config: {kwargs["Environment"]["WANDB_CONFIG"]}')
+    print(f'Artifacts: {kwargs["Environment"]["WANDB_ARTIFACTS"]}')
+    return {
+        "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1",
+        **kwargs,
+    }
+
+
 def mock_boto3_client(*args, **kwargs):
     if args[0] == "sagemaker":
         mock_sagemaker_client = MagicMock()
+        mock_sagemaker_client.create_training_job = mock_create_training_job
         mock_sagemaker_client.create_training_job.return_value = {
             "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
         }
@@ -57,10 +70,10 @@ def mock_boto3_client(*args, **kwargs):
 
 
 def test_launch_aws_sagemaker(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     def mock_create_metadata_file(*args, **kwargs):
-        dockerfile_contents = args[2]
+        dockerfile_contents = args[4]
         expected_entrypoint = 'ENTRYPOINT ["sh", "train"]'
         assert expected_entrypoint in dockerfile_contents, dockerfile_contents
         _project_spec.create_metadata_file(*args, **kwargs)
@@ -69,7 +82,9 @@ def test_launch_aws_sagemaker(
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
     monkeypatch.setattr(
-        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
+        wandb.sdk.launch.docker,
+        "create_metadata_file",
+        mock_create_metadata_file,
     )
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
@@ -86,12 +101,20 @@ def test_launch_aws_sagemaker(
     kwargs["uri"] = uri
     kwargs["api"] = api
     run = launch.run(**kwargs)
+    out, _ = capsys.readouterr()
     assert run.training_job_name == "test-job-1"
+    assert "Project: test" in out
+    assert "Entity: mock_server_entity" in out
+    assert "Config: {}" in out
+    assert "Artifacts: {}" in out
 
 
 @pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_launch_fail(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     def mock_client_launch_fail(*args, **kwargs):
         if args[0] == "sagemaker":
@@ -147,7 +170,10 @@ def test_launch_aws_sagemaker_launch_fail(
 
 @pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_push_image_fail_none(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
@@ -172,7 +198,10 @@ def test_launch_aws_sagemaker_push_image_fail_none(
 
 
 def test_launch_aws_sagemaker_push_image_fail_err_msg(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
@@ -217,17 +246,16 @@ def test_sagemaker_specified_image(
     kwargs["api"] = api
     kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"][
         "TrainingImage"
-    ] = "my-test_image"
+    ] = "my-test-image:latest"
     kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"][
         "TrainingInputMode"
     ] = "File"
-    run = launch.run(**kwargs)
-    stderr = capsys.readouterr().err
-    assert (
-        "Launching sagemaker job with user provided ECR image, this image will not be able to swap artifacts"
-        in stderr
-    )
-    assert run.training_job_name == "test-job-1"
+    launch.run(**kwargs)
+    out, _ = capsys.readouterr()
+    assert "Project: test" in out
+    assert "Entity: mock_server_entity" in out
+    assert "Config: {}" in out
+    assert "Artifacts: {}" in out
 
 
 def test_aws_submitted_run_status():
@@ -363,6 +391,7 @@ def test_aws_get_region_file_success(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
+            cuda=None,
         )
         region = get_region(launch_project.resource_args)
         assert region == "us-east-1"
@@ -388,6 +417,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
+            cuda=None,
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             get_region(launch_project.resource_args)
@@ -414,6 +444,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
+            cuda=None,
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             get_region(launch_project.resource_args)
@@ -421,32 +452,6 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             str(e_info.value)
             == "AWS region not specified and ~/.aws/config not found. Configure AWS"
         )
-
-
-def test_aws_fail_build(
-    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
-):
-    monkeypatch.setattr(boto3, "client", mock_boto3_client)
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "docker_image_exists", lambda x: False
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "generate_docker_base_image", lambda x, y: None
-    )
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
-    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
-    with runner.isolated_filesystem():
-        api = wandb.sdk.internal.internal_api.Api(
-            default_settings=test_settings, load_settings=False
-        )
-        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-        kwargs["uri"] = uri
-        kwargs["api"] = api
-
-        with pytest.raises(wandb.errors.LaunchError) as e_info:
-            launch.run(**kwargs)
-        assert str(e_info.value) == "Unable to build base image"
 
 
 def test_no_sagemaker_resource_args(

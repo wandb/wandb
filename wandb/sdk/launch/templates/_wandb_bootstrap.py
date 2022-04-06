@@ -1,10 +1,9 @@
 import json
-import multiprocessing
 import os
 import subprocess
 import sys
 
-CORES = multiprocessing.cpu_count()
+CORES = 1
 ONLY_INCLUDE = set(
     [x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""]
 )
@@ -44,9 +43,10 @@ def install_deps(deps, failed=None):
         if failed is None:
             failed = set()
         num_failed = len(failed)
-        for line in e.output.decode("utf8"):
+        for line in e.output.decode("utf8").split("\n"):
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
+        failed = failed.intersection(deps)
         if len(failed) > num_failed:
             return install_deps(list(set(deps) - failed), failed)
         else:
@@ -67,7 +67,9 @@ def main():
                         req = "wandb"
                     reqs.append(req.strip())
                 else:
-                    print(f"Ignoring requirement: {req} from frozen requirements")
+                    print(
+                        "Ignoring requirement: {} from frozen requirements".format(req)
+                    )
                 if len(reqs) >= CORES:
                     deps_failed = install_deps(reqs)
                     reqs = []

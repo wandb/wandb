@@ -196,7 +196,7 @@ def log_summary(
     if wandb.run is None:
         raise wandb.Error("You must call wandb.init() before WandbCallback()")
 
-    if not isinstance(model, Booster):  # type: ignore
+    if not isinstance(model, Booster):
         raise wandb.Error("Model should be an instance of lightgbm.basic.Booster")
 
     wandb.run.summary["best_iteration"] = model.best_iteration

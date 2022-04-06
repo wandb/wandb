@@ -19,7 +19,9 @@ class _Printer:
             return sparkline.sparkify(series)
         return None
 
-    def abort(self,) -> str:
+    def abort(
+        self,
+    ) -> str:
         return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
 
     def display(
@@ -34,7 +36,10 @@ class _Printer:
 
     @abstractmethod
     def _display(
-        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None,
+        self,
+        text: Union[str, List[str], Tuple[str]],
+        *,
+        status: Optional[str] = None,
     ) -> None:
         raise NotImplementedError
 
@@ -90,7 +95,7 @@ class PrinterTerm(_Printer):
         else:
             raise
 
-    def progress_update(self, text: str, precentage: Optional[float] = None) -> None:
+    def progress_update(self, text: str, percentage: Optional[float] = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
     def progress_close(self) -> None:

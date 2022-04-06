@@ -1,3 +1,73 @@
+## 0.12.12 (April 5, 2022)
+
+#### :nail_care: Enhancement
+* Allow run objects to be passed to other processes when using wandb-service by @kptkin in https://github.com/wandb/client/pull/3308
+* Add create user to public api by @vanpelt in https://github.com/wandb/client/pull/3438
+* Support logging from multiple processes with wandb-service by @kptkin in https://github.com/wandb/client/pull/3285
+* Add gpus flag for local launch runner with cuda by @KyleGoyette in https://github.com/wandb/client/pull/3417
+* Improve Launch deployable agent by @KyleGoyette in https://github.com/wandb/client/pull/3388
+* Add Launch kubernetes integration by @KyleGoyette in https://github.com/wandb/client/pull/3393
+* KFP: Add wandb visualization helper by @andrewtruong in https://github.com/wandb/client/pull/3439
+* KFP: Link back to Kubeflow UI by @andrewtruong in https://github.com/wandb/client/pull/3427
+
+#### :bug: Bug Fix
+* Improve host / WANDB_BASE_URL validation by @dmitryduev in https://github.com/wandb/client/pull/3314
+* Fix/insecure tempfile by @dmitryduev in https://github.com/wandb/client/pull/3360
+* Fix excess warning span if requested WANDB_DIR/root_dir is not writable by @dmitryduev in https://github.com/wandb/client/pull/3304
+* Fix line_series to plot array of strings by @kptkin in https://github.com/wandb/client/pull/3385
+* Properly handle command line args with service by @kptkin in https://github.com/wandb/client/pull/3371
+* Improve api_key validation by @dmitryduev in https://github.com/wandb/client/pull/3384
+* Fix multiple performance issues caused by not using defaultdict by @dmitryduev in https://github.com/wandb/client/pull/3406
+* Enable inf max jobs on launch agent by @stephchen in https://github.com/wandb/client/pull/3412
+* fix colab command to work with launch by @stephchen in https://github.com/wandb/client/pull/3422
+* fix typo in Config docstring by @hu-po in https://github.com/wandb/client/pull/3416
+* Make code saving not a policy, keep previous custom logic by @dmitryduev in https://github.com/wandb/client/pull/3395
+* Fix logging sequence images with service by @kptkin in https://github.com/wandb/client/pull/3339
+* Add username to debug-cli log file to prevent conflicts of multiple users by @zythosec in https://github.com/wandb/client/pull/3301
+* Fix python sweep agent for users of wandb service / pytorch-lightning by @raubitsj in https://github.com/wandb/client/pull/3465
+* Remove unnecessary launch reqs checks by @KyleGoyette in https://github.com/wandb/client/pull/3457
+* Workaround for MoviePy's Unclosed Writer by @tssweeney in https://github.com/wandb/client/pull/3471
+* Improve handling of Run objects when service is not enabled by @kptkin in https://github.com/wandb/client/pull/3362
+
+## New Contributors
+* @hu-po made their first contribution in https://github.com/wandb/client/pull/3416
+* @zythosec made their first contribution in https://github.com/wandb/client/pull/3301
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.11...v0.12.12
+
+## 0.12.11 (March 1, 2022)
+
+#### :nail_care: Enhancement
+* Add captions to Molecules by @dmitryduev in https://github.com/wandb/client/pull/3173
+* Add CatBoost Integration by @ayulockin in https://github.com/wandb/client/pull/2975
+* Launch: AWS Sagemaker integration by @KyleGoyette in https://github.com/wandb/client/pull/3007
+* Launch: Remove repo2docker and add gpu support by @stephchen in https://github.com/wandb/client/pull/3161
+* Adds Timestamp inference from Python for Weave by @tssweeney in https://github.com/wandb/client/pull/3212
+* Launch GCP vertex integration by @stephchen in https://github.com/wandb/client/pull/3040
+* Use Artifacts when put into run config. Accept a string to represent an artifact in the run config by @KyleGoyette in https://github.com/wandb/client/pull/3203
+* Improve xgboost `wandb_callback` (#2929) by @ayulockin in https://github.com/wandb/client/pull/3025
+* Add initial kubeflow pipeline support by @andrewtruong in https://github.com/wandb/client/pull/3206
+
+#### :bug: Bug Fix
+* Fix logging of images with special characters in the key by @speezepearson in https://github.com/wandb/client/pull/3187
+* Fix azure blob upload retry logic by @vanpelt in https://github.com/wandb/client/pull/3218
+* Fix program field for scripts run as a python module by @dmitryduev in https://github.com/wandb/client/pull/3228
+* Fix issue where `sync_tensorboard` could die on large histograms by @KyleGoyette in https://github.com/wandb/client/pull/3019
+* Fix wandb service performance issue during run shutdown by @raubitsj in https://github.com/wandb/client/pull/3262
+* Fix vendoring of gql and graphql by @raubitsj in https://github.com/wandb/client/pull/3266
+* Flush log data without finish with service by @kptkin in https://github.com/wandb/client/pull/3137
+* Fix wandb service hang when the service crashes by @raubitsj in https://github.com/wandb/client/pull/3280
+* Fix issue logging images with "/" on Windows by @KyleGoyette in https://github.com/wandb/client/pull/3146
+* Add image filenames to images/separated media by @KyleGoyette in https://github.com/wandb/client/pull/3041
+* Add setproctitle to requirements.txt by @raubitsj in https://github.com/wandb/client/pull/3289
+* Fix issue where sagemaker run ids break run queues by @KyleGoyette in https://github.com/wandb/client/pull/3290
+* Fix encoding exception when using %%capture magic by @raubitsj in https://github.com/wandb/client/pull/3310
+
+## New Contributors
+* @speezepearson made their first contribution in https://github.com/wandb/client/pull/3188
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.10...v0.12.11
+
 ## 0.12.10 (February 1, 2022)
 
 #### :nail_care: Enhancement
@@ -5,7 +75,7 @@
 * Enable digest deduplication for `use_artifact()` calls by @annirudh in https://github.com/wandb/client/pull/3109
 * Initial prototype of azure blob upload support by @vanpelt in https://github.com/wandb/client/pull/3089
 
-### :bug: Bug Fix
+#### :bug: Bug Fix
 * Fix wandb launch using python dev versions by @stephchen in https://github.com/wandb/client/pull/3036
 * Fix loading table saved with mixed types by @vwrj in https://github.com/wandb/client/pull/3120
 * Fix ResourceWarning when calling wandb.log by @vwrj in https://github.com/wandb/client/pull/3130
@@ -14,7 +84,7 @@
 * Gracefully handle string labels in wandb.sklearn.plot.classifier.calibration_curve by @acrellin in https://github.com/wandb/client/pull/3159
 * Do not display login warning when calling wandb.sweep() by @acrellin in https://github.com/wandb/client/pull/3162
 
-### :broom: Cleanup
+#### :broom: Cleanup
 * Drop python2 backport deps (enum34, subprocess32, configparser) by @jbylund in https://github.com/wandb/client/pull/3004
 * Settings refactor by @dmitryduev in https://github.com/wandb/client/pull/3083
 

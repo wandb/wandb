@@ -1,0 +1,44 @@
+id: 0.tf.01-tensorflow-log
+plugin:
+    - wandb
+
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config]: {}
+    - :wandb:runs[0][summary][layer1/activations][_type]: histogram
+    - :wandb:runs[0][summary][layer1/biases/summaries/histogram][_type]: histogram
+    - :wandb:runs[0][summary][layer1/weights/summaries/histogram][_type]: histogram
+    - :wandb:runs[0][summary][layer2/Wx_plus_b/pre_activations][_type]: histogram
+    - :wandb:runs[0][summary][layer2/activations][_type]: histogram
+    - :wandb:runs[0][summary][layer2/biases/summaries/histogram][_type]: histogram
+    - :wandb:runs[0][summary][layer2/weights/summaries/histogram][_type]: histogram
+    - :wandb:runs[0][summary][layer1/Wx_plus_b/pre_activations][_type]: histogram
+
+    - :wandb:runs[0][summary][accuracy_1]: 0.8799999952316284
+    - :wandb:runs[0][summary][cross_entropy_1]: 0.37727174162864685
+    - :wandb:runs[0][summary][dropout/dropout_keep_probability]: 0.8999999761581421
+    - :wandb:runs[0][summary][layer1/biases/summaries/max]: 0.12949132919311523
+    - :wandb:runs[0][summary][layer1/biases/summaries/mean]: 0.10085226595401764
+    - :wandb:runs[0][summary][layer1/biases/summaries/min]: 0.0768924281001091
+    - :wandb:runs[0][summary][layer1/biases/summaries/stddev_1]: 0.01017912570387125
+    - :wandb:runs[0][summary][layer1/weights/summaries/max]: 0.22247056663036346
+    - :wandb:runs[0][summary][layer1/weights/summaries/mean]: 0.00014527945313602686
+    - :wandb:runs[0][summary][layer1/weights/summaries/min]: -0.22323597967624664
+    - :wandb:runs[0][summary][layer1/weights/summaries/stddev_1]: 0.08832632750272751
+    - :wandb:runs[0][summary][layer2/biases/summaries/max]: 0.11211398988962173
+    - :wandb:runs[0][summary][layer2/biases/summaries/mean]: 0.09975100308656693
+    - :wandb:runs[0][summary][layer2/biases/summaries/min]: 0.0904880091547966
+    - :wandb:runs[0][summary][layer2/biases/summaries/stddev_1]: 0.006791393272578716
+    - :wandb:runs[0][summary][layer2/weights/summaries/max]: 0.21537037193775177
+    - :wandb:runs[0][summary][layer2/weights/summaries/mean]: -0.0023455708287656307
+    - :wandb:runs[0][summary][layer2/weights/summaries/min]: -0.22206202149391174
+    - :wandb:runs[0][summary][layer2/weights/summaries/stddev_1]: 0.08973880857229233
+    
+    - :wandb:runs[0][summary][input_reshape_input_image][count]: 10
+    - :wandb:runs[0][summary][input_reshape_input_image][_type]: images/separated
+
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 29  # wandb.tensorflow.log
+
+    - :wandb:runs[0][exitcode]: 0

@@ -16,10 +16,10 @@ from typing import (
 )
 
 import click
-from gql import gql  # type: ignore
 from pkg_resources import parse_version
 import requests
 import wandb
+from wandb_gql import gql  # type: ignore
 
 from ..wandb_artifacts import Artifact
 from ...apis.internal import Api
@@ -65,8 +65,10 @@ def check_logged_in(api: Api, host: str) -> bool:
     login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
-        fail_string = "Not logged in. Please log in using `wandb login`. See the docs: {}".format(
-            click.style(login_doc_url, underline=True, fg="blue")
+        fail_string = (
+            "Not logged in. Please log in using `wandb login`. See the docs: {}".format(
+                click.style(login_doc_url, underline=True, fg="blue")
+            )
         )
     # check that api key is correct
     # TODO: Better check for api key is correct
@@ -282,7 +284,8 @@ def log_use_download_artifact(
             return False, None, failed_test_strings
 
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME,
+        config={"test": "artifact use"},
     ) as use_art_run:
         try:
             used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
@@ -405,7 +408,7 @@ def check_large_post() -> bool:
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
-    descy = "a" * int(10 ** 7)
+    descy = "a" * int(10**7)
 
     username = getpass.getuser()
     failed_test_strings = []

@@ -25,13 +25,15 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.util import sentry_exc
+from wandb.util import _is_artifact, _is_artifact_string, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
+from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
@@ -73,6 +75,8 @@ def _maybe_mp_process(backend: Backend) -> bool:
 
 
 class _WandbInit(object):
+    _init_telemetry_obj: telemetry.TelemetryRecord
+
     def __init__(self):
         self.kwargs = None
         self.settings = None
@@ -84,13 +88,10 @@ class _WandbInit(object):
         self._teardown_hooks = []
         self._wl = None
         self._reporter = None
-        self._use_sagemaker = None
-
-        self._set_init_name = None
-        self._set_init_tags = None
-        self._set_init_id = None
-        self._set_init_config = None
         self.notebook = None
+        self.printer = None
+
+        self._init_telemetry_obj = telemetry.TelemetryRecord()
 
     def setup(self, kwargs) -> None:  # noqa: C901
         """Completes setup for `wandb.init()`.
@@ -99,7 +100,37 @@ class _WandbInit(object):
         """
         self.kwargs = kwargs
 
-        self._wl = wandb_setup._setup()
+        # if the user ran, for example, `wandb.login(`) before `wandb.init()`,
+        # the singleton will already be set up and so if e.g. env vars are set
+        # in between, they will be ignored, which we need to inform the user about.
+        singleton = wandb_setup._WandbSetup._instance
+        if singleton is not None:
+            self.printer = get_printer(singleton._settings._jupyter)
+            exclude_env_vars = set(["WANDB_SERVICE", "WANDB_KUBEFLOW_URL"])
+            # check if environment variables have changed
+            singleton_env = {
+                k: v
+                for k, v in singleton._environ.items()
+                if k.startswith("WANDB_") and k not in exclude_env_vars
+            }
+            os_env = {
+                k: v
+                for k, v in os.environ.items()
+                if k.startswith("WANDB_") and k not in exclude_env_vars
+            }
+            if set(singleton_env.keys()) != set(os_env.keys()) or set(
+                singleton_env.values()
+            ) != set(os_env.values()):
+                line = (
+                    "Changes to your `wandb` environment variables will be ignored "
+                    "because your `wandb` session has already started. "
+                    "For more information on how to modify your settings with "
+                    "`wandb.init()` arguments, please refer to "
+                    f"{self.printer.link(wburls.get('wandb_init'), 'the W&B docs')}."
+                )
+                self.printer.display(line, status="warn")
+
+        self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())
 
@@ -131,8 +162,19 @@ class _WandbInit(object):
                 settings._apply_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
             settings.update(sagemaker_run, source=Source.SETUP)
-            self._use_sagemaker = True
-        self._set_init_telemetry_attrs(kwargs)
+            with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                tel.feature.sagemaker = True
+
+        with telemetry.context(obj=self._init_telemetry_obj) as tel:
+            if kwargs.get("config"):
+                tel.feature.set_init_config = True
+            if kwargs.get("name"):
+                tel.feature.set_init_name = True
+            if kwargs.get("id"):
+                tel.feature.set_init_id = True
+            if kwargs.get("tags"):
+                tel.feature.set_init_tags = True
+
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
 
@@ -154,20 +196,33 @@ class _WandbInit(object):
         # merge config with sweep or sagemaker (or config file)
         self.sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
+        self.init_artifact_config = dict()
         for config_data in sagemaker_config, self._wl._config, init_config:
             if not config_data:
                 continue
+            # split out artifacts, since when inserted into
+            # config they will trigger use_artifact
+            # but the run is not yet upserted
             for k, v in config_data.items():
-                self.config.setdefault(k, v)
+                if _is_artifact(v) or _is_artifact_string(v):
+                    self.init_artifact_config[k] = v
+                else:
+                    self.config.setdefault(k, v)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
             wandb.gym.monitor()
 
+        if wandb.patched["tensorboard"]:
+            with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                tel.feature.tensorboard_patch = True
+
         tensorboard = kwargs.pop("tensorboard", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
         if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
             wandb.tensorboard.patch()
+            with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                tel.feature.tensorboard_sync = True
 
         magic = kwargs.get("magic")
         if magic not in (None, False):
@@ -202,7 +257,7 @@ class _WandbInit(object):
             settings._apply_user(user_settings)
 
         # ensure that user settings don't set saving to true
-        # if user explicitly set these to false
+        # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
 
@@ -495,7 +550,7 @@ class _WandbInit(object):
             active_start_method = get_start_fn() if get_start_fn else None
 
         # Populate initial telemetry
-        with telemetry.context(run=run) as tel:
+        with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
             hf_version = _huggingface_version()
@@ -508,16 +563,6 @@ class _WandbInit(object):
             if self.settings._windows:
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
-            if self._use_sagemaker:
-                tel.feature.sagemaker = True
-            if self._set_init_config:
-                tel.feature.set_init_config = True
-            if self._set_init_name:
-                tel.feature.set_init_name = True
-            if self._set_init_id:
-                tel.feature.set_init_id = True
-            if self._set_init_tags:
-                tel.feature.set_init_tags = True
 
             if self.settings.launch:
                 tel.feature.launch = True
@@ -591,7 +636,9 @@ class _WandbInit(object):
                 if active_start_method != "fork":
                     error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
                     error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
-                    error_message += "\nFor more info see: https://docs.wandb.ai/library/init#init-start-error"
+                    error_message += (
+                        f"\nFor more info see: {wburls.get('doc_start_err')}"
+                    )
             elif run_result.error:
                 error_message = run_result.error.message
             if error_message:
@@ -625,37 +672,18 @@ class _WandbInit(object):
 
         self._wl._global_run_stack.append(run)
         self.run = run
+
+        # put artifacts in run config here
+        # since doing so earlier will cause an error
+        # as the run is not upserted
+        for k, v in self.init_artifact_config.items():
+            run.config.update({k: v}, allow_val_change=True)
+
         self.backend = backend
-        module.set_global(
-            run=run,
-            config=run.config,
-            log=run.log,
-            summary=run.summary,
-            save=run.save,
-            use_artifact=run.use_artifact,
-            log_artifact=run.log_artifact,
-            define_metric=run.define_metric,
-            plot_table=run.plot_table,
-            alert=run.alert,
-            mark_preempting=run.mark_preempting,
-        )
         self._reporter.set_context(run=run)
         run._on_start()
-
-        run._freeze()
         logger.info("run started, returning control to user process")
         return run
-
-    def _set_init_telemetry_attrs(self, kwargs):
-        # config not set here because the
-        if kwargs.get("name"):
-            self._set_init_name = True
-        if kwargs.get("id"):
-            self._set_init_id = True
-        if kwargs.get("tags"):
-            self._set_init_tags = True
-        if kwargs.get("config"):
-            self._set_init_config = True
 
 
 def getcaller():
@@ -666,7 +694,10 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+    attach_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    *,
+    run: Optional["Run"] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
@@ -674,10 +705,18 @@ def _attach(
         attach_id: (str, optional) The id of the run or an attach identifier
             that maps to a run.
         run_id: (str, optional) The id of the run to attach to.
+        run: (Run, optional) The run instance to attach
     """
     attach_id = attach_id or run_id
+    if not ((attach_id is None) ^ (run is None)):
+        raise UsageError("Either (`attach_id` or `run_id`) or `run` must be specified")
+
+    attach_id = attach_id or run._attach_id
+
     if attach_id is None:
-        raise UsageError("attach_id or run_id must be specified")
+        raise UsageError(
+            "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
+        )
     wandb._assert_is_user_process()
 
     _wl = wandb_setup._setup()
@@ -688,10 +727,17 @@ def _attach(
 
     manager = _wl._get_manager()
     if manager:
-        manager._inform_attach(attach_id=attach_id)
+        response = manager._inform_attach(attach_id=attach_id)
 
     settings: Settings = copy.copy(_wl._settings)
-    settings.update(run_id=attach_id, source=Source.INIT)
+    settings.update(
+        {
+            "run_id": attach_id,
+            "_start_time": response["_start_time"],
+            "_start_datetime": response["_start_datetime"],
+        },
+        source=Source.INIT,
+    )
 
     # TODO: consolidate this codepath with wandb.init()
     backend = Backend(settings=settings, manager=manager)
@@ -699,7 +745,10 @@ def _attach(
     backend.server_connect()
     logger.info("attach backend started and connected")
 
-    run = Run(settings=settings)
+    if run is None:
+        run = Run(settings=settings)
+    else:
+        run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
@@ -711,6 +760,7 @@ def _attach(
     if resp and resp.error and resp.error.message:
         raise UsageError("bad: {}".format(resp.error.message))
     run._set_run_obj(resp.run)
+    run._on_attach()
     return run
 
 
@@ -915,7 +965,7 @@ def init(
 
     Pass a dictionary-style object as the `config` keyword argument to add
     metadata, like hyperparameters, to your run.
-    <!--yeadoc-test:init-set-config--->
+    <!--yeadoc-test:init-set-config-->
     ```python
     import wandb
 
