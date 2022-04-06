@@ -1,3 +1,4 @@
+import functools
 import json
 import logging
 import multiprocessing
@@ -9,9 +10,7 @@ import subprocess
 import sys
 import time
 import traceback
-
-from typing import Dict, List, Callable, Any
-import functools
+from typing import Any, Callable, Dict, List
 
 import six
 from six.moves import queue
