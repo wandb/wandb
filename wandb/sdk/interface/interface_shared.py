@@ -33,7 +33,9 @@ class InterfaceShared(InterfaceBase):
     _router: Optional[MessageRouter]
 
     def __init__(
-        self, process: BaseProcess = None, process_check: bool = True,
+        self,
+        process: BaseProcess = None,
+        process_check: bool = True,
     ) -> None:
         super().__init__()
         self._process = process

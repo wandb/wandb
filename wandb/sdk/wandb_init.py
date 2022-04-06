@@ -106,16 +106,17 @@ class _WandbInit(object):
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
             self.printer = get_printer(singleton._settings._jupyter)
+            exclude_env_vars = set(["WANDB_SERVICE", "WANDB_KUBEFLOW_URL"])
             # check if environment variables have changed
             singleton_env = {
                 k: v
                 for k, v in singleton._environ.items()
-                if k.startswith("WANDB_") and k != "WANDB_SERVICE"
+                if k.startswith("WANDB_") and k not in exclude_env_vars
             }
             os_env = {
                 k: v
                 for k, v in os.environ.items()
-                if k.startswith("WANDB_") and k != "WANDB_SERVICE"
+                if k.startswith("WANDB_") and k not in exclude_env_vars
             }
             if set(singleton_env.keys()) != set(os_env.keys()) or set(
                 singleton_env.values()

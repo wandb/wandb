@@ -583,8 +583,10 @@ def request_with_retry(func, *args, **kwargs):
             if isinstance(e, requests.exceptions.HTTPError) and (
                 e.response is not None and e.response.status_code == 429
             ):
-                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
-                    delay
+                err_str = (
+                    "Filestream rate limit exceeded, retrying in {} seconds".format(
+                        delay
+                    )
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)

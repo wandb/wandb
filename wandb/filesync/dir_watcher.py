@@ -83,8 +83,8 @@ class PolicyEnd(FileEventHandler):
 
 
 class PolicyLive(FileEventHandler):
-    """This policy will upload files every RATE_LIMIT_SECONDS as it 
-        changes throttling as the size increases"""
+    """This policy will upload files every RATE_LIMIT_SECONDS as it
+    changes throttling as the size increases"""
 
     TEN_MB = 10000000
     HUNDRED_MB = 100000000
@@ -191,8 +191,7 @@ class DirWatcher(object):
             feh.on_modified(force=True)
 
     def _per_file_event_handler(self):
-        """Create a Watchdog file event handler that does different things for every file
-        """
+        """Create a Watchdog file event handler that does different things for every file"""
         file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created
         file_event_handler.on_modified = self._on_file_modified

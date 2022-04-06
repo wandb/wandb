@@ -10,18 +10,18 @@ from wandb.plots.utils import (
 
 def named_entity(docs):
     """
-        Adds support for spaCy's entity visualizer, which highlights named
-            entities and their labels in a text.
+    Adds support for spaCy's entity visualizer, which highlights named
+        entities and their labels in a text.
 
-        Arguments:
-         docs (list, Doc, Span): Document(s) to visualize.
+    Arguments:
+     docs (list, Doc, Span): Document(s) to visualize.
 
-        Returns:
-         Nothing. To see plots, go to your W&B run page.
+    Returns:
+     Nothing. To see plots, go to your W&B run page.
 
-        Example:
-         wandb.log({'NER': wandb.plots.NER(docs=doc)})
-        """
+    Example:
+     wandb.log({'NER': wandb.plots.NER(docs=doc)})
+    """
     deprecation_notice()
 
     spacy = util.get_module(

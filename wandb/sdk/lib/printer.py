@@ -19,7 +19,9 @@ class _Printer:
             return sparkline.sparkify(series)
         return None
 
-    def abort(self,) -> str:
+    def abort(
+        self,
+    ) -> str:
         return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
 
     def display(
@@ -34,7 +36,10 @@ class _Printer:
 
     @abstractmethod
     def _display(
-        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None,
+        self,
+        text: Union[str, List[str], Tuple[str]],
+        *,
+        status: Optional[str] = None,
     ) -> None:
         raise NotImplementedError
 

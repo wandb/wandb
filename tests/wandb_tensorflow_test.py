@@ -49,7 +49,8 @@ PR_CURVE_PANEL_CONFIG = {
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_compat_tensorboard(live_mock_server, test_settings):
     # TODO(jhr): does not work with --flake-finder
@@ -92,7 +93,8 @@ def test_compat_tensorboard(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_ctx):
     wandb.init(sync_tensorboard=True, settings=test_settings)
@@ -111,7 +113,7 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_c
             sess.run(init)
             summary = sess.run(x_summary)
             writer.add_summary(summary, step)
-            wandb.log({"wandb_logged_val": step ** 2})
+            wandb.log({"wandb_logged_val": step**2})
 
         wandb.log({"wandb_logged_val_with_step": step}, step=step + 3)
         writer.close()
@@ -132,7 +134,8 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_c
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_add_pr_curve(live_mock_server, test_settings):
     wandb.init(sync_tensorboard=True, settings=test_settings)
@@ -162,7 +165,8 @@ def test_add_pr_curve(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_add_pr_curve_plugin(live_mock_server, test_settings):
     tf.compat.v1.disable_v2_behavior()
