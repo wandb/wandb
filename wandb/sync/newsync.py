@@ -5,7 +5,7 @@ from collections import defaultdict, deque
 import concurrent.futures
 import datetime
 import heapq
-from itertools import zip_longest
+from itertools import cycle, islice
 import multiprocessing as mp
 import os
 import pathlib
@@ -13,7 +13,7 @@ import psutil
 import tempfile
 import threading
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Iterable, Optional, Tuple, Union
 import sys
 
 import wandb
@@ -28,8 +28,10 @@ TMPDIR = tempfile.TemporaryDirectory()
 
 
 TOTAL_MEMORY = psutil.virtual_memory().total
-MAX_MEMORY = 0.2
-MAX_HEAP_SIZE = 1000  # max number of items in the heaps
+# convert to MB?
+MAX_MEMORY = 0.1
+# MAX_MEMORY = 0.001
+MAX_HEAP_SIZE = 100_000  # max number of items in the heaps
 
 
 def get_n_cpu():
@@ -42,7 +44,45 @@ def get_n_cpu():
 
 
 # N_CPU = get_n_cpu()
-N_CPU = 1
+N_CPU = 4
+
+
+def roundrobin(*iterables):
+    """
+    Merge multiple iterables into a single iterable
+    roundrobin('ABC', 'D', 'EF') --> A D E B F C
+    """
+    # Recipe credited to George Sakkis
+    pending = len(iterables)
+    next_items = cycle(iter(it).__next__ for it in iterables)
+    while pending:
+        try:
+            for next_item in next_items:
+                yield next_item()
+        except StopIteration:
+            pending -= 1
+            next_items = cycle(islice(next_items, pending))
+
+
+def split_into_chunks(
+    data: Iterable[Any],
+    chunk_size: int = 100,
+    round_robin: bool = False,
+) -> List[List[Any]]:
+    """
+    Split a list of records into chunks of size chunk_size.
+    """
+    if not isinstance(data, list):
+        data = list(data)
+
+    def make_chunks(_data: List[Any]) -> List[List[Any]]:
+        return [_data[i:i + chunk_size] for i in range(0, len(_data), chunk_size)]
+
+    chunked_data = make_chunks(data)
+    if not round_robin:
+        return chunked_data
+    data = list(roundrobin(*chunked_data))
+    return make_chunks(data)
 
 
 def init_queue(queue: mp.Queue) -> None:
@@ -63,15 +103,31 @@ def parse_protobuf(data: bytes) -> Tuple[str, wandb_internal_pb2.Record]:
     # return None
 
 
-def process_record(i: int, item: str, data: bytes) -> None:
+def process_data(sync_item: str, data: Dict[str, Union[int, List[dict]]]) -> None:
     """
-    Deserialize a record of data and add it to the results queue.
+    Deserialize a list of records and add it to the results queue.
     """
-    record_type, protobuf = parse_protobuf(data)
-    if True:
-        print(f"item {item.split('-')[-1].split('.wandb')[0]} task {i} finished")
-    # print(id(globals()["results_queue"]))
-    globals()["results_queue"].put((item, i, record_type, protobuf))
+    chunk_number: int = data["chunk_number"]
+    chunk: List[dict] = data["chunk"]
+    # results = []
+    results_queue: mp.Queue = globals()["results_queue"]
+    for item in chunk:
+        record_type, protobuf = parse_protobuf(item["record"])
+        if True:
+            short_run_id = sync_item.split('-')[-1].split('.wandb')[0]
+            # print(
+            #     f"run_id: {short_run_id}, chunk: {chunk_number}, "
+            #     f"item: {item['record_number']} finished"
+            # )
+        # print(id(globals()["results_queue"]))
+        # results.append(
+        #     (sync_item, item["record_number"], record_type, protobuf)
+        # )
+        results_queue.put(
+            (sync_item, item["record_number"], record_type, protobuf)
+        )
+    # for result in results:
+    #     results_queue.put(result)
 
 
 class SyncManager:
@@ -141,39 +197,42 @@ class SyncManager:
     async def _process_tasks(
         self,
         executor: concurrent.futures.ProcessPoolExecutor,
-        task_name: str,
+        run_id: str,
     ) -> None:
         """
         Submit tasks to the executor, taking memory usage into account.
         """
-        while self.tasks[task_name]:
+        while self.tasks[run_id]:
             # before submitting a task to the executor, ensure that
             # the memory usage of the currently running tasks is not too high
             # and the size of the heap with the results is not too large
+            chunk_memory = self.tasks[run_id][0]["chunk_memory"]
             if not (
-                self.total_memory + self.tasks[task_name][0]["mem"] <= self.max_memory
-                and len(self.result_heaps[task_name]) <= MAX_HEAP_SIZE
+                    self.total_memory + chunk_memory <= self.max_memory
+                    # and len(self.result_heaps[run_id]) <= MAX_HEAP_SIZE
             ):
                 if self._verbose:
                     print(
-                        f"{task_name}: too much memory pressure, waiting... "
-                        f"[tasks left: {len(self.tasks[task_name])}]"
+                        f"{run_id}: too much memory pressure, waiting... "
+                        f"[tasks left: {len(self.tasks[run_id])}]"
                     )
                 await asyncio.sleep(self.sleep_time)
                 continue
-            task_item = self.tasks[task_name].popleft()
-            self.total_memory += task_item["mem"]
-            self.memory_usage[(task_name, task_item["record_number"])] = task_item["mem"]
+            chunk = self.tasks[run_id].popleft()
+            self.total_memory += chunk["chunk_memory"]
+            for item in chunk["chunk"]:
+                # store memory usage of each ("run_id", "task_id") pair
+                self.memory_usage[(run_id, item["record_number"])] = item["memory"]
+
             if self._verbose:
                 print(
                     datetime.datetime.now(),
-                    f"task: {task_name}/{task_item}; total_memory: {self.total_memory}"
+                    f"run_id: {run_id}; total_memory: {self.total_memory}"
                 )
             executor.submit(
-                process_record,
-                task_item["record_number"],
-                task_name,
-                task_item["record"],
+                process_data,
+                run_id,
+                chunk,
             )
 
     async def _watch(self) -> None:
@@ -208,16 +267,19 @@ class SyncManager:
             if not self.results_queue.empty():
                 result = self.results_queue.get()
                 # run id:
-                item = result[0]
+                run_id = result[0]
                 # if True:
                 async with asyncio.Lock():
-                    heapq.heappush(self.result_heaps[item], result[1:])
+                    heapq.heappush(self.result_heaps[run_id], result[1:])
                     # run_id, task_id
-                    key = (item, result[1])
+                    key = (run_id, result[1])
                     self.total_memory -= self.memory_usage[key]
                     del self.memory_usage[key]
                     if self._verbose:
-                        print(f"harvester got result: {result}; total_memory: {self.total_memory}")
+                        pass
+                        # print(f"harvester got result: {result}; total_memory: {self.total_memory}")
+                        print(f"harvester got result for: {key}; total_memory: {self.total_memory}")
+                        print(f"heap min: {self.result_heaps[run_id][0][0]}")
             else:
                 await asyncio.sleep(self.sleep_time)
 
@@ -233,21 +295,31 @@ class SyncManager:
             if self._verbose:
                 print(f"dumper is running for {task_name.split('-')[-1].split('.wandb')[0]}")
 
-            if not self.result_heaps[task_name]:
-                time.sleep(self.sleep_time)
-                continue
-
-            if (
+            has_data_to_dump = (
                 self.result_heaps[task_name]
                 and self.result_heaps[task_name][0][0] == self.current_chunk_number[task_name] + 1
-            ):
-                with threading.Lock():
-                    chunk = heapq.heappop(self.result_heaps[task_name])
-                    if self._verbose:
-                        print(f"{task_name}: chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n")
-                    self.current_chunk_number[task_name] += 1
-                    if self._verbose:
-                        print(f"dumper posted result: {task_name}/{chunk}")
+            )
+
+            if not has_data_to_dump:
+                # if self._verbose and self.result_heaps[task_name]:
+                if self.result_heaps[task_name]:
+                    print(
+                        "dumper waiting for data to dump: "
+                        f"{self.result_heaps[task_name][0][0]} {self.current_chunk_number[task_name] + 1}"
+                    )
+                time.sleep(self.sleep_time / 10)
+                continue
+
+            with threading.Lock():
+                chunk = heapq.heappop(self.result_heaps[task_name])
+                if self._verbose:
+                    pass
+                short_run_id = task_name.split('-')[-1].split('.wandb')[0]
+                print(f"dumper posted result: {short_run_id}: chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n")
+                self.current_chunk_number[task_name] += 1
+                if self._verbose:
+                    pass
+                    # print(f"dumper posted result: {task_name}/{chunk}")
 
     async def async_run(
         self,
@@ -257,7 +329,7 @@ class SyncManager:
         Map tasks to the executor, harvest and dump results.
         """
         async_tasks = []
-        # schedule async task per run
+        # schedule async task per wandb run to be synced
         for task_name in self.tasks.keys():
             task = asyncio.create_task(self._process_tasks(executor, task_name))
             async_tasks.append(task)
@@ -274,8 +346,8 @@ class SyncManager:
         Generate tasks and run them in parallel.
         """
         for sync_item in self.sync_items:
-            if self._verbose:
-                print(f"Generating tasks for: {sync_item}")
+            # if self._verbose:
+            print(f"Generating tasks for: {sync_item}")
             sync_item_path = pathlib.Path(sync_item)
             # input(">")
             if sync_item_path.is_dir():
@@ -294,7 +366,7 @@ class SyncManager:
             try:
                 ds.open_for_scan(sync_item)
             except AssertionError as e:
-                print(f".wandb file is empty ({e}), skipping: {sync_item}")
+                print(f"`.wandb` file is empty ({e}), skipping: {sync_item}")
                 return None
 
             # scan .wandb files and generate tasks
@@ -309,12 +381,13 @@ class SyncManager:
                         "sync_item": sync_item,
                         "record_number": record_number,
                         "record": record,
-                        "mem": sys.getsizeof(record),
+                        "memory": sys.getsizeof(record),
                     }
                 )
                 # parse_protobuf(record)
                 record_number += 1
-                print("parsed record:", record_number)
+                if self._verbose:
+                    print("extracted record:", record_number)
             if self._verbose:
                 print(
                     "\n",
@@ -322,12 +395,28 @@ class SyncManager:
                     time.time() - tic
                 )
 
-            # chunk tasks
-            # chunk_size = int(len(self.tasks[sync_item]) / n_cpu)
+            # chunk tasks, number the resulting chunks, and track memory usage per chunk
+            chunk_size = int(len(self.tasks[sync_item]) / n_cpu)
             # chunk_size = 100
-            # self.tasks[sync_item] = deque(list(
-            #     zip_longest(*[iter(self.tasks[sync_item])] * chunk_size, fillvalue='')
-            # ))
+            # todo: ? fill chunks with consecutive tasks, i.e.
+            #  [0, 3, 6] [1, 4, 7] [2, 5]
+            #  or just shuffle? turns out, not much difference :(
+            chunked_tasks = [
+                {
+                    "chunk_number": chunk_number,
+                    "chunk": chunk,
+                    "chunk_memory": sum([task["memory"] for task in chunk]),
+                }
+                for chunk_number, chunk
+                in enumerate(split_into_chunks(self.tasks[sync_item], chunk_size))
+            ]
+            self.tasks[sync_item] = deque(chunked_tasks)
+
+            # print total memory usage in megabytes
+            total_memory = sum([task['chunk_memory'] for task in chunked_tasks])
+            print(
+                f"memory: {sync_item}: {total_memory / 1024 / 1024} MB"
+            )
 
             # create a dump thread for each task
             self.dumpers.append(
