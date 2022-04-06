@@ -1,8 +1,7 @@
+import configparser
 import logging
 import os
-
-from six.moves import configparser
-from six.moves.urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse
 
 
 logger = logging.getLogger(__name__)

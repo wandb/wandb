@@ -18,7 +18,7 @@ from ..lib import tracelog
 
 if TYPE_CHECKING:
     from typing import Tuple, Type, Optional, Union
-    from six.moves.queue import Queue
+    from queue import Queue
     from wandb.proto.wandb_internal_pb2 import Record, Result
     from threading import Event
     from types import TracebackType

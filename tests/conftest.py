@@ -4,6 +4,7 @@ import datetime
 import logging
 import os
 import platform
+import queue
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,7 @@ import time
 import threading
 from unittest import mock
 from unittest.mock import MagicMock
+import urllib
 
 import click
 from click.testing import CliRunner
@@ -20,7 +22,6 @@ import nbformat
 import psutil
 import pytest
 import requests
-from six.moves import queue, urllib
 import webbrowser
 
 from tests import utils

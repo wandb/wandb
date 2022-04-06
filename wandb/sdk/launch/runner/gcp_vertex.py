@@ -1,11 +1,11 @@
 import datetime
 import os
+import shlex
 import time
 from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
-from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
 from wandb.errors import LaunchError
@@ -229,7 +229,7 @@ class VertexRunner(AbstractRunner):
 def get_gcp_config(config: str = "default") -> Any:
     return yaml.safe_load(
         run_shell(
-            ["gcloud", "config", "configurations", "describe", shlex_quote(config)]
+            ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
         )[0]
     )
 
@@ -242,9 +242,9 @@ def exists_on_gcp(image: str, tag: str) -> bool:
             "docker",
             "images",
             "list",
-            shlex_quote(image),
+            shlex.quote(image),
             "--include-tags",
-            f"--filter=tags:{shlex_quote(tag)}",
+            f"--filter=tags:{shlex.quote(tag)}",
         ]
     )
     return tag in out and "sha256:" in out

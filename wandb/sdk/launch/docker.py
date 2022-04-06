@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import shlex
 import shutil
 import sys
 import tempfile
@@ -9,7 +10,6 @@ from typing import Any, Dict, Optional, Tuple
 
 from dockerpycreds.utils import find_executable  # type: ignore
 import pkg_resources
-from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
@@ -443,7 +443,7 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                         name = pkg.name.lower()  # type: ignore
                     else:
                         name = str(pkg)
-                    include_only.add(shlex_quote(name))
+                    include_only.add(shlex.quote(name))
                 except StopIteration:
                     break
                 # Different versions of pkg_resources throw different errors
