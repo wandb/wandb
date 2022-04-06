@@ -180,7 +180,7 @@ class SendManager:
         self._exit_code = 0
 
     @classmethod
-    def setup(cls, root_dir: str) -> "SendManager":
+    def setup(cls, root_dir: str, program: Optional[str] = None) -> "SendManager":
         """This is a helper class method to setup a standalone SendManager.
         Currently we're using this primarily for `sync.py`.
         """
@@ -191,7 +191,7 @@ class SendManager:
             _start_time=0,
             git_remote=None,
             resume=None,
-            program=None,
+            program=program,
             ignore_globs=(),
             run_id=None,
             entity=None,
