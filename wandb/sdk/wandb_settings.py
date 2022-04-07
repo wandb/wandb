@@ -738,7 +738,8 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
-    def _validate_api_key(self, value: str) -> bool:
+    @staticmethod
+    def _validate_api_key(value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
