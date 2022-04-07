@@ -85,7 +85,10 @@ def patch(
 
 
 def _patch_tensorflow2(
-    writer: Any, module: Any, save: bool = True, root_logdir: str = "",
+    writer: Any,
+    module: Any,
+    save: bool = True,
+    root_logdir: str = "",
 ) -> None:
     # This configures TensorFlow 2 style Tensorboard logging
     old_csfw_func = writer.create_summary_file_writer
@@ -130,7 +133,10 @@ def _patch_tensorflow2(
 
 
 def _patch_file_writer(
-    writer: Any, module: Any, save: bool = True, root_logdir: str = "",
+    writer: Any,
+    module: Any,
+    save: bool = True,
+    root_logdir: str = "",
 ) -> None:
     # This configures non-TensorFlow Tensorboard logging, or tensorflow <= 1.15
     logdir_hist = []

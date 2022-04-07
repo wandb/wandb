@@ -1,17 +1,21 @@
-import wandb
-from wandb.cli import cli
-from wandb.apis.internal import InternalApi
 import contextlib
 import datetime
 import tempfile
-import traceback
-import platform
 import getpass
-import pytest
+import importlib
 import netrc
+import os
+import platform
 import subprocess
 import sys
-import os
+import traceback
+from unittest import mock
+
+import pytest
+import wandb
+from wandb.cli import cli
+from wandb.apis.internal import InternalApi
+
 from tests import utils
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
@@ -306,7 +310,10 @@ def test_artifact_ls(runner, git_repo, mock_server):
 
 
 def test_docker_run_digest(runner, docker, monkeypatch):
-    result = runner.invoke(cli.docker_run, [DOCKER_SHA],)
+    result = runner.invoke(
+        cli.docker_run,
+        [DOCKER_SHA],
+    )
     assert result.exit_code == 0
     docker.assert_called_once_with(
         [
@@ -1045,3 +1052,13 @@ def test_cli_login_reprompts_when_no_key_specified(
         with open("netrc", "r") as f:
             print(f.read())
         assert "ERROR No API key specified." in result.output
+
+
+def test_cli_debug_log_scoping(runner, mock_server, test_settings):
+    with runner.isolated_filesystem():
+        os.chdir(os.getcwd())
+        for test_user in ("user1", "user2"):
+            with mock.patch("getpass.getuser", return_value=test_user):
+                importlib.reload(cli)
+                assert cli._username == test_user
+                assert cli._wandb_log_path.endswith(f"debug-cli.{test_user}.log")

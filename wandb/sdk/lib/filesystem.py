@@ -19,8 +19,7 @@ def _safe_makedirs(dir_name: str) -> None:
 
 
 class WriteSerializingFile(object):
-    """Wrapper for a file object that serializes writes.
-    """
+    """Wrapper for a file object that serializes writes."""
 
     def __init__(self, f: BinaryIO) -> None:
         self.lock = threading.Lock()

@@ -228,7 +228,9 @@ class Backend(object):
         self._module_main_uninstall()
 
         self.interface = InterfaceQueue(
-            process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
+            process=self.wandb_process,
+            record_q=self.record_q,
+            result_q=self.result_q,
         )
 
     def server_connect(self) -> None:
