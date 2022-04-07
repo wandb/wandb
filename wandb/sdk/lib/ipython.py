@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 TABLE_STYLES = """<style>
-    table.wandb td:nth-child(1) { padding: 0 10px; text-align: left }
+    table.wandb td:nth-child(1) { padding: 0 10px; text-align: left ; width: auto;} td:nth-child(2) {text-align: left ; width: 100%}
     .wandb-row { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; width: 100% }
     .wandb-col { display: flex; flex-direction: column; flex-basis: 100%; flex: 1; padding: 10px; }
     </style>
