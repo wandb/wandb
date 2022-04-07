@@ -19,14 +19,9 @@ view-stats run.profile  # or wandb_internal.profile or others
 
 To run this at many different scales:
 ```bash
-HERE="$PWD"
-for n in 1e2 3e2 1e3 3e3 1e4; do
-    for s in 1e3 200e3; do
-        DIR="runs/n=$n,s=$s,rand=$RANDOM"
-        mkdir -p "$DIR"
-        pushd "$DIR"
-        python3 "$HERE/images-in-table-in-artifact.py" --n-images="$n" --image-bytes="$s" 2>&1 | tee run.log
-        popd
-    done
-done
+python3 cartesian-product.py \
+    --n-images 1 10 100 \
+    --image-kb 1 10 100 \
+    --double-log True False \
+    --all-in-memory-at-once-threshold-kb=1e6
 ```
