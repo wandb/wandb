@@ -31,8 +31,8 @@ class Media(WBValue):
     """A WBValue that we store as a file outside JSON and show in a media panel
     on the front end.
 
-    If necessary, we move or copy the file into the Run's media directory so that it gets
-    uploaded.
+    If necessary, we move or copy the file into the Run's media directory so
+    that it gets uploaded.
     """
 
     _path: Optional[str]
