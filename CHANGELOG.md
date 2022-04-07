@@ -1,4 +1,4 @@
-## 0.12.12 (April 7, 2022)
+## 0.12.13 (April 7, 2022)
 
 #### :bug: Bug Fix
 * Revert strictened api_key validation by @dmitryduev in https://github.com/wandb/client/pull/3485
