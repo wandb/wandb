@@ -5,7 +5,7 @@ Implementation of launch agent.
 import logging
 import os
 import time
-from typing import Any, Dict, Iterable, List, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -15,6 +15,7 @@ import wandb.util as util
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
+from ..builder.loader import load_builder
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -47,6 +48,7 @@ class LaunchAgent(object):
         project: str,
         queues: Iterable[str] = None,
         max_jobs: float = None,
+        config_file: Optional[str] = None,
     ):
         self._entity = entity
         self._project = project
@@ -63,7 +65,9 @@ class LaunchAgent(object):
             self._max_jobs = float("inf")
         else:
             self._max_jobs = max_jobs or 1
-
+        self.config: Optional[Dict[str, Any]] = None
+        if config_file is not None:
+            self.build_config = util.load_yaml(config_file)
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
@@ -84,7 +88,10 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue, entity=self._entity, project=self._project, agent_id=self._id,
+                queue,
+                entity=self._entity,
+                project=self._project,
+                agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
@@ -171,10 +178,12 @@ class LaunchAgent(object):
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
+        build_config = self.construct_build_config(self.config)
+        builder = load_builder(self.config.get("builder-type", "docker"), build_config)
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")
-        run = backend.run(project)
+        run = backend.run(project, builder)
         if run:
             self._jobs[run.id] = run
             self._running += 1

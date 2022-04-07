@@ -1,3 +1,4 @@
+import json
 from kubernetes import client, config
 from typing import Any, Dict, List, Optional
 import tarfile
@@ -14,9 +15,13 @@ from google.cloud import storage
 from wandb.docker import run
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.util import get_module
 
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
+_CREDENTIAL_SECRET_MOUNT_PATHS = {
+    "AWS": "/root/.aws/",
+}
 
 
 def _upload_build_context(run_id: str, context_path: str):
@@ -184,19 +189,57 @@ class KanikoBuilder(AbstractBuilder):
     def __init__(self, builder_config):
         super().__init__(builder_config)
         self.config_map_name = builder_config.get(
-            "config_map_name", "wandb-launch-build-context"
+            "config-map-name", "wandb-launch-build-context"
         )
         self.build_job_name = builder_config.get(
-            "build_job_name", "wandb-launch-container-build"
+            "build-job-name", "wandb-launch-container-build"
         )
+        self.cloud_provider = builder_config.get("cloud-provider", None)
+        if self.cloud_provider is None:
+            raise LaunchError("cloud-provider is not set in builder_type")
+        elif self.cloud_provider not in ["AWS"]:
+            raise LaunchError(f"cloud-provider {self.cloud_provider} is not supported")
+
+        self.build_context_store = builder_config.get("build-context-store", None)
+        if self.build_context_store is None:
+            raise LaunchError("build-context-store is not set in builder_type")
+        credential_config = builder_config.get("credentials", None)
+        self.credentials_secret_name = credential_config.get("secret-name", None)
+        self.credentials_secret_mount_path = _CREDENTIAL_SECRET_MOUNT_PATHS[
+            self.cloud_provider
+        ]
 
     def verify(self):
-        assert (
-            self.builder_config.get("context_store_bucket") is not None
-        ), "context_store_uri must be set"
-        assert (
-            self.builder_config.get("storage_provider") is not None
-        ), "storage_provider must be set"
+        pass
+        # assert (
+        #     self.builder_config.get("context_store_bucket") is not None
+        # ), "context_store_uri must be set"
+        # assert (
+        #     self.builder_config.get("storage_provider") is not None
+        # ), "storage_provider must be set"
+
+    def _create_docker_ecr_config_map(
+        self, client: client.CoreV1Api
+    ) -> client.V1ConfigMap:
+        config_mount = client.V1VolumeMount(
+            name="docker-config", mount_path="/kaniko/.docker/"
+        )
+        if self.cloud_provider == "AWS":
+            ecr_config_map = client.V1ConfigMap(
+                api_version="v1",
+                kind="ConfigMap",
+                metadata=client.V1ObjectMeta(
+                    name="docker-config",
+                    namespace="wandb",
+                ),
+                data={"config.json": json.dumps({"credsStore": "ecr-login"})},
+            )
+            client.create_namespaced_config_map("wandb", ecr_config_map)
+
+        return config_mount
+
+    def _delete_docker_ecr_config_map(self, client: client.CoreV1Api) -> None:
+        client.delete_namespaced_config_map("docker-config", "wandb")
 
     def _upload_build_context(self, run_id: str, context_path: str):
         # creat a tar archive of the build context and upload it to s3
@@ -204,21 +247,23 @@ class KanikoBuilder(AbstractBuilder):
         with tarfile.TarFile.open(fileobj=context_tgz, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
 
-        if self.builder_config.get("storage_provider") == "s3":
+        if self.builder_config.get("cloud-provider") == "AWS":
+            boto3 = get_module("boto3", "aws requires boto3")
+            botocore = get_module("botocore", "aws requires botocore")
+
             s3_client = boto3.client("s3")
             try:
                 s3_client.upload_file(
                     context_tgz.name,
-                    self.builder_config.get("context_store_bucket"),
+                    self.build_context_store,
                     f"{run_id}.tgz",
                 )
             except botocore.exceptions.ClientError as e:
                 wandb.termerror(f"Failed to upload build context to S3: {e}")
                 return False
-            return (
-                f"s3://{self.builder_config.get('context_store_bucket')}/{run_id}.tgz"
-            )
-        elif self.builder_config.get("storage_provider") == "gcp":
+            return f"s3://{self.build_context_store}/{run_id}.tgz"
+        # TODO: support gcp and azur cloud providers
+        elif self.builder_config.get("cloud-provider") == "gcp":
             storage_client = storage.Client()
             try:
                 bucket = storage_client.bucket(
@@ -241,15 +286,16 @@ class KanikoBuilder(AbstractBuilder):
         # TODO: use same client as kuberentes.py
         config.load_incluster_config()
 
-        # setup names
         build_job_name = f"{self.build_job_name}-{run_id}"
         config_map_name = f"{self.config_map_name}-{run_id}"
 
         build_context = self._upload_build_context(run_id, context_path)
-        config_map = _create_dockerfile_configmap(self.config_map_name, context_path)
+        dockerfile_config_map = _create_dockerfile_configmap(
+            self.config_map_name, context_path
+        )
         build_job = _create_kaniko_job(
             build_job_name,
-            config_map.metadata.name,
+            dockerfile_config_map.metadata.name,
             registry,
             image_uri,
             build_context,
@@ -259,7 +305,8 @@ class KanikoBuilder(AbstractBuilder):
         core_v1 = client.CoreV1Api()
 
         try:
-            core_v1.create_namespaced_config_map("wandb", config_map)
+            core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
+            self._create_docker_ecr_config_map(core_v1)
             batch_v1.create_namespaced_job("wandb", build_job)
 
             # wait for double the job deadline since it might take time to schedule
@@ -275,7 +322,88 @@ class KanikoBuilder(AbstractBuilder):
                 # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
                 batch_v1.delete_namespaced_job(build_job_name, "wandb")
                 core_v1.delete_namespaced_config_map(config_map_name, "wandb")
+                self._delete_docker_ecr_config_map(core_v1)
             except Exception as e:
                 wandb.termerror(f"Exception during Kubernetes resource clean up {e}")
 
         return image_uri
+
+    def _create_kaniko_job(
+        self,
+        job_name: str,
+        config_map_name: str,
+        registry: str,
+        image_tag: str,
+        build_context_path: str,
+    ) -> client.V1Job:
+
+        volume_mounts = [
+            client.V1VolumeMount(
+                name="build-context-config-map", mount_path="/etc/config"
+            )
+        ]
+        if self.credentials_secret_name is not None:
+            volume_mounts.append(
+                client.V1VolumeMount(
+                    name=self.credentials_secret_name,
+                    mount_path=self.credentials_secret_mount_path,
+                    read_only=True,
+                )
+            )
+            volume_mounts.append(
+                client.V1VolumeMount(
+                    name="docker-config", mount_path="/kaniko/.docker/"
+                )
+            )
+        # Configurate Pod template container
+        container = client.V1Container(
+            name="wandb-container-build",
+            image="gcr.io/kaniko-project/executor:debug",
+            args=[
+                f"--context={build_context_path}",
+                "--dockerfile=/etc/config/Dockerfile",
+                f"--destination={image_tag}",
+                "--cache=true",
+                f"--cache-repo={registry}",
+            ],
+            volume_mounts=volume_mounts,
+        )
+        # Create and configure a spec section
+        template = client.V1PodTemplateSpec(
+            metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
+            spec=client.V1PodSpec(
+                restart_policy="Never",
+                active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
+                containers=[container],
+                volumes=[
+                    client.V1Volume(
+                        name="build-context-config-map",
+                        config_map=client.V1ConfigMapVolumeSource(
+                            name=config_map_name,
+                        ),
+                    ),
+                    client.V1Volume(
+                        name="docker-config",
+                        config_map=client.V1ConfigMapVolumeSource(
+                            name="docker-config",
+                        ),
+                    ),
+                    client.V1Volume(
+                        name="aws-secret",
+                        secret=client.V1SecretVolumeSource(secret_name="aws-secret"),
+                    ),
+                ],
+            ),
+        )
+        # Create the specification of job
+        spec = client.V1JobSpec(template=template, backoff_limit=1)
+        job = client.V1Job(
+            api_version="batch/v1",
+            kind="Job",
+            metadata=client.V1ObjectMeta(
+                name=job_name, namespace="wandb", labels={"wandb": "launch"}
+            ),
+            spec=spec,
+        )
+
+        return job

@@ -25,10 +25,11 @@ def create_and_run_agent(
     project: str,
     queues: Optional[List[str]] = None,
     max_jobs: float = None,
+    config: Optional[str] = None,
 ) -> None:
     if queues is None:
         queues = []
-    agent = LaunchAgent(entity, project, queues, max_jobs)
+    agent = LaunchAgent(entity, project, queues, max_jobs, config)
     agent.loop()
 
 

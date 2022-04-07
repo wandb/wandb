@@ -10,6 +10,7 @@ import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .._project_spec import LaunchProject
 
@@ -154,7 +155,9 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self, launch_project: LaunchProject, builder: AbstractBuilder
+    ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 
         Returns a SubmittedRun object to track the execution

@@ -218,7 +218,9 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True, _disable_viewer=relogin, anonymous=anon_mode,
+        _cli_only_mode=True,
+        _disable_viewer=relogin,
+        anonymous=anon_mode,
     )
     if host is not None:
         login_settings["base_url"] = host
@@ -363,7 +365,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -899,8 +903,14 @@ def sweep(
 
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module(
+        "docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "chardet",
+        required=req_string,
+    )
     _ = util.get_module("iso8601", required=req_string)
 
 
@@ -1153,8 +1163,13 @@ def launch(
     default=None,
     help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
 )
+@click.option(
+    "--config", "-c", default=None, help="path to the agent config yaml to use"
+)
 @display_error
-def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
+def launch_agent(
+    ctx, project=None, entity=None, queues=None, max_jobs=None, config=None
+):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1186,7 +1201,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs)
+    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs, config)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1576,7 +1591,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
