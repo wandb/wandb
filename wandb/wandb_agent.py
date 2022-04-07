@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import traceback
+from numpy import isin
 
 import six
 from six.moves import queue
@@ -369,8 +370,18 @@ class Agent(object):
         flags_list = [
             (param, config["value"]) for param, config in command["args"].items()
         ]
-        flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
-        flags = ["--" + flag for flag in flags_no_hyphens]
+        flags_no_hyphens = []
+        flags = []
+        flags_no_booleans = []
+        for param, value in flags_list:
+            _flag = "{}={}".format(param, value)
+            flags_no_hyphens.append(_flag)
+            flags.append("--" + _flag)
+            if isinstance(value, bool):
+                if value:
+                    flags_no_booleans.append("--" + param)
+            else:
+                flags_no_booleans.append("--" + _flag)
         flags_dict = dict(flags_list)
         flags_json = json.dumps(flags_dict)
 
@@ -393,6 +404,7 @@ class Agent(object):
                 program=[command["program"]],
                 args=flags,
                 args_no_hyphens=flags_no_hyphens,
+                args_no_boolean_flags=flags_no_booleans,
                 args_json=[flags_json],
                 args_json_file=[json_file],
                 env=["/usr/bin/env"],
