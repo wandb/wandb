@@ -9,7 +9,6 @@ import subprocess
 import sys
 import time
 import traceback
-from numpy import isin
 
 import six
 from six.moves import queue
