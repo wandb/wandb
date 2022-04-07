@@ -17,12 +17,9 @@ _logger = logging.getLogger(__name__)
 
 
 class AbstractBuilder(ABC):
-    """Abstract plugin class defining the interface needed to execute W&B Launches.
+    """Abstract plugin class defining the interface needed to build container images for W&B Launch."""
 
-    You can define subclasses of ``AbstractRunner`` and expose them as third-party
-    plugins to enable running W&B projects against custom execution backends
-    (e.g. to run projects against your team's in-house cluster or job scheduler).
-    """
+    type: str
 
     def __init__(self, builder_config: Dict[str, Any]) -> None:
         self.builder_config = builder_config

@@ -3,6 +3,8 @@ import os
 import time
 from typing import Any, Dict, Optional
 
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
+
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 from six.moves import shlex_quote
@@ -79,7 +81,12 @@ class VertexSubmittedRun(AbstractRun):
 class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun"""
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
 
         aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
@@ -148,7 +155,7 @@ class VertexRunner(AbstractRunner):
                 launch_project, gcp_artifact_repo, gcp_project, gcp_docker_host,
             )
 
-            generate_docker_image(
+            image_uri = builder.build_image(
                 launch_project,
                 image_uri,
                 entry_point,
@@ -157,11 +164,12 @@ class VertexRunner(AbstractRunner):
             )
 
         image, tag = image_uri.split(":")
-        if not exists_on_gcp(image, tag):
-            docker.push(image, tag)
+        if builder.type != "kaniko":
+            if not exists_on_gcp(image, tag):
+                docker.push(image, tag)
 
-        if not self.ack_run_queue_item(launch_project):
-            return None
+            if not self.ack_run_queue_item(launch_project):
+                return None
 
         entry_cmd = get_entry_point_command(
             entry_point, launch_project.override_args

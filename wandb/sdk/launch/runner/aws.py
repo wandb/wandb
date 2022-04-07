@@ -5,6 +5,8 @@ import subprocess
 import time
 from typing import Any, Dict, Optional, Tuple
 
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
+
 if False:
     import boto3  # type: ignore
 import wandb
@@ -79,7 +81,12 @@ class SagemakerSubmittedRun(AbstractRun):
 class AWSSagemakerRunner(AbstractRunner):
     """Runner class, uses a project to create a SagemakerSubmittedRun."""
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
         _logger.info("using AWSSagemakerRunner")
 
         boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
@@ -141,10 +148,21 @@ class AWSSagemakerRunner(AbstractRunner):
         ecr_repo_name = given_sagemaker_args.get(
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
-        aws_registry = (
+        registry = registry_config.get("url") or (
             token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
             + f"/{ecr_repo_name}"
         )
+
+        if registry_config.get("ecr-repo-provdier", "aws") != "aws":
+            raise LaunchError(
+                "Sagemaker jobs requires an AWS ECR Repo to push the container to"
+            )
+
+        login_credentials = registry_config.get("credentials")
+        if login_credentials is not None:
+            wandb.termwarn(
+                "Ignoring registry credentials for ECR, using those found on the system"
+            )
 
         docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
@@ -158,27 +176,28 @@ class AWSSagemakerRunner(AbstractRunner):
             image = launch_project.docker_image
         else:
             # build our own image
-            image_uri = construct_local_image_uri(launch_project)
-            _logger.info("Building docker image")
-            image = generate_docker_image(
-                launch_project, image_uri, entry_point, {}, "sagemaker"
+            image = builder.build_image(
+                self._api, launch_project, registry, entry_point, {}, "sagemaker",
             )
+        # the kaniko builder automatically uploads the image to the registry
+        if builder.type != "kaniko":
+            _logger.info("Logging in to AWS ECR")
+            login_resp = aws_ecr_login(region, registry)
+            if login_resp is None or "Login Succeeded" not in login_resp:
+                raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
-        _logger.info("Logging in to AWS ECR")
-        login_resp = aws_ecr_login(region, aws_registry)
-        if login_resp is None or "Login Succeeded" not in login_resp:
-            raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
+            # todo: we don't always want to tag/push the image (eg if image already hosted on aws), figure this out
+            aws_tag = f"{registry}:{launch_project.run_id}"
+            docker.tag(image, aws_tag)
 
-        # todo: we don't always want to tag/push the image (eg if image already hosted on aws), figure this out
-        aws_tag = f"{aws_registry}:{launch_project.run_id}"
-        docker.tag(image, aws_tag)
-
-        wandb.termlog(f"Pushing image {image} to registry {aws_registry}")
-        push_resp = docker.push(aws_registry, launch_project.run_id)
-        if push_resp is None:
-            raise LaunchError("Failed to push image to repository")
-        if f"The push refers to repository [{aws_registry}]" not in push_resp:
-            raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
+            wandb.termlog(f"Pushing image {image} to registry {registry}")
+            push_resp = docker.push(registry, launch_project.run_id)
+            if push_resp is None:
+                raise LaunchError("Failed to push image to repository")
+            if f"The push refers to repository [{registry}]" not in push_resp:
+                raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
+        else:
+            aws_tag = image
 
         if not self.ack_run_queue_item(launch_project):
             return None

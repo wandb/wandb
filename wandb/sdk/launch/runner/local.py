@@ -104,7 +104,7 @@ class LocalRunner(AbstractRunner):
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
         else:
-            builder.build_image(
+            image_uri = builder.build_image(
                 self._api,
                 launch_project,
                 registry_config.get("uri"),
@@ -112,6 +112,11 @@ class LocalRunner(AbstractRunner):
                 docker_args,
                 "local",
             )
+            if registry_config:
+                # TODO: support registries in local case
+                wandb.termwarn(
+                    "Local runner does not support non-local docker registry"
+                )
 
         if not self.ack_run_queue_item(launch_project):
             return None
@@ -153,10 +158,7 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command],
-            close_fds=True,
-            cwd=work_dir,
-            env=env,
+            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
         )
 
     return LocalSubmittedRun(process)
