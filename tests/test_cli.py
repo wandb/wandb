@@ -1002,39 +1002,6 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         )
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="Permissions error [WinError 32] when removing tmp dir on Windows",
-)
-def test_sync_summary(runner, live_mock_server, test_settings):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_settings.update(mode="offline", root_dir=tmpdir)
-        run = wandb.init(settings=test_settings)
-        offline_run_timespec = run.settings.timespec
-        offline_run_id = run.id
-        run.log({"a": 1})
-        run.summary["lol"] = True
-        run.finish()
-
-        test_settings.update(mode="online")
-        run = wandb.init(settings=test_settings)
-        run.log({"b": 2})
-        run.finish()
-
-        os.chdir(tmpdir)
-        result = runner.invoke(cli.sync)
-        assert result.exit_code == 0
-
-        msgs = (
-            "Number of runs to be synced: 1",
-            f"offline-run-{offline_run_timespec}-{offline_run_id}",
-            "NOTE: use wandb sync --clean to delete 1 synced runs from local directory.",
-            "NOTE: use wandb sync --sync-all to sync 1 unsynced runs from local directory.",
-        )
-        for msg in msgs:
-            assert msg in result.output
-
-
 def test_cli_login_reprompts_when_no_key_specified(
     mocker, runner, empty_netrc, local_netrc
 ):
