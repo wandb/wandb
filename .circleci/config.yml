@@ -99,7 +99,7 @@ workflows:
       - test:
          name: "code-check"
          image: "python:3.6"
-         toxenv: "protocheck,generatecheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
+         toxenv: "protocheck,generatecheck,mypy,mypy-report,black,flake8,pyupgrade,docstrings,verify-sweeps"
       - test:
          name: "unit-s_base-lin-py36"
          image: "python:3.6"

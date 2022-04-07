@@ -51,13 +51,13 @@ test-clean:
 	rm -rf .pytest_cache/
 
 test:
-	tox -e "black,mypy,flake8,docstrings"
+	tox -e "black,mypy,flake8,docstrings,pyupgrade"
 
 test-full:
 	tox
 
 test-short:
-	tox -e "black,mypy,flake8,docstrings,py36"
+	tox -e "black,mypy,flake8,docstrings,pyupgrade,py36"
 
 format:
 	tox -e format
