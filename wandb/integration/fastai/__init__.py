@@ -202,7 +202,8 @@ class WandbCallback(TrackerCallback):
             if not pred[1].shape or pred[1].dim() == 1:
                 pred_log.append(
                     wandb.Image(
-                        x.data, caption=f"Ground Truth: {y}\nPrediction: {pred[0]}",
+                        x.data,
+                        caption=f"Ground Truth: {y}\nPrediction: {pred[0]}",
                     )
                 )
 

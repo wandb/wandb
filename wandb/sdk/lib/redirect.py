@@ -66,7 +66,7 @@ _LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n"
 SEP_RE = re.compile(
     "\r|\n|"
     # Unprintable ascii characters:
-    + "|".join([chr(i) for i in range(2 ** 8) if repr(chr(i)).startswith("'\\x")])
+    + "|".join([chr(i) for i in range(2**8) if repr(chr(i)).startswith("'\\x")])
 )
 
 ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))

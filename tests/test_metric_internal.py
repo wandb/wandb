@@ -92,7 +92,12 @@ def test_metric_min_str(publish_util):
 
     summary = ctx_util.summary
 
-    assert {"v1": 2, "v2": 3, "mystep": 3, "_step": 2,} == summary
+    assert {
+        "v1": 2,
+        "v2": 3,
+        "mystep": 3,
+        "_step": 2,
+    } == summary
 
 
 def test_metric_sum_none(publish_util):
@@ -103,7 +108,13 @@ def test_metric_sum_none(publish_util):
 
     summary = ctx_util.summary
 
-    assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
+    assert {
+        "v1": 2,
+        "v2": 3,
+        "v3": "pizza",
+        "mystep": 3,
+        "_step": 2,
+    } == summary
 
 
 def test_metric_mult(publish_util):
@@ -163,7 +174,13 @@ def test_metric_again(publish_util):
 
     summary = ctx_util.summary
 
-    assert {"v1": 2, "v2": 3, "v3": "pizza", "mystep": 3, "_step": 2,} == summary
+    assert {
+        "v1": 2,
+        "v2": 3,
+        "v3": "pizza",
+        "mystep": 3,
+        "_step": 2,
+    } == summary
 
     metrics = ctx_util.metrics
     assert metrics and len(metrics) == 3
@@ -189,12 +206,33 @@ def test_metric_mean(publish_util):
 
 def test_metric_stepsync(publish_util):
     history = []
-    history.append(dict(step=0, data=dict(a1=1,)))
+    history.append(
+        dict(
+            step=0,
+            data=dict(
+                a1=1,
+            ),
+        )
+    )
     history.append(dict(step=1, data=dict(s1=2)))
-    history.append(dict(step=2, data=dict(a1=3,)))
+    history.append(
+        dict(
+            step=2,
+            data=dict(
+                a1=3,
+            ),
+        )
+    )
     history.append(dict(step=3, data=dict(a1=5, s1=4)))
     history.append(dict(step=3, data=dict(s1=6)))
-    history.append(dict(step=4, data=dict(a1=7,)))
+    history.append(
+        dict(
+            step=4,
+            data=dict(
+                a1=7,
+            ),
+        )
+    )
     history.append(dict(step=5, data=dict(a1=9, s1=8)))
 
     m0 = pb.MetricRecord(name="s1")
@@ -207,7 +245,11 @@ def test_metric_stepsync(publish_util):
     summary = ctx_util.summary
     history = ctx_util.history
 
-    assert {"a1": 9, "s1": 8, "_step": 5,} == summary
+    assert {
+        "a1": 9,
+        "s1": 8,
+        "_step": 5,
+    } == summary
 
     history_val = [(h.get("a1"), h.get("s1")) for h in history if "a1" in h]
     assert history_val == [(1, None), (3, 2), (5, 4), (7, 6), (9, 8)]
@@ -252,7 +294,14 @@ def test_metric_twice_over(publish_util):
 
 def test_metric_glob_twice_norm(publish_util):
     history = []
-    history.append(dict(step=0, data=dict(metric=1,)))
+    history.append(
+        dict(
+            step=0,
+            data=dict(
+                metric=1,
+            ),
+        )
+    )
 
     m1a = pb.MetricRecord(glob_name="*")
     m1a.summary.best = True
@@ -279,7 +328,14 @@ def test_metric_glob_twice_norm(publish_util):
 
 def test_metric_glob_twice_over(publish_util):
     history = []
-    history.append(dict(step=0, data=dict(metric=1,)))
+    history.append(
+        dict(
+            step=0,
+            data=dict(
+                metric=1,
+            ),
+        )
+    )
 
     m1a = pb.MetricRecord(glob_name="*")
     m1a.summary.best = True

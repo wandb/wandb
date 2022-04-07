@@ -73,7 +73,8 @@ def _get_wandb_dir(root_dir: str) -> str:
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
         wandb.termwarn(
-            f"Path {path} wasn't writable, using system temp directory.", repeat=False,
+            f"Path {path} wasn't writable, using system temp directory.",
+            repeat=False,
         )
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
@@ -95,7 +96,8 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
 
     # fixme: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. ", repeat=False,
+        f"Could not parse value {val} as a bool. ",
+        repeat=False,
     )
     raise UsageError(f"Could not parse value {val} as a bool.")
 
@@ -975,7 +977,11 @@ class Settings:
                 object.__setattr__(
                     self,
                     prop,
-                    Property(name=prop, validator=validators, source=Source.BASE,),
+                    Property(
+                        name=prop,
+                        validator=validators,
+                        source=Source.BASE,
+                    ),
                 )
 
             # fixme: this is to collect stats on preprocessing and validation errors
@@ -1145,7 +1151,9 @@ class Settings:
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
     def _apply_settings(
-        self, settings: "Settings", _logger: Optional[_EarlyLogger] = None,
+        self,
+        settings: "Settings",
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Apply settings from a Settings object."""
         if _logger is not None:
@@ -1182,7 +1190,8 @@ class Settings:
             if _logger is not None:
                 _logger.info(f"Loading settings from {self.settings_system}")
             self.update(
-                self._load_config_file(self.settings_system), source=Source.SYSTEM,
+                self._load_config_file(self.settings_system),
+                source=Source.SYSTEM,
             )
         if self.settings_workspace is not None:
             if _logger is not None:
@@ -1193,7 +1202,9 @@ class Settings:
             )
 
     def _apply_env_vars(
-        self, environ: Mapping[str, Any], _logger: Optional[_EarlyLogger] = None,
+        self,
+        environ: Mapping[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
@@ -1311,7 +1322,8 @@ class Settings:
         self.update(settings, source=Source.ENV)
 
     def _infer_run_settings_from_environment(
-        self, _logger: Optional[_EarlyLogger] = None,
+        self,
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Modify settings based on environment (for runs only)."""
         # If there's not already a program file, infer it now.

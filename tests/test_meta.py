@@ -117,7 +117,8 @@ def test_jupyter_path(meta, mocked_ipython):
 # TODO: test actual code saving
 # fixme:
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="backend sometimes crashes on Windows in CI",
+    platform.system() == "Windows",
+    reason="backend sometimes crashes on Windows in CI",
 )
 def test_commmit_hash_sent_correctly(test_settings, git_repo):
     # disable_git is False is by default
@@ -131,7 +132,8 @@ def test_commmit_hash_sent_correctly(test_settings, git_repo):
 
 # fixme:
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="backend sometimes crashes on Windows in CI",
+    platform.system() == "Windows",
+    reason="backend sometimes crashes on Windows in CI",
 )
 def test_commit_hash_not_sent_when_disable(test_settings, git_repo, disable_git_save):
     run = wandb.init(settings=test_settings)

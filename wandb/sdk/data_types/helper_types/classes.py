@@ -135,7 +135,9 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
+        cls,
+        json_dict: Dict[str, Any],
+        artifact: Optional["PublicArtifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (

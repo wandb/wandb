@@ -184,8 +184,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return json_obj
 
     def model_obj(self) -> SavedModelObjType:
-        """ Returns the model object.
-        """
+        """Returns the model object."""
         if self._model_obj is None:
             assert self._path is not None, "Cannot load model object without path"
             self._set_obj(self._deserialize(self._path))
@@ -196,14 +195,12 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     # Methods to be implemented by subclasses
     @staticmethod
     def _deserialize(path: str) -> SavedModelObjType:
-        """Returns the model object from a path. Allowed to throw errors
-        """
+        """Returns the model object from a path. Allowed to throw errors"""
         raise NotImplementedError()
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
-        """Validates the model object. Allowed to throw errors
-        """
+        """Validates the model object. Allowed to throw errors"""
         raise NotImplementedError()
 
     @staticmethod
@@ -352,7 +349,10 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
 
 def _get_torch() -> "torch":
-    return cast("torch", util.get_module("torch", "ModelAdapter requires `torch`"),)
+    return cast(
+        "torch",
+        util.get_module("torch", "ModelAdapter requires `torch`"),
+    )
 
 
 class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
@@ -370,13 +370,16 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     @staticmethod
     def _serialize(model_obj: "torch.nn.Module", dir_or_file_path: str) -> None:
         _get_torch().save(
-            model_obj, dir_or_file_path, pickle_module=_get_cloudpickle(),
+            model_obj,
+            dir_or_file_path,
+            pickle_module=_get_cloudpickle(),
         )
 
 
 def _get_sklearn() -> "sklearn":
     return cast(
-        "sklearn", util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
+        "sklearn",
+        util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
     )
 
 
@@ -385,7 +388,9 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
     _path_extension = "pkl"
 
     @staticmethod
-    def _deserialize(dir_or_file_path: str,) -> "sklearn.base.BaseEstimator":
+    def _deserialize(
+        dir_or_file_path: str,
+    ) -> "sklearn.base.BaseEstimator":
         with open(dir_or_file_path, "rb") as file:
             model = _get_cloudpickle().load(file)
         return model
@@ -423,7 +428,9 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
     _path_extension = ""
 
     @staticmethod
-    def _deserialize(dir_or_file_path: str,) -> "tensorflow.keras.Model":
+    def _deserialize(
+        dir_or_file_path: str,
+    ) -> "tensorflow.keras.Model":
         return _get_tf_keras().models.load_model(dir_or_file_path)
 
     @staticmethod

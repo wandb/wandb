@@ -485,7 +485,8 @@ def create_metadata_file(
 ) -> None:
     assert launch_project.project_dir is not None
     with open(
-        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
+        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
+        "w",
     ) as f:
         json.dump(
             {

@@ -115,7 +115,10 @@ def test_tb_watcher_logdir_not_exists(mocked_run, tbwatcher_util, capsys):
         pass
 
     _ = tbwatcher_util(
-        write_function=write_fun, logdir=log_dir, save=False, root_dir=mocked_run.dir,
+        write_function=write_fun,
+        logdir=log_dir,
+        save=False,
+        root_dir=mocked_run.dir,
     )
     _, err = capsys.readouterr()
     assert err == ""

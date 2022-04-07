@@ -99,7 +99,10 @@ class ArtifactSaver(object):
                 artifact_collection_name = name
                 tag = alias
             alias_specs.append(
-                {"artifactCollectionName": artifact_collection_name, "alias": tag,}
+                {
+                    "artifactCollectionName": artifact_collection_name,
+                    "alias": tag,
+                }
             )
 
         """Returns the server artifact."""
@@ -189,7 +192,8 @@ class ArtifactSaver(object):
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
                 _, resp = self._api.update_artifact_manifest(
-                    artifact_manifest_id, digest=digest,
+                    artifact_manifest_id,
+                    digest=digest,
                 )
             else:
                 # In the regular flow, we can recreate the full manifest with the

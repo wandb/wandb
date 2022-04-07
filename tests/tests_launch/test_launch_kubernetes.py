@@ -108,9 +108,17 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         for i, cont in enumerate(pod_spec.containers):
             pod_spec.containers[i] = MockDict(cont)
 
-        job_spec.template = MockDict({"spec": pod_spec,})
+        job_spec.template = MockDict(
+            {
+                "spec": pod_spec,
+            }
+        )
         mock_job = MockDict(
-            {"status": mock_status, "spec": job_spec, "metadata": MockDict(metadata),}
+            {
+                "status": mock_status,
+                "spec": job_spec,
+                "metadata": MockDict(metadata),
+            }
         )
         jobs_dict[name] = mock_job
         return [[mock_job]]
@@ -151,7 +159,8 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
     )
 
     monkeypatch.setattr(
-        "wandb.docker.push", lambda repo, tag: None,
+        "wandb.docker.push",
+        lambda repo, tag: None,
     )
 
 
@@ -160,7 +169,11 @@ def pods(job_name):
         [
             MockDict(
                 {
-                    "metadata": MockDict({"name": "pod1",}),
+                    "metadata": MockDict(
+                        {
+                            "name": "pod1",
+                        }
+                    ),
                     "job_name": job_name,
                     "log": "test log string",
                 }
@@ -174,7 +187,14 @@ def test_launch_kube(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("test-job"), status)
 
@@ -186,7 +206,14 @@ def test_launch_kube(
         "spec": {
             "template": {
                 "spec": {
-                    "containers": [{"name": "container1",}, {"name": "container2",},]
+                    "containers": [
+                        {
+                            "name": "container1",
+                        },
+                        {
+                            "name": "container2",
+                        },
+                    ]
                 }
             }
         }
@@ -252,7 +279,14 @@ def test_launch_kube_suspend_cancel(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     jobs = {}
-    status = MockDict({"succeeded": 0, "failed": 0, "active": 1, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 0,
+            "failed": 0,
+            "active": 1,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -268,7 +302,10 @@ def test_launch_kube_suspend_cancel(
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
-            "kubernetes": {"config_file": "dummy.yaml", "suspend": False,},
+            "kubernetes": {
+                "config_file": "dummy.yaml",
+                "suspend": False,
+            },
         },
         "synchronous": False,
     }
@@ -292,7 +329,14 @@ def test_launch_kube_failed(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 0, "failed": 1, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 0,
+            "failed": 1,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -348,7 +392,14 @@ def test_kube_user_container(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -361,8 +412,12 @@ def test_kube_user_container(
             "template": {
                 "spec": {
                     "containers": [
-                        {"image": "container1:tag",},
-                        {"image": "container2:tag",},
+                        {
+                            "image": "container1:tag",
+                        },
+                        {
+                            "image": "container2:tag",
+                        },
                     ]
                 }
             }
@@ -399,7 +454,14 @@ def test_kube_multi_container(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -413,8 +475,12 @@ def test_kube_multi_container(
             "template": {
                 "spec": {
                     "containers": [
-                        {"image": "container1:tag",},
-                        {"image": "container2:tag",},
+                        {
+                            "image": "container1:tag",
+                        },
+                        {
+                            "image": "container2:tag",
+                        },
                     ]
                 }
             }
@@ -473,7 +539,14 @@ def test_get_status_failed(
         raise Exception("test read_namespaced_pod_log_error")
 
     jobs = {}
-    status = MockDict({"succeeded": 0, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 0,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 

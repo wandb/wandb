@@ -49,7 +49,11 @@ def learning_curve(
 def make_table(train, test, train_sizes):
     data = []
     for i in range(len(train)):
-        if utils.check_against_limit(i, "learning_curve", utils.chart_limit / 2,):
+        if utils.check_against_limit(
+            i,
+            "learning_curve",
+            utils.chart_limit / 2,
+        ):
             break
         train_set = ["train", utils.round_2(train[i]), train_sizes[i]]
         test_set = ["test", utils.round_2(test[i]), train_sizes[i]]

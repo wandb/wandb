@@ -153,7 +153,8 @@ class Molecule(BatchableMedia):
             molecule = rdkit_chem.AddHs(molecule)
             rdkit_chem_all_chem.EmbedMolecule(molecule)
             rdkit_chem_all_chem.MMFFOptimizeMolecule(
-                molecule, maxIters=mmff_optimize_molecule_max_iterations,
+                molecule,
+                maxIters=mmff_optimize_molecule_max_iterations,
             )
         # convert to the pdb format supported by Molecule
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)

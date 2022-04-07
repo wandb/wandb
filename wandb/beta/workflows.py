@@ -160,7 +160,9 @@ def log_model(
     _ = _log_artifact_version(
         name=name,
         type="model",
-        entries={"index": model,},
+        entries={
+            "index": model,
+        },
         aliases=aliases,
         description=description,
         metadata=metadata,
