@@ -2251,6 +2251,10 @@ class Api:
             "0.12.10"
         ) <= parse_version(max_cli_version)
 
+        can_handle_history = max_cli_version is None or parse_version(
+            "0.12.12"
+        ) <= parse_version(max_cli_version)
+
         mutation = gql(
             """
         mutation CreateArtifact(
@@ -2311,13 +2315,17 @@ class Api:
             # For backwards compatibility with older backends that don't support
             # distributed writers or digest deduplication.
             (
-                "$historyStep: Int64!," if history_step not in [0, None] else "",
+                "$historyStep: Int64!,"
+                if can_handle_history and history_step not in [0, None]
+                else "",
                 "$distributedID: String," if distributed_id else "",
                 "$clientID: ID!," if can_handle_client_id else "",
                 "$sequenceClientID: ID!," if can_handle_client_id else "",
                 "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
                 # line sep
-                "historyStep: $historyStep," if history_step not in [0, None] else "",
+                "historyStep: $historyStep,"
+                if can_handle_history and history_step not in [0, None]
+                else "",
                 "distributedID: $distributedID," if distributed_id else "",
                 "clientID: $clientID," if can_handle_client_id else "",
                 "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
