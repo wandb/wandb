@@ -11,7 +11,7 @@ from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 
-from .._project_spec import LaunchProject
+from .._project_spec import EntryPoint, LaunchProject
 
 _logger = logging.getLogger(__name__)
 
@@ -28,7 +28,15 @@ class AbstractBuilder(ABC):
         self.builder_config = builder_config
 
     @abstractmethod
-    def build_image(self, launch_project: LaunchProject, build_ctx_path: str) -> str:
+    def build_image(
+        self,
+        api: Api,
+        launch_project: LaunchProject,
+        registry: Optional[str],
+        entrypoint: EntryPoint,
+        docker_args: Dict[str, Any],
+        runner_type: str,
+    ) -> str:
         """Build the image for the given project.
 
         Args:

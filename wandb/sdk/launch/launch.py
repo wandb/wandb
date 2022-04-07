@@ -77,13 +77,12 @@ def _run(
     else:
         runner_config[PROJECT_DOCKER_ARGS] = {}
 
-    # TODO: infer builder??
-    # TODO: share client between builder/runner in kaniko/kubernetes case
-    builder_type = "kaniko"
-    builder = builder_loader.load_builder(builder_type)
+    build_config = launch_config.get("build", {})
+    builder = builder_loader.load_builder(build_config)
+    registry_config = launch_config.get("registry", {})
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
-        submitted_run = backend.run(launch_project)
+        submitted_run = backend.run(launch_project, builder, registry_config)
         # this check will always pass, run is only optional in the agent case where
         # a run queue id is present on the backend config
         assert submitted_run

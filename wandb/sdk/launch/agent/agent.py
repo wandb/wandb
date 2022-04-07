@@ -88,7 +88,10 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue, entity=self._entity, project=self._project, agent_id=self._id,
+                queue,
+                entity=self._entity,
+                project=self._project,
+                agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
@@ -175,9 +178,9 @@ class LaunchAgent(object):
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        override_build_spec = launch_spec.get("overrides", {}).get("build", {})
+        override_build_spec = launch_spec.get("build", {})
         build_config = self.construct_build_config(override_build_spec)
-        builder = load_builder(self.config.get("builder-type", "docker"), build_config)
+        builder = load_builder(build_config)
 
         registry_config = self.construct_registry_config(self.config)
         backend = load_backend(resource, self._api, backend_config)

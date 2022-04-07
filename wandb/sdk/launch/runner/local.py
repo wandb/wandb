@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from six.moves import shlex_quote
 import wandb
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
@@ -75,7 +76,12 @@ class LocalSubmittedRun(AbstractRun):
 class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
@@ -98,14 +104,13 @@ class LocalRunner(AbstractRunner):
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
         else:
-            # build our own image
-            image_uri = construct_local_image_uri(launch_project)
-            generate_docker_image(
+            builder.build_image(
+                self._api,
                 launch_project,
-                image_uri,
+                registry_config.get("uri"),
                 entry_point,
                 docker_args,
-                runner_type="local",
+                "local",
             )
 
         if not self.ack_run_queue_item(launch_project):
@@ -148,7 +153,10 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)
