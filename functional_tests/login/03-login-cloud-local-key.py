@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 """WB-8618: warn the user if they are using a local key to log in to cloud"""
 
-import random
-import string
-
 import pytest
 import wandb
 import wandb.errors
@@ -18,4 +15,4 @@ if __name__ == "__main__":
         )
 
     # check that this logic does not apply if base_url is not cloud
-    assert wandb.login(key=f"local-87eLxjoRhY6u2ofg63NAJo7rVYHZo4NGACOvpSsF", host="https://api.wandb.test")
+    assert wandb.login(key="local-87eLxjoRhY6u2ofg63NAJo7rVYHZo4NGACOvpSsF", host="https://api.wandb.test")
