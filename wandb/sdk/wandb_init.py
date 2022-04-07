@@ -241,6 +241,7 @@ class _WandbInit(object):
             wandb_login._login(
                 anonymous=kwargs.pop("anonymous", None),
                 force=kwargs.pop("force", None),
+                _entity=settings.entity or kwargs.pop("entity", None),
                 _disable_warning=True,
                 _silent=settings.quiet or settings.silent,
             )
