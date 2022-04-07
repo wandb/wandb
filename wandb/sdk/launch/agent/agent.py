@@ -88,10 +88,7 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue,
-                entity=self._entity,
-                project=self._project,
-                agent_id=self._id,
+                queue, entity=self._entity, project=self._project, agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
@@ -178,15 +175,35 @@ class LaunchAgent(object):
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        build_config = self.construct_build_config(self.config)
+        override_build_spec = launch_spec.get("overrides", {}).get("build", {})
+        build_config = self.construct_build_config(override_build_spec)
         builder = load_builder(self.config.get("builder-type", "docker"), build_config)
+
+        registry_config = self.construct_registry_config(self.config)
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")
-        run = backend.run(project, builder)
+        run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
             self._running += 1
+
+    def construct_build_config(
+        self, override_spec: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+
+        if self.config is None and override_spec is None:
+            return {}
+
+        if override_spec is not None:
+            return override_spec
+
+        return self.config.get("builder", {})
+
+    def construct_registry_config(self, config):
+        if config is None:
+            return {}
+        return config.get("registry", {})
 
     def loop(self) -> None:
         """Main loop function for agent."""

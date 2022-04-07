@@ -155,7 +155,10 @@ class KubernetesRunner(AbstractRunner):
             return active_context
 
     def run(
-        self, launch_project: LaunchProject, builder: AbstractBuilder
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:  # noqa: C901
         kubernetes = get_module(  # noqa: F811
             "kubernetes", "KubernetesRunner requires kubernetes to be installed"
@@ -210,8 +213,7 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         namespace = resource_args.get(
-            "namespace",
-            job_metadata.get("namespace", default),
+            "namespace", job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -305,20 +307,15 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
                 )
-            registry = resource_args.get("registry")
+            registry = registry_config.get("url")
             if registry is None:
                 # allow local registry usage for eg local clusters but throw a warning
-                raise wandb.Error(
+                raise LaunchError(
                     "Error: No Docker registry specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
 
             image_uri = builder.build_image(
-                self._api,
-                launch_project,
-                registry,
-                entry_point,
-                docker_args,
-                runner_type="kubernetes",
+                self._api, launch_project, registry, entry_point, docker_args,
             )
             containers[0]["image"] = image_uri
         given_env_vars = resource_args.get("env", {})
@@ -374,11 +371,7 @@ class KubernetesRunner(AbstractRunner):
         )
 
         submitted_job = KubernetesSubmittedRun(
-            batch_api,
-            core_api,
-            job_name,
-            pod_names,
-            namespace,
+            batch_api, core_api, job_name, pod_names, namespace,
         )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:
