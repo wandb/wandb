@@ -343,32 +343,6 @@ def generate_dockerfile(
     return dockerfile_contents
 
 
-# def build_image_with_kaniko(
-#     api: Api,
-#     launch_project: LaunchProject,
-#     registry: str,
-#     entrypoint: EntryPoint,
-#     docker_args: Dict[str, Any],
-#     runner_type: str,
-# ) -> str:
-
-#     image_uri = f"{registry}:{launch_project.run_id}"
-#     entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
-#     # kaniko builder doesn't seem to work with a custom user id, need more investigation
-#     dockerfile_str = generate_dockerfile(api, launch_project, entry_cmd, "sagemaker")
-#     create_metadata_file(
-#         launch_project,
-#         image_uri,
-#         sanitize_wandb_api_key(entry_cmd),
-#         docker_args,
-#         sanitize_wandb_api_key(dockerfile_str),
-#     )
-#     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-#     return kaniko.build_image(
-#         launch_project.run_id, registry, image_uri, build_ctx_path
-#     )
-
-
 def generate_docker_image(
     api: Api,
     launch_project: LaunchProject,
@@ -553,3 +527,37 @@ def _create_docker_build_ctx(
     with open(os.path.join(directory, _GENERATED_DOCKERFILE_NAME), "w") as handle:
         handle.write(dockerfile_contents)
     return directory
+
+
+def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
+    """Generates environment variables for the project.
+
+    Arguments:
+    launch_project: LaunchProject to generate environment variables for.
+
+    Returns:
+        Dictionary of environment variables.
+    """
+    env_vars = {}
+    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
+        _, _, port = api.settings("base_url").split(":")
+        base_url = "http://host.docker.internal:{}".format(port)
+    elif _is_wandb_dev_uri(api.settings("base_url")):
+        base_url = "http://host.docker.internal:9002"
+    else:
+        base_url = api.settings("base_url")
+    env_vars["WANDB_BASE_URL"] = base_url
+
+    env_vars["WANDB_API_KEY"] = api.api_key
+    env_vars["WANDB_PROJECT"] = launch_project.target_project
+    env_vars["WANDB_ENTITY"] = launch_project.target_entity
+    env_vars["WANDB_LAUNCH"] = "True"
+    env_vars["WANDB_RUN_ID"] = launch_project.run_id
+    if launch_project.docker_image:
+        env_vars["WANDB_DOCKER"] = launch_project.docker_image
+
+    # TODO: handle env vars > 32760 characters
+    env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
+    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
+
+    return env_vars

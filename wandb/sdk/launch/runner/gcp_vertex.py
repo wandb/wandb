@@ -16,9 +16,8 @@ import yaml
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
-from ..docker import (
+from ..builder.build import (
     construct_gcp_image_uri,
-    generate_docker_image,
     get_env_vars_dict,
     validate_docker_installation,
 )
@@ -137,8 +136,6 @@ class VertexRunner(AbstractRunner):
         aiplatform.init(
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
         )
-
-        validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:

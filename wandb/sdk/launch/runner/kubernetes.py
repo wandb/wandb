@@ -10,18 +10,12 @@ if False:
     from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
     from kubernetes.client.models.v1_job import V1Job  # type: ignore
 import wandb
-import wandb.docker as docker
 from wandb.errors import LaunchError
 from wandb.util import get_module, load_json_yaml_dict
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
-from ..docker import (
-    construct_local_image_uri,
-    generate_docker_image,
-    get_env_vars_dict,
-)
-from ..builder import build
+from ..builder.build import get_env_vars_dict
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,

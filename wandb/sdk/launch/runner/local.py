@@ -11,14 +11,11 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
-from ..docker import (
-    construct_local_image_uri,
-    generate_docker_image,
+from ..builder.build import (
     get_env_vars_dict,
     pull_docker_image,
     validate_docker_installation,
 )
-from ..builder import build
 
 from ..utils import (
     _is_wandb_local_uri,
@@ -82,7 +79,6 @@ class LocalRunner(AbstractRunner):
         builder: AbstractBuilder,
         registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
-        validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if launch_project.cuda:

@@ -20,9 +20,7 @@ from .._project_spec import (
     get_entry_point_command,
     LaunchProject,
 )
-from ..docker import (
-    construct_local_image_uri,
-    generate_docker_image,
+from ..builder.build import (
     get_env_vars_dict,
     validate_docker_installation,
 )
@@ -91,7 +89,6 @@ class AWSSagemakerRunner(AbstractRunner):
 
         boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
 
-        validate_docker_installation()
         given_sagemaker_args = launch_project.resource_args.get("sagemaker")
         if given_sagemaker_args is None:
             raise LaunchError(
