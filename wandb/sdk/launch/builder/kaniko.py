@@ -165,6 +165,7 @@ class KanikoBuilder(AbstractBuilder):
         registry: str,
         entrypoint: EntryPoint,
         docker_args: Dict[str, Any],
+        runner_type: str,
         # self, api: Api, launch_project: LaunchProject,  run_id: str, registry: str, image_uri: str, context_path: str
     ) -> str:
 
@@ -172,7 +173,7 @@ class KanikoBuilder(AbstractBuilder):
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
-            api, launch_project, entry_cmd, "sagemaker"
+            api, launch_project, entry_cmd, runner_type
         )
         create_metadata_file(
             launch_project,

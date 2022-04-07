@@ -229,7 +229,6 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
             "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
         )
         prefix = "RUN WANDB_DISABLE_CACHE=true"
-    print("Launch project deps type", launch_project.deps_type)
     if launch_project.deps_type == "pip":
         requirements_files = []
         if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")):
@@ -329,7 +328,6 @@ def generate_dockerfile(
     entrypoint_section = get_entrypoint_setup(
         launch_project, entry_cmd, workdir, runner_type
     )
-    print("python base setip")
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -345,30 +343,30 @@ def generate_dockerfile(
     return dockerfile_contents
 
 
-def build_image_with_kaniko(
-    api: Api,
-    launch_project: LaunchProject,
-    registry: str,
-    entrypoint: EntryPoint,
-    docker_args: Dict[str, Any],
-    runner_type: str,
-) -> str:
+# def build_image_with_kaniko(
+#     api: Api,
+#     launch_project: LaunchProject,
+#     registry: str,
+#     entrypoint: EntryPoint,
+#     docker_args: Dict[str, Any],
+#     runner_type: str,
+# ) -> str:
 
-    image_uri = f"{registry}:{launch_project.run_id}"
-    entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
-    # kaniko builder doesn't seem to work with a custom user id, need more investigation
-    dockerfile_str = generate_dockerfile(api, launch_project, entry_cmd, "sagemaker")
-    create_metadata_file(
-        launch_project,
-        image_uri,
-        sanitize_wandb_api_key(entry_cmd),
-        docker_args,
-        sanitize_wandb_api_key(dockerfile_str),
-    )
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-    return kaniko.build_image(
-        launch_project.run_id, registry, image_uri, build_ctx_path
-    )
+#     image_uri = f"{registry}:{launch_project.run_id}"
+#     entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
+#     # kaniko builder doesn't seem to work with a custom user id, need more investigation
+#     dockerfile_str = generate_dockerfile(api, launch_project, entry_cmd, "sagemaker")
+#     create_metadata_file(
+#         launch_project,
+#         image_uri,
+#         sanitize_wandb_api_key(entry_cmd),
+#         docker_args,
+#         sanitize_wandb_api_key(dockerfile_str),
+#     )
+#     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
+#     return kaniko.build_image(
+#         launch_project.run_id, registry, image_uri, build_ctx_path
+#     )
 
 
 def generate_docker_image(
