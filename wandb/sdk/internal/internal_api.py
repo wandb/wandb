@@ -2257,7 +2257,6 @@ class Api:
         # Disabling history saving until it can be tested
         can_handle_history = False
 
-
         mutation = gql(
             """
         mutation CreateArtifact(
