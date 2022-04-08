@@ -93,10 +93,10 @@ class _WandbLogin:
         self._wl = None
         self._key = None
         self._relogin = None
-        self._entity = None
 
     def setup(self, kwargs):
         self.kwargs = kwargs
+
         # built up login settings
         login_settings: Settings = wandb.Settings()
         settings_param = kwargs.pop("_settings", None)
@@ -124,9 +124,6 @@ class _WandbLogin:
     def set_silent(self, silent: bool):
         self._silent = silent
 
-    def set_entity(self, entity: str):
-        self._entity = entity
-
     def login(self):
         apikey_configured = self.is_apikey_configured()
         if self._settings.relogin or self._relogin:
@@ -141,7 +138,7 @@ class _WandbLogin:
 
     def login_display(self):
         # check to see if we got an entity from the setup call
-        active_entity = self._entity or self._wl._get_entity()
+        active_entity = self._wl._get_entity()
         login_info_str = "(use `wandb login --relogin` to force relogin)"
         if active_entity:
             login_state_str = "Currently logged in as:"
@@ -243,7 +240,6 @@ def _login(
     _backend=None,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
-    _entity: Optional[str] = None,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)
@@ -262,10 +258,6 @@ def _login(
     _silent = kwargs.pop("_silent", None)
     if _silent:
         wlogin.set_silent(_silent)
-
-    _entity = kwargs.pop("_entity", None)
-    if _entity:
-        wlogin.set_entity(_entity)
 
     # configure login object
     wlogin.setup(kwargs)
