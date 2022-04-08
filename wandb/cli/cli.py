@@ -1184,6 +1184,9 @@ def launch_agent(
             )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
+    agent_config, api = wandb_launch.resolve_agent_config(
+        api, entity, project, max_jobs, queues
+    )
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the launch agent feature")
         ctx.invoke(login, no_offline=True)
@@ -1196,7 +1199,7 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs, config)
+    wandb_launch.create_and_run_agent(api, agent_config)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

@@ -33,14 +33,12 @@ class DockerBuilder(AbstractBuilder):
 
     def build_image(
         self,
-        api: Api,
         launch_project: LaunchProject,
         registry: Optional[str],
-        entrypoint: EntryPoint,
+        entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
         runner_type: str,
-    ):
-        wandb.termlog("USING DOCKER BUILDER")
+    ) -> str:
         if registry:
             image_uri = f"{registry}/{launch_project.name}"
         else:
@@ -75,4 +73,14 @@ class DockerBuilder(AbstractBuilder):
             _logger.info(
                 "Temporary docker context file %s was not deleted.", build_ctx_path
             )
+
+        if registry:
+            reg, tag = image_uri.split(":")
+            wandb.termlog(f"Pushing image {image_uri}")
+            push_resp = docker.push(reg, tag)
+            if push_resp is None:
+                raise LaunchError("Failed to push image to repository")
+            if f"The push refers to repository [{registry}]" not in push_resp:
+                raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
+
         return image_uri

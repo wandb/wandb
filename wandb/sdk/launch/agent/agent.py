@@ -19,6 +19,7 @@ from ..builder.loader import load_builder
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    validate_build_and_registry_configs,
 )
 
 AGENT_POLLING_INTERVAL = 10
@@ -42,18 +43,10 @@ def _convert_access(access: str) -> str:
 class LaunchAgent(object):
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    def __init__(
-        self,
-        entity: str,
-        project: str,
-        queues: Iterable[str] = None,
-        max_jobs: float = None,
-        config_file: Optional[str] = None,
-    ):
-        self._entity = entity
-        self._project = project
+    def __init__(self, api: Api, config: Dict[str, Any]):
+        self._entity = config.get("entity")
+        self._project = config.get("project")
         self._api = Api()
-        self._settings = wandb.Settings()
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[Union[int, str], AbstractRun] = {}
         self._ticks = 0
@@ -61,23 +54,27 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        if max_jobs == -1:
+        if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
-            self._max_jobs = max_jobs or 1
+            self._max_jobs = config.get("max_jobs") or 1
         self.config: Optional[Dict[str, Any]] = None
-        if config_file is not None:
-            self.build_config = util.load_yaml(config_file)
+
+        self.build_config = config.get("builder", {})
+        self.registry_config = config.get("registry", {})
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
         )
+        self._queues = config.get("queues", ["default"])
         create_response = self._api.create_launch_agent(
-            entity, project, queues, self.gorilla_supports_agents
+            self._entity,
+            self._project,
+            self._queues,
+            self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
-        self._queues = queues if queues else ["default"]
 
     @property
     def job_ids(self) -> List[Union[int, str]]:
@@ -182,11 +179,12 @@ class LaunchAgent(object):
         build_config = self.construct_build_config(override_build_spec)
         builder = load_builder(build_config)
 
-        registry_config = self.construct_registry_config(self.config)
         backend = load_backend(resource, self._api, backend_config)
+
+        validate_build_and_registry_configs(build_config, self.registry_config)
         backend.verify()
         _logger.info("Backend loaded...")
-        run = backend.run(project, builder, registry_config)
+        run = backend.run(project, builder, self.registry_config)
         if run:
             self._jobs[run.id] = run
             self._running += 1
@@ -195,18 +193,13 @@ class LaunchAgent(object):
         self, override_spec: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
 
-        if self.config is None and override_spec is None:
+        if self.build_config is None and override_spec is None:
             return {}
 
         if override_spec is not None:
             return override_spec
 
-        return self.config.get("builder", {})
-
-    def construct_registry_config(self, config):
-        if config is None:
-            return {}
-        return config.get("registry", {})
+        return self.build_config
 
     def loop(self) -> None:
         """Main loop function for agent."""

@@ -1,17 +1,21 @@
+from collections import defaultdict
 import logging
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any, Dict, List, Optional, Tuple
 
+from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError
+import yaml
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
-from .builder.abstract import AbstractBuilder
 from .builder import loader as builder_loader
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     construct_launch_spec,
+    LAUNCH_AGENT_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -19,17 +23,82 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
-def create_and_run_agent(
+def resolve_config(
     api: Api,
     entity: str,
-    project: str,
-    queues: Optional[List[str]] = None,
-    max_jobs: float = None,
-    config: Optional[str] = None,
+    project: Optional[str],
+    max_jobs: Optional[float],
+    queues: Optional[List[str]],
+) -> Tuple[Dict[str, Any], Api]:
+    defaults = {
+        "entity": api.default_entity,
+        "max_jobs": 1,
+        "queues": ["default"],
+        "api_key": api.api_key,
+        "base_url": api.settings("base_url"),
+        "registry": {},
+        "build": {},
+    }
+
+    def default_dict_populator(key: Optional[str] = None) -> Any:
+        if key is None:
+            return
+        else:
+            return defaults.get(key)
+
+    resolved_config: Dict[str, Any] = defaultdict(default_dict_populator)
+    if os.path.exists(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)):
+        config = {}
+        with open(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)) as f:
+            try:
+                config = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                print(e)
+        resolved_config.update(dict(config))
+
+    if os.environ.get("WANDB_PROJECT") is not None:
+        resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
+    if os.environ.get("WANDB_ENTITY") is not None:
+        resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
+
+    if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
+        resolved_config.update({"max_jobs": os.environ.get("WANDB_LAUNCH_MAX_JOBS")})
+
+    if os.environ.get("WANDB_BASE_URL") is not None:
+        resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
+
+    if project is not None:
+        resolved_config.update({"project": project})
+    if entity is not None:
+        resolved_config.update({"entity": entity})
+    if max_jobs is not None:
+        resolved_config.update({"max_jobs": max_jobs})
+
+    if queues is not None:
+        resolved_config.update({"queues": queues})
+
+    if (
+        resolved_config["entity"] != defaults["entity"]
+        or resolved_config["api_key"] != defaults["api_key"]
+        or resolved_config["base_url"] != defaults["base_url"]
+    ):
+        settings = Settings(
+            api_key=resolved_config["api_key"],
+            base_url=resolved_config["base_url"],
+            project="test",
+        )
+        api = Api(default_settings=settings, load_settings=False)
+
+    return resolved_config, api
+
+
+def create_and_run_agent(
+    api: Api,
+    config: Dict[str, Any],
 ) -> None:
-    if queues is None:
-        queues = []
-    agent = LaunchAgent(entity, project, queues, max_jobs, config)
+    if config.get("queues") is None:
+        config["queues"] = []
+    agent = LaunchAgent(api, config)
     agent.loop()
 
 

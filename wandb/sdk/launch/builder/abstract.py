@@ -27,10 +27,9 @@ class AbstractBuilder(ABC):
     @abstractmethod
     def build_image(
         self,
-        api: Api,
         launch_project: LaunchProject,
-        registry: Optional[str],
-        entrypoint: EntryPoint,
+        registry: str,
+        entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
         runner_type: str,
     ) -> str:

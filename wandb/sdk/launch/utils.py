@@ -34,6 +34,7 @@ PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
+LAUNCH_AGENT_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
@@ -379,3 +380,16 @@ def to_camel_case(maybe_snake_str: str) -> str:
 def run_shell(args: List[str]) -> Tuple[str, str]:
     out = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()
+
+
+def validate_build_and_registry_configs(build_config, registry_config):
+    build_config_credentials = build_config.get("cloud-provider", {}).get(
+        "creddentials"
+    )
+    registry_config_credentials = registry_config.get("credentials", {})
+    if (
+        build_config_credentials
+        and registry_config_credentials
+        and build_config_credentials != registry_config_credentials
+    ):
+        raise LaunchError("registry and build config credential mismatch")

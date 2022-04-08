@@ -702,7 +702,12 @@ def test_launch_agent_instance(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+    }
+    agent = LaunchAgent(config)
     ctx = live_mock_server.get_ctx()
     assert len(ctx["launch_agents"]) == 1
     assert agent._id == int(list(ctx["launch_agents"].keys())[0])
@@ -761,7 +766,12 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+    }
+    agent = LaunchAgent(config)
     ctx = live_mock_server.get_ctx()
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0
@@ -779,7 +789,13 @@ def test_agent_no_introspection(test_settings, live_mock_server):
 
 
 def test_agent_inf_jobs(test_settings, live_mock_server):
-    agent = LaunchAgent("mock_server_entity", "test_project", ["default"], max_jobs=-1)
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+        "max_jobs": -1,
+    }
+    agent = LaunchAgent(config)
     assert agent._max_jobs == float("inf")
 
 

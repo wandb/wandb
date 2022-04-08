@@ -303,7 +303,9 @@ def get_entrypoint_setup(
 
 
 def generate_dockerfile(
-    launch_project: LaunchProject, runner_type: str, builder_type: str,
+    launch_project: LaunchProject,
+    runner_type: str,
+    builder_type: str,
 ) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
@@ -399,10 +401,19 @@ def construct_local_image_uri(launch_project: LaunchProject) -> str:
 
 
 def construct_gcp_image_uri(
-    launch_project: LaunchProject, gcp_repo: str, gcp_project: str, gcp_registry: str,
+    launch_project: LaunchProject,
+    gcp_repo: str,
+    gcp_project: str,
+    gcp_registry: str,
 ) -> str:
     base_uri = construct_local_image_uri(launch_project)
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
+
+
+def construct_gcp_registry_uri(
+    gcp_repo: str, gcp_project: str, gcp_registry: str
+) -> str:
+    return "/".join([gcp_registry, gcp_project, gcp_repo])
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
@@ -450,13 +461,18 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
     return name + version_string
 
 
-def _create_build_ctx(launch_project: LaunchProject, dockerfile_contents: str,) -> str:
+def _create_build_ctx(
+    launch_project: LaunchProject,
+    dockerfile_contents: str,
+) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     assert launch_project.project_dir is not None
     shutil.copytree(
-        src=launch_project.project_dir, dst=dst_path, symlinks=True,
+        src=launch_project.project_dir,
+        dst=dst_path,
+        symlinks=True,
     )
     shutil.copy(
         os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),

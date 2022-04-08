@@ -145,12 +145,20 @@ class AWSSagemakerRunner(AbstractRunner):
         ecr_repo_name = given_sagemaker_args.get(
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
-        registry = registry_config.get("url") or (
-            token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
-            + f"/{ecr_repo_name}"
-        )
+        if ecr_repo_name:
+            registry = (
+                token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
+                + f"/{ecr_repo_name}"
+            )
+        else:
+            registry = registry_config.get("url")
 
-        if registry_config.get("ecr-repo-provdier", "aws") != "aws":
+        if registry is None:
+            raise LaunchError(
+                "Must provide a registry url either through resource args or launch config file"
+            )
+
+        if registry_config.get("ecr-repo-provider", "aws") != "aws":
             raise LaunchError(
                 "Sagemaker jobs requires an AWS ECR Repo to push the container to"
             )
@@ -160,6 +168,12 @@ class AWSSagemakerRunner(AbstractRunner):
             wandb.termwarn(
                 "Ignoring registry credentials for ECR, using those found on the system"
             )
+
+        if builder.type != "kaniko":
+            _logger.info("Logging in to AWS ECR")
+            login_resp = aws_ecr_login(region, registry)
+            if login_resp is None or "Login Succeeded" not in login_resp:
+                raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
         docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
@@ -174,27 +188,12 @@ class AWSSagemakerRunner(AbstractRunner):
         else:
             # build our own image
             image = builder.build_image(
-                self._api, launch_project, registry, entry_point, {}, "sagemaker",
+                launch_project,
+                registry,
+                entry_point,
+                {},
+                "sagemaker",
             )
-        # the kaniko builder automatically uploads the image to the registry
-        if builder.type != "kaniko":
-            _logger.info("Logging in to AWS ECR")
-            login_resp = aws_ecr_login(region, registry)
-            if login_resp is None or "Login Succeeded" not in login_resp:
-                raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
-
-            # todo: we don't always want to tag/push the image (eg if image already hosted on aws), figure this out
-            aws_tag = f"{registry}:{launch_project.run_id}"
-            docker.tag(image, aws_tag)
-
-            wandb.termlog(f"Pushing image {image} to registry {registry}")
-            push_resp = docker.push(registry, launch_project.run_id)
-            if push_resp is None:
-                raise LaunchError("Failed to push image to repository")
-            if f"The push refers to repository [{registry}]" not in push_resp:
-                raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
-        else:
-            aws_tag = image
 
         if not self.ack_run_queue_item(launch_project):
             return None
@@ -221,7 +220,7 @@ class AWSSagemakerRunner(AbstractRunner):
             )
 
         sagemaker_args = build_sagemaker_args(
-            launch_project, self._api, account_id, aws_tag
+            launch_project, self._api, account_id, image
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)

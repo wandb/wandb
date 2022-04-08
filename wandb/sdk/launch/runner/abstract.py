@@ -156,7 +156,10 @@ class AbstractRunner(ABC):
 
     @abstractmethod
     def run(
-        self, launch_project: LaunchProject, builder: AbstractBuilder
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

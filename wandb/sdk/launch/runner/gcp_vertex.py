@@ -18,6 +18,7 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import (
     construct_gcp_image_uri,
+    construct_gcp_registry_uri,
     get_env_vars_dict,
     validate_docker_installation,
 )
@@ -148,8 +149,8 @@ class VertexRunner(AbstractRunner):
         if launch_project.docker_image:
             image_uri = launch_project.docker_image
         else:
-            image_uri = construct_gcp_image_uri(
-                launch_project,
+
+            registry_uri = construct_gcp_registry_uri(
                 gcp_artifact_repo,
                 gcp_project,
                 gcp_docker_host,
@@ -157,7 +158,7 @@ class VertexRunner(AbstractRunner):
 
             image_uri = builder.build_image(
                 launch_project,
-                image_uri,
+                registry_uri,
                 entry_point,
                 docker_args,
                 runner_type="gcp-vertex",

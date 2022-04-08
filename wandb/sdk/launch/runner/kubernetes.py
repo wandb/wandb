@@ -310,7 +310,7 @@ class KubernetesRunner(AbstractRunner):
                 )
 
             image_uri = builder.build_image(
-                self._api, launch_project, registry, entry_point, docker_args,
+                launch_project, registry, entry_point, docker_args, "kubernetes"
             )
             containers[0]["image"] = image_uri
         given_env_vars = resource_args.get("env", {})
