@@ -73,7 +73,7 @@ def bytes_to_hex(bytestr):
     return codecs.getencoder("hex")(bytestr)[0]
 
 
-class ArtifactManifest(object):
+class ArtifactManifest:
     entries: Dict[str, "ArtifactEntry"]
 
     @classmethod
@@ -123,7 +123,7 @@ class ArtifactManifest(object):
         ]
 
 
-class ArtifactEntry(object):
+class ArtifactEntry:
     path: str
     ref: Optional[str]
     digest: str
@@ -183,7 +183,7 @@ class ArtifactEntry(object):
         raise NotImplementedError
 
 
-class Artifact(object):
+class Artifact:
     @property
     def id(self) -> Optional[str]:
         """
@@ -758,12 +758,12 @@ class Artifact(object):
         raise NotImplementedError
 
 
-class StorageLayout(object):
+class StorageLayout:
     V1 = "V1"
     V2 = "V2"
 
 
-class StoragePolicy(object):
+class StoragePolicy:
     @classmethod
     def lookup_by_name(cls, name):
         for sub in cls.__subclasses__():
@@ -812,7 +812,7 @@ class StoragePolicy(object):
         raise NotImplementedError
 
 
-class StorageHandler(object):
+class StorageHandler:
     @property
     def scheme(self) -> str:
         """
@@ -854,7 +854,7 @@ class StorageHandler(object):
         pass
 
 
-class ArtifactsCache(object):
+class ArtifactsCache:
 
     _TMP_PREFIX = "tmp"
 

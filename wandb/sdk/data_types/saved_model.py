@@ -88,7 +88,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     def __init__(
         self, obj_or_path: Union[SavedModelObjType, str], **kwargs: Any
     ) -> None:
-        super(_SavedModel, self).__init__()
+        super().__init__()
         if self.__class__ == _SavedModel:
             raise TypeError(
                 "Cannot instantiate abstract SavedModel class - please use SavedModel.init(...) instead."
@@ -293,7 +293,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
         obj_or_path: Union[SavedModelObjType, str],
         dep_py_files: Optional[List[str]] = None,
     ):
-        super(_PicklingSavedModel, self).__init__(obj_or_path)
+        super().__init__(obj_or_path)
         if self.__class__ == _PicklingSavedModel:
             raise TypeError(
                 "Cannot instantiate abstract _PicklingSavedModel class - please use SavedModel.init(...) instead."
@@ -315,7 +315,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
                         ),
                     )
                 else:
-                    raise ValueError("Invalid dependency file: {}".format(extra_file))
+                    raise ValueError(f"Invalid dependency file: {extra_file}")
 
     @classmethod
     def from_json(
@@ -331,13 +331,13 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
             )
             assert dl_path is not None
             sys.path.append(dl_path)
-        inst = super(_PicklingSavedModel, cls).from_json(json_obj, source_artifact)  # type: ignore
+        inst = super().from_json(json_obj, source_artifact)  # type: ignore
         sys.path = backup_path
 
         return inst  # type: ignore
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_obj = super(_PicklingSavedModel, self).to_json(run_or_artifact)
+        json_obj = super().to_json(run_or_artifact)
         assert isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact)
         if self._dep_py_files_path is not None:
             json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
