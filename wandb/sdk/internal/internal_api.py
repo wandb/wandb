@@ -2254,7 +2254,7 @@ class Api:
         #     "0.12.12"
         # ) <= parse_version(max_cli_version)
 
-        # Disabling history saving until it can be tested
+        # TODO: Re-enable history once gorilla is deployed with maxcli >= 0.12.12
         can_handle_history = False
 
         mutation = gql(
