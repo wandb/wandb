@@ -16,7 +16,7 @@ def sklearn_model():
 def pytorch_model():
     class PytorchModel(torch.nn.Module):
         def __init__(self):
-            super(PytorchModel, self).__init__()
+            super().__init__()
             self.hidden_layer = torch.nn.Linear(1, 1)
             self.hidden_layer.weight = torch.nn.Parameter(torch.tensor([[1.58]]))
             self.hidden_layer.bias = torch.nn.Parameter(torch.tensor([-0.14]))

@@ -62,7 +62,7 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     return policy
 
 
-class InterfaceBase(object):
+class InterfaceBase:
     _run: Optional["Run"]
     _drop: bool
 

@@ -2,10 +2,6 @@
 metric internal tests.
 """
 
-from __future__ import print_function
-
-import math
-
 from wandb.proto import wandb_internal_pb2 as pb
 
 
@@ -380,7 +376,7 @@ def test_metric_dot_flat_escaped(publish_util):
     history.append(dict(step=2, data={"nodots": 2}))
     history.append(dict(step=3, data={"this.also": 1}))
 
-    m1 = pb.MetricRecord(name="this\.also")
+    m1 = pb.MetricRecord(name=r"this\.also")
     m1.summary.max = True
     metrics = _make_metrics([m1])
     ctx_util = publish_util(history=history, metrics=metrics)
@@ -389,7 +385,7 @@ def test_metric_dot_flat_escaped(publish_util):
     summary = ctx_util.summary
     assert metrics and len(metrics) == 1
     mmetric = metrics[0]
-    assert mmetric == {"1": "this\.also", "7": [2]}
+    assert mmetric == {"1": r"this\.also", "7": [2]}
     assert summary == {
         "_step": 3,
         "this.also": {"max": 2},
@@ -454,7 +450,7 @@ def test_metric_dot_glob(publish_util):
     metrics = ctx_util.metrics
     summary = ctx_util.summary
     assert metrics and len(metrics) == 3
-    # order doesnt really matter
+    # order doesn't really matter
     assert metrics[0] == {"1": "this\\.also", "7": [2], "6": [3]}
     assert metrics[1] == {"1": "this\\.has\\.dots", "7": [1]}
     assert metrics[2] == {"1": "nodots", "7": [1]}

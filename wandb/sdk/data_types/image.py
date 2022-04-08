@@ -112,7 +112,7 @@ class Image(BatchableMedia):
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
     ) -> None:
-        super(Image, self).__init__()
+        super().__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
@@ -318,20 +318,20 @@ class Image(BatchableMedia):
         super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
-                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                id_ = f"{id_}{i}" if id_ is not None else None
                 self._boxes[k].bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
-                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                id_ = f"{id_}{i}" if id_ is not None else None
                 self._masks[k].bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(Image, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
 

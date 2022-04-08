@@ -94,7 +94,7 @@ def set_project_entity_defaults(
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog("{}Launching run into {}/{}".format(prefix, entity, project))
+    wandb.termlog(f"{prefix}Launching run into {entity}/{project}")
     return project, entity
 
 
@@ -282,7 +282,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
             [
                 "patch",
                 "-s",
-                "--directory={}".format(dst_dir),
+                f"--directory={dst_dir}",
                 "-p1",
                 "-i",
                 "diff.patch",
@@ -339,7 +339,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
     _logger.info("Converting notebook to script")
     new_name = fname.rstrip(".ipynb") + ".py"
-    with open(os.path.join(project_dir, fname), "r") as fh:
+    with open(os.path.join(project_dir, fname)) as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
 
     exporter = nbconvert.PythonExporter()

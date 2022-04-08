@@ -24,7 +24,7 @@ SYS_PLATFORM = platform.system()
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
-    return "{}_{}_{}{}".format(str(key), str(step), str(id), extension)
+    return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
 class Media(WBValue):
@@ -44,7 +44,7 @@ class Media(WBValue):
     _size: Optional[int]
 
     def __init__(self, caption: Optional[str] = None) -> None:
-        super(Media, self).__init__()
+        super().__init__()
         self._path = None
         # The run under which this object is bound, if any.
         self._run = None
@@ -277,7 +277,7 @@ class BatchableMedia(Media):
     """
 
     def __init__(self) -> None:
-        super(BatchableMedia, self).__init__()
+        super().__init__()
 
     @classmethod
     def seq_to_json(

@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """
 apikey util.
 """
@@ -166,7 +164,7 @@ def write_netrc(host, entity, key):
         try:
             with open(path) as f:
                 orig_lines = f.read().strip().split("\n")
-        except IOError:
+        except OSError:
             pass
         with open(path, "w") as f:
             if orig_lines:
@@ -192,7 +190,7 @@ def write_netrc(host, entity, key):
             )
         os.chmod(os.path.expanduser("~/.netrc"), stat.S_IRUSR | stat.S_IWUSR)
         return True
-    except IOError:
+    except OSError:
         wandb.termerror("Unable to read ~/.netrc")
         return None
 
@@ -201,10 +199,10 @@ def write_key(settings, key, api=None, anonymous=False):
     if not key:
         raise ValueError("No API key specified.")
 
-    # TODO(jhr): api shouldn't be optional or it shouldnt be passed, clean up callers
+    # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
     api = api or InternalApi()
 
-    # Normal API keys are 40-character hex strings. Onprem API keys have a
+    # Normal API keys are 40-character hex strings. On-prem API keys have a
     # variable-length prefix, a dash, then the 40-char string.
     prefix, suffix = key.split("-", 1) if "-" in key else ("", key)
 

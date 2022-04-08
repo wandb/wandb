@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 import json
 import platform
 import yaml
-import six
 import gzip
 import functools
 import time
@@ -21,7 +20,7 @@ import wandb
 
 sys.path[0:0] = save_path
 import logging
-from six.moves import urllib
+import urllib
 import threading
 
 RequestsMock = None
@@ -243,7 +242,7 @@ def artifact(
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
-                + "/storage?file=wandb_manifest.json&id={}".format(_id)
+                + f"/storage?file=wandb_manifest.json&id={_id}"
             }
         },
     }
@@ -262,7 +261,7 @@ def paginated(node, ctx, extra={}):
     }
 
 
-class CTX(object):
+class CTX:
     """This is a silly threadsafe wrapper for getting ctx into the server
     NOTE: This will stop working for live_mock_server if we make pytest run
     in parallel.
@@ -419,7 +418,7 @@ class SnoopRelay:
                 ctx["run_ids"].append(run_id)
             run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
 
-            # NOTE: not used, added for consistancy with non-relay mode
+            # NOTE: not used, added for consistency with non-relay mode
             r = run_ctx.setdefault("run", {})
             r.setdefault("display_name", f"relay_name-{run_num}")
             r.setdefault("storage_id", f"storageid{run_num}")
@@ -428,7 +427,7 @@ class SnoopRelay:
 
             # TODO: handle errors better
             try:
-                # NOTE: We are using wandb but it isnt a strict depenedency
+                # NOTE: We are using wandb, but it isn't a strict dependency
                 import wandb
 
                 api = wandb.Api()
@@ -932,8 +931,8 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
 
             r = run_ctx.setdefault("run", {})
-            r.setdefault("display_name", "lovely-dawn-{}".format(run_num + 32))
-            r.setdefault("storage_id", "storageid{}".format(run_num))
+            r.setdefault("display_name", f"lovely-dawn-{run_num + 32}")
+            r.setdefault("storage_id", f"storageid{run_num}")
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
 
@@ -1046,7 +1045,7 @@ def create_app(user_ctx=None):
                 return ART_EMU.create(variables=body["variables"])
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
-            app.logger.info("Creating artifact {}".format(collection_name))
+            app.logger.info(f"Creating artifact {collection_name}")
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
                 collection_name, []
@@ -1856,7 +1855,7 @@ def create_app(user_ctx=None):
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return """
+            return r"""
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
@@ -1867,7 +1866,7 @@ index 30d74d2..9a2c773 100644
 +testing
 \ No newline at end of file
 """
-        # emulate azure when we're receving requests from them
+        # emulate azure when we're receiving requests from them
         if extra is not None:
             return "", 201
         return "", 200
@@ -2043,13 +2042,13 @@ index 30d74d2..9a2c773 100644
 
     @app.errorhandler(404)
     def page_not_found(e):
-        print("Got request to: %s (%s)" % (request.url, request.method))
+        print(f"Got request to: {request.url} ({request.method})")
         return "Not Found", 404
 
     return app
 
 
-RE_DATETIME = re.compile("^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
+RE_DATETIME = re.compile(r"^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
 
 
 def strip_datetime(s):
@@ -2060,7 +2059,7 @@ def strip_datetime(s):
     return s
 
 
-class ParseCTX(object):
+class ParseCTX:
     def __init__(self, ctx, run_id=None):
         self._ctx = ctx["runs"][run_id] if run_id else ctx
         self._run_id = run_id
@@ -2072,21 +2071,21 @@ class ParseCTX(object):
             files = update.get("files")
             if not files:
                 continue
-            for k, v in six.iteritems(files):
+            for k, v in files.items():
                 data.setdefault(k, []).append(v)
         return data
 
     def get_filestream_file_items(self):
         data = {}
         fs_file_updates = self.get_filestream_file_updates()
-        for k, v in six.iteritems(fs_file_updates):
+        for k, v in fs_file_updates.items():
             l = []
             for d in v:
                 offset = d.get("offset")
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                # this check isnt valid right now.
+                # this check isn't valid right now.
                 # TODO: lets just assume it is fine, look into this later
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:

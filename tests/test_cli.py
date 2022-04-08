@@ -7,6 +7,7 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
 import traceback
 from unittest import mock
 
@@ -61,7 +62,7 @@ def no_tty(mocker):
 
 @pytest.fixture
 def empty_netrc(monkeypatch):
-    class FakeNet(object):
+    class FakeNet:
         @property
         def hosts(self):
             return {"api.wandb.ai": None}
@@ -94,9 +95,9 @@ def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
         result = runner.invoke(cli.init, input="y\n\n\n")
         debug_result(result, "init")
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
-        with open("wandb/settings", "r") as f:
+        with open("wandb/settings") as f:
             generated_wandb = f.read()
         assert DUMMY_API_KEY in generatedNetrc
         assert "mock_server_entity" in generated_wandb
@@ -112,9 +113,9 @@ def test_init_add_login(runner, empty_netrc, mock_server):
             result = runner.invoke(cli.init, input=f"y\n{DUMMY_API_KEY}\nvanpelt\n")
             debug_result(result, "init")
             assert result.exit_code == 0
-            with open("netrc", "r") as f:
+            with open("netrc") as f:
                 generated_netrc = f.read()
-            with open("wandb/settings", "r") as f:
+            with open("wandb/settings") as f:
                 generated_wandb = f.read()
             assert DUMMY_API_KEY in generated_netrc
             assert "base_url" in generated_wandb
@@ -129,7 +130,7 @@ def test_init_existing_login(runner, mock_server):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("wandb/settings", "r") as f:
+        with open("wandb/settings") as f:
             generated_wandb = f.read()
         assert "mock_server_entity" in generated_wandb
         assert "This directory is configured" in result.output
@@ -192,7 +193,7 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
         assert DUMMY_API_KEY in generatedNetrc
 
@@ -200,12 +201,12 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
 def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc):
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
-            f.write("machine \n  login user\npassword {}".format(DUMMY_API_KEY))
+            f.write(f"machine \n  login user\npassword {DUMMY_API_KEY}")
         result = runner.invoke(
             cli.login, ["--host", "https://google.com/", DUMMY_API_KEY]
         )
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
         assert generatedNetrc == (
             "machine google.com\n"
@@ -236,7 +237,7 @@ def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
         assert onprem_key in generatedNetrc
 
@@ -264,7 +265,7 @@ def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generated_netrc = f.read()
         assert DUMMY_API_KEY in generated_netrc
 
@@ -632,27 +633,28 @@ def test_docker_digest(runner, docker):
 
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_default(runner, docker, local_settings):
-    result = runner.invoke(cli.local)
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
-    user = getpass.getuser()
-    docker.assert_called_with(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            "wandb:/vol",
-            "-p",
-            "8080:8080",
-            "--name",
-            "wandb-local",
-            "-e",
-            "LOCAL_USERNAME=%s" % user,
-            "-d",
-            "wandb/local",
-        ]
-    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.local)
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
+        user = getpass.getuser()
+        docker.assert_called_with(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                "wandb:/vol",
+                "-p",
+                "8080:8080",
+                "--name",
+                "wandb-local",
+                "-e",
+                "LOCAL_USERNAME=%s" % user,
+                "-d",
+                "wandb/local",
+            ]
+        )
 
 
 @pytest.mark.wandb_args(check_output=b"")
@@ -761,7 +763,7 @@ def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
     api = InternalApi({"project": "test"})
     monkeypatch.setattr(cli, "_api", api)
@@ -779,7 +781,7 @@ def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
     monkeypatch.setattr(subprocess, "check_call", lambda command: True)
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
@@ -792,7 +794,7 @@ def test_restore_good_remote(runner, mock_server, git_repo, docker, monkeypatch)
 
 
 def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
     monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["wandb/test/abcdef", "--no-git"])
@@ -803,7 +805,7 @@ def test_restore_slashes(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
     monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
     result = runner.invoke(cli.restore, ["test/abcdef", "--no-git"])
@@ -814,7 +816,7 @@ def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
 
 
 def test_restore_no_diff(runner, mock_server, git_repo, docker, monkeypatch):
-    # git_repo creates it's own isolated filesystem
+    # git_repo creates its own isolated filesystem
     git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
     monkeypatch.setattr(subprocess, "check_call", lambda command: True)
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
@@ -825,7 +827,7 @@ def test_restore_no_diff(runner, mock_server, git_repo, docker, monkeypatch):
     print(traceback.print_tb(result.exc_info[2]))
     assert result.exit_code == 0
     assert "Created branch wandb/abcdef" in result.output
-    # no patching operaations performed, whether successful or not
+    # no patching operations performed, whether successful or not
     assert "Applied patch" not in result.output
     assert "Filed to apply patch" not in result.output
 
@@ -840,7 +842,29 @@ def test_restore_not_git(runner, mock_server, docker, monkeypatch):
         assert "Original run has no git history" in result.output
 
 
-def test_gc(runner):
+# TODO Investigate unrelated tests failing on Python 3.9
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Unrelated tests failing on Python 3.9"
+)
+@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
+def test_sweep_pause(runner, mock_server, test_settings, stop_method):
+    with runner.isolated_filesystem():
+        sweep_config = {
+            "name": "My Sweep",
+            "method": "grid",
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+        sweep_id = wandb.sweep(sweep_config)
+        assert sweep_id == "test"
+        assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+        assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+        if stop_method == "stop":
+            assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
+        else:
+            assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
+
+
+def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):
             os.mkdir("wandb")
@@ -875,27 +899,6 @@ def test_gc(runner):
             == 0
         )
         assert not os.path.exists(run1_dir)
-
-
-# TODO Investigate unrelated tests failing on Python 3.9
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="Unrelated tests failing on Python 3.9"
-)
-@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
-def test_sweep_pause(runner, mock_server, test_settings, stop_method):
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "grid",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-    sweep_id = wandb.sweep(sweep_config)
-    assert sweep_id == "test"
-    assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
-    assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
-    if stop_method == "stop":
-        assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
-    else:
-        assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
 
 
 @pytest.mark.skipif(
@@ -1013,7 +1016,7 @@ def test_cli_login_reprompts_when_no_key_specified(
         # happened
         result = runner.invoke(cli.login, input=f"\n{DUMMY_API_KEY[:-1]}q\n")
         debug_result(result, "login")
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             print(f.read())
         assert "ERROR No API key specified." in result.output
 
