@@ -172,9 +172,7 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = f"{registry}:{launch_project.run_id}"
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
-        dockerfile_str = generate_dockerfile(
-            api, launch_project, entry_cmd, runner_type
-        )
+        dockerfile_str = generate_dockerfile(launch_project, runner_type, "kaniko")
         create_metadata_file(
             launch_project,
             image_uri,

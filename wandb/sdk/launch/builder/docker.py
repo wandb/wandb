@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, Optional
 import os
-
+import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import DockerError, LaunchError
@@ -38,14 +38,13 @@ class DockerBuilder(AbstractBuilder):
         docker_args: Dict[str, Any],
         runner_type: str,
     ):
+        wandb.termlog("USING DOCKER BUILDER")
         if registry:
             image_uri = f"{registry}/{launch_project.name}"
         else:
             image_uri = "launch-{}".format(launch_project.target_project)
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
-        dockerfile_str = generate_dockerfile(
-            api, launch_project, entry_cmd, runner_type
-        )
+        dockerfile_str = generate_dockerfile(launch_project, runner_type, "docker")
         create_metadata_file(
             launch_project,
             image_uri,

@@ -4,7 +4,7 @@ import os
 import shutil
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -14,11 +14,9 @@ import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import DockerError, ExecutionError, LaunchError
-from wandb.sdk.launch.builder import kaniko
 
 from .._project_spec import (
     create_metadata_file,
-    DEFAULT_LAUNCH_METADATA_PATH,
     EntryPoint,
     get_entry_point_command,
     LaunchProject,
@@ -77,9 +75,6 @@ ENV SHELL /bin/bash
 WORKDIR {workdir}
 RUN chown -R {uid} {workdir}
 
-# add env vars
-{env_vars}
-
 # make artifacts cache dir unrelated to build
 RUN mkdir -p {workdir}/.cache && chown -R {uid} {workdir}/.cache
 
@@ -136,13 +131,13 @@ RUN /env/bin/conda-unpack
 """
 
 USER_CREATE_TEMPLATE = """
-RUN id -u {user} &>/dev/null || useradd \
+RUN useradd \
     --create-home \
     --no-log-init \
     --shell /bin/bash \
     --gid 0 \
     --uid {uid} \
-    {user}
+    {user} || echo ""
 """
 
 SAGEMAKER_ENTRYPOINT_TEMPLATE = """
@@ -197,9 +192,16 @@ def get_base_setup(
     return base_setup
 
 
-def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) -> str:
-    """Fill in wandb-specific environment variables"""
+def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
+    """Generates environment variables for the project.
 
+    Arguments:
+    launch_project: LaunchProject to generate environment variables for.
+
+    Returns:
+        Dictionary of environment variables.
+    """
+    env_vars = {}
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
         _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
@@ -207,34 +209,42 @@ def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) 
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    return "\n".join(
-        [
-            f"ENV WANDB_BASE_URL={base_url}",
-            f"ENV WANDB_API_KEY={api.api_key}",
-            f"ENV WANDB_PROJECT={launch_project.target_project}",
-            f"ENV WANDB_ENTITY={launch_project.target_entity}",
-            f"ENV WANDB_LAUNCH={True}",
-            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir, DEFAULT_LAUNCH_METADATA_PATH)}",
-            f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
-            f"ENV WANDB_DOCKER={launch_project.docker_image}",
-        ]
-    )
+    env_vars["WANDB_BASE_URL"] = base_url
+
+    env_vars["WANDB_API_KEY"] = api.api_key
+    env_vars["WANDB_PROJECT"] = launch_project.target_project
+    env_vars["WANDB_ENTITY"] = launch_project.target_entity
+    env_vars["WANDB_LAUNCH"] = "True"
+    env_vars["WANDB_RUN_ID"] = launch_project.run_id
+    if launch_project.docker_image:
+        env_vars["WANDB_DOCKER"] = launch_project.docker_image
+
+    # TODO: handle env vars > 32760 characters
+    env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
+    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
+
+    return env_vars
 
 
-def get_requirements_section(launch_project: LaunchProject) -> str:
-    buildx_installed = docker.is_buildx_installed()
-    buildx_installed = False
-    if not buildx_installed:
-        wandb.termwarn(
-            "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
-        )
+def get_requirements_section(launch_project: LaunchProject, builder_type: str) -> str:
+    if builder_type == "docker":
+        buildx_installed = docker.is_buildx_installed()
+        if not buildx_installed:
+            wandb.termwarn(
+                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+            )
+            prefix = "RUN WANDB_DISABLE_CACHE=true"
+    elif builder_type == "kaniko":
         prefix = "RUN WANDB_DISABLE_CACHE=true"
+        buildx_installed = False
     if launch_project.deps_type == "pip":
         requirements_files = []
-        if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")):
+        if launch_project.project_dir is not None and os.path.exists(
+            os.path.join(launch_project.project_dir, "requirements.txt")
+        ):
             requirements_files += ["src/requirements.txt"]
             pip_install_line = "pip install -r requirements.txt"
-        if os.path.exists(
+        if launch_project.project_dir is not None and os.path.exists(
             os.path.join(launch_project.project_dir, "requirements.frozen.txt")
         ):
             # if we have frozen requirements stored, copy those over and have them take precedence
@@ -290,7 +300,9 @@ def get_entrypoint_setup(
 
 
 def generate_dockerfile(
-    api: Api, launch_project: LaunchProject, entry_cmd: str, runner_type: str,
+    launch_project: LaunchProject,
+    runner_type: str,
+    builder_type: str,
 ) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
@@ -311,7 +323,7 @@ def generate_dockerfile(
             if py_major == "3"
             else "continuumio/miniconda:latest"
         )
-    requirements_section = get_requirements_section(launch_project)
+    requirements_section = get_requirements_section(launch_project, builder_type)
 
     # ----- stage 2: base -----
     python_base_setup = get_base_setup(launch_project, py_version, py_major)
@@ -321,13 +333,9 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = "/home/{user}".format(user=username)
 
-    # add env vars
-    env_vars_section = get_env_vars_section(launch_project, api, workdir)
-
-    # add entrypoint (eg sagemaker requires special entrypoint)
-    entrypoint_section = get_entrypoint_setup(
-        launch_project, entry_cmd, workdir, runner_type
-    )
+    entrypoint_line = ""
+    if runner_type == "sagemaker":
+        entrypoint_line = 'ENTRYPOINT ["sh", "train"]'
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -336,46 +344,10 @@ def generate_dockerfile(
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
-        env_vars=env_vars_section,
-        entrypoint_setup=entrypoint_section,
+        entrypoint_setup=entrypoint_line,
     )
 
     return dockerfile_contents
-
-
-def generate_docker_image(
-    api: Api,
-    launch_project: LaunchProject,
-    image_uri: str,
-    entrypoint: EntryPoint,
-    docker_args: Dict[str, Any],
-    runner_type: str,
-) -> str:
-    entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
-    dockerfile_str = generate_dockerfile(api, launch_project, entry_cmd, runner_type)
-    create_metadata_file(
-        launch_project,
-        image_uri,
-        sanitize_wandb_api_key(entry_cmd),
-        docker_args,
-        sanitize_wandb_api_key(dockerfile_str),
-    )
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-    dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
-    try:
-        image = docker.build(
-            tags=[image_uri], file=dockerfile, context_path=build_ctx_path
-        )
-    except DockerError as e:
-        raise LaunchError("Error communicating with docker client: {}".format(e))
-
-    try:
-        os.remove(build_ctx_path)
-    except Exception:
-        _logger.info(
-            "Temporary docker context file %s was not deleted.", build_ctx_path
-        )
-    return image
 
 
 _inspected_images = {}
@@ -425,39 +397,13 @@ def construct_local_image_uri(launch_project: LaunchProject) -> str:
 
 
 def construct_gcp_image_uri(
-    launch_project: LaunchProject, gcp_repo: str, gcp_project: str, gcp_registry: str,
+    launch_project: LaunchProject,
+    gcp_repo: str,
+    gcp_project: str,
+    gcp_registry: str,
 ) -> str:
     base_uri = construct_local_image_uri(launch_project)
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
-
-
-def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
-    """Constructs the docker command using the image and docker args.
-
-    Arguments:
-    image: a Docker image to be run
-    docker_args: a dictionary of additional docker args for the command
-    """
-    docker_path = "docker"
-    cmd: List[Any] = [docker_path, "run", "--rm"]
-
-    if docker_args:
-        for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + name]
-                else:
-                    cmd += ["--" + name]
-            else:
-                # Passed name=value
-                if len(name) == 1:
-                    cmd += ["-" + name, value]
-                else:
-                    cmd += ["--" + name, value]
-
-    cmd += [image]
-    return [shlex_quote(c) for c in cmd]
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
@@ -505,13 +451,16 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
 
 
 def _create_docker_build_ctx(
-    launch_project: LaunchProject, dockerfile_contents: str,
+    launch_project: LaunchProject,
+    dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(
-        src=launch_project.project_dir, dst=dst_path, symlinks=True,
+        src=launch_project.project_dir,
+        dst=dst_path,
+        symlinks=True,
     )
     shutil.copy(
         os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
@@ -527,37 +476,3 @@ def _create_docker_build_ctx(
     with open(os.path.join(directory, _GENERATED_DOCKERFILE_NAME), "w") as handle:
         handle.write(dockerfile_contents)
     return directory
-
-
-def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
-    """Generates environment variables for the project.
-
-    Arguments:
-    launch_project: LaunchProject to generate environment variables for.
-
-    Returns:
-        Dictionary of environment variables.
-    """
-    env_vars = {}
-    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
-        _, _, port = api.settings("base_url").split(":")
-        base_url = "http://host.docker.internal:{}".format(port)
-    elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
-    else:
-        base_url = api.settings("base_url")
-    env_vars["WANDB_BASE_URL"] = base_url
-
-    env_vars["WANDB_API_KEY"] = api.api_key
-    env_vars["WANDB_PROJECT"] = launch_project.target_project
-    env_vars["WANDB_ENTITY"] = launch_project.target_entity
-    env_vars["WANDB_LAUNCH"] = "True"
-    env_vars["WANDB_RUN_ID"] = launch_project.run_id
-    if launch_project.docker_image:
-        env_vars["WANDB_DOCKER"] = launch_project.docker_image
-
-    # TODO: handle env vars > 32760 characters
-    env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
-    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
-
-    return env_vars
