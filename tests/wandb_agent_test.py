@@ -2,7 +2,6 @@
 import pytest
 import wandb
 import os
-from typing import Dict
 
 from wandb.wandb_agent import Agent
 
@@ -86,14 +85,14 @@ def test_agent_ignore_runid(live_mock_server):
 
 def test_agent_create_command_args(_):
 
-    mock_command: Dict = {
+    mock_command = {
         "args": {
             "a": {"value": True},
             "b": {"value": False},
         }
     }
 
-    _return: Dict = Agent._create_command_args(mock_command)
+    _return = Agent._create_command_args(mock_command)
     # test has all the required fields
     assert "args" in _return
     assert "args_no_hyphens" in _return

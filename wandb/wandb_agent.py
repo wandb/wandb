@@ -9,7 +9,6 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Dict, List
 
 import six
 from six.moves import queue
@@ -319,7 +318,7 @@ class Agent(object):
         return response
 
     @staticmethod
-    def _create_command_args(command: Dict) -> Dict[str : List[str]]:
+    def _create_command_args(command):
         """Create various formats of command arguments for the agent.
 
         Raises:
@@ -329,12 +328,12 @@ class Agent(object):
         if "args" not in command:
             raise ValueError('No "args" found in command: %s' % command)
         # four different formats of command args
-        flags: List = []  # standard command line flags (e.g. --foo=bar)
-        flags_no_hyphens: List = []  # flags without hyphens (e.g. foo=bar)
-        flags_no_booleans: List = []  # flags with false booleans ommited  (e.g. --foo)
-        flags_dict: Dict = {}  # flags as a dictionary (used for constructing a json)
+        flags = []  # standard command line flags (e.g. --foo=bar)
+        flags_no_hyphens = []  # flags without hyphens (e.g. foo=bar)
+        flags_no_booleans = []  # flags with false booleans ommited  (e.g. --foo)
+        flags_dict = {}  # flags as a dictionary (used for constructing a json)
         for param, config in command["args"].items():
-            _value: Any = config.get("value", None)
+            _value = config.get("value", None)
             if _value is None:
                 raise ValueError('No "value" found for command["args"]["%s"]' % param)
             _flag: str = "{}={}".format(param, _value)
@@ -403,7 +402,7 @@ class Agent(object):
 
         env = dict(os.environ)
 
-        sweep_vars: Dict = Agent._create_command_args(command)
+        sweep_vars = Agent._create_command_args(command)
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:
