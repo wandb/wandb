@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import traceback
+from typing import Any, Dict, List
 
 import six
 from six.moves import queue
@@ -317,6 +318,42 @@ class Agent(object):
 
         return response
 
+    @staticmethod
+    def _create_command_args(command : Dict) -> Dict[str : List[str]]:
+        """ Create various formats of command arguments for the agent.
+        
+        Raises:
+            ValueError: improperly formatted command dict
+
+        """
+        if not "args" in command:
+            raise ValueError('No "args" found in command: %s' % command)
+        # four different formats of command args
+        flags: List = [] # standard command line flags (e.g. --foo=bar)
+        flags_no_hyphens: List = [] # flags without hyphens (e.g. foo=bar)
+        flags_no_booleans: List = [] # flags with false booleans ommited  (e.g. --foo)
+        flags_dict: Dict = {} # flags as a dictionary (used for constructing a json)
+        for param, config in command["args"].items():
+            _value : Any = config.get("value", None)
+            if _value is None:
+                raise ValueError('No "value" found for command["args"]["%s"]' % param)
+            _flag: str = "{}={}".format(param, _value)
+            flags.append("--" + _flag)
+            flags_no_hyphens.append(_flag)
+            if isinstance(_value, bool):
+                # omit flags if they are boolean and false
+                if _value:
+                    flags_no_booleans.append("--" + param)
+            else:
+                flags_no_booleans.append("--" + _flag)
+            flags_dict[param] = _value
+        return {
+            "args" : flags,
+            "args_no_hyphens" : flags_no_hyphens,
+            "args_no_boolean_flags" : flags_no_booleans,
+            "args_json" : [json.dumps(flags_dict)],
+        }
+
     def _command_run(self, command):
         logger.info(
             "Agent starting run with config:\n"
@@ -366,27 +403,11 @@ class Agent(object):
 
         env = dict(os.environ)
 
-        flags_list = [
-            (param, config["value"]) for param, config in command["args"].items()
-        ]
-        flags_no_hyphens = []
-        flags = []
-        flags_no_booleans = []
-        for param, value in flags_list:
-            _flag = "{}={}".format(param, value)
-            flags_no_hyphens.append(_flag)
-            flags.append("--" + _flag)
-            if isinstance(value, bool):
-                if value:
-                    flags_no_booleans.append("--" + param)
-            else:
-                flags_no_booleans.append("--" + _flag)
-        flags_dict = dict(flags_list)
-        flags_json = json.dumps(flags_dict)
+        sweep_vars: Dict = Agent._create_command_args(command)
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:
-                fp.write(flags_json)
+                fp.write(sweep_vars['args_json'][0])
 
         if self._function:
             # make sure that each run regenerates setup singleton
@@ -398,18 +419,11 @@ class Agent(object):
                 in_jupyter=self._in_jupyter,
             )
         else:
-            sweep_vars = dict(
-                interpreter=["python"],
-                program=[command["program"]],
-                args=flags,
-                args_no_hyphens=flags_no_hyphens,
-                args_no_boolean_flags=flags_no_booleans,
-                args_json=[flags_json],
-                args_json_file=[json_file],
-                env=["/usr/bin/env"],
-            )
-            if platform.system() == "Windows":
-                del sweep_vars["env"]
+            sweep_vars["interpreter"] = ["python"]
+            sweep_vars["program"] = [command["program"]]
+            sweep_vars["args_json_file"] = [json_file]
+            if not platform.system() == "Windows":
+                sweep_vars["env"] = ["/usr/bin/env"]
             command_list = []
             for c in sweep_command:
                 c = str(c)

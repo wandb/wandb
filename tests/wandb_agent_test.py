@@ -2,7 +2,9 @@
 import pytest
 import wandb
 import os
+from typing import Dict
 
+from wandb.wandb_agent import Agent
 
 def test_agent_basic(live_mock_server):
     sweep_ids = []
@@ -79,3 +81,24 @@ def test_agent_ignore_runid(live_mock_server):
 
     assert len(sweep_run_ids) == 1
     assert sweep_run_ids[0] == "mocker-sweep-run-x91"
+
+def test_agent_create_command_args(_):
+
+    mock_command: Dict = {
+        "args": {
+            "a": {"value": True},
+            "b": {"value": False},
+        }
+    }
+
+    _return: Dict = Agent._create_command_args(mock_command)
+    # test has all the required fields
+    assert "args" in _return
+    assert "args_no_hyphens" in _return
+    assert "args_no_boolean_flags" in _return
+    assert "args_json" in _return
+    # test fields are correct
+    assert _return["args"] == ["--a=True", "--b=False"]
+    assert _return["args_no_hyphens"] == ["a=True", "b=False"]
+    assert _return["args_no_boolean_flags"] == ["--a"]
+    assert _return["args_json"] == ['{"a": true, "b": false}']

@@ -9,6 +9,7 @@
 * Add Launch kubernetes integration by @KyleGoyette in https://github.com/wandb/client/pull/3393
 * KFP: Add wandb visualization helper by @andrewtruong in https://github.com/wandb/client/pull/3439
 * KFP: Link back to Kubeflow UI by @andrewtruong in https://github.com/wandb/client/pull/3427
+* Add boolean flag arg macro by @hugo.ponte in https://github.com/wandb/client/pull/3489
 
 #### :bug: Bug Fix
 * Improve host / WANDB_BASE_URL validation by @dmitryduev in https://github.com/wandb/client/pull/3314
