@@ -85,13 +85,6 @@ def split_into_chunks(
     return make_chunks(data)
 
 
-def init_queue(queue: mp.Queue) -> None:
-    """
-    Initialize the queue like this to ensure both fork and spawn start methods work.
-    """
-    globals()["results_queue"] = queue
-
-
 def parse_protobuf(data: bytes) -> Tuple[str, wandb_internal_pb2.Record]:
     protobuf = wandb_internal_pb2.Record()
     protobuf.ParseFromString(data)
@@ -103,14 +96,13 @@ def parse_protobuf(data: bytes) -> Tuple[str, wandb_internal_pb2.Record]:
     # return None
 
 
-def process_data(sync_item: str, data: Dict[str, Union[int, List[dict]]]) -> None:
+def process_data(sync_item: str, data: Dict[str, Union[int, List[dict]]]) -> list:
     """
     Deserialize a list of records and add it to the results queue.
     """
     chunk_number: int = data["chunk_number"]
     chunk: List[dict] = data["chunk"]
-    # results = []
-    results_queue: mp.Queue = globals()["results_queue"]
+    results = []
     for item in chunk:
         record_type, protobuf = parse_protobuf(item["record"])
         if True:
@@ -119,15 +111,10 @@ def process_data(sync_item: str, data: Dict[str, Union[int, List[dict]]]) -> Non
             #     f"run_id: {short_run_id}, chunk: {chunk_number}, "
             #     f"item: {item['record_number']} finished"
             # )
-        # print(id(globals()["results_queue"]))
-        # results.append(
-        #     (sync_item, item["record_number"], record_type, protobuf)
-        # )
-        results_queue.put(
+        results.append(
             (sync_item, item["record_number"], record_type, protobuf)
         )
-    # for result in results:
-    #     results_queue.put(result)
+    return results
 
 
 class SyncManager:
@@ -158,7 +145,7 @@ class SyncManager:
         # store tasks in deque per "sync item" (i.e. run)
         self.tasks: Dict[str, deque] = defaultdict(deque)
         # store the (unsorted) results in a global multiprocessing queue
-        self.results_queue = mp.Queue()
+        self.results_queue = asyncio.Queue()
         # print(id(self.results_queue))
         # use heaps to ensure sequential order of results, per "item" (run)
         self.result_heaps: Dict[str, list] = defaultdict(list)
@@ -230,11 +217,13 @@ class SyncManager:
                     datetime.datetime.now(),
                     f"run_id: {run_id}; total_memory: {self.total_memory}"
                 )
-            executor.submit(
+            future = executor.submit(
                 process_data,
                 run_id,
                 chunk,
             )
+            print("LOL", future)
+            self.results_queue.put_nowait(future)
 
     async def _watch(self) -> None:
         """
@@ -263,26 +252,27 @@ class SyncManager:
         Get results from the global multiprocessing queue and put them into the heaps.
         """
         while self.running:
-            if self._verbose:
-                print("harvester is running")
-            if not self.results_queue.empty():
-                result = self.results_queue.get()
-                # run id:
-                run_id = result[0]
-                # if True:
-                async with asyncio.Lock():
-                    heapq.heappush(self.result_heaps[run_id], result[1:])
-                    # run_id, task_id
-                    key = (run_id, result[1])
-                    self.total_memory -= self.memory_usage[key]
-                    del self.memory_usage[key]
-                    if self._verbose:
-                        pass
-                        # print(f"harvester got result: {result}; total_memory: {self.total_memory}")
-                        print(f"harvester got result for: {key}; total_memory: {self.total_memory}")
-                        print(f"heap min: {self.result_heaps[run_id][0][0]}")
-            else:
-                await asyncio.sleep(self.sleep_time)
+            # if self._verbose:
+            print("harvester is running")
+            print(self.results_queue)
+            await asyncio.sleep(self.sleep_time)
+            # if not self.results_queue.empty():
+            #     result = self.results_queue.get()
+            #     # run id:
+            #     run_id = result[0]
+            #     # if True:
+            #     heapq.heappush(self.result_heaps[run_id], result[1:])
+            #     # run_id, task_id
+            #     key = (run_id, result[1])
+            #     self.total_memory -= self.memory_usage[key]
+            #     del self.memory_usage[key]
+            #     if self._verbose:
+            #         pass
+            #         # print(f"harvester got result: {result}; total_memory: {self.total_memory}")
+            #         print(f"harvester got result for: {key}; total_memory: {self.total_memory}")
+            #         print(f"heap min: {self.result_heaps[run_id][0][0]}")
+            # else:
+            #     await asyncio.sleep(self.sleep_time)
 
     def _dump(self) -> None:
         """
@@ -436,11 +426,7 @@ class SyncManager:
         input("\n>")
 
         # concurrent.futures will manage the task queue for us under the hood
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=n_cpu,
-            initializer=init_queue,
-            initargs=(self.results_queue, ),
-        ) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=n_cpu) as executor:
             try:
                 asyncio.run(self.async_run(executor))
             except KeyboardInterrupt:
