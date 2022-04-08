@@ -1,5 +1,4 @@
 #
-# vim: set fileencoding=utf-8 :
 # From pysparklines (BSD License): https://pypi.python.org/pypi/pysparklines
 
 import math

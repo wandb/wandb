@@ -25,7 +25,7 @@ class MessageQueueRouter(MessageRouter):
     ) -> None:
         self._request_queue = request_queue
         self._response_queue = response_queue
-        super(MessageQueueRouter, self).__init__()
+        super().__init__()
 
     def _read_message(self) -> "Optional[pb.Result]":
         try:

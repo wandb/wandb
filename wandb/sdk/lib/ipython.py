@@ -65,7 +65,7 @@ def display_widget(widget):
     return display(widget)
 
 
-class ProgressWidget(object):
+class ProgressWidget:
     """A simple wrapper to render a nice progress bar with a label"""
 
     def __init__(self, widgets, min, max):

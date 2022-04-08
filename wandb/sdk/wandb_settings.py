@@ -698,7 +698,7 @@ class Settings:
                 raise UsageError(
                     f'Invalid project name "{value}": exceeded 128 characters'
                 )
-            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            invalid_chars = {char for char in invalid_chars_list if char in value}
             if invalid_chars:
                 raise UsageError(
                     f'Invalid project name "{value}": '
@@ -740,14 +740,15 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
-    def _validate_api_key(self, value: str) -> bool:
+    @staticmethod
+    def _validate_api_key(value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
-        if value.startswith("local") and not self.is_local:
-            raise UsageError(
-                "Attempting to use a local API key to connect to https://api.wandb.ai"
-            )
+        # if value.startswith("local") and not self.is_local:
+        #     raise UsageError(
+        #         "Attempting to use a local API key to connect to https://api.wandb.ai"
+        #     )
         # todo: move here the logic from sdk/lib/apikey.py
 
         return True

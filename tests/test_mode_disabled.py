@@ -2,8 +2,6 @@
 disabled mode test.
 """
 
-from __future__ import division
-
 import pytest  # type: ignore
 
 import wandb
