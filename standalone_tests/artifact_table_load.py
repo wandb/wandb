@@ -1,4 +1,3 @@
-
 """
 pip uninstall wandb > /dev/null -y && \
 pip install wandb > /dev/null && \
@@ -22,21 +21,15 @@ WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 && \
 WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache
 """
 
-
-
 import os
 import wandb
 import numpy as np
 import argparse
 import time
 import shutil
-import sys
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.interface import artifacts
-else:
-    from wandb.sdk_py27.interface import artifacts
+from wandb.sdk.interface import artifacts
+
 
 def build_table(n_rows, img_dim):
     return wandb.Table(

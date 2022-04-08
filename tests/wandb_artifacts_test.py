@@ -15,7 +15,7 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def mock_boto(artifact, path=False):
-    class S3Object(object):
+    class S3Object:
         def __init__(self, name="my_object.pb", metadata=None):
             self.metadata = metadata or {"md5": "1234567890abcde"}
             self.e_tag = '"1234567890abcde"'
@@ -30,19 +30,19 @@ def mock_boto(artifact, path=False):
                     {"Error": {"Code": "404"}}, "HeadObject"
                 )
 
-    class Filtered(object):
+    class Filtered:
         def limit(self, *args, **kwargs):
             return [S3Object(), S3Object(name="my_other_object.pb")]
 
-    class S3Objects(object):
+    class S3Objects:
         def filter(self, **kwargs):
             return Filtered()
 
-    class S3Bucket(object):
+    class S3Bucket:
         def __init__(self, *args, **kwargs):
             self.objects = S3Objects()
 
-    class S3Resource(object):
+    class S3Resource:
         def Object(self, bucket, key):
             return S3Object()
 
@@ -58,7 +58,7 @@ def mock_boto(artifact, path=False):
 
 
 def mock_gcs(artifact, path=False):
-    class Blob(object):
+    class Blob:
         def __init__(self, name="my_object.pb", metadata=None):
             self.md5_hash = "1234567890abcde"
             self.etag = "1234567890abcde"
@@ -66,14 +66,14 @@ def mock_gcs(artifact, path=False):
             self.name = name
             self.size = 10
 
-    class GSBucket(object):
+    class GSBucket:
         def get_blob(self, *args, **kwargs):
             return None if path else Blob()
 
         def list_blobs(self, *args, **kwargs):
             return [Blob(), Blob(name="my_other_object.pb")]
 
-    class GSClient(object):
+    class GSClient:
         def bucket(self, bucket):
             return GSBucket()
 
@@ -84,7 +84,7 @@ def mock_gcs(artifact, path=False):
 
 
 def mock_http(artifact, path=False, headers={}):
-    class Response(object):
+    class Response:
         def __init__(self, headers):
             self.headers = headers
 
@@ -97,7 +97,7 @@ def mock_http(artifact, path=False, headers={}):
         def raise_for_status(self):
             pass
 
-    class Session(object):
+    class Session:
         def __init__(self, name="file1.txt", headers=headers):
             self.headers = headers
 
@@ -853,8 +853,8 @@ def test_artifact_upsert_no_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Upsert without a group or id should fail
@@ -871,8 +871,8 @@ def test_artifact_upsert_group_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Upsert with a group should succeed
@@ -888,8 +888,8 @@ def test_artifact_upsert_distributed_id(runner, live_mock_server, test_settings)
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Upsert with a distributed_id should succeed
@@ -905,8 +905,8 @@ def test_artifact_finish_no_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Finish without a distributed_id should fail
@@ -921,8 +921,8 @@ def test_artifact_finish_group_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Finish with a distributed_id should succeed
@@ -936,8 +936,8 @@ def test_artifact_finish_distributed_id(runner, live_mock_server, test_settings)
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Finish with a distributed_id should succeed

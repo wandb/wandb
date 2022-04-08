@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Tool to interract with CircleCI jobs using API key.
+"""Tool to interact with CircleCI jobs using API key.
 
 Get the current status of a circleci pipeline based on branch/commit
     ```
@@ -58,22 +58,22 @@ py_image_dict = dict(
 
 
 def poll(args, pipeline_id=None, workflow_ids=None):
-    print("Waiting for pipeline to complete (Branch: {})...".format(args.branch))
+    print(f"Waiting for pipeline to complete (Branch: {args.branch})...")
     while True:
         num = 0
         done = 0
         if pipeline_id:
-            url = "https://circleci.com/api/v2/pipeline/{}/workflow".format(pipeline_id)
+            url = f"https://circleci.com/api/v2/pipeline/{pipeline_id}/workflow"
             r = requests.get(url, auth=(args.api_token, ""))
-            assert r.status_code == 200, "Error making api request: {}".format(r)
+            assert r.status_code == 200, f"Error making api request: {r}"
             d = r.json()
             workflow_ids = [item["id"] for item in d["items"]]
         num = len(workflow_ids)
         for work_id in workflow_ids:
-            work_status_url = "https://circleci.com/api/v2/workflow/{}".format(work_id)
+            work_status_url = f"https://circleci.com/api/v2/workflow/{work_id}"
             r = requests.get(work_status_url, auth=(args.api_token, ""))
             # print("STATUS", work_status_url)
-            assert r.status_code == 200, "Error making api work request: {}".format(r)
+            assert r.status_code == 200, f"Error making api work request: {r}"
             w = r.json()
             status = w["status"]
             print("Status:", status)
@@ -105,11 +105,11 @@ def trigger(args):
             if args.test_name:
                 toxcmd += " -k " + args.test_name
         if args.test_repeat:
-            toxcmd += " --flake-finder --flake-runs={}".format(args.test_repeat)
+            toxcmd += f" --flake-finder --flake-runs={args.test_repeat}"
         # get last token split by hyphen as python version
         pyver = toxenv.split("-")[-1]
         pyname = py_name_dict.get(pyver)
-        assert pyname, "unknown pyver: {}".format(pyver)
+        assert pyname, f"unknown pyver: {pyver}"
         # handle more complex pyenv (func tests)
         if pyver != toxenv:
             toxsplit = toxenv.split("-")
@@ -120,12 +120,12 @@ def trigger(args):
                 tstshard = tstshard[len(prefix) :]
             pyname = f"{pyname}-{tsttyp}-{tstshard}"
         pyimage = py_image_dict.get(pyver)
-        assert pyimage, "unknown pyver: {}".format(pyver)
+        assert pyimage, f"unknown pyver: {pyver}"
         for p in platforms:
             job = platforms_dict.get(p)
-            assert job, "unknown platform: {}".format(p)
+            assert job, f"unknown platform: {p}"
             pshort = platforms_short_dict.get(p)
-            jobname = "{}-{}".format(pshort, pyname)
+            jobname = f"{pshort}-{pyname}"
             parameters["manual_" + job] = True
             parameters["manual_" + job + "_name"] = jobname
             if job == "test":
@@ -156,7 +156,7 @@ def get_ci_builds(args, completed=True):
         url = url + "&filter=completed"
     # print("SEND", url)
     r = requests.get(url, auth=(args.api_token, ""))
-    assert r.status_code == 200, "Error making api request: {}".format(r)
+    assert r.status_code == 200, f"Error making api request: {r}"
     lst = r.json()
     cfirst = None
     ret = []
@@ -184,7 +184,7 @@ def grab(args, vhash, bnum):
     # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/client/61238/artifacts
     # curl -L  -o out.dat -H "Circle-Token: $CIRCLECI_TOKEN" https://61238-86031674-gh.circle-artifacts.com/0/cover-results/.coverage
     cachedir = ".circle_cache"
-    cfbase = "cover-{}-{}.xml".format(vhash, bnum)
+    cfbase = f"cover-{vhash}-{bnum}.xml"
     cfname = os.path.join(cachedir, cfbase)
     if not os.path.exists(cachedir):
         os.mkdir(cachedir)
@@ -196,7 +196,7 @@ def grab(args, vhash, bnum):
         )
     )
     r = requests.get(url, auth=(args.api_token, ""))
-    assert r.status_code == 200, "Error making api request: {}".format(r)
+    assert r.status_code == 200, f"Error making api request: {r}"
     lst = r.json()
     if not lst:
         return
@@ -210,7 +210,7 @@ def grab(args, vhash, bnum):
         # TODO: use tempfile
         print("Downloading circle artifacts...")
         s, o = subprocess.getstatusoutput(
-            'curl -L  -o out.dat -H "Circle-Token: {}" "{}"'.format(args.api_token, u)
+            f'curl -L  -o out.dat -H "Circle-Token: {args.api_token}" "{u}"'
         )
         assert s == 0
         os.rename("out.dat", cfname)
@@ -220,14 +220,14 @@ def status(args):
     # TODO: check for current git hash only
     got = get_ci_builds(args, completed=False)
     if not got:
-        print("ERROR: couldnt find job, maybe we should poll?")
+        print("ERROR: couldn't find job, maybe we should poll?")
         sys.exit(1)
     work_ids = [workid for _, _, _, workid in got]
     poll(args, workflow_ids=[work_ids[0]])
 
 
 def download(args):
-    print("Checking for circle artifacts (Branch: {})...".format(args.branch))
+    print(f"Checking for circle artifacts (Branch: {args.branch})...")
     got = get_ci_builds(args)
     assert got
     for v, n, _, _ in got:
@@ -277,7 +277,7 @@ def process_args():
 
 def process_environment(args):
     api_token = os.environ.get(CIRCLECI_API_TOKEN)
-    assert api_token, "Set environment variable: {}".format(CIRCLECI_API_TOKEN)
+    assert api_token, f"Set environment variable: {CIRCLECI_API_TOKEN}"
     args.api_token = api_token
 
 
@@ -297,7 +297,7 @@ def main():
     if args.action == "trigger":
         for i in range(args.loop or 1):
             if args.loop:
-                print("Loop: {} of {}".format(i + 1, args.loop))
+                print(f"Loop: {i + 1} of {args.loop}")
             trigger(args)
     elif args.action == "status":
         # find my workflow report status, wait on it (if specified)

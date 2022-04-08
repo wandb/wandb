@@ -1,9 +1,7 @@
-#
 import json
 import logging
 import os
 
-import six
 import wandb
 from wandb.errors import Error
 from wandb.util import load_yaml
@@ -52,14 +50,14 @@ def update_from_proto(config_dict, config_proto):
 
 def dict_add_value_dict(config_dict):
     d = dict()
-    for k, v in six.iteritems(config_dict):
+    for k, v in config_dict.items():
         d[k] = dict(desc=None, value=v)
     return d
 
 
 def dict_strip_value_dict(config_dict):
     d = dict()
-    for k, v in six.iteritems(config_dict):
+    for k, v in config_dict.items():
         d[k] = v["value"]
     return d
 
@@ -71,7 +69,7 @@ def dict_no_value_from_proto_list(obj_list):
         if not isinstance(possible_dict, dict) or "value" not in possible_dict:
             # (tss) TODO: This is protecting against legacy 'wandb_version' field.
             # Should investigate why the config payload even has 'wandb_version'.
-            logger.warning("key '{}' has no 'value' attribute".format(item.key))
+            logger.warning(f"key '{item.key}' has no 'value' attribute")
             continue
         d[item.key] = possible_dict["value"]
 
@@ -118,6 +116,6 @@ def dict_from_config_file(filename, must_exist=False):
     if config_version is not None and config_version != 1:
         raise ConfigError("Unknown config version")
     data = dict()
-    for k, v in six.iteritems(loaded):
+    for k, v in loaded.items():
         data[k] = v["value"]
     return data

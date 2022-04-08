@@ -112,7 +112,7 @@ def _patch_tensorflow2(
         # In this case, the generated logdir
         # is generated and ends with the hostname, update the root_logdir to match.
         hostname = socket.gethostname()
-        search = re.search(r"-\d+_{}".format(hostname), logdir)
+        search = re.search(rf"-\d+_{hostname}", logdir)
         if search:
             root_logdir_arg = logdir[: search.span()[1]]
         elif root_logdir is not None and not os.path.abspath(logdir).startswith(
@@ -155,7 +155,7 @@ def _patch_file_writer(
             # In this case, the logdir is generated and ends with the hostname,
             # update the root_logdir to match.
             hostname = socket.gethostname()
-            search = re.search(r"-\d+_{}".format(hostname), logdir)
+            search = re.search(rf"-\d+_{hostname}", logdir)
             if search:
                 root_logdir_arg = logdir[: search.span()[1]]
 
@@ -170,7 +170,7 @@ def _patch_file_writer(
 
             _notify_tensorboard_logdir(logdir, save=save, root_logdir=root_logdir_arg)
 
-            super(TBXEventFileWriter, self).__init__(logdir, *args, **kwargs)
+            super().__init__(logdir, *args, **kwargs)
 
     writer.orig_EventFileWriter = writer.EventFileWriter
     writer.EventFileWriter = TBXEventFileWriter
