@@ -2250,10 +2250,13 @@ class Api:
         can_handle_dedupe = max_cli_version is None or parse_version(
             "0.12.10"
         ) <= parse_version(max_cli_version)
+        # can_handle_history = max_cli_version is None or parse_version(
+        #     "0.12.12"
+        # ) <= parse_version(max_cli_version)
 
-        can_handle_history = max_cli_version is None or parse_version(
-            "0.12.12"
-        ) <= parse_version(max_cli_version)
+        # Disabling history saving until it can be tested
+        can_handle_history = False
+
 
         mutation = gql(
             """
