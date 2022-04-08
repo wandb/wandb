@@ -83,7 +83,7 @@ def test_agent_ignore_runid(live_mock_server):
     assert sweep_run_ids[0] == "mocker-sweep-run-x91"
 
 
-def test_agent_create_command_args(_):
+def test_agent_create_command_args():
 
     mock_command = {
         "args": {
