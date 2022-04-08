@@ -6,6 +6,7 @@ from typing import Dict
 
 from wandb.wandb_agent import Agent
 
+
 def test_agent_basic(live_mock_server):
     sweep_ids = []
     sweep_configs = []
@@ -81,6 +82,7 @@ def test_agent_ignore_runid(live_mock_server):
 
     assert len(sweep_run_ids) == 1
     assert sweep_run_ids[0] == "mocker-sweep-run-x91"
+
 
 def test_agent_create_command_args(_):
 

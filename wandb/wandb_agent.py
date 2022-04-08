@@ -319,9 +319,9 @@ class Agent(object):
         return response
 
     @staticmethod
-    def _create_command_args(command : Dict) -> Dict[str : List[str]]:
-        """ Create various formats of command arguments for the agent.
-        
+    def _create_command_args(command: Dict) -> Dict[str : List[str]]:
+        """Create various formats of command arguments for the agent.
+
         Raises:
             ValueError: improperly formatted command dict
 
@@ -329,12 +329,12 @@ class Agent(object):
         if not "args" in command:
             raise ValueError('No "args" found in command: %s' % command)
         # four different formats of command args
-        flags: List = [] # standard command line flags (e.g. --foo=bar)
-        flags_no_hyphens: List = [] # flags without hyphens (e.g. foo=bar)
-        flags_no_booleans: List = [] # flags with false booleans ommited  (e.g. --foo)
-        flags_dict: Dict = {} # flags as a dictionary (used for constructing a json)
+        flags: List = []  # standard command line flags (e.g. --foo=bar)
+        flags_no_hyphens: List = []  # flags without hyphens (e.g. foo=bar)
+        flags_no_booleans: List = []  # flags with false booleans ommited  (e.g. --foo)
+        flags_dict: Dict = {}  # flags as a dictionary (used for constructing a json)
         for param, config in command["args"].items():
-            _value : Any = config.get("value", None)
+            _value: Any = config.get("value", None)
             if _value is None:
                 raise ValueError('No "value" found for command["args"]["%s"]' % param)
             _flag: str = "{}={}".format(param, _value)
@@ -348,10 +348,10 @@ class Agent(object):
                 flags_no_booleans.append("--" + _flag)
             flags_dict[param] = _value
         return {
-            "args" : flags,
-            "args_no_hyphens" : flags_no_hyphens,
-            "args_no_boolean_flags" : flags_no_booleans,
-            "args_json" : [json.dumps(flags_dict)],
+            "args": flags,
+            "args_no_hyphens": flags_no_hyphens,
+            "args_no_boolean_flags": flags_no_booleans,
+            "args_json": [json.dumps(flags_dict)],
         }
 
     def _command_run(self, command):
@@ -407,7 +407,7 @@ class Agent(object):
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:
-                fp.write(sweep_vars['args_json'][0])
+                fp.write(sweep_vars["args_json"][0])
 
         if self._function:
             # make sure that each run regenerates setup singleton
