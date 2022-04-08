@@ -163,7 +163,7 @@ class Agent(object):
 
     def is_flapping(self):
         """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
-            exit codes in the first FLAPPING_MAX_SECONDS"""
+        exit codes in the first FLAPPING_MAX_SECONDS"""
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:

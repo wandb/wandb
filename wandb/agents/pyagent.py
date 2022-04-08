@@ -343,7 +343,11 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
     if not callable(function):
         raise Exception("function paramter must be callable!")
     agent = Agent(
-        sweep_id, function=function, entity=entity, project=project, count=count,
+        sweep_id,
+        function=function,
+        entity=entity,
+        project=project,
+        count=count,
     )
     agent.run()
 

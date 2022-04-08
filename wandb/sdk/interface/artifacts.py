@@ -822,7 +822,10 @@ class StorageHandler(object):
         pass
 
     def load_path(
-        self, artifact: Artifact, manifest_entry: ArtifactEntry, local: bool = False,
+        self,
+        artifact: Artifact,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
     ) -> str:
         """
         Loads the file or directory within the specified artifact given its

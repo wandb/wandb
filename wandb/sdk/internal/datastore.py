@@ -97,7 +97,7 @@ class DataStore(object):
 
     def in_last_block(self):
         """When reading, we want to know if we're in the last block to
-           handle in progress writes"""
+        handle in progress writes"""
         return self._index > self._size_bytes - LEVELDBLOG_DATA_LEN
 
     def scan_record(self):

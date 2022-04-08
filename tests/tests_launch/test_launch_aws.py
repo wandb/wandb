@@ -82,7 +82,9 @@ def test_launch_aws_sagemaker(
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
     monkeypatch.setattr(
-        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
+        wandb.sdk.launch.docker,
+        "create_metadata_file",
+        mock_create_metadata_file,
     )
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
@@ -109,7 +111,10 @@ def test_launch_aws_sagemaker(
 
 @pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_launch_fail(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     def mock_client_launch_fail(*args, **kwargs):
         if args[0] == "sagemaker":
@@ -165,7 +170,10 @@ def test_launch_aws_sagemaker_launch_fail(
 
 @pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_push_image_fail_none(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
@@ -190,7 +198,10 @@ def test_launch_aws_sagemaker_push_image_fail_none(
 
 
 def test_launch_aws_sagemaker_push_image_fail_err_msg(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
