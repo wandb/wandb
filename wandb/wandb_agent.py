@@ -326,7 +326,7 @@ class Agent(object):
             ValueError: improperly formatted command dict
 
         """
-        if not "args" in command:
+        if "args" not in command:
             raise ValueError('No "args" found in command: %s' % command)
         # four different formats of command args
         flags: List = []  # standard command line flags (e.g. --foo=bar)
