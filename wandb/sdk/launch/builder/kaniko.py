@@ -21,7 +21,7 @@ from .._project_spec import (
     LaunchProject,
 )
 from ..utils import sanitize_wandb_api_key
-from .build import _create_docker_build_ctx, generate_dockerfile
+from .build import _create_build_ctx, generate_dockerfile
 
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
@@ -69,6 +69,8 @@ def _wait_for_completion(
 
 
 class KanikoBuilder(AbstractBuilder):
+    type = "kaniko"
+
     def __init__(self, builder_config):
         super().__init__(builder_config)
         self.config_map_name = builder_config.get(
@@ -180,7 +182,7 @@ class KanikoBuilder(AbstractBuilder):
             docker_args,
             sanitize_wandb_api_key(dockerfile_str),
         )
-        context_path = _create_docker_build_ctx(launch_project, dockerfile_str)
+        context_path = _create_build_ctx(launch_project, dockerfile_str)
         run_id = launch_project.run_id
 
         config.load_incluster_config()

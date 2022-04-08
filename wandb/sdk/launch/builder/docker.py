@@ -15,7 +15,7 @@ from .._project_spec import (
 )
 from ..utils import sanitize_wandb_api_key
 from .build import (
-    _create_docker_build_ctx,
+    _create_build_ctx,
     generate_dockerfile,
     validate_docker_installation,
 )
@@ -25,6 +25,8 @@ _logger = logging.getLogger(__name__)
 
 
 class DockerBuilder(AbstractBuilder):
+    type = "docker"
+
     def __init__(self, builder_config: Dict[str, Any]):
         super().__init__(builder_config)
         validate_docker_installation()
@@ -60,7 +62,7 @@ class DockerBuilder(AbstractBuilder):
             # command arguments
             with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
                 fp.write(entry_cmd)
-        build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
+        build_ctx_path = _create_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
             docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
