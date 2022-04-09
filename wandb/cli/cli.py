@@ -1184,7 +1184,7 @@ def launch_agent(
             )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
-    agent_config, api = wandb_launch.resolve_agent_config(
+    agent_config, api = wandb_launch.resolve_config(
         api, entity, project, max_jobs, queues
     )
     if api.api_key is None:

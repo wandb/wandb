@@ -104,22 +104,22 @@ class KanikoBuilder(AbstractBuilder):
         # ), "storage_provider must be set"
 
     def _create_docker_ecr_config_map(
-        self, client: client.CoreV1Api
+        self, corev1_client: client.CoreV1Api
     ) -> client.V1ConfigMap:
-        config_mount = client.V1VolumeMount(
+        config_mount = corev1_client.V1VolumeMount(
             name="docker-config", mount_path="/kaniko/.docker/"
         )
         if self.cloud_provider == "AWS":
-            ecr_config_map = client.V1ConfigMap(
+            ecr_config_map = corev1_client.V1ConfigMap(
                 api_version="v1",
                 kind="ConfigMap",
-                metadata=client.V1ObjectMeta(
+                metadata=corev1_client.V1ObjectMeta(
                     name="docker-config",
                     namespace="wandb",
                 ),
                 data={"config.json": json.dumps({"credsStore": "ecr-login"})},
             )
-            client.create_namespaced_config_map("wandb", ecr_config_map)
+            corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
 
         return config_mount
 
