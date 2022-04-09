@@ -197,6 +197,7 @@ def test_launch_kube(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    monkeypatch.setattr(wandb.docker, "push", lambda repo, tag: "")
 
     multi_spec = {
         "spec": {
