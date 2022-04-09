@@ -40,7 +40,7 @@ def locate_py_files(root_path: pathlib.Path):
                 not path.startswith(str(root_path / dir_path))
                 for dir_path in map(pathlib.Path.absolute, exclude)
             )
-            and all(not dir_path in path for dir_path in exclude_unrooted)
+            and all(dir_path not in path for dir_path in exclude_unrooted)
         ):
             print(path)
 
