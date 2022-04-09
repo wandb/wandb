@@ -28,8 +28,8 @@ TMPDIR = tempfile.TemporaryDirectory()
 
 TOTAL_MEMORY = psutil.virtual_memory().total
 # convert to MB?
-# MAX_MEMORY = 0.1
-MAX_MEMORY = 0.001
+MAX_MEMORY = 0.1
+# MAX_MEMORY = 0.001
 MAX_HEAP_SIZE = 100_000  # max number of items in the heaps
 
 
@@ -254,9 +254,9 @@ class SyncManager:
         Get results from the global multiprocessing queue and put them into the heaps.
         """
         while self.running:
-            # if self._verbose:
-            print("\nharvester is running")
-            print(datetime.datetime.now(), self.futures_queue)
+            if self._verbose:
+                print("\nharvester is running")
+                print(datetime.datetime.now(), self.futures_queue)
             concurrent_future = await self.futures_queue.get()
             results = await asyncio.wrap_future(concurrent_future)
             for result in results:
@@ -266,8 +266,9 @@ class SyncManager:
                 key = (run_id, result[1])
                 self.total_memory -= self.memory_usage[key]
                 del self.memory_usage[key]
-                print(f"harvester got result for: {key}; total_memory: {self.total_memory}")
-                print(f"heap min: {self.result_heaps[run_id][0][0]}")
+                if self._verbose:
+                    print(f"harvester got result for: {key}; total_memory: {self.total_memory}")
+                    print(f"heap min: {self.result_heaps[run_id][0][0]}")
 
             self.futures_queue.task_done()
 
@@ -304,10 +305,11 @@ class SyncManager:
                 if not has_data_to_dump:
                     # if self._verbose and self.result_heaps[task_name]:
                     if len(self.result_heaps[run_id]):
-                        print(
-                            "dumper waiting for data to dump: "
-                            f"{self.result_heaps[run_id][0][0]} {self.current_chunk_number[run_id] + 1}"
-                        )
+                        if self._verbose:
+                            print(
+                                "dumper waiting for data to dump: "
+                                f"{self.result_heaps[run_id][0][0]} {self.current_chunk_number[run_id] + 1}"
+                            )
                     continue
 
                 chunk = heapq.heappop(self.result_heaps[run_id])
@@ -318,13 +320,13 @@ class SyncManager:
                 while not self.send_managers[run_id]._record_q.empty():
                     data = self.send_managers[run_id]._record_q.get(block=True)
                     self.send_managers[run_id].send(data)
-                if self._verbose:
-                    pass
+
                 short_run_id = run_id.split('-')[-1].split('.wandb')[0]
-                print(
-                    f"dumper posted result: {short_run_id}: "
-                    f"chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n"
-                )
+                if self._verbose:
+                    print(
+                        f"dumper posted result: {short_run_id}: "
+                        f"chunk {chunk[0]}: {chunk[1]} {datetime.datetime.now()}\n"
+                    )
                 self.current_chunk_number[run_id] += 1
                 if self._verbose:
                     pass
@@ -355,8 +357,8 @@ class SyncManager:
         Generate tasks and run them in parallel.
         """
         for sync_item in self.sync_items:
-            # if self._verbose:
-            print(f"Generating tasks for: {sync_item}")
+            if self._verbose:
+                print(f"Generating tasks for: {sync_item}")
             sync_item_path = pathlib.Path(sync_item)
             # input(">")
             if sync_item_path.is_dir():
