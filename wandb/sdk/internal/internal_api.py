@@ -419,6 +419,7 @@ class Api:
             viewer {
                 id
                 entity
+                username
                 email
                 flags
                 teams {

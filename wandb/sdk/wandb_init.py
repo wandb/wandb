@@ -231,7 +231,7 @@ class _WandbInit:
         init_settings = {
             key: kwargs[key]
             for key in ["anonymous", "force", "mode", "resume"]
-            if kwargs.get(key, None) is not None
+            if kwargs.get(key) is not None
         }
         if init_settings:
             settings.update(init_settings, source=Source.INIT)
@@ -241,7 +241,8 @@ class _WandbInit:
                 anonymous=kwargs.pop("anonymous", None),
                 force=kwargs.pop("force", None),
                 _disable_warning=True,
-                _silent=True,
+                _silent=settings.quiet or settings.silent,
+                _entity=kwargs.get("entity") or settings.entity,
             )
 
         # apply updated global state after login was handled
