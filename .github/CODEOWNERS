@@ -1,0 +1,2 @@
+# GraphQL changes need extra scrutiny
+/wandb/sdk/internal/internal_api.py @wandb/sdk
