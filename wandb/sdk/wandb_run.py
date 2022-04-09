@@ -1983,7 +1983,6 @@ class Run:
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
 
-        print("")
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer
         )
