@@ -384,6 +384,9 @@ def docker_image_inspect(docker_image: str) -> Dict[str, Any]:
 
 def pull_docker_image(docker_image: str) -> None:
     """Pulls the requested docker image"""
+    if docker_image_exists(docker_image):
+        # don't pull images if they exist already, eg if they are local images
+        return
     try:
         docker.run(["docker", "pull", docker_image])
     except DockerError as e:

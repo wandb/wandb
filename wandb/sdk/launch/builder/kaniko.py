@@ -53,7 +53,6 @@ def _create_dockerfile_configmap(
 def _wait_for_completion(
     api_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
-    # TODO: can probably share code here with steph
     start_time = time.time()
     while True:
         job = api_client.read_namespaced_job_status(job_name, "wandb")
@@ -93,15 +92,6 @@ class KanikoBuilder(AbstractBuilder):
         self.credentials_secret_mount_path = _CREDENTIAL_SECRET_MOUNT_PATHS[
             self.cloud_provider
         ]
-
-    def verify(self) -> None:
-        pass
-        # assert (
-        #     self.builder_config.get("context_store_bucket") is not None
-        # ), "context_store_uri must be set"
-        # assert (
-        #     self.builder_config.get("storage_provider") is not None
-        # ), "storage_provider must be set"
 
     def _create_docker_ecr_config_map(
         self, corev1_client: client.CoreV1Api

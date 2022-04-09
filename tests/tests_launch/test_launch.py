@@ -9,7 +9,7 @@ import pytest
 import wandb
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.docker import pull_docker_image
+from wandb.sdk.launch.builder.build import pull_docker_image
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
@@ -679,7 +679,7 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 # this test includes building a docker container which can take some time,
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.flaky
-@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
@@ -707,7 +707,7 @@ def test_launch_agent_instance(test_settings, live_mock_server):
         "project": "test_project",
         "queues": ["default"],
     }
-    agent = LaunchAgent(config)
+    agent = LaunchAgent(api, config)
     ctx = live_mock_server.get_ctx()
     assert len(ctx["launch_agents"]) == 1
     assert agent._id == int(list(ctx["launch_agents"].keys())[0])
@@ -717,7 +717,7 @@ def test_launch_agent_instance(test_settings, live_mock_server):
 
 
 @pytest.mark.flaky
-@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 def test_launch_agent_different_project_in_spec(
     test_settings,
     live_mock_server,
@@ -747,13 +747,13 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["nonexistent_queue"],
+    }
     try:
-        launch.create_and_run_agent(
-            api,
-            "mock_server_entity",
-            "test_project",
-            ["nonexistent_queue"],
-        )
+        launch.create_and_run_agent(api, config)
     except Exception as e:
         assert (
             "Could not start launch agent: Not all of requested queues (nonexistent_queue) found"
@@ -771,7 +771,7 @@ def test_agent_no_introspection(test_settings, live_mock_server):
         "project": "test_project",
         "queues": ["default"],
     }
-    agent = LaunchAgent(config)
+    agent = LaunchAgent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0
@@ -789,13 +789,16 @@ def test_agent_no_introspection(test_settings, live_mock_server):
 
 
 def test_agent_inf_jobs(test_settings, live_mock_server):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
     config = {
         "entity": "mock_server_entity",
         "project": "test_project",
         "queues": ["default"],
         "max_jobs": -1,
     }
-    agent = LaunchAgent(config)
+    agent = LaunchAgent(api, config)
     assert agent._max_jobs == float("inf")
 
 
@@ -858,7 +861,7 @@ def test_launch_no_server_info(
 
 
 @pytest.mark.flaky
-@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(60)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
@@ -965,7 +968,9 @@ def test_launch_project_spec_docker_image(
 
 
 def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
-    monkeypatch.setattr("wandb.sdk.launch.docker.docker_image_exists", lambda x: True)
+    monkeypatch.setattr(
+        "wandb.sdk.launch.builder.build.docker_image_exists", lambda x: True
+    )
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local._run_entry_point",
         lambda cmd, project_dir: (cmd, project_dir),

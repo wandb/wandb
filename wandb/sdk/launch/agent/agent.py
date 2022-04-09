@@ -60,8 +60,8 @@ class LaunchAgent:
             self._max_jobs = config.get("max_jobs") or 1
         self.config: Optional[Dict[str, Any]] = None
 
-        self.build_config = config.get("builder", {})
-        self.registry_config = config.get("registry", {})
+        self.build_config: Dict[str, Any] = config.get("builder", {})
+        self.registry_config: Dict[str, Any] = config.get("registry", {})
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
@@ -193,13 +193,10 @@ class LaunchAgent:
         self, override_spec: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
 
-        if self.build_config is None and override_spec is None:
-            return {}
+        if override_spec is None:
+            return self.build_config
 
-        if override_spec is not None:
-            return override_spec
-
-        return self.build_config
+        return override_spec
 
     def loop(self) -> None:
         """Main loop function for agent."""
