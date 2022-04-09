@@ -1,3 +1,4 @@
+import io
 import wandb
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
@@ -5,7 +6,6 @@ import numpy as np
 import pytest
 import PIL
 import os
-import six
 import sys
 import glob
 import platform
@@ -469,7 +469,7 @@ def test_molecule(mocked_run):
 def test_molecule_file(mocked_run):
     with open("test.pdb", "w") as f:
         f.write("00000")
-    mol = wandb.Molecule(open("test.pdb", "r"))
+    mol = wandb.Molecule(open("test.pdb"))
     mol.bind_to_run(mocked_run, "rad", "summary")
     wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
@@ -715,7 +715,7 @@ def test_object3d_io(mocked_run):
     f = utils.fixture_open("Box.gltf")
     body = f.read()
 
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
     obj = wandb.Object3D(ioObj, file_type="obj")
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
@@ -737,7 +737,7 @@ def test_object3d_unsupported_numpy():
 
     f = utils.fixture_open("Box.gltf")
     body = f.read()
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
 
     with pytest.raises(ValueError):
         wandb.Object3D(ioObj)
@@ -1158,9 +1158,9 @@ def test_log_with_back_slash_windows(live_mock_server, test_settings):
     # windows doesnt allow a backslash in media keys right now
     if platform.system() == "Windows":
         with pytest.raises(ValueError):
-            run.log({"train\image": wb_image})
+            run.log({r"train\image": wb_image})
     else:
-        run.log({"train\image": wb_image})
+        run.log({r"train\image": wb_image})
 
     run.finish()
     assert True

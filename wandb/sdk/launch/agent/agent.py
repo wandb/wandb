@@ -38,7 +38,7 @@ def _convert_access(access: str) -> str:
     return access
 
 
-class LaunchAgent(object):
+class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
     def __init__(
@@ -72,7 +72,7 @@ class LaunchAgent(object):
             entity, project, queues, self.gorilla_supports_agents
         )
         self._id = create_response["launchAgentId"]
-        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
+        self._name = ""  # hacky: want to display this to the user, but we don't get it back from gql until polling starts. fix later
         self._queues = queues if queues else ["default"]
 
     @property
@@ -107,7 +107,7 @@ class LaunchAgent(object):
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
-            wandb.termerror("Failed to update agent status to {}".format(status))
+            wandb.termerror(f"Failed to update agent status to {status}")
 
     def finish_job_id(self, job_id: Union[str, int]) -> None:
         """Removes the job from our list for now."""

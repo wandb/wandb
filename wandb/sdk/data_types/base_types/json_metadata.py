@@ -25,7 +25,7 @@ class JSONMetadata(Media):
     """
 
     def __init__(self, val: dict) -> None:
-        super(JSONMetadata, self).__init__()
+        super().__init__()
 
         self.validate(val)
         self._val = val
@@ -41,7 +41,7 @@ class JSONMetadata(Media):
         return os.path.join("media", "metadata", cls.type_name())
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(JSONMetadata, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self.type_name()
 
         return json_dict

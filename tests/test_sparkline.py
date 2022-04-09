@@ -1,5 +1,3 @@
-# vim: set fileencoding=utf-8 :
-
 from wandb import wandb_lib
 
 sparkline = wandb_lib.sparkline

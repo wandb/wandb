@@ -1,6 +1,3 @@
-#
-from __future__ import absolute_import
-
 import logging
 import os
 import threading
@@ -10,7 +7,7 @@ import time
 logger = logging.getLogger(__name__)
 
 
-class TPUProfiler(object):
+class TPUProfiler:
     def __init__(
         self,
         service_addr=None,

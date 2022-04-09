@@ -143,7 +143,7 @@ class ImageMask(Media):
             key: (string)
                 The readable name or id for this mask type (e.g. predictions, ground_truth)
         """
-        super(ImageMask, self).__init__()
+        super().__init__()
 
         if "path" in val:
             self._set_file(val["path"])
@@ -152,7 +152,7 @@ class ImageMask(Media):
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
-                class_labels = dict((c, "class_" + str(c)) for c in classes)
+                class_labels = {c: "class_" + str(c) for c in classes}
                 val["class_labels"] = class_labels
 
             self.validate(val)
@@ -205,7 +205,7 @@ class ImageMask(Media):
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(ImageMask, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict["_type"] = self.type_name()

@@ -1,7 +1,4 @@
 import json
-import os
-import subprocess
-from unittest.mock import MagicMock
 
 import kubernetes
 import wandb
@@ -9,7 +6,6 @@ from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.runner.kubernetes import KubernetesRunner, MAX_KUBERNETES_RETRIES
 import pytest
-from tests import utils
 
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
@@ -21,7 +17,7 @@ class MockDict(dict):
     __delattr__ = dict.__delitem__
 
 
-class MockPodList(object):
+class MockPodList:
     def __init__(self, pods):
         self.pods = pods
 
@@ -30,7 +26,7 @@ class MockPodList(object):
         return self.pods
 
 
-class MockBatchV1Api(object):
+class MockBatchV1Api:
     def __init__(self, mock_api_client, jobs):
         self.context = mock_api_client["context_name"]
         self.jobs = jobs
@@ -50,7 +46,7 @@ class MockBatchV1Api(object):
         del self.jobs[name]
 
 
-class MockCoreV1Api(object):
+class MockCoreV1Api:
     def __init__(self, mock_api_client, pods):
         self.context = mock_api_client["context_name"]
         self.pods = pods
