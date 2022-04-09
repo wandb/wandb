@@ -40,7 +40,9 @@ class DockerBuilder(AbstractBuilder):
         runner_type: str,
     ) -> str:
         if registry:
-            image_uri = f"{registry}:{launch_project.run_id}"
+            image_uri = (
+                f"{registry}/{launch_project.target_project}:{launch_project.run_id}"
+            )
         else:
             image_uri = construct_local_image_uri(launch_project)
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
