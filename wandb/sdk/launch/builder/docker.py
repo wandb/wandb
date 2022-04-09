@@ -16,6 +16,7 @@ from .._project_spec import (
 from ..utils import sanitize_wandb_api_key
 from .build import (
     _create_build_ctx,
+    construct_local_image_uri,
     generate_dockerfile,
     validate_docker_installation,
 )
@@ -40,9 +41,9 @@ class DockerBuilder(AbstractBuilder):
         runner_type: str,
     ) -> str:
         if registry:
-            image_uri = f"{registry}/{launch_project.name}"
+            image_uri = f"{registry}:{launch_project.run_id}"
         else:
-            image_uri = "launch-{}".format(launch_project.target_project)
+            image_uri = construct_local_image_uri(launch_project)
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
         dockerfile_str = generate_dockerfile(launch_project, runner_type, "docker")
         create_metadata_file(
