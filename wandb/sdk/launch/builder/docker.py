@@ -39,10 +39,9 @@ class DockerBuilder(AbstractBuilder):
         docker_args: Dict[str, Any],
         runner_type: str,
     ) -> str:
+
         if registry:
-            image_uri = (
-                f"{registry}/{launch_project.target_project}:{launch_project.run_id}"
-            )
+            image_uri = f"{registry}/{launch_project.run_id}"
         else:
             image_uri = construct_local_image_uri(launch_project)
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
@@ -82,5 +81,10 @@ class DockerBuilder(AbstractBuilder):
             push_resp = docker.push(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")
+            elif (
+                runner_type == "sagemaker"
+                and f"The push refers to repository [{registry}]" not in push_resp
+            ):
+                raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 
         return image_uri

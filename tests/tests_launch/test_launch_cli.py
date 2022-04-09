@@ -227,7 +227,9 @@ def test_launch_no_docker_exec(
     mocked_fetchable_git_repo,
     test_settings,
 ):
-    monkeypatch.setattr(wandb.sdk.launch.docker, "find_executable", lambda name: False)
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build, "find_executable", lambda name: False
+    )
     result = runner.invoke(
         cli.launch,
         ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
