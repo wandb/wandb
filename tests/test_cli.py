@@ -8,6 +8,7 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
 import traceback
 from unittest import mock
 
@@ -62,7 +63,7 @@ def no_tty(mocker):
 
 @pytest.fixture
 def empty_netrc(monkeypatch):
-    class FakeNet(object):
+    class FakeNet:
         @property
         def hosts(self):
             return {"api.wandb.ai": None}
@@ -95,9 +96,9 @@ def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
         result = runner.invoke(cli.init, input="y\n\n\n")
         debug_result(result, "init")
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
-        with open("wandb/settings", "r") as f:
+        with open("wandb/settings") as f:
             generated_wandb = f.read()
         assert DUMMY_API_KEY in generatedNetrc
         assert "mock_server_entity" in generated_wandb
@@ -113,9 +114,9 @@ def test_init_add_login(runner, empty_netrc, mock_server):
             result = runner.invoke(cli.init, input=f"y\n{DUMMY_API_KEY}\nvanpelt\n")
             debug_result(result, "init")
             assert result.exit_code == 0
-            with open("netrc", "r") as f:
+            with open("netrc") as f:
                 generated_netrc = f.read()
-            with open("wandb/settings", "r") as f:
+            with open("wandb/settings") as f:
                 generated_wandb = f.read()
             assert DUMMY_API_KEY in generated_netrc
             assert "base_url" in generated_wandb
@@ -130,7 +131,7 @@ def test_init_existing_login(runner, mock_server):
         print(result.exception)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("wandb/settings", "r") as f:
+        with open("wandb/settings") as f:
             generated_wandb = f.read()
         assert "mock_server_entity" in generated_wandb
         assert "This directory is configured" in result.output
@@ -193,7 +194,7 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
         assert DUMMY_API_KEY in generatedNetrc
 
@@ -201,12 +202,12 @@ def test_login_key_arg(runner, empty_netrc, local_netrc):
 def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc):
     with runner.isolated_filesystem():
         with open("netrc", "w") as f:
-            f.write("machine \n  login user\npassword {}".format(DUMMY_API_KEY))
+            f.write(f"machine \n  login user\npassword {DUMMY_API_KEY}")
         result = runner.invoke(
             cli.login, ["--host", "https://google.com/", DUMMY_API_KEY]
         )
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
         assert generatedNetrc == (
             "machine google.com\n"
@@ -237,7 +238,7 @@ def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generatedNetrc = f.read()
         assert onprem_key in generatedNetrc
 
@@ -265,7 +266,7 @@ def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             generated_netrc = f.read()
         assert DUMMY_API_KEY in generated_netrc
 
@@ -1049,7 +1050,7 @@ def test_cli_login_reprompts_when_no_key_specified(
         # happened
         result = runner.invoke(cli.login, input=f"\n{DUMMY_API_KEY[:-1]}q\n")
         debug_result(result, "login")
-        with open("netrc", "r") as f:
+        with open("netrc") as f:
             print(f.read())
         assert "ERROR No API key specified." in result.output
 

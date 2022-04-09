@@ -3,6 +3,7 @@ import logging
 import multiprocessing
 import os
 import platform
+import queue
 import signal
 import socket
 import subprocess
@@ -10,8 +11,6 @@ import sys
 import time
 import traceback
 
-import six
-from six.moves import queue
 import wandb
 from wandb import util
 from wandb import wandb_lib
@@ -27,7 +26,7 @@ class AgentError(Exception):
     pass
 
 
-class AgentProcess(object):
+class AgentProcess:
     """Launch and manage a process."""
 
     def __init__(
@@ -121,7 +120,7 @@ class AgentProcess(object):
         return self._proc.terminate()
 
 
-class Agent(object):
+class Agent:
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 0
     KILL_DELAY = 30
@@ -208,7 +207,7 @@ class Agent(object):
                     logger.info("Running runs: %s", list(self._run_processes.keys()))
                     self._last_report_time = now
                 run_status = {}
-                for run_id, run_process in list(six.iteritems(self._run_processes)):
+                for run_id, run_process in list(self._run_processes.items()):
                     poll_result = run_process.poll()
                     if poll_result is None:
                         run_status[run_id] = True
@@ -261,7 +260,7 @@ class Agent(object):
                 wandb.termlog(
                     "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
                 )
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     run_process.wait()
             except KeyboardInterrupt:
                 pass
@@ -269,16 +268,16 @@ class Agent(object):
             try:
                 if not self._in_jupyter:
                     wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     try:
                         run_process.terminate()
                     except OSError:
                         pass  # if process is already dead
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     run_process.wait()
             except KeyboardInterrupt:
                 wandb.termlog("Killing runs and quitting.")
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     try:
                         run_process.kill()
                     except OSError:
@@ -309,7 +308,7 @@ class Agent(object):
         except Exception:
             logger.exception("Exception while processing command: %s", command)
             ex_type, ex, tb = sys.exc_info()
-            response["exception"] = "{}: {}".format(ex_type.__name__, str(ex))
+            response["exception"] = f"{ex_type.__name__}: {str(ex)}"
             response["traceback"] = traceback.format_tb(tb)
             del tb
 
@@ -369,7 +368,7 @@ class Agent(object):
         flags_list = [
             (param, config["value"]) for param, config in command["args"].items()
         ]
-        flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
+        flags_no_hyphens = [f"{param}={value}" for param, value in flags_list]
         flags = ["--" + flag for flag in flags_no_hyphens]
         flags_dict = dict(flags_list)
         flags_json = json.dumps(flags_dict)
@@ -443,7 +442,7 @@ class Agent(object):
 
     def _command_exit(self, command):
         logger.info("Received exit command. Killing runs and quitting.")
-        for _, proc in six.iteritems(self._run_processes):
+        for _, proc in self._run_processes.items():
             try:
                 proc.kill()
             except OSError:
@@ -452,7 +451,7 @@ class Agent(object):
         self._running = False
 
 
-class AgentApi(object):
+class AgentApi:
     def __init__(self, queue):
         self._queue = queue
         self._command_id = 0

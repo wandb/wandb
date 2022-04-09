@@ -211,7 +211,7 @@ class BoundingBoxes2D(JSONMetadata):
             key: (string)
                 The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
         """
-        super(BoundingBoxes2D, self).__init__(val)
+        super().__init__(val)
         self._val = val["box_data"]
         self._key = key
         # Add default class mapping
@@ -220,11 +220,11 @@ class BoundingBoxes2D(JSONMetadata):
                 "numpy", required="Bounding box support requires numpy"
             )
             classes = (
-                np.unique(list([box["class_id"] for box in val["box_data"]]))
+                np.unique(list(box["class_id"] for box in val["box_data"]))
                 .astype(np.int32)
                 .tolist()
             )
-            class_labels = dict((c, "class_" + str(c)) for c in classes)
+            class_labels = {c: "class_" + str(c) for c in classes}
             self._class_labels = class_labels
         else:
             self._class_labels = val["class_labels"]
@@ -310,7 +310,7 @@ class BoundingBoxes2D(JSONMetadata):
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
-            return super(BoundingBoxes2D, self).to_json(run_or_artifact)
+            return super().to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output

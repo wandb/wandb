@@ -179,7 +179,7 @@ class WandbCallback(TrackerCallback):
             if self.model_path.is_file():
                 with self.model_path.open("rb") as model_file:
                     self.learn.load(model_file, purge=False)
-                    print("Loaded best saved model from {}".format(self.model_path))
+                    print(f"Loaded best saved model from {self.model_path}")
 
     def _wandb_log_predictions(self) -> None:
         """Log prediction samples"""
