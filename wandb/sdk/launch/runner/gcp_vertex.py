@@ -164,13 +164,8 @@ class VertexRunner(AbstractRunner):
                 runner_type="gcp-vertex",
             )
 
-        image, tag = image_uri.split(":")
-        if builder.type != "kaniko":
-            if not exists_on_gcp(image, tag):
-                docker.push(image, tag)
-
-            if not self.ack_run_queue_item(launch_project):
-                return None
+        if not self.ack_run_queue_item(launch_project):
+            return None
 
         entry_cmd = get_entry_point_command(
             entry_point, launch_project.override_args

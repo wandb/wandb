@@ -110,7 +110,8 @@ def test_launch_gcp_vertex(
     job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
     monkeypatch.setattr(
-        "wandb.docker.push",
+        wandb.docker,
+        "push",
         lambda repo, tag: patched_docker_push(repo, tag),
     )
 
@@ -149,7 +150,8 @@ def test_launch_gcp_vertex_failed(
     job_dict = setup_mock_aiplatform(FAILED, monkeypatch)
 
     monkeypatch.setattr(
-        "wandb.docker.push",
+        wandb.docker,
+        "push",
         lambda repo, tag: patched_docker_push(repo, tag),
     )
 
