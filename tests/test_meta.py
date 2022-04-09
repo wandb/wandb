@@ -1,12 +1,10 @@
 import os
 import pytest
 import platform
-import sys
+import queue
 import subprocess
-import threading
 import wandb
 
-from six.moves import queue
 
 from wandb.sdk.internal.meta import Meta
 from wandb.sdk.internal.sender import SendManager
@@ -81,9 +79,7 @@ def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     print(mock_server.ctx)
     assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1
     assert len(mock_server.ctx["storage?file=requirements.txt"]) == 1
-    # py27 doesn't like my patching for conda-environment, just skipping
-    if sys.version_info > (3, 0):
-        assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
+    assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
     assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
 
 

@@ -40,7 +40,7 @@ def _convert_access(access: str) -> str:
     return access
 
 
-class LaunchAgent(object):
+class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
     def __init__(self, api: Api, config: Dict[str, Any]):
@@ -108,7 +108,7 @@ class LaunchAgent(object):
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
-            wandb.termerror("Failed to update agent status to {}".format(status))
+            wandb.termerror(f"Failed to update agent status to {status}")
 
     def finish_job_id(self, job_id: Union[str, int]) -> None:
         """Removes the job from our list for now."""

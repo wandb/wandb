@@ -27,7 +27,7 @@ State = Literal[
 ]
 
 
-class Status(object):
+class Status:
     def __init__(self, state: "State" = "unknown", data=None):  # type: ignore
         self.state = state
         self.data = data or {}
@@ -73,7 +73,7 @@ class AbstractRun(ABC):
                     return popen.stdout.read()
             return popen
         except subprocess.CalledProcessError as e:
-            wandb.termerror("Command failed: {}".format(e))
+            wandb.termerror(f"Command failed: {e}")
             return None
 
     @abstractmethod

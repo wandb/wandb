@@ -38,7 +38,7 @@ class ProcessMock(Process):
         self.is_alive = False
 
 
-class BackendMock(object):
+class BackendMock:
     def __init__(self, mode=None, settings=None, log_level=None, manager=None):
         self.calls = {}
         self._run = None

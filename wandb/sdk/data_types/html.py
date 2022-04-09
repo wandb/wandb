@@ -29,13 +29,13 @@ class Html(BatchableMedia):
     _log_type = "html-file"
 
     def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
-        super(Html, self).__init__()
+        super().__init__()
         data_is_path = isinstance(data, str) and os.path.exists(data)
         data_path = ""
         if data_is_path:
             assert isinstance(data, str)
             data_path = data
-            with open(data_path, "r") as file:
+            with open(data_path) as file:
                 self.html = file.read()
         elif isinstance(data, str):
             self.html = data
@@ -80,7 +80,7 @@ class Html(BatchableMedia):
         return os.path.join("media", "html")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(Html, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
 

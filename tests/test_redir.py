@@ -36,7 +36,7 @@ class CapList(list):
         for sep in [b"\r\n", b"\n"]:
             if x.endswith(sep):
                 x = x[: -len(sep)]
-        super(CapList, self).append(x)
+        super().append(x)
 
 
 @pytest.mark.parametrize("cls", impls)

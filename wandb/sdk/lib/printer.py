@@ -125,7 +125,7 @@ class PrinterTerm(_Printer):
         return click.style(text, fg="magenta", bold=True)
 
     def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-        max_len = max([len(row[0]) for row in rows])
+        max_len = max(len(row[0]) for row in rows)
         format_row = " ".join(["{:>{max_len}}", "{}" * (len(rows[0]) - 1)])
         grid = "\n".join([format_row.format(*row, max_len=max_len) for row in rows])
         if title:

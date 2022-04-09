@@ -1,12 +1,9 @@
-#
-# -*- coding: utf-8 -*-
 """
 config.
 """
 
 import logging
 
-import six
 import wandb
 from wandb.util import (
     _is_artifact,
@@ -25,7 +22,7 @@ logger = logging.getLogger("wandb")
 # TODO(jhr): consider a callback for persisting changes?
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
-class Config(object):
+class Config:
     """
     Config object
 
@@ -193,7 +190,7 @@ class Config(object):
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
         # strip out keys already configured
-        d = {k: v for k, v in six.iteritems(d) if k not in self._items}
+        d = {k: v for k, v in d.items() if k not in self._items}
         d = self._sanitize_dict(d)
         self._items.update(d)
         if self._callback:
@@ -207,7 +204,7 @@ class Config(object):
 
         num = self._users[user]
 
-        for k, v in six.iteritems(d):
+        for k, v in d.items():
             k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
             self._items[k] = v
@@ -228,7 +225,7 @@ class Config(object):
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
-        for k, v in six.iteritems(config_dict):
+        for k, v in config_dict.items():
             if ignore_keys and k in ignore_keys:
                 continue
             k, v = self._sanitize(k, v, allow_val_change)
@@ -271,7 +268,7 @@ class Config(object):
             )
 
 
-class ConfigStatic(object):
+class ConfigStatic:
     def __init__(self, config):
         object.__setattr__(self, "__dict__", dict(config))
 

@@ -1,17 +1,13 @@
-#
-from __future__ import absolute_import
-
+import configparser
 import logging
 import os
-
-from six.moves import configparser
-from six.moves.urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse
 
 
 logger = logging.getLogger(__name__)
 
 
-class GitRepo(object):
+class GitRepo:
     def __init__(self, root=None, remote="origin", lazy=True):
         self.remote_name = remote
         self._root = root
@@ -114,9 +110,7 @@ class GitRepo(object):
             hostname += ":" + str(parsed.port)
         if parsed.password is not None:
 
-            return urlunparse(
-                parsed._replace(netloc="{}:@{}".format(parsed.username, hostname))
-            )
+            return urlunparse(parsed._replace(netloc=f"{parsed.username}:@{hostname}"))
         return urlunparse(parsed._replace(netloc=hostname))
 
     @property

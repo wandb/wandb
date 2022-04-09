@@ -1,7 +1,4 @@
-import json
-import os
 import subprocess
-from unittest.mock import MagicMock
 
 from google.cloud import aiplatform
 import wandb
@@ -9,7 +6,6 @@ from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.runner.gcp_vertex import get_gcp_config, run_shell
 import pytest
-from tests import utils
 
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
@@ -60,7 +56,7 @@ def mock_aiplatform_CustomJob(display_name, worker_pool_specs, job_dict):
     return MockDict(job_dict)
 
 
-class MockGCAResource(object):
+class MockGCAResource:
     def __init__(self):
         self.name = "job-name"
 
