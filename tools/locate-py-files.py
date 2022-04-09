@@ -14,6 +14,9 @@ CONFIG = {
         os.path.join("wandb", "proto"),
         os.path.join("wandb", "sweeps"),
         os.path.join("wandb", "vendor"),
+        os.path.join("tests", "logs"),
+    ],
+    "exclude_unrooted": [
         os.path.join("wandb", "run-"),
         os.path.join("wandb", "offline-run-"),
     ],
@@ -26,13 +29,18 @@ def locate_py_files(root_path: pathlib.Path):
     """
     include = {root_path / dir_path for dir_path in CONFIG["include"]}
     exclude = {root_path / dir_path for dir_path in CONFIG["exclude"]}
+    exclude_unrooted = CONFIG["exclude_unrooted"]
     for path in map(str, root_path.rglob("*.py")):
-        if any(
-            path.startswith(str(root_path / dir_path))
-            for dir_path in map(pathlib.Path.absolute, include)
-        ) and all(
-            not path.startswith(str(root_path / dir_path))
-            for dir_path in map(pathlib.Path.absolute, exclude)
+        if (
+            any(
+                path.startswith(str(root_path / dir_path))
+                for dir_path in map(pathlib.Path.absolute, include)
+            )
+            and all(
+                not path.startswith(str(root_path / dir_path))
+                for dir_path in map(pathlib.Path.absolute, exclude)
+            )
+            and all(not dir_path in path for dir_path in exclude_unrooted)
         ):
             print(path)
 
