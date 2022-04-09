@@ -1,6 +1,6 @@
 from typing import Callable, Dict, Optional, Union
+import urllib.parse
 
-from six.moves import urllib
 import wandb
 from wandb import env
 from wandb.apis import InternalApi

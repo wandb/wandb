@@ -7,7 +7,7 @@ from wandb.old import core
 from wandb import env
 
 
-class Settings(object):
+class Settings:
     """Global W&B settings stored under $WANDB_CONFIG_DIR/settings."""
 
     DEFAULT_SECTION = "default"

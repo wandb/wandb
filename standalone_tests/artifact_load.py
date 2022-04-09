@@ -72,6 +72,7 @@ parser.add_argument('--delete_period_max', type=int, default=10)
 # cache garbage collector args
 parser.add_argument('--cache_gc_period_max', type=int)
 
+
 def gen_files(n_files, max_small_size, max_large_size):
     bufsize = max_large_size * 100
 
@@ -150,7 +151,7 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
             _train(chunks[i], artifact_name, project_name, group_name)
 
         with wandb.init(reinit=True, project=project_name, group=group_name, job_type='writer') as run:
-            print('Committing {}'.format(group_name))
+            print(f'Committing {group_name}')
             art = wandb.Artifact(artifact_name, type='dataset')
             run.finish_artifact(art)
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
@@ -214,7 +215,7 @@ def proc_version_deleter(stop_queue, stats_queue, artifact_name, min_versions, d
         except queue.Empty:
             pass
         versions = api.artifact_versions('dataset', artifact_name)
-        # Don't try to delete versions that have aliases, the backend wont' allow it
+        # Don't try to delete versions that have aliases, the backend won't allow it
         versions = [v for v in versions if v.state == 'COMMITTED' and len(v.aliases) == 0]
         if len(versions) > min_versions:
             version = random.choice(versions)
@@ -242,7 +243,7 @@ def proc_cache_garbage_collector(stop_queue, cache_gc_period_max):
 
 def proc_bucket_garbage_collector(stop_queue, bucket_gc_period_max):
     while True:
-        time.sleep(random.randrange(cache_gc_period_max))
+        time.sleep(random.randrange(bucket_gc_period_max))
         print('Bucket GC')
         # TODO: implement bucket gc
 
@@ -277,7 +278,7 @@ def main(argv):
     os.environ['WANDB_PROJECT'] = project_name
     os.environ['WANDB_BASE_URL'] = (os.environ.get('LOAD_TEST_BASE_URL') or settings_base_url)
 
-    # Change dir to avoid litering code directory
+    # Change dir to avoid littering code directory
     pwd = os.getcwd()
     tempdir = tempfile.TemporaryDirectory()
     os.chdir(tempdir.name)
@@ -447,7 +448,7 @@ def main(argv):
     data_api = wandb.Api()
     # we need list artifacts by walking runs, accessing via
     # project.artifactType.artifacts only returns committed artifacts
-    for run in data_api.runs('%s/%s' % (api.settings('entity'), project_name)):
+    for run in data_api.runs('{}/{}'.format(api.settings('entity'), project_name)):
         for v in run.logged_artifacts():
             # TODO: allow deleted once we build deletion support
             if v.state != 'COMMITTED' and v.state != 'DELETED':

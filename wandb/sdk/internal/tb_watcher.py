@@ -1,19 +1,17 @@
-#
 """
-tensor b watcher.
+tensorboard watcher.
 """
 
 import glob
 import logging
 import os
+import queue
 import socket
 import sys
 import threading
 import time
 from typing import TYPE_CHECKING
 
-import six
-from six.moves import queue
 import wandb
 from wandb import util
 from wandb.viz import custom_chart_panel_config, CustomChart
@@ -26,7 +24,7 @@ if TYPE_CHECKING:
     from .settings_static import SettingsStatic
     from typing import Dict, List, Optional
     from wandb.proto.wandb_internal_pb2 import RunRecord
-    from six.moves.queue import PriorityQueue
+    from queue import PriorityQueue
     from tensorboard.compat.proto.event_pb2 import ProtoEvent
     from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
 
@@ -96,7 +94,7 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     return created_time >= int(start_time)  # noqa: W503
 
 
-class TBWatcher(object):
+class TBWatcher:
     _logdirs: "Dict[str, TBDirWatcher]"
     _watcher_queue: "PriorityQueue"
 
@@ -166,15 +164,15 @@ class TBWatcher(object):
         tbdir_watcher.start()
 
     def finish(self) -> None:
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.shutdown()
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.finish()
         if self._consumer:
             self._consumer.finish()
 
 
-class TBDirWatcher(object):
+class TBDirWatcher:
     def __init__(
         self,
         tbwatcher: "TBWatcher",
@@ -234,7 +232,7 @@ class TBDirWatcher(object):
 
         class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path: str) -> None:
-                super(EventFileLoader, self).__init__(file_path)
+                super().__init__(file_path)
                 if save:
                     if REMOTE_FILE_TOKEN in file_path:
                         logger.warning(
@@ -311,7 +309,7 @@ class TBDirWatcher(object):
         self._thread.join()
 
 
-class Event(object):
+class Event:
     """An event wrapper to enable priority queueing"""
 
     def __init__(self, event: "ProtoEvent", namespace: "Optional[str]"):
@@ -325,7 +323,7 @@ class Event(object):
         return False
 
 
-class TBEventConsumer(object):
+class TBEventConsumer:
     """Consumes tfevents from a priority queue.  There should always
     only be one of these per run_manager.  We wait for 10 seconds of queued
     events to reduce the chance of multiple tfevent files triggering
@@ -444,7 +442,7 @@ class TBEventConsumer(object):
         )
 
 
-class TBHistory(object):
+class TBHistory:
     _data: "HistoryDict"
     _added: "List[HistoryDict]"
 

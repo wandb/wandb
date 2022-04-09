@@ -1,4 +1,3 @@
-#
 """Feature Flags Module.
 
 This module implements a feature flag system for the wandb library to require experimental features
@@ -19,7 +18,7 @@ from wandb.sdk import wandb_run
 from wandb.sdk.lib.wburls import wburls
 
 
-class _Requires(object):
+class _Requires:
     """Internal feature class."""
 
     _features: Sequence[str]
@@ -50,7 +49,7 @@ class _Requires(object):
             func_str = "require_{}".format(feature.replace("-", "_"))
             func = getattr(self, func_str, None)
             if not func:
-                last_message = "require() unsupported requirement: {}".format(feature)
+                last_message = f"require() unsupported requirement: {feature}"
                 wandb.termwarn(last_message)
                 continue
             func()

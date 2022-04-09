@@ -1,7 +1,7 @@
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
-class Api(object):
+class Api:
     """Internal proxy to the official internal API.  Eventually these methods
     should likely be moved to PublicApi"""
 

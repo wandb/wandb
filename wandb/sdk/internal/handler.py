@@ -62,7 +62,7 @@ def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) ->
     target[key_list[-1]] = v
 
 
-class HandleManager(object):
+class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _partial_history: Dict[str, Any]
@@ -129,7 +129,7 @@ class HandleManager(object):
         assert record_type
         handler_str = "handle_" + record_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
-        assert handler, "unknown handle: {}".format(handler_str)
+        assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
     def handle_request(self, record: Record) -> None:
@@ -138,8 +138,8 @@ class HandleManager(object):
         handler_str = "handle_request_" + request_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
         if request_type != "network_status":
-            logger.debug("handle_request: {}".format(request_type))
-        assert handler, "unknown handle: {}".format(handler_str)
+            logger.debug(f"handle_request: {request_type}")
+        assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
@@ -161,7 +161,7 @@ class HandleManager(object):
         defer = record.request.defer
         state = defer.state
 
-        logger.info("handle defer: {}".format(state))
+        logger.info(f"handle defer: {state}")
         # only handle flush tb (sender handles the rest)
         if state == defer.FLUSH_STATS:
             if self._system_stats:

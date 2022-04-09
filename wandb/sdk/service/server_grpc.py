@@ -20,7 +20,7 @@ from ..lib.proto_util import settings_dict_from_pbmap
 
 if TYPE_CHECKING:
 
-    class GrpcServerType(object):
+    class GrpcServerType:
         def __init__(self) -> None:
             pass
 

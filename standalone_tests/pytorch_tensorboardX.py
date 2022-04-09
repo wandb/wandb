@@ -4,13 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
+
 def main():
     wandb.init(tensorboard=True)
 
 
     class ConvNet(nn.Module):
         def __init__(self):
-            super(ConvNet, self).__init__()
+            super().__init__()
             self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
             self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
             self.conv2_drop = nn.Dropout2d()
@@ -38,5 +39,6 @@ def main():
         writer.add_image("example", torch.ones((1, 28, 28)), i+1)
     writer.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
