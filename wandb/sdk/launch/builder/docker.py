@@ -80,7 +80,5 @@ class DockerBuilder(AbstractBuilder):
             push_resp = docker.push(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")
-            if f"The push refers to repository [{registry}]" not in push_resp:
-                raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 
         return image_uri
