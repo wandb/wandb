@@ -233,7 +233,7 @@ def test_launch_base_case(
         _project_spec.create_metadata_file(*args, **kwargs)
 
     monkeypatch.setattr(
-        wandb.sdk.launch.docker,
+        wandb.sdk.launch.builder.build,
         "create_metadata_file",
         mock_create_metadata_file,
     )
@@ -685,13 +685,18 @@ def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        wandb.sdk.launch.agent.LaunchAgent,
+        "pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    launch.create_and_run_agent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert ctx["num_acked"] == 1
@@ -728,13 +733,18 @@ def test_launch_agent_different_project_in_spec(
 ):
     live_mock_server.set_ctx({"invalid_launch_spec_project": True})
     monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        wandb.sdk.launch.agent.LaunchAgent,
+        "pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+    }
+    launch.create_and_run_agent(api, config)
     _, err = capsys.readouterr()
 
     assert (
@@ -861,7 +871,7 @@ def test_launch_no_server_info(
 
 
 @pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(60)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
@@ -889,11 +899,11 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
 
             def iter_content(self, chunk_size):
                 if self.url == "requirements":
-                    return [b"numpy==1.19.5\n"]
+                    return [b"numpy==1.19.5\n", b"wandb\n"]
                 elif self.url == "main2.py":
                     return [
-                        b"import wandb\n",
                         b"import numpy\n",
+                        b"import wandb\n",
                         b"print('ran server fetched code')\n",
                     ]
 
@@ -912,7 +922,9 @@ def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
     )
+    wandb.termlog("UPS: %s" % ups)
     if not ups:
+        wandb.termlog("RASINING INTERUPT")
         raise KeyboardInterrupt
     return ups
 

@@ -96,8 +96,6 @@ def create_and_run_agent(
     api: Api,
     config: Dict[str, Any],
 ) -> None:
-    if config.get("queues") is None:
-        config["queues"] = []
     agent = LaunchAgent(api, config)
     agent.loop()
 

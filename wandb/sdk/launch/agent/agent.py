@@ -46,7 +46,7 @@ class LaunchAgent:
     def __init__(self, api: Api, config: Dict[str, Any]):
         self._entity = config.get("entity")
         self._project = config.get("project")
-        self._api = Api()
+        self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[Union[int, str], AbstractRun] = {}
         self._ticks = 0
@@ -83,6 +83,7 @@ class LaunchAgent:
 
     def pop_from_queue(self, queue: str) -> Any:
         """Pops an item off the runqueue to run as a job."""
+        wandb.termlog("POPPING FROM QUEUE")
         try:
             ups = self._api.pop_from_run_queue(
                 queue,
