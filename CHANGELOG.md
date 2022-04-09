@@ -3,6 +3,8 @@
 #### :bug: Bug Fix
 * Fix regression: disable saving history step in artifacts by @vwrj in https://github.com/wandb/client/pull/3495
 
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.13...v0.12.14
+
 ## 0.12.13 (April 7, 2022)
 
 #### :bug: Bug Fix
