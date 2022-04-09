@@ -67,7 +67,7 @@ class DockerBuilder(AbstractBuilder):
         try:
             docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
         except DockerError as e:
-            raise LaunchError("Error communicating with docker client: {}".format(e))
+            raise LaunchError(f"Error communicating with docker client: {e}")
 
         try:
             os.remove(build_ctx_path)
