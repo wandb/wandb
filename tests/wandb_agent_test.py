@@ -85,11 +85,7 @@ def test_agent_ignore_runid(live_mock_server):
 
 def test_agent_create_command_args():
     mock_command = {
-        "args": {
-            "a": {"value": True},
-            "b": {"value": False},
-            "c": {"value": 1}
-        }
+        "args": {"a": {"value": True}, "b": {"value": False}, "c": {"value": 1}}
     }
 
     _return = Agent._create_command_args(mock_command)
@@ -104,14 +100,11 @@ def test_agent_create_command_args():
     assert _return["args_no_boolean_flags"] == ["--a", "--c=1"]
     assert _return["args_json"] == ['{"a": true, "b": false, "c": 1}']
 
+
 def test_agent_create_command_args_bad_command():
     mock_command_no_args = {"foo": None}
     with pytest.raises(ValueError):
         _ = Agent._create_command_args(mock_command_no_args)
-    mock_command_missing_value = {
-        "args": {
-            "a": {"foo": True}
-        }
-    }
+    mock_command_missing_value = {"args": {"a": {"foo": True}}}
     with pytest.raises(ValueError):
         _ = Agent._create_command_args(mock_command_missing_value)
