@@ -2,21 +2,17 @@ import configparser
 import json
 import os
 from unittest.mock import MagicMock
+import sys
 
-
+import boto3
+import wandb
+import wandb.sdk.launch.launch as launch
+import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.runner.aws import (
     SagemakerSubmittedRun,
     get_aws_credentials,
     get_region,
 )
-
-import sys
-
-import boto3
-import wandb
-import wandb.util as util
-import wandb.sdk.launch.launch as launch
-import wandb.sdk.launch._project_spec as _project_spec
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 from ..utils import fixture_open

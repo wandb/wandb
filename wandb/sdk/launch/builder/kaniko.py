@@ -154,17 +154,19 @@ class KanikoBuilder(AbstractBuilder):
     def build_image(
         self,
         launch_project: LaunchProject,
-        registry: Optional[str],
+        repository: Optional[str],
         entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
         runner_type: str,
     ) -> str:
-        if registry is None:
+        if repository is None:
             raise LaunchError("registry is required for kaniko builder")
-        image_uri = f"{registry}:{launch_project.run_id}"
+        image_uri = f"{repository}:{launch_project.run_id}"
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
-        dockerfile_str = generate_dockerfile(launch_project, runner_type, "kaniko")
+        dockerfile_str = generate_dockerfile(
+            launch_project, entry_cmd, runner_type, self.type
+        )
         create_metadata_file(
             launch_project,
             image_uri,
@@ -187,7 +189,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job = self._create_kaniko_job(
             build_job_name,
             dockerfile_config_map.metadata.name,
-            registry,
+            repository,
             image_uri,
             build_context,
         )

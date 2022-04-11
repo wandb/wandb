@@ -31,27 +31,3 @@ class AbstractBuilder(ABC):
             The image name.
         """
         pass
-
-    # @abstractmethod
-    # def check_image_exists(self, image_name: str, registry: str):
-    #     """Check if the image exists.
-
-    #     Args:
-    #         image_name: The image name.
-    #         registry: The registry to check.
-
-    #     Returns:
-    #         True if the image exists.
-    #     """
-    #     pass
-
-    # @abstractmethod
-    # def push_image_to_registry(self, image_name: str, registry: str, tag: str) -> None:
-    #     """Push the image to the registry.
-
-    #     Args:
-    #         image_name: The image name.
-    #         registry: The registry to push to.
-    #         tag: The tag to push.
-    #     """
-    #     pass

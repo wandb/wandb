@@ -294,13 +294,13 @@ def get_entrypoint_setup(
             fp.write(entry_cmd)
         return SAGEMAKER_ENTRYPOINT_TEMPLATE.format(workdir=workdir)
 
-    # json format to ensure argslist is formatted with double quotes
-    command_arr = json.dumps(entry_cmd.split())
-    return f"ENTRYPOINT {command_arr}"
+    # no need to specify an entrypoint in the dockerfile outside of sagemaker
+    return ""
 
 
 def generate_dockerfile(
     launch_project: LaunchProject,
+    entry_cmd: str,
     runner_type: str,
     builder_type: str,
 ) -> str:
@@ -333,9 +333,9 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = f"/home/{username}"
 
-    entrypoint_line = ""
-    if runner_type == "sagemaker":
-        entrypoint_line = 'ENTRYPOINT ["sh", "train"]'
+    entrypoint_section = get_entrypoint_setup(
+        launch_project, entry_cmd, workdir, runner_type
+    )
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -344,7 +344,7 @@ def generate_dockerfile(
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
-        entrypoint_setup=entrypoint_line,
+        entrypoint_setup=entrypoint_section,
     )
 
     return dockerfile_contents
