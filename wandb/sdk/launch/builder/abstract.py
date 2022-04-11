@@ -16,7 +16,7 @@ class AbstractBuilder(ABC):
     def build_image(
         self,
         launch_project: LaunchProject,
-        registry: str,
+        registry: Optional[str],
         entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
         runner_type: str,

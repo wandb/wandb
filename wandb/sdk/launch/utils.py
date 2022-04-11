@@ -382,7 +382,9 @@ def run_shell(args: List[str]) -> Tuple[str, str]:
     return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()
 
 
-def validate_build_and_registry_configs(build_config, registry_config):
+def validate_build_and_registry_configs(
+    build_config: Dict[str, Any], registry_config: Dict[str, Any]
+) -> None:
     build_config_credentials = build_config.get("cloud-provider", {}).get(
         "creddentials"
     )

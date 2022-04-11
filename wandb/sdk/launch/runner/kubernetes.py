@@ -156,7 +156,6 @@ class KubernetesRunner(AbstractRunner):
             job_spec["parallelism"] = resource_args.get("parallelism")
         if resource_args.get("suspend"):
             job_spec["suspend"] = resource_args.get("suspend")
-        return job_spec
 
     def populate_pod_spec(
         self, pod_spec: Dict[str, Any], resource_args: Dict[str, Any]
@@ -169,10 +168,8 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("node_selectors"):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
 
-        return pod_spec
-
     def populate_container_resources(
-        self, containers: Union[Dict[str, Any], Any], resource_args: Dict[str, Any]
+        self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
     ) -> None:
 
         if resource_args.get("container_name"):
@@ -347,7 +344,9 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
                 )
-            registry = resource_args.get("registry") or registry_config.get("url")
+            registry: Optional[str] = resource_args.get(
+                "registry"
+            ) or registry_config.get("url")
             if registry is None:
                 # allow local registry usage for eg local clusters but throw a warning
                 wandb.termwarn(

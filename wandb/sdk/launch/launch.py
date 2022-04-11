@@ -140,13 +140,15 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     if launch_config is not None:
         given_docker_args = launch_config.get("docker", {}).get("args", {})
+        build_config: Dict[str, Any] = launch_config.get("build", {})
+        registry_config = launch_config.get("registry", {})
         runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
     else:
         runner_config[PROJECT_DOCKER_ARGS] = {}
+        build_config = {}
+        registry_config = {}
 
-    build_config = launch_config.get("build", {})
     builder = builder_loader.load_builder(build_config)
-    registry_config = launch_config.get("registry", {})
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
         submitted_run = backend.run(launch_project, builder, registry_config)

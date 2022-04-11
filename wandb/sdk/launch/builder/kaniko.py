@@ -154,12 +154,13 @@ class KanikoBuilder(AbstractBuilder):
     def build_image(
         self,
         launch_project: LaunchProject,
-        registry: str,
+        registry: Optional[str],
         entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
         runner_type: str,
     ) -> str:
-
+        if registry is None:
+            raise LaunchError("registry is required for kaniko builder")
         image_uri = f"{registry}:{launch_project.run_id}"
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
