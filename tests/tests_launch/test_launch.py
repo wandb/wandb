@@ -233,7 +233,7 @@ def test_launch_base_case(
         _project_spec.create_metadata_file(*args, **kwargs)
 
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
+        wandb.sdk.launch._project_spec,
         "create_metadata_file",
         mock_create_metadata_file,
     )

@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 if False:
     import kubernetes  # type: ignore  # noqa: F401
