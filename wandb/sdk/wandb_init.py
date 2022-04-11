@@ -138,10 +138,19 @@ class _WandbInit:
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None:
             if isinstance(settings_param, Settings):
-                # todo: check the logic here. this _only_ comes up in tests?
+                # detect passed settings that differ from defaults in wandb.Settings()
+                # and apply them using Source.INIT
+                defaults = Settings()
+                settings_param_dict = dict()
+                for k, v in settings_param.items():
+                    if defaults.get(k) != v:
+                        settings_param_dict[k] = v
+                settings.update(settings_param_dict, source=Source.INIT)
                 # update settings with settings_param using whatever
-                # source each parameter has there
-                settings._apply_settings(settings_param, _logger=logger)
+                # source each parameter has there.
+                # this is probably not what the user would expect
+                # when doing `wandb.init(settings=wandb.Settings(...))`
+                # settings._apply_settings(settings_param, _logger=logger)
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
                 # explicitly using Source.INIT
@@ -245,7 +254,10 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
+        print(settings._disable_stats)
         settings._apply_settings(wandb.setup().settings)
+        print(settings._disable_stats)
+        input()
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code

@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Dict,
     FrozenSet,
+    ItemsView,
     Iterable,
     Mapping,
     no_type_check,
@@ -1131,6 +1132,12 @@ class Settings:
                 self.__validation_warnings[key] = str(self.__dict__[key]._value)
             else:
                 self.__validation_warnings.pop(key, None)
+
+    def items(self) -> ItemsView[str, Any]:
+        return self.make_static().items()
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.make_static().get(key, default)
 
     def freeze(self) -> None:
         object.__setattr__(self, "_Settings__frozen", True)
