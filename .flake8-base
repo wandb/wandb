@@ -39,6 +39,8 @@ exclude =
     ./wandb/sklearn/
     ./wandb/viz.py
     ./wandb/vendor/
+    */wandb/run-*/files/code/
+    */wandb/offline-run-*/files/code/
 
 per-file-ignores =
    wandb/cli/cli.py:C901,I202
