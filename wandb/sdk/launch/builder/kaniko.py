@@ -227,7 +227,7 @@ class KanikoBuilder(AbstractBuilder):
         self,
         job_name: str,
         config_map_name: str,
-        registry: str,
+        repository: str,
         image_tag: str,
         build_context_path: str,
     ) -> client.V1Job:
@@ -259,7 +259,7 @@ class KanikoBuilder(AbstractBuilder):
                 "--dockerfile=/etc/config/Dockerfile",
                 f"--destination={image_tag}",
                 "--cache=true",
-                f"--cache-repo={registry}",
+                f"--cache-repo={repository}",
             ],
             volume_mounts=volume_mounts,
         )

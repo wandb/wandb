@@ -227,7 +227,7 @@ def test_launch_kube(
             "kubernetes": {
                 "job_spec": json.dumps(multi_spec),
                 "config_file": "dummy.yaml",
-                "registry": "test.registry",
+                "registry": "test.registry/repo_name",
                 "job_name": "test-job",
                 "job_labels": {"test-label": "test-val"},
                 "backoff_limit": 3,
@@ -266,7 +266,7 @@ def test_launch_kube(
         == args["node_selectors"]["test-selector"]
     )
     container = job.spec.template.spec.containers[0]
-    assert "test.registry/" in container.image
+    assert "test.registry/repo_name" in container.image
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 

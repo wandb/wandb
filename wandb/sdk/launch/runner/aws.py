@@ -146,23 +146,23 @@ class AWSSagemakerRunner(AbstractRunner):
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
         if ecr_repo_name:
-            registry = (
+            repository = (
                 token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
                 + f"/{ecr_repo_name}"
             )
         else:
-            registry = registry_config.get("url")
+            repository = registry_config.get("url")
 
-        if registry is None:
+        if repository is None:
             raise LaunchError(
-                "Must provide a registry url either through resource args or launch config file"
+                "Must provide a repository url either through resource args or launch config file"
             )
 
         if registry_config.get("ecr-repo-provider", "aws") != "aws":
             raise LaunchError(
                 "Sagemaker jobs requires an AWS ECR Repo to push the container to"
             )
-
+        # TODO: handle login credentials gracefully
         login_credentials = registry_config.get("credentials")
         if login_credentials is not None:
             wandb.termwarn(
@@ -171,7 +171,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         if builder.type != "kaniko":
             _logger.info("Logging in to AWS ECR")
-            login_resp = aws_ecr_login(region, registry)
+            login_resp = aws_ecr_login(region, repository)
             if login_resp is None or "Login Succeeded" not in login_resp:
                 raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
@@ -189,7 +189,7 @@ class AWSSagemakerRunner(AbstractRunner):
             # build our own image
             image = builder.build_image(
                 launch_project,
-                registry,
+                repository,
                 entry_point,
                 {},
                 "sagemaker",

@@ -34,14 +34,14 @@ class DockerBuilder(AbstractBuilder):
     def build_image(
         self,
         launch_project: LaunchProject,
-        registry: Optional[str],
+        repository: Optional[str],
         entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
         runner_type: str,
     ) -> str:
 
-        if registry:
-            image_uri = f"{registry}/{launch_project.run_id}"
+        if repository:
+            image_uri = f"{repository}:{launch_project.run_id}"
         else:
             image_uri = construct_local_image_uri(launch_project)
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
@@ -75,7 +75,7 @@ class DockerBuilder(AbstractBuilder):
                 "Temporary docker context file %s was not deleted.", build_ctx_path
             )
 
-        if registry:
+        if repository:
             reg, tag = image_uri.split(":")
             wandb.termlog(f"Pushing image {image_uri}")
             push_resp = docker.push(reg, tag)
@@ -83,7 +83,7 @@ class DockerBuilder(AbstractBuilder):
                 raise LaunchError("Failed to push image to repository")
             elif (
                 runner_type == "sagemaker"
-                and f"The push refers to repository [{registry}]" not in push_resp
+                and f"The push refers to repository [{repository}]" not in push_resp
             ):
                 raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 

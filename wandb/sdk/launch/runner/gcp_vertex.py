@@ -150,7 +150,7 @@ class VertexRunner(AbstractRunner):
             image_uri = launch_project.docker_image
         else:
 
-            registry_uri = construct_gcp_registry_uri(
+            repository = construct_gcp_registry_uri(
                 gcp_artifact_repo,
                 gcp_project,
                 gcp_docker_host,
@@ -158,7 +158,7 @@ class VertexRunner(AbstractRunner):
 
             image_uri = builder.build_image(
                 launch_project,
-                registry_uri,
+                repository,
                 entry_point,
                 docker_args,
                 runner_type="gcp-vertex",
