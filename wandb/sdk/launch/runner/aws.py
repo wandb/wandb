@@ -5,14 +5,13 @@ import subprocess
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
-
 if False:
     import boto3  # type: ignore
 import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import LaunchError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -22,7 +21,6 @@ from .._project_spec import (
 )
 from ..builder.build import (
     get_env_vars_dict,
-    validate_docker_installation,
 )
 from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
 

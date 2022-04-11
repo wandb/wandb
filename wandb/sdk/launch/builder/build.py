@@ -16,12 +16,9 @@ import wandb.docker as docker
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
 from .._project_spec import (
-    create_metadata_file,
-    EntryPoint,
-    get_entry_point_command,
     LaunchProject,
 )
-from ..utils import _is_wandb_dev_uri, _is_wandb_local_uri, sanitize_wandb_api_key
+from ..utils import _is_wandb_dev_uri, _is_wandb_local_uri
 from ...lib.git import GitRepo
 
 _logger = logging.getLogger(__name__)

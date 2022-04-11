@@ -1,21 +1,19 @@
 import base64
-from google.cloud import storage  # type: ignore
 import json
-from kubernetes import client, config  # type: ignore
 import os
 import tarfile
 import tempfile
 import time
 from typing import Any, Dict, Optional
 
+from google.cloud import storage  # type: ignore
+from kubernetes import client, config  # type: ignore
 import wandb
-
-
-from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
+from .build import _create_build_ctx, generate_dockerfile
 from .._project_spec import (
     create_metadata_file,
     EntryPoint,
@@ -23,7 +21,6 @@ from .._project_spec import (
     LaunchProject,
 )
 from ..utils import sanitize_wandb_api_key
-from .build import _create_build_ctx, generate_dockerfile
 
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout

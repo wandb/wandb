@@ -5,7 +5,7 @@ Implementation of launch agent.
 import logging
 import os
 import time
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -13,9 +13,9 @@ from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
-from ..builder.loader import load_builder
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,

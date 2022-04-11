@@ -1,19 +1,7 @@
 from abc import ABC, abstractmethod
-import logging
-import os
-import subprocess
-import sys
-from typing import Any, Dict, List, Optional, Union
-
-from dockerpycreds.utils import find_executable  # type: ignore
-import wandb
-from wandb import Settings
-from wandb.apis.internal import Api
-from wandb.errors import CommError
+from typing import Any, Dict, Optional
 
 from .._project_spec import EntryPoint, LaunchProject
-
-_logger = logging.getLogger(__name__)
 
 
 class AbstractBuilder(ABC):

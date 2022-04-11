@@ -14,9 +14,7 @@ from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import (
     get_env_vars_dict,
     pull_docker_image,
-    validate_docker_installation,
 )
-
 from ..utils import (
     _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,

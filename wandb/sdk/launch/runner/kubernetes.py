@@ -1,8 +1,6 @@
 import os
 import time
-from typing import Any, Dict, List, Optional
-
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from typing import Any, Dict, List, Optional, Union
 
 if False:
     import kubernetes  # type: ignore  # noqa: F401
@@ -11,6 +9,7 @@ if False:
     from kubernetes.client.models.v1_job import V1Job  # type: ignore
 import wandb
 from wandb.errors import LaunchError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module, load_json_yaml_dict
 
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -146,6 +145,97 @@ class KubernetesRunner(AbstractRunner):
         else:
             return active_context
 
+    def populate_job_spec(
+        self, job_spec: Dict[str, Any], resource_args: Dict[str, Any]
+    ) -> None:
+        if resource_args.get("backoff_limit"):
+            job_spec["backoffLimit"] = resource_args.get("backoff_limit")
+        if resource_args.get("completions"):
+            job_spec["completions"] = resource_args.get("completions")
+        if resource_args.get("parallelism"):
+            job_spec["parallelism"] = resource_args.get("parallelism")
+        if resource_args.get("suspend"):
+            job_spec["suspend"] = resource_args.get("suspend")
+        return job_spec
+
+    def populate_pod_spec(
+        self, pod_spec: Dict[str, Any], resource_args: Dict[str, Any]
+    ) -> None:
+        pod_spec["restartPolicy"] = resource_args.get("restart_policy", "Never")
+        if resource_args.get("preemption_policy"):
+            pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
+        if resource_args.get("node_name"):
+            pod_spec["nodeName"] = resource_args.get("node_name")
+        if resource_args.get("node_selectors"):
+            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+
+        return pod_spec
+
+    def populate_container_resources(
+        self, containers: Union[Dict[str, Any], Any], resource_args: Dict[str, Any]
+    ) -> None:
+
+        if resource_args.get("container_name"):
+            if len(containers) > 1:
+                raise LaunchError(
+                    "Container name override not supported for multiple containers. Specify in yaml file supplied via job_spec."
+                )
+            containers[0]["name"] = resource_args["container_name"]
+        else:
+            for i, cont in enumerate(containers):
+                cont["name"] = cont.get("name", "launch" + str(i))
+
+        multi_container_override = len(containers) > 1
+        for cont in containers:
+            container_resources = cont.get("resources", {})
+            if resource_args.get("resource_requests"):
+                container_resources["requests"] = resource_args.get("resource_requests")
+            if resource_args.get("resource_limits"):
+                container_resources["limits"] = resource_args.get("resource_limits")
+            if container_resources:
+                multi_container_override &= (
+                    cont.get("resources") != container_resources
+                )  # if multiple containers and we changed something
+                cont["resources"] = container_resources
+            cont["security_context"] = {
+                "allowPrivilegeEscalation": False,
+                "capabilities": {"drop": ["ALL"]},
+                "seccompProfile": {"type": "RuntimeDefault"},
+            }
+        if multi_container_override:
+            wandb.termwarn(
+                "Container overrides (e.g. resource limits) were provided with multiple containers specified: overrides will be applied to all containers."
+            )
+
+    def wait_job_launch(
+        self, job_name: str, namespace: str, core_api: "CoreV1Api"
+    ) -> List[str]:
+        pods = core_api.list_namespaced_pod(
+            label_selector=f"job-name={job_name}", namespace=namespace
+        )
+        timeout = TIMEOUT
+        while len(pods.items) == 0 and timeout > 0:
+            time.sleep(1)
+            timeout -= 1
+            pods = core_api.list_namespaced_pod(
+                label_selector=f"job-name={job_name}", namespace=namespace
+            )
+
+        if timeout == 0:
+            raise LaunchError(
+                "No pods found for job {}. Check dashboard to see if job was launched successfully.".format(
+                    job_name
+                )
+            )
+
+        pod_names = [pi.metadata.name for pi in pods.items]
+        wandb.termlog(
+            "Job {job} created on pod(s) {pod_names}. See logs with e.g. `kubectl logs {first_pod}`.".format(
+                job=job_name, pod_names=", ".join(pod_names), first_pod=pod_names[0]
+            )
+        )
+        return pod_names
+
     def run(
         self,
         launch_project: LaunchProject,
@@ -217,53 +307,10 @@ class KubernetesRunner(AbstractRunner):
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
 
-        if resource_args.get("backoff_limit"):
-            job_spec["backoffLimit"] = resource_args.get("backoff_limit")
-        if resource_args.get("completions"):
-            job_spec["completions"] = resource_args.get("completions")
-        if resource_args.get("parallelism"):
-            job_spec["parallelism"] = resource_args.get("parallelism")
-        if resource_args.get("suspend"):
-            job_spec["suspend"] = resource_args.get("suspend")
+        self.populate_job_spec(job_spec, resource_args)
+        self.populate_pod_spec(pod_spec, resource_args)
 
-        pod_spec["restartPolicy"] = resource_args.get("restart_policy", "Never")
-        if resource_args.get("preemption_policy"):
-            pod_spec["preemptionPolicy"] = resource_args.get("preemption_policy")
-        if resource_args.get("node_name"):
-            pod_spec["nodeName"] = resource_args.get("node_name")
-        if resource_args.get("node_selectors"):
-            pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
-
-        if resource_args.get("container_name"):
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Container name override not supported for multiple containers. Specify in yaml file supplied via job_spec."
-                )
-            containers[0]["name"] = resource_args["container_name"]
-        else:
-            for i, cont in enumerate(containers):
-                cont["name"] = cont.get("name", "launch" + str(i))
-        multi_container_override = len(containers) > 1
-        for cont in containers:
-            container_resources = cont.get("resources", {})
-            if resource_args.get("resource_requests"):
-                container_resources["requests"] = resource_args.get("resource_requests")
-            if resource_args.get("resource_limits"):
-                container_resources["limits"] = resource_args.get("resource_limits")
-            if container_resources:
-                multi_container_override &= (
-                    cont.get("resources") != container_resources
-                )  # if multiple containers and we changed something
-                cont["resources"] = container_resources
-            cont["security_context"] = {
-                "allowPrivilegeEscalation": False,
-                "capabilities": {"drop": ["ALL"]},
-                "seccompProfile": {"type": "RuntimeDefault"},
-            }
-        if multi_container_override:
-            wandb.termwarn(
-                "Container overrides (e.g. resource limits) were provided with multiple containers specified: overrides will be applied to all containers."
-            )
+        self.populate_container_resources(containers, resource_args)
 
         # env vars
         env_vars = get_env_vars_dict(launch_project, self._api)
@@ -335,30 +382,7 @@ class KubernetesRunner(AbstractRunner):
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.labels["job-name"]
 
-        pods = core_api.list_namespaced_pod(
-            label_selector=f"job-name={job_name}", namespace=namespace
-        )
-        timeout = TIMEOUT
-        while len(pods.items) == 0 and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            pods = core_api.list_namespaced_pod(
-                label_selector=f"job-name={job_name}", namespace=namespace
-            )
-
-        if timeout == 0:
-            raise LaunchError(
-                "No pods found for job {}. Check dashboard to see if job was launched successfully.".format(
-                    job_name
-                )
-            )
-
-        pod_names = [pi.metadata.name for pi in pods.items]
-        wandb.termlog(
-            "Job {job} created on pod(s) {pod_names}. See logs with e.g. `kubectl logs {first_pod}`.".format(
-                job=job_name, pod_names=", ".join(pod_names), first_pod=pod_names[0]
-            )
-        )
+        pod_names = self.wait_job_launch(job_name, namespace, core_api)
 
         submitted_job = KubernetesSubmittedRun(
             batch_api,

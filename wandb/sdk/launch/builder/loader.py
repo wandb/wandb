@@ -2,10 +2,10 @@ import logging
 from typing import Any, Dict, Type
 
 from wandb.errors import LaunchError
-from .kaniko import KanikoBuilder
-from .docker import DockerBuilder
-from .abstract import AbstractBuilder
 
+from .abstract import AbstractBuilder
+from .docker import DockerBuilder
+from .kaniko import KanikoBuilder
 
 __logger__ = logging.getLogger(__name__)
 

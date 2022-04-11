@@ -4,23 +4,19 @@ import shlex
 import time
 from typing import Any, Dict, Optional
 
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
-
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 import wandb
-import wandb.docker as docker
 from wandb.errors import LaunchError
 from wandb.util import get_module
 import yaml
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
+from ..builder.abstract import AbstractBuilder
 from ..builder.build import (
-    construct_gcp_image_uri,
     construct_gcp_registry_uri,
     get_env_vars_dict,
-    validate_docker_installation,
 )
 from ..utils import (
     PROJECT_DOCKER_ARGS,

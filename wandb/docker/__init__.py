@@ -3,11 +3,11 @@ import os
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from dockerpycreds.utils import find_executable  # type: ignore
 import requests
 from wandb.docker import auth
 from wandb.docker import www_authenticate
 from wandb.errors import DockerError
-from dockerpycreds.utils import find_executable  # type: ignore
 
 
 entrypoint = os.path.join(
