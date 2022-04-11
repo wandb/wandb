@@ -315,7 +315,17 @@ class Image(BatchableMedia):
         id_: Optional[Union[int, str]] = None,
         ignore_copy_err: Optional[bool] = None,
     ) -> None:
-        super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
+        # For Images, we are going to avoid copying the image file to the run.
+        # We should make this common functionality for all media types, but that
+        # requires a broader UI refactor. This model can easily be moved to the
+        # higher level Media class, but that will require every UI surface area
+        # that depends on the `path` to be able to instead consume
+        # `artifact_path`. I (Tim) think the media panel makes up most of this
+        # space, but there are also custom charts, and maybe others. Let's
+        # commit to getting all that fixed up before moving this to  the top
+        # level Media class.
+        if self._get_artifact_entry_ref_url() is None:
+            super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = f"{id_}{i}" if id_ is not None else None
@@ -442,7 +452,7 @@ class Image(BatchableMedia):
 
         for obj in jsons:
             expected = util.to_forward_slash_path(media_dir)
-            if not obj["path"].startswith(expected):
+            if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
                         cls.get_media_subdir(), obj["path"]
@@ -471,7 +481,9 @@ class Image(BatchableMedia):
             "count": num_images_to_log,
         }
         if _server_accepts_image_filenames():
-            meta["filenames"] = [obj["path"] for obj in jsons]
+            meta["filenames"] = [
+                obj.get("path", obj.get("artifact_path")) for obj in jsons
+            ]
         else:
             wandb.termwarn(
                 "Unable to log image array filenames. In some cases, this can prevent images from being"
