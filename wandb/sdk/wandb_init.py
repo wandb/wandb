@@ -150,6 +150,14 @@ class _WandbInit:
                     if defaults.get(k) != v:
                         settings_param_dict[k] = v
                 settings.update(settings_param_dict, source=Source.INIT)
+                # todo: this is collect telemetry on validation errors and unexpected args
+                #  remove this once strict checking is enforced
+                for attr in (
+                    "_Settings__unexpected_args",
+                    "_Settings__preprocessing_warnings",
+                    "_Settings__validation_warnings",
+                ):
+                    getattr(settings, attr).update(getattr(settings_param, attr))
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
                 # explicitly using Source.INIT
@@ -592,7 +600,7 @@ class _WandbInit:
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
-            # fixme: detected issues with settings
+            # todo: detected issues with settings.
             if self.settings.__dict__["_Settings__preprocessing_warnings"]:
                 tel.issues.settings__preprocessing_warnings = True
             if self.settings.__dict__["_Settings__validation_warnings"]:
@@ -607,9 +615,7 @@ class _WandbInit:
                 run._label_probe_main()
 
         for deprecated_feature, msg in self.deprecated_features_used.items():
-            warning_message = (
-                f"`{deprecated_feature}` is deprecated. {msg}"
-            )
+            warning_message = f"`{deprecated_feature}` is deprecated. {msg}"
             deprecate(
                 field_name=getattr(Deprecated, "init__" + deprecated_feature),
                 warning_message=warning_message,
@@ -682,6 +688,7 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
 
+        print(message_to_dict(run_obj))
         self.settings._apply_run_start(message_to_dict(run_obj))
         run._update_settings(self.settings)
         if manager:

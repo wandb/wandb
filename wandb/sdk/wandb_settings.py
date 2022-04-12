@@ -82,7 +82,7 @@ def _get_wandb_dir(root_dir: str) -> str:
     return os.path.expanduser(path)
 
 
-# fixme: should either return bool or error out. fix once confident.
+# todo: should either return bool or error out. fix once confident.
 def _str_as_bool(val: Union[str, bool]) -> bool:
     """
     Parse a string as a bool.
@@ -95,7 +95,7 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     except (AttributeError, ValueError):
         pass
 
-    # fixme: remove this and only raise error once we are confident.
+    # todo: remove this and only raise error once we are confident.
     wandb.termwarn(
         f"Could not parse value {val} as a bool. ",
         repeat=False,
@@ -157,7 +157,7 @@ def _get_program_relpath_from_gitrepo(
 @enum.unique
 class Source(enum.IntEnum):
     OVERRIDE: int = 0
-    BASE: int = 1  # fixme: audit this
+    BASE: int = 1  # todo: audit this
     ORG: int = 2
     ENTITY: int = 3
     PROJECT: int = 4
@@ -193,7 +193,7 @@ class Property:
           E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
 
-    # fixme: this is a temporary measure to bypass validation of the settings
+    # todo: this is a temporary measure to bypass validation of the settings
     #  whose validation was not previously enforced to make sure we don't brake anything.
     __strict_validate_settings = {
         "project",
@@ -235,7 +235,7 @@ class Property:
         self._is_policy = is_policy
         self._source = source
 
-        # fixme: this is a temporary measure to collect stats on failed preprocessing and validation
+        # todo: this is a temporary measure to collect stats on failed preprocessing and validation
         self.__failed_preprocessing: bool = False
         self.__failed_validation: bool = False
 
@@ -283,14 +283,14 @@ class Property:
         return value
 
     def _validate(self, value: Any) -> Any:
-        self.__failed_validation = False  # fixme: this is a temporary measure
+        self.__failed_validation = False  # todo: this is a temporary measure
         if value is not None and self._validator is not None:
             _validator = (
                 [self._validator] if callable(self._validator) else self._validator
             )
             for v in _validator:
                 if not v(value):
-                    # fixme: this is a temporary measure to bypass validation of certain settings.
+                    # todo: this is a temporary measure to bypass validation of certain settings.
                     #  remove this once we are confident
                     if self.name in self.__strict_validate_settings:
                         raise ValueError(
@@ -818,7 +818,7 @@ class Settings:
             r"\.?"  # may have a trailing dot
         )
         # host_re = "(" + hostname_re + domain_re + tld_re + "|localhost)"
-        # fixme?: allow hostname to be just a hostname (no tld)?
+        # todo?: allow hostname to be just a hostname (no tld)?
         host_re = "(" + hostname_re + domain_re + f"({tld_re})?" + "|localhost)"
 
         regex = re.compile(
@@ -936,7 +936,7 @@ class Settings:
         self.__frozen: bool = False
         self.__initialized: bool = False
 
-        # fixme: this is collect telemetry on validation errors and unexpected args
+        # todo: this is collect telemetry on validation errors and unexpected args
         # values are stored as strings to avoid potential json serialization errors down the line
         self.__preprocessing_warnings: Dict[str, str] = dict()
         self.__validation_warnings: Dict[str, str] = dict()
@@ -986,7 +986,7 @@ class Settings:
                     ),
                 )
 
-            # fixme: this is to collect stats on preprocessing and validation errors
+            # todo: this is to collect stats on preprocessing and validation errors
             if self.__dict__[prop].__dict__["_Property__failed_preprocessing"]:
                 self.__preprocessing_warnings[prop] = str(self.__dict__[prop]._value)
             if self.__dict__[prop].__dict__["_Property__failed_validation"]:
@@ -997,7 +997,7 @@ class Settings:
         # allow only explicitly defined arguments
         if unexpected_arguments:
 
-            # fixme: remove this and raise error instead once we are confident
+            # todo: remove this and raise error instead once we are confident
             self.__unexpected_args.update(unexpected_arguments)
             wandb.termwarn(
                 f"Ignoring unexpected arguments: {unexpected_arguments}. "
@@ -1024,7 +1024,7 @@ class Settings:
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
 
-        # fixme? freeze settings to prevent accidental changes
+        # todo? freeze settings to prevent accidental changes
         # self.freeze()
 
     def __str__(self) -> str:
@@ -1050,7 +1050,7 @@ class Settings:
         """
         Ensure that a copy of the settings object is a truly deep copy
 
-        Note that the copied object will not be frozen  fixme? why is this needed?
+        Note that the copied object will not be frozen  todo? why is this needed?
         """
         # get attributes that are instances of the Property class:
         attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
@@ -1122,7 +1122,7 @@ class Settings:
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
-            # fixme: this is to collect stats on preprocessing and validation errors
+            # todo: this is to collect stats on preprocessing and validation errors
             if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
                 self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
             else:
@@ -1173,7 +1173,7 @@ class Settings:
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)
 
-        # fixme: this is to pass on info on unexpected args in settings
+        # todo: this is to pass on info on unexpected args in settings
         if settings.__dict__["_Settings__unexpected_args"]:
             self.__dict__["_Settings__unexpected_args"].update(
                 settings.__dict__["_Settings__unexpected_args"]

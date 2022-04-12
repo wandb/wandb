@@ -317,15 +317,21 @@ def test_use_artifact_offline(live_mock_server, test_settings):
     run.finish()
 
 
-def test_run_urls(test_settings):
+@pytest.mark.skip(
+    reason=(
+        "mock server enforces entity=mock_server_entity and project=test,"
+        "this should only work on a live server, or mock_server would need customization."
+    )
+)
+def test_run_urls(live_mock_server, test_settings):
     base_url = "https://my.cool.site.com"
     entity = "me"
-    project = "test"
-    test_settings.update(dict(base_url=base_url, entity=entity, project=project))
+    project = "lol"
+    test_settings.update(base_url=base_url, entity=entity, project=project)
     run = wandb.init(settings=test_settings)
     assert run.get_project_url() == f"{base_url}/{entity}/{project}"
     assert run.get_url() == f"{base_url}/{entity}/{project}/runs/{run.id}"
-    run.finish
+    run.finish()
 
 
 def test_use_artifact(live_mock_server, test_settings):
@@ -725,7 +731,7 @@ def test_settings_unexpected_args_telemetry(
         run.finish()
 
 
-def test_attach_same_process(test_settings):
+def test_attach_same_process(live_mock_server, test_settings):
     with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
         with pytest.raises(RuntimeError) as excinfo:
             run = wandb.init(settings=test_settings)
