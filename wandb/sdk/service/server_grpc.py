@@ -12,6 +12,7 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 from .. import lib as wandb_lib
 from ..lib.proto_util import settings_dict_from_pbmap
@@ -19,7 +20,7 @@ from ..lib.proto_util import settings_dict_from_pbmap
 
 if TYPE_CHECKING:
 
-    class GrpcServerType(object):
+    class GrpcServerType:
         def __init__(self) -> None:
             pass
 
@@ -142,7 +143,9 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
     def LinkArtifact(  # noqa: N802
-        self, link_artifact: pb.LinkArtifactRecord, context: grpc.ServicerContext,
+        self,
+        link_artifact: pb.LinkArtifactRecord,
+        context: grpc.ServicerContext,
     ) -> pb.LinkArtifactResult:
         stream_id = link_artifact._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
@@ -297,20 +300,26 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
     def ServerShutdown(  # noqa: N802
-        self, request: spb.ServerShutdownRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerShutdownRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerShutdownResponse:
         result = spb.ServerShutdownResponse()
         self._server.stop(5)
         return result
 
     def ServerStatus(  # noqa: N802
-        self, request: spb.ServerStatusRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerStatusRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerStatusResponse:
         result = spb.ServerStatusResponse()
         return result
 
     def ServerInformInit(  # noqa: N802
-        self, request: spb.ServerInformInitRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerInformInitRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerInformInitResponse:
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
@@ -319,7 +328,9 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
     def ServerInformStart(  # noqa: N802
-        self, request: spb.ServerInformStartRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerInformStartRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerInformStartResponse:
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
@@ -328,7 +339,9 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
     def ServerInformFinish(  # noqa: N802
-        self, request: spb.ServerInformFinishRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerInformFinishRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerInformFinishResponse:
         stream_id = request._info.stream_id
         self._mux.del_stream(stream_id)
@@ -336,21 +349,31 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
     def ServerInformAttach(  # noqa: N802
-        self, request: spb.ServerInformAttachRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerInformAttachRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerInformAttachResponse:
-        # TODO
+        stream_id = request._info.stream_id
         result = spb.ServerInformAttachResponse()
+        _pbmap_apply_dict(
+            result._settings_map,
+            dict(self._mux._streams[stream_id]._settings),
+        )
         return result
 
     def ServerInformDetach(  # noqa: N802
-        self, request: spb.ServerInformDetachRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerInformDetachRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerInformDetachResponse:
         # TODO
         result = spb.ServerInformDetachResponse()
         return result
 
     def ServerInformTeardown(  # noqa: N802
-        self, request: spb.ServerInformTeardownRequest, context: grpc.ServicerContext,
+        self,
+        request: spb.ServerInformTeardownRequest,
+        context: grpc.ServicerContext,
     ) -> spb.ServerInformTeardownResponse:
         exit_code = request.exit_code
         self._mux.teardown(exit_code)

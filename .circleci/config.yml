@@ -99,7 +99,7 @@ workflows:
       - test:
          name: "code-check"
          image: "python:3.6"
-         toxenv: "protocheck,generatecheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
+         toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
       - test:
          name: "unit-s_base-lin-py36"
          image: "python:3.6"
@@ -403,8 +403,11 @@ jobs:
                 pip3 install tox==3.24.0
                 pip3 install chardet
                 pip3 install iso8601
-                pip3 install jupyter-repo2docker
-                jupyter-repo2docker --no-run ./tests/fixtures/
+        - run:
+            name: pull base docker images
+            command: |
+                docker pull nvidia/cuda:10.0-runtime
+                docker pull python:3.6-buster
         - restore-tox-cache
         - run:
             name: Run tests

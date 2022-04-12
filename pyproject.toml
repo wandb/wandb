@@ -9,8 +9,10 @@ exclude = '''
 | wandb/proto/
 | wandb/proto_check/
 | wandb/docker/wandb-entrypoint.sh
+| wandb/sdk/launch/deploys/
 | tests/fixtures/
 | tests/wandb_tensorflow_summary.pb
+| tests/logs/
 | tests/logs/cleanup.sh
 | tests/notebooks/
 | tests/standalone/.coveragerc
@@ -22,6 +24,8 @@ exclude = '''
 | tools/vendor_sweeps.sh
 | tools/verify_sweeps.sh
 | .sweeps_ref
+| __pycache__
+| .pyc
 '''
 include = '''
   wandb/

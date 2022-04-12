@@ -12,7 +12,7 @@ This guide discusses the development workflow and the internals of the `wandb` c
 
 <!--
 ToC was generated with https://ecotrust-canada.github.io/markdown-toc/
-Please make sure to update the ToC when you update this page.
+Please make sure to update the ToC when you update this page!
 -->
 
 - [Development workflow](#development-workflow)
@@ -112,7 +112,7 @@ We test the library code against multiple `python` versions
 and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those. Install `pyenv` by running
 
 ```shell
-curl https://pyenv.run | bash
+curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
 ```
 
 To load `pyenv` automatically, add the following lines to your shell's startup script,

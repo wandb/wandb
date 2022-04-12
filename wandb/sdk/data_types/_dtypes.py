@@ -75,7 +75,7 @@ class TypeRegistry:
             TypeError("json_dict must contain `wb_type` key")
         _type = TypeRegistry.types_by_name().get(wb_type)
         if _type is None:
-            TypeError("missing type handler for {}".format(wb_type))
+            TypeError(f"missing type handler for {wb_type}")
         return _type.from_json(json_dict, artifact)
 
     @staticmethod
@@ -125,7 +125,8 @@ class TypeRegistry:
 
 
 def _params_obj_to_json_obj(
-    params_obj: t.Any, artifact: t.Optional["ArtifactInCreation"] = None,
+    params_obj: t.Any,
+    artifact: t.Optional["ArtifactInCreation"] = None,
 ) -> t.Any:
     """Helper method"""
     if params_obj.__class__ == dict:
@@ -159,7 +160,7 @@ def _json_obj_to_params_obj(
         return json_obj
 
 
-class Type(object):
+class Type:
     """This is the most generic type which all types are subclasses.
     It provides simple serialization and deserialization as well as equality checks.
     A name class-level property must be uniquely set by subclasses.
@@ -264,12 +265,12 @@ class Type(object):
             depth (int, optional): depth of the type checking. Defaults to 0.
 
         Returns:
-            str: human readable explanation
+            str: human-readable explanation
         """
         wbtype = TypeRegistry.type_of(other)
         gap = "".join(["\t"] * depth)
         if depth > 0:
-            return "{}{} not assignable to {}".format(gap, wbtype, self)
+            return f"{gap}{wbtype} not assignable to {self}"
         else:
             return "{}{} of type {} is not assignable to {}".format(
                 gap, other, wbtype, self
@@ -420,8 +421,7 @@ class PythonObjectType(Type):
 
 
 class ConstType(Type):
-    """Represents a constant value (currently only primitives supported)
-    """
+    """Represents a constant value (currently only primitives supported)"""
 
     name = "const"
     types: t.ClassVar[t.List[type]] = []
@@ -514,14 +514,14 @@ def _union_assigner(
 
 
 class UnionType(Type):
-    """Represents an "or" of types
-    """
+    """Represents an "or" of types"""
 
     name = "union"
     types: t.ClassVar[t.List[type]] = []
 
     def __init__(
-        self, allowed_types: t.Optional[t.Sequence[ConvertableToType]] = None,
+        self,
+        allowed_types: t.Optional[t.Sequence[ConvertableToType]] = None,
     ):
         assert allowed_types is None or (allowed_types.__class__ == list)
         if allowed_types is None:
@@ -558,7 +558,7 @@ class UnionType(Type):
         return self.__class__(resolved_types)
 
     def explain(self, other: t.Any, depth=0) -> str:
-        exp = super(UnionType, self).explain(other, depth)
+        exp = super().explain(other, depth)
         for ndx, subtype in enumerate(self.params["allowed_types"]):
             if ndx > 0:
                 exp += "\n{}and".format("".join(["\t"] * depth))
@@ -583,8 +583,7 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
 
 
 class ListType(Type):
-    """Represents a list of homogenous types
-    """
+    """Represents a list of homogenous types"""
 
     name = "list"
     types: t.ClassVar[t.List[type]] = [list, tuple, set, frozenset]
@@ -660,7 +659,7 @@ class ListType(Type):
         return InvalidType()
 
     def explain(self, other: t.Any, depth=0) -> str:
-        exp = super(ListType, self).explain(other, depth)
+        exp = super().explain(other, depth)
         gap = "".join(["\t"] * depth)
         if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
             isinstance(other, list)
@@ -684,8 +683,7 @@ class ListType(Type):
 
 
 class NDArrayType(Type):
-    """Represents a list of homogenous types
-    """
+    """Represents a list of homogenous types"""
 
     name = "ndarray"
     types: t.ClassVar[t.List[type]] = []  # will manually add type if np is available
@@ -774,15 +772,15 @@ if np:
 
 
 class TypedDictType(Type):
-    """Represents a dictionary object where each key can have a type
-    """
+    """Represents a dictionary object where each key can have a type"""
 
     name = "typedDict"
     legacy_names = ["dictionary"]
     types: t.ClassVar[t.List[type]] = [dict]
 
     def __init__(
-        self, type_map: t.Optional[t.Dict[str, ConvertableToType]] = None,
+        self,
+        type_map: t.Optional[t.Dict[str, ConvertableToType]] = None,
     ):
         if type_map is None:
             type_map = {}
@@ -841,7 +839,7 @@ class TypedDictType(Type):
         return InvalidType()
 
     def explain(self, other: t.Any, depth=0) -> str:
-        exp = super(TypedDictType, self).explain(other, depth)
+        exp = super().explain(other, depth)
         gap = "".join(["\t"] * depth)
         if isinstance(other, dict):
             extra_keys = set(other.keys()) - set(self.params["type_map"].keys())

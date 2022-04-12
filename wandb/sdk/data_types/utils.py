@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from typing import cast, Optional, Sequence, TYPE_CHECKING, Union
 
@@ -9,6 +10,7 @@ from wandb import util
 
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
+from .image import _server_accepts_image_filenames
 from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -92,10 +94,28 @@ def val_to_json(
 
             items = _prune_max_seq(val)
 
-            for i, item in enumerate(items):
-                item.bind_to_run(
-                    run, key, namespace, id_=i, ignore_copy_err=ignore_copy_err
-                )
+            if _server_accepts_image_filenames():
+                for item in items:
+                    item.bind_to_run(
+                        run=run,
+                        key=key,
+                        step=namespace,
+                        ignore_copy_err=ignore_copy_err,
+                    )
+            else:
+                for i, item in enumerate(items):
+                    item.bind_to_run(
+                        run=run,
+                        key=key,
+                        step=namespace,
+                        id_=i,
+                        ignore_copy_err=ignore_copy_err,
+                    )
+                if run._attach_id and run._init_pid != os.getpid():
+                    wandb.termwarn(
+                        f"Attempting to log a sequence of {items[0].__class__.__name__} objects from multiple processes might result in data loss. Please upgrade your wandb server",
+                        repeat=False,
+                    )
 
             return items[0].seq_to_json(items, run, key, namespace)
         else:
@@ -129,7 +149,7 @@ def val_to_json(
                 # in this case, leaving only alpha numerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
                 art = wandb.wandb_sdk.wandb_artifacts.Artifact(
-                    "run-{}-{}".format(run.id, sanitized_key), "run_table"
+                    f"run-{run.id}-{sanitized_key}", "run_table"
                 )
                 art.add(val, key)
                 run.log_artifact(art)

@@ -19,7 +19,6 @@ import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
-import six
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
@@ -74,7 +73,7 @@ def _maybe_mp_process(backend: Backend) -> bool:
     return False
 
 
-class _WandbInit(object):
+class _WandbInit:
     _init_telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(self):
@@ -106,11 +105,18 @@ class _WandbInit(object):
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
             self.printer = get_printer(singleton._settings._jupyter)
+            exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
             # check if environment variables have changed
             singleton_env = {
-                k: v for k, v in singleton._environ.items() if k.startswith("WANDB_")
+                k: v
+                for k, v in singleton._environ.items()
+                if k.startswith("WANDB_") and k not in exclude_env_vars
             }
-            os_env = {k: v for k, v in os.environ.items() if k.startswith("WANDB_")}
+            os_env = {
+                k: v
+                for k, v in os.environ.items()
+                if k.startswith("WANDB_") and k not in exclude_env_vars
+            }
             if set(singleton_env.keys()) != set(os_env.keys()) or set(
                 singleton_env.values()
             ) != set(os_env.values()):
@@ -250,7 +256,7 @@ class _WandbInit(object):
             settings._apply_user(user_settings)
 
         # ensure that user settings don't set saving to true
-        # if user explicitly set these to false
+        # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
 
@@ -428,8 +434,8 @@ class _WandbInit(object):
         self._enable_logging(settings.log_user)
 
         self._wl._early_logger_flush(logger)
-        logger.info("Logging user logs to {}".format(settings.log_user))
-        logger.info("Logging internal logs to {}".format(settings.log_internal))
+        logger.info(f"Logging user logs to {settings.log_user}")
+        logger.info(f"Logging internal logs to {settings.log_internal}")
 
     def _make_run_disabled(self) -> RunDisabled:
         drun = RunDisabled()
@@ -720,10 +726,17 @@ def _attach(
 
     manager = _wl._get_manager()
     if manager:
-        manager._inform_attach(attach_id=attach_id)
+        response = manager._inform_attach(attach_id=attach_id)
 
     settings: Settings = copy.copy(_wl._settings)
-    settings.update(run_id=attach_id, source=Source.INIT)
+    settings.update(
+        {
+            "run_id": attach_id,
+            "_start_time": response["_start_time"],
+            "_start_datetime": response["_start_datetime"],
+        },
+        source=Source.INIT,
+    )
 
     # TODO: consolidate this codepath with wandb.init()
     backend = Backend(settings=settings, manager=manager)
@@ -744,7 +757,7 @@ def _attach(
     if not resp:
         raise UsageError("problem")
     if resp and resp.error and resp.error.message:
-        raise UsageError("bad: {}".format(resp.error.message))
+        raise UsageError(f"bad: {resp.error.message}")
     run._set_run_obj(resp.run)
     run._on_attach()
     return run
@@ -1017,5 +1030,5 @@ def init(
             wandb.termerror("Abnormal program exit")
             if except_exit:
                 os._exit(-1)
-            six.raise_from(Exception("problem"), error_seen)
+            raise Exception("problem") from error_seen
     return run

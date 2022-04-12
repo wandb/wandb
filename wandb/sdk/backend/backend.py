@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """Backend - Send to internal process
 
 Manage backend.
@@ -49,7 +47,7 @@ class BackendThread(threading.Thread):
         self._target(**self._kwargs)
 
 
-class Backend(object):
+class Backend:
     # multiprocessing context or module
     _multiprocessing: multiprocessing.context.BaseContext
     interface: Optional[InterfaceBase]
@@ -200,7 +198,7 @@ class Backend(object):
                     user_pid=user_pid,
                 ),
             )
-            # TODO: risky cast, assumes BackendThread Process ducktyping
+            # TODO: risky cast, assumes BackendThread Process duck typing
             self.wandb_process = wandb_thread  # type: ignore
         else:
             self.wandb_process = self._multiprocessing.Process(
@@ -221,14 +219,14 @@ class Backend(object):
         assert self.wandb_process
         self.wandb_process.start()
         self._internal_pid = self.wandb_process.pid
-        logger.info(
-            "started backend process with pid: {}".format(self.wandb_process.pid)
-        )
+        logger.info(f"started backend process with pid: {self.wandb_process.pid}")
 
         self._module_main_uninstall()
 
         self.interface = InterfaceQueue(
-            process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
+            process=self.wandb_process,
+            record_q=self.record_q,
+            result_q=self.result_q,
         )
 
     def server_connect(self) -> None:

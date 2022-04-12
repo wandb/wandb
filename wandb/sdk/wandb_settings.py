@@ -73,7 +73,8 @@ def _get_wandb_dir(root_dir: str) -> str:
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
         wandb.termwarn(
-            f"Path {path} wasn't writable, using system temp directory.", repeat=False,
+            f"Path {path} wasn't writable, using system temp directory.",
+            repeat=False,
         )
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
@@ -95,7 +96,8 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
 
     # fixme: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. ", repeat=False,
+        f"Could not parse value {val} as a bool. ",
+        repeat=False,
     )
     raise UsageError(f"Could not parse value {val} as a bool.")
 
@@ -518,8 +520,8 @@ class Settings:
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
             },
-            disable_code={"preprocessor": _str_as_bool, "is_policy": True},
-            disable_git={"preprocessor": _str_as_bool, "is_policy": True},
+            disable_code={"preprocessor": _str_as_bool},
+            disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -588,7 +590,7 @@ class Settings:
             },
             run_url={"hook": lambda _: self._run_url(), "auto_hook": True},
             sagemaker_disable={"preprocessor": _str_as_bool},
-            save_code={"preprocessor": _str_as_bool, "is_policy": True},
+            save_code={"preprocessor": _str_as_bool},
             settings_system={
                 "value": os.path.join("~", ".config", "wandb", "settings"),
                 "hook": lambda x: self._path_convert(x),
@@ -696,7 +698,7 @@ class Settings:
                 raise UsageError(
                     f'Invalid project name "{value}": exceeded 128 characters'
                 )
-            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            invalid_chars = {char for char in invalid_chars_list if char in value}
             if invalid_chars:
                 raise UsageError(
                     f'Invalid project name "{value}": '
@@ -738,14 +740,15 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
-    def _validate_api_key(self, value: str) -> bool:
+    @staticmethod
+    def _validate_api_key(value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
-        if value.startswith("local") and not self.is_local:
-            raise UsageError(
-                "Attempting to use a local API key to connect to https://api.wandb.ai"
-            )
+        # if value.startswith("local") and not self.is_local:
+        #     raise UsageError(
+        #         "Attempting to use a local API key to connect to https://api.wandb.ai"
+        #     )
         # todo: move here the logic from sdk/lib/apikey.py
 
         return True
@@ -975,7 +978,11 @@ class Settings:
                 object.__setattr__(
                     self,
                     prop,
-                    Property(name=prop, validator=validators, source=Source.BASE,),
+                    Property(
+                        name=prop,
+                        validator=validators,
+                        source=Source.BASE,
+                    ),
                 )
 
             # fixme: this is to collect stats on preprocessing and validation errors
@@ -1145,7 +1152,9 @@ class Settings:
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
     def _apply_settings(
-        self, settings: "Settings", _logger: Optional[_EarlyLogger] = None,
+        self,
+        settings: "Settings",
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Apply settings from a Settings object."""
         if _logger is not None:
@@ -1182,7 +1191,8 @@ class Settings:
             if _logger is not None:
                 _logger.info(f"Loading settings from {self.settings_system}")
             self.update(
-                self._load_config_file(self.settings_system), source=Source.SYSTEM,
+                self._load_config_file(self.settings_system),
+                source=Source.SYSTEM,
             )
         if self.settings_workspace is not None:
             if _logger is not None:
@@ -1193,7 +1203,9 @@ class Settings:
             )
 
     def _apply_env_vars(
-        self, environ: Mapping[str, Any], _logger: Optional[_EarlyLogger] = None,
+        self,
+        environ: Mapping[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
@@ -1311,7 +1323,8 @@ class Settings:
         self.update(settings, source=Source.ENV)
 
     def _infer_run_settings_from_environment(
-        self, _logger: Optional[_EarlyLogger] = None,
+        self,
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Modify settings based on environment (for runs only)."""
         # If there's not already a program file, infer it now.

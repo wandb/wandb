@@ -28,7 +28,6 @@ exclude =
     ./wandb/sweeps/
     ./wandb/integration/magic.py
     ./wandb/integration/keras/
-    ./wandb/integration/tensorboard/
     ./wandb/integration/metaflow/
     ./wandb/filesync/
     ./wandb/sdk/internal/internal_api.py
@@ -40,6 +39,8 @@ exclude =
     ./wandb/sklearn/
     ./wandb/viz.py
     ./wandb/vendor/
+    */wandb/run-*/files/code/
+    */wandb/offline-run-*/files/code/
 
 per-file-ignores =
    wandb/cli/cli.py:C901,I202
