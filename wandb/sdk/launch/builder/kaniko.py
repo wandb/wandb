@@ -24,9 +24,6 @@ from ..utils import sanitize_wandb_api_key
 
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
-_CREDENTIAL_SECRET_MOUNT_PATHS = {
-    "AWS": "/root/.aws/",
-}
 
 
 def _create_dockerfile_configmap(
@@ -77,25 +74,27 @@ class KanikoBuilder(AbstractBuilder):
         )
         self.cloud_provider = builder_config.get("cloud-provider", None)
         if self.cloud_provider is None:
-            raise LaunchError("cloud-provider is not set in builder_type")
-        elif self.cloud_provider not in ["AWS"]:
-            raise LaunchError(f"cloud-provider {self.cloud_provider} is not supported")
+            raise LaunchError("Kaniko builder requires cloud-provider info")
+        if not builder_config.get("credentials"):
+            # if no cloud provider info given, assume running in instance mode
+            # kaniko pod will have access to build context store and ecr
+            wandb.termlog("Kaniko builder running in instance mode")
 
         self.build_context_store = builder_config.get("build-context-store", None)
         if self.build_context_store is None:
-            raise LaunchError("build-context-store is not set in builder_type")
-        credential_config = builder_config.get("credentials", None)
-        self.credentials_secret_name = credential_config.get("secret-name", None)
-        self.credentials_secret_mount_path = _CREDENTIAL_SECRET_MOUNT_PATHS[
-            self.cloud_provider
-        ]
+            raise LaunchError("build-context-store is not set in cloud-provider")
+        credentials_config = builder_config.get("credentials", {})
+        self.credentials_secret_name = credentials_config.get("secret-name")
+        self.credentials_secret_mount_path = credentials_config.get("secret-mount-path")
+        if bool(self.credentials_secret_name) != bool(
+            self.credentials_secret_mount_path
+        ):
+            raise LaunchError(
+                "Must provide secret-name and secret-mount-path or neither"
+            )
 
-    def _create_docker_ecr_config_map(
-        self, corev1_client: client.CoreV1Api
-    ) -> client.V1ConfigMap:
-        config_mount = corev1_client.V1VolumeMount(
-            name="docker-config", mount_path="/kaniko/.docker/"
-        )
+    def _create_docker_ecr_config_map(self, corev1_client: client.CoreV1Api) -> None:
+        corev1_client.V1VolumeMount(name="docker-config", mount_path="/kaniko/.docker/")
         if self.cloud_provider == "AWS":
             ecr_config_map = corev1_client.V1ConfigMap(
                 api_version="v1",
@@ -107,8 +106,6 @@ class KanikoBuilder(AbstractBuilder):
                 data={"config.json": json.dumps({"credsStore": "ecr-login"})},
             )
             corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
-
-        return config_mount
 
     def _delete_docker_ecr_config_map(self, client: client.CoreV1Api) -> None:
         client.delete_namespaced_config_map("docker-config", "wandb")
@@ -138,16 +135,12 @@ class KanikoBuilder(AbstractBuilder):
         elif self.builder_config.get("cloud-provider") == "gcp":
             storage_client = storage.Client()
             try:
-                bucket = storage_client.bucket(
-                    self.builder_config.get("context_store_bucket")
-                )
+                bucket = storage_client.bucket(self.build_context_store)
                 blob = bucket.blob(f"{run_id}.tgz")
                 blob.upload_from_filename(context_tgz.name)
             except Exception as e:
                 raise LaunchError(f"Failed to upload build context to GCP: {e}")
-            return (
-                f"gs://{self.builder_config.get('context_store_bucket')}/{run_id}.tgz"
-            )
+            return f"gs://{self.build_context_store}/{run_id}.tgz"
         else:
             raise LaunchError("Unsupported storage provider")
 
@@ -160,7 +153,7 @@ class KanikoBuilder(AbstractBuilder):
         runner_type: str,
     ) -> str:
         if repository is None:
-            raise LaunchError("registry is required for kaniko builder")
+            raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.run_id}"
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
@@ -199,8 +192,7 @@ class KanikoBuilder(AbstractBuilder):
 
         try:
             core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
-            if self.credentials_secret_name is not None:
-                self._create_docker_ecr_config_map(core_v1)
+            self._create_docker_ecr_config_map(core_v1)
             batch_v1.create_namespaced_job("wandb", build_job)
 
             # wait for double the job deadline since it might take time to schedule
@@ -216,8 +208,7 @@ class KanikoBuilder(AbstractBuilder):
                 # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
                 batch_v1.delete_namespaced_job(build_job_name, "wandb")
                 core_v1.delete_namespaced_config_map(config_map_name, "wandb")
-                if self.credentials_secret_name is not None:
-                    self._delete_docker_ecr_config_map(core_v1)
+                self._delete_docker_ecr_config_map(core_v1)
             except Exception as e:
                 wandb.termerror(f"Exception during Kubernetes resource clean up {e}")
 
@@ -237,7 +228,10 @@ class KanikoBuilder(AbstractBuilder):
                 name="build-context-config-map", mount_path="/etc/config"
             )
         ]
-        if self.credentials_secret_name is not None:
+        if (
+            self.credentials_secret_name is not None
+            and self.credentials_secret_mount_path is not None
+        ):
             volume_mounts.append(
                 client.V1VolumeMount(
                     name=self.credentials_secret_name,
