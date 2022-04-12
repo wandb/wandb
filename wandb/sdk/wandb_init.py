@@ -139,29 +139,8 @@ class _WandbInit:
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
         settings_param = kwargs.pop("settings", None)
-        if settings_param is not None:
-            if isinstance(settings_param, Settings):
-                # detect passed settings that differ from defaults in `wandb.Settings()`
-                # and apply them using `Source.INIT`. This seems like the behavior that
-                # the user would expect when calling `wandb.init(settings=wandb.Settings(...))`
-                defaults = Settings()
-                settings_param_dict = dict()
-                for k, v in settings_param.items():
-                    if defaults.get(k) != v:
-                        settings_param_dict[k] = v
-                settings.update(settings_param_dict, source=Source.INIT)
-                # todo: this is collect telemetry on validation errors and unexpected args
-                #  remove this once strict checking is enforced
-                for attr in (
-                    "_Settings__unexpected_args",
-                    "_Settings__preprocessing_warnings",
-                    "_Settings__validation_warnings",
-                ):
-                    getattr(settings, attr).update(getattr(settings_param, attr))
-            elif isinstance(settings_param, dict):
-                # if it is a mapping, update the settings with it
-                # explicitly using Source.INIT
-                settings.update(settings_param, source=Source.INIT)
+        if settings_param is not None and isinstance(settings_param, (Settings, dict)):
+            settings.update(settings_param, source=Source.INIT)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 

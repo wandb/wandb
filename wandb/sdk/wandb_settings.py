@@ -1100,13 +1100,36 @@ class Settings:
 
     def update(
         self,
-        settings: Optional[Dict[str, Any]] = None,
+        settings: Optional[Union[Dict[str, Any], "Settings"]] = None,
         source: int = Source.OVERRIDE,
         **kwargs: Any,
     ) -> None:
         """Update individual settings using the Property.update() method."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
             raise TypeError("Settings object is frozen")
+
+        if isinstance(settings, Settings):
+            # If a Settings object is passed, detect the settings that differ
+            # from defaults, collect them into a dict, and apply them using `source`.
+            # This comes up in `wandb.init(settings=wandb.Settings(...))` and
+            # seems like the behavior that the user would expect when calling init that way.
+            defaults = Settings()
+            settings_dict = dict()
+            for k, v in settings.items():
+                if defaults.get(k) != v:
+                    settings_dict[k] = v
+            # todo: store warnings from the passed Settings object, if any,
+            #  to collect telemetry on validation errors and unexpected args.
+            #  remove this once strict checking is enforced.
+            for attr in (
+                "_Settings__unexpected_args",
+                "_Settings__preprocessing_warnings",
+                "_Settings__validation_warnings",
+            ):
+                getattr(self, attr).update(getattr(settings, attr))
+            # replace with the generated dict
+            settings = settings_dict
+
         # add kwargs to settings
         settings = settings or dict()
         # explicit kwargs take precedence over settings
