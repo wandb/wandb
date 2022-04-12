@@ -4,7 +4,6 @@ import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
-import six
 from wandb.docker import auth
 from wandb.docker import www_authenticate
 from wandb.errors import DockerError
@@ -142,9 +141,9 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
     # TODO: Cache tokens?
     auth_info = auth_config.resolve_authconfig(registry)
     if auth_info:
-        normalized = {k.lower(): v for k, v in six.iteritems(auth_info)}
+        normalized = {k.lower(): v for k, v in auth_info.items()}
         auth_info = (normalized.get("username"), normalized.get("password"))
-    response = requests.get("https://{}/v2/".format(registry), timeout=3)
+    response = requests.get(f"https://{registry}/v2/", timeout=3)
     if response.headers.get("www-authenticate"):
         try:
             info = www_authenticate.parse(response.headers["www-authenticate"])
@@ -181,18 +180,16 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
         if registry == "index.docker.io":
             registry = "registry-1.docker.io"
         res = requests.head(
-            "https://{}/v2/{}/manifests/{}".format(registry, repository, tag),
+            f"https://{registry}/v2/{repository}/manifests/{tag}",
             headers={
-                "Authorization": "Bearer {}".format(token),
+                "Authorization": f"Bearer {token}",
                 "Accept": "application/vnd.docker.distribution.manifest.v2+json",
             },
             timeout=5,
         )
         res.raise_for_status()
     except requests.RequestException:
-        log.error(
-            "Received {} when attempting to get digest for {}".format(res, image_name)
-        )
+        log.error(f"Received {res} when attempting to get digest for {image_name}")
         return None
     return "@".join([registry + "/" + repository, res.headers["Docker-Content-Digest"]])
 

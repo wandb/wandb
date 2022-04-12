@@ -22,7 +22,6 @@ from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
-import six
 import wandb
 from wandb import Config
 from wandb import env, util
@@ -68,7 +67,7 @@ CONTEXT = dict(default_map={})
 
 
 def cli_unsupported(argument):
-    wandb.termerror("Unsupported argument `{}`".format(argument))
+    wandb.termerror(f"Unsupported argument `{argument}`")
     sys.exit(1)
 
 
@@ -76,7 +75,7 @@ class ClickWandbException(ClickException):
     def format_message(self):
         # log_file = util.get_log_file_path()
         log_file = ""
-        orig_type = "{}.{}".format(self.orig_type.__module__, self.orig_type.__name__)
+        orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
@@ -105,7 +104,7 @@ def display_error(func):
             )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
-            six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
+            raise click_exc.with_traceback(sys.exc_info()[2])
 
     return wrapper
 
@@ -228,7 +227,9 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True, _disable_viewer=relogin, anonymous=anon_mode,
+        _cli_only_mode=True,
+        _disable_viewer=relogin,
+        anonymous=anon_mode,
     )
     if host is not None:
         login_settings["base_url"] = host
@@ -305,7 +306,7 @@ def init(ctx, project, entity, reset, mode):
     if __stage_dir__ is None:
         _set_stage_dir("wandb")
 
-    # non interactive init
+    # non-interactive init
     if reset or project or entity or mode:
         api = InternalApi()
         if reset:
@@ -373,7 +374,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -534,30 +537,26 @@ def sync(
         for item in all_items:
             (synced if item.synced else unsynced).append(item)
         if sync_items:
-            wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
+            wandb.termlog(f"Number of runs to be synced: {len(sync_items)}")
             if show and show < len(sync_items):
-                wandb.termlog("Showing {} runs to be synced:".format(show))
+                wandb.termlog(f"Showing {show} runs to be synced:")
             for item in sync_items[: (show or len(sync_items))]:
-                wandb.termlog("  {}".format(item))
+                wandb.termlog(f"  {item}")
         else:
             wandb.termlog("No runs to be synced.")
         if synced:
             clean_cmd = click.style("wandb sync --clean", fg="yellow")
             wandb.termlog(
-                "NOTE: use {} to delete {} synced runs from local directory.".format(
-                    clean_cmd, len(synced)
-                )
+                f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
             )
         if unsynced:
             sync_cmd = click.style("wandb sync --sync-all", fg="yellow")
             wandb.termlog(
-                "NOTE: use {} to sync {} unsynced runs from local directory.".format(
-                    sync_cmd, len(unsynced)
-                )
+                f"NOTE: use {sync_cmd} to sync {len(unsynced)} unsynced runs from local directory."
             )
 
-    def _sync_path(path, sync_tensorboard):
-        if run_id and len(path) > 1:
+    def _sync_path(_path, _sync_tensorboard):
+        if run_id and len(_path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
         sm = SyncManager(
@@ -568,14 +567,13 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
-            sync_tensorboard=sync_tensorboard,
+            sync_tensorboard=_sync_tensorboard,
         )
-        for p in path:
+        for p in _path:
             sm.add(p)
         sm.start()
         while not sm.is_done():
             _ = sm.poll()
-            # print(status)
 
     def _sync_all():
         sync_items = get_runs(
@@ -599,7 +597,7 @@ def sync(
             if not clean_force:
                 click.confirm(
                     click.style(
-                        "Are you sure you want to remove %i runs?" % len(runs),
+                        f"Are you sure you want to remove {len(runs)} runs?",
                         bold=True,
                     ),
                     abort=True,
@@ -618,19 +616,17 @@ def sync(
         )
         since = datetime.datetime.now() - datetime.timedelta(hours=clean_old_hours)
         old_runs = [run for run in runs if run.datetime < since]
-        old_runs.sort(key=lambda run: run.datetime)
+        old_runs.sort(key=lambda _run: _run.datetime)
         if old_runs:
             click.echo(
-                "Found {} runs, {} are older than {} hours".format(
-                    len(runs), len(old_runs), clean_old_hours
-                )
+                f"Found {len(runs)} runs, {len(old_runs)} are older than {clean_old_hours} hours"
             )
             for run in old_runs:
                 click.echo(run.path)
             if not clean_force:
                 click.confirm(
                     click.style(
-                        "Are you sure you want to remove %i runs?" % len(old_runs),
+                        f"Are you sure you want to remove {len(old_runs)} runs?",
                         bold=True,
                     ),
                     abort=True,
@@ -641,7 +637,7 @@ def sync(
         else:
             click.echo(
                 click.style(
-                    "No runs older than %i hours found" % clean_old_hours, fg="red"
+                    f"No runs older than {clean_old_hours} hours found", fg="red"
                 )
             )
 
@@ -711,7 +707,7 @@ def sweep(
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
-    is_state_change_command = sum((lcls[k] for k in state_args))
+    is_state_change_command = sum(lcls[k] for k in state_args)
     if is_state_change_command > 1:
         raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
     elif is_state_change_command == 1:
@@ -737,7 +733,7 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(
-            "%s sweep %s." % (ings[state], "%s/%s/%s" % (entity, project, sweep_id))
+            "{} sweep {}.".format(ings[state], f"{entity}/{project}/{sweep_id}")
         )
         getattr(api, "%s_sweep" % state)(sweep_id, entity=entity, project=project)
         wandb.termlog("Done.")
@@ -798,9 +794,7 @@ def sweep(
 
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
         if not found:
-            wandb.termerror(
-                "Could not find sweep {}/{}/{}".format(entity, project, sweep_id)
-            )
+            wandb.termerror(f"Could not find sweep {entity}/{project}/{sweep_id}")
             return
         sweep_obj_id = found["id"]
 
@@ -880,19 +874,19 @@ def sweep(
             )
         )
 
-    # reprobe entity and project if it was autodetected by upsert_sweep
+    # re-probe entity and project if it was auto-detected by upsert_sweep
     entity = entity or env.get("WANDB_ENTITY")
     project = project or env.get("WANDB_PROJECT")
 
     if entity and project:
-        sweep_path = "{}/{}/{}".format(entity, project, sweep_id)
+        sweep_path = f"{entity}/{project}/{sweep_id}"
     elif project:
-        sweep_path = "{}/{}".format(project, sweep_id)
+        sweep_path = f"{project}/{sweep_id}"
     else:
         sweep_path = sweep_id
 
     if sweep_path.find(" ") >= 0:
-        sweep_path = '"{}"'.format(sweep_path)
+        sweep_path = f'"{sweep_path}"'
 
     wandb.termlog(
         "Run sweep agent with: {}".format(
@@ -1036,7 +1030,7 @@ def launch(
     cuda,
 ):
     """
-    Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
+    Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
     In the case of a wandb URI the arguments used in the original run will be used by default.
     These arguments can be overridden using the args option, or specifying those arguments
     in the config's 'overrides' key, 'args' field as a list of strings.
@@ -1068,7 +1062,7 @@ def launch(
             cuda = False
         else:
             raise LaunchError(
-                "Invalid value for --cuda: '{}' is not a valid boolean.".format(cuda)
+                f"Invalid value for --cuda: '{cuda}' is not a valid boolean."
             )
 
     args_dict = util._user_args_to_dict(args_list)
@@ -1323,7 +1317,7 @@ def docker(
     wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
     wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
 
-    By default we override the entrypoint to check for the existance of wandb and install it if not present.  If you pass the --jupyter
+    By default, we override the entrypoint to check for the existence of wandb and install it if not present.  If you pass the --jupyter
     flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
     the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run
     command.
@@ -1577,7 +1571,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
@@ -1661,7 +1657,7 @@ def cleanup(target_size):
     target_size = util.from_human_size(target_size)
     cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
     reclaimed_bytes = cache.cleanup(target_size)
-    print("Reclaimed {} of space".format(util.to_human_size(reclaimed_bytes)))
+    print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -1763,12 +1759,12 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             )
 
     if commit and api.git.enabled:
-        wandb.termlog("Fetching origin and finding commit: {}".format(commit))
+        wandb.termlog(f"Fetching origin and finding commit: {commit}")
         subprocess.check_call(["git", "fetch", "--all"])
         try:
             api.git.repo.commit(commit)
         except ValueError:
-            wandb.termlog("Couldn't find original commit: {}".format(commit))
+            wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
             files = api.download_urls(project, run=run, entity=entity)
             for filename in files:
@@ -1784,7 +1780,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
                         break
 
             if commit:
-                wandb.termlog("Falling back to upstream commit: {}".format(commit))
+                wandb.termlog(f"Falling back to upstream commit: {commit}")
                 patch_path, _ = api.download_write_file(files[filename])
             else:
                 raise ClickException(restore_message)
@@ -1879,7 +1875,7 @@ def magic(ctx, program, args):
     try:
         with open(program, "rb") as fp:
             code = compile(fp.read(), program, "exec")
-    except IOError:
+    except OSError:
         click.echo(click.style("Could not launch program: %s" % program, fg="red"))
         sys.exit(1)
     globs = {
@@ -2000,8 +1996,8 @@ def verify(host):
     reinit = False
     if host is None:
         host = api.settings("base_url")
-        print("Default host selected: {}".format(host))
-    # if the given host does not match the default host, re run init
+        print(f"Default host selected: {host}")
+    # if the given host does not match the default host, re-run init
     elif host != api.settings("base_url"):
         reinit = True
 

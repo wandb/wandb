@@ -33,7 +33,7 @@ def _server_accepts_client_ids() -> bool:
     return parse_version("0.11.0") <= parse_version(max_cli_version)
 
 
-class _WBValueArtifactSource(object):
+class _WBValueArtifactSource:
     artifact: "PublicArtifact"
     name: Optional[str]
 
@@ -42,7 +42,7 @@ class _WBValueArtifactSource(object):
         self.name = name
 
 
-class _WBValueArtifactTarget(object):
+class _WBValueArtifactTarget:
     artifact: "LocalArtifact"
     name: Optional[str]
 
@@ -51,7 +51,7 @@ class _WBValueArtifactTarget(object):
         self.name = name
 
 
-class WBValue(object):
+class WBValue:
     """
     Abstract parent class for things that can be logged by `wandb.log()` and
     visualized by wandb.
@@ -155,7 +155,7 @@ class WBValue(object):
         if WBValue._type_mapping is None:
             WBValue._type_mapping = {}
             frontier = [WBValue]
-            explored = set([])
+            explored = set()
             while len(frontier) > 0:
                 class_option = frontier.pop()
                 explored.add(class_option)

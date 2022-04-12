@@ -31,7 +31,8 @@ def test_SavedModel_pytorch(runner, mocker):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_SavedModel_keras(runner, mocker):
     savedModel_test(runner, mocker, keras_model())
@@ -42,7 +43,10 @@ def test_SklearnSavedModel(runner):
         runner,
         SM._SklearnSavedModel,
         [sklearn_model()],
-        [keras_model(), pytorch_model(),],
+        [
+            keras_model(),
+            pytorch_model(),
+        ],
     )
 
 
@@ -51,12 +55,16 @@ def test_PytorchSavedModel(runner):
         runner,
         SM._PytorchSavedModel,
         [pytorch_model()],
-        [keras_model(), sklearn_model(),],
+        [
+            keras_model(),
+            sklearn_model(),
+        ],
     )
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_TensorflowKerasSavedModel(runner):
     subclass_test(
@@ -95,7 +103,9 @@ def make_local_artifact_public(art, mocker):
         "FAKE_PROJECT",
         "FAKE_NAME",
         {
-            "artifactSequence": {"name": "FAKE_SEQUENCE_NAME",},
+            "artifactSequence": {
+                "name": "FAKE_SEQUENCE_NAME",
+            },
             "aliases": [],
             "id": "FAKE_ID",
             "digest": "FAKE_DIGEST",
@@ -103,7 +113,9 @@ def make_local_artifact_public(art, mocker):
             "size": None,
             "createdAt": None,
             "updatedAt": None,
-            "artifactType": {"name": "FAKE_TYPE_NAME",},
+            "artifactType": {
+                "name": "FAKE_TYPE_NAME",
+            },
         },
     )
     pub._manifest = art._manifest
@@ -131,7 +143,10 @@ def savedModel_test(runner, mocker, model, py_deps=None):
 
 # # Internal adapter tests (non user facing)
 def subclass_test(
-    runner, adapter_cls, valid_models, invalid_models,
+    runner,
+    adapter_cls,
+    valid_models,
+    invalid_models,
 ):
     # Verify valid models can be adapted
     for model in valid_models:

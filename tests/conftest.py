@@ -4,6 +4,7 @@ import datetime
 import logging
 import os
 import platform
+import queue
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,7 @@ import time
 import threading
 from unittest import mock
 from unittest.mock import MagicMock
+import urllib
 
 import click
 from click.testing import CliRunner
@@ -20,7 +22,6 @@ import nbformat
 import psutil
 import pytest
 import requests
-from six.moves import queue, urllib
 import webbrowser
 
 from tests import utils
@@ -40,7 +41,7 @@ from wandb import Api
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 
 
-class ServerMap(object):
+class ServerMap:
     def __init__(self):
         self._map = {}
 
@@ -59,7 +60,7 @@ servers = ServerMap()
 def test_cleanup(*args, **kwargs):
     print("Shutting down mock servers")
     for wid, server in servers.items():
-        print("Shutting down {}".format(wid))
+        print(f"Shutting down {wid}")
         server.terminate()
     print("Open files during tests: ")
     proc = psutil.Process()
@@ -75,9 +76,7 @@ def start_mock_server(worker_id):
     env = os.environ
     env["PORT"] = str(port)
     env["PYTHONPATH"] = root
-    logfname = os.path.join(
-        root, "tests", "logs", "live_mock_server-{}.log".format(worker_id)
-    )
+    logfname = os.path.join(root, "tests", "logs", f"live_mock_server-{worker_id}.log")
     logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
@@ -120,10 +119,10 @@ def start_mock_server(worker_id):
             else:
                 raise ValueError("Server failed to start.")
     if started:
-        print("Mock server listing on {} see {}".format(server._port, logfname))
+        print(f"Mock server listing on {server._port} see {logfname}")
     else:
         server.terminate()
-        print("Server failed to launch, see {}".format(logfname))
+        print(f"Server failed to launch, see {logfname}")
         try:
             print("=" * 40)
             with open(logfname) as f:
@@ -349,7 +348,8 @@ def notebook(live_mock_server, test_dir):
             setupcell = setupnb["cells"][0]
             # Ensure the notebooks talks to our mock server
             new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__", live_mock_server.base_url,
+                "__WANDB_BASE_URL__",
+                live_mock_server.base_url,
             )
             if save_code:
                 new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
@@ -621,7 +621,9 @@ class MockProcess:
 @pytest.fixture()
 def _internal_sender(record_q, internal_result_q, internal_process):
     return InterfaceQueue(
-        record_q=record_q, result_q=internal_result_q, process=internal_process,
+        record_q=record_q,
+        result_q=internal_result_q,
+        process=internal_process,
     )
 
 
@@ -810,7 +812,10 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
 
 @pytest.fixture
 def publish_util(
-    mocked_run, mock_server, backend_interface, parse_ctx,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     def fn(
         metrics=None,
@@ -932,7 +937,7 @@ def mock_tty(monkeypatch):
                 # TODO: emulate msvcrt to support input on windows
                 with open(fname, "w") as fp:
                     fp.write(input_str)
-            fds["stdin"] = open(fname, "r")
+            fds["stdin"] = open(fname)
             monkeypatch.setattr("sys.stdin", fds["stdin"])
             sys.stdin.isatty = lambda: True
             sys.stdout.isatty = lambda: True

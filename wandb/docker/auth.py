@@ -6,13 +6,12 @@ import os
 import platform
 
 import dockerpycreds
-import six
 
 IS_WINDOWS_PLATFORM = platform.system() == "Windows"
 DOCKER_CONFIG_FILENAME = os.path.join(".docker", "config.json")
 LEGACY_DOCKER_CONFIG_FILENAME = ".dockercfg"
 INDEX_NAME = "docker.io"
-INDEX_URL = "https://index.{0}/v1/".format(INDEX_NAME)
+INDEX_URL = f"https://index.{INDEX_NAME}/v1/"
 TOKEN_USERNAME = "<token>"
 
 log = logging.getLogger(__name__)
@@ -47,11 +46,11 @@ def find_config_file(config_path=None):
         )
     )
 
-    log.debug("Trying paths: {0}".format(repr(paths)))
+    log.debug(f"Trying paths: {repr(paths)}")
 
     for path in paths:
         if os.path.exists(path):
-            log.debug("Found file at path: {0}".format(path))
+            log.debug(f"Found file at path: {path}")
             return path
 
     log.debug("No config file found")
@@ -86,7 +85,7 @@ def load_general_config(config_path=None):
     try:
         with open(config_file) as f:
             return json.load(f)
-    except (IOError, ValueError) as e:
+    except (OSError, ValueError) as e:
         # In the case of a legacy `.dockercfg` file, we won't
         # be able to load any JSON data.
         log.debug(e)
@@ -98,13 +97,13 @@ def load_general_config(config_path=None):
 def resolve_repository_name(repo_name):
     if "://" in repo_name:
         raise InvalidRepositoryError(
-            "Repository name cannot contain a scheme ({0})".format(repo_name)
+            f"Repository name cannot contain a scheme ({repo_name})"
         )
 
     index_name, remote_name = split_repo_name(repo_name)
     if index_name[0] == "-" or index_name[-1] == "-":
         raise InvalidRepositoryError(
-            "Invalid index name ({0}). Cannot begin or end with a"
+            "Invalid index name ({}). Cannot begin or end with a"
             " hyphen.".format(index_name)
         )
     return resolve_index_name(index_name), remote_name
@@ -154,33 +153,29 @@ class AuthConfig(dict):
         """
 
         conf = {}
-        for registry, entry in six.iteritems(entries):
+        for registry, entry in entries.items():
             if not isinstance(entry, dict):
-                log.debug(
-                    "Config entry for key {0} is not auth config".format(registry)
-                )
+                log.debug(f"Config entry for key {registry} is not auth config")
                 # We sometimes fall back to parsing the whole config as if it
                 # was the auth config by itself, for legacy purposes. In that
                 # case, we fail silently and return an empty conf if any of the
                 # keys is not formatted properly.
                 if raise_on_error:
                     raise InvalidConfigFileError(
-                        "Invalid configuration for registry {0}".format(registry)
+                        f"Invalid configuration for registry {registry}"
                     )
                 return {}
             if "identitytoken" in entry:
-                log.debug(
-                    "Found an IdentityToken entry for registry {0}".format(registry)
-                )
+                log.debug(f"Found an IdentityToken entry for registry {registry}")
                 conf[registry] = {"IdentityToken": entry["identitytoken"]}
                 continue  # Other values are irrelevant if we have a token
 
             if "auth" not in entry:
                 # Starting with engine v1.11 (API 1.23), an empty dictionary is
-                # a valid value in the auths config.
+                # a valid value in the auth's config.
                 # https://github.com/docker/compose/issues/3265
                 log.debug(
-                    "Auth data for {0} is absent. Client might be using a "
+                    "Auth data for {} is absent. Client might be using a "
                     "credentials store instead.".format(registry)
                 )
                 conf[registry] = {}
@@ -188,7 +183,7 @@ class AuthConfig(dict):
 
             username, password = decode_auth(entry["auth"])
             log.debug(
-                "Found entry (registry={0}, username={1})".format(
+                "Found entry (registry={}, username={})".format(
                     repr(registry), repr(username)
                 )
             )
@@ -219,8 +214,8 @@ class AuthConfig(dict):
             try:
                 with open(config_file) as f:
                     config_dict = json.load(f)
-            except (IOError, KeyError, ValueError) as e:
-                # Likely missing new Docker config file or it's in an
+            except (OSError, KeyError, ValueError) as e:
+                # Likely missing new Docker config file, or it's in an
                 # unknown format, continue to attempt to read old location
                 # and format.
                 log.debug(e)
@@ -274,7 +269,7 @@ class AuthConfig(dict):
         if self.creds_store or self.cred_helpers:
             store_name = self.get_credential_store(registry)
             if store_name is not None:
-                log.debug('Using credentials store "{0}"'.format(store_name))
+                log.debug(f'Using credentials store "{store_name}"')
                 cfg = self._resolve_authconfig_credstore(registry, store_name)
                 if cfg is not None:
                     return cfg
@@ -282,15 +277,15 @@ class AuthConfig(dict):
 
         # Default to the public index server
         registry = resolve_index_name(registry) if registry else INDEX_NAME
-        log.debug("Looking for auth entry for {0}".format(repr(registry)))
+        log.debug(f"Looking for auth entry for {repr(registry)}")
 
         if registry in self.auths:
-            log.debug("Found {0}".format(repr(registry)))
+            log.debug(f"Found {repr(registry)}")
             return self.auths[registry]
 
-        for key, conf in six.iteritems(self.auths):
+        for key, conf in self.auths.items():
             if resolve_index_name(key) == registry:
-                log.debug("Found {0}".format(repr(key)))
+                log.debug(f"Found {repr(key)}")
                 return conf
 
         log.debug("No entry found")
@@ -301,7 +296,7 @@ class AuthConfig(dict):
             # The ecosystem is a little schizophrenic with recker.io VS
             # docker.io - in that case, it seems the full URL is necessary.
             registry = INDEX_URL
-        log.debug("Looking for auth entry for {0}".format(repr(registry)))
+        log.debug(f"Looking for auth entry for {repr(registry)}")
         store = self._get_store_instance(credstore_name)
         try:
             data = store.get(registry)
@@ -317,7 +312,7 @@ class AuthConfig(dict):
             log.debug("No entry found")
             return None
         except dockerpycreds.StoreError as e:
-            raise DockerError("Credentials store error: {0}".format(repr(e)))
+            raise DockerError(f"Credentials store error: {repr(e)}")
 
     def _get_store_instance(self, name):
         if name not in self._stores:
@@ -361,7 +356,7 @@ def convert_to_hostname(url):
 
 
 def decode_auth(auth):
-    if isinstance(auth, six.string_types):
+    if isinstance(auth, str):
         auth = auth.encode("ascii")
     s = base64.b64decode(auth)
     login, pwd = s.split(b":", 1)

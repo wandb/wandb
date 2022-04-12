@@ -20,7 +20,7 @@ def test_check_md5_obj_path(runner):
         os.mkdir("cache")
         cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
 
-        md5 = base64.b64encode("abcdef".encode("ascii"))
+        md5 = base64.b64encode(b"abcdef")
         path, exists, opener = cache.check_md5_obj_path(md5, 10)
         expected_path = os.path.join("cache", "obj", "md5", "61", "6263646566")
         with opener() as f:

@@ -38,7 +38,7 @@ class ProcessMock(Process):
         self.is_alive = False
 
 
-class BackendMock(object):
+class BackendMock:
     def __init__(self, mode=None, settings=None, log_level=None, manager=None):
         self.calls = {}
         self._run = None
@@ -110,7 +110,9 @@ class BackendMock(object):
         print("Fake Backend Launched")
         wandb_process = ProcessMock()
         self.interface = InterfaceQueue(
-            process=wandb_process, record_q=self.record_q, result_q=self.result_q,
+            process=wandb_process,
+            record_q=self.record_q,
+            result_q=self.result_q,
         )
         self.interface._communicate = self._communicate
         self.interface._orig_publish = self.interface._publish

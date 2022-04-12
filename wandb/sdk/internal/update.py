@@ -1,7 +1,5 @@
-#
 from pkg_resources import parse_version
 import requests
-import six
 import wandb
 
 
@@ -17,7 +15,7 @@ def _find_available(current_version):
         data = data.json()
         latest_version = data["info"]["version"]
         release_list = data["releases"].keys()
-        for version, fields in six.iteritems(data["releases"]):
+        for version, fields in data["releases"].items():
             for item in fields:
                 yanked = item.get("yanked")
                 yanked_reason = item.get("yanked_reason")
@@ -87,14 +85,14 @@ def check_available(current_version):
 
     delete_message = None
     if deleted:
-        delete_message = "%s version %s has been retired!  Please upgrade." % (
+        delete_message = "{} version {} has been retired!  Please upgrade.".format(
             wandb._wandb_module,
             current_version,
         )
     yank_message = None
     if yanked:
         reason_message = "(%s)  " % yanked_reason if yanked_reason else ""
-        yank_message = "%s version %s has been recalled!  %sPlease upgrade." % (
+        yank_message = "{} version {} has been recalled!  {}Please upgrade.".format(
             wandb._wandb_module,
             current_version,
             reason_message,

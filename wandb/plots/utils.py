@@ -1,8 +1,8 @@
+from collections.abc import Sequence, Iterable
+
 import wandb
 from wandb import util
 from wandb.sdk.lib import deprecate
-
-from six.moves.collections_abc import Sequence, Iterable
 
 
 def deprecation_notice() -> None:
@@ -15,7 +15,7 @@ def deprecation_notice() -> None:
     )
 
 
-# Test Asummptions for plotting parameters and datasets
+# Test assumptions for plotting parameters and datasets
 def test_missing(**kwargs):
     np = util.get_module("numpy", required="Logging plots requires numpy")
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
