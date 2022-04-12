@@ -588,19 +588,17 @@ def test_table_default():
 
 def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
-    table = wandb.Table(data=np.arange(201000)[:, None].tolist(), columns=["col1"])
+    table = wandb.Table(data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(), columns=["col1"])
 
     with pytest.raises(ValueError):
         run.log({"table": table})
 
-    cached_artifact_limit = wandb.Table.MAX_ARTIFACT_ROWS
-    wandb.Table.MAX_ARTIFACT_ROWS = 300000
-
+    wandb.Table.MAX_ARTIFACT_ROWS += 1
     try:
         # should no longer raise
         run.log({"table": table})
     finally:
-        wandb.Table.MAX_ARTIFACT_ROWS = cached_artifact_limit
+        wandb.Table.MAX_ARTIFACT_ROWS -= 1
 
 
 def test_table_eq_debug():
