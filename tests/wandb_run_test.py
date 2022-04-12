@@ -727,3 +727,16 @@ def test_attach_same_process(test_settings):
             new_run = pickle.loads(pickle.dumps(run))
             new_run.log({"a": 2})
     assert "attach in the same process is not supported" in str(excinfo.value)
+
+
+def test_init_with_settings(live_mock_server, test_settings):
+    # test that when calling `wandb.init(settings=wandb.Settings(...))`,
+    # the settings are passed with Source.INIT as the source
+    test_settings.update(_disable_stats=True)
+    run = wandb.init(settings=test_settings)
+    assert run.settings._disable_stats
+    assert (
+        run.settings.__dict__["_disable_stats"].source
+        == wandb_sdk.wandb_settings.Source.INIT
+    )
+    run.finish()

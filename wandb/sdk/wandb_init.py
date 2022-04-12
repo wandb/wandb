@@ -138,19 +138,15 @@ class _WandbInit:
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None:
             if isinstance(settings_param, Settings):
-                # detect passed settings that differ from defaults in wandb.Settings()
-                # and apply them using Source.INIT
+                # detect passed settings that differ from defaults in `wandb.Settings()`
+                # and apply them using `Source.INIT`. This seems like the behavior that
+                # the user would expect when calling `wandb.init(settings=wandb.Settings(...))`
                 defaults = Settings()
                 settings_param_dict = dict()
                 for k, v in settings_param.items():
                     if defaults.get(k) != v:
                         settings_param_dict[k] = v
                 settings.update(settings_param_dict, source=Source.INIT)
-                # update settings with settings_param using whatever
-                # source each parameter has there.
-                # this is probably not what the user would expect
-                # when doing `wandb.init(settings=wandb.Settings(...))`
-                # settings._apply_settings(settings_param, _logger=logger)
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
                 # explicitly using Source.INIT
