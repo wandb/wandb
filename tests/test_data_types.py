@@ -593,10 +593,11 @@ def test_big_table_throws_error_that_can_be_overridden():
     cached_artifact_limit = wandb.Table.MAX_ARTIFACT_ROWS
     wandb.Table.MAX_ARTIFACT_ROWS = 300000
 
-    # should no longer raise
-    _ = table._to_table_json()
-
-    wandb.Table.MAX_ARTIFACT_ROWS = cached_artifact_limit
+    try:
+        # should no longer raise
+        _ = table._to_table_json()
+    finally:
+        wandb.Table.MAX_ARTIFACT_ROWS = cached_artifact_limit
     
 
 def test_table_eq_debug():
