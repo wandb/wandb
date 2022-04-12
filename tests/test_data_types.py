@@ -601,7 +601,7 @@ def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_se
         # should no longer raise
         run.log({"table": table})
     except Exception as e:
-        assert False, f'Logging a big table with an overridden limit raised with {e}'
+        assert False, f"Logging a big table with an overridden limit raised with {e}"
     finally:
         wandb.Table.MAX_ARTIFACT_ROWS -= 1
 
