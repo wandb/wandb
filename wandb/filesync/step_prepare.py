@@ -1,9 +1,9 @@
 """Batching file prepare requests to our API."""
 
+import queue
 import threading
 import time
 from typing import Any, Callable, NamedTuple, Sequence, Union
-from six.moves import queue
 
 # Request for a file to be prepared.
 RequestPrepare = NamedTuple(

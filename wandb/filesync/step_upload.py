@@ -1,8 +1,8 @@
 """Batching file prepare requests to our API."""
 
+import queue
 import threading
 from typing import Any, Callable, NamedTuple, Union
-from six.moves import queue
 
 from wandb.filesync import upload_job
 from wandb.errors.term import termerror
