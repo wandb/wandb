@@ -34,7 +34,7 @@ RequestFinish = NamedTuple("RequestFinish", (("callback", Callable[..., Any]),))
 Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish]
 
 
-class StepUpload(object):
+class StepUpload:
     def __init__(
         self,
         api,

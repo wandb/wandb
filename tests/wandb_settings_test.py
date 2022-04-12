@@ -70,7 +70,7 @@ def test_property_preprocess_validate_hook():
         value="2",
         preprocessor=lambda x: int(x),
         validator=lambda x: isinstance(x, int),
-        hook=lambda x: x ** 2,
+        hook=lambda x: x**2,
         source=Source.OVERRIDE,
     )
     assert p._source == Source.OVERRIDE
@@ -79,10 +79,20 @@ def test_property_preprocess_validate_hook():
 
 
 def test_property_auto_hook():
-    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=True,)
+    p = Property(
+        name="foo",
+        value=None,
+        hook=lambda x: "WANDB",
+        auto_hook=True,
+    )
     assert p.value == "WANDB"
 
-    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=False,)
+    p = Property(
+        name="foo",
+        value=None,
+        hook=lambda x: "WANDB",
+        auto_hook=False,
+    )
     assert p.value is None
 
 
@@ -95,7 +105,9 @@ def test_property_multiple_validators():
         return x == 42
 
     p = Property(
-        name="foo", value=42, validator=[lambda x: isinstance(x, int), meaning_of_life],
+        name="foo",
+        value=42,
+        validator=[lambda x: isinstance(x, int), meaning_of_life],
     )
     assert p.value == 42
     with pytest.raises(ValueError):
@@ -173,7 +185,7 @@ def test_property_str():
 
 
 def test_property_repr():
-    p = Property(name="foo", value=2, hook=lambda x: x ** 2)
+    p = Property(name="foo", value=2, hook=lambda x: x**2)
     assert repr(p) == "<Property foo: value=4 _value=2 source=1 is_policy=False>"
 
 
@@ -257,7 +269,10 @@ def test_ignore_globs_env():
 
     s = Settings()
     s._apply_env_vars({"WANDB_IGNORE_GLOBS": "foo,bar"})
-    assert s.ignore_globs == ("foo", "bar",)
+    assert s.ignore_globs == (
+        "foo",
+        "bar",
+    )
 
 
 def test_quiet():
@@ -278,7 +293,10 @@ def test_ignore_globs_settings(local_settings):
 ignore_globs=foo,bar"""
         )
     s = Settings(_files=True)
-    assert s.ignore_globs == ("foo", "bar",)
+    assert s.ignore_globs == (
+        "foo",
+        "bar",
+    )
 
 
 def test_copy():
@@ -445,7 +463,10 @@ def test_validate_base_url(url):
         ("http://host\n.ai", "URL cannot contain unsafe characters"),
         ("http://host\r.ai", "URL cannot contain unsafe characters"),
         ("ftp://host.ai", "URL must start with `http(s)://`"),
-        ("gibberish", "gibberish is not a valid server address",),
+        (
+            "gibberish",
+            "gibberish is not a valid server address",
+        ),
         ("LOL" * 100, "hostname is invalid"),
     ],
 )
@@ -654,7 +675,8 @@ def test_console(runner, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="backend crashes on Windows in CI",
+    platform.system() == "Windows",
+    reason="backend crashes on Windows in CI",
 )
 @mock.patch.dict(
     os.environ, {"WANDB_START_METHOD": "thread", "USERNAME": "test"}, clear=True
@@ -955,3 +977,21 @@ def test_program_python_m():
             [sys.executable, "-m", "module.lib"], cwd=tmpdir
         )
         assert "-m module.lib" in output.decode("utf-8")
+
+
+@pytest.mark.skip(reason="Unskip once api_key validation is restored")
+def test_local_api_key_validation():
+    with pytest.raises(UsageError):
+        wandb.Settings(
+            api_key="local-87eLxjoRhY6u2ofg63NAJo7rVYHZo4NGACOvpSsF",
+        )
+    s = wandb.Settings(
+        api_key="local-87eLxjoRhY6u2ofg63NAJo7rVYHZo4NGACOvpSsF",
+        base_url="https://api.wandb.test",
+    )
+
+    # ensure that base_url is copied first without causing an error in api_key validation
+    s.copy()
+
+    # ensure that base_url is applied first without causing an error in api_key validation
+    wandb.Settings()._apply_settings(s)

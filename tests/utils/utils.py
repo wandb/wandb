@@ -9,7 +9,7 @@ _mock_module = None
 
 def get_mock_module(config):
     """
-    Import and return the actual "mock" module. By default this is
+    Import and return the actual "mock" module. By default, this is
     "unittest.mock", but the user can force to always use "mock" using
     the mock_use_standalone_module ini option.
     """
@@ -44,8 +44,7 @@ def parse_ini_boolean(value: Union[bool, str]) -> bool:
 
 
 def subdict(d, expected_dict):
-    """Return a new dict with only the items from `d` whose keys occur in `expected_dict`.
-    """
+    """Return a new dict with only the items from `d` whose keys occur in `expected_dict`."""
     return {k: v for k, v in d.items() if k in expected_dict}
 
 
@@ -56,7 +55,7 @@ def fixture_path(path):
 
 
 def first_filestream(ctx):
-    """In xdist tests sometimes rougue file_streams make it to the server,
+    """In xdist tests sometimes rogue file_streams make it to the server,
     we grab the first request with `files`"""
     return next(m for m in ctx["file_stream"] if m.get("files"))
 
@@ -94,7 +93,7 @@ def assert_deep_lists_equal(a, b, indices=None):
     except ValueError:
         assert len(a) == len(b)
 
-        # pytest's list diffing breaks at 4d so we track them ourselves
+        # pytest's list diffing breaks at 4d, so we track them ourselves
         if indices is None:
             indices = []
             top = True
