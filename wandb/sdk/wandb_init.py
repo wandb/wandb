@@ -254,10 +254,7 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        print(settings._disable_stats)
         settings._apply_settings(wandb.setup().settings)
-        print(settings._disable_stats)
-        input()
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
