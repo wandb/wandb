@@ -585,7 +585,7 @@ def test_table_default():
 
 
 def test_big_table_throws_error_that_can_be_overridden():
-    table = wandb.Table(data=np.arange(201000).tolist(), columns=['col1'])
+    table = wandb.Table(data=np.arange(201000).tolist(), columns=["col1"])
 
     with pytest.raises(ValueError):
         table._to_table_json()
@@ -598,7 +598,7 @@ def test_big_table_throws_error_that_can_be_overridden():
         _ = table._to_table_json()
     finally:
         wandb.Table.MAX_ARTIFACT_ROWS = cached_artifact_limit
-    
+
 
 def test_table_eq_debug():
     # Invalid Type
