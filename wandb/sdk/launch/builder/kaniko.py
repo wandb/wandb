@@ -228,22 +228,42 @@ class KanikoBuilder(AbstractBuilder):
                 name="build-context-config-map", mount_path="/etc/config"
             )
         ]
+        volumes = [
+            client.V1Volume(
+                name="build-context-config-map",
+                config_map=client.V1ConfigMapVolumeSource(
+                    name=config_map_name,
+                ),
+            ),
+        ]
         if (
             self.credentials_secret_name is not None
             and self.credentials_secret_mount_path is not None
         ):
-            volume_mounts.append(
+            volume_mounts += [
                 client.V1VolumeMount(
                     name=self.credentials_secret_name,
                     mount_path=self.credentials_secret_mount_path,
                     read_only=True,
-                )
-            )
-            volume_mounts.append(
+                ),
                 client.V1VolumeMount(
                     name="docker-config", mount_path="/kaniko/.docker/"
-                )
-            )
+                ),
+            ]
+            volumes += [
+                client.V1Volume(
+                    name="docker-config",
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name="docker-config",
+                    ),
+                ),
+                client.V1Volume(
+                    name=self.credentials_secret_name,
+                    secret=client.V1SecretVolumeSource(
+                        secret_name=self.credentials_secret_name
+                    ),
+                ),
+            ]
         # Configurate Pod template container
         container = client.V1Container(
             name="wandb-container-build",
@@ -264,24 +284,7 @@ class KanikoBuilder(AbstractBuilder):
                 restart_policy="Never",
                 active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
                 containers=[container],
-                volumes=[
-                    client.V1Volume(
-                        name="build-context-config-map",
-                        config_map=client.V1ConfigMapVolumeSource(
-                            name=config_map_name,
-                        ),
-                    ),
-                    client.V1Volume(
-                        name="docker-config",
-                        config_map=client.V1ConfigMapVolumeSource(
-                            name="docker-config",
-                        ),
-                    ),
-                    client.V1Volume(
-                        name="aws-secret",
-                        secret=client.V1SecretVolumeSource(secret_name="aws-secret"),
-                    ),
-                ],
+                volumes=volumes,
             ),
         )
         # Create the specification of job
