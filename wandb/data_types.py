@@ -492,12 +492,18 @@ class Table(Media):
             )
         return result_type
 
-    def _to_table_json(self, max_rows=None, warn=True):
+    def _to_table_json(self, max_rows=None, enforce_max_row_limit=True):
         # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
-        if len(self.data) > max_rows and warn:
-            logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
+        n_rows = len(self.data)
+        if n_rows > max_rows and enforce_max_row_limit:
+            raise ValueError(
+                f"Table row limit exceeded: table has {n_rows} rows, limit is {max_rows}. "
+                f"To increase the maximum number of allowed rows in a wandb.Table, override "
+                f"the limit with `wandb.Table.MAX_ARTIFACT_ROWS = X` and try again. Note: "
+                f"this may cause slower queries in the W&B UI."
+            )
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
@@ -505,7 +511,7 @@ class Table(Media):
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publically say 200k is the limit.
-        data = self._to_table_json(warn=False)
+        data = self._to_table_json(enforce_max_row_limit=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
