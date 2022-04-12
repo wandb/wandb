@@ -588,7 +588,10 @@ def test_table_default():
 
 def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
-    table = wandb.Table(data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(), columns=["col1"])
+    table = wandb.Table(
+        data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(),
+        columns=["col1"],
+    )
 
     with pytest.raises(ValueError):
         run.log({"table": table})
