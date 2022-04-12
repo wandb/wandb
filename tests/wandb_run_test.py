@@ -647,7 +647,10 @@ def test_wandb_artifact_config_update(
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
-    run = wandb.init(settings=test_settings)
+    run = wandb.init(
+        config_include_keys=("lol",),
+        settings=test_settings,
+    )
     # use deprecated features
     deprecated_features = [
         run.mode,
@@ -658,11 +661,13 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
     telemetry = ctx_util.telemetry
     # TelemetryRecord field 10 is Deprecated,
     # whose fields 2-4 correspond to deprecated wandb.run features
+    # fields 7 & 8 are deprecated wandb.init kwargs
     telemetry_deprecated = telemetry.get("10", [])
     assert (
         (2 in telemetry_deprecated)
         and (3 in telemetry_deprecated)
         and (4 in telemetry_deprecated)
+        and (7 in telemetry_deprecated)
     )
     run.finish()
 

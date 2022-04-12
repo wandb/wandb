@@ -30,6 +30,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.deprecate import deprecate, Deprecated
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
@@ -91,6 +92,8 @@ class _WandbInit:
         self.printer = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
+
+        self.deprecated_features_used: Dict[str, str] = dict()
 
     def setup(self, kwargs) -> None:  # noqa: C901
         """Completes setup for `wandb.init()`.
@@ -185,13 +188,17 @@ class _WandbInit:
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
 
-        # todo: deprecate config_include_keys and config_exclude_keys
-        # if config_include_keys or config_exclude_keys:
-        #     wandb.termwarn(
-        #       "config_include_keys and config_exclude_keys are deprecated:"
-        #       " use config=wandb.helper.parse_config(config_object, include=('key',))"
-        #       " or config=wandb.helper.parse_config(config_object, exclude=('key',))"
-        #     )
+        deprecated_kwargs = {
+            "config_include_keys": (
+                "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
+            ),
+            "config_exclude_keys": (
+                "Use `config=wandb.helper.parse_config(config_object, exclude=('key',))` instead."
+            ),
+        }
+        for deprecated_kwarg, msg in deprecated_kwargs.items():
+            if locals().get(deprecated_kwarg):
+                self.deprecated_features_used[deprecated_kwarg] = msg
 
         init_config = parse_config(
             init_config, include=config_include_keys, exclude=config_exclude_keys
@@ -598,6 +605,16 @@ class _WandbInit:
                 run._label_probe_notebook(self.notebook)
             else:
                 run._label_probe_main()
+
+        for deprecated_feature, msg in self.deprecated_features_used.items():
+            warning_message = (
+                f"`{deprecated_feature}` is deprecated. {msg}"
+            )
+            deprecate(
+                field_name=getattr(Deprecated, "init__" + deprecated_feature),
+                warning_message=warning_message,
+                run=run,
+            )
 
         logger.info("updated telemetry")
 
