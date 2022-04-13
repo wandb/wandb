@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import time
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -13,6 +14,7 @@ import tqdm
 
 import wandb
 from wandb.cli import cli
+import wandb.sdk.lib.redirect
 import wandb.util
 
 
@@ -241,7 +243,7 @@ def test_run_with_console_redirect(test_settings, capfd, console):
 
 
 @pytest.mark.parametrize("console", console_modes)
-@pytest.mark.timeout(120)
+@pytest.mark.timeout(300)
 def test_offline_compression(test_settings, capfd, runner, console):
     with capfd.disabled():
         time_stamp: float = time.time()
@@ -302,7 +304,7 @@ def test_offline_compression(test_settings, capfd, runner, console):
 
 @pytest.mark.parametrize("console", console_modes)
 @pytest.mark.parametrize("numpy", [True, False])
-@pytest.mark.timeout(120)
+@pytest.mark.timeout(300)
 def test_very_long_output(test_settings, capfd, runner, console, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
     time_stamp: float = time.time()
@@ -316,9 +318,11 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
     )
 
     with capfd.disabled():
-        if not numpy:
-            wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
-        try:
+        with mock.patch.object(
+            wandb.wandb_sdk.lib.redirect,
+            "np",
+            wandb.sdk.lib.redirect._Numpy() if not numpy else np,
+        ):
             run = wandb.init(settings=test_settings)
             run_dir, run_id = run.dir, run.id
             print("LOG" * 1000000)
@@ -345,8 +349,6 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
             assert "\\033[31m\\033[40m\\033[1mHello" in binary_log
             assert binary_log.count("LOG") == 1000000
             assert "===finish===" in binary_log
-        finally:
-            wandb.wandb_sdk.lib.redirect.np = np
 
 
 @pytest.mark.parametrize("console", console_modes)
@@ -354,8 +356,11 @@ def test_no_numpy(test_settings, capfd, runner, console):
     local_settings = copy.copy(test_settings)
     local_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
-        wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
-        try:
+        with mock.patch.object(
+            wandb.wandb_sdk.lib.redirect,
+            "np",
+            wandb.sdk.lib.redirect._Numpy(),
+        ):
             run = wandb.init(settings=local_settings)
             print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
             run.finish()
@@ -365,8 +370,6 @@ def test_no_numpy(test_settings, capfd, runner, console):
             binary_log = runner.invoke(
                 cli.sync, ["--view", "--verbose", binary_log_file]
             ).stdout
-        finally:
-            wandb.wandb_sdk.lib.redirect.np = np
 
 
 @pytest.mark.parametrize("console", console_modes)
