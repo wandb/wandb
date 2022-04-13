@@ -173,6 +173,7 @@ def retry(retries: int = 3, delay: int = 1) -> Callable:
     """
     A simple retry decorator
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any):
@@ -180,9 +181,12 @@ def retry(retries: int = 3, delay: int = 1) -> Callable:
                 try:
                     return func(*args, **kwargs)
                 except Exception:
-                    print(f"`{func.__name__}` call failed, retrying in {delay} seconds...")
+                    print(
+                        f"`{func.__name__}` call failed, retrying in {delay} seconds..."
+                    )
                     time.sleep(delay)
             return func(*args, **kwargs)
+
         return wrapper
 
     return decorator

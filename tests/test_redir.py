@@ -276,7 +276,8 @@ def test_offline_compression(test_settings, capfd, runner, console):
             os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
         )
 
-        @retry(retries=3, delay=1)
+        # IO might be slow, so allow waiting for the file to be created to avoid flakiness
+        @retry(retries=5, delay=5)
         def get_binary_log():
             binary_log = runner.invoke(
                 cli.sync, ["--view", "--verbose", binary_log_file]
@@ -331,7 +332,8 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
                 os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
             )
 
-            @retry(retries=3, delay=1)
+            # IO might be slow, so allow waiting for the file to be created to avoid flakiness
+            @retry(retries=5, delay=5)
             def get_binary_log():
                 binary_log = runner.invoke(
                     cli.sync, ["--view", "--verbose", binary_log_file]
