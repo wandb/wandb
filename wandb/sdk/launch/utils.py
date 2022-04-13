@@ -437,7 +437,7 @@ def resolve_build_and_registry_config(
     build_config: Optional[Dict[str, Any]],
     registry_config: Optional[Dict[str, Any]],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    resolved_build_config: Dict[str, Any] = {}}
+    resolved_build_config: Dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
         resolved_build_config = default_launch_config.get("build", {})
     elif build_config is not None:
