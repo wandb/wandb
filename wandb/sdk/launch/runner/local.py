@@ -98,9 +98,10 @@ class LocalRunner(AbstractRunner):
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
         else:
+            repository: Optional[str] = registry_config.get("url")
             image_uri = builder.build_image(
                 launch_project,
-                str(registry_config.get("url", None)),
+                repository,
                 entry_point,
                 docker_args,
             )

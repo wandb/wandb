@@ -71,13 +71,13 @@ def test_launch_agent_base(
     monkeypatch.setattr(
         wandb.sdk.launch.utils,
         "LAUNCH_CONFIG_FILE",
-        os.path.join("./config/wandb"),
+        os.path.join("./config/wandb/launch-config.yaml"),
     )
     launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
 
     with runner.isolated_filesystem():
         os.makedirs(os.path.expanduser("./config/wandb"))
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE), "w") as f:
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
             json.dump(launch_config, f)
         result = runner.invoke(cli.launch_agent, "test_project")
         ctx = live_mock_server.get_ctx()
