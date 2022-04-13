@@ -227,7 +227,7 @@ def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
     assert wandb.jupyter.__IFrame is None
-    assert len(displayed_html) == 7
+    assert len(displayed_html) == 11
     assert "<iframe" in displayed_html[2]
     magic.wandb("test/test/runs/test")
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
