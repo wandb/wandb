@@ -86,7 +86,7 @@ def resolve_agent_config(
         settings = Settings(
             api_key=resolved_config["api_key"],
             base_url=resolved_config["base_url"],
-            project="test",
+            project=resolved_config["project"],
         )
         api = Api(default_settings=settings, load_settings=False)
 
