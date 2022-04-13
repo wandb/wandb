@@ -88,7 +88,7 @@ class Retry:
 
         sleep_base = kwargs.pop("retry_sleep_base", 1)
 
-        # an extra function to allow performing more logic on the filtered exceptiosn
+        # an extra function to allow performing more logic on the filtered exception
         check_retry_fn = kwargs.pop("check_retry_fn", self._check_retry_fn)
 
         sleep = sleep_base

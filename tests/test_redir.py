@@ -16,6 +16,9 @@ from wandb.cli import cli
 import wandb.util
 
 
+from .utils import retry
+
+
 impls = [wandb.wandb_sdk.lib.redirect.StreamWrapper]
 console_modes = ["wrap"]
 if os.name != "nt":
@@ -255,9 +258,10 @@ def test_offline_compression(test_settings, capfd, runner, console):
 
         for _ in tqdm.tqdm(range(100), ncols=139, ascii=" 123456789#"):
             time.sleep(0.01)
+        time.sleep(2)
 
         print("\n" * 1000)
-        time.sleep(2)
+        time.sleep(3)
 
         print("QWERT")
         print("YUIOP")
@@ -266,14 +270,20 @@ def test_offline_compression(test_settings, capfd, runner, console):
         print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")
 
         run.finish()
-        time.sleep(2)
+        time.sleep(5)
 
         binary_log_file = (
             os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
         )
-        binary_log = runner.invoke(
-            cli.sync, ["--view", "--verbose", binary_log_file]
-        ).stdout
+
+        @retry(retries=3, delay=1)
+        def get_binary_log():
+            binary_log = runner.invoke(
+                cli.sync, ["--view", "--verbose", binary_log_file]
+            ).stdout
+            return binary_log
+
+        binary_log = get_binary_log()
 
         # Only a single output record per stream is written when the run finishes
         assert binary_log.count("Record: output") == 2
@@ -298,6 +308,7 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
     test_settings.update(
         _start_datetime=datetime_now,
         _start_time=time_stamp,
+        mode="offline",
         console=console,
         run_id=wandb.util.generate_id(),
     )
@@ -315,12 +326,19 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
             print("===finish===")
             run.finish()
             time.sleep(3)
+
             binary_log_file = (
                 os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
             )
-            binary_log = runner.invoke(
-                cli.sync, ["--view", "--verbose", binary_log_file]
-            ).stdout
+
+            @retry(retries=3, delay=1)
+            def get_binary_log():
+                binary_log = runner.invoke(
+                    cli.sync, ["--view", "--verbose", binary_log_file]
+                ).stdout
+                return binary_log
+
+            binary_log = get_binary_log()
             assert "\\033[31m\\033[40m\\033[1mHello" in binary_log
             assert binary_log.count("LOG") == 1000000
             assert "===finish===" in binary_log

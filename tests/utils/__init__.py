@@ -18,6 +18,7 @@ from tests.utils.utils import (
     mock_sagemaker,
     mock_k8s,
     assert_deep_lists_equal,
+    retry,
 )
 
 __all__ = [
@@ -41,4 +42,5 @@ __all__ = [
     "matplotlib_with_image",
     "matplotlib_without_image",
     "InjectRequests",
+    "retry",
 ]
