@@ -12,3 +12,4 @@ protobuf>=3.12.0
 PyYAML
 pathtools # supports vendored version of watchdog 0.9.0
 setproctitle
+setuptools
