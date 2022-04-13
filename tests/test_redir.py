@@ -245,6 +245,7 @@ def test_offline_compression(test_settings, capfd, runner, console):
         test_settings.update(
             _start_datetime=datetime_now,
             _start_time=time_stamp,
+            mode="offline",
             console=console,
             run_id=wandb.util.generate_id(),
         )
