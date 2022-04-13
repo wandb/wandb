@@ -3,7 +3,7 @@ import threading
 import wandb
 
 
-class Stats(object):
+class Stats:
     def __init__(self):
         self._stats = {}
         self._lock = threading.Lock()

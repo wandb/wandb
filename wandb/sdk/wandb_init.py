@@ -19,7 +19,6 @@ import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
-import six
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
@@ -74,7 +73,7 @@ def _maybe_mp_process(backend: Backend) -> bool:
     return False
 
 
-class _WandbInit(object):
+class _WandbInit:
     _init_telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(self):
@@ -106,7 +105,7 @@ class _WandbInit(object):
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
             self.printer = get_printer(singleton._settings._jupyter)
-            exclude_env_vars = set(["WANDB_SERVICE", "WANDB_KUBEFLOW_URL"])
+            exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
             # check if environment variables have changed
             singleton_env = {
                 k: v
@@ -435,8 +434,8 @@ class _WandbInit(object):
         self._enable_logging(settings.log_user)
 
         self._wl._early_logger_flush(logger)
-        logger.info("Logging user logs to {}".format(settings.log_user))
-        logger.info("Logging internal logs to {}".format(settings.log_internal))
+        logger.info(f"Logging user logs to {settings.log_user}")
+        logger.info(f"Logging internal logs to {settings.log_internal}")
 
     def _make_run_disabled(self) -> RunDisabled:
         drun = RunDisabled()
@@ -758,7 +757,7 @@ def _attach(
     if not resp:
         raise UsageError("problem")
     if resp and resp.error and resp.error.message:
-        raise UsageError("bad: {}".format(resp.error.message))
+        raise UsageError(f"bad: {resp.error.message}")
     run._set_run_obj(resp.run)
     run._on_attach()
     return run
@@ -1031,5 +1030,5 @@ def init(
             wandb.termerror("Abnormal program exit")
             if except_exit:
                 os._exit(-1)
-            six.raise_from(Exception("problem"), error_seen)
+            raise Exception("problem") from error_seen
     return run

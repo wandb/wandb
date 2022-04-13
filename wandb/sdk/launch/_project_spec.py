@@ -36,7 +36,7 @@ class LaunchSource(enum.IntEnum):
     DOCKER: int = 4
 
 
-class LaunchProject(object):
+class LaunchProject:
     """A launch project specification."""
 
     def __init__(
@@ -142,10 +142,10 @@ class LaunchProject(object):
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return "{}_launch".format(self.target_project)
+        return f"{self.target_project}_launch"
 
     def clear_parameter_run_config_collisions(self) -> None:
-        """Clear values from the overide run config values if a matching key exists in the override arguments."""
+        """Clear values from the override run config values if a matching key exists in the override arguments."""
         if not self.override_config:
             return
         keys = [key for key in self.override_config.keys()]
@@ -156,7 +156,7 @@ class LaunchProject(object):
     def get_single_entry_point(self) -> Optional["EntryPoint"]:
         """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
         # assuming project only has 1 entry point, pull that out
-        # tmp fn until we figure out if we wanna support multiple entry points or not
+        # tmp fn until we figure out if we want to support multiple entry points or not
         if not self._entry_points:
             if not self.docker_image:
                 raise LaunchError(
@@ -170,7 +170,7 @@ class LaunchProject(object):
         _, file_extension = os.path.splitext(entry_point)
         ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
         if file_extension in ext_to_cmd:
-            command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
+            command = f"{ext_to_cmd[file_extension]} {quote(entry_point)}"
             new_entrypoint = EntryPoint(name=entry_point, command=command)
             self._entry_points[entry_point] = new_entrypoint
             return new_entrypoint
@@ -318,7 +318,7 @@ class LaunchProject(object):
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
-class EntryPoint(object):
+class EntryPoint:
     """An entry point into a wandb launch specification."""
 
     def __init__(self, name: str, command: str):
@@ -380,7 +380,7 @@ class EntryPoint(object):
         command_arr = [command_with_params]
         command_arr.extend(
             [
-                "--%s %s" % (key, value) if value is not None else "--%s" % (key)
+                f"--{key} {value}" if value is not None else f"--{key}"
                 for key, value in extra_params.items()
             ]
         )
@@ -388,7 +388,7 @@ class EntryPoint(object):
 
     @staticmethod
     def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
-        """Sanitizes a dictionary of paramaeters, quoting values, except for keys with None values."""
+        """Sanitizes a dictionary of parameters, quoting values, except for keys with None values."""
         return {
             (str(key)): (quote(str(value)) if value is not None else None)
             for key, value in param_dict.items()
@@ -465,7 +465,7 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     assert launch_project.project_dir is not None
-    # this prioritizes pip and we don't support any cases where both are present
+    # this prioritizes pip, and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.txt")
@@ -493,7 +493,8 @@ def create_metadata_file(
 ) -> None:
     assert launch_project.project_dir is not None
     with open(
-        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
+        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
+        "w",
     ) as f:
         json.dump(
             {

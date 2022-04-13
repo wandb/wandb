@@ -1,4 +1,4 @@
-"""MesssageFuture - represents a message result of an asynchronous operation
+"""MessageFuture - represents a message result of an asynchronous operation
 
 Base class MessageFuture for MessageFutureObject and MessageFuturePoll
 
@@ -11,7 +11,7 @@ from typing import Optional
 from wandb.proto import wandb_internal_pb2 as pb
 
 
-class MessageFuture(object):
+class MessageFuture:
     _object: Optional[pb.Result]
 
     def __init__(self) -> None:

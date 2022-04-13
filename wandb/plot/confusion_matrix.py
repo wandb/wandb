@@ -61,7 +61,7 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
     else:
         class_inds = set(preds).union(set(y_true))
         n_classes = len(class_inds)
-        class_names = ["Class_{}".format(i) for i in range(1, n_classes + 1)]
+        class_names = [f"Class_{i}" for i in range(1, n_classes + 1)]
 
     # get mapping of inds to class index in case user has weird prediction indices
     class_mapping = {}

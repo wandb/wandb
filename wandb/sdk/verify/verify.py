@@ -65,8 +65,10 @@ def check_logged_in(api: Api, host: str) -> bool:
     login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
-        fail_string = "Not logged in. Please log in using `wandb login`. See the docs: {}".format(
-            click.style(login_doc_url, underline=True, fg="blue")
+        fail_string = (
+            "Not logged in. Please log in using `wandb login`. See the docs: {}".format(
+                click.style(login_doc_url, underline=True, fg="blue")
+            )
         )
     # check that api key is correct
     # TODO: Better check for api key is correct
@@ -154,7 +156,7 @@ def check_run(api: Api) -> bool:
 
         wandb.save(filepath)
     public_api = wandb.Api()
-    prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+    prev_run = public_api.run(f"{entity}/{PROJECT_NAME}/{run_id}")
     # raise Exception(prev_run.__dict__)
     if prev_run is None:
         failed_test_strings.append(
@@ -245,7 +247,7 @@ def artifact_with_path_or_paths(
         f.write("test 2")
     if not os.path.exists(verify_dir):
         os.makedirs(verify_dir)
-    with open("{}/verify_1.txt".format(verify_dir), "w") as f:
+    with open(f"{verify_dir}/verify_1.txt", "w") as f:
         f.write("1")
     art.add_dir(verify_dir)
     with open("verify_3.txt", "w") as f:
@@ -278,16 +280,17 @@ def log_use_download_artifact(
         try:
             log_art_run.log_artifact(artifact, aliases=alias)
         except Exception as e:
-            failed_test_strings.append("Unable to log artifact. {}".format(e))
+            failed_test_strings.append(f"Unable to log artifact. {e}")
             return False, None, failed_test_strings
 
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME,
+        config={"test": "artifact use"},
     ) as use_art_run:
         try:
-            used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
+            used_art = use_art_run.use_artifact(f"{name}:{alias}")
         except Exception as e:
-            failed_test_strings.append("Unable to use artifact. {}".format(e))
+            failed_test_strings.append(f"Unable to use artifact. {e}")
             return False, None, failed_test_strings
         try:
             used_art.download(root=download_dir)
@@ -371,7 +374,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     ) as run:
         wandb.save(gql_fp)
     public_api = wandb.Api()
-    prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
+    prev_run = public_api.run(f"{run.entity}/{PROJECT_NAME}/{run.id}")
     if prev_run is None:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
@@ -405,7 +408,7 @@ def check_large_post() -> bool:
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
-    descy = "a" * int(10 ** 7)
+    descy = "a" * int(10**7)
 
     username = getpass.getuser()
     failed_test_strings = []
@@ -442,7 +445,7 @@ def check_large_post() -> bool:
             )
         else:
             failed_test_strings.append(
-                "Failed to send a large payload with error: {}.".format(e)
+                f"Failed to send a large payload with error: {e}."
             )
     print_results(failed_test_strings, False)
     return len(failed_test_strings) == 0

@@ -48,5 +48,7 @@ class WandbHook(SessionRunHook):
         step = run_values.results["global_step"]
         if step % self._steps_per_log == 0:
             wandb.tensorboard._log(
-                run_values.results["summary"], history=self._history, step=step,
+                run_values.results["summary"],
+                history=self._history,
+                step=step,
             )

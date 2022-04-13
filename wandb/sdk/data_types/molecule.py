@@ -51,7 +51,7 @@ class Molecule(BatchableMedia):
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:
-        super(Molecule, self).__init__()
+        super().__init__()
 
         self._caption = caption
 
@@ -153,7 +153,8 @@ class Molecule(BatchableMedia):
             molecule = rdkit_chem.AddHs(molecule)
             rdkit_chem_all_chem.EmbedMolecule(molecule)
             rdkit_chem_all_chem.MMFFOptimizeMolecule(
-                molecule, maxIters=mmff_optimize_molecule_max_iterations,
+                molecule,
+                maxIters=mmff_optimize_molecule_max_iterations,
             )
         # convert to the pdb format supported by Molecule
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
@@ -205,7 +206,7 @@ class Molecule(BatchableMedia):
         return os.path.join("media", "molecule")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(Molecule, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         if self._caption:
             json_dict["caption"] = self._caption
