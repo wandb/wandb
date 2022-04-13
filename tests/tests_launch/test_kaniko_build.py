@@ -327,7 +327,7 @@ def test_kaniko_build_no_cloud_provider():
 
 def test_kaniko_build_instance_mode(capsys):
     KanikoBuilder({"cloud-provider": "AWS", "build-context-store": "s3://test-url"})
-    assert "Kaniko is not supported in instance mode" in capsys.readouterr().err
+    assert "Kaniko builder running in instance mode" in capsys.readouterr().err
 
 
 def test_no_context_store():
