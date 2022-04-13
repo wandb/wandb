@@ -3,14 +3,13 @@ summary test.
 """
 
 import pytest  # type: ignore
-import sys
 
 from wandb import wandb_sdk
 
 from wandb.sdk.interface.summary_record import SummaryRecord
 
 
-class MockCallback(object):
+class MockCallback:
     # current_dict: t.Dict
     # summary_record: t.Optional[SummaryRecord]
 

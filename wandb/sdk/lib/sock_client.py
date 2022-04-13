@@ -85,7 +85,7 @@ class SockClient:
         # This pass would be solved as part of the fix in https://wandb.atlassian.net/browse/WB-8709
         response = self.read_server_response(timeout=1)
         if response is None:
-            raise Exception("No responese")
+            raise Exception("No response")
         return response
 
     def send(

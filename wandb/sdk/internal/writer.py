@@ -1,8 +1,4 @@
-#
-# -*- coding: utf-8 -*-
 """Writer thread."""
-
-from __future__ import print_function
 
 import logging
 
@@ -12,7 +8,7 @@ from . import datastore
 logger = logging.getLogger(__name__)
 
 
-class WriteManager(object):
+class WriteManager:
     def __init__(
         self,
         settings,

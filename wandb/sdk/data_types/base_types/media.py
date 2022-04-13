@@ -24,15 +24,15 @@ SYS_PLATFORM = platform.system()
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
-    return "{}_{}_{}{}".format(str(key), str(step), str(id), extension)
+    return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
 class Media(WBValue):
     """A WBValue that we store as a file outside JSON and show in a media panel
     on the front end.
 
-    If necessary, we move or copy the file into the Run's media directory so that it gets
-    uploaded.
+    If necessary, we move or copy the file into the Run's media directory so
+    that it gets uploaded.
     """
 
     _path: Optional[str]
@@ -44,7 +44,7 @@ class Media(WBValue):
     _size: Optional[int]
 
     def __init__(self, caption: Optional[str] = None) -> None:
-        super(Media, self).__init__()
+        super().__init__()
         self._path = None
         # The run under which this object is bound, if any.
         self._run = None
@@ -56,12 +56,11 @@ class Media(WBValue):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
-        if extension is not None and not path.endswith(extension):
-            raise ValueError(
-                'Media file extension "{}" must occur at the end of path "{}".'.format(
-                    extension, path
-                )
-            )
+        assert extension is None or path.endswith(
+            extension
+        ), 'Media file extension "{}" must occur at the end of path "{}".'.format(
+            extension, path
+        )
 
         with open(self._path, "rb") as f:
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
@@ -100,8 +99,7 @@ class Media(WBValue):
         put the file associated with this object, from which other Runs can
         refer to it.
         """
-        if not self.file_is_set():
-            raise AssertionError("bind_to_run called before _set_file")
+        assert self.file_is_set(), "bind_to_run called before _set_file"
 
         if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
             raise ValueError(
@@ -114,12 +112,8 @@ class Media(WBValue):
         assert isinstance(self._path, str)
         assert isinstance(self._sha256, str)
 
-        if run is None:
-            raise TypeError('Argument "run" must not be None.')
+        assert run is not None, 'Argument "run" must not be None.'
         self._run = run
-
-        # Following assertion required for mypy
-        assert self._run is not None
 
         if self._extension is None:
             _, extension = os.path.splitext(os.path.basename(self._path))
@@ -165,28 +159,9 @@ class Media(WBValue):
 
         json_obj = {}
         if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
-            if not self.is_bound():
-                raise RuntimeError(
-                    "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
-                        type(self).__name__
-                    )
-                )
-
-            assert (
-                self._run is run
-            ), "We don't support referring to media files across runs."
-
-            # The following two assertions are guaranteed to pass
-            # by definition is_bound, but are needed for
-            # mypy to understand that these are strings below.
-            assert isinstance(self._path, str)
-
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-                    "path": util.to_forward_slash_path(
-                        os.path.relpath(self._path, self._run.dir)
-                    ),
                     "sha256": self._sha256,
                     "size": self._size,
                 }
@@ -197,6 +172,26 @@ class Media(WBValue):
             artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
             if artifact_entry_latest_url is not None:
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
+
+            if artifact_entry_url is None or self.is_bound():
+                assert (
+                    self.is_bound()
+                ), "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
+                    type(self).__name__
+                )
+
+                assert (
+                    self._run is run
+                ), "We don't support referring to media files across runs."
+
+                # The following two assertions are guaranteed to pass
+                # by definition is_bound, but are needed for
+                # mypy to understand that these are strings below.
+                assert isinstance(self._path, str)
+                json_obj["path"] = util.to_forward_slash_path(
+                    os.path.relpath(self._path, self._run.dir)
+                )
+
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
@@ -277,7 +272,7 @@ class BatchableMedia(Media):
     """
 
     def __init__(self) -> None:
-        super(BatchableMedia, self).__init__()
+        super().__init__()
 
     @classmethod
     def seq_to_json(

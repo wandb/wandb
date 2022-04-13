@@ -1,4 +1,3 @@
-#
 import errno
 import os
 import re
@@ -15,10 +14,10 @@ def _safe_makedirs(dir_name: str) -> None:
     if not os.path.isdir(dir_name):
         raise Exception("not dir")
     if not os.access(dir_name, os.W_OK):
-        raise Exception("cant write: {}".format(dir_name))
+        raise Exception(f"cant write: {dir_name}")
 
 
-class WriteSerializingFile(object):
+class WriteSerializingFile:
     """Wrapper for a file object that serializes writes."""
 
     def __init__(self, f: BinaryIO) -> None:
@@ -43,7 +42,7 @@ class WriteSerializingFile(object):
 
 class CRDedupedFile(WriteSerializingFile):
     def __init__(self, f: BinaryIO) -> None:
-        super(CRDedupedFile, self).__init__(f=f)
+        super().__init__(f=f)
         self._buff = b""
 
     def write(self, data) -> None:  # type: ignore
@@ -62,9 +61,9 @@ class CRDedupedFile(WriteSerializingFile):
             ret.insert(0, self._buff)
         if ret:
             self._buff = ret.pop()
-        super(CRDedupedFile, self).write(b"\n".join(ret) + b"\n")
+        super().write(b"\n".join(ret) + b"\n")
 
     def close(self) -> None:
         if self._buff:
-            super(CRDedupedFile, self).write(self._buff)
-        super(CRDedupedFile, self).close()
+            super().write(self._buff)
+        super().close()

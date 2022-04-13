@@ -6,7 +6,7 @@ from wandb.sdk.internal.stats import SystemStats
 from wandb.sdk.internal.tpu import TPUProfiler
 
 
-class MockTPUProfiler(object):
+class MockTPUProfiler:
     def __init__(self):
         self.utilization = 22.1
 
@@ -47,7 +47,7 @@ def is_tf_pkg_installed():
     return True
 
 
-class MockProfilerClient(object):
+class MockProfilerClient:
     def __init__(self, tpu_utilization: int = 10.1) -> None:
         self.tpu_utilization = tpu_utilization
 

@@ -78,7 +78,7 @@ class WandbCallback(BaseCallback):
         model_save_freq: int = 0,
         gradient_save_freq: int = 0,
     ):
-        super(WandbCallback, self).__init__(verbose)
+        super().__init__(verbose)
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
         with wb_telemetry.context() as tel:
