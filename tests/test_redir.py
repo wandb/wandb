@@ -277,7 +277,7 @@ def test_offline_compression(test_settings, capfd, runner, console):
         )
 
         # IO might be slow, so allow waiting for the file to be created to avoid flakiness
-        @retry(retries=5, delay=5)
+        @retry(retries=6, delay=10)
         def get_binary_log():
             binary_log = runner.invoke(
                 cli.sync, ["--view", "--verbose", binary_log_file]
@@ -333,7 +333,7 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
             )
 
             # IO might be slow, so allow waiting for the file to be created to avoid flakiness
-            @retry(retries=5, delay=5)
+            @retry(retries=6, delay=10)
             def get_binary_log():
                 binary_log = runner.invoke(
                     cli.sync, ["--view", "--verbose", binary_log_file]
