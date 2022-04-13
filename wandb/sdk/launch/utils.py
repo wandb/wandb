@@ -34,7 +34,7 @@ PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
-LAUNCH_AGENT_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
+LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
@@ -430,3 +430,20 @@ def get_kube_context_and_api_client(
         kubernetes.config.load_incluster_config()
         api_client = kubernetes.client.api_client.ApiClient()
         return context, api_client
+
+
+def resolve_build_and_registry_config(
+    default_launch_config: Optional[Dict[str, Any]],
+    build_config: Optional[Dict[str, Any]],
+    registry_config: Optional[Dict[str, Any]],
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    if build_config is None and default_launch_config is not None:
+        build_config = default_launch_config.get("build")
+    if registry_config is None and default_launch_config is not None:
+        registry_config = default_launch_config.get("registry")
+    if build_config is None:
+        build_config = {}
+    if registry_config is None:
+        registry_config = {}
+    validate_build_and_registry_configs(build_config, registry_config)
+    return build_config, registry_config

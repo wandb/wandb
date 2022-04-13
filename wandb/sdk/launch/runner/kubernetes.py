@@ -1,4 +1,3 @@
-import os
 import time
 from typing import Any, Dict, List, Optional
 
@@ -328,17 +327,17 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
                 )
-            registry: Optional[str] = resource_args.get(
+            repository: Optional[str] = resource_args.get(
                 "registry"
             ) or registry_config.get("url")
-            if registry is None:
+            if repository is None:
                 # allow local registry usage for eg local clusters but throw a warning
                 wandb.termwarn(
                     "Warning: No Docker registry specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
 
             image_uri = builder.build_image(
-                launch_project, registry, entry_point, docker_args
+                launch_project, repository, entry_point, docker_args
             )
             containers[0]["image"] = image_uri
 

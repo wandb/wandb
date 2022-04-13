@@ -19,7 +19,7 @@ from ..runner.loader import load_backend
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
-    validate_build_and_registry_configs,
+    resolve_build_and_registry_config,
 )
 
 AGENT_POLLING_INTERVAL = 10
@@ -58,10 +58,8 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = config.get("max_jobs") or 1
-        self.config: Optional[Dict[str, Any]] = None
+        self.default_config: Optional[Dict[str, Any]] = config
 
-        self.build_config: Dict[str, Any] = config.get("builder", {})
-        self.registry_config: Dict[str, Any] = config.get("registry", {})
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
@@ -176,28 +174,19 @@ class LaunchAgent:
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        override_build_spec = launch_spec.get("build", {})
-        build_config = self.construct_build_config(override_build_spec)
+        override_build_config = launch_spec.get("build")
+        override_registry_config = launch_spec.get("registry")
+        build_config, registry_config = resolve_build_and_registry_config(
+            self.default_config, override_build_config, override_registry_config
+        )
         builder = load_builder(build_config)
-
         backend = load_backend(resource, self._api, backend_config)
-
-        validate_build_and_registry_configs(build_config, self.registry_config)
         backend.verify()
         _logger.info("Backend loaded...")
-        run = backend.run(project, builder, self.registry_config)
+        run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
             self._running += 1
-
-    def construct_build_config(
-        self, override_spec: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-
-        if override_spec is None:
-            return self.build_config
-
-        return override_spec
 
     def loop(self) -> None:
         """Main loop function for agent."""

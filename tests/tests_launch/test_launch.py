@@ -11,9 +11,11 @@ from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 import wandb.sdk.launch.launch as launch
+from wandb.sdk.launch.builder.docker import DockerBuilder
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.utils import (
+    LAUNCH_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -877,6 +879,7 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+
     # for now using mocks instead of mock server
     def mocked_download_url(*args, **kwargs):
         if args[1] == "wandb-metadata.json":
@@ -1217,3 +1220,42 @@ def test_launch_cuda_config_false_prev_run_cuda(
 
     returned_command = launch.run(**kwargs)
     assert "--gpus all" not in returned_command
+
+
+def test_launch_build_config_file(
+    runner, mocked_fetchable_git_repo, test_settings, monkeypatch
+):
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.local.LocalRunner,
+        "run",
+        lambda *args, **kwargs: (args, kwargs),
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.utils,
+        "LAUNCH_CONFIG_FILE",
+        os.path.join("./config/wandb"),
+    )
+    launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    with runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser(LAUNCH_CONFIG_FILE), "w") as f:
+            json.dump(launch_config, f)
+
+        kwargs = {
+            "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+            "api": api,
+            "entity": "mock_server_entity",
+            "project": "test",
+            "synchronous": False,
+            "config": {"cuda": False},
+        }
+        args, _ = launch.run(**kwargs)
+        print(args)
+        _, _, builder, registry_config = args
+        assert builder.builder_config == {"type": "docker"}
+        assert isinstance(builder, DockerBuilder)
+        assert registry_config == {"url": "test"}

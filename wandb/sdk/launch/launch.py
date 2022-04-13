@@ -15,15 +15,16 @@ from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
     construct_launch_spec,
-    LAUNCH_AGENT_CONFIG_FILE,
+    LAUNCH_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    resolve_build_and_registry_config,
 )
 
 _logger = logging.getLogger(__name__)
 
 
-def resolve_config(
+def resolve_agent_config(
     api: Api,
     entity: str,
     project: Optional[str],
@@ -47,9 +48,9 @@ def resolve_config(
             return defaults.get(key)
 
     resolved_config: Dict[str, Any] = defaultdict(default_dict_populator)
-    if os.path.exists(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)):
+    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         config = {}
-        with open(os.path.expanduser(LAUNCH_AGENT_CONFIG_FILE)) as f:
+        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
             try:
                 config = yaml.safe_load(f)
             except yaml.YAMLError as e:
@@ -138,15 +139,24 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
+    build_config: Optional[Dict[str, Any]] = None
+    registry_config = None
     if launch_config is not None:
         given_docker_args = launch_config.get("docker", {}).get("args", {})
-        build_config: Dict[str, Any] = launch_config.get("build", {})
-        registry_config = launch_config.get("registry", {})
+        build_config = launch_config.get("build")
+        registry_config = launch_config.get("registry")
         runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
     else:
         runner_config[PROJECT_DOCKER_ARGS] = {}
-        build_config = {}
-        registry_config = {}
+
+    default_launch_config = None
+    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+            default_launch_config = yaml.safe_load(f)
+
+    build_config, registry_config = resolve_build_and_registry_config(
+        default_launch_config, build_config, registry_config
+    )
 
     builder = builder_loader.load_builder(build_config)
     backend = loader.load_backend(resource, api, runner_config)

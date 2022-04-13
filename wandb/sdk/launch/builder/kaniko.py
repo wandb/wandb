@@ -7,8 +7,8 @@ import time
 from typing import Any, Dict, Optional
 
 from google.cloud import storage  # type: ignore
-import kubernetes
-from kubernetes import client  # type: ignore
+import kubernetes  # type: ignore
+from kubernetes import client
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder

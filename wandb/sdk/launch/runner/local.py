@@ -100,7 +100,7 @@ class LocalRunner(AbstractRunner):
         else:
             image_uri = builder.build_image(
                 launch_project,
-                str(registry_config.get("url", "")),
+                str(registry_config.get("url", None)),
                 entry_point,
                 docker_args,
             )
