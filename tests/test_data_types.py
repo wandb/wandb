@@ -526,10 +526,12 @@ def test_molecule_from_rdkit_invalid_input(mocked_run):
 
 
 def test_html_str(mocked_run):
-    html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
+    html_str = "<html><body><h1>Hello</h1></body></html>"
+    html = wandb.Html(html_str)
     html.bind_to_run(mocked_run, "rad", "summary")
     wandb.Html.seq_to_json([html], mocked_run, "rad", "summary")
     assert os.path.exists(html._path)
+    assert html == wandb.Html(html_str)
     wandb.finish()
 
 
