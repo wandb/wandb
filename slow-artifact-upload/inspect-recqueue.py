@@ -54,6 +54,7 @@ dim = int(np.sqrt(args.image_size_kb * 1000))
 STEP_TIMES: List[float] = []
 REC_QUEUE: Optional[queue.Queue] = None
 CUR_STEP: Optional[int] = None
+BACKEND_PROCESS = None
 
 def cap_queue_size():
     global REC_QUEUE
@@ -71,7 +72,6 @@ def cap_queue_size():
 threading.Thread(target=cap_queue_size).start()
 
 def print_stats():
-    this_process = psutil.Process(os.getpid())
     t0 = time.time()
     with args.stats_file.open('w') as f:
         print(json.dumps({
@@ -87,7 +87,7 @@ def print_stats():
                 'elapsed': time.time() - t0,
                 'queue_size': REC_QUEUE.qsize() if REC_QUEUE else None,
                 'cur_step': CUR_STEP,
-                'mem_used': this_process.memory_info().rss,
+                'mem_used': BACKEND_PROCESS.memory_info().rss if BACKEND_PROCESS else None,
                 'last_1_time': STEP_TIMES[-1]-STEP_TIMES[-2] if len(STEP_TIMES) > 1 else None,
                 'last_10_time': STEP_TIMES[-1]-STEP_TIMES[-11] if len(STEP_TIMES)>10 else None,
                 'last_100_time': STEP_TIMES[-1]-STEP_TIMES[-101] if len(STEP_TIMES)>100 else None,
@@ -97,22 +97,14 @@ threading.Thread(target=print_stats).start()
 
 def main():
     global CUR_STEP
-    with wandb.init(project='slow_artifact_upload_0407', settings={'start_method':'thread'}) as run:
-        t0 = time.time()
-        run.config['image_kb'] = args.image_size_kb
-        run.config['hostname'] = os.uname().nodename
-        run.config['queue_cap_size'] = args.queue_cap_size
+    with wandb.init(project='slow_artifact_upload_0407') as run:
+        global BACKEND_PROCESS
+        BACKEND_PROCESS = psutil.Process(run._backend.wandb_process.pid)
         for step in range(60_000_000):
             CUR_STEP = step
             STEP_TIMES.append(time.time())
             run.log({
-                'elapsed': time.time() - t0,
-                'queue_size': REC_QUEUE.qsize() if REC_QUEUE else None,
-                'step': step,
-                'last_1_time': STEP_TIMES[-1]-STEP_TIMES[-2] if len(STEP_TIMES) > 1 else None,
-                'last_10_time': STEP_TIMES[-1]-STEP_TIMES[-11] if len(STEP_TIMES)>10 else None,
-                'last_100_time': STEP_TIMES[-1]-STEP_TIMES[-101] if len(STEP_TIMES)>100 else None,
-                f'image_{step}': wandb.Image(np.random.randint(256, size=(dim, dim), dtype=np.uint8)),
+                f'image': wandb.Image(np.random.randint(256, size=(dim, dim), dtype=np.uint8)),
             })
 # main()
 threading.Thread(target=main).start()
