@@ -505,7 +505,7 @@ class Table(Media):
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
-        # We set `warn=False` since Tables will now always be logged to both
+        # We set `enforce_max_row_limit=False` since Tables will now always be logged to both
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publicly say 200k is the limit.
