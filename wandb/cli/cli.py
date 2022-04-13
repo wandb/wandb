@@ -1182,11 +1182,6 @@ def launch_agent(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    if entity is None:
-        entity = api.default_entity
-    if max_jobs is None:
-        max_jobs = float(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))
-
     wandb.termlog("Starting launch agent ✨")
 
     wandb_launch.create_and_run_agent(api, agent_config)

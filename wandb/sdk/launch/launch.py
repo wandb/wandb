@@ -26,7 +26,7 @@ _logger = logging.getLogger(__name__)
 
 def resolve_agent_config(
     api: Api,
-    entity: str,
+    entity: Optional[str],
     project: Optional[str],
     max_jobs: Optional[float],
     queues: Optional[List[str]],

@@ -4,6 +4,7 @@ import platform
 from unittest import mock
 from unittest.mock import MagicMock
 import sys
+import yaml
 
 import pytest
 import wandb
@@ -1258,3 +1259,29 @@ def test_launch_build_config_file(
         assert builder.builder_config == {"type": "docker"}
         assert isinstance(builder, DockerBuilder)
         assert registry_config == {"url": "test"}
+
+
+def test_resolve_agent_config(test_settings, monkeypatch, runner):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    monkeypatch(
+        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
+        "./config/wandb/launch-config.yaml",
+    )
+    monkeypatch.setenv("WANDB_ENTITY", "diffentity")
+    with runner.isolated_filesystem():
+        os.makedirs("./config/wandb")
+        with open("./config/wandb/launch-config.yaml", "w") as f:
+            yaml.dump(
+                {
+                    "entity": "different-entity",
+                    "max_jobs": 2,
+                    "regsitry": {"url": "test"},
+                },
+                f,
+            )
+        config = launch.resolve_agent_config(api, None, None, -1, ["diff-queue"])
+        assert config["registry"] == {"url": "test"}
+        assert config["entity"] == "diffentity"
+        assert config["max_jobs"] == -1
