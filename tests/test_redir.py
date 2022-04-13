@@ -241,6 +241,7 @@ def test_run_with_console_redirect(test_settings, capfd, console):
 
 
 @pytest.mark.parametrize("console", console_modes)
+@pytest.mark.timeout(120)
 def test_offline_compression(test_settings, capfd, runner, console):
     with capfd.disabled():
         time_stamp: float = time.time()
