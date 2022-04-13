@@ -333,3 +333,17 @@ def test_kaniko_build_instance_mode(capsys):
 def test_no_context_store():
     with pytest.raises(LaunchError):
         KanikoBuilder({"cloud-provider": "AWS"})
+
+
+def build_image_no_repo():
+    build_config = {
+        "cloud-provider": "AWS",
+        "build-context-store": "s3",
+        "credentials": {
+            "secret-name": "aws-secret",
+            "secret-mount-path": "/root/.aws",
+        },
+    }
+    builder = KanikoBuilder(build_config)
+    with pytest.raises(LaunchError):
+        builder.build_image(None, None, None, {})
