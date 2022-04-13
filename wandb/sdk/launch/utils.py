@@ -397,7 +397,7 @@ def validate_build_and_registry_configs(
         raise LaunchError("registry and build config credential mismatch")
 
 
-def get_kube_api_client(
+def get_kube_context_and_api_client(
     kubernetes: Any,  # noqa: F811
     resource_args: Dict[str, Any],  # noqa: F811
 ) -> Any:
@@ -425,8 +425,8 @@ def get_kube_api_client(
         api_client = kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
         )
-        return api_client
+        return context, api_client
     else:
         kubernetes.config.load_incluster_config()
         api_client = kubernetes.client.api_client.ApiClient()
-        return api_client
+        return context, api_client

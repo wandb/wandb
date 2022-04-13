@@ -53,6 +53,7 @@ def mock_kubernetes_client(monkeypatch):
     monkeypatch.setattr(kubernetes.client, "V1SecretVolumeSource", return_kwargs)
     monkeypatch.setattr(kubernetes.client, "V1ConfigMapVolumeSource", return_kwargs)
     monkeypatch.setattr(kubernetes.client, "V1ObjectMeta", return_kwargs)
+    monkeypatch.setattr(kubernetes.config, "load_incluster_config", return_kwargs)
     yield mock_api_client
 
 

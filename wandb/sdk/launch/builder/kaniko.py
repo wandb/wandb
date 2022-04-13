@@ -21,7 +21,7 @@ from .._project_spec import (
     get_entry_point_command,
     LaunchProject,
 )
-from ..utils import get_kube_api_client, sanitize_wandb_api_key
+from ..utils import get_kube_context_and_api_client, sanitize_wandb_api_key
 
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
@@ -171,7 +171,9 @@ class KanikoBuilder(AbstractBuilder):
         context_path = _create_build_ctx(launch_project, dockerfile_str)
         run_id = launch_project.run_id
 
-        api_client = get_kube_api_client(kubernetes, launch_project.resource_args)
+        api_client = get_kube_context_and_api_client(
+            kubernetes, launch_project.resource_args
+        )
         build_job_name = f"{self.build_job_name}-{run_id}"
         config_map_name = f"{self.config_map_name}-{run_id}"
 

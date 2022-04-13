@@ -16,7 +16,7 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
-    get_kube_api_client,
+    get_kube_context_and_api_client,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -248,7 +248,7 @@ class KubernetesRunner(AbstractRunner):
         #     # attempt to load cluster config
         #     kubernetes.config.load_incluster_config()
         #     api_client = kubernetes.client.api_client.ApiClient()
-        api_client = get_kube_api_client(kubernetes, resource_args)
+        context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)
@@ -338,7 +338,7 @@ class KubernetesRunner(AbstractRunner):
                 )
 
             image_uri = builder.build_image(
-                launch_project, registry, entry_point, docker_args, "kubernetes"
+                launch_project, registry, entry_point, docker_args
             )
             containers[0]["image"] = image_uri
 

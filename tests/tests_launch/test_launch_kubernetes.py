@@ -359,31 +359,6 @@ def test_launch_kube_failed(
     assert "Note: no resource args specified" in err
 
 
-def test_set_context(live_mock_server, test_settings, monkeypatch):
-    setup_mock_kubernetes_client(monkeypatch, {}, pods("test"), MockDict({}))
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    runner = KubernetesRunner(api, {})
-
-    resource_args = {}
-    context = runner._set_context(kubernetes, None, resource_args)
-    assert context["name"] == "active-context"
-
-    resource_args = {
-        "context": "inactive-context",
-    }
-    context = runner._set_context(kubernetes, None, resource_args)
-    assert context["name"] == "inactive-context"
-
-    resource_args = {
-        "context": "context-not-found",
-    }
-    with pytest.raises(LaunchError) as e:
-        runner._set_context(kubernetes, None, resource_args)
-        assert "Specified context context-not-found was not found" in str(e.value)
-
-
 @pytest.mark.timeout(320)
 def test_kube_user_container(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
