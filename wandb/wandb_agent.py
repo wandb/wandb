@@ -335,7 +335,7 @@ class Agent:
             _value = config.get("value", None)
             if _value is None:
                 raise ValueError('No "value" found for command["args"]["%s"]' % param)
-            _flag: str = "{}={}".format(param, _value)
+            _flag: str = f"{param}={_value}"
             flags.append("--" + _flag)
             flags_no_hyphens.append(_flag)
             if isinstance(_value, bool):
