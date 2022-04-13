@@ -958,7 +958,7 @@ def sweep(
     "--resource",
     "-r",
     metavar="BACKEND",
-    default="local",
+    default=None,
     help="Execution resource to use for run. Supported values: 'local'."
     " If passed in, will override the resource value passed in using a config file."
     " Defaults to 'local'.",
@@ -1080,6 +1080,11 @@ def launch(
             raise LaunchError("Invalid format for config")
     else:
         config = {}
+
+    if resource is None and config.get("resource") is not None:
+        resource = config.get("resource")
+    elif resource is None:
+        resource = "local"
 
     if (
         uri is None
