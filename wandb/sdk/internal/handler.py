@@ -62,7 +62,7 @@ def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) ->
     target[key_list[-1]] = v
 
 
-class HandleManager(object):
+class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _partial_history: Dict[str, Any]
@@ -129,7 +129,7 @@ class HandleManager(object):
         assert record_type
         handler_str = "handle_" + record_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
-        assert handler, "unknown handle: {}".format(handler_str)
+        assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
     def handle_request(self, record: Record) -> None:
@@ -138,8 +138,8 @@ class HandleManager(object):
         handler_str = "handle_request_" + request_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
         if request_type != "network_status":
-            logger.debug("handle_request: {}".format(request_type))
-        assert handler, "unknown handle: {}".format(handler_str)
+            logger.debug(f"handle_request: {request_type}")
+        assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
@@ -161,7 +161,7 @@ class HandleManager(object):
         defer = record.request.defer
         state = defer.state
 
-        logger.info("handle defer: {}".format(state))
+        logger.info(f"handle defer: {state}")
         # only handle flush tb (sender handles the rest)
         if state == defer.FLUSH_STATS:
             if self._system_stats:
@@ -221,7 +221,10 @@ class HandleManager(object):
             tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
-    def _save_history(self, history: HistoryRecord,) -> None:
+    def _save_history(
+        self,
+        history: HistoryRecord,
+    ) -> None:
         for item in history.item:
             # TODO(jhr) save nested keys?
             k = item.key
@@ -293,7 +296,10 @@ class HandleManager(object):
         return updated
 
     def _update_summary_leaf(
-        self, kl: List[str], v: Any, d: Optional[MetricRecord] = None,
+        self,
+        kl: List[str],
+        v: Any,
+        d: Optional[MetricRecord] = None,
     ) -> bool:
         has_summary = d and d.HasField("summary")
         if len(kl) == 1:
@@ -324,7 +330,10 @@ class HandleManager(object):
         return False
 
     def _update_summary_list(
-        self, kl: List[str], v: Any, d: Optional[MetricRecord] = None,
+        self,
+        kl: List[str],
+        v: Any,
+        d: Optional[MetricRecord] = None,
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
@@ -370,7 +379,9 @@ class HandleManager(object):
         return updated
 
     def _history_assign_step(
-        self, history: HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
         has_step = history.HasField("step")
         item = history.item.add()
@@ -447,7 +458,9 @@ class HandleManager(object):
         )
 
     def _history_update(
-        self, history: HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
 
         #  if syncing an old run, we can skip this logic
@@ -482,7 +495,10 @@ class HandleManager(object):
         if updated:
             self._save_summary(self._consolidated_summary)
 
-    def _flush_partial_history(self, step: Optional[int] = None,) -> None:
+    def _flush_partial_history(
+        self,
+        step: Optional[int] = None,
+    ) -> None:
         if self._partial_history:
             history = HistoryRecord()
             for k, v in self._partial_history.items():
@@ -797,7 +813,9 @@ class HandleManager(object):
     next = __next__
 
     def _history_assign_runtime(
-        self, history: HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:

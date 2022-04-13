@@ -62,7 +62,7 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     return policy
 
 
-class InterfaceBase(object):
+class InterfaceBase:
     _run: Optional["Run"]
     _drop: bool
 
@@ -290,7 +290,8 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:

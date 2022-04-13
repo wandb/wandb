@@ -26,7 +26,7 @@ def feature_importances(model, feature_names):
         importances = model.feature_log_prob_
 
     if len(importances.shape) > 1:
-        n_significant_dims = sum([i > 1 for i in importances.shape])
+        n_significant_dims = sum(i > 1 for i in importances.shape)
         if n_significant_dims > 1:
             nd = len(importances.shape)
             wandb.termwarn(
