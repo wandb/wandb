@@ -21,6 +21,7 @@ Where:
 
 '''
 
+import subprocess
 from pathlib import Path
 import queue
 from typing import List, Optional
@@ -77,12 +78,15 @@ def print_stats():
             'hostname': os.uname().nodename,
             'image_kb': args.image_size_kb,
             'queue_cap_size': args.queue_cap_size,
+            'commit_hash': subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip(),
+            'diff': subprocess.check_output(['git', 'diff', 'HEAD']).decode('utf-8'),
         }), file=f)
         while True:
             time.sleep(1)
             print(json.dumps({
                 'elapsed': time.time() - t0,
                 'queue_size': REC_QUEUE.qsize() if REC_QUEUE else None,
+                'cur_step': CUR_STEP,
                 'mem_used': this_process.memory_info().rss,
                 'last_1_time': STEP_TIMES[-1]-STEP_TIMES[-2] if len(STEP_TIMES) > 1 else None,
                 'last_10_time': STEP_TIMES[-1]-STEP_TIMES[-11] if len(STEP_TIMES)>10 else None,
