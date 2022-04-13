@@ -150,6 +150,7 @@ def _run(
         runner_config[PROJECT_DOCKER_ARGS] = {}
 
     default_launch_config = None
+    print(LAUNCH_CONFIG_FILE)
     if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
             default_launch_config = yaml.safe_load(f)
@@ -157,7 +158,8 @@ def _run(
     build_config, registry_config = resolve_build_and_registry_config(
         default_launch_config, build_config, registry_config
     )
-
+    print(default_launch_config)
+    print(build_config)
     builder = builder_loader.load_builder(build_config)
     backend = loader.load_backend(resource, api, runner_config)
     if backend:

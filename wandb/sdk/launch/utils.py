@@ -437,13 +437,15 @@ def resolve_build_and_registry_config(
     build_config: Optional[Dict[str, Any]],
     registry_config: Optional[Dict[str, Any]],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    resolved_build_config: Dict[str, Any] = {}}
     if build_config is None and default_launch_config is not None:
-        build_config = default_launch_config.get("build")
+        resolved_build_config = default_launch_config.get("build", {})
+    elif build_config is not None:
+        resolved_build_config = build_config
+    resolved_registry_config: Dict[str, Any] = {}
     if registry_config is None and default_launch_config is not None:
-        registry_config = default_launch_config.get("registry")
-    if build_config is None:
-        build_config = {}
-    if registry_config is None:
-        registry_config = {}
-    validate_build_and_registry_configs(build_config, registry_config)
-    return build_config, registry_config
+        resolved_registry_config = default_launch_config.get("registry", {})
+    elif registry_config is not None:
+        resolved_registry_config = registry_config
+    validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
+    return resolved_build_config, resolved_registry_config

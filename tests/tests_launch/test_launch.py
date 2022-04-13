@@ -1231,9 +1231,9 @@ def test_launch_build_config_file(
         lambda *args, **kwargs: (args, kwargs),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.utils,
+        wandb.sdk.launch.launch,
         "LAUNCH_CONFIG_FILE",
-        os.path.join("./config/wandb/launch-config.yaml"),
+        "./config/wandb/launch-config.yaml",
     )
     launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
     api = wandb.sdk.internal.internal_api.Api(
@@ -1254,7 +1254,6 @@ def test_launch_build_config_file(
             "config": {"cuda": False},
         }
         args, _ = launch.run(**kwargs)
-        print(args)
         _, _, builder, registry_config = args
         assert builder.builder_config == {"type": "docker"}
         assert isinstance(builder, DockerBuilder)
