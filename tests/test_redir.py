@@ -1,6 +1,7 @@
 """redirect tests"""
 
 import copy
+import datetime
 import os
 import re
 import sys
@@ -12,6 +13,7 @@ import tqdm
 
 import wandb
 from wandb.cli import cli
+import wandb.util
 
 
 impls = [wandb.wandb_sdk.lib.redirect.StreamWrapper]
@@ -231,26 +233,30 @@ def test_run_with_console_redirect(test_settings, capfd, console):
 
         print("\n" * 1000)
         print("---------------")
-        time.sleep(1)
+        time.sleep(2)
         run.finish()
 
 
 @pytest.mark.parametrize("console", console_modes)
 def test_offline_compression(test_settings, capfd, runner, console):
     with capfd.disabled():
-        local_settings = copy.copy(test_settings)
-        local_settings.update(
-            mode="offline",
+        time_stamp: float = time.time()
+        datetime_now: datetime.datetime = datetime.datetime.fromtimestamp(time_stamp)
+        test_settings.update(
+            _start_datetime=datetime_now,
+            _start_time=time_stamp,
             console=console,
-            source=wandb.sdk.wandb_settings.Source.INIT,
+            run_id=wandb.util.generate_id(),
         )
 
-        run = wandb.init(settings=local_settings)
+        run = wandb.init(settings=test_settings)
+        run_dir, run_id = run.dir, run.id
 
         for _ in tqdm.tqdm(range(100), ncols=139, ascii=" 123456789#"):
-            time.sleep(0.05)
+            time.sleep(0.01)
 
         print("\n" * 1000)
+        time.sleep(2)
 
         print("QWERT")
         print("YUIOP")
@@ -258,11 +264,11 @@ def test_offline_compression(test_settings, capfd, runner, console):
 
         print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")
 
+        run.finish()
         time.sleep(2)
 
-        run.finish()
         binary_log_file = (
-            os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+            os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
         )
         binary_log = runner.invoke(
             cli.sync, ["--view", "--verbose", binary_log_file]
@@ -286,25 +292,30 @@ def test_offline_compression(test_settings, capfd, runner, console):
 @pytest.mark.timeout(120)
 def test_very_long_output(test_settings, capfd, runner, console, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
-    local_settings = copy.copy(test_settings)
-    local_settings.update(
-        mode="offline",
+    time_stamp: float = time.time()
+    datetime_now: datetime.datetime = datetime.datetime.fromtimestamp(time_stamp)
+    test_settings.update(
+        _start_datetime=datetime_now,
+        _start_time=time_stamp,
         console=console,
-        source=wandb.sdk.wandb_settings.Source.INIT,
+        run_id=wandb.util.generate_id(),
     )
 
     with capfd.disabled():
         if not numpy:
             wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
         try:
-            run = wandb.init(settings=local_settings)
+            run = wandb.init(settings=test_settings)
+            run_dir, run_id = run.dir, run.id
             print("LOG" * 1000000)
-            print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
-            print("===finish===")
             time.sleep(3)
+            print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
+            time.sleep(3)
+            print("===finish===")
             run.finish()
+            time.sleep(3)
             binary_log_file = (
-                os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+                os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
             )
             binary_log = runner.invoke(
                 cli.sync, ["--view", "--verbose", binary_log_file]
