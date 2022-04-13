@@ -1406,7 +1406,7 @@ class Run:
         wandb keeps track of a global step, which by default increments with each
         call to `wandb.log`, so logging related metrics together is encouraged.
         If it's inconvenient to log related metrics together
-        calling `wandb.log({"train-loss": 0.5, commit=False})` and then
+        calling `wandb.log({"train-loss": 0.5}, commit=False)` and then
         `wandb.log({"accuracy": 0.9})` is equivalent to calling
         `wandb.log({"train-loss": 0.5, "accuracy": 0.9})`.
 
