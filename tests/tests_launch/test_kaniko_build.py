@@ -318,3 +318,18 @@ def test_build_image_success(
         image_uri = builder.build_image(project, "repository-url", None, {})
         assert "cleaning up resources" in capsys.readouterr().err
         assert image_uri == f"repository-url:{project.run_id}"
+
+
+def test_kaniko_build_no_cloud_provider():
+    with pytest.raises(LaunchError):
+        KanikoBuilder({"cloud-provider": "AWS"})
+
+
+def test_kaniko_build_instance_mode(capsys):
+    KanikoBuilder({"cloud-provider": "AWS", "build-context-store": "s3://test-url"})
+    assert "Kaniko is not supported in instance mode" in capsys.readouterr().err
+
+
+def test_no_context_store():
+    with pytest.raises(LaunchError):
+        KanikoBuilder({"cloud-provider": "AWS"})

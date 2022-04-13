@@ -363,7 +363,6 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
         assert isinstance(data, str)
         parsed = json.loads(data)[0]
         _inspected_images[docker_image] = parsed
-        _logger.info("Base image found. Won't generate new base image")
         return True
     except (DockerError, ValueError) as e:
         if should_raise:
