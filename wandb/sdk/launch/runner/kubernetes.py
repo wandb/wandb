@@ -16,6 +16,7 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
+    get_kube_api_client,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -127,24 +128,6 @@ class KubernetesSubmittedRun(AbstractRun):
 
 
 class KubernetesRunner(AbstractRunner):
-    def _set_context(
-        self,
-        kubernetes: Any,  # noqa: F811
-        config_file: str,
-        resource_args: Dict[str, Any],  # noqa: F811
-    ) -> Any:
-        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
-            config_file
-        )
-        if resource_args.get("context"):
-            context_name = resource_args["context"]
-            for c in all_contexts:
-                if c["name"] == context_name:
-                    return c
-            raise LaunchError(f"Specified context {context_name} was not found.")
-        else:
-            return active_context
-
     def populate_job_spec(
         self, job_spec: Dict[str, Any], resource_args: Dict[str, Any]
     ) -> None:
@@ -249,22 +232,23 @@ class KubernetesRunner(AbstractRunner):
                 "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
 
-        config_file = resource_args.get("config_file", None)
-        context = None
-        if config_file is not None or os.path.exists(
-            os.path.expanduser("~/.kube/config")
-        ):
-            # context only exist in the non-incluster case
-            context = self._set_context(kubernetes, config_file, resource_args)
-            # if config_file is None then loads default in ~/.kube
-            kubernetes.config.load_kube_config(config_file, context["name"])
-            api_client = kubernetes.config.new_client_from_config(
-                config_file, context=context["name"]
-            )
-        else:
-            # attempt to load cluster config
-            kubernetes.config.load_incluster_config()
-            api_client = kubernetes.client.api_client.ApiClient()
+        # config_file = resource_args.get("config_file", None)
+        # context = None
+        # if config_file is not None or os.path.exists(
+        #     os.path.expanduser("~/.kube/config")
+        # ):
+        #     # context only exist in the non-incluster case
+        #     context = set_kube_context(kubernetes, resource_args)
+        #     # if config_file is None then loads default in ~/.kube
+        #     kubernetes.config.load_kube_config(config_file, context["name"])
+        #     api_client = kubernetes.config.new_client_from_config(
+        #         config_file, context=context["name"]
+        #     )
+        # else:
+        #     # attempt to load cluster config
+        #     kubernetes.config.load_incluster_config()
+        #     api_client = kubernetes.client.api_client.ApiClient()
+        api_client = get_kube_api_client(kubernetes, resource_args)
 
         batch_api = kubernetes.client.BatchV1Api(api_client)
         core_api = kubernetes.client.CoreV1Api(api_client)

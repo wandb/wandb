@@ -39,16 +39,16 @@ class DockerBuilder(AbstractBuilder):
         repository: Optional[str],
         entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
-        runner_type: str,
     ) -> str:
 
         if repository:
             image_uri = f"{repository}:{launch_project.run_id}"
         else:
             image_uri = construct_local_image_uri(launch_project)
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
+        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+        print(entry_cmd)
         dockerfile_str = generate_dockerfile(
-            launch_project, entry_cmd, runner_type, self.type
+            launch_project, entry_cmd, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
@@ -57,7 +57,10 @@ class DockerBuilder(AbstractBuilder):
             docker_args,
             sanitize_wandb_api_key(dockerfile_str),
         )
-        if runner_type == "sagemaker" and launch_project.project_dir is not None:
+        if (
+            launch_project.resource == "sagemaker"
+            and launch_project.project_dir is not None
+        ):
             # sagemaker automatically appends train after the entrypoint
             # by redirecting to running a train script we can avoid issues
             # with argparse, and hopefully if the user intends for the train
@@ -86,7 +89,7 @@ class DockerBuilder(AbstractBuilder):
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")
             elif (
-                runner_type == "sagemaker"
+                launch_project.resource == "sagemaker"
                 and f"The push refers to repository [{repository}]" not in push_resp
             ):
                 raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")

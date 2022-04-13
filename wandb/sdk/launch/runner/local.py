@@ -103,7 +103,6 @@ class LocalRunner(AbstractRunner):
                 str(registry_config.get("url", "")),
                 entry_point,
                 docker_args,
-                "local",
             )
 
         if not self.ack_run_queue_item(launch_project):

@@ -190,7 +190,6 @@ class AWSSagemakerRunner(AbstractRunner):
                 repository,
                 entry_point,
                 {},
-                "sagemaker",
             )
 
         if not self.ack_run_queue_item(launch_project):

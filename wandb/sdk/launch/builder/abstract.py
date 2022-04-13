@@ -19,7 +19,6 @@ class AbstractBuilder(ABC):
         registry: Optional[str],
         entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
-        runner_type: str,
     ) -> str:
         """Build the image for the given project.
 

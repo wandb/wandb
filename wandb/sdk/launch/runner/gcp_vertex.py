@@ -157,7 +157,6 @@ class VertexRunner(AbstractRunner):
                 repository,
                 entry_point,
                 docker_args,
-                runner_type="gcp-vertex",
             )
 
         if not self.ack_run_queue_item(launch_project):

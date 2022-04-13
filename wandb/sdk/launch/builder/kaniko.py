@@ -7,7 +7,8 @@ import time
 from typing import Any, Dict, Optional
 
 from google.cloud import storage  # type: ignore
-from kubernetes import client, config  # type: ignore
+import kubernetes
+from kubernetes import client  # type: ignore
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -20,7 +21,7 @@ from .._project_spec import (
     get_entry_point_command,
     LaunchProject,
 )
-from ..utils import sanitize_wandb_api_key
+from ..utils import get_kube_api_client, sanitize_wandb_api_key
 
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
@@ -45,11 +46,11 @@ def _create_dockerfile_configmap(
 
 
 def _wait_for_completion(
-    api_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
+    batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
     start_time = time.time()
     while True:
-        job = api_client.read_namespaced_job_status(job_name, "wandb")
+        job = batch_client.read_namespaced_job_status(job_name, "wandb")
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
@@ -150,15 +151,15 @@ class KanikoBuilder(AbstractBuilder):
         repository: Optional[str],
         entrypoint: Optional[EntryPoint],
         docker_args: Dict[str, Any],
-        runner_type: str,
     ) -> str:
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.run_id}"
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
+        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
-            launch_project, entry_cmd, runner_type, self.type
+            launch_project, entry_cmd, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
@@ -170,8 +171,7 @@ class KanikoBuilder(AbstractBuilder):
         context_path = _create_build_ctx(launch_project, dockerfile_str)
         run_id = launch_project.run_id
 
-        config.load_incluster_config()
-
+        api_client = get_kube_api_client(kubernetes, launch_project.resource_args)
         build_job_name = f"{self.build_job_name}-{run_id}"
         config_map_name = f"{self.config_map_name}-{run_id}"
 
@@ -187,8 +187,8 @@ class KanikoBuilder(AbstractBuilder):
             build_context,
         )
         # TODO: use same client as kuberentes.py
-        batch_v1 = client.BatchV1Api()
-        core_v1 = client.CoreV1Api()
+        batch_v1 = client.BatchV1Api(api_client)
+        core_v1 = client.CoreV1Api(api_client)
 
         try:
             core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
