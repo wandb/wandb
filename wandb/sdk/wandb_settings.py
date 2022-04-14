@@ -639,7 +639,7 @@ class Settings:
                 "hook": (
                     lambda _: (
                         datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
-                        if self._start_time and self._start_datetime
+                        if self._start_datetime
                         else None
                     )
                 ),
@@ -923,6 +923,8 @@ class Settings:
     def _start_run(self, source: int = Source.BASE) -> None:
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
+        object.__setattr__(self, "_Settings_start_datetime", datetime_now)
+        object.__setattr__(self, "_Settings_start_time", time_stamp)
         self.update(
             _start_datetime=datetime_now,
             _start_time=time_stamp,
@@ -1018,7 +1020,9 @@ class Settings:
             source = Source.RUN if self.__dict__[k].is_policy else Source.BASE
             self.update({k: v}, source=source)
 
-        self._start_run()
+        # setup private attributes
+        object.__setattr__(self, "_Settings_start_datetime", None)
+        object.__setattr__(self, "_Settings_start_time", None)
 
         if os.environ.get(wandb.env.DIR) is None:
             # todo: double-check source, shouldn't it be Source.ENV?
@@ -1118,9 +1122,10 @@ class Settings:
             # seems like the behavior that the user would expect when calling init that way.
             defaults = Settings()
             settings_dict = dict()
-            for k, v in settings.items():
-                if defaults.get(k) != v:
-                    settings_dict[k] = v
+            for k, v in settings.__dict__.items():
+                if isinstance(v, Property):
+                    if v._value != defaults.__dict__[k]._value:
+                        settings_dict[k] = v._value
             # todo: store warnings from the passed Settings object, if any,
             #  to collect telemetry on validation errors and unexpected args.
             #  remove this once strict checking is enforced.

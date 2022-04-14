@@ -228,8 +228,8 @@ def test_settings(test_dir, mocker, live_mock_server):
     time_stamp: float = time.time()
     datetime_now: datetime.datetime = datetime.datetime.fromtimestamp(time_stamp)
     settings = wandb.Settings(
-        _start_datetime=datetime_now,
-        _start_time=time_stamp,
+        # _start_datetime=datetime_now,
+        # _start_time=time_stamp,
         api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
         console="off",
