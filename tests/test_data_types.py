@@ -593,6 +593,7 @@ def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_se
         columns=["col1"],
     )
 
+    wandb.Table.ENFORCE_MAX_ROW_LIMIT = True
     with pytest.raises(ValueError):
         run.log({"table": table})
 
