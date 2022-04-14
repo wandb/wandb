@@ -469,6 +469,7 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
+    table_enforce_max_row_limit: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -634,6 +635,7 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            table_enforce_max_row_limit={"value": False},
             timespec={
                 "hook": (
                     lambda _: datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")

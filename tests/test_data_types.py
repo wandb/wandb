@@ -587,13 +587,17 @@ def test_table_default():
 
 
 def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
+    test_settings.update({"table_enforce_max_row_limit": True})
     run = wandb.init(settings=test_settings)
+
+    # make this smaller just for this one test to make the runtime shorter
+    wandb.Table.MAX_ARTIFACT_ROWS = 10
+
     table = wandb.Table(
         data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(),
         columns=["col1"],
     )
 
-    wandb.Table.ENFORCE_MAX_ROW_LIMIT = True
     with pytest.raises(ValueError):
         run.log({"table": table})
 

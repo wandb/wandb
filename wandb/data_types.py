@@ -48,6 +48,7 @@ from .sdk.data_types.object_3d import Object3D
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
 from .sdk.data_types.video import Video
+from .sdk import wandb_settings
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
 # Once we fully type this file and move it all into sdk, then we will need to clean up the
@@ -236,7 +237,6 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
-    ENFORCE_MAX_ROW_LIMIT = False
     _MAX_EMBEDDING_DIMENSIONS = 150
     _log_type = "table"
 
@@ -498,7 +498,7 @@ class Table(Media):
         n_rows = len(self.data)
         if n_rows > max_rows and warn:
             logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
-            if Table.ENFORCE_MAX_ROW_LIMIT:
+            if wandb.run and wandb.run.settings.table_enforce_max_row_limit:
                 raise ValueError(
                     f"Table row limit exceeded: table has {n_rows} rows, limit is {max_rows}. "
                     f"To increase the maximum number of allowed rows in a wandb.Table, override "
