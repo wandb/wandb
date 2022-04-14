@@ -38,7 +38,9 @@ class CustomChart:
         self._string_fields = string_fields
 
     def get_config_value(
-        self, panel_type: str, query: Dict[str, Any],
+        self,
+        panel_type: str,
+        query: Dict[str, Any],
     ) -> Dict[str, Any]:
         return {
             "panel_type": panel_type,
@@ -100,7 +102,10 @@ def plot_table(
             f"Expected `data_table` to be `wandb.Table` type, instead got  {type(data_table).__name__}"
         )
     return CustomChart(
-        id=vega_spec_name, data=data_table, fields=fields, string_fields=string_fields,
+        id=vega_spec_name,
+        data=data_table,
+        fields=fields,
+        string_fields=string_fields,
     )
 
 

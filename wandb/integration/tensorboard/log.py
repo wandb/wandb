@@ -191,7 +191,7 @@ def tf_summary_to_dict(  # noqa: C901
                 # min of each in case tensorboard ever changes their pr_curve
                 # to allow for different length outputs
                 data = []
-                for i in range(min(len((precision)), len(recall))):
+                for i in range(min(len(precision), len(recall))):
                     # drop additional threshold values if they exist
                     if precision[i] != 0 or recall[i] != 0:
                         data.append((recall[i], precision[i]))

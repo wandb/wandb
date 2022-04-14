@@ -36,7 +36,7 @@ class CapList(list):
         for sep in [b"\r\n", b"\n"]:
             if x.endswith(sep):
                 x = x[: -len(sep)]
-        super(CapList, self).append(x)
+        super().append(x)
 
 
 @pytest.mark.parametrize("cls", impls)
@@ -288,7 +288,9 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
     local_settings = copy.copy(test_settings)
     local_settings.update(
-        mode="offline", console=console, source=wandb.sdk.wandb_settings.Source.INIT,
+        mode="offline",
+        console=console,
+        source=wandb.sdk.wandb_settings.Source.INIT,
     )
 
     with capfd.disabled():

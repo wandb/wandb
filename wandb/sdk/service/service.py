@@ -92,7 +92,9 @@ class _Service:
             else:
                 service_args.append("--serve-sock")
             internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args, env=os.environ, **kwargs,
+                exec_cmd_list + service_args,
+                env=os.environ,
+                **kwargs,
             )
             ports_found = self._wait_for_ports(fname, proc=internal_proc)
             assert ports_found

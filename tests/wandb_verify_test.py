@@ -12,9 +12,9 @@ def test_print_results(capsys):
     wandb_verify.print_results(failed_test_or_tests[0], warning=False)
     wandb_verify.print_results(failed_test_or_tests, warning=False)
     captured = capsys.readouterr().out
-    assert u"\u2705" in captured
-    assert u"\u274C" in captured
-    assert captured.count(u"\u274C") == 2
+    assert "\u2705" in captured
+    assert "\u274C" in captured
+    assert captured.count("\u274C") == 2
 
 
 def test_check_host():
@@ -43,22 +43,23 @@ def test_check_secure_requests(capsys):
         "Connections are not made over https. SSL required for secure communications.",
     )
     captured = capsys.readouterr().out
-    assert u"\u2705" in captured
-    assert u"\u274C" in captured
+    assert "\u2705" in captured
+    assert "\u274C" in captured
 
 
 def test_check_cors_configuration(live_mock_server, test_settings, capsys):
     wandb_verify.check_cors_configuration(
-        test_settings.base_url, "localhost",
+        test_settings.base_url,
+        "localhost",
     )
     captured = capsys.readouterr().out
-    assert u"\u274C" in captured
+    assert "\u274C" in captured
 
 
 def test_check_wandb_version(live_mock_server, capsys):
     wandb_verify.check_wandb_version(InternalApi())
     captured = capsys.readouterr().out
-    assert u"\u274C" not in captured
+    assert "\u274C" not in captured
 
 
 def test_retry_fn():
