@@ -587,7 +587,7 @@ def test_table_default():
 
 
 def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
-    test_settings.update({"table_enforce_max_row_limit": True})
+    test_settings.update({"table_raise_on_max_row_limit_exceeded": True})
     run = wandb.init(settings=test_settings)
 
     # make this smaller just for this one test to make the runtime shorter
