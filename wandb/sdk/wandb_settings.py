@@ -635,7 +635,10 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
-            table_raise_on_max_row_limit_exceeded={"value": False, "preprocessor": _str_as_bool},
+            table_raise_on_max_row_limit_exceeded={
+                "value": False,
+                "preprocessor": _str_as_bool,
+            },
             timespec={
                 "hook": (
                     lambda _: datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
