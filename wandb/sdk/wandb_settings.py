@@ -637,9 +637,11 @@ class Settings:
             system_sample_seconds={"value": 2},
             timespec={
                 "hook": (
-                    lambda _: datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
-                    if self._start_time and self._start_datetime
-                    else None
+                    lambda _: (
+                        datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
+                        if self._start_time and self._start_datetime
+                        else None
+                    )
                 ),
                 "auto_hook": True,
             },
@@ -918,11 +920,14 @@ class Settings:
         query = self._get_url_query_string()
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
-    def _start_run(self) -> None:
+    def _start_run(self, source: int = Source.BASE) -> None:
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
-        object.__setattr__(self, "_Settings_start_datetime", datetime_now)
-        object.__setattr__(self, "_Settings_start_time", time_stamp)
+        self.update(
+            _start_datetime=datetime_now,
+            _start_time=time_stamp,
+            source=source,
+        )
 
     def _sweep_url(self) -> str:
         project_url = self._project_url_base()
@@ -1013,9 +1018,7 @@ class Settings:
             source = Source.RUN if self.__dict__[k].is_policy else Source.BASE
             self.update({k: v}, source=source)
 
-        # setup private attributes
-        object.__setattr__(self, "_Settings_start_datetime", None)
-        object.__setattr__(self, "_Settings_start_time", None)
+        self._start_run()
 
         if os.environ.get(wandb.env.DIR) is None:
             # todo: double-check source, shouldn't it be Source.ENV?

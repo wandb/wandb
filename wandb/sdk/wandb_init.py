@@ -8,13 +8,11 @@ For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 import copy
-import datetime
 import logging
 import os
 import platform
 import sys
 import tempfile
-import time
 import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
@@ -260,14 +258,8 @@ class _WandbInit:
             settings.update({"save_code": False}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
-        time_stamp: float = time.time()
-        settings.update(
-            {
-                "_start_time": time_stamp,
-                "_start_datetime": datetime.datetime.fromtimestamp(time_stamp),
-            },
-            source=Source.INIT,
-        )
+        if settings._start_time is None:
+            settings._start_run(source=Source.INIT)
 
         if not settings._noop:
             self._log_setup(settings)
@@ -288,8 +280,8 @@ class _WandbInit:
     def _enable_logging(self, log_fname, run_id=None):
         """Enables logging to the global debug log.
 
-        This adds a run_id to the log, in case of muliple processes on the same machine.
-        Currently there is no way to disable logging after it's enabled.
+        This adds a run_id to the log, in case of multiple processes on the same machine.
+        Currently, there is no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(log_fname)
         handler.setLevel(logging.INFO)

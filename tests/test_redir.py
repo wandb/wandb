@@ -1,7 +1,5 @@
 """redirect tests"""
 
-import copy
-import datetime
 import os
 import re
 import sys
@@ -16,9 +14,6 @@ import wandb
 from wandb.cli import cli
 import wandb.sdk.lib.redirect
 import wandb.util
-
-
-from .utils import retry
 
 
 impls = [wandb.wandb_sdk.lib.redirect.StreamWrapper]
@@ -225,11 +220,10 @@ def test_print_torch_model(cls, capfd):
 @pytest.mark.parametrize("console", console_modes)
 def test_run_with_console_redirect(test_settings, capfd, console):
     with capfd.disabled():
-        local_settings = copy.copy(test_settings)
-        local_settings.update(
+        test_settings.update(
             console=console, source=wandb.sdk.wandb_settings.Source.INIT
         )
-        run = wandb.init(settings=local_settings)
+        run = wandb.init(settings=test_settings)
 
         print(np.random.randint(64, size=(40, 40, 40, 40)))
 
@@ -246,11 +240,7 @@ def test_run_with_console_redirect(test_settings, capfd, console):
 @pytest.mark.timeout(300)
 def test_offline_compression(test_settings, capfd, runner, console):
     with capfd.disabled():
-        time_stamp: float = time.time()
-        datetime_now: datetime.datetime = datetime.datetime.fromtimestamp(time_stamp)
         test_settings.update(
-            _start_datetime=datetime_now,
-            _start_time=time_stamp,
             mode="offline",
             console=console,
             run_id=wandb.util.generate_id(),
@@ -278,16 +268,9 @@ def test_offline_compression(test_settings, capfd, runner, console):
         binary_log_file = (
             os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
         )
-
-        # IO might be slow, so allow waiting for the file to be created to avoid flakiness
-        @retry(retries=6, delay=10)
-        def get_binary_log():
-            binary_log = runner.invoke(
-                cli.sync, ["--view", "--verbose", binary_log_file]
-            ).stdout
-            return binary_log
-
-        binary_log = get_binary_log()
+        binary_log = runner.invoke(
+            cli.sync, ["--view", "--verbose", binary_log_file]
+        ).stdout
 
         # Only a single output record per stream is written when the run finishes
         assert binary_log.count("Record: output") == 2
@@ -307,11 +290,7 @@ def test_offline_compression(test_settings, capfd, runner, console):
 @pytest.mark.timeout(300)
 def test_very_long_output(test_settings, capfd, runner, console, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
-    time_stamp: float = time.time()
-    datetime_now: datetime.datetime = datetime.datetime.fromtimestamp(time_stamp)
     test_settings.update(
-        _start_datetime=datetime_now,
-        _start_time=time_stamp,
         mode="offline",
         console=console,
         run_id=wandb.util.generate_id(),
@@ -336,16 +315,10 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
             binary_log_file = (
                 os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
             )
+            binary_log = runner.invoke(
+                cli.sync, ["--view", "--verbose", binary_log_file]
+            ).stdout
 
-            # IO might be slow, so allow waiting for the file to be created to avoid flakiness
-            @retry(retries=6, delay=10)
-            def get_binary_log():
-                binary_log = runner.invoke(
-                    cli.sync, ["--view", "--verbose", binary_log_file]
-                ).stdout
-                return binary_log
-
-            binary_log = get_binary_log()
             assert "\\033[31m\\033[40m\\033[1mHello" in binary_log
             assert binary_log.count("LOG") == 1000000
             assert "===finish===" in binary_log
@@ -353,15 +326,14 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
 
 @pytest.mark.parametrize("console", console_modes)
 def test_no_numpy(test_settings, capfd, runner, console):
-    local_settings = copy.copy(test_settings)
-    local_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
+    test_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
         with mock.patch.object(
             wandb.wandb_sdk.lib.redirect,
             "np",
             wandb.sdk.lib.redirect._Numpy(),
         ):
-            run = wandb.init(settings=local_settings)
+            run = wandb.init(settings=test_settings)
             print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
             run.finish()
             binary_log_file = (
@@ -374,10 +346,9 @@ def test_no_numpy(test_settings, capfd, runner, console):
 
 @pytest.mark.parametrize("console", console_modes)
 def test_memory_leak2(test_settings, capfd, runner, console):
-    local_settings = copy.copy(test_settings)
-    local_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
+    test_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
-        run = wandb.init(settings=local_settings)
+        run = wandb.init(settings=test_settings)
         for i in range(1000):
             print("ABCDEFGH")
         time.sleep(3)
