@@ -1727,7 +1727,9 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        return wandb.plot_table(vega_spec_name, data_table, fields, string_fields or {})
+        return wandb.custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}
+        )
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -1748,6 +1750,7 @@ class Run:
             use_artifact=self.use_artifact,
             log_artifact=self.log_artifact,
             define_metric=self.define_metric,
+            plot_table=self.plot_table,
             alert=self.alert,
             mark_preempting=self.mark_preempting,
         )

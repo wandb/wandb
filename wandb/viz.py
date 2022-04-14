@@ -91,7 +91,7 @@ class CustomChart:
         return self._string_fields
 
 
-def plot_table(
+def custom_chart(
     vega_spec_name: str,
     data_table: Table,
     fields: Dict[str, Any],

@@ -201,7 +201,7 @@ def tf_summary_to_dict(  # noqa: C901
                 data_table = wandb.Table(data=data, columns=["recall", "precision"])
                 name = namespaced_tag(value.tag, namespace)
 
-                values[name] = wandb.plot_table(
+                values[name] = wandb.custom_chart(
                     "wandb/line/v0",
                     data_table,
                     {"x": "recall", "y": "precision"},

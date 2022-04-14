@@ -14,6 +14,7 @@ def set_global(
     log_artifact=None,
     define_metric=None,
     alert=None,
+    plot_table=None,
     mark_preempting=None,
 ):
     if run:
@@ -32,6 +33,8 @@ def set_global(
         wandb.log_artifact = log_artifact
     if define_metric:
         wandb.define_metric = define_metric
+    if plot_table:
+        wandb.plot_table = plot_table
     if alert:
         wandb.alert = alert
     if mark_preempting:
