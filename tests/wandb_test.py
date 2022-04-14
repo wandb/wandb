@@ -22,10 +22,10 @@ def test_log_step(live_mock_server, test_settings, parse_ctx):
 
 def test_log_custom_chart(live_mock_server, test_settings, parse_ctx):
     with wandb.init(settings=test_settings) as run:
-        custom_chart = custom_chart(
+        my_custom_chart = custom_chart(
             "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
         )
-        run.log({"my_custom_chart": custom_chart})
+        run.log({"my_custom_chart": my_custom_chart})
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     assert ctx_util.history[0].get("my_custom_chart_table")
