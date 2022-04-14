@@ -17,9 +17,11 @@ import sys
 import tempfile
 import time
 import traceback
-from typing import Any, Dict, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
+from omegaconf import DictConfig
+
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
@@ -767,7 +769,7 @@ def _attach(
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[Dict, Namespace, Mapping, str, None] = None,
+    config: Union[Dict, Namespace, DictConfig, str, None] = None,  # DictConfig is the OmegaConf class
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
@@ -840,7 +842,7 @@ def init(
             entity, which is usually your username. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
-        config: (dict, absl.flags, argparse, mapping, str, optional)
+        config: (dict, absl.flags, argparse, DictConfig/OmegaConf, str, optional)
             This sets `wandb.config`, a dictionary-like object for saving inputs
             to your job, like hyperparameters for a model or settings for a data
             preprocessing job. The config will show up in a table in the UI that
@@ -848,11 +850,8 @@ def init(
             `.` in their names, and values should be under 10 MB.
             If dict, argparse or absl.flags: will load the key value pairs into
                 the `wandb.config` object.
-            If mapping: will load the nested dictionary key in a hierarchical
-                manner into the `wandb.config` object. For example, the
-                nested dictionary `{"nested_dict" : {"a_nested_param": 1.0}}
-                will create the value `nested_dict.a_nested_param` with the
-                key `1.0`.
+            If DictConfig/OmegaConf: will convert the OmegaConf into a primitive
+                dict container to be latter on properly parsed.
             If str: will look for a yaml file by that name, and load config from
                 that file into the `wandb.config` object.
         save_code: (bool, optional) Turn this on to save the main script or

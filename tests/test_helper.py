@@ -108,27 +108,40 @@ def test_parse_dict_an_argparse_namespace():
     assert actual.items() == expected.items()
 
 
-def test_parse_nested_dict_config():
+def test_parse_omegaconf_dict_into_primitive_dict():
     a_nested_dict_config = DictConfig(
         {"a_first_parameter": {"a_nested_param": 1.0}, "a_second_parameter": 2.0}
     )
+    assert not isinstance(a_nested_dict_config, dict)
 
     actual = parse_config(params=a_nested_dict_config)
-    expected = {"a_first_parameter.a_nested_param": 1.0, "a_second_parameter": 2.0}
+    expected = {"a_first_parameter": {"a_nested_param": 1.0}, "a_second_parameter": 2.0}
 
     assert actual.items() == expected.items()
+    assert isinstance(actual, dict)
 
 
-def test_parse_nested_dict_config_with_a_list_value():
+def test_parse_complex_omegaconf_dict_into_primitive_dict():
     a_nested_dict_config = DictConfig(
         {"a_first_parameter": {"a_nested_param": [1.0, 3.0]}, "a_second_parameter": 2.0}
     )
+    assert not isinstance(a_nested_dict_config, dict)
 
     actual = parse_config(params=a_nested_dict_config)
-    expected = {
-        "a_first_parameter.a_nested_param.0": 1.0,
-        "a_first_parameter.a_nested_param.1": 3.0,
-        "a_second_parameter": 2.0,
-    }
+    expected = {"a_first_parameter": {"a_nested_param": [1.0, 3.0]}, "a_second_parameter": 2.0}
 
     assert actual.items() == expected.items()
+    assert isinstance(actual, dict)
+
+
+def test_parse_omegaconf_dict_with_resolve_into_primitive_dict():
+    a_nested_dict_config = DictConfig(
+        {'foo': 'bar', 'foo2': '${foo}'}
+    )
+    assert not isinstance(a_nested_dict_config, dict)
+
+    actual = parse_config(params=a_nested_dict_config)
+    expected = {'foo': 'bar', 'foo2': 'bar'}
+
+    assert actual.items() == expected.items()
+    assert isinstance(actual, dict)
