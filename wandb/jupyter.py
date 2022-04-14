@@ -18,7 +18,7 @@ try:
 except ImportError:
     wandb.termwarn("ipython is not supported in python 2.7, upgrade to 3.x")
 
-    class Magics(object):
+    class Magics:
         pass
 
     def magics_class(*args, **kwargs):
@@ -52,7 +52,7 @@ def quiet():
     return False
 
 
-class IFrame(object):
+class IFrame:
     def __init__(self, path=None, opts=None):
         self.path = path
         self.api = wandb.Api()
@@ -89,13 +89,13 @@ class IFrame(object):
                     )
             return object.to_html(self.height, hidden=False)
         except wandb.Error as e:
-            return "Can't display wandb interface<br/>{}".format(e)
+            return f"Can't display wandb interface<br/>{e}"
 
 
 @magics_class
 class WandBMagics(Magics):
     def __init__(self, shell, require_interaction=False):
-        super(WandBMagics, self).__init__(shell)
+        super().__init__(shell)
         self.options = {}
 
     @magic_arguments()
@@ -194,10 +194,13 @@ def notebook_metadata(silent):
         # In colab we can request the most recent contents
         ipynb = attempt_colab_load_ipynb()
         if ipynb:
+            nb_name = ipynb["metadata"]["colab"]["name"]
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
             ret = {
                 "root": "/content",
-                "path": ipynb["metadata"]["colab"]["name"],
-                "name": ipynb["metadata"]["colab"]["name"],
+                "path": nb_name,
+                "name": nb_name,
             }
 
             try:
@@ -326,7 +329,7 @@ def attempt_colab_login(app_url):
         return None
 
 
-class Notebook(object):
+class Notebook:
     def __init__(self, settings):
         self.outputs = {}
         self.settings = settings
@@ -355,7 +358,7 @@ class Notebook(object):
         relpath = self.settings._jupyter_path
         if relpath:
             if os.path.exists(relpath):
-                with open(relpath, "r") as json_file:
+                with open(relpath) as json_file:
                     data = json.load(json_file)
                     return data
 
@@ -388,10 +391,13 @@ class Notebook(object):
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
+            nb_name = colab_ipynb["metadata"]["colab"]["name"]
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
             with open(
                 os.path.join(
                     self.settings._tmp_code_dir,
-                    colab_ipynb["metadata"]["colab"]["name"],
+                    nb_name,
                 ),
                 "w",
                 encoding="utf-8",

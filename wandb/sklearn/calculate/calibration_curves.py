@@ -82,7 +82,9 @@ def calibration_curves(clf, X, y, clf_name):
             frac_positives_column.append(utils.round_3(frac_positives[i]))
             mean_pred_value_column.append(utils.round_3(mean_pred_value[i]))
             if utils.check_against_limit(
-                i, "calibration_curve", utils.chart_limit - 2,
+                i,
+                "calibration_curve",
+                utils.chart_limit - 2,
             ):
                 break
 

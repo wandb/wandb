@@ -10,7 +10,6 @@ from wandb.errors import DockerError
 from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
-    get_entry_point_command,
 )
 from wandb.sdk.launch.docker import (
     construct_gcp_image_uri,
@@ -37,7 +36,9 @@ def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_r
         "cuda": True,
         "resource": "local",
         "resource_args": {},
-        "docker": {"cuda_version": "11.0",},
+        "docker": {
+            "cuda_version": "11.0",
+        },
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
@@ -87,10 +88,10 @@ def test_run_cuda_version(
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
     assert test_project.cuda is True
-    entry_cmd = get_entry_point_command(
-        test_project.get_single_entry_point(), test_project.override_args
-    )[0]
-    dockerfile = generate_dockerfile(api, test_project, entry_cmd, "local",)
+    dockerfile = generate_dockerfile(
+        test_project,
+        "local",
+    )
     assert "FROM nvidia/cuda:11.0-runtime as base" in dockerfile
 
     # cuda specified False, turned off
@@ -105,10 +106,10 @@ def test_run_cuda_version(
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
     assert test_project.cuda is False
-    entry_cmd = get_entry_point_command(
-        test_project.get_single_entry_point(), test_project.override_args
-    )[0]
-    dockerfile = generate_dockerfile(api, test_project, entry_cmd, "local",)
+    dockerfile = generate_dockerfile(
+        test_project,
+        "local",
+    )
     assert "FROM python:" in dockerfile
 
     # differing versions, use specified
@@ -119,15 +120,17 @@ def test_run_cuda_version(
         "cuda": True,
         "resource": "local",
         "resource_args": {},
-        "docker": {"cuda_version": "10.0",},
+        "docker": {
+            "cuda_version": "10.0",
+        },
     }
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
     assert test_project.cuda is True
-    entry_cmd = get_entry_point_command(
-        test_project.get_single_entry_point(), test_project.override_args
-    )[0]
-    dockerfile = generate_dockerfile(api, test_project, entry_cmd, "local",)
+    dockerfile = generate_dockerfile(
+        test_project,
+        "local",
+    )
     assert "FROM nvidia/cuda:10.0-runtime as base" in dockerfile
 
 
@@ -151,10 +154,10 @@ def test_dockerfile_conda(
 
     assert test_project.deps_type == "conda"
 
-    entry_cmd = get_entry_point_command(
-        test_project.get_single_entry_point(), test_project.override_args
-    )[0]
-    dockerfile = generate_dockerfile(api, test_project, entry_cmd, "local",)
+    dockerfile = generate_dockerfile(
+        test_project,
+        "local",
+    )
     assert "conda env create -f environment.yml" in dockerfile
     assert "FROM continuumio/miniconda3:latest as build" in dockerfile
     assert "RUN --mount=type=cache,mode=0777,target=/opt/conda/pkgs" in dockerfile
@@ -181,10 +184,10 @@ def test_dockerfile_nodeps(
 
     assert test_project.deps_type is None
 
-    entry_cmd = get_entry_point_command(
-        test_project.get_single_entry_point(), test_project.override_args
-    )[0]
-    dockerfile = generate_dockerfile(api, test_project, entry_cmd, "local",)
+    dockerfile = generate_dockerfile(
+        test_project,
+        "local",
+    )
     assert "environment.yml" not in dockerfile
     assert "requirements.txt" not in dockerfile
 
@@ -208,10 +211,10 @@ def test_buildx_not_installed(
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
 
-    entry_cmd = get_entry_point_command(
-        test_project.get_single_entry_point(), test_project.override_args
-    )[0]
-    dockerfile = generate_dockerfile(api, test_project, entry_cmd, "local",)
+    dockerfile = generate_dockerfile(
+        test_project,
+        "local",
+    )
 
     assert "RUN WANDB_DISABLE_CACHE=true" in dockerfile
 

@@ -73,7 +73,7 @@ def bytes_to_hex(bytestr):
     return codecs.getencoder("hex")(bytestr)[0]
 
 
-class ArtifactManifest(object):
+class ArtifactManifest:
     entries: Dict[str, "ArtifactEntry"]
 
     @classmethod
@@ -123,7 +123,7 @@ class ArtifactManifest(object):
         ]
 
 
-class ArtifactEntry(object):
+class ArtifactEntry:
     path: str
     ref: Optional[str]
     digest: str
@@ -183,7 +183,7 @@ class ArtifactEntry(object):
         raise NotImplementedError
 
 
-class Artifact(object):
+class Artifact:
     @property
     def id(self) -> Optional[str]:
         """
@@ -662,6 +662,21 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
+        """
+        Links this artifact to a portfolio (a promoted collection of artifacts), with aliases.
+
+        Arguments:
+            target_path: (str) The path to the portfolio. It must take the form
+                {portfolio}, {project}/{portfolio} or {entity}/{project}/{portfolio}.
+            aliases: (Optional[List[str]]) A list of strings which uniquely
+                identifies the artifact inside the specified portfolio.
+
+        Returns:
+            None
+        """
+        raise NotImplementedError
+
     def delete(self) -> None:
         """
         Deletes this artifact, cleaning up all files associated with it.
@@ -743,12 +758,12 @@ class Artifact(object):
         raise NotImplementedError
 
 
-class StorageLayout(object):
+class StorageLayout:
     V1 = "V1"
     V2 = "V2"
 
 
-class StoragePolicy(object):
+class StoragePolicy:
     @classmethod
     def lookup_by_name(cls, name):
         for sub in cls.__subclasses__():
@@ -797,7 +812,7 @@ class StoragePolicy(object):
         raise NotImplementedError
 
 
-class StorageHandler(object):
+class StorageHandler:
     @property
     def scheme(self) -> str:
         """
@@ -807,7 +822,10 @@ class StorageHandler(object):
         pass
 
     def load_path(
-        self, artifact: Artifact, manifest_entry: ArtifactEntry, local: bool = False,
+        self,
+        artifact: Artifact,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
     ) -> str:
         """
         Loads the file or directory within the specified artifact given its
@@ -836,7 +854,7 @@ class StorageHandler(object):
         pass
 
 
-class ArtifactsCache(object):
+class ArtifactsCache:
 
     _TMP_PREFIX = "tmp"
 

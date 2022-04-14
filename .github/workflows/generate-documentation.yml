@@ -12,7 +12,7 @@ jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: wandb/docugen@v0.1.0
+      - uses: wandb/docugen@v0.2.0
         with:
           gitbook-branch: en
           access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}

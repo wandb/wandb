@@ -3,16 +3,17 @@ config tests.
 """
 
 import os
-import sys
-import numpy as np
 import pickle
 import platform
-import pytest
+import sys
+import tempfile
 from unittest import mock
 
+import numpy as np
+import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import LogMultiprocessError, UsageError
+from wandb.errors import MultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
@@ -36,22 +37,26 @@ def test_deprecated_run_log_sync(fake_run, capsys):
 
 def test_run_log_mp_warn(fake_run, capsys):
     run = fake_run()
-    run._init_pid += 1
+    _init_pid = run._init_pid
+    run._init_pid = _init_pid + 1
     run.log(dict(this=1))
     _, stderr = capsys.readouterr()
     assert (
-        f"log() ignored (called from pid={os.getpid()}, init called from pid={run._init_pid})"
+        f"`log` ignored (called from pid={os.getpid()}, `init` called from pid={run._init_pid})"
         in stderr
     )
+    run._init_pid = _init_pid
 
 
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
-    run._init_pid += 1
-    with pytest.raises(LogMultiprocessError) as excinfo:
+    _init_pid = run._init_pid
+    run._init_pid = _init_pid + 1
+    with pytest.raises(MultiprocessError) as excinfo:
         run.log(dict(this=1))
-        assert "log() does not support multiprocessing" in str(excinfo.value)
+        assert "`log` does not support multiprocessing" in str(excinfo.value)
+    run._init_pid = _init_pid
     run.finish()
 
 
@@ -145,14 +150,14 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         with open("test.py", "w") as f:
             f.write('print("test")')
 
-        # first, ditch user preference for code saving
-        # since it has higher priority for policy settings
-        live_mock_server.set_ctx({"code_saving_enabled": None})
-        # note that save_code is a policy by definition
+        # simulate user turning on code saving in UI
+        live_mock_server.set_ctx({"code_saving_enabled": True})
         test_settings.update(
             save_code=None,
-            code_dir=".",
-            source=wandb.sdk.wandb_settings.Source.SETTINGS,
+            source=wandb.sdk.wandb_settings.Source.BASE,
+        )
+        test_settings.update(
+            code_dir=".", source=wandb.sdk.wandb_settings.Source.SETTINGS
         )
         run = wandb.init(settings=test_settings)
         assert run._settings.save_code is save_code

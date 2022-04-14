@@ -6,6 +6,7 @@ import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
+
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
   rpc Attach(AttachRequest) returns (AttachResponse) {}
@@ -27,6 +28,7 @@ service InternalService {
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
+  rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
 
   // rpc messages for async operations: Send, Poll, Cancel, Release
   rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}
@@ -74,6 +76,7 @@ message SettingsValue {
     bool bool_value = 4;
     bool null_value = 5;
     StringTupleValue tuple_value = 6;
+    string timestamp_value = 7;
   }
 }
 
@@ -105,6 +108,8 @@ message ServerInformAttachRequest {
 }
 
 message ServerInformAttachResponse {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
 }
 
 message ServerInformDetachRequest {

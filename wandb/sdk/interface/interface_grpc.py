@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Backend Sender - Send to internal process
 
 Manage backend sender.
@@ -32,13 +31,13 @@ class InterfaceGrpc(InterfaceBase):
     _stream_id: Optional[str]
 
     def __init__(self) -> None:
-        super(InterfaceGrpc, self).__init__()
+        super().__init__()
         self._stub = None
         self._process_check = None
         self._stream_id = None
 
     def _hack_set_run(self, run: "Run") -> None:
-        super(InterfaceGrpc, self)._hack_set_run(run)
+        super()._hack_set_run(run)
         assert run._run_id
         self._stream_id = run._run_id
 
@@ -159,6 +158,11 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(proto_artifact)
         _ = self._stub.Artifact(proto_artifact)
+
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        assert self._stub
+        self._assign(link_artifact)
+        _ = self._stub.LinkArtifact(link_artifact)
 
     def _communicate_artifact(
         self, log_artifact: pb.LogArtifactRequest
@@ -283,4 +287,4 @@ class InterfaceGrpc(InterfaceBase):
         _ = self._stub.Resume(resume)
 
     def join(self) -> None:
-        super(InterfaceGrpc, self).join()
+        super().join()

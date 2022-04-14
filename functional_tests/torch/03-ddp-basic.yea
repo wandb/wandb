@@ -1,0 +1,49 @@
+id: 0.torch.03-ddp-basic
+tag:
+  shard: service
+plugin:
+  - wandb
+depend:
+  requirements:
+    - torch
+
+assert:
+  - :wandb:runs_len: 2
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # Import (init)
+    - 1  # torch
+  - :op:contains:
+    - :wandb:runs[0][telemetry][2]  # Import (finish)
+    - 1  # torch
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 1  # watch
+  
+  - :op:contains:
+    - :wandb:runs[1][telemetry][1]  # Import (init)
+    - 1  # torch
+  - :op:contains:
+    - :wandb:runs[1][telemetry][2]  # Import (finish)
+    - 1  # torch
+  - :op:contains:
+    - :wandb:runs[1][telemetry][3]  # feature
+    - 1  # watch
+
+  - :wandb:runs[0][group]: ddp-basic
+  - :wandb:runs[1][group]: ddp-basic
+
+  - :wandb:runs[0][summary][graph_0][_type]: graph-file
+  - :wandb:runs[0][summary][gradients/module.net2.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/module.net1.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/module.net2.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/module.net1.weight][_type]: histogram
+ 
+  - :wandb:runs[1][summary][graph_0][_type]: graph-file
+  - :wandb:runs[1][summary][gradients/module.net2.bias][_type]: histogram
+  - :wandb:runs[1][summary][gradients/module.net1.bias][_type]: histogram
+  - :wandb:runs[1][summary][gradients/module.net2.weight][_type]: histogram
+  - :wandb:runs[1][summary][gradients/module.net1.weight][_type]: histogram
+ 
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[1][exitcode]: 0
+

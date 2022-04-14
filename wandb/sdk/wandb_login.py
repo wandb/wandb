@@ -53,7 +53,7 @@ def login(
 
     Arguments:
         anonymous: (string, optional) Can be "must", "allow", or "never".
-            If set to "must" we'll always login anonymously, if set to
+            If set to "must" we'll always log in anonymously, if set to
             "allow" we'll only create an anonymous user if the user
             isn't already logged in.
         key: (string, optional) authentication key.
@@ -157,12 +157,10 @@ class _WandbLogin:
     def configure_api_key(self, key):
         if self._settings._jupyter and not self._settings.silent:
             wandb.termwarn(
-                (
-                    "If you're specifying your api key in code, ensure this "
-                    "code is not shared publicly.\nConsider setting the "
-                    "WANDB_API_KEY environment variable, or running "
-                    "`wandb login` from the command line."
-                )
+                "If you're specifying your api key in code, ensure this "
+                "code is not shared publicly.\nConsider setting the "
+                "WANDB_API_KEY environment variable, or running "
+                "`wandb login` from the command line."
             )
         apikey.write_key(self._settings, key)
         self.update_session(key)

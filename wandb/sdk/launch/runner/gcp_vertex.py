@@ -1,12 +1,11 @@
 import datetime
 import os
-import subprocess
+import shlex
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
-from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
 from wandb.errors import LaunchError
@@ -14,16 +13,17 @@ from wandb.util import get_module
 import yaml
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import LaunchProject
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     construct_gcp_image_uri,
     generate_docker_image,
-    pull_docker_image,
+    get_env_vars_dict,
     validate_docker_installation,
 )
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    run_shell,
 )
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -100,30 +100,32 @@ class VertexRunner(AbstractRunner):
             "compute", {}
         ).get("zone")
         gcp_region = "-".join(gcp_zone.split("-")[:2])
-        gcp_staging_bucket = resource_args.get("gcp_staging_bucket")
+        gcp_staging_bucket = resource_args.get("staging_bucket")
         if not gcp_staging_bucket:
             raise LaunchError(
-                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. You can specify a bucket with --resource-arg gcp_staging_bucket=<bucket>."
+                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
             )
-        gcp_artifact_repo = resource_args.get("gcp_artifact_repo")
+        gcp_artifact_repo = resource_args.get("artifact_repo")
         if not gcp_artifact_repo:
             raise LaunchError(
-                "Vertex requires an Artifact Registry repository for the Docker image. You can specify a repo with --resource-arg gcp_artifact_repo=<repo>."
+                "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key artifact_repo."
             )
-        gcp_docker_host = resource_args.get(
-            "gcp_docker_host"
-        ) or "{region}-docker.pkg.dev".format(region=gcp_region)
-        gcp_machine_type = resource_args.get("gcp_machine_type") or "n1-standard-4"
-        gcp_accelerator_type = (
-            resource_args.get("gcp_accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
+        gcp_docker_host = (
+            resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
         )
-        gcp_accelerator_count = int(resource_args.get("gcp_accelerator_count") or 0)
+        gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
+        gcp_accelerator_type = (
+            resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
+        )
+        gcp_accelerator_count = int(resource_args.get("accelerator_count") or 0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         gcp_training_job_name = resource_args.get(
-            "gcp_job_name"
+            "job_name"
         ) or "{project}_{time}".format(
             project=launch_project.target_project, time=timestamp
         )
+        service_account = resource_args.get("service_account")
+        tensorboard = resource_args.get("tensorboard")
 
         aiplatform.init(
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
@@ -132,7 +134,7 @@ class VertexRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        if docker_args:
+        if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
                 "Docker args are not supported for GCP. Not using docker args"
             )
@@ -140,15 +142,16 @@ class VertexRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
-            pull_docker_image(launch_project.docker_image)
             image_uri = launch_project.docker_image
         else:
             image_uri = construct_gcp_image_uri(
-                launch_project, gcp_artifact_repo, gcp_project, gcp_docker_host,
+                launch_project,
+                gcp_artifact_repo,
+                gcp_project,
+                gcp_docker_host,
             )
 
             generate_docker_image(
-                self._api,
                 launch_project,
                 image_uri,
                 entry_point,
@@ -156,15 +159,40 @@ class VertexRunner(AbstractRunner):
                 runner_type="gcp-vertex",
             )
 
-        repo, tag = image_uri.split(":")
-        docker.push(repo, tag)
+        image, tag = image_uri.split(":")
+        if not exists_on_gcp(image, tag):
+            docker.push(image, tag)
 
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        job = aiplatform.CustomContainerTrainingJob(
-            display_name=gcp_training_job_name, container_uri=image_uri,
+        entry_cmd = get_entry_point_command(
+            entry_point, launch_project.override_args
+        ).split()
+
+        worker_pool_specs = [
+            {
+                "machine_spec": {
+                    "machine_type": gcp_machine_type,
+                    "accelerator_type": gcp_accelerator_type,
+                    "accelerator_count": gcp_accelerator_count,
+                },
+                "replica_count": 1,
+                "container_spec": {
+                    "image_uri": image_uri,
+                    "command": entry_cmd,
+                    "env": [
+                        {"name": k, "value": v}
+                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                    ],
+                },
+            }
+        ]
+
+        job = aiplatform.CustomJob(
+            display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
         )
+
         submitted_run = VertexSubmittedRun(job)
 
         # todo: support gcp dataset?
@@ -178,15 +206,10 @@ class VertexRunner(AbstractRunner):
         # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
         # on this thread but continues to block the process on another thread. always set sync=False so we can get
         # the job info (dependent on job._gca_resource)
-        job.run(
-            machine_type=gcp_machine_type,
-            accelerator_type=gcp_accelerator_type,
-            accelerator_count=gcp_accelerator_count,
-            replica_count=1,
-            sync=False,
-        )
-        while job._gca_resource is None:
-            # give time for the gcp job object to be created, this should only loop a couple times max
+        job.run(service_account=service_account, tensorboard=tensorboard, sync=False)
+
+        while not getattr(job._gca_resource, "name", None):
+            # give time for the gcp job object to be created and named, this should only loop a couple times max
             time.sleep(1)
 
         wandb.termlog(
@@ -203,13 +226,25 @@ class VertexRunner(AbstractRunner):
         return submitted_run
 
 
-def run_shell(args: List[str]) -> str:
-    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
-
-
 def get_gcp_config(config: str = "default") -> Any:
     return yaml.safe_load(
         run_shell(
-            ["gcloud", "config", "configurations", "describe", shlex_quote(config)]
-        )
+            ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
+        )[0]
     )
+
+
+def exists_on_gcp(image: str, tag: str) -> bool:
+    out, err = run_shell(
+        [
+            "gcloud",
+            "artifacts",
+            "docker",
+            "images",
+            "list",
+            shlex.quote(image),
+            "--include-tags",
+            f"--filter=tags:{shlex.quote(tag)}",
+        ]
+    )
+    return tag in out and "sha256:" in out
