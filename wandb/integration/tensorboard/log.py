@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 import wandb
 from wandb.sdk.lib import telemetry
 import wandb.util
+from wandb.viz import custom_chart
 
 if TYPE_CHECKING:
     import numpy as np  # type: ignore
@@ -201,7 +202,7 @@ def tf_summary_to_dict(  # noqa: C901
                 data_table = wandb.Table(data=data, columns=["recall", "precision"])
                 name = namespaced_tag(value.tag, namespace)
 
-                values[name] = wandb.custom_chart(
+                values[name] = custom_chart(
                     "wandb/line/v0",
                     data_table,
                     {"x": "recall", "y": "precision"},

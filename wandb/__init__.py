@@ -78,7 +78,7 @@ from wandb.data_types import JoinedTable
 from wandb.wandb_agent import agent
 
 # from wandb.core import *
-from wandb.viz import custom_chart, visualize
+from wandb.viz import visualize
 from wandb import plot
 from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
