@@ -2259,12 +2259,9 @@ class Api:
         can_handle_dedupe = max_cli_version is None or parse_version(
             "0.12.10"
         ) <= parse_version(max_cli_version)
-        # can_handle_history = max_cli_version is None or parse_version(
-        #     "0.12.12"
-        # ) <= parse_version(max_cli_version)
-
-        # TODO: Re-enable history once gorilla is deployed with maxcli >= 0.12.12
-        can_handle_history = False
+        can_handle_history = max_cli_version is None or parse_version(
+            "0.12.12"
+        ) <= parse_version(max_cli_version)
 
         mutation = gql(
             """

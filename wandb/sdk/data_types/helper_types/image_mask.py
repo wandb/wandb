@@ -182,13 +182,14 @@ class ImageMask(Media):
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
         super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
-        class_labels = self._val["class_labels"]
+        if hasattr(self, "_val") and "class_labels" in self._val:
+            class_labels = self._val["class_labels"]
 
-        run._add_singleton(
-            "mask/class_labels",
-            str(key) + "_wandb_delimeter_" + self._key,
-            class_labels,
-        )
+            run._add_singleton(
+                "mask/class_labels",
+                str(key) + "_wandb_delimeter_" + self._key,
+                class_labels,
+            )
 
     @classmethod
     def get_media_subdir(cls: Type["ImageMask"]) -> str:
