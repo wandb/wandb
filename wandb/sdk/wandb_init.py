@@ -19,8 +19,8 @@ import time
 import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
-import shortuuid  # type: ignore
 from omegaconf import DictConfig
+import shortuuid  # type: ignore
 
 import wandb
 from wandb import trigger
