@@ -769,7 +769,9 @@ def _attach(
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[Dict, Namespace, DictConfig, str, None] = None,  # DictConfig is the OmegaConf class
+    config: Union[
+        Dict, Namespace, DictConfig, str, None
+    ] = None,  # DictConfig is the OmegaConf class
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
