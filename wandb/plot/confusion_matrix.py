@@ -1,10 +1,18 @@
+from typing import Optional, Sequence
+
 import wandb
 from wandb import util
 
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, title=None):
+def confusion_matrix(
+    probs: Optional[Sequence[Sequence]] = None,
+    y_true: Optional[Sequence] = None,
+    preds: Optional[Sequence] = None,
+    class_names: Optional[Sequence[str]] = None,
+    title: Optional[str] = None,
+):
     """
     Computes a multi-run confusion matrix.
 
