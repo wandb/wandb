@@ -497,7 +497,6 @@ class Table(Media):
             max_rows = Table.MAX_ROWS
         n_rows = len(self.data)
         if n_rows > max_rows and warn:
-            logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
             if wandb.run and wandb.run.settings.table_enforce_max_row_limit:
                 raise ValueError(
                     f"Table row limit exceeded: table has {n_rows} rows, limit is {max_rows}. "
@@ -505,7 +504,7 @@ class Table(Media):
                     f"the limit with `wandb.Table.MAX_ARTIFACT_ROWS = X` and try again. Note: "
                     f"this may cause slower queries in the W&B UI."
                 )
-
+            logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
