@@ -469,6 +469,7 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
+    enforce_max_table_rows: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
