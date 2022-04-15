@@ -78,5 +78,4 @@ def main():
             run.log({
                 f'image_{step}': wandb.Image(np.random.randint(256, size=(dim, dim), dtype=np.uint8)),
             })
-# main()
-threading.Thread(target=main).start()
+main()
