@@ -258,7 +258,7 @@ class _WandbInit:
             settings.update({"save_code": False}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
-        settings._set_time_stamps(source=Source.INIT)
+        settings._set_run_start_time(source=Source.INIT)
 
         if not settings._noop:
             self._log_setup(settings)

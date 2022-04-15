@@ -158,7 +158,7 @@ class WandbInternalClient:
 
     def run_start(self, run_id):
         settings = wandb.Settings()
-        settings._set_time_stamps()
+        settings._set_run_start_time()
         settings.update(run_id=run_id)
         files_dir = settings.files_dir
         os.makedirs(files_dir)

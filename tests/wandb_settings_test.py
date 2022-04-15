@@ -892,7 +892,7 @@ def test_override_login_settings_with_dict(live_mock_server, test_settings):
 
 def test_start_run():
     s = Settings()
-    s._set_time_stamps()
+    s._set_run_start_time()
     assert s._Settings_start_time is not None
     assert s._Settings_start_datetime is not None
 

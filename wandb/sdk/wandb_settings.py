@@ -923,7 +923,7 @@ class Settings:
         query = self._get_url_query_string()
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
-    def _set_time_stamps(self, source: int = Source.BASE) -> None:
+    def _set_run_start_time(self, source: int = Source.BASE) -> None:
         """
         Set the time stamps for the settings.
         Called once the run is initialized.
