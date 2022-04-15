@@ -913,6 +913,9 @@ class Settings:
         return f"{project_url}{query}"
 
     def _run_url(self) -> str:
+        """
+        Return the run url.
+        """
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -920,7 +923,11 @@ class Settings:
         query = self._get_url_query_string()
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
-    def _start_run(self, source: int = Source.BASE) -> None:
+    def _set_time_stamps(self, source: int = Source.BASE) -> None:
+        """
+        Set the time stamps for the settings.
+        Called once the run is initialized.
+        """
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
         object.__setattr__(self, "_Settings_start_datetime", datetime_now)
@@ -932,6 +939,9 @@ class Settings:
         )
 
     def _sweep_url(self) -> str:
+        """
+        Return the sweep url.
+        """
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""

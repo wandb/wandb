@@ -170,9 +170,7 @@ class _WandbInit:
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
 
-        config_include_keys = kwargs.pop("config_include_keys", None)
-        config_exclude_keys = kwargs.pop("config_exclude_keys", None)
-
+        # todo: remove this once officially deprecated
         deprecated_kwargs = {
             "config_include_keys": (
                 "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
@@ -182,11 +180,13 @@ class _WandbInit:
             ),
         }
         for deprecated_kwarg, msg in deprecated_kwargs.items():
-            if locals().get(deprecated_kwarg):
+            if kwargs.get(deprecated_kwarg):
                 self.deprecated_features_used[deprecated_kwarg] = msg
 
         init_config = parse_config(
-            init_config, include=config_include_keys, exclude=config_exclude_keys
+            init_config,
+            include=kwargs.pop("config_include_keys", None),
+            exclude=kwargs.pop("config_exclude_keys", None),
         )
 
         # merge config with sweep or sagemaker (or config file)
@@ -258,8 +258,7 @@ class _WandbInit:
             settings.update({"save_code": False}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
-        # if settings._start_time is None:
-        settings._start_run(source=Source.INIT)
+        settings._set_time_stamps(source=Source.INIT)
 
         if not settings._noop:
             self._log_setup(settings)
