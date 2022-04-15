@@ -1423,15 +1423,8 @@ def local(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
     if not find_executable("docker"):
         raise ClickException("Docker not installed, install it from https://docker.com")
-    if wandb.docker.image_id("wandb/local") != wandb.docker.image_id_from_registry(
-        "wandb/local"
-    ):
-        if upgrade:
-            subprocess.call(["docker", "pull", "wandb/local"])
-        else:
-            wandb.termlog(
-                "A new version of W&B local is available, upgrade by calling `wandb local --upgrade`"
-            )
+    if upgrade:
+        subprocess.call(["docker", "pull", "wandb/local"])
     running = subprocess.check_output(
         ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
     )
