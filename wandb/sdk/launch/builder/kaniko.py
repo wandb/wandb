@@ -121,6 +121,8 @@ class KanikoBuilder(AbstractBuilder):
                     )
                 }
                 ecr_config_map = client.V1ConfigMap(
+                    api_version="v1",
+                    kind="ConfigMap",
                     metadata=client.V1ObjectMeta(
                         name="docker-config",
                         namespace="wandb",

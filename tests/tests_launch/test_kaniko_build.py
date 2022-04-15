@@ -155,6 +155,40 @@ def test_create_docker_ecr_config_map_non_instance(
     builder._create_docker_ecr_config_map(mock_client, "")
 
 
+def test_create_docker_ecr_config_map_instance(
+    monkeypatch, runner, mock_V1ConfigMap, mock_V1ObjectMeta
+):
+    reg = "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo"
+    build_config = {
+        "cloud-provider": "AWS",
+        "build-context-store": "s3",
+    }
+
+    expected_args = (
+        "wandb",
+        {
+            "api_version": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "docker-config",
+                "namespace": "wandb",
+            },
+            "data": {"config.json": json.dumps({"credHelpers": {reg: "ecr-login"}})},
+            "immutable": True,
+        },
+    )
+
+    def check_args(*args):
+        assert args == expected_args
+
+    builder = KanikoBuilder(build_config)
+    mock_client = MagicMock()
+    mock_client.V1ConfigMap = mock_V1ConfigMap
+    mock_client.V1ObjectMeta = mock_V1ObjectMeta
+    mock_client.create_namespaced_config_map = check_args
+    builder._create_docker_ecr_config_map(mock_client, reg)
+
+
 def test_upload_build_context_aws(monkeypatch, runner, mock_boto3):
     context_store_url = "test-url"
     run_id = "12345678"

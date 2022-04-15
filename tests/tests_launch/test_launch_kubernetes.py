@@ -1,10 +1,15 @@
 import json
-
+import boto3
+import base64
 import kubernetes
 import wandb
 from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
-from wandb.sdk.launch.runner.kubernetes import KubernetesRunner, MAX_KUBERNETES_RETRIES
+from wandb.sdk.launch.runner.kubernetes import (
+    MAX_KUBERNETES_RETRIES,
+    maybe_create_imagepull_secret,
+)
+from unittest.mock import MagicMock
 import pytest
 
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
@@ -545,7 +550,8 @@ def test_get_status_failed(
     }
 
     run = launch.run(**kwargs)
-    run.get_status()  # fail count => 1
+    run.get_status()  # fail count => 0
+    run.get_status()  # fail count =>
     out, err = capsys.readouterr()
     assert "Failed to get pod status for job" in err
 
@@ -553,3 +559,77 @@ def test_get_status_failed(
     with pytest.raises(LaunchError) as e:
         status = run.get_status()
         assert "Failed to start job" in str(e.value)
+
+
+def test_maybe_create_imagepull_secret_none():
+    secret = maybe_create_imagepull_secret(MagicMock(), {}, "12345678", "wandb")
+    assert secret is None
+
+
+def test_maybe_create_imagepull_secret_given_creds(runner, monkeypatch):
+    mock_client = MagicMock()
+    mock_client().get_authorization_token.return_value = {
+        "authorizationData": [
+            {
+                "authorizationToken": base64.b64encode(
+                    "AWS:faketesttoken".encode()
+                ).decode()
+            }
+        ]
+    }
+    monkeypatch.setattr(boto3, "client", mock_client)
+    creds = {"secret-name": "aws-secret", "secret-mount-path": "./test"}
+    url = "12345678.dkr.ecr.us-east-1.amazonaws.com:test-repo"
+    secret = maybe_create_imagepull_secret(
+        MagicMock(),
+        {
+            "ecr-provider": "AWS",
+            "url": url,
+            "credentials": creds,
+        },
+        "12345678",
+        "wandb",
+    )
+    # assert secret is None
+    assert (
+        base64.b64decode(secret.data[".dockerconfigjson"])
+        == json.dumps(
+            {
+                "auths": {
+                    url: {
+                        "username": "AWS",
+                        "password": "faketesttoken",
+                        "email": "deprecated@wandblaunch.com",
+                        "auth": base64.b64encode("AWS:faketesttoken".encode()).decode(),
+                    }
+                }
+            }
+        ).encode()
+    )
+
+
+def test_maybe_create_imagepull_secret_invalid_provider(runner, monkeypatch):
+    mock_client = MagicMock()
+    mock_client().get_authorization_token.return_value = {
+        "authorizationData": [
+            {
+                "authorizationToken": base64.b64encode(
+                    "AWS:faketesttoken".encode()
+                ).decode()
+            }
+        ]
+    }
+    monkeypatch.setattr(boto3, "client", mock_client)
+    creds = {"secret-name": "aws-secret", "secret-mount-path": "./test"}
+    url = "12345678.dkr.ecr.us-east-1.amazonaws.com:test-repo"
+    with pytest.raises(LaunchError):
+        maybe_create_imagepull_secret(
+            MagicMock(),
+            {
+                "ecr-provider": "GCP",
+                "url": url,
+                "credentials": creds,
+            },
+            "12345678",
+            "wandb",
+        )

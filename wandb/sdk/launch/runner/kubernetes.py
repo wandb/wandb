@@ -334,9 +334,10 @@ class KubernetesRunner(AbstractRunner):
                 raise LaunchError(
                     "Launch only builds one container at a time. Multiple container configurations should be pre-built and specified in a yaml file supplied via job_spec."
                 )
-            repository: Optional[str] = resource_args.get(
-                "respository"
-            ) or registry_config.get("url")
+            given_reg = resource_args.get("registry", "")
+            repository: Optional[str] = (
+                given_reg if given_reg != "" else registry_config.get("url")
+            )
             if repository is None:
                 # allow local registry usage for eg local clusters but throw a warning
                 wandb.termwarn(
@@ -420,6 +421,7 @@ def maybe_create_imagepull_secret(
                 registry_config.get("url"): {
                     "username": uname,
                     "password": token,
+                    # need an email but the use is deprecated
                     "email": "deprecated@wandblaunch.com",
                     "auth": encoded_token,
                 }
