@@ -39,18 +39,34 @@ def _server_accepts_image_filenames() -> bool:
         return False
     return parse_version("0.12.10") <= parse_version(max_cli_version)
 
+
 def _server_accepts_artifact_path() -> bool:
-    if util._is_offline():
-        return False
+    # Note on Version:
+    # * On 04/05/2022 the UI was modified to accept artifact_paths in the media
+    #   panel:
+    #   https://github.com/wandb/core/commit/341e05a9335a75cc306f74c081ed345cd369636a
+    # * At the time, the max_cli_version was set to 0.12.11:
+    #   https://github.com/wandb/core/blob/341e05a9335a75cc306f74c081ed345cd369636a/services/gorilla/deploy/gorilla/values.yaml#L59
+    # * On the same day (04/05/2022) we made a custom release for a customer
+    #   (0.9.50-[CUSTOMER]):
+    #   https://hub.docker.com/r/wandb/local-dev/tags?page=1&name=0.9.50
+    # * As of this writing (04/15/2022), the max_cli_version is set to 0.12.14,
+    #   which will be set in local version >= 0.9.51:
+    #   https://github.com/wandb/core/commit/b10b86888118249733b6eaa874b121591820a359
+    #
+    # Therefore, setting this version to 0.12.14 is the most accurate, however
+    # this will exclude the target customer. Therefore, setting this version to
+    # 0.12.11 is an acceptable compromise as it will only be incorrect for
+    # customers on local version 0.9.50. Customers on <=0.9.49 will correctly
+    # return false, and customers on >=0.9.51 will correctly return true.
+    #
+    # After the target customer re-updates local, we can bump this to 0.12.14
+    # safely.
+    target_version = "0.12.11"
     max_cli_version = util._get_max_cli_version()
-    if max_cli_version is None:
-        return False
-    # The actual version check should target 0.12.14 since the 
-    # appropriate changes were merged on 04/05/2022. However, the 
-    # customer of interest's backend was deployed on 04/05/2022 using
-    # a custom local release which did not have the version bumped. 
-    # The result is that customers with local version 0.12.11
-    return parse_version("0.12.11") <= parse_version(max_cli_version)
+    return (max_cli_version is not None) and parse_version(
+        target_version
+    ) <= parse_version(max_cli_version)
 
 
 class Image(BatchableMedia):
@@ -337,7 +353,10 @@ class Image(BatchableMedia):
         # space, but there are also custom charts, and maybe others. Let's
         # commit to getting all that fixed up before moving this to  the top
         # level Media class.
-        if self._get_artifact_entry_ref_url() is None or not _server_accepts_artifact_path():
+        if (
+            not _server_accepts_artifact_path()
+            or self._get_artifact_entry_ref_url() is None
+        ):
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
