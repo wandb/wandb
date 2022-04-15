@@ -1,13 +1,15 @@
+from typing import Optional
+
 import wandb
 
 
-def histogram(table, value, title=None):
+def histogram(table: wandb.Table, value: str, title: Optional[str] = None):
     """
     Construct a histogram plot.
 
     Arguments:
         table (wandb.Table): Table of data.
-        label (string): Name of column to use as data for bucketing.
+        value (string): Name of column to use as data for bucketing.
         title (string): Plot title.
 
     Returns:
