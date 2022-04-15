@@ -78,17 +78,11 @@ data:
     project: launch-welcome # TODO: SET YOUR ML PROJECT
     max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
     registry:
-      url: # TODO: SET ECR REPOSITORY URL HERE
+      url:  # TODO: SET ECR REPOSITORY URL HERE
       ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
-      credentials:
-        secret-name: aws-secret # TODO: SET SECRET NAME HERE
-        secret-mount-path: /root/.aws/ # SET MOUNT PATH HERE for aws /root/.aws
     build:
       type: kaniko
       cloud-provider: AWS # TODO: SET CLOUD PROVIDER HERE
-      credentials:
-        secret-name: aws-secret
-        secret-mount-path: /root/.aws/
       build-context-store: wandb-build # name here
 
 kind: ConfigMap

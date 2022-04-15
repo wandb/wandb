@@ -76,7 +76,9 @@ class KanikoBuilder(AbstractBuilder):
         self.cloud_provider = builder_config.get("cloud-provider", None)
         if self.cloud_provider is None:
             raise LaunchError("Kaniko builder requires cloud-provider info")
+        self.instance_mode = False
         if not builder_config.get("credentials"):
+            self.instance_mode = True
             # if no cloud provider info given, assume running in instance mode
             # kaniko pod will have access to build context store and ecr
             wandb.termlog("Kaniko builder running in instance mode")
@@ -94,16 +96,34 @@ class KanikoBuilder(AbstractBuilder):
                 "Must provide secret-name and secret-mount-path or neither"
             )
 
-    def _create_docker_ecr_config_map(self, corev1_client: client.CoreV1Api) -> None:
+    def _create_docker_ecr_config_map(
+        self, corev1_client: client.CoreV1Api, repository: str
+    ) -> None:
         if self.cloud_provider == "AWS":
-            ecr_config_map = client.V1ConfigMap(
-                metadata=client.V1ObjectMeta(
-                    name="docker-config",
-                    namespace="wandb",
-                ),
-                data={"config.json": json.dumps({"credsStore": "ecr-login"})},
-                immutable=True,
-            )
+            if not self.instance_mode:
+                ecr_config_map = client.V1ConfigMap(
+                    metadata=client.V1ObjectMeta(
+                        name="docker-config",
+                        namespace="wandb",
+                    ),
+                    data={"config.json": json.dumps({"credsStore": "ecr-login"})},
+                    immutable=True,
+                )
+            else:
+                wandb.termlog("Using instance mode docker config")
+                d = {
+                    "config.json": json.dumps(
+                        {"credHelpers": {repository.split(":")[0]: "ecr-login"}}
+                    )
+                }
+                ecr_config_map = client.V1ConfigMap(
+                    metadata=client.V1ObjectMeta(
+                        name="docker-config",
+                        namespace="wandb",
+                    ),
+                    data=d,
+                    immutable=True,
+                )
             corev1_client.create_namespaced_config_map("wandb", ecr_config_map)
 
     def _delete_docker_ecr_config_map(self, client: client.CoreV1Api) -> None:
@@ -201,7 +221,7 @@ class KanikoBuilder(AbstractBuilder):
 
         try:
             core_v1.create_namespaced_config_map("wandb", dockerfile_config_map)
-            self._create_docker_ecr_config_map(core_v1)
+            self._create_docker_ecr_config_map(core_v1, repository)
             batch_v1.create_namespaced_job("wandb", build_job)
 
             # wait for double the job deadline since it might take time to schedule
@@ -231,17 +251,28 @@ class KanikoBuilder(AbstractBuilder):
         image_tag: str,
         build_context_path: str,
     ) -> client.V1Job:
+        env = None
+        if self.instance_mode and self.cloud_provider == "AWS":
+            region = repository.split(".")[3]
+            env = client.V1EnvVar(name="AWS_REGION", value=region)
 
         volume_mounts = [
             client.V1VolumeMount(
                 name="build-context-config-map", mount_path="/etc/config"
             ),
+            client.V1VolumeMount(name="docker-config", mount_path="/kaniko/.docker/"),
         ]
         volumes = [
             client.V1Volume(
                 name="build-context-config-map",
                 config_map=client.V1ConfigMapVolumeSource(
                     name=config_map_name,
+                ),
+            ),
+            client.V1Volume(
+                name="docker-config",
+                config_map=client.V1ConfigMapVolumeSource(
+                    name="docker-config",
                 ),
             ),
         ]
@@ -253,10 +284,7 @@ class KanikoBuilder(AbstractBuilder):
                 client.V1VolumeMount(
                     name=self.credentials_secret_name,
                     mount_path=self.credentials_secret_mount_path,
-                ),
-                client.V1VolumeMount(
-                    name="docker-config", mount_path="/kaniko/.docker/"
-                ),
+                )
             ]
             volumes += [
                 client.V1Volume(
@@ -264,13 +292,7 @@ class KanikoBuilder(AbstractBuilder):
                     secret=client.V1SecretVolumeSource(
                         secret_name=self.credentials_secret_name
                     ),
-                ),
-                client.V1Volume(
-                    name="docker-config",
-                    config_map=client.V1ConfigMapVolumeSource(
-                        name="docker-config",
-                    ),
-                ),
+                )
             ]
         # Configurate Pod template container
         args = [
@@ -286,6 +308,7 @@ class KanikoBuilder(AbstractBuilder):
             image="gcr.io/kaniko-project/executor:latest",
             args=args,
             volume_mounts=volume_mounts,
+            env=[env],
         )
         # Create and configure a spec section
         template = client.V1PodTemplateSpec(
