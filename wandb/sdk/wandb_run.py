@@ -408,7 +408,10 @@ class Run:
         self._step = 0
         self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
-        self._start_time = self._settings._start_time or time.time()
+        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
+        #  does the total time get calculated right (not as 2 days and 15 minutes)?
+        self._start_time = time.time()
 
         _datatypes_set_callback(self._datatypes_callback)
 
