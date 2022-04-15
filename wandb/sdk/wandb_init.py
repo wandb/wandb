@@ -258,8 +258,8 @@ class _WandbInit:
             settings.update({"save_code": False}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
-        if settings._start_time is None:
-            settings._start_run(source=Source.INIT)
+        # if settings._start_time is None:
+        settings._start_run(source=Source.INIT)
 
         if not settings._noop:
             self._log_setup(settings)
@@ -659,7 +659,6 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
 
-        print(message_to_dict(run_obj))
         self.settings._apply_run_start(message_to_dict(run_obj))
         run._update_settings(self.settings)
         if manager:

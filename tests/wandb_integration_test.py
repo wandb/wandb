@@ -155,6 +155,7 @@ def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
         assert "bar" not in run.config
         run.finish()
 
+        test_settings._start_run()  # update timestamp
         run = wandb.init(
             reinit=True,
             resume=True,
@@ -167,6 +168,7 @@ def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
         assert "baz" not in run.config
         run.finish()
 
+        test_settings._start_run()  # update timestamp
         with pytest.raises(wandb.errors.UsageError):
             wandb.init(
                 reinit=True,
