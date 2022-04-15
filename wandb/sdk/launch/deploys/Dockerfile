@@ -7,7 +7,7 @@ RUN apt-get update && apt-get upgrade -y \
     && apt-get clean && rm -r /var/lib/apt/lists/*
 
 # required pip packages
-RUN pip install --no-cache-dir git+https://github.com/wandb/client.git@gong/deployable-launch-agent#egg=wandb[launch] kubernetes
+RUN pip install --no-cache-dir git+https://github.com/wandb/client.git@gong/deployable-launch-agent#egg=wandb[launch] kubernetes google-cloud-storage boto3
 # user set up
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 launch_agent
 USER launch_agent

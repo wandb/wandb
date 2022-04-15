@@ -1179,10 +1179,6 @@ def launch_agent(
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
-    if api.api_key is None:
-        wandb.termlog("Login to W&B to use the launch agent feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting launch agent ✨")
 

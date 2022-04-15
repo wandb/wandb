@@ -41,30 +41,24 @@ def resolve_agent_config(
         "build": {},
     }
 
-    def default_dict_populator(key: Optional[str] = None) -> Any:
-        if key is None:
-            return
-        else:
-            return defaults.get(key)
-
-    resolved_config: Dict[str, Any] = defaultdict(default_dict_populator)
+    resolved_config: Dict[str, Any] = defaults
     if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         config = {}
         with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
             try:
                 config = yaml.safe_load(f)
+                print(config)
             except yaml.YAMLError as e:
                 print(e)
         resolved_config.update(dict(config))
-
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
-
+    if os.environ.get("WANDB_API_KEY") is not None:
+        resolved_config.update({"api_key": os.environ.get("WANDB_API_KEY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
         resolved_config.update({"max_jobs": os.environ.get("WANDB_LAUNCH_MAX_JOBS")})
-
     if os.environ.get("WANDB_BASE_URL") is not None:
         resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
 
@@ -77,18 +71,18 @@ def resolve_agent_config(
 
     if queues is not None:
         resolved_config.update({"queues": queues})
-
     if (
         resolved_config["entity"] != defaults["entity"]
         or resolved_config["api_key"] != defaults["api_key"]
         or resolved_config["base_url"] != defaults["base_url"]
     ):
-        settings = Settings(
+        settings = dict(
             api_key=resolved_config["api_key"],
             base_url=resolved_config["base_url"],
             project=resolved_config["project"],
+            entity=resolved_config["entity"],
         )
-        api = Api(default_settings=settings, load_settings=False)
+        api = Api(default_settings=settings)
 
     return resolved_config, api
 
@@ -150,7 +144,7 @@ def _run(
         runner_config[PROJECT_DOCKER_ARGS] = {}
 
     default_launch_config = None
-    print(LAUNCH_CONFIG_FILE)
+
     if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
         with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
             default_launch_config = yaml.safe_load(f)
@@ -158,8 +152,6 @@ def _run(
     build_config, registry_config = resolve_build_and_registry_config(
         default_launch_config, build_config, registry_config
     )
-    print(default_launch_config)
-    print(build_config)
     builder = builder_loader.load_builder(build_config)
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
