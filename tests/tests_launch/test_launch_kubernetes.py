@@ -572,7 +572,7 @@ def test_maybe_create_imagepull_secret_given_creds(runner, monkeypatch):
         "authorizationData": [
             {
                 "authorizationToken": base64.b64encode(
-                    "AWS:faketesttoken".encode()
+                    b"AWS:faketesttoken"
                 ).decode()
             }
         ]
@@ -600,7 +600,7 @@ def test_maybe_create_imagepull_secret_given_creds(runner, monkeypatch):
                         "username": "AWS",
                         "password": "faketesttoken",
                         "email": "deprecated@wandblaunch.com",
-                        "auth": base64.b64encode("AWS:faketesttoken".encode()).decode(),
+                        "auth": base64.b64encode(b"AWS:faketesttoken").decode(),
                     }
                 }
             }
@@ -614,7 +614,7 @@ def test_maybe_create_imagepull_secret_invalid_provider(runner, monkeypatch):
         "authorizationData": [
             {
                 "authorizationToken": base64.b64encode(
-                    "AWS:faketesttoken".encode()
+                    b"AWS:faketesttoken"
                 ).decode()
             }
         ]
