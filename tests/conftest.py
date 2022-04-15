@@ -225,11 +225,7 @@ def test_settings(test_dir, mocker, live_mock_server):
     wandb_dir = os.path.join(test_dir, "wandb")
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    time_stamp: float = time.time()
-    datetime_now: datetime.datetime = datetime.datetime.fromtimestamp(time_stamp)
     settings = wandb.Settings(
-        _start_datetime=datetime_now,
-        _start_time=time_stamp,
         api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
         console="off",
@@ -239,6 +235,7 @@ def test_settings(test_dir, mocker, live_mock_server):
         run_id=wandb.util.generate_id(),
         save_code=False,
     )
+    settings._set_time_stamps()
     yield settings
     # Just in case someone forgets to join in tests. ...well, please don't!
     if wandb.run is not None:
