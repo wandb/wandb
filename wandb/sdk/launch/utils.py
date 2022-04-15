@@ -436,8 +436,6 @@ def resolve_build_and_registry_config(
     registry_config: Optional[Dict[str, Any]],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     resolved_build_config: Dict[str, Any] = {}
-    wandb.termlog(f"build_config {build_config}")
-    wandb.termlog(f"registry_config {registry_config}")
     if build_config is None and default_launch_config is not None:
         resolved_build_config = default_launch_config.get("build", {})
     elif build_config is not None:
@@ -447,24 +445,5 @@ def resolve_build_and_registry_config(
         resolved_registry_config = default_launch_config.get("registry", {})
     elif registry_config is not None:
         resolved_registry_config = registry_config
-    wandb.termlog("Validating")
-    wandb.termlog(f"resolved_build_config {resolved_build_config}")
-    wandb.termlog(f"resolved_reg_config {resolved_registry_config}")
     validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
-    wandb.termlog("Validated")
     return resolved_build_config, resolved_registry_config
-
-
-def aws_ecr_login(region: str, registry: str) -> Optional[str]:
-    pw_command = ["aws", "ecr", "get-login-password", "--region", region]
-    try:
-        pw = run_shell(pw_command)[0]
-    except subprocess.CalledProcessError:
-        raise LaunchError(
-            "Unable to get login password. Please ensure you have AWS credentials configured"
-        )
-    try:
-        docker_login_process = docker.login("AWS", pw, registry)
-    except Exception:
-        raise LaunchError(f"Failed to login to ECR {registry}")
-    return docker_login_process

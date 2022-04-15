@@ -59,7 +59,6 @@ class LaunchAgent:
         else:
             self._max_jobs = config.get("max_jobs") or 1
         self.default_config: Optional[Dict[str, Any]] = config
-        wandb.termlog(f"Agent config{self.default_config}")
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -174,15 +173,12 @@ class LaunchAgent:
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
-        wandb.termlog("GETTING OVERRIDE REG AND BIULD")
         override_build_config = launch_spec.get("build")
         override_registry_config = launch_spec.get("registry")
-        wandb.termlog("CALLING RESOLVE")
 
         build_config, registry_config = resolve_build_and_registry_config(
             self.default_config, override_build_config, override_registry_config
         )
-        wandb.termlog(f"BUILDER CONFIG {build_config}")
         builder = load_builder(build_config)
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
