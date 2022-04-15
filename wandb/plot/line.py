@@ -1,7 +1,15 @@
+from typing import Optional
+
 import wandb
 
 
-def line(table, x, y, stroke=None, title=None):
+def line(
+    table: wandb.Table,
+    x: str,
+    y: str,
+    stroke: Optional[str] = None,
+    title: Optional[str] = None,
+):
     """
     Construct a line plot.
 
