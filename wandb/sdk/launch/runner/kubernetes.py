@@ -348,7 +348,7 @@ class KubernetesRunner(AbstractRunner):
                     "Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
 
-            image_uri = "620830334183.dkr.ecr.us-east-1.amazonaws.com/private-test-repo:1t2dajtm"  # builder.build_image(
+            image_uri = builder.build_image(
             #     launch_project, repository, entry_point, docker_args
             # )
             # in the non instance case we need to make an imagePullSecret
