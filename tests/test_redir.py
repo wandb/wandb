@@ -232,7 +232,7 @@ def test_run_with_console_redirect(test_settings, capfd, console):
 
         print("\n" * 1000)
         print("---------------")
-        time.sleep(2)
+        time.sleep(1)
         run.finish()
 
 
@@ -243,18 +243,15 @@ def test_offline_compression(test_settings, capfd, runner, console):
         test_settings.update(
             mode="offline",
             console=console,
-            run_id=wandb.util.generate_id(),
         )
 
         run = wandb.init(settings=test_settings)
         run_dir, run_id = run.dir, run.id
 
         for _ in tqdm.tqdm(range(100), ncols=139, ascii=" 123456789#"):
-            time.sleep(0.01)
-        time.sleep(2)
+            time.sleep(0.05)
 
         print("\n" * 1000)
-        time.sleep(3)
 
         print("QWERT")
         print("YUIOP")
@@ -262,8 +259,8 @@ def test_offline_compression(test_settings, capfd, runner, console):
 
         print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")
 
+        time.sleep(2)
         run.finish()
-        time.sleep(5)
 
         binary_log_file = (
             os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
@@ -305,12 +302,10 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
             run = wandb.init(settings=test_settings)
             run_dir, run_id = run.dir, run.id
             print("LOG" * 1000000)
-            time.sleep(3)
             print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
-            time.sleep(3)
             print("===finish===")
-            run.finish()
             time.sleep(3)
+            run.finish()
 
             binary_log_file = (
                 os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
