@@ -63,13 +63,10 @@ def _server_accepts_artifact_path() -> bool:
     # After the target customer re-updates local, we can bump this to 0.12.14
     # safely.
     target_version = "0.12.11"
-
-    # Multiple calls to util._get_max_cli_version() is ok since it is cached.
-    return (
-        not util._is_offline()
-        and util._get_max_cli_version() is not None
-        and parse_version(target_version) <= parse_version(util._get_max_cli_version())
-    )
+    max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
+    return max_cli_version is not None and parse_version(
+        target_version
+    ) <= parse_version(max_cli_version)
 
 
 class Image(BatchableMedia):
