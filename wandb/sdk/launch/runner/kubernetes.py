@@ -1,10 +1,10 @@
-import shlex
 import base64
 import json
+import shlex
 import time
 from typing import Any, Dict, List, Optional
 
-from kubernetes import client
+from kubernetes import client  # type: ignore
 from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
 from kubernetes.client.models.v1_job import V1Job  # type: ignore
@@ -99,7 +99,6 @@ class KubernetesSubmittedRun(AbstractRun):
             return_status = Status("failed")
         elif status.active == 1:
             return Status("running")
-            return_status = Status("unknown")
         elif status.conditions is not None and status.conditions[0].type == "Suspended":
             return_status = Status("stopped")
         else:

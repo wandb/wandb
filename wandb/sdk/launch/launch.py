@@ -1,9 +1,7 @@
-from collections import defaultdict
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError
 import yaml
