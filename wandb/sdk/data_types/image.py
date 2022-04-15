@@ -39,6 +39,19 @@ def _server_accepts_image_filenames() -> bool:
         return False
     return parse_version("0.12.10") <= parse_version(max_cli_version)
 
+def _server_accepts_artifact_path() -> bool:
+    if util._is_offline():
+        return False
+    max_cli_version = util._get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    # The actual version check should target 0.12.14 since the 
+    # appropriate changes were merged on 04/05/2022. However, the 
+    # customer of interest's backend was deployed on 04/05/2022 using
+    # a custom local release which did not have the version bumped. 
+    # The result is that customers with local version 0.12.11
+    return parse_version("0.12.11") <= parse_version(max_cli_version)
+
 
 class Image(BatchableMedia):
     """Format images for logging to W&B.
@@ -324,7 +337,7 @@ class Image(BatchableMedia):
         # space, but there are also custom charts, and maybe others. Let's
         # commit to getting all that fixed up before moving this to  the top
         # level Media class.
-        if self._get_artifact_entry_ref_url() is None:
+        if self._get_artifact_entry_ref_url() is None or not _server_accepts_artifact_path():
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
