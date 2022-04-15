@@ -310,13 +310,21 @@ class KanikoBuilder(AbstractBuilder):
             f"--cache-repo={repository}",
             "--snapshotMode=redo",
         ]
-        container = client.V1Container(
-            name="wandb-container-build",
-            image="gcr.io/kaniko-project/executor:latest",
-            args=args,
-            volume_mounts=volume_mounts,
-            env=[env],
-        )
+        if env is not None:
+            container = client.V1Container(
+                name="wandb-container-build",
+                image="gcr.io/kaniko-project/executor:latest",
+                args=args,
+                volume_mounts=volume_mounts,
+                env=[env],
+            )
+        else:
+            container = client.V1Container(
+                name="wandb-container-build",
+                image="gcr.io/kaniko-project/executor:latest",
+                args=args,
+                volume_mounts=volume_mounts,
+            )
         # Create and configure a spec section
         template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
