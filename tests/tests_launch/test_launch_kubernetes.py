@@ -65,6 +65,9 @@ class MockCoreV1Api:
             if pod.metadata.name == name:
                 return pod.log
 
+    def delete_namespaced_secret(self, namespace, name):
+        pass
+
 
 def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
     mock_contexts = [

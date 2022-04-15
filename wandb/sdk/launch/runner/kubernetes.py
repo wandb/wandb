@@ -4,8 +4,6 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 
-# if False:
-import kubernetes  # type: ignore  # noqa: F401
 from kubernetes import client
 from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore
 from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore
@@ -23,7 +21,6 @@ from ..utils import (
     get_kube_context_and_api_client,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
-    run_shell,
 )
 
 TIMEOUT = 5
@@ -97,24 +94,20 @@ class KubernetesSubmittedRun(AbstractRun):
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         return_status = None
         if status.succeeded == 1:
-            self.core_api.delete_namespaced_secret(
-                self.secret.metadata.name, self.namespace
-            )
             return_status = Status("finished")
         elif status.failed is not None and status.failed >= 1:
-            self.core_api.delete_namespaced_secret(
-                self.secret.metadata.name, self.namespace
-            )
             return_status = Status("failed")
         elif status.active == 1:
             return Status("running")
-        if status.conditions is not None and status.conditions[0].type == "Suspended":
-            self.core_api.delete_namespaced_secret(
-                self.secret.metadata.name, self.namespace
-            )
+            return_status = Status("unknown")
+        elif status.conditions is not None and status.conditions[0].type == "Suspended":
             return_status = Status("stopped")
-        return_status = Status("unknown")
-        if return_status.state in ["stopped", "failed", "finished"]:
+        else:
+            return_status = Status("unknown")
+        if (
+            return_status.state in ["stopped", "failed", "finished"]
+            and self.secret is not None
+        ):
             try:
                 self.core_api.delete_namespaced_secret(
                     self.secret.metadata.name, self.namespace
@@ -308,6 +301,7 @@ class KubernetesRunner(AbstractRunner):
         # cmd
         entry_point = launch_project.get_single_entry_point()
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        secret = None
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
                 "Docker args are not supported for Kubernetes. Not using docker args"
@@ -328,10 +322,13 @@ class KubernetesRunner(AbstractRunner):
             # dont specify run id if user provided image, could have multiple runs
             env_vars.pop("WANDB_RUN_ID")
             containers[0]["image"] = launch_project.docker_image
+            image_uri = launch_project.docker_image
+            # TODO: handle secret pulling image from registry
         elif any(["image" in cont for cont in containers]):
             # user specified image configurations via kubernetes yaml, could have multiple images
             # dont specify run id if user provided image, could have multiple runs
             env_vars.pop("WANDB_RUN_ID")
+            # TODO: handle secret pulling image from registries?
         else:
             if len(containers) > 1:
                 raise LaunchError(
@@ -366,7 +363,9 @@ class KubernetesRunner(AbstractRunner):
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
         if secret is not None:
-            pod_spec["imagePullSecrets"] = [{"name": "regcred"}]
+            pod_spec["imagePullSecrets"] = [
+                {"name": f"regcred-{launch_project.run_id}"}
+            ]
         job_spec["template"] = pod_template
         job_dict["spec"] = job_spec
         job_dict["metadata"] = job_metadata
@@ -395,11 +394,11 @@ class KubernetesRunner(AbstractRunner):
 
 
 def maybe_create_imagepull_secret(
-    core_api: client.CoreV1Api,
+    core_api: "CoreV1Api",
     registry_config: Dict[str, Any],
     run_id: str,
     namespace: str,
-) -> Optional[client.V1Secret]:
+) -> Optional["V1Secret"]:
     secret = None
     if (
         registry_config.get("ecr-provider") == "AWS"
@@ -433,7 +432,7 @@ def maybe_create_imagepull_secret(
         }
         secret = client.V1Secret(
             data=secret_data,
-            metadata=client.V1ObjectMeta(name="regcred"),
+            metadata=client.V1ObjectMeta(name=f"regcred-{run_id}", namespace=namespace),
             kind="Secret",
             type="kubernetes.io/dockerconfigjson",
         )

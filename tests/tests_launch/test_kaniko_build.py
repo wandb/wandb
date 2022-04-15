@@ -117,7 +117,7 @@ def test_create_dockerfile_configmap(
         assert result["immutable"] is True
 
 
-def test_create_docker_ecr_config_map(
+def test_create_docker_ecr_config_map_non_instance(
     monkeypatch, runner, mock_V1ConfigMap, mock_V1ObjectMeta
 ):
 
@@ -140,6 +140,7 @@ def test_create_docker_ecr_config_map(
                 "namespace": "wandb",
             },
             "data": {"config.json": json.dumps({"credsStore": "ecr-login"})},
+            "immutable": True,
         },
     )
 
@@ -151,7 +152,7 @@ def test_create_docker_ecr_config_map(
     mock_client.V1ConfigMap = mock_V1ConfigMap
     mock_client.V1ObjectMeta = mock_V1ObjectMeta
     mock_client.create_namespaced_config_map = check_args
-    builder._create_docker_ecr_config_map(mock_client)
+    builder._create_docker_ecr_config_map(mock_client, "")
 
 
 def test_upload_build_context_aws(monkeypatch, runner, mock_boto3):
@@ -244,7 +245,7 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
-            == "gcr.io/kaniko-project/executor:debug"
+            == "gcr.io/kaniko-project/executor:latest"
         )
         assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
             f"--context={context_path}",
@@ -252,15 +253,16 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
             f"--destination={image_tag}",
             "--cache=true",
             f"--cache-repo={repo_url}",
+            "--snapshotMode=redo",
         ]
 
         assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
             {"name": "build-context-config-map", "mount_path": "/etc/config"},
-            {"name": "aws-secret", "mount_path": "/root/.aws", "read_only": True},
             {
                 "name": "docker-config",
                 "mount_path": "/kaniko/.docker/",
             },
+            {"name": "aws-secret", "mount_path": "/root/.aws", "read_only": True},
         ]
 
         assert job["spec"]["template"]["spec"]["volumes"] == [

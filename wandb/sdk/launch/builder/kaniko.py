@@ -102,6 +102,8 @@ class KanikoBuilder(AbstractBuilder):
         if self.cloud_provider == "AWS":
             if not self.instance_mode:
                 ecr_config_map = client.V1ConfigMap(
+                    api_version="v1",
+                    kind="ConfigMap",
                     metadata=client.V1ObjectMeta(
                         name="docker-config",
                         namespace="wandb",
@@ -286,6 +288,7 @@ class KanikoBuilder(AbstractBuilder):
                 client.V1VolumeMount(
                     name=self.credentials_secret_name,
                     mount_path=self.credentials_secret_mount_path,
+                    read_only=True,
                 )
             ]
             volumes += [
