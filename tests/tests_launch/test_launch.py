@@ -926,9 +926,7 @@ def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
     )
-    wandb.termlog("UPS: %s" % ups)
     if not ups:
-        wandb.termlog("RASINING INTERUPT")
         raise KeyboardInterrupt
     return ups
 

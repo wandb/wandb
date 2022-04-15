@@ -110,7 +110,9 @@ class KanikoBuilder(AbstractBuilder):
                     immutable=True,
                 )
             else:
-                wandb.termlog("Using instance mode docker config")
+                wandb.termlog(
+                    "Builder not supplied with credentials, assuming instance mode."
+                )
                 d = {
                     "config.json": json.dumps(
                         {"credHelpers": {repository.split(":")[0]: "ecr-login"}}
