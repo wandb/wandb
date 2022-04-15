@@ -307,7 +307,6 @@ class KubernetesRunner(AbstractRunner):
 
         # cmd
         entry_point = launch_project.get_single_entry_point()
-        wandb.termlog(f"{entry_point}")
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
@@ -316,7 +315,6 @@ class KubernetesRunner(AbstractRunner):
         entry_cmd = shlex.split(
             get_entry_point_command(entry_point, launch_project.override_args)
         )
-        wandb.termlog(f"{entry_cmd}")
         if entry_cmd:
             # if user hardcodes cmd into their image, we don't need to run on top of that
             for cont in containers:
@@ -411,18 +409,20 @@ def maybe_create_imagepull_secret(
         boto3 = get_module("boto3", "AWS ECR requires boto3")
         ecr_client = boto3.client("ecr")
         try:
-            token = ecr_client.get_authorization_token()["authorizationData"][0][
-                "authorizationToken"
-            ]
+            encoded_token = ecr_client.get_authorization_token()["authorizationData"][
+                0
+            ]["authorizationToken"]
+            decoded_token = base64.b64decode(encoded_token.encode()).decode()
+            uname, token = decoded_token.split(":")
         except Exception as e:
             raise LaunchError(f"Could not get authorization token for ECR, error: {e}")
         creds_info = {
             "auths": {
                 registry_config.get("url"): {
-                    "username": "AWS",
+                    "username": uname,
                     "password": token,
                     "email": "deprecated@wandblaunch.com",
-                    "auth": base64.b64encode(f"AWS:{token}".encode()).decode(),
+                    "auth": encoded_token,
                 }
             }
         }
