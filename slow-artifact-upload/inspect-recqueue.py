@@ -76,7 +76,7 @@ def main():
             CUR_STEP = step
             STEP_TIMES.append(time.time())
             run.log({
-                f'image': wandb.Image(np.random.randint(256, size=(dim, dim), dtype=np.uint8)),
+                f'image_{step}': wandb.Image(np.random.randint(256, size=(dim, dim), dtype=np.uint8)),
             })
 # main()
 threading.Thread(target=main).start()
