@@ -167,26 +167,3 @@ def mock_k8s(mocker):
     env["KUBERNETES_PORT_443_TCP_PORT"] = "123"
     env["HOSTNAME"] = "test"
     return env
-
-
-def retry(retries: int = 3, delay: int = 1) -> Callable:
-    """
-    A simple retry decorator
-    """
-
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any):
-            for i in range(retries):
-                try:
-                    return func(*args, **kwargs)
-                except Exception:
-                    print(
-                        f"`{func.__name__}` call failed, retrying in {delay} seconds..."
-                    )
-                    time.sleep(delay)
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
