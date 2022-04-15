@@ -72,6 +72,8 @@ def main():
     with wandb.init(project='slow_artifact_upload_0407') as run:
         global BACKEND_PROCESS
         BACKEND_PROCESS = psutil.Process(run._backend.wandb_process.pid)
+        print('when done:')
+        print(f'kill {run._backend.wandb_process.pid}')
         for step in range(60_000_000):
             CUR_STEP = step
             STEP_TIMES.append(time.time())
