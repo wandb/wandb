@@ -349,8 +349,8 @@ class KubernetesRunner(AbstractRunner):
                 )
 
             image_uri = builder.build_image(
-            #     launch_project, repository, entry_point, docker_args
-            # )
+                launch_project, repository, entry_point, docker_args
+            )
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             secret = maybe_create_imagepull_secret(
