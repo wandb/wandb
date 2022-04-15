@@ -570,11 +570,7 @@ def test_maybe_create_imagepull_secret_given_creds(runner, monkeypatch):
     mock_client = MagicMock()
     mock_client().get_authorization_token.return_value = {
         "authorizationData": [
-            {
-                "authorizationToken": base64.b64encode(
-                    b"AWS:faketesttoken"
-                ).decode()
-            }
+            {"authorizationToken": base64.b64encode(b"AWS:faketesttoken").decode()}
         ]
     }
     monkeypatch.setattr(boto3, "client", mock_client)
@@ -612,11 +608,7 @@ def test_maybe_create_imagepull_secret_invalid_provider(runner, monkeypatch):
     mock_client = MagicMock()
     mock_client().get_authorization_token.return_value = {
         "authorizationData": [
-            {
-                "authorizationToken": base64.b64encode(
-                    b"AWS:faketesttoken"
-                ).decode()
-            }
+            {"authorizationToken": base64.b64encode(b"AWS:faketesttoken").decode()}
         ]
     }
     monkeypatch.setattr(boto3, "client", mock_client)
