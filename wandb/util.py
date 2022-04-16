@@ -471,6 +471,7 @@ def is_jax_tensor_typename(typename: str) -> bool:
 
 def get_jax_tensor(obj: Any) -> Optional[Any]:
     import jax  # type: ignore
+
     jax_tensor = jax.device_get(obj)
     # convert bfloat16 to float32
     if jax_tensor.dtype == jax.dtypes.bfloat16:

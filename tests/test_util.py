@@ -510,6 +510,6 @@ def test_resolve_aliases():
 
 
 def test_jax_bfloat16_to_np_float32():
-    array = jnp.array(1., dtype=jnp.bfloat16)
+    array = jnp.array(1.0, dtype=jnp.bfloat16)
     array_cast = util.get_jax_tensor(array)
     assert array_cast.dtype == "float32"
