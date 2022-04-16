@@ -892,7 +892,7 @@ def test_override_login_settings_with_dict(live_mock_server, test_settings):
 
 def test_start_run():
     s = Settings()
-    s._start_run()
+    s._set_run_start_time()
     assert s._Settings_start_time is not None
     assert s._Settings_start_datetime is not None
 
@@ -995,3 +995,13 @@ def test_local_api_key_validation():
 
     # ensure that base_url is applied first without causing an error in api_key validation
     wandb.Settings()._apply_settings(s)
+
+
+def test_run_urls():
+    base_url = "https://my.cool.site.com"
+    entity = "me"
+    project = "lol"
+    run_id = "123"
+    s = Settings(base_url=base_url, entity=entity, project=project, run_id=run_id)
+    assert s.project_url == f"{base_url}/{entity}/{project}"
+    assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
