@@ -471,8 +471,11 @@ def is_jax_tensor_typename(typename: str) -> bool:
 
 def get_jax_tensor(obj: Any) -> Optional[Any]:
     import jax  # type: ignore
-
-    return jax.device_get(obj)
+    jax_tensor = jax.device_get(obj)
+    # convert bfloat16 to float32
+    if jax_tensor.dtype == jax.dtypes.bfloat16:
+        return jax_tensor.astype("float32")
+    return jax_tensor
 
 
 def is_fastai_tensor_typename(typename: str) -> bool:
