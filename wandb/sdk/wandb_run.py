@@ -258,7 +258,7 @@ class _run_decorator:  # noqa: N801
 
 
 class Run:
-    """A unit of computation logged by wandb. Typically this is an ML experiment.
+    """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
     <!--yeadoc-test:run-object-basic-->
@@ -309,7 +309,7 @@ class Run:
     to `wandb.init`. For more details on distributed training with W&B, check out
     [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
 
-    Currently there is a parallel `Run` object in the `wandb.Api`. Eventually these
+    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
 
     Attributes:
@@ -408,6 +408,9 @@ class Run:
         self._step = 0
         self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
+        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
+        #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
 
         _datatypes_set_callback(self._datatypes_callback)
