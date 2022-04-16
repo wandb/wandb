@@ -15,6 +15,7 @@ if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow as tf
 
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy
 import plotly
@@ -506,3 +507,9 @@ def test_resolve_aliases():
 
     aliases = util._resolve_aliases("boom")
     assert aliases == ["boom", "latest"]
+
+
+def test_jax_bfloat16_to_np_float32():
+    array = jnp.array(1., dtype=jnp.bfloat16)
+    array_cast = util.get_jax_tensor(array)
+    assert array_cast.dtype == "float32"
