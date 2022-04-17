@@ -1,13 +1,10 @@
 import json
-import multiprocessing
 import os
 import subprocess
 import sys
 
-CORES = multiprocessing.cpu_count()
-ONLY_INCLUDE = set(
-    [x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""]
-)
+CORES = 1
+ONLY_INCLUDE = {x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""}
 OPTS = []
 # If the builder doesn't support buildx no need to use the cache
 if os.getenv("WANDB_DISABLE_CACHE"):
@@ -44,9 +41,10 @@ def install_deps(deps, failed=None):
         if failed is None:
             failed = set()
         num_failed = len(failed)
-        for line in e.output.decode("utf8"):
+        for line in e.output.decode("utf8").split("\n"):
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
+        failed = failed.intersection(deps)
         if len(failed) > num_failed:
             return install_deps(list(set(deps) - failed), failed)
         else:
@@ -62,7 +60,7 @@ def main():
             failed = set()
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
-                    # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
+                    # can't pip install wandb==0.*.*.dev1 through pip. Let's just install wandb for now
                     if req.startswith("wandb==") and "dev1" in req:
                         req = "wandb"
                     reqs.append(req.strip())

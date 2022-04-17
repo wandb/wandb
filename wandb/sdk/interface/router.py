@@ -13,7 +13,7 @@ import uuid
 
 
 from .message_future import MessageFuture
-from ..lib import debug_log
+from ..lib import tracelog
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -31,7 +31,7 @@ class MessageRouterClosedError(Exception):
 
 class MessageFutureObject(MessageFuture):
     def __init__(self) -> None:
-        super(MessageFutureObject, self).__init__()
+        super().__init__()
 
     def get(self, timeout: int = None) -> Optional["pb.Result"]:
         is_set = self._object_ready.wait(timeout)
@@ -40,7 +40,7 @@ class MessageFutureObject(MessageFuture):
         return None
 
 
-class MessageRouter(object):
+class MessageRouter:
     _pending_reqs: Dict[str, MessageFutureObject]
     _request_queue: "Queue[pb.Record]"
     _response_queue: "Queue[pb.Result]"
@@ -105,7 +105,7 @@ class MessageRouter(object):
             # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
             # could point to other issues.
             if msg.uuid != "":
-                debug_log.log_message_assert(msg)
+                tracelog.log_message_assert(msg)
                 logger.warning(
                     "No listener found for msg with uuid %s (%s)", msg.uuid, msg
                 )

@@ -1,14 +1,16 @@
-#
-# -*- coding: utf-8 -*-
 """
 config.
 """
 
 import logging
 
-import six
 import wandb
-from wandb.util import check_dict_contains_nested_artifact, json_friendly_val
+from wandb.util import (
+    _is_artifact,
+    _is_artifact_string,
+    check_dict_contains_nested_artifact,
+    json_friendly_val,
+)
 
 from . import wandb_helper
 from .lib import config_util
@@ -20,7 +22,7 @@ logger = logging.getLogger("wandb")
 # TODO(jhr): consider a callback for persisting changes?
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
-class Config(object):
+class Config:
     """
     Config object
 
@@ -55,7 +57,7 @@ class Config(object):
 
         Nested configs
         ```python
-        wandb.config['train']['epochs] = 4
+        wandb.config['train']['epochs'] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
             # train
@@ -96,11 +98,15 @@ class Config(object):
         object.__setattr__(self, "_users_cnt", 0)
         object.__setattr__(self, "_callback", None)
         object.__setattr__(self, "_settings", None)
+        object.__setattr__(self, "_artifact_callback", None)
 
         self._load_defaults()
 
     def _set_callback(self, cb):
         object.__setattr__(self, "_callback", cb)
+
+    def _set_artifact_callback(self, cb):
+        object.__setattr__(self, "_artifact_callback", cb)
 
     def _set_settings(self, settings):
         object.__setattr__(self, "_settings", settings)
@@ -184,7 +190,7 @@ class Config(object):
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
         # strip out keys already configured
-        d = {k: v for k, v in six.iteritems(d) if k not in self._items}
+        d = {k: v for k, v in d.items() if k not in self._items}
         d = self._sanitize_dict(d)
         self._items.update(d)
         if self._callback:
@@ -198,7 +204,7 @@ class Config(object):
 
         num = self._users[user]
 
-        for k, v in six.iteritems(d):
+        for k, v in d.items():
             k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
             self._items[k] = v
@@ -212,11 +218,14 @@ class Config(object):
             self.update(conf_dict)
 
     def _sanitize_dict(
-        self, config_dict, allow_val_change=None, ignore_keys: set = None,
+        self,
+        config_dict,
+        allow_val_change=None,
+        ignore_keys: set = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
-        for k, v in six.iteritems(config_dict):
+        for k, v in config_dict.items():
             if ignore_keys and k in ignore_keys:
                 continue
             k, v = self._sanitize(k, v, allow_val_change)
@@ -229,6 +238,8 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
+        if _is_artifact_string(val) or _is_artifact(val):
+            val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
         if not (
             isinstance(val, wandb.Artifact)
@@ -257,7 +268,7 @@ class Config(object):
             )
 
 
-class ConfigStatic(object):
+class ConfigStatic:
     def __init__(self, config):
         object.__setattr__(self, "__dict__", dict(config))
 

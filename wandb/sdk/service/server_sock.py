@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
+from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
-from ..lib import debug_log
+from ..lib import tracelog
 from ..lib.proto_util import settings_dict_from_pbmap
 from ..lib.sock_client import SockClient, SockClientClosedError
 
@@ -61,10 +62,12 @@ class SockServerInterfaceReaderThread(threading.Thread):
             except queue.Empty:
                 continue
             except OSError:
-                continue
+                # handle is closed
+                break
             except ValueError:
-                continue
-            debug_log.log_message_dequeue(result, self._iface.relay_q)
+                # queue is closed
+                break
+            tracelog.log_message_dequeue(result, self._iface.relay_q)
             sockid = result.control.relay_id
             assert sockid
             sock_client = self._clients.get_client(sockid)
@@ -106,7 +109,7 @@ class SockServerReadThread(threading.Thread):
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(
                 self, shandler_str, None
             )
-            assert shandler, "unknown handle: {}".format(shandler_str)
+            assert shandler, f"unknown handle: {shandler_str}"
             shandler(sreq)
 
     def stop(self) -> None:
@@ -126,16 +129,32 @@ class SockServerReadThread(threading.Thread):
         iface = self._mux.get_stream(stream_id).interface
         self._clients.add_client(self._sock_client)
         iface_reader_thread = SockServerInterfaceReaderThread(
-            clients=self._clients, iface=iface, stopped=self._stopped,
+            clients=self._clients,
+            iface=iface,
+            stopped=self._stopped,
         )
         iface_reader_thread.start()
+
+    def server_inform_start(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_start
+        stream_id = request._info.stream_id
+        settings = settings_dict_from_pbmap(request._settings_map)
+        self._mux.update_stream(stream_id, settings=settings)
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach
         stream_id = request._info.stream_id
 
         self._clients.add_client(self._sock_client)
+        inform_attach_response = spb.ServerInformAttachResponse()
+        _pbmap_apply_dict(
+            inform_attach_response._settings_map,
+            dict(self._mux._streams[stream_id]._settings),
+        )
+        response = spb.ServerResponse(inform_attach_response=inform_attach_response)
+        self._sock_client.send_server_response(response)
         iface = self._mux.get_stream(stream_id).interface
+
         assert iface
 
     def server_record_communicate(self, sreq: "spb.ServerRequest") -> None:

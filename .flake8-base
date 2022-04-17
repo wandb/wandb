@@ -24,14 +24,10 @@ exclude =
     ./wandb/old/
     ./wandb/proto/
     ./wandb/proto_check/
-    ./wandb/util.py
     ./wandb/env.py
     ./wandb/sweeps/
     ./wandb/integration/magic.py
     ./wandb/integration/keras/
-    ./wandb/integration/tensorboard/
-    ./wandb/integration/xgboost/
-    ./wandb/integration/fastai/
     ./wandb/integration/metaflow/
     ./wandb/filesync/
     ./wandb/sdk/internal/internal_api.py
@@ -43,6 +39,8 @@ exclude =
     ./wandb/sklearn/
     ./wandb/viz.py
     ./wandb/vendor/
+    */wandb/run-*/files/code/
+    */wandb/offline-run-*/files/code/
 
 per-file-ignores =
    wandb/cli/cli.py:C901,I202

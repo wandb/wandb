@@ -54,6 +54,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.MetricRecord,
     ) -> wandb.proto.wandb_internal_pb2.MetricResult: ...
 
+    def PartialLog(self,
+        request: wandb.proto.wandb_internal_pb2.PartialHistoryRequest,
+    ) -> wandb.proto.wandb_internal_pb2.PartialHistoryResponse: ...
+
     def Log(self,
         request: wandb.proto.wandb_internal_pb2.HistoryRecord,
     ) -> wandb.proto.wandb_internal_pb2.HistoryResult: ...
@@ -85,6 +89,10 @@ class InternalServiceStub:
     def Artifact(self,
         request: wandb.proto.wandb_internal_pb2.ArtifactRecord,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactResult: ...
+
+    def LinkArtifact(self,
+        request: wandb.proto.wandb_internal_pb2.LinkArtifactRecord,
+    ) -> wandb.proto.wandb_internal_pb2.LinkArtifactResult: ...
 
     def ArtifactSend(self,
         request: wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
@@ -121,6 +129,10 @@ class InternalServiceStub:
     def ServerInformInit(self,
         request: global___ServerInformInitRequest,
     ) -> global___ServerInformInitResponse: ...
+
+    def ServerInformStart(self,
+        request: global___ServerInformStartRequest,
+    ) -> global___ServerInformStartResponse: ...
 
     def ServerInformFinish(self,
         request: global___ServerInformFinishRequest,
@@ -207,6 +219,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
     ) -> wandb.proto.wandb_internal_pb2.MetricResult: ...
 
     @abc.abstractmethod
+    def PartialLog(self,
+        request: wandb.proto.wandb_internal_pb2.PartialHistoryRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.PartialHistoryResponse: ...
+
+    @abc.abstractmethod
     def Log(self,
         request: wandb.proto.wandb_internal_pb2.HistoryRecord,
         context: grpc.ServicerContext,
@@ -253,6 +271,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ArtifactRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactResult: ...
+
+    @abc.abstractmethod
+    def LinkArtifact(self,
+        request: wandb.proto.wandb_internal_pb2.LinkArtifactRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.LinkArtifactResult: ...
 
     @abc.abstractmethod
     def ArtifactSend(self,
@@ -307,6 +331,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: global___ServerInformInitRequest,
         context: grpc.ServicerContext,
     ) -> global___ServerInformInitResponse: ...
+
+    @abc.abstractmethod
+    def ServerInformStart(self,
+        request: global___ServerInformStartRequest,
+        context: grpc.ServicerContext,
+    ) -> global___ServerInformStartResponse: ...
 
     @abc.abstractmethod
     def ServerInformFinish(self,

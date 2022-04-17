@@ -6,6 +6,7 @@ import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
+
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
   rpc Attach(AttachRequest) returns (AttachResponse) {}
@@ -18,6 +19,7 @@ service InternalService {
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
   rpc Metric(MetricRecord) returns (MetricResult) {}
+  rpc PartialLog(PartialHistoryRequest) returns (PartialHistoryResponse) {}
   rpc Log(HistoryRecord) returns (HistoryResult) {}
   rpc Summary(SummaryRecord) returns (SummaryResult) {}
   rpc Config(ConfigRecord) returns (ConfigResult) {}
@@ -26,6 +28,7 @@ service InternalService {
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
+  rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
 
   // rpc messages for async operations: Send, Poll, Cancel, Release
   rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}
@@ -40,6 +43,7 @@ service InternalService {
   rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
   rpc ServerInformInit(ServerInformInitRequest) returns (ServerInformInitResponse) {}
+  rpc ServerInformStart(ServerInformStartRequest) returns (ServerInformStartResponse) {}
   rpc ServerInformFinish(ServerInformFinishRequest) returns (ServerInformFinishResponse) {}
   rpc ServerInformAttach(ServerInformAttachRequest) returns (ServerInformAttachResponse) {}
   rpc ServerInformDetach(ServerInformDetachRequest) returns (ServerInformDetachResponse) {}
@@ -72,6 +76,7 @@ message SettingsValue {
     bool bool_value = 4;
     bool null_value = 5;
     StringTupleValue tuple_value = 6;
+    string timestamp_value = 7;
   }
 }
 
@@ -81,6 +86,14 @@ message ServerInformInitRequest {
 }
 
 message ServerInformInitResponse {
+}
+
+message ServerInformStartRequest {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformStartResponse {
 }
 
 message ServerInformFinishRequest {
@@ -95,6 +108,8 @@ message ServerInformAttachRequest {
 }
 
 message ServerInformAttachResponse {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
 }
 
 message ServerInformDetachRequest {
@@ -125,6 +140,8 @@ message ServerRequest {
     ServerInformAttachRequest inform_attach = 5;
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
+    ServerInformStartRequest inform_start = 8;
+
   }
 }
 
@@ -136,5 +153,7 @@ message ServerResponse {
     ServerInformAttachResponse inform_attach_response = 5;
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
+    ServerInformStartResponse inform_start_response = 8;
+
   }
 }

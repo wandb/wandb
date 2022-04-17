@@ -1,10 +1,6 @@
-#
-# -*- coding: utf-8 -*-
 """
 Utilities for wandb verify
 """
-from __future__ import print_function
-
 from functools import partial
 import getpass
 import os
@@ -20,10 +16,10 @@ from typing import (
 )
 
 import click
-from gql import gql  # type: ignore
 from pkg_resources import parse_version
 import requests
 import wandb
+from wandb_gql import gql  # type: ignore
 
 from ..wandb_artifacts import Artifact
 from ...apis.internal import Api
@@ -32,8 +28,8 @@ from ...apis.public import Artifact as ArtifactAPI
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
 MIN_RETRYS = 3
-CHECKMARK = u"\u2705"
-RED_X = u"\u274C"
+CHECKMARK = "\u2705"
+RED_X = "\u274C"
 
 
 def print_results(
@@ -66,19 +62,22 @@ def check_host(host: str) -> bool:
 
 def check_logged_in(api: Api, host: str) -> bool:
     print("Checking if logged in".ljust(72, "."), end="")
-    login_doc_url = "https://docs.wandb.ai/ref/login"
+    login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
-        fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
-            click.style(login_doc_url, underline=True, fg="blue")
+        fail_string = (
+            "Not logged in. Please log in using `wandb login`. See the docs: {}".format(
+                click.style(login_doc_url, underline=True, fg="blue")
+            )
         )
     # check that api key is correct
     # TODO: Better check for api key is correct
     else:
         res = api.api.viewer()
         if not res:
-            fail_string = "Could not get viewer with default API key. Please relogin using WANDB_BASE_URL={} wandb login --relogin and try again".format(
-                host
+            fail_string = (
+                "Could not get viewer with default API key. "
+                f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
             )
 
     print_results(fail_string, False)
@@ -102,8 +101,9 @@ def check_cors_configuration(url: str, origin: str) -> None:
     )
 
     if res_get.headers.get("Access-Control-Allow-Origin") is None:
-        fail_string = "Your object store does not have a valid CORs configuration, you must allow GET and PUT to Origin: {}".format(
-            origin
+        fail_string = (
+            "Your object store does not have a valid CORs configuration, "
+            f"you must allow GET and PUT to Origin: {origin}"
         )
 
     print_results(fail_string, True)
@@ -156,7 +156,8 @@ def check_run(api: Api) -> bool:
 
         wandb.save(filepath)
     public_api = wandb.Api()
-    prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+    prev_run = public_api.run(f"{entity}/{PROJECT_NAME}/{run_id}")
+    # raise Exception(prev_run.__dict__)
     if prev_run is None:
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
@@ -246,7 +247,7 @@ def artifact_with_path_or_paths(
         f.write("test 2")
     if not os.path.exists(verify_dir):
         os.makedirs(verify_dir)
-    with open("{}/verify_1.txt".format(verify_dir), "w") as f:
+    with open(f"{verify_dir}/verify_1.txt", "w") as f:
         f.write("1")
     art.add_dir(verify_dir)
     with open("verify_3.txt", "w") as f:
@@ -279,16 +280,17 @@ def log_use_download_artifact(
         try:
             log_art_run.log_artifact(artifact, aliases=alias)
         except Exception as e:
-            failed_test_strings.append("Unable to log artifact. {}".format(e))
+            failed_test_strings.append(f"Unable to log artifact. {e}")
             return False, None, failed_test_strings
 
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME,
+        config={"test": "artifact use"},
     ) as use_art_run:
         try:
-            used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
+            used_art = use_art_run.use_artifact(f"{name}:{alias}")
         except Exception as e:
-            failed_test_strings.append("Unable to use artifact. {}".format(e))
+            failed_test_strings.append(f"Unable to use artifact. {e}")
             return False, None, failed_test_strings
         try:
             used_art.download(root=download_dir)
@@ -334,15 +336,13 @@ def check_artifacts() -> bool:
     if not cont_test or download_artifact is None:
         print_results(failed_test_strings, False)
         return False
-    if set(os.listdir(multi_art_dir)) != set(
-        [
-            "verify_a.txt",
-            "verify_2.txt",
-            "verify_1.txt",
-            "verify_3.txt",
-            "verify_int_test.txt",
-        ]
-    ):
+    if set(os.listdir(multi_art_dir)) != {
+        "verify_a.txt",
+        "verify_2.txt",
+        "verify_1.txt",
+        "verify_3.txt",
+        "verify_int_test.txt",
+    }:
         failed_test_strings.append(
             "Artifact directory is missing files. Contact W&B for support."
         )
@@ -374,7 +374,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     ) as run:
         wandb.save(gql_fp)
     public_api = wandb.Api()
-    prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
+    prev_run = public_api.run(f"{run.entity}/{PROJECT_NAME}/{run.id}")
     if prev_run is None:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
@@ -408,7 +408,7 @@ def check_large_post() -> bool:
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
-    descy = "a" * int(10 ** 7)
+    descy = "a" * int(10**7)
 
     username = getpass.getuser()
     failed_test_strings = []
@@ -445,7 +445,7 @@ def check_large_post() -> bool:
             )
         else:
             failed_test_strings.append(
-                "Failed to send a large payload with error: {}.".format(e)
+                f"Failed to send a large payload with error: {e}."
             )
     print_results(failed_test_strings, False)
     return len(failed_test_strings) == 0
@@ -457,7 +457,9 @@ def check_wandb_version(api: Api) -> None:
     fail_string = None
     warning = False
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
-    min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
+    min_cli_version = server_info.get("cliVersionInfo", {}).get(
+        "min_cli_version", "0.0.1"
+    )
     if parse_version(wandb.__version__) < parse_version(min_cli_version):
         fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
             max_cli_version
@@ -465,8 +467,8 @@ def check_wandb_version(api: Api) -> None:
     elif parse_version(wandb.__version__) > parse_version(max_cli_version):
         fail_string = (
             "wandb version is not supported by your local installation. This could "
-            "cause some issues. If you're having problems try: please run pip "
-            "install --upgrade wandb=={}".format(max_cli_version)
+            "cause some issues. If you're having problems try: please run `pip "
+            f"install --upgrade wandb=={max_cli_version}`"
         )
         warning = True
 

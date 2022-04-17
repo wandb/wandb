@@ -3,7 +3,6 @@
 Implement ServiceInterface for grpc transport.
 """
 
-import logging
 from typing import Optional
 from typing import TYPE_CHECKING
 
@@ -28,7 +27,7 @@ class ServiceGrpcInterface(ServiceInterface):
         return "grpc"
 
     def _svc_connect(self, port: int) -> None:
-        channel = grpc.insecure_channel("localhost:{}".format(port))
+        channel = grpc.insecure_channel(f"localhost:{port}")
         stub = pbgrpc.InternalServiceStub(channel)
         self._stub = stub
         # TODO: make sure service is up
@@ -40,27 +39,35 @@ class ServiceGrpcInterface(ServiceInterface):
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
         settings_dict = settings.make_static()
-        settings_dict["_log_level"] = logging.DEBUG
         _pbmap_apply_dict(inform_init._settings_map, settings_dict)
         inform_init._info.stream_id = run_id
 
         assert self._stub
         _ = self._stub.ServerInformInit(inform_init)
 
-    def _svc_inform_finish(self, run_id: str = None) -> None:
-        assert run_id
-        inform_fin = spb.ServerInformFinishRequest()
-        inform_fin._info.stream_id = run_id
+    def _svc_inform_start(self, settings: "Settings", run_id: str) -> None:
+        inform_start = spb.ServerInformStartRequest()
+        settings_dict = settings.make_static()
+        _pbmap_apply_dict(inform_start._settings_map, settings_dict)
+        inform_start._info.stream_id = run_id
 
         assert self._stub
-        _ = self._stub.ServerInformFinish(inform_fin)
+        _ = self._stub.ServerInformStart(inform_start)
 
-    def _svc_inform_attach(self, attach_id: str) -> None:
+    def _svc_inform_finish(self, run_id: str = None) -> None:
+        assert run_id
+        inform_finish = spb.ServerInformFinishRequest()
+        inform_finish._info.stream_id = run_id
+
+        assert self._stub
+        _ = self._stub.ServerInformFinish(inform_finish)
+
+    def _svc_inform_attach(self, attach_id: str) -> spb.ServerInformAttachResponse:
         assert self._stub
 
         inform_attach = spb.ServerInformAttachRequest()
         inform_attach._info.stream_id = attach_id
-        _ = self._stub.ServerInformAttach(inform_attach)
+        return self._stub.ServerInformAttach(inform_attach)
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)
