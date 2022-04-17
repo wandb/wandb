@@ -2,8 +2,6 @@
 disabled mode test.
 """
 
-from __future__ import division
-
 import pytest  # type: ignore
 
 import wandb
@@ -29,7 +27,7 @@ def test_disabled_ops(test_settings):
     print(run / 1.2)
     print(run // 10)
     print(run % 10)
-    print(run ** 10)
+    print(run**10)
     print(run << 10)
     print(run >> 10)
     print(run & 2)
@@ -120,7 +118,7 @@ def test_disabled_globals(test_settings):
 def test_bad_url(test_settings):
     test_settings.update(
         mode="disabled",
-        base_url="localhost:9000",
+        base_url="http://localhost:9000",
         source=wandb.sdk.wandb_settings.Source.INIT,
     )
     run = wandb.init(settings=test_settings)

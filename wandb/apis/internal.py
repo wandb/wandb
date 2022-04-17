@@ -1,7 +1,7 @@
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
-class Api(object):
+class Api:
     """Internal proxy to the official internal API.  Eventually these methods
     should likely be moved to PublicApi"""
 
@@ -53,6 +53,9 @@ class Api(object):
 
     def viewer(self):
         return self.api.viewer()
+
+    def max_cli_version(self):
+        return self.api.max_cli_version()
 
     def viewer_server_info(self):
         return self.api.viewer_server_info()

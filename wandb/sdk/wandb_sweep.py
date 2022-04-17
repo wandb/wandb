@@ -1,6 +1,6 @@
 from typing import Callable, Dict, Optional, Union
+import urllib.parse
 
-from six.moves import urllib
 import wandb
 from wandb import env
 from wandb.apis import InternalApi
@@ -29,7 +29,9 @@ def _get_sweep_url(api, sweep_id):
 
 
 def sweep(
-    sweep: Union[dict, Callable], entity: str = None, project: str = None,
+    sweep: Union[dict, Callable],
+    entity: str = None,
+    project: str = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -119,12 +121,14 @@ def controller(
     """Public sweep controller constructor.
 
     Usage:
+        ```python
         import wandb
         tuner = wandb.controller(...)
         print(tuner.sweep_config)
         print(tuner.sweep_id)
         tuner.configure_search(...)
         tuner.configure_stopping(...)
+        ```
 
     """
     from ..wandb_controller import _WandbController

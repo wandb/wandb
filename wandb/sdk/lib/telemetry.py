@@ -1,5 +1,3 @@
-#
-
 import re
 from types import TracebackType
 from typing import ContextManager, Dict, List, Optional, Type
@@ -19,12 +17,15 @@ if TYPE_CHECKING:
 _LABEL_TOKEN: str = "@wandbcode{"
 
 
-class _TelemetryObject(object):
+class _TelemetryObject:
     _run: Optional["wandb_run.Run"]
+    _obj: TelemetryRecord
 
-    def __init__(self, run: "wandb_run.Run" = None) -> None:
+    def __init__(
+        self, run: "wandb_run.Run" = None, obj: TelemetryRecord = None
+    ) -> None:
         self._run = run or wandb.run
-        self._obj = TelemetryRecord()
+        self._obj = obj or TelemetryRecord()
 
     def __enter__(self) -> TelemetryRecord:
         return self._obj
@@ -40,8 +41,10 @@ class _TelemetryObject(object):
         self._run._telemetry_callback(self._obj)
 
 
-def context(run: "wandb_run.Run" = None) -> ContextManager[TelemetryRecord]:
-    return _TelemetryObject(run=run)
+def context(
+    run: "wandb_run.Run" = None, obj: TelemetryRecord = None
+) -> ContextManager[TelemetryRecord]:
+    return _TelemetryObject(run=run, obj=obj)
 
 
 MATCH_RE = re.compile(r"(?P<code>[a-zA-Z0-9_-]+)[,}](?P<rest>.*)")

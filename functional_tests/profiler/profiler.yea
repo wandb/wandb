@@ -1,6 +1,10 @@
 id: 0.profiler
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
+      reason: profiler not supported by torch in windows
 var:
   - run0:
       :fn:find:

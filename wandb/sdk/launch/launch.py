@@ -1,5 +1,4 @@
 import logging
-import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
@@ -10,7 +9,6 @@ from .agent import LaunchAgent
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
-    _is_wandb_local_uri,
     construct_launch_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -24,7 +22,7 @@ def create_and_run_agent(
     entity: str,
     project: str,
     queues: Optional[List[str]] = None,
-    max_jobs: int = None,
+    max_jobs: float = None,
 ) -> None:
     if queues is None:
         queues = []
@@ -33,7 +31,7 @@ def create_and_run_agent(
 
 
 def _run(
-    uri: str,
+    uri: Optional[str],
     name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
@@ -41,11 +39,11 @@ def _run(
     entry_point: Optional[str],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
-    docker_args: Optional[Dict[str, Any]],
     resource: str,
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
+    cuda: Optional[bool],
     api: Api,
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
@@ -62,6 +60,7 @@ def _run(
         parameters,
         resource_args,
         launch_config,
+        cuda,
     )
     launch_project = create_project_from_spec(launch_spec, api)
     launch_project = fetch_and_validate_project(launch_project, api)
@@ -69,7 +68,11 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    if launch_config is not None:
+        given_docker_args = launch_config.get("docker", {}).get("args", {})
+        runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
+    else:
+        runner_config[PROJECT_DOCKER_ARGS] = {}
 
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
@@ -87,12 +90,11 @@ def _run(
 
 
 def run(
-    uri: str,
+    uri: Optional[str],
     api: Api,
     entry_point: Optional[str] = None,
     version: Optional[str] = None,
     parameters: Optional[Dict[str, Any]] = None,
-    docker_args: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
     resource: str = "local",
     resource_args: Optional[Dict[str, Any]] = None,
@@ -101,6 +103,7 @@ def run(
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
+    cuda: Optional[bool] = None,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
@@ -112,14 +115,14 @@ def run(
     version: For Git-based projects, either a commit hash or a branch name.
     parameters: Parameters (dictionary) for the entry point command. Defaults to using the
         the parameters used to run the original run.
-    docker_args: Arguments (dictionary) for the docker command.
     name: Name run under which to launch the run.
     resource: Execution backend for the run: W&B provides built-in support for "local" backend
     resource_args: Resource related arguments for launching runs onto a remote backend.
+        Will be stored on the constructed launch config under ``resource_args``.
     project: Target project to send launched run to
     entity: Target entity to send launched run to
-    config: A dictionary which will be passed as config to the backend. The exact content
-        which should be provided is different for each execution backend
+    config: A dictionary containing the configuration for the run. May also contain
+    resource specific arguments under the key "resource_args".
     synchronous: Whether to block while waiting for a run to complete. Defaults to True.
         Note that if ``synchronous`` is False and ``backend`` is "local", this
         method will return, but the current process will block when exiting until
@@ -127,6 +130,7 @@ def run(
         asynchronous runs launched via this method will be terminated. If
         ``synchronous`` is True and the run fails, the current process will
         error out as well.
+    cuda: Whether to build a CUDA-enabled docker image or not
 
 
     Example:
@@ -147,17 +151,6 @@ def run(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-    if docker_args is None:
-        docker_args = {}
-
-    if _is_wandb_local_uri(api.settings("base_url")):
-        if sys.platform == "win32":
-            docker_args["net"] = "host"
-        else:
-            docker_args["network"] = "host"
-        if sys.platform == "linux" or sys.platform == "linux2":
-            docker_args["add-host"] = "host.docker.internal:host-gateway"
-
     if config is None:
         config = {}
 
@@ -170,11 +163,11 @@ def run(
         entry_point=entry_point,
         version=version,
         parameters=parameters,
-        docker_args=docker_args,
         resource=resource,
         resource_args=resource_args,
         launch_config=config,
         synchronous=synchronous,
+        cuda=cuda,
         api=api,
     )
 

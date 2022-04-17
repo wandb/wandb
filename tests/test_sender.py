@@ -1,13 +1,9 @@
-from __future__ import print_function
-
 import os
 import pytest
-import six
-from six.moves import queue
+import queue
 import threading
 import time
 import shutil
-import sys
 
 import wandb
 from wandb.util import mkdir_exists_ok
@@ -349,7 +345,10 @@ def test_sync_spell_run(mocked_run, mock_server, backend_interface, parse_ctx):
 
 
 def test_upgrade_upgraded(
-    mocked_run, mock_server, backend_interface, restore_version,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    restore_version,
 ):
     wandb.__version__ = "0.0.6"
     wandb.__hack_pypi_latest_version__ = "0.0.8"
@@ -369,7 +368,10 @@ def test_upgrade_upgraded(
 
 
 def test_upgrade_yanked(
-    mocked_run, mock_server, backend_interface, restore_version,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    restore_version,
 ):
     wandb.__version__ = "0.0.2"
     wandb.__hack_pypi_latest_version__ = "0.0.8"
@@ -392,7 +394,10 @@ def test_upgrade_yanked(
 
 
 def test_upgrade_yanked_message(
-    mocked_run, mock_server, backend_interface, restore_version,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    restore_version,
 ):
     wandb.__version__ = "0.0.3"
     wandb.__hack_pypi_latest_version__ = "0.0.8"
@@ -415,7 +420,10 @@ def test_upgrade_yanked_message(
 
 
 def test_upgrade_removed(
-    mocked_run, mock_server, backend_interface, restore_version,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    restore_version,
 ):
     wandb.__version__ = "0.0.4"
     wandb.__hack_pypi_latest_version__ = "0.0.8"

@@ -92,7 +92,9 @@ class _Service:
             else:
                 service_args.append("--serve-sock")
             internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args, env=os.environ, **kwargs,
+                exec_cmd_list + service_args,
+                env=os.environ,
+                **kwargs,
             )
             ports_found = self._wait_for_ports(fname, proc=internal_proc)
             assert ports_found
@@ -113,7 +115,8 @@ class _Service:
     def service_interface(self) -> ServiceInterface:
         return self._service_interface
 
-    def join(self) -> None:
+    def join(self) -> int:
+        ret = 0
         if self._internal_proc:
             ret = self._internal_proc.wait()
-            assert ret == 0
+        return ret

@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 
 class WandbCallback(BaseCallback):
-    """ Log SB3 experiments to Weights and Biases
+    """Log SB3 experiments to Weights and Biases
         - Added model tracking and uploading
         - Added complete hyperparameters recording
         - Added gradient logging
@@ -78,7 +78,7 @@ class WandbCallback(BaseCallback):
         model_save_freq: int = 0,
         gradient_save_freq: int = 0,
     ):
-        super(WandbCallback, self).__init__(verbose)
+        super().__init__(verbose)
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
         with wb_telemetry.context() as tel:

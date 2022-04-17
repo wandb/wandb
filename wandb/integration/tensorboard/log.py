@@ -1,17 +1,27 @@
+import io
 import re
 import time
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 
-import six
 import wandb
-from wandb.viz import create_custom_chart
+from wandb.sdk.lib import telemetry
+import wandb.util
+from wandb.viz import custom_chart
 
-# We have atleast the default namestep and a global step to track
-# TODO: reset this structure on wandb.join
-STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
+if TYPE_CHECKING:
+    import numpy as np  # type: ignore
+    from wandb.sdk.internal.tb_watcher import TBHistory
+
+# We have at least the default namestep and a global step to track
+# TODO: reset this structure on wandb.finish
+STEPS: Dict[str, Dict[str, Any]] = {
+    "": {"step": 0},
+    "global": {"step": 0, "last_log": None},
+}
 # TODO(cling): Set these when tensorboard behavior is configured.
 # We support rate limited logging by setting this to number of seconds,
 # can be a floating point.
-RATE_LIMIT_SECONDS = None
+RATE_LIMIT_SECONDS: Optional[Union[float, int]] = None
 IGNORE_KINDS = ["graphs"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 
@@ -20,16 +30,14 @@ tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 pb = wandb.util.get_module(
     "tensorboard.compat.proto.summary_pb2"
 ) or wandb.util.get_module("tensorflow.core.framework.summary_pb2")
-if pb:
-    Summary = pb.Summary
-else:
-    Summary = None
+
+Summary = pb.Summary if pb else None
 
 
-def make_ndarray(tensor):
+def make_ndarray(tensor: Any) -> Optional["np.ndarray"]:
     if tensor_util:
         res = tensor_util.make_ndarray(tensor)
-        # Tensorboard can log generic objects and we don't want to save them
+        # Tensorboard can log generic objects, and we don't want to save them
         if res.dtype == "object":
             return None
         else:
@@ -42,7 +50,7 @@ def make_ndarray(tensor):
         return None
 
 
-def namespaced_tag(tag, namespace=""):
+def namespaced_tag(tag: str, namespace: str = "") -> str:
     if not namespace:
         return tag
     elif tag in namespace:
@@ -52,7 +60,7 @@ def namespaced_tag(tag, namespace=""):
         return namespace + "/" + tag
 
 
-def history_image_key(key, namespace=""):
+def history_image_key(key: str, namespace: str = "") -> str:
     """Converts invalid filesystem characters to _ for use in History keys.
 
     Unfortunately this means currently certain image keys will collide silently. We
@@ -63,7 +71,9 @@ def history_image_key(key, namespace=""):
     return namespaced_tag(re.sub(r"[/\\]", "_", key), namespace)
 
 
-def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
+def tf_summary_to_dict(  # noqa: C901
+    tf_summary_str_or_pb: Any, namespace: str = ""
+) -> Optional[Dict[str, Any]]:
     """Convert a Tensorboard Summary to a dictionary
 
     Accepts a tensorflow.summary.Summary, one encoded as a string,
@@ -91,32 +101,35 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
         # Ignore these, caller is responsible for handling None
         return None
 
-    def encode_images(img_strs, value):
+    def encode_images(_img_strs: List[bytes], _value: Any) -> None:
         try:
-            from PIL import Image
+            from PIL import Image  # type: ignore
         except ImportError:
             wandb.termwarn(
-                'Install pillow if you are logging images with Tensorboard. To install, run "pip install pillow".',
+                "Install pillow if you are logging images with Tensorboard. "
+                "To install, run `pip install pillow`.",
                 repeat=False,
             )
-            return
+            return None
 
-        if len(img_strs) == 0:
-            return
+        if len(_img_strs) == 0:
+            return None
 
-        images = []
-        for img_str in img_strs:
-            # Supports gifs from TboardX
-            if img_str.startswith(b"GIF"):
-                images.append(wandb.Video(six.BytesIO(img_str), format="gif"))
+        images: List[Union["wandb.Video", "wandb.Image"]] = []
+        for _img_str in _img_strs:
+            # Supports gifs from TensorboardX
+            if _img_str.startswith(b"GIF"):
+                images.append(wandb.Video(io.BytesIO(_img_str), format="gif"))
             else:
-                images.append(wandb.Image(Image.open(six.BytesIO(img_str))))
-        tag_idx = value.tag.rsplit("/", 1)
+                images.append(wandb.Image(Image.open(io.BytesIO(_img_str))))
+        tag_idx = _value.tag.rsplit("/", 1)
         if len(tag_idx) > 1 and tag_idx[1].isdigit():
             tag, idx = tag_idx
             values.setdefault(history_image_key(tag, namespace), []).extend(images)
         else:
-            values[history_image_key(value.tag, namespace)] = images
+            values[history_image_key(_value.tag, namespace)] = images
+
+        return None
 
     for value in summary_pb.value:
         kind = value.WhichOneof("value")
@@ -136,6 +149,8 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
             elif plugin_name == "histograms":
                 # https://github.com/tensorflow/tensorboard/blob/master/tensorboard/plugins/histogram/summary_v2.py#L15-L26
                 ndarray = make_ndarray(value.tensor)
+                if ndarray is None:
+                    continue
                 shape = ndarray.shape
                 counts = []
                 bins = []
@@ -148,11 +163,24 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                     counts = [ndarray[0][2]]
                     bins = ndarray[0][:2]
                 if len(counts) > 0:
-                    values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
-                        np_histogram=(counts, bins)
-                    )
+                    try:
+                        # TODO: we should just re-bin if there are too many buckets
+                        values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
+                            np_histogram=(counts, bins)
+                        )
+                    except ValueError:
+                        wandb.termwarn(
+                            'Not logging key "{}". '
+                            "Histograms must have fewer than {} bins".format(
+                                namespaced_tag(value.tag, namespace),
+                                wandb.Histogram.MAX_LENGTH,
+                            ),
+                            repeat=False,
+                        )
             elif plugin_name == "pr_curves":
                 pr_curve_data = make_ndarray(value.tensor)
+                if pr_curve_data is None:
+                    continue
                 precision = pr_curve_data[-2, :].tolist()
                 recall = pr_curve_data[-1, :].tolist()
                 # TODO: (kdg) implement spec for showing additional info in tool tips
@@ -164,7 +192,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                 # min of each in case tensorboard ever changes their pr_curve
                 # to allow for different length outputs
                 data = []
-                for i in range(min(len((precision)), len(recall))):
+                for i in range(min(len(precision), len(recall))):
                     # drop additional threshold values if they exist
                     if precision[i] != 0 or recall[i] != 0:
                         data.append((recall[i], precision[i]))
@@ -173,7 +201,8 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                 data = sorted(data, key=lambda x: (x[0], -x[1]))
                 data_table = wandb.Table(data=data, columns=["recall", "precision"])
                 name = namespaced_tag(value.tag, namespace)
-                values[name] = create_custom_chart(
+
+                values[name] = custom_chart(
                     "wandb/line/v0",
                     data_table,
                     {"x": "recall", "y": "precision"},
@@ -211,18 +240,14 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                     values[tag] = wandb.Histogram(np_histogram=np_histogram)
                 except ValueError:
                     wandb.termwarn(
-                        'Not logging key "{}". '
-                        "Histograms must have fewer than {} bins".format(
-                            tag, wandb.Histogram.MAX_LENGTH
-                        ),
+                        f'Not logging key "{tag}". '
+                        f"Histograms must have fewer than {wandb.Histogram.MAX_LENGTH} bins",
                         repeat=False,
                     )
             else:
                 # TODO: is there a case where we can render this?
                 wandb.termwarn(
-                    'Not logging key "{}".  Found a histogram with only 2 bins.'.format(
-                        tag
-                    ),
+                    f'Not logging key "{tag}". Found a histogram with only 2 bins.',
                     repeat=False,
                 )
         # TODO(jhr): figure out how to share this between userspace and internal process or dont
@@ -245,13 +270,19 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
     return values
 
 
-def reset_state():
-    """Internal method for resetting state, called by wandb.join"""
+def reset_state() -> None:
+    """Internal method for resetting state, called by wandb.finish()"""
     global STEPS
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
 
-def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
+def _log(
+    tf_summary_str_or_pb: Any,
+    history: Optional["TBHistory"] = None,
+    step: int = 0,
+    namespace: str = "",
+    **kwargs: Any,
+) -> None:
     """Logs a tfsummary to wandb
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
@@ -261,8 +292,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     NOTE: This assumes that events being passed in are in chronological order
     """
     global STEPS
-    global RATE_LIMIT
-    history = history or wandb.run.history
+    global RATE_LIMIT_SECONDS
     # To handle multiple global_steps, we keep track of them here instead
     # of the global log
     last_step = STEPS.get(namespace, {"step": 0})
@@ -300,6 +330,28 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
             RATE_LIMIT_SECONDS is None
             or timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS
         ):
-            history.add({}, **kwargs)
+            if history is None:
+                if wandb.run is not None:
+                    wandb.run._log({})
+            else:
+                history.add({})
+
         STEPS["global"]["last_log"] = timestamp
-    history._row_update(log_dict)
+
+    if history is None:
+        if wandb.run is not None:
+            wandb.run._log(log_dict, commit=False)
+    else:
+        history._row_update(log_dict)
+
+
+def log(tf_summary_str_or_pb: Any, step: int = 0, namespace: str = "") -> None:
+    if wandb.run is None:
+        raise wandb.Error(
+            "You must call `wandb.init()` before calling `wandb.tensorflow.log`"
+        )
+
+    with telemetry.context() as tel:
+        tel.feature.tensorboard_log = True
+
+    _log(tf_summary_str_or_pb, namespace=namespace, step=step)

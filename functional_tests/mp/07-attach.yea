@@ -16,3 +16,9 @@ assert:
     - :wandb:runs[0][summary][s4]: 14
     - :wandb:runs[0][config][c1]: 11
     - :wandb:runs[0][config][c2]: 22
+    - :op:contains:
+      - :wandb:runs[0][telemetry][3]  # feature
+      - 23  # service
+    - :op:contains:
+      - :wandb:runs[0][telemetry][3]  # feature
+      - 33  # attach

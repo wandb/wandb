@@ -1,0 +1,27 @@
+id: 0.keras.test_keras_tensorboard
+tag:
+    shard: tf26
+plugin:
+    - wandb
+depend:
+    requirements:
+        - pillow
+        - tensorflow>=2.6.2,<2.7
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+        - :wandb:runs[0][summary]
+        - examples
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 8  # keras
+    - :wandb:runs[0][exitcode]: 0
+    - :op:contains_regex:
+        - :wandb:runs[0][files]
+        - train/events[.]out[.]tfevents[.].*
+    - :op:contains_regex:
+        - :wandb:runs[0][files]
+        - validation/events[.]out[.]tfevents[.].*
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 34  # tensorboard_patch

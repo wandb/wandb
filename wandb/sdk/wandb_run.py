@@ -1,12 +1,14 @@
+import _thread as thread
 import atexit
+from collections.abc import Mapping
 from datetime import timedelta
 from enum import IntEnum
+import functools
 import glob
 import json
 import logging
 import numbers
 import os
-import platform
 import re
 import sys
 import threading
@@ -28,48 +30,41 @@ from typing import (
 )
 from typing import TYPE_CHECKING
 
-import click
 import requests
-from six import iteritems, string_types
-from six.moves import _thread as thread
-from six.moves.collections_abc import Mapping
-from six.moves.urllib.parse import quote as url_quote
-from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
+from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
-    FilePusherStats,
     MetricRecord,
     PollExitResponse,
     RunRecord,
 )
 from wandb.util import (
+    _is_artifact_string,
+    _is_py_path,
     add_import_hook,
-    is_unicode_safe,
+    parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
 )
 from wandb.viz import (
-    create_custom_chart,
-    custom_chart_panel_config,
+    custom_chart,
     CustomChart,
     Visualize,
 )
 
 from . import wandb_artifacts
 from . import wandb_config
-from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
-    apikey,
     config_util,
     deprecate,
     filenames,
@@ -78,18 +73,20 @@ from .lib import (
     module,
     proto_util,
     redirect,
-    sparkline,
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
+from .lib.printer import get_printer
 from .lib.reporting import Reporter
+from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
+
 if TYPE_CHECKING:
-    from .data_types import WBValue
+    from .data_types.base_types.wb_value import WBValue
     from .wandb_alerts import AlertLevel
 
     from .interface.artifacts import (
@@ -97,10 +94,16 @@ if TYPE_CHECKING:
         ArtifactManifest,
     )
 
+    from .lib.printer import PrinterTerm, PrinterJupyter
+    from wandb.proto.wandb_internal_pb2 import (
+        CheckVersionResponse,
+        GetSummaryResponse,
+        SampledHistoryResponse,
+    )
+
 
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
-RUN_NAME_COLOR = "#cdcd00"
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
 
@@ -114,7 +117,7 @@ class TeardownHook(NamedTuple):
     stage: TeardownStage
 
 
-class RunStatusChecker(object):
+class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
     For now, we just use this to figure out if the user has requested a stop.
@@ -151,7 +154,7 @@ class RunStatusChecker(object):
                     if (
                         hr.http_status_code == 200 or hr.http_status_code == 0
                     ):  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog("{}".format(hr.http_response_text))
+                        wandb.termlog(f"{hr.http_response_text}")
                     else:
                         wandb.termlog(
                             "{} encountered ({}), retrying request".format(
@@ -181,8 +184,81 @@ class RunStatusChecker(object):
         self._retry_thread.join()
 
 
-class Run(object):
-    """A unit of computation logged by wandb. Typically this is an ML experiment.
+class _run_decorator:  # noqa: N801
+
+    _is_attaching: str = ""
+
+    class Dummy:
+        ...
+
+    @classmethod
+    def _attach(cls, func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+
+            # * `_attach_id` is only assigned in service hence for all non-service cases
+            # it will be a passthrough.
+            # * `_attach_pid` is only assigned in _init (using _attach_pid guarantees single attach):
+            #   - for non-fork case the object is shared through pickling so will be None.
+            #   - for fork case the new process share mem space hence the value would be of parent process.
+            if (
+                getattr(self, "_attach_id", None)
+                and getattr(self, "_attach_pid", None) != os.getpid()
+            ):
+
+                if cls._is_attaching:
+                    message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{cls._is_attaching}`"
+                    raise RuntimeError(message)
+                cls._is_attaching = func.__name__
+                try:
+                    wandb._attach(run=self)
+                except Exception as e:
+                    # In case the attach fails we will raise the exception that caused the issue.
+                    # This exception should be caught and fail the execution of the program.
+                    cls._is_attaching = ""
+                    raise e
+                cls._is_attaching = ""
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    @classmethod
+    def _noop(cls, func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
+            # `_attach_id` is only assigned in service hence for all service cases
+            # it will be a passthrough. We don't pickle non-service so again a way to see that we are in non-service case
+            if getattr(self, "_attach_id", None) is None:
+                # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
+                #   - for non-fork case the object is shared through pickling and we don't pickle non-service so will be None
+                #   - for fork case the new process share mem space hence the value would be of parent process.
+                _init_pid = getattr(self, "_init_pid", None)
+                if _init_pid != os.getpid():
+                    message = "`{}` ignored (called from pid={}, `init` called from pid={}). See: {}".format(
+                        func.__name__,
+                        os.getpid(),
+                        _init_pid,
+                        wburls.get("multiprocess"),
+                    )
+                    # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
+                    # - for fork case will use the settings of the parent process
+                    # - only point of inconsistent behavior from forked and non-forked cases
+                    settings = getattr(self, "_settings", None)
+                    if settings and settings["strict"]:
+                        wandb.termerror(message, repeat=False)
+                        raise errors.MultiprocessError(
+                            f"`{func.__name__}` does not support multiprocessing"
+                        )
+                    wandb.termwarn(message, repeat=False)
+                    return cls.Dummy()
+
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+
+class Run:
+    """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
     <!--yeadoc-test:run-object-basic-->
@@ -228,18 +304,15 @@ class Run(object):
     [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
 
     In distributed training, you can either create a single run in the rank 0 process
-    and then log information only from that process or you can create a run in each process,
+    and then log information only from that process, or you can create a run in each process,
     logging from each separately, and group the results together with the `group` argument
     to `wandb.init`. For more details on distributed training with W&B, check out
     [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
 
-    Currently there is a parallel `Run` object in the `wandb.Api`. Eventually these
+    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
 
     Attributes:
-        history: (History) Time series values, created with `wandb.log()`.
-            History can contain scalar values, rich media, or even custom plots
-            across multiple steps.
         summary: (Summary) Single values set for each `wandb.log()` key. By
             default, summary is set to the last value logged. You can manually
             set summary to the best value, like max accuracy, instead of the
@@ -247,6 +320,10 @@ class Run(object):
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
+    _telemetry_obj_active: bool
+    _telemetry_obj_dirty: bool
+    _telemetry_obj_flushed: bytes
+
     _teardown_hooks: List[TeardownHook]
     _tags: Optional[Tuple[Any, ...]]
 
@@ -269,10 +346,6 @@ class Run(object):
     ]
     _wl: Optional[_WandbSetup]
 
-    _upgraded_version_message: Optional[str]
-    _deleted_version_message: Optional[str]
-    _yanked_version_message: Optional[str]
-
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
@@ -284,9 +357,11 @@ class Run(object):
     _exit_code: Optional[int]
 
     _run_status_checker: Optional[RunStatusChecker]
-    _poll_exit_response: Optional[PollExitResponse]
 
-    _sampled_history: Optional[Dict[str, Union[Sequence[int], Sequence[float]]]]
+    _check_version: Optional["CheckVersionResponse"]
+    _sampled_history: Optional["SampledHistoryResponse"]
+    _final_summary: Optional["GetSummaryResponse"]
+    _poll_exit_response: Optional[PollExitResponse]
 
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
@@ -294,11 +369,13 @@ class Run(object):
     _artifact_slots: List[str]
 
     _init_pid: int
+    _attach_pid: int
     _iface_pid: Optional[int]
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
-    _final_summary: Optional[Dict[str, Any]]
+    _is_attached: bool
+    _settings: Settings
 
     def __init__(
         self,
@@ -306,21 +383,39 @@ class Run(object):
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        # pid is set, so we know if this run object was initialized by this process
+        self._init_pid = os.getpid()
+        self._init(settings=settings, config=config, sweep_config=sweep_config)
+
+    def _init(
+        self,
+        settings: Settings,
+        config: Optional[Dict[str, Any]] = None,
+        sweep_config: Optional[Dict[str, Any]] = None,
+    ) -> None:
+
+        self._settings = settings
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
-        self._config._set_settings(settings)
+        self._config._set_artifact_callback(self._config_artifact_callback)
+        self._config._set_settings(self._settings)
         self._backend = None
         self._internal_run_interface = None
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self.history = wandb_history.History(self)
-        self.history._set_callback(self._history_callback)
+        self._step = 0
+        self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
+
+        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
+        #  does the total time get calculated right (not as 2 days and 15 minutes)?
+        self._start_time = time.time()
 
         _datatypes_set_callback(self._datatypes_callback)
 
-        self._settings = settings
+        self._printer = get_printer(self._settings._jupyter)
         self._wl = None
         self._reporter: Optional[Reporter] = None
 
@@ -328,8 +423,7 @@ class Run(object):
         self._project = None
         self._group = None
         self._job_type = None
-        self._run_id = settings.run_id
-        self._start_time = time.time()
+        self._run_id = self._settings.run_id
         self._starting_step = 0
         self._name = None
         self._notes = None
@@ -350,30 +444,10 @@ class Run(object):
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._final_summary = None
-        self._sampled_history = None
-        self._jupyter_progress = None
-        self._quiet = self._settings._quiet
-        if self._settings._jupyter and ipython.in_jupyter():
-            self._jupyter_progress = ipython.jupyter_progress_bar()
+        self._quiet = self._settings.quiet
 
         self._output_writer = None
-        self._upgraded_version_message = None
-        self._deleted_version_message = None
-        self._yanked_version_message = None
-        self._used_artifact_slots: List[str] = []
-
-        # Pull info from settings
-        self._init_from_settings(settings)
-
-        # Initial scope setup for sentry. This might get changed when the
-        # actual run comes back.
-        sentry_set_scope(
-            "user",
-            entity=self._entity,
-            project=self._project,
-            email=self._settings.email,
-        )
+        self._used_artifact_slots: Dict[str, str] = {}
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -382,10 +456,29 @@ class Run(object):
         # Created when the run "starts".
         self._run_status_checker = None
 
+        self._check_version = None
+        self._sampled_history = None
+        self._final_summary = None
         self._poll_exit_response = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
+        self._telemetry_obj_active = False
+        self._telemetry_obj_flushed = b""
+        self._telemetry_obj_dirty = False
+
+        self._atexit_cleanup_called = False
+        self._use_redirect = True
+
+        # Pull info from settings
+        self._init_from_settings(self._settings)
+
+        # Initial scope setup for sentry. This might get changed when the
+        # actual run comes back.
+        sentry_set_scope(
+            settings_dict=self._settings,
+            process_context="user",
+        )
 
         # Populate config
         config = config or dict()
@@ -393,44 +486,49 @@ class Run(object):
         config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping: Dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
-        if settings.save_code and settings.program_relpath:
+        if self._settings.save_code and self._settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
-                os.path.join("code", settings.program_relpath)
+                os.path.join("code", self._settings.program_relpath)
             )
         if sweep_config:
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
             )
 
-        if (
+        if self._settings.launch and (
+            os.environ.get("WANDB_CONFIG") is not None
+            or os.environ.get("WANDB_ARTIFACTS") is not None
+        ):
+            if os.environ.get("WANDB_CONFIG") is not None:
+                try:
+                    new_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+                    self._config.update_locked(
+                        new_config, user="launch", _allow_val_change=True
+                    )
+                except (ValueError, SyntaxError):
+                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+            if os.environ.get("WANDB_ARTIFACTS") is not None:
+                try:
+                    artifacts: Dict[str, Any] = json.loads(
+                        os.environ.get("WANDB_ARTIFACTS", "{}")
+                    )
+                    self._initialize_launch_artifact_maps(artifacts)
+                except (ValueError, SyntaxError):
+                    wandb.termwarn(
+                        "Malformed WANDB_ARTIFACTS, using original artifacts"
+                    )
+
+        elif (
             self._settings.launch
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self.save(self._settings.launch_config_path)
+            self._save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
-                for key, item in (
-                    launch_config.get("overrides").get("artifacts").items()
-                ):
-                    self._launch_artifact_mapping[key] = item
-                    artifact_sequence_tuple_or_slot = key.split(":")
-
-                    if len(artifact_sequence_tuple_or_slot) == 2:
-                        sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[
-                            -1
-                        ]
-                        if self._unique_launch_artifact_sequence_names.get(
-                            sequence_name
-                        ):
-                            self._unique_launch_artifact_sequence_names.pop(
-                                sequence_name
-                            )
-                        else:
-                            self._unique_launch_artifact_sequence_names[
-                                sequence_name
-                            ] = item
+                artifacts = launch_config.get("overrides").get("artifacts")
+                self._initialize_launch_artifact_maps(artifacts)
 
             launch_run_config = launch_config.get("overrides", {}).get("run_config")
             if launch_run_config:
@@ -439,18 +537,14 @@ class Run(object):
                 )
         self._config._update(config, ignore_locked=True)
 
-        self._atexit_cleanup_called = False
-        self._use_redirect = True
-        self._progress_step = 0
-
-        # pid is set so we know if this run object was initialized by this process
-        self._init_pid = os.getpid()
-
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
         self._iface_port = None
         self._attach_id = None
+        self._is_attached = False
+
+        self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
         if self._settings._require_service:
@@ -462,20 +556,49 @@ class Run(object):
     def _set_iface_port(self, iface_port: int) -> None:
         self._iface_port = iface_port
 
+    def _initialize_launch_artifact_maps(self, artifacts: Dict[str, Any]) -> None:
+        for key, item in artifacts.items():
+            self._launch_artifact_mapping[key] = item
+            artifact_sequence_tuple_or_slot = key.split(":")
+
+            if len(artifact_sequence_tuple_or_slot) == 2:
+                sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[-1]
+                if self._unique_launch_artifact_sequence_names.get(sequence_name):
+                    self._unique_launch_artifact_sequence_names.pop(sequence_name)
+                else:
+                    self._unique_launch_artifact_sequence_names[sequence_name] = item
+
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
+        self._telemetry_obj_dirty = True
+        self._telemetry_flush()
+
+    def _telemetry_flush(self) -> None:
+        if not self._telemetry_obj_active:
+            return
+        if not self._telemetry_obj_dirty:
+            return
+        if self._backend and self._backend.interface:
+            serialized = self._telemetry_obj.SerializeToString()
+            if serialized == self._telemetry_obj_flushed:
+                return
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
+            self._telemetry_obj_flushed = serialized
+            self._telemetry_obj_dirty = False
 
     def _freeze(self) -> None:
         self._frozen = True
 
     def __setattr__(self, attr: str, value: object) -> None:
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
-            raise Exception("Attribute {} is not supported on Run object.".format(attr))
-        super(Run, self).__setattr__(attr, value)
+            raise Exception(f"Attribute {attr} is not supported on Run object.")
+        super().__setattr__(attr, value)
 
-    def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
+    @staticmethod
+    def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
-            pytorch_ignite="ignite", transformers_huggingface="transformers",
+            pytorch_ignite="ignite",
+            transformers_huggingface="transformers",
         )
 
         # calculate mod_map, a mapping from module_name to telem_name
@@ -491,6 +614,10 @@ class Run(object):
         mods_set = set(sys.modules)
         for mod in mods_set.intersection(mod_map):
             setattr(imp, mod_map[mod], True)
+
+    def _update_settings(self, settings: Settings) -> None:
+        self._settings = settings
+        self._init_from_settings(settings)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -553,7 +680,7 @@ class Run(object):
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id)
+        return dict(_attach_id=self._attach_id, _init_pid=self._init_pid)
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -564,30 +691,44 @@ class Run(object):
         if not _attach_id:
             return
 
-        self._attach_id = _attach_id
+        if state["_init_pid"] == os.getpid():
+            raise RuntimeError("attach in the same process is not supported currently")
+
+        self.__dict__.update(state)
 
     @property
+    def _torch(self) -> "wandb.wandb_torch.TorchHistory":
+        if self._torch_history is None:
+            self._torch_history = wandb.wandb_torch.TorchHistory()
+        return self._torch_history
+
+    @property  # type: ignore
+    @_run_decorator._attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
         cp = self._settings.copy()
         cp.freeze()
         return cp
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
 
@@ -608,7 +749,8 @@ class Run(object):
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
 
@@ -627,7 +769,8 @@ class Run(object):
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
         if self._tags:
@@ -645,69 +788,81 @@ class Run(object):
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def id(self) -> str:
         """Returns the identifier for this run."""
         if TYPE_CHECKING:
             assert self._run_id is not None
         return self._run_id
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
         if not self._run_obj:
             return None
         return self._run_obj.sweep_id or None
 
-    @property
+    def _get_path(self) -> str:
+        parts = [
+            e for e in [self._entity, self._project, self._run_id] if e is not None
+        ]
+        return "/".join(parts)
+
+    @property  # type: ignore
+    @_run_decorator._attach
     def path(self) -> str:
         """Returns the path to the run.
 
         Run paths include entity, project, and run ID, in the format
         `entity/project/run_id`.
         """
-        parts = []
-        for e in [self._entity, self._project, self._run_id]:
-            if e is not None:
-                parts.append(e)
-        return "/".join(parts)
+        return self._get_path()
 
-    @property
+    def _get_start_time(self) -> float:
+        return (
+            self._start_time
+            if not self._run_obj
+            else self._run_obj.start_time.ToSeconds()
+        )
+
+    @property  # type: ignore
+    @_run_decorator._attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
-        if not self._run_obj:
-            return self._start_time
-        else:
-            return self._run_obj.start_time.ToSeconds()
+        return self._get_start_time()
 
-    @property
+    def _get_starting_step(self) -> int:
+        return self._starting_step if not self._run_obj else self._run_obj.starting_step
+
+    @property  # type: ignore
+    @_run_decorator._attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
-        if not self._run_obj:
-            return self._starting_step
-        else:
-            return self._run_obj.starting_step
+        return self._get_starting_step()
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
-        if self._run_obj:
-            return self._run_obj.resumed
-        return False
+        return self._run_obj.resumed if self._run_obj else False
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def step(self) -> int:
         """Returns the current value of the step.
 
         This counter is incremented by `wandb.log`.
         """
-        return self.history._step
+        return self._step
 
     def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.project if run_obj else ""
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         deprecate.deprecate(
@@ -719,15 +874,22 @@ class Run(object):
         )
         return "dryrun" if self._settings._offline else "run"
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def offline(self) -> bool:
         return self._settings._offline
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def disabled(self) -> bool:
         return self._settings._noop
 
-    @property
+    def _get_group(self) -> str:
+        run_obj = self._run_obj or self._run_obj_offline
+        return run_obj.run_group if run_obj else ""
+
+    @property  # type: ignore
+    @_run_decorator._attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
 
@@ -738,40 +900,42 @@ class Run(object):
         If you are doing crossvalidation you should give all the crossvalidation
             folds the same group.
         """
-        run_obj = self._run_obj or self._run_obj_offline
-        return run_obj.run_group if run_obj else ""
+        return self._get_group()
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
         return self.project_name()
 
+    @_run_decorator._attach
     def log_code(
         self,
         root: str = ".",
         name: str = None,
-        include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
+        include_fn: Callable[[str], bool] = _is_py_path,
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """Saves the current state of your code to a W&B Artifact.
 
-        By default it walks the current directory and logs all files that end with `.py`.
+        By default, it walks the current directory and logs all files that end with `.py`.
 
         Arguments:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
-            name: (str, optional) The name of our code artifact. By default we'll name
+            name: (str, optional) The name of our code artifact. By default, we'll name
                 the artifact `source-$RUN_ID`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
                 defaults to: `lambda path: path.endswith(".py")`
             exclude_fn: A callable that accepts a file path and returns `True` when it should be
-                excluded and `False` otherwise. Thisdefaults to: `lambda path: False`
+                excluded and `False` otherwise. This defaults to: `lambda path: False`
 
         Examples:
             Basic usage
@@ -787,7 +951,7 @@ class Run(object):
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name or "{}-{}".format("source", self.id)
+        name = name or "{}-{}".format("source", self._run_id)
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -805,41 +969,43 @@ class Run(object):
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        return self.log_artifact(art)
+        return self._log_artifact(art)
 
     def get_url(self) -> Optional[str]:
         """Returns the url for the W&B run, if there is one.
 
         Offline runs will not have a url.
         """
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_run_url()
+        return self._settings.run_url
 
     def get_project_url(self) -> Optional[str]:
         """Returns the url for the W&B project associated with the run, if there is one.
 
         Offline runs will not have a project url.
         """
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_project_url()
+        return self._settings.project_url
 
     def get_sweep_url(self) -> Optional[str]:
         """Returns the url for the sweep associated with the run, if there is one."""
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_sweep_url()
+        return self._settings.sweep_url
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def url(self) -> Optional[str]:
         """Returns the W&B url associated with the run."""
         return self.get_url()
 
-    @property
+    @property  # type: ignore
+    @_run_decorator._attach
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
 
@@ -877,15 +1043,14 @@ class Run(object):
                 )
         for v in kwargs:
             wandb.termwarn(
-                "Label added for unsupported key '{}' (ignored).".format(v),
+                f"Label added for unsupported key '{v}' (ignored).",
                 repeat=False,
             )
 
         self._label_internal(code=code, repo=repo, code_version=code_version)
 
         # update telemetry in the backend immediately for _label() callers
-        if self._backend and self._backend.interface:
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
+        self._telemetry_flush()
 
     def _label_probe_lines(self, lines: List[str]) -> None:
         if not lines:
@@ -928,11 +1093,12 @@ class Run(object):
             if isinstance(lines, str):
                 lines = lines.split()
         except Exception as e:
-            logger.info("Unable to probe notebook: {}".format(e))
+            logger.info(f"Unable to probe notebook: {e}")
             return
         if lines:
             self._label_probe_lines(lines)
 
+    @_run_decorator._attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Displays this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
@@ -942,9 +1108,10 @@ class Run(object):
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
+    @_run_decorator._attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generates HTML containing an iframe displaying the current run."""
-        url = self._get_run_url() + "?jupyter=true"
+        url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
         if hidden:
@@ -963,10 +1130,31 @@ class Run(object):
         val: Any = None,
         data: Dict[str, object] = None,
     ) -> None:
-        logger.info("config_cb %s %s %s", key, val, data)
-        if not self._backend or not self._backend.interface:
-            return
-        self._backend.interface.publish_config(key=key, val=val, data=data)
+        logger.info(f"config_cb {key} {val} {data}")
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_config(key=key, val=val, data=data)
+
+    def _config_artifact_callback(
+        self, key: str, val: Union[str, Artifact]
+    ) -> Union[Artifact, public.Artifact]:
+        if _is_artifact_string(val):
+            # this will never fail, but is required to make mypy happy
+            assert isinstance(val, str)
+            artifact_string, base_url = parse_artifact_string(val)
+            overrides = {}
+            if base_url is not None:
+                overrides = {"base_url": base_url}
+                public_api = public.Api(overrides)
+            else:
+                public_api = self._public_api()
+            artifact = public_api.artifact(name=artifact_string)
+            # in the future we'll need to support using artifacts from
+            # different instances of wandb. simplest way to do that is
+            # likely to convert the retrieved public.Artifact to a wandb.Artifact
+
+            return self.use_artifact(artifact, use_as=key)
+        else:
+            return self.use_artifact(val, use_as=key)
 
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
@@ -993,39 +1181,53 @@ class Run(object):
         files = dict(files=[(glob.escape(fname), "now")])
         self._backend.interface.publish_files(files)
 
-    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
-    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
-
+    def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
-        custom_charts = {}
+        chart_keys = set()
         for k in row:
             if isinstance(row[k], Visualize):
-                config = {
-                    "id": row[k].viz_id,
-                    "historyFieldSettings": {"key": k, "x-axis": "_step"},
-                }
-                row[k] = row[k].value
-                self._config_callback(val=config, key=("_wandb", "viz", k))
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(k)
+                row[k] = row[k]._data
+                self._config_callback(val=value, key=key)
             elif isinstance(row[k], CustomChart):
-                custom_charts[k] = row[k]
-                custom_chart = row[k]
+                chart_keys.add(k)
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(
+                    "Vega2", row[k].user_query(f"{k}_table")
+                )
+                row[k] = row[k]._data
+                self._config_callback(val=value, key=key)
 
-        for k, custom_chart in custom_charts.items():
+        for k in chart_keys:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
             #     a non-custom chart to this key?
-            row.pop(k)
-            # add the table under a different key
-            table_key = k + "_table"
-            row[table_key] = custom_chart.table
-            # add the panel
-            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
-            self._add_panel(k, "Vega2", panel_config)
+            row[f"{k}_table"] = row.pop(k)
+        return row
+
+    def _partial_history_callback(
+        self,
+        row: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+    ) -> None:
+        if row:
+            row = self._visualization_hack(row)
+            row["_timestamp"] = int(row.get("_timestamp", time.time()))
+            row["_runtime"] = int(
+                row.get("_runtime", time.time() - self._get_start_time())
+            )
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-            self._backend.interface.publish_history(
-                row, step, publish_step=not_using_tensorboard
+
+            self._backend.interface.publish_partial_history(
+                row,
+                user_step=self._step,
+                step=step,
+                flush=commit,
+                publish_step=not_using_tensorboard,
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1034,10 +1236,9 @@ class Run(object):
             self._backend.interface.publish_output(name, data)
 
     def _tensorboard_callback(
-        self, logdir: str, save: bool = None, root_logdir: str = None
+        self, logdir: str, save: bool = True, root_logdir: str = ""
     ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
-        save = True if save is None else save
         if self._backend and self._backend.interface:
             self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
@@ -1066,6 +1267,7 @@ class Run(object):
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
+
         # Grab the config from resuming
         if run_obj.config:
             c_dict = config_util.dict_no_value_from_proto_list(run_obj.config.update)
@@ -1073,21 +1275,18 @@ class Run(object):
             if "_wandb" in c_dict:
                 del c_dict["_wandb"]
             # We update the config object here without triggering the callback
-            self.config._update(c_dict, allow_val_change=True, ignore_locked=True)
+            self._config._update(c_dict, allow_val_change=True, ignore_locked=True)
         # Update the summary, this will trigger an un-needed graphql request :(
         if run_obj.summary:
             summary_dict = {}
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        self.history._update_step()
+        self._step = self._get_starting_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            "user",
-            entity=run_obj.entity,
-            project=run_obj.project,
-            email=self._settings.email,
-            url=self._get_run_url(),
+            process_context="user",
+            settings_dict=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1110,24 +1309,60 @@ class Run(object):
         """
         value_extra = {"type": data_type, "key": key, "value": value}
 
-        if data_type not in self.config["_wandb"]:
-            self.config["_wandb"][data_type] = {}
+        if data_type not in self._config["_wandb"]:
+            self._config["_wandb"][data_type] = {}
 
-        if data_type in self.config["_wandb"][data_type]:
-            old_value = self.config["_wandb"][data_type][key]
+        if data_type in self._config["_wandb"][data_type]:
+            old_value = self._config["_wandb"][data_type][key]
         else:
             old_value = None
 
         if value_extra != old_value:
-            self.config["_wandb"][data_type][key] = value_extra
-            self.config.persist()
+            self._config["_wandb"][data_type][key] = value_extra
+            self._config.persist()
 
+    def _log(
+        self,
+        data: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+    ) -> None:
+        if not isinstance(data, Mapping):
+            raise ValueError("wandb.log must be passed a dictionary")
+
+        if any(not isinstance(key, str) for key in data.keys()):
+            raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        self._partial_history_callback(data, step, commit)
+
+        if step is not None:
+            if os.getpid() != self._init_pid or self._is_attached:
+                wandb.termwarn(
+                    "Note that setting step in multiprocessing can result in data loss. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
+            # if step is passed in when tensorboard_sync is used we honor the step passed
+            # to make decisions about how to close out the history record, but will strip
+            # this history later on in publish_history()
+            if len(wandb.patched["tensorboard"]) > 0:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
+            if step > self._step:
+                self._step = step
+
+        if (step is None and commit is None) or commit:
+            self._step += 1
+
+    @_run_decorator._noop
+    @_run_decorator._attach
     def log(
         self,
         data: Dict[str, Any],
-        step: int = None,
-        commit: bool = None,
-        sync: bool = None,
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> None:
         """Logs a dictonary of data to the current run's history.
 
@@ -1168,7 +1403,7 @@ class Run(object):
         wandb keeps track of a global step, which by default increments with each
         call to `wandb.log`, so logging related metrics together is encouraged.
         If it's inconvenient to log related metrics together
-        calling `wandb.log({"train-loss": 0.5, commit=False})` and then
+        calling `wandb.log({"train-loss": 0.5}, commit=False)` and then
         `wandb.log({"accuracy": 0.9})` is equivalent to calling
         `wandb.log({"train-loss": 0.5, "accuracy": 0.9})`.
 
@@ -1300,56 +1535,16 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        if not self._settings._require_service:
-            current_pid = os.getpid()
-            if current_pid != self._init_pid:
-                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                    current_pid, self._init_pid
-                )
-                if self._settings._strict:
-                    wandb.termerror(message, repeat=False)
-                    raise errors.LogMultiprocessError(
-                        "log() does not support multiprocessing"
-                    )
-                wandb.termwarn(message, repeat=False)
-                return
+        if sync is not None:
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__log_sync,
+                warning_message=(
+                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
+                ),
+            )
+        self._log(data=data, step=step, commit=commit)
 
-        if not isinstance(data, Mapping):
-            raise ValueError("wandb.log must be passed a dictionary")
-
-        if any(not isinstance(key, string_types) for key in data.keys()):
-            raise ValueError("Key values passed to `wandb.log` must be strings.")
-
-        if step is not None:
-            # if step is passed in when tensorboard_sync is used we honor the step passed
-            # to make decisions about how to close out the history record, but will strip
-            # this history later on in publish_history()
-            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
-            if using_tensorboard:
-                wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
-                    repeat=False,
-                )
-            if self.history._step > step:
-                wandb.termwarn(
-                    (
-                        "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(
-                            step, self.history._step, data
-                        )
-                    )
-                )
-                return
-            elif step > self.history._step:
-                self.history._flush()
-                self.history._step = step
-        elif commit is None:
-            commit = True
-        if commit:
-            self.history._row_add(data)
-        else:
-            self.history._row_update(data)
-
+    @_run_decorator._attach
     def save(
         self,
         glob_str: Optional[str] = None,
@@ -1377,24 +1572,32 @@ class Run(object):
                 ),
             )
             return True
+
+        return self._save(glob_str, base_path, policy)
+
+    def _save(
+        self,
+        glob_str: Optional[str] = None,
+        base_path: Optional[str] = None,
+        policy: str = "live",
+    ) -> Union[bool, List[str]]:
+
         if policy not in ("live", "end", "now"):
             raise ValueError(
                 'Only "live" "end" and "now" policies are currently supported.'
             )
         if isinstance(glob_str, bytes):
             glob_str = glob_str.decode("utf-8")
-        if not isinstance(glob_str, string_types):
+        if not isinstance(glob_str, str):
             raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
 
         if base_path is None:
             if os.path.isabs(glob_str):
                 base_path = os.path.dirname(glob_str)
                 wandb.termwarn(
-                    (
-                        "Saving files without folders. If you want to preserve "
-                        "sub directories pass base_path to wandb.save, i.e. "
-                        'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
-                    )
+                    "Saving files without folders. If you want to preserve "
+                    "sub directories pass base_path to wandb.save, i.e. "
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
                 )
             else:
                 base_path = "."
@@ -1410,14 +1613,14 @@ class Run(object):
                 "%s is a cloud storage url, can't save file to wandb." % glob_str
             )
             return []
-        files = glob.glob(os.path.join(self.dir, wandb_glob_str))
+        files = glob.glob(os.path.join(self._settings.files_dir, wandb_glob_str))
         warn = False
         if len(files) == 0 and "*" in wandb_glob_str:
             warn = True
         for path in glob.glob(glob_str):
             file_name = os.path.relpath(path, base_path)
             abs_path = os.path.abspath(path)
-            wandb_path = os.path.join(self.dir, file_name)
+            wandb_path = os.path.join(self._settings.files_dir, file_name)
             wandb.util.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
             if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
@@ -1442,6 +1645,7 @@ class Run(object):
             self._backend.interface.publish_files(files_dict)
         return files
 
+    @_run_decorator._attach
     def restore(
         self,
         name: str,
@@ -1449,8 +1653,15 @@ class Run(object):
         replace: bool = False,
         root: Optional[str] = None,
     ) -> Union[None, TextIO]:
-        return restore(name, run_path or self.path, replace, root or self.dir)
+        return restore(
+            name,
+            run_path or self._get_path(),
+            replace,
+            root or self._settings.files_dir,
+        )
 
+    @_run_decorator._noop
+    @_run_decorator._attach
     def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
@@ -1461,11 +1672,14 @@ class Run(object):
             exit_code: Set to something other than 0 to mark a run as failed
             quiet: Set to true to minimize log output
         """
+        return self._finish(exit_code, quiet)
+
+    def _finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         if quiet is not None:
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        logger.info("finishing run %s", self.path)
+        logger.info(f"finishing run {self._get_path()}")
         # detach jupyter hooks / others that needs to happen before backend shutdown
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
@@ -1484,8 +1698,10 @@ class Run(object):
         # inform manager this run is finished
         manager = self._wl and self._wl._get_manager()
         if manager:
-            manager._inform_finish(run_id=self.id)
+            manager._inform_finish(run_id=self._run_id)
 
+    @_run_decorator._noop
+    @_run_decorator._attach
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
@@ -1494,10 +1710,15 @@ class Run(object):
                 "wandb.run.join() is deprecated, please use wandb.run.finish()."
             ),
         )
-        self.finish(exit_code=exit_code)
+        self._finish(exit_code=exit_code)
 
-    # TODO(jhr): annotate this
-    def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
+    @staticmethod
+    def plot_table(
+        vega_spec_name: str,
+        data_table: "wandb.Table",
+        fields: Dict[str, Any],
+        string_fields: Optional[Dict[str, Any]] = None,
+    ) -> CustomChart:
         """Creates a custom plot on a table.
 
         Arguments:
@@ -1510,19 +1731,7 @@ class Run(object):
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        visualization = create_custom_chart(
-            vega_spec_name, data_table, fields, string_fields or {}
-        )
-        return visualization
-
-    def _set_upgraded_version_message(self, msg: str) -> None:
-        self._upgraded_version_message = msg
-
-    def _set_deleted_version_message(self, msg: str) -> None:
-        self._deleted_version_message = msg
-
-    def _set_yanked_version_message(self, msg: str) -> None:
-        self._yanked_version_message = msg
+        return custom_chart(vega_spec_name, data_table, fields, string_fields or {})
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -1533,162 +1742,20 @@ class Run(object):
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
-    def _get_url_query_string(self) -> str:
-        s = self._settings
-
-        # TODO(jhr): migrate to new settings, but for now this is safer
-        api = internal.Api()
-        if api.settings().get("anonymous") != "true":
-            return ""
-
-        api_key = apikey.api_key(settings=s)
-        return "?" + urlencode({"apiKey": api_key})
-
-    def _get_project_url(self) -> str:
-        s = self._settings
-        r = self._run_obj
-        if not r:
-            return ""
-        app_url = wandb.util.app_url(s.base_url)
-        qs = self._get_url_query_string()
-        url = "{}/{}/{}{}".format(
-            app_url, url_quote(r.entity), url_quote(r.project), qs
+    def _set_globals(self) -> None:
+        module.set_global(
+            run=self,
+            config=self.config,
+            log=self.log,
+            summary=self.summary,
+            save=self.save,
+            use_artifact=self.use_artifact,
+            log_artifact=self.log_artifact,
+            define_metric=self.define_metric,
+            plot_table=self.plot_table,
+            alert=self.alert,
+            mark_preempting=self.mark_preempting,
         )
-        return url
-
-    def _get_run_url(self) -> str:
-        s = self._settings
-        r = self._run_obj
-        if not r:
-            return ""
-        app_url = wandb.util.app_url(s.base_url)
-        qs = self._get_url_query_string()
-        url = "{}/{}/{}/runs/{}{}".format(
-            app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id), qs
-        )
-        return url
-
-    def _get_sweep_url(self) -> str:
-        """Generate a url for a sweep.
-
-        Returns:
-            (str): url if the run is part of a sweep
-            (None): if the run is not part of the sweep
-        """
-        r = self._run_obj
-        if not r:
-            return ""
-        sweep_id = r.sweep_id
-        if not sweep_id:
-            return ""
-
-        app_url = wandb.util.app_url(self._settings.base_url)
-        qs = self._get_url_query_string()
-
-        return "{base}/{entity}/{project}/sweeps/{sweepid}{qs}".format(
-            base=app_url,
-            entity=url_quote(r.entity),
-            project=url_quote(r.project),
-            sweepid=url_quote(sweep_id),
-            qs=qs,
-        )
-
-    def _get_run_name(self) -> str:
-        r = self._run_obj
-        if not r:
-            return ""
-        return r.display_name
-
-    def _display_run(self) -> None:
-        project_url = self._get_project_url()
-        run_url = self._get_run_url()
-        sweep_url = self._get_sweep_url()
-        version_str = f"Tracking run with wandb version {wandb.__version__}"
-        if self.resumed:
-            run_state_str = "Resuming run"
-        else:
-            run_state_str = "Syncing run"
-        run_name = self._get_run_name()
-
-        sync_dir = self._settings.sync_dir
-        if self._settings._jupyter:
-            sync_dir = "<code>{}</code>".format(sync_dir)
-        dir_str = "Run data is saved locally in {}".format(sync_dir)
-        if self._settings._jupyter and ipython.in_jupyter():
-            if not wandb.jupyter.maybe_display():
-                # TODO: make settings the source of truth
-                self._quiet = wandb.jupyter.quiet()
-                sweep_line = (
-                    'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
-                        sweep_url, sweep_url
-                    )
-                    if sweep_url and not self._quiet
-                    else ""
-                )
-                docs_html = (
-                    ""
-                    if self._quiet
-                    else '(<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">docs</a>)'
-                )  # noqa: E501
-                project_html = (
-                    ""
-                    if self._quiet
-                    else f'<a href="{project_url}" target="_blank">Weights & Biases</a>'
-                )
-                ipython.display_html(
-                    """
-                    {} <strong><a href="{}" target="_blank">{}</a></strong> to {} {}.<br/>\n{}
-                """.format(  # noqa: E501
-                        run_state_str,
-                        run_url,
-                        run_name,
-                        project_html,
-                        docs_html,
-                        sweep_line,
-                    )
-                )
-        else:
-            if not self._quiet:
-                wandb.termlog(version_str)
-            wandb.termlog(
-                "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
-            )
-            emojis = dict(star="", broom="", rocket="")
-            if platform.system() != "Windows" and is_unicode_safe(sys.stdout):
-                emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
-
-            if not self._quiet:
-                wandb.termlog(
-                    "{} View project at {}".format(
-                        emojis.get("star", ""),
-                        click.style(project_url, underline=True, fg="blue"),
-                    )
-                )
-                if sweep_url:
-                    wandb.termlog(
-                        "{} View sweep at {}".format(
-                            emojis.get("broom", ""),
-                            click.style(sweep_url, underline=True, fg="blue"),
-                        )
-                    )
-            wandb.termlog(
-                "{} View run at {}".format(
-                    emojis.get("rocket", ""),
-                    click.style(run_url, underline=True, fg="blue"),
-                )
-            )
-            if not self._quiet:
-                wandb.termlog(dir_str)
-                if not self._settings._offline:
-                    wandb.termlog("Run `wandb offline` to turn off syncing.")
-
-            api = internal.Api()
-            if api.settings().get("anonymous") == "true":
-                wandb.termwarn(
-                    "Do NOT share these links with anyone. They can be used to claim your runs."
-                )
-
-            print("")
 
     def _redirect(
         self,
@@ -1794,34 +1861,35 @@ class Run(object):
         self._atexit_cleanup_called = True
 
         exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
-        logger.info("got exitcode: %d", exit_code)
+        logger.info(f"got exitcode: {exit_code}")
         if exit_code == 0:
             # Cleanup our resume file on a clean exit
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
 
         self._exit_code = exit_code
+        report_failure = False
         try:
             self._on_finish()
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if ipython._get_python_type() == "python":
+            if not self._settings._jupyter:
                 os._exit(-1)
         except Exception as e:
+            if not self._settings._jupyter:
+                report_failure = True
             self._console_stop()
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
             traceback.print_exception(*sys.exc_info())
-            if ipython._get_python_type() == "python":
-                os._exit(-1)
         else:
-            # if silent, skip this as it is used to output stuff
-            if self._settings._silent:
-                return
             self._on_final()
+        finally:
+            if report_failure:
+                os._exit(-1)
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
@@ -1837,7 +1905,7 @@ class Run(object):
             # setup fake callback
             self._redirect_cb = self._console_callback
 
-        output_log_path = os.path.join(self.dir, filenames.OUTPUT_FNAME)
+        output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
         self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
@@ -1848,94 +1916,50 @@ class Run(object):
             self._output_writer = None
 
     def _on_init(self) -> None:
-        self._show_version_info()
+
+        if self._backend and self._backend.interface:
+            logger.info("communicating current version")
+            self._check_version = self._backend.interface.communicate_check_version(
+                current_version=wandb.__version__
+            )
+        logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
-        # TODO: make offline mode in jupyter use HTML
-        if self._settings._offline and not self._quiet:
-            message = (
-                "W&B syncing is set to `offline` in this directory.  ",
-                "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.",
-            )
-            if self._settings._jupyter and ipython.in_jupyter():
-                ipython.display_html("<br/>\n".join(message))
-            else:
-                for m in message:
-                    wandb.termlog(m)
+        # would like to move _set_global to _on_ready to unify _on_start and _on_attach (we want to do the set globals after attach)
+        # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
+        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses `wandb.run` and hence breaks
+        self._set_globals()
+        self._header(
+            self._check_version, settings=self._settings, printer=self._printer
+        )
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
-        if self._run_obj and not self._settings._silent:
-            self._display_run()
 
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
+
         self._console_start()
+        self._on_ready()
 
-    def _pusher_print_status(
-        self,
-        progress: FilePusherStats,
-        prefix: bool = True,
-        done: Optional[bool] = False,
-    ) -> None:
-        if self._settings._offline:
-            return
+    def _on_attach(self) -> None:
+        """Event triggered when run is attached to another run."""
+        with telemetry.context(run=self) as tel:
+            tel.feature.attach = True
 
-        line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
-            progress.uploaded_bytes / 1048576.0,
-            progress.total_bytes / 1048576.0,
-            progress.deduped_bytes / 1048576.0,
-        )
+        self._set_globals()
+        self._is_attached = True
+        self._on_ready()
 
-        if self._jupyter_progress:
-            percent_done: float
-            if progress.total_bytes == 0:
-                percent_done = 1
-            else:
-                percent_done = progress.uploaded_bytes / progress.total_bytes
-            self._jupyter_progress.update(percent_done, line)
-            if done:
-                self._jupyter_progress.close()
-        elif not self._settings._jupyter:
-            spinner_states = ["-", "\\", "|", "/"]
+    def _on_ready(self) -> None:
+        """Event triggered when run is ready for the user."""
+        # start reporting any telemetry changes
+        self._telemetry_obj_active = True
+        self._telemetry_flush()
 
-            line = spinner_states[self._progress_step % 4] + line
-            self._progress_step += 1
-            wandb.termlog(line, newline=False, prefix=prefix)
-
-            if done:
-                dedupe_fraction = (
-                    progress.deduped_bytes / float(progress.total_bytes)
-                    if progress.total_bytes > 0
-                    else 0
-                )
-                if dedupe_fraction > 0.01:
-                    wandb.termlog(
-                        "W&B sync reduced upload amount by %.1f%%             "
-                        % (dedupe_fraction * 100),
-                        prefix=prefix,
-                    )
-                # clear progress line.
-                wandb.termlog(" " * 79, prefix=prefix)
-
-    def _on_finish_progress(self, progress: FilePusherStats, done: bool = None) -> None:
-        self._pusher_print_status(progress, done=done)
-
-    def _wait_for_finish(self) -> PollExitResponse:
-        while True:
-            if self._backend and self._backend.interface:
-                poll_exit_resp = self._backend.interface.communicate_poll_exit()
-            logger.info("got exit ret: %s", poll_exit_resp)
-
-            if poll_exit_resp:
-                done = poll_exit_resp.done
-                pusher_stats = poll_exit_resp.pusher_stats
-                if pusher_stats:
-                    self._on_finish_progress(pusher_stats, done)
-                if done:
-                    return poll_exit_resp
-            time.sleep(0.1)
+        # object is about to be returned to the user, don't let them modify it
+        self._freeze()
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -1947,60 +1971,38 @@ class Run(object):
         if self._run_status_checker:
             self._run_status_checker.stop()
 
-        # make sure all uncommitted history is flushed
-        self.history._flush()
-
         self._console_stop()  # TODO: there's a race here with jupyter console logging
-        if not self._settings._silent:
-            as_html = self._settings._jupyter and ipython.in_jupyter()
-            if self._backend:
-                pid = self._backend._internal_pid
-                status_str = "Waiting for W&B process to finish, PID {}... ".format(pid)
-            if not self._exit_code:
-                status = "(success)."
-                if as_html:
-                    status = f'<strong style="color:green">{status}</strong>'
-                status_str += status
-            else:
-                status = "(failed {}).".format(self._exit_code)
-                if as_html:
-                    status = f'<strong style="color:red">{status}</strong>'
-                status_str += status
-                if not self._settings._offline:
-                    status_str += " Press ctrl-c to abort syncing."
-            if as_html:
-                sep = "<br/>" if not self._quiet else ""
-                ipython.display_html(sep + status_str)
-            else:
-                print("")
-                wandb.termlog(status_str)
 
-        # telemetry could have changed, publish final data
         if self._backend and self._backend.interface:
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
+            # telemetry could have changed, publish final data
+            self._telemetry_flush()
 
-        # TODO: we need to handle catastrophic failure better
-        # some tests were timing out on sending exit for reasons not clear to me
-        if self._backend and self._backend.interface:
+            # TODO: we need to handle catastrophic failure better
+            # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
 
-        # Wait for data to be synced
-        self._poll_exit_response = self._wait_for_finish()
+        self._footer_exit_status_info(
+            self._exit_code, settings=self._settings, printer=self._printer
+        )
+
+        while not (self._poll_exit_response and self._poll_exit_response.done):
+            if self._backend and self._backend.interface:
+                self._poll_exit_response = (
+                    self._backend.interface.communicate_poll_exit()
+                )
+                logger.info(f"got exit ret: {self._poll_exit_response}")
+                self._footer_file_pusher_status_info(
+                    self._poll_exit_response,
+                    printer=self._printer,
+                )
+            time.sleep(0.1)
 
         if self._backend and self._backend.interface:
-            ret = self._backend.interface.communicate_get_summary()
-            if ret:
-                self._final_summary = proto_util.dict_from_proto_list(ret.item)
+            self._sampled_history = (
+                self._backend.interface.communicate_sampled_history()
+            )
+            self._final_summary = self._backend.interface.communicate_get_summary()
 
-        if self._backend and self._backend.interface:
-            sampled = self._backend.interface.communicate_sampled_history()
-            if sampled:
-                d: Dict[str, Union[Sequence[int], Sequence[float]]] = {}
-                for item in sampled.item:
-                    d[item.key] = (
-                        item.values_float if item.values_float else item.values_int
-                    )
-                self._sampled_history = d
         if self._backend:
             self._backend.cleanup()
 
@@ -2008,209 +2010,27 @@ class Run(object):
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
-        as_html = self._settings._jupyter and ipython.in_jupyter()
-        if as_html:
-            lb = "<br/>\n"
-        else:
-            lb = "\n"
-        # check for warnings and errors, show log file locations
-        final_logs = ""
-        if self._reporter and not self._quiet:
-            warning_lines = self._reporter.warning_lines
-            if warning_lines:
-                final_logs += f"Warnings:{lb}"
-                for line in warning_lines:
-                    final_logs += f"{line}{lb}"
-                if len(warning_lines) < self._reporter.warning_count:
-                    final_logs += f"More warnings...{lb}"
-
-            error_lines = self._reporter.error_lines
-            if error_lines:
-                final_logs += f"Errors:{lb}"
-                for line in error_lines:
-                    final_logs += f"{line}{lb}"
-                if len(error_lines) < self._reporter.error_count:
-                    final_logs += f"More errors...{lb}"
-
-        if not self._quiet:
-            final_logs += self._append_details(final_logs, as_html)
-
-        if self._run_obj:
-            run_url = self._get_run_url()
-            run_name = self._get_run_name()
-            if as_html:
-                final_logs += 'Synced <strong style="color:{}">{}</strong>: <a href="{}" target="_blank">{}</a>{}'.format(
-                    RUN_NAME_COLOR, run_name, run_url, run_url, lb
-                )
-            else:
-                final_logs += "Synced {}: {}{}".format(
-                    click.style(run_name, fg="yellow"),
-                    click.style(run_url, fg="blue"),
-                    lb,
-                )
-
-        if self._settings._offline and not self._quiet:
-            final_logs += f"You can sync this run to the cloud by running:{lb}"
-            final_logs += click.style(
-                f"wandb sync {self._settings.sync_dir}{lb}", fg="yellow"
-            )
-
-        if not self._quiet and (self._settings.log_user or self._settings.log_internal):
-            log_dir = self._settings.log_user or self._settings.log_internal or "."
-            log_dir = log_dir.replace(os.getcwd(), ".")
-            if as_html:
-                log_dir = "<code>{}</code>".format(os.path.dirname(log_dir))
-            final_logs += "Find logs at: {}{}".format(log_dir, lb)
-
-        if as_html:
-            ipython.display_html(final_logs)
-        else:
-            wandb.termlog(final_logs)
-
-        if not self._quiet:
-            self._show_version_info(footer=True)
-            self._show_local_warning()
-
-    def _show_version_info(self, footer: bool = None) -> None:
-        package_problem = False
-        if self._deleted_version_message:
-            wandb.termerror(self._deleted_version_message)
-            package_problem = True
-        elif self._yanked_version_message:
-            wandb.termwarn(self._yanked_version_message)
-            package_problem = True
-        # only display upgrade message if packages are bad or in header
-        if not footer or package_problem:
-            if self._upgraded_version_message:
-                wandb.termlog(self._upgraded_version_message)
-
-    def _append_details(self, logs: str, as_html: bool = False) -> str:
-        if as_html:
-            logs += ipython.TABLE_STYLES
-            logs += '<div class="wandb-row"><div class="wandb-col">\n'
-        logs = self._append_history(logs, as_html)
-        if as_html:
-            logs += '</div><div class="wandb-col">\n'
-        logs = self._append_summary(logs, as_html)
-
-        if as_html:
-            logs += "</div></div>\n"
-        return self._append_files(logs, as_html)
-
-    def _append_summary(self, logs: str, as_html: bool = False) -> str:
-        if self._final_summary:
-            logger.info("rendering summary")
-            max_len = 0
-            summary_rows = []
-            for k, v in sorted(iteritems(self._final_summary)):
-                # arrays etc. might be too large. for now we just don't print them
-                if k.startswith("_"):
-                    continue
-                if isinstance(v, string_types):
-                    if len(v) >= 20:
-                        v = v[:20] + "..."
-                    summary_rows.append((k, v))
-                elif isinstance(v, numbers.Number):
-                    if isinstance(v, float):
-                        v = round(v, 5)
-                    summary_rows.append((k, v))
-                else:
-                    continue
-                max_len = max(max_len, len(k))
-            if not summary_rows:
-                return logs
-            if as_html:
-                summary_table = '<table class="wandb">'
-                for row in summary_rows:
-                    summary_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
-                summary_table += "</table>\n"
-                logs += "<h3>Run summary:</h3><br/>" + summary_table
-            else:
-                format_str = "  {:>%s} {}" % max_len
-                summary_lines = "\n".join(
-                    [format_str.format(k, v) for k, v in summary_rows]
-                )
-                logs += f"Run summary:\n{summary_lines}\n\n"
-        return logs
-
-    def _append_history(self, logs: str, as_html: bool = False) -> str:
-        if not self._sampled_history:
-            return logs
-
-        # Only print sparklines if the terminal is utf-8
-        if not is_unicode_safe(sys.stdout):
-            return logs
-
-        logger.info("rendering history")
-        max_len = 0
-        history_rows = []
-        for key in sorted(self._sampled_history):
-            if key.startswith("_"):
-                continue
-            vals = wandb.util.downsample(self._sampled_history[key], 40)
-            if any((not isinstance(v, numbers.Number) for v in vals)):
-                continue
-            line = sparkline.sparkify(vals)
-            history_rows.append((key, line))
-            max_len = max(max_len, len(key))
-        if not history_rows:
-            return logs
-        if as_html:
-            history_table = '<table class="wandb">'
-            for row in history_rows:
-                history_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
-            history_table += "</table>"
-            logs += "<h3>Run history:</h3><br/>" + history_table + "<br/>"
-        else:
-            logs += "Run history:\n"
-            history_lines = ""
-            format_str = "  {:>%s} {}\n" % max_len
-            for row in history_rows:
-                history_lines += format_str.format(*row)
-            logs += history_lines.rstrip() + "\n\n"
-        return logs
-
-    def _show_local_warning(self) -> None:
-        if not self._poll_exit_response or not self._poll_exit_response.local_info:
-            return
-
-        if self._settings._offline:
-            return
-
-        if self._settings.is_local:
-            local_info = self._poll_exit_response.local_info
-            latest_version, out_of_date = local_info.version, local_info.out_of_date
-            if out_of_date:
-                wandb.termwarn(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: http://wandb.me/local-upgrade"
-                )
-
-    def _append_files(self, logs: str, as_html: bool = False) -> str:
-        if not self._poll_exit_response or not self._poll_exit_response.file_counts:
-            return logs
-        if self._settings._offline:
-            return logs
-
-        logger.info("logging synced files")
-
-        if self._settings._silent:
-            return logs
-
-        file_str = "Synced {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s){}".format(  # noqa:E501
-            self._poll_exit_response.file_counts.wandb_count,
-            self._poll_exit_response.file_counts.media_count,
-            self._poll_exit_response.file_counts.artifact_count,
-            self._poll_exit_response.file_counts.other_count,
-            "\n<br/>" if as_html else "\n",
+        self._footer(
+            self._sampled_history,
+            self._final_summary,
+            self._poll_exit_response,
+            self._check_version,
+            self._reporter,
+            self._quiet,
+            settings=self._settings,
+            printer=self._printer,
         )
-        logs += file_str
-        return logs
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2219,8 +2039,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2234,8 +2059,9 @@ class Run(object):
         spec_filename = filenames.JOBSPEC_FNAME
         with open(spec_filename, "w") as f:
             print(s, file=f)
-        self.save(spec_filename)
+        self._save(spec_filename)
 
+    @_run_decorator._attach
     def define_metric(
         self,
         name: str,
@@ -2266,23 +2092,38 @@ class Run(object):
             A metric object is returned that can be further specified.
 
         """
+        return self._define_metric(
+            name, step_metric, step_sync, hidden, summary, goal, overwrite, **kwargs
+        )
+
+    def _define_metric(
+        self,
+        name: str,
+        step_metric: Union[str, wandb_metric.Metric, None] = None,
+        step_sync: bool = None,
+        hidden: bool = None,
+        summary: str = None,
+        goal: str = None,
+        overwrite: bool = None,
+        **kwargs: Any,
+    ) -> wandb_metric.Metric:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
         for k in kwargs:
-            wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
+            wandb.termwarn(f"Unhandled define_metric() arg: {k}")
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (
-            ("name", name, string_types),
-            ("step_metric", step_metric, string_types),
+            ("name", name, str),
+            ("step_metric", step_metric, str),
             ("step_sync", step_sync, bool),
             ("hidden", hidden, bool),
-            ("summary", summary, string_types),
-            ("goal", goal, string_types),
+            ("summary", summary, str),
+            ("goal", goal, str),
             ("overwrite", overwrite, bool),
         ):
-            # NOTE: type checking is broken for isinstance and string_types
-            if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
+            # NOTE: type checking is broken for isinstance and str
+            if arg_val is not None and not isinstance(arg_val, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
                     "Unhandled define_metric() arg: {} type: {}".format(
@@ -2303,18 +2144,14 @@ class Run(object):
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
-                    raise wandb.Error(
-                        "Unhandled define_metric() arg: summary op: {}".format(i)
-                    )
+                    raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
-                raise wandb.Error(
-                    "Unhandled define_metric() arg: goal: {}".format(goal)
-                )
+                raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2331,10 +2168,12 @@ class Run(object):
         return m
 
     # TODO(jhr): annotate this
+    @_run_decorator._attach
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
+    @_run_decorator._attach
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
@@ -2357,8 +2196,8 @@ class Run(object):
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -2384,8 +2223,52 @@ class Run(object):
     def _detach(self) -> None:
         pass
 
-    # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
+    @_run_decorator._attach
+    def link_artifact(
+        self,
+        artifact: Union[public.Artifact, Artifact],
+        target_path: str,
+        aliases: List[str],
+    ) -> None:
+        """Links the given artifact to a portfolio (a promoted collection of artifacts).
+
+        The linked artifact will be visible in the UI for the specified portfolio.
+
+        Arguments:
+            artifact: the (public or local) artifact which will be linked
+            target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
+                or {entity}/{project}/{portfolio}
+            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact inside the portfolio.
+            The alias "latest" will always be applied to the latest version of an artifact that is linked.
+
+        Returns:
+            None
+
+        """
+        portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+
+        if self._backend and self._backend.interface:
+            if not self._settings._offline:
+                self._backend.interface.publish_link_artifact(
+                    self,
+                    artifact,
+                    portfolio,
+                    aliases,
+                    entity,
+                    project,
+                )
+            else:
+                # TODO: implement offline mode + sync
+                raise NotImplementedError
+
+    @_run_decorator._attach
+    def use_artifact(
+        self,
+        artifact_or_name: Union[str, public.Artifact, Artifact],
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        use_as: Optional[str] = None,
+    ) -> Union[public.Artifact, Artifact]:
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2400,24 +2283,18 @@ class Run(object):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
+            use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
+                                       Will be shown in UI.
 
         Returns:
             An `Artifact` object.
         """
-        if self.offline:
+        if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-        if use_as:
-            if use_as in self._used_artifact_slots:
-                raise ValueError(
-                    "Cannot call use_artifact with the same use_as argument more than once"
-                )
-            elif ":" in use_as or "/" in use_as:
-                raise ValueError("use_as cannot contain special characters ':' or '/'")
-            self._used_artifact_slots.append(use_as)
         r = self._run_obj
+        assert r is not None
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
-        api.set_current_run_id(self.id)
+        api.set_current_run_id(self._run_id)
 
         if isinstance(artifact_or_name, str):
             if self._launch_artifact_mapping:
@@ -2433,8 +2310,22 @@ class Run(object):
                     )
                 )
             artifact._use_as = use_as or artifact_or_name
+            if use_as:
+                if (
+                    use_as in self._used_artifact_slots.keys()
+                    and self._used_artifact_slots[use_as] != artifact.id
+                ):
+                    raise ValueError(
+                        "Cannot call use_artifact with the same use_as argument more than once"
+                    )
+                elif ":" in use_as or "/" in use_as:
+                    raise ValueError(
+                        "use_as cannot contain special characters ':' or '/'"
+                    )
+                self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2446,7 +2337,7 @@ class Run(object):
             if isinstance(artifact_or_name, wandb.Artifact):
                 if use_as is not None:
                     wandb.termwarn(
-                        "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
+                        "Indicating use_as is not supported when using an artifact with an instance of `wandb.Artifact`"
                     )
                 self._log_artifact(
                     artifact,
@@ -2454,21 +2345,30 @@ class Run(object):
                     is_user_created=True,
                     use_after_commit=True,
                 )
+                artifact.wait()
+                artifact._use_as = use_as or artifact.name
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                if self._launch_artifact_mapping is not None:
+                if (
+                    self._launch_artifact_mapping
+                    and artifact.name in self._launch_artifact_mapping.keys()
+                ):
                     wandb.termwarn(
-                        f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
+                        "Swapping artifacts is not supported when using an instance of `public.Artifact`. "
+                        f"Using {artifact.name}."
                     )
+                artifact._use_as = use_as or artifact.name
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
                 )
                 return artifact
             else:
                 raise ValueError(
-                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
+                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
+                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
+    @_run_decorator._attach
     def log_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2504,6 +2404,7 @@ class Run(object):
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
+    @_run_decorator._attach
     def upsert_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2541,12 +2442,12 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        if self.group == "" and distributed_id is None:
+        if self._get_group() == "" and distributed_id is None:
             raise TypeError(
                 "Cannot upsert artifact unless run is in a group or distributed_id is provided"
             )
         if distributed_id is None:
-            distributed_id = self.group
+            distributed_id = self._get_group()
         return self._log_artifact(
             artifact_or_path,
             name=name,
@@ -2556,6 +2457,7 @@ class Run(object):
             finalize=False,
         )
 
+    @_run_decorator._attach
     def finish_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2592,12 +2494,12 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        if self.group == "" and distributed_id is None:
+        if self._get_group() == "" and distributed_id is None:
             raise TypeError(
                 "Cannot finish artifact unless run is in a group or distributed_id is provided"
             )
         if distributed_id is None:
-            distributed_id = self.group
+            distributed_id = self._get_group()
 
         return self._log_artifact(
             artifact_or_path,
@@ -2642,6 +2544,7 @@ class Run(object):
                     self,
                     artifact,
                     aliases,
+                    self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -2667,8 +2570,8 @@ class Run(object):
             )
         return artifact
 
-    def _public_api(self) -> PublicApi:
-        overrides = {"run": self.id}
+    def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
+        overrides = {"run": self._run_id}
         run_obj = self._run_obj
         if run_obj is not None:
             overrides["entity"] = run_obj.entity
@@ -2708,7 +2611,7 @@ class Run(object):
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
-                name = "run-%s-%s" % (self.id, os.path.basename(artifact_or_path))
+                name = f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type)
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
@@ -2733,6 +2636,7 @@ class Run(object):
         artifact.finalize()
         return artifact, aliases
 
+    @_run_decorator._attach
     def alert(
         self,
         title: str,
@@ -2776,9 +2680,10 @@ class Run(object):
         exc_tb: TracebackType,
     ) -> bool:
         exit_code = 0 if exc_type is None else 1
-        self.finish(exit_code)
+        self._finish(exit_code)
         return exc_type is None
 
+    @_run_decorator._attach
     def mark_preempting(self) -> None:
         """Marks this run as preempting.
 
@@ -2786,6 +2691,555 @@ class Run(object):
         """
         if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
+
+    # ------------------------------------------------------------------------------
+    # HEADER
+    # ------------------------------------------------------------------------------
+    # Note: All the header methods are static methods since we want to share the printing logic
+    # with the service execution path that doesn't have access to the run instance
+    @staticmethod
+    def _header(
+        check_version: Optional["CheckVersionResponse"] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        # printer = printer or get_printer(settings._jupyter)
+        Run._header_version_check_info(
+            check_version, settings=settings, printer=printer
+        )
+        Run._header_wandb_version_info(settings=settings, printer=printer)
+        Run._header_sync_info(settings=settings, printer=printer)
+        Run._header_run_info(settings=settings, printer=printer)
+
+    @staticmethod
+    def _header_version_check_info(
+        check_version: Optional["CheckVersionResponse"] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if not check_version or settings._offline:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        if check_version.delete_message:
+            printer.display(check_version.delete_message, status="error")
+        elif check_version.yank_message:
+            printer.display(check_version.yank_message, status="warn")
+
+        printer.display(
+            check_version.upgrade_message, off=not check_version.upgrade_message
+        )
+
+    @staticmethod
+    def _header_wandb_version_info(
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        if settings.quiet or settings.silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+
+    @staticmethod
+    def _header_sync_info(
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        # printer = printer or get_printer(settings._jupyter)
+        if settings._offline:
+            printer.display(
+                [
+                    f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
+                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} "
+                    "to enable cloud syncing.",
+                ]
+            )
+        else:
+            info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
+            if not printer._html:
+                info.append(
+                    f"Run {printer.code('`wandb offline`')} to turn off syncing."
+                )
+            printer.display(info, off=settings.quiet or settings.silent)
+
+    @staticmethod
+    def _header_run_info(
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if settings._offline or settings.silent:
+            return
+
+        run_url = settings.run_url
+        project_url = settings.project_url
+        sweep_url = settings.sweep_url
+
+        run_state_str = "Resuming run" if settings.resumed else "Syncing run"
+        run_name = settings.run_name
+
+        # printer = printer or get_printer(settings._jupyter)
+        if printer._html:
+            if not wandb.jupyter.maybe_display():
+
+                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
+                project_line, sweep_line = "", ""
+
+                # TODO(settings): make settings the source of truth
+                if not wandb.jupyter.quiet():
+
+                    doc_html = printer.link(wburls.get("doc_run"), "docs")
+
+                    project_html = printer.link(project_url, "Weights & Biases")
+                    project_line = f"to {project_html} ({doc_html})"
+
+                    if sweep_url:
+                        sweep_line = (
+                            f"Sweep page:  {printer.link(sweep_url, sweep_url)}"
+                        )
+
+                printer.display(
+                    [f"{run_state_str} {run_line} {project_line}", sweep_line]
+                )
+
+        else:
+            printer.display(f"{run_state_str} {printer.name(run_name)}")
+            if not settings.quiet:
+                printer.display(
+                    f'{printer.emoji("star")} View project at {printer.link(project_url)}'
+                )
+                if sweep_url:
+                    printer.display(
+                        f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
+                    )
+            printer.display(
+                f'{printer.emoji("rocket")} View run at {printer.link(run_url)}'
+            )
+
+            # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
+            if Api().api.settings().get("anonymous") == "true":
+                printer.display(
+                    "Do NOT share these links with anyone. They can be used to claim your runs.",
+                    status="warn",
+                )
+
+    # ------------------------------------------------------------------------------
+    # FOOTER
+    # ------------------------------------------------------------------------------
+    # Note: All the footer methods are static methods since we want to share the printing logic
+    # with the service execution path that doesn't have acess to the run instance
+    @staticmethod
+    def _footer(
+        sampled_history: Optional["SampledHistoryResponse"] = None,
+        final_summary: Optional["GetSummaryResponse"] = None,
+        poll_exit_response: Optional[PollExitResponse] = None,
+        check_version: Optional["CheckVersionResponse"] = None,
+        reporter: Optional[Reporter] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        Run._footer_history_summary_info(
+            history=sampled_history,
+            summary=final_summary,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+
+        Run._footer_sync_info(
+            pool_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
+        Run._footer_version_check_info(
+            check_version=check_version, quiet=quiet, settings=settings, printer=printer
+        )
+        Run._footer_local_warn(
+            poll_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_reporter_warn_err(
+            reporter=reporter, quiet=quiet, settings=settings, printer=printer
+        )
+
+    @staticmethod
+    def _footer_exit_status_info(
+        exit_code: Optional[int],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if settings.silent:
+            return
+
+        status = "(success)." if not exit_code else f"(failed {exit_code})."
+        info = [
+            f"Waiting for W&B process to finish... {printer.status(status, bool(exit_code))}"
+        ]
+
+        if not settings._offline and exit_code:
+            info.append(f"Press {printer.abort()} to abort syncing.")
+
+        printer.display(f'{" ".join(info)}')
+
+    # fixme: Temporary hack until we move to rich which allows multiple spinners
+    @staticmethod
+    def _footer_file_pusher_status_info(
+        poll_exit_responses: Optional[
+            Union[PollExitResponse, Dict[str, Optional[PollExitResponse]]]
+        ] = None,
+        *,
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        if not poll_exit_responses:
+            return
+        if isinstance(poll_exit_responses, PollExitResponse):
+            Run._footer_single_run_file_pusher_status_info(
+                poll_exit_responses, printer=printer
+            )
+        elif isinstance(poll_exit_responses, dict):
+            poll_exit_responses_list = [
+                response for response in poll_exit_responses.values()
+            ]
+            assert all(
+                response is None or isinstance(response, PollExitResponse)
+                for response in poll_exit_responses_list
+            )
+            if len(poll_exit_responses_list) == 0:
+                return
+            elif len(poll_exit_responses_list) == 1:
+                Run._footer_single_run_file_pusher_status_info(
+                    poll_exit_responses_list[0], printer=printer
+                )
+            else:
+                Run._footer_multiple_runs_file_pusher_status_info(
+                    poll_exit_responses_list, printer=printer
+                )
+        else:
+            raise ValueError(
+                f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
+                "Expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+            )
+
+    @staticmethod
+    def _footer_single_run_file_pusher_status_info(
+        poll_exit_response: Optional[PollExitResponse] = None,
+        *,
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        # todo: is this same as settings._offline?
+        if not poll_exit_response:
+            return
+
+        progress = poll_exit_response.pusher_stats
+        done = poll_exit_response.done
+
+        megabyte = wandb.util.POW_2_BYTES[2][1]
+        line = (
+            f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
+            f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+        )
+
+        percent_done = (
+            1.0
+            if progress.total_bytes == 0
+            else progress.uploaded_bytes / progress.total_bytes
+        )
+
+        printer.progress_update(line, percent_done)
+        if done:
+            printer.progress_close()
+
+            dedupe_fraction = (
+                progress.deduped_bytes / float(progress.total_bytes)
+                if progress.total_bytes > 0
+                else 0
+            )
+            if dedupe_fraction > 0.01:
+                printer.display(
+                    f"W&B sync reduced upload amount by {dedupe_fraction * 100:.1f}%             "
+                )
+
+    @staticmethod
+    def _footer_multiple_runs_file_pusher_status_info(
+        poll_exit_responses: List[Optional[PollExitResponse]],
+        *,
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        # todo: is this same as settings._offline?
+        if not all(poll_exit_responses):
+            return
+
+        megabyte = wandb.util.POW_2_BYTES[2][1]
+        total_files = sum(
+            sum(
+                [
+                    response.file_counts.wandb_count,
+                    response.file_counts.media_count,
+                    response.file_counts.artifact_count,
+                    response.file_counts.other_count,
+                ]
+            )
+            for response in poll_exit_responses
+            if response and response.file_counts
+        )
+        uploaded = sum(
+            response.pusher_stats.uploaded_bytes
+            for response in poll_exit_responses
+            if response and response.pusher_stats
+        )
+        total = sum(
+            response.pusher_stats.total_bytes
+            for response in poll_exit_responses
+            if response and response.pusher_stats
+        )
+
+        line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
+        printer.progress_update(line)  # type: ignore [call-arg]
+
+        done = all(
+            [
+                poll_exit_response.done
+                for poll_exit_response in poll_exit_responses
+                if poll_exit_response
+            ]
+        )
+        if done:
+            printer.progress_close()
+
+    @staticmethod
+    def _footer_sync_info(
+        pool_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if settings.silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+
+        if settings._offline:
+            printer.display(
+                [
+                    "You can sync this run to the cloud by running:",
+                    printer.code(f"wandb sync {settings.sync_dir}"),
+                ],
+                off=(quiet or settings.quiet),
+            )
+        else:
+            info = [
+                f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+            ]
+            if pool_exit_response and pool_exit_response.file_counts:
+
+                logger.info("logging synced files")
+                file_counts = pool_exit_response.file_counts
+                info.append(
+                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
+                    f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+                )
+            printer.display(info)
+
+    @staticmethod
+    def _footer_log_dir_info(
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        log_dir = settings.log_user or settings.log_internal
+        if log_dir:
+            # printer = printer or get_printer(settings._jupyter)
+            log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
+            printer.display(
+                f"Find logs at: {printer.files(log_dir)}",
+            )
+
+    @staticmethod
+    def _footer_history_summary_info(
+        history: Optional["SampledHistoryResponse"] = None,
+        summary: Optional["GetSummaryResponse"] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        panel = []
+
+        # Render history if available
+        if history:
+            logger.info("rendering history")
+
+            sampled_history = {
+                item.key: wandb.util.downsample(
+                    item.values_float or item.values_int, 40
+                )
+                for item in history.item
+                if not item.key.startswith("_")
+            }
+
+            history_rows = []
+            for key, values in sorted(sampled_history.items()):
+                if any(not isinstance(value, numbers.Number) for value in values):
+                    continue
+                sparkline = printer.sparklines(values)
+                if sparkline:
+                    history_rows.append([key, sparkline])
+            if history_rows:
+                history_grid = printer.grid(
+                    history_rows,
+                    "Run history:",
+                )
+                panel.append(history_grid)
+
+        # Render summary if available
+        if summary:
+            final_summary = {
+                item.key: json.loads(item.value_json)
+                for item in summary.item
+                if not item.key.startswith("_")
+            }
+
+            logger.info("rendering summary")
+            summary_rows = []
+            for key, value in sorted(final_summary.items()):
+                # arrays etc. might be too large. for now, we just don't print them
+                if isinstance(value, str):
+                    value = value[:20] + "..." * (len(value) >= 20)
+                    summary_rows.append([key, value])
+                elif isinstance(value, numbers.Number):
+                    value = round(value, 5) if isinstance(value, float) else value
+                    summary_rows.append([key, str(value)])
+                else:
+                    continue
+
+            if summary_rows:
+                summary_grid = printer.grid(
+                    summary_rows,
+                    "Run summary:",
+                )
+                panel.append(summary_grid)
+
+        if panel:
+            printer.display(printer.panel(panel))
+
+    @staticmethod
+    def _footer_local_warn(
+        poll_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if settings._offline:
+            return
+
+        if not poll_exit_response or not poll_exit_response.local_info:
+            return
+
+        if settings.is_local:
+            local_info = poll_exit_response.local_info
+            latest_version, out_of_date = local_info.version, local_info.out_of_date
+            if out_of_date:
+                # printer = printer or get_printer(settings._jupyter)
+                printer.display(
+                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
+                    f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
+                    status="warn",
+                )
+
+    @staticmethod
+    def _footer_version_check_info(
+        check_version: Optional["CheckVersionResponse"] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if not check_version:
+            return
+
+        if settings._offline:
+            return
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        if check_version.delete_message:
+            printer.display(check_version.delete_message, status="error")
+        elif check_version.yank_message:
+            printer.display(check_version.yank_message, status="warn")
+
+        # only display upgrade message if packages are bad
+        package_problem = check_version.delete_message or check_version.yank_message
+        if package_problem and check_version.upgrade_message:
+            printer.display(check_version.upgrade_message)
+
+    @staticmethod
+    def _footer_reporter_warn_err(
+        reporter: Optional[Reporter] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if not reporter:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+
+        warning_lines = reporter.warning_lines
+        if warning_lines:
+            warnings = ["Warnings:"] + [f"{line}" for line in warning_lines]
+            if len(warning_lines) < reporter.warning_count:
+                warnings.append("More warnings...")
+            printer.display(warnings)
+
+        error_lines = reporter.error_lines
+        if error_lines:
+            errors = ["Errors:"] + [f"{line}" for line in error_lines]
+            if len(error_lines) < reporter.error_count:
+                errors.append("More errors...")
+            printer.display(errors)
 
 
 # We define this outside of the run context to support restoring before init
@@ -2798,7 +3252,7 @@ def restore(
     """Downloads the specified file from cloud storage.
 
     File is placed into the current directory or run directory.
-    By default will only download the file if it doesn't already exist.
+    By default, will only download the file if it doesn't already exist.
 
     Arguments:
         name: the name of the file
@@ -2833,7 +3287,7 @@ def restore(
         root = os.getcwd()
     path = os.path.join(root, name)
     if os.path.exists(path) and replace is False:
-        return open(path, "r")
+        return open(path)
     if is_disabled:
         return None
     files = api_run.files([name])
@@ -2841,14 +3295,13 @@ def restore(
         return None
     # if the file does not exist, the file has an md5 of 0
     if files[0].md5 == "0":
-        raise ValueError("File {} not found in {}.".format(name, run_path or root))
+        raise ValueError(f"File {name} not found in {run_path or root}.")
     return files[0].download(root=root, replace=True)
 
 
-# propigate our doc string to the runs restore method
+# propagate our doc string to the runs restore method
 try:
     Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
 except AttributeError:
     pass
 
@@ -2865,14 +3318,6 @@ def finish(exit_code: int = None, quiet: bool = None) -> None:
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
-
-
-# propagate our doc string to the runs restore method
-try:
-    Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
-except AttributeError:
-    pass
 
 
 class _LazyArtifact(ArtifactInterface):

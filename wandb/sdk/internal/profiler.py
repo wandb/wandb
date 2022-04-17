@@ -65,11 +65,11 @@ def torch_trace_handler():
         )
 
     try:
-        logdir = os.path.join(wandb.run.dir, "pytorch_traces")  # type: ignore[attr-defined]
+        logdir = os.path.join(wandb.run.dir, "pytorch_traces")  # type: ignore
         os.mkdir(logdir)
     except AttributeError:
         raise UsageError(
-            "Please call wandb.init() before wandb.profiler.torch_trace_handler()"
+            "Please call `wandb.init()` before `wandb.profiler.torch_trace_handler()`"
         ) from None
 
     with telemetry.context() as tel:

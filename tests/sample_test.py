@@ -1,6 +1,5 @@
 """sample tests."""
 
-from __future__ import print_function
 
 import pytest
 
