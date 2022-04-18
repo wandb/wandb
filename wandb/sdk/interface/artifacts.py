@@ -76,7 +76,7 @@ def bytes_to_hex(bytestr):
     return codecs.getencoder("hex")(bytestr)[0]
 
 
-class ArtifactManifest(object):
+class ArtifactManifest:
     @classmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
@@ -211,7 +211,7 @@ class ArtifactEntry:
 
     def __repr__(self) -> str:
         if self.ref is not None:
-            summary = "ref: %s/%s" % (self.ref, self.path)
+            summary = f"ref: {self.ref}/{self.path}"
         else:
             summary = "digest: %s" % self.digest
 

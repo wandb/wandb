@@ -782,15 +782,13 @@ class ArtifactManifestV1(ArtifactManifest):
         )
 
     def __iter__(self) -> Iterator[str]:
-        for path in self.entries:
-            yield path
+        yield from self.entries
 
     def __len__(self) -> int:
         return len(self.entries)
 
     def items(self) -> Iterable[Tuple[str, "ArtifactEntry"]]:
-        for path, entry in self.entries.items():
-            yield (path, entry)
+        yield from self.entries.items()
 
     def keys(self) -> Iterable[str]:
         return self.entries.keys()
