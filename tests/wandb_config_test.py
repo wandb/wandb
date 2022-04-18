@@ -5,6 +5,7 @@ config tests.
 import pytest
 import yaml
 from wandb import wandb_sdk
+from wandb.errors import ConfigError
 
 
 def get_callback(d):
@@ -120,5 +121,17 @@ def test_load_empty_config_default(runner, capsys):
         print(err_log)
         assert warn_msg in err_log
 
-def test_nested_config_parse():
-    pass
+def test_nested_config_helpers():
+
+    invalid_nested_config = {"foo":{1:1}}
+    with pytest.raises(ConfigError):
+        _ = wandb_sdk.helper.nest_config(invalid_nested_config)
+
+    invalid_nested_config = {1:{"foo":1}}
+    with pytest.raises(ConfigError):
+        _ = wandb_sdk.helper.nest_config(invalid_nested_config)
+
+    valid_nested_config = {"foo":{"bar":1}}
+    nested_config = wandb_sdk.helper.nest_config(valid_nested_config)
+    unnested_config = wandb_sdk.helper.nest_config(nested_config)
+    assert valid_nested_config == unnested_config
