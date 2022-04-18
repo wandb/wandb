@@ -20,7 +20,7 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
-from urllib.parse import quote, parse_qs, urlparse
+from urllib.parse import quote, parse_qsl, urlparse
 
 import requests
 import wandb
@@ -1317,7 +1317,7 @@ class S3Handler(StorageHandler):
 
     def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
         url = urlparse(uri)
-        query = parse_qs(url.query)
+        query = dict(parse_qsl(url.query))
 
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
@@ -1632,7 +1632,12 @@ class GCSHandler(StorageHandler):
     ) -> Sequence[ArtifactEntry]:
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
+
+        # After parsing any query params / fragments for additional context,
+        # such as version identifiers, pare down the path to just the bucket
+        # and key.
         bucket, key, version = self._parse_uri(path)
+        path = f"gs://{bucket}/{key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
@@ -1641,6 +1646,7 @@ class GCSHandler(StorageHandler):
 
         if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
+
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
         multi = obj is None
