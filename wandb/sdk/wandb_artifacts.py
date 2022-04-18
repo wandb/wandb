@@ -20,7 +20,7 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, parse_qs, urlparse
 
 import requests
 import wandb
@@ -1315,11 +1315,15 @@ class S3Handler(StorageHandler):
         self._botocore = util.get_module("botocore")
         return self._s3
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str]:
+    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
         url = urlparse(uri)
+        query = parse_qs(url.query)
+
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
-        return bucket, key
+        version = query.get("versionId", None)
+
+        return bucket, key, version
 
     def versioning_enabled(self, bucket: str) -> bool:
         self.init_boto()
@@ -1350,7 +1354,7 @@ class S3Handler(StorageHandler):
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
         assert manifest_entry.ref is not None
-        bucket, key = self._parse_uri(manifest_entry.ref)
+        bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
         extra_args = {}
@@ -1402,12 +1406,29 @@ class S3Handler(StorageHandler):
     ) -> Sequence[ArtifactEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
-        bucket, key = self._parse_uri(path)
+
+        # The passed in path might have query string parameters.
+        # We only need to care about a subset, like version, when
+        # parsing. Once we have that, we can store the rest of the
+        # metadata in the artifact entry itself.
+        bucket, key, version = self._parse_uri(path)
+        path = f"s3://{bucket}/{key}"
+        if not self.versioning_enabled(bucket) and version:
+            if not self.versioning_enabled() and version:
+                raise ValueError(
+                    f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
+                )
+
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
 
-        objs = [self._s3.Object(bucket, key)]
+        # If an explicit version is specified, use that. Otherwise, use the head version.
+        objs = (
+            [self._s3.ObjectVersion(bucket, key, version).Object()]
+            if version
+            else [self._s3.Object(bucket, key)]
+        )
         start_time = None
         multi = False
         try:
@@ -1480,7 +1501,9 @@ class S3Handler(StorageHandler):
             ref = os.path.join(path, relpath)
         return ArtifactManifestEntry(
             name,
-            util.to_forward_slash_path(ref),  # S3 references always use linux style paths
+            util.to_forward_slash_path(
+                ref
+            ),  # S3 references always use linux style paths
             self._etag_from_obj(obj),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
@@ -1520,7 +1543,7 @@ class GCSHandler(StorageHandler):
         self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
-    def versioning_enabled(self, bucket: "gcs_module.bucket.Bucket") -> bool:
+    def versioning_enabled(self, bucket: str) -> bool:
         if self._versioning_enabled is not None:
             return self._versioning_enabled
         self.init_gcs()
@@ -1544,11 +1567,12 @@ class GCSHandler(StorageHandler):
         self._client = storage.Client()
         return self._client
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str]:
+    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
         url = urlparse(uri)
         bucket = url.netloc
         key = url.path[1:]
-        return bucket, key
+        version = url.fragment if url.fragment else None
+        return bucket, key, version
 
     def load_path(
         self,
@@ -1570,7 +1594,7 @@ class GCSHandler(StorageHandler):
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
         assert manifest_entry.ref is not None
-        bucket, key = self._parse_uri(manifest_entry.ref)
+        bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
         obj = None
@@ -1608,13 +1632,17 @@ class GCSHandler(StorageHandler):
     ) -> Sequence[ArtifactEntry]:
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
-        bucket, key = self._parse_uri(path)
+        bucket, key, version = self._parse_uri(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
+        if not self.versioning_enabled(bucket) and version:
+            raise ValueError(
+                f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
+            )
 
         if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
         start_time = None
-        obj = self._client.bucket(bucket).get_blob(key)
+        obj = self._client.bucket(bucket).get_blob(key, generation=version)
         multi = obj is None
         if multi:
             start_time = time.time()
@@ -1666,7 +1694,7 @@ class GCSHandler(StorageHandler):
             util.to_forward_slash_path(ref),  # GCS always uses linux style paths
             obj.md5_hash,
             size=obj.size,
-            extra=self._extra_from_obj(obj)
+            extra=self._extra_from_obj(obj),
         )
 
     @staticmethod
