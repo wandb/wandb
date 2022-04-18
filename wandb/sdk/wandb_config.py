@@ -164,7 +164,6 @@ class Config:
         return key in self._items
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
-        # TODO: Nested Configs will impact this
         parsed_dict = wandb_helper.parse_config(d)
         locked_keys = set()
         for key in list(parsed_dict):

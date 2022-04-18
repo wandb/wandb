@@ -126,18 +126,18 @@ def test_nested_config_helpers():
 
     invalid_nested_config = {"foo": {1: 1}}
     with pytest.raises(ConfigError):
-        _ = wandb_sdk.helper.nest_config(invalid_nested_config)
+        _ = wandb_sdk.helper.unnest_config(invalid_nested_config)
 
     invalid_nested_config = {1: {"foo": 1}}
     with pytest.raises(ConfigError):
-        _ = wandb_sdk.helper.nest_config(invalid_nested_config)
+        _ = wandb_sdk.helper.unnest_config(invalid_nested_config)
 
     valid_nested_config = {"foo": {"bar": 1}}
-    nested_config = wandb_sdk.helper.nest_config(valid_nested_config)
-    unnested_config = wandb_sdk.helper.nest_config(nested_config)
-    assert valid_nested_config == unnested_config
+    unnested_config = wandb_sdk.helper.unnest_config(valid_nested_config)
+    renested_config = wandb_sdk.helper.nest_config(unnested_config)
+    assert valid_nested_config == renested_config
 
     valid_nested_config = {"foo": {"bar": {"baz": 1, "boz": 2}}}
-    nested_config = wandb_sdk.helper.nest_config(valid_nested_config)
-    unnested_config = wandb_sdk.helper.nest_config(nested_config)
-    assert valid_nested_config == unnested_config
+    unnested_config = wandb_sdk.helper.unnest_config(valid_nested_config)
+    renested_config = wandb_sdk.helper.nest_config(unnested_config)
+    assert valid_nested_config == renested_config

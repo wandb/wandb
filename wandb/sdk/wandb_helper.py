@@ -11,12 +11,12 @@ NESTED_CONFIG_DELIMITER = "."
 
 
 def nest_config(params: Dict, delimiter: str = NESTED_CONFIG_DELIMITER) -> Dict:
-    _flatten_dict(params, delimiter)
+    _unflatten_dict(params, delimiter)
     return params
 
 
 def unnest_config(params: Dict, delimiter: str = NESTED_CONFIG_DELIMITER) -> Dict:
-    _unflatten_dict(params, delimiter)
+    _flatten_dict(params, delimiter)
     return params
 
 
@@ -79,10 +79,17 @@ def _unflatten_dict(d: Dict, delimiter: str) -> None:
                     subdict[subkeys[-1]] = d.pop(k)
 
 
-def parse_config(params, exclude=None, include=None):
-    # TODO: Nested Configs will impact this
+def parse_config(params: Dict,
+exclude: List[str]=None,
+include: List[str]=None,
+) -> Dict:
+    """ Parse a config object into a dictionary. """
     if exclude and include:
         raise UsageError("Expected at most only one of exclude or include")
+    
+    # Un-nest any nested dicts in the params
+    params = nest_config(params)
+
     if isinstance(params, str):
         params = config_util.dict_from_config_file(params, must_exist=True)
     params = _to_dict(params)
