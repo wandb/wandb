@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import hashlib
+import pathlib
 import os
 import re
 import shutil
@@ -1485,24 +1486,37 @@ class S3Handler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        ref = path
+        """
+        Arguments:
+            obj: The S3 object
+            path: The S3-style path (e.g.: "s3://bucket/file.txt")
+            name: The user assigned name, or None if not specified
+            prefix: The prefix to add (will be the same as `path` for directories)
+            multi: Whether or not this is a multi-object add
+        """
+
+        # Always use posix paths, since that's what S3 uses.
+        posix_key = pathlib.PurePosixPath(obj.key)  # the bucket key
+        posix_path = pathlib.PurePosixPath(path)
+        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
+
+        ref = posix_path
         if name is None:
-            if prefix in obj.key and prefix != obj.key:
-                relpath = os.path.relpath(obj.key, start=prefix)
-                name = relpath
-                ref = os.path.join(path, relpath)
+            # We're adding a directory (prefix), so calculate a relative path.
+            if str(posix_prefix) in str(posix_key) and posix_prefix != posix_key:
+                name = posix_key.relative_to(posix_prefix)
+                ref = posix_path / name
             else:
-                name = os.path.basename(obj.key)
-                ref = path
+                name = posix_key.name
+                ref = posix_path
         elif multi:
-            relpath = os.path.relpath(obj.key, start=prefix)
-            name = os.path.join(name, relpath)
-            ref = os.path.join(path, relpath)
+            # We're adding a directory with a name override.
+            relpath = posix_key.relative_to(posix_prefix)
+            name = pathlib.PurePosixPath(name) / relpath
+            ref = posix_path / relpath
         return ArtifactManifestEntry(
-            name,
-            util.to_forward_slash_path(
-                ref
-            ),  # S3 references always use linux style paths
+            str(name),
+            's3://' + str(ref).lstrip('s3:/'),  # HACK: PosixPath normalizes s3:// into s3:/
             self._etag_from_obj(obj),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
@@ -1683,20 +1697,37 @@ class GCSHandler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        ref = path
+        """
+        Arguments:
+            obj: The GCS object
+            path: The GCS-style path (e.g.: "gs://bucket/file.txt")
+            name: The user assigned name, or None if not specified
+            prefix: The prefix to add (will be the same as `path` for directories)
+            multi: Whether or not this is a multi-object add
+        """
+
+        # Always use posix paths, since that's what S3 uses.
+        posix_key = pathlib.PurePosixPath(obj.name)  # the bucket key
+        posix_path = pathlib.PurePosixPath(path)
+        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
+
+        ref = posix_path
         if name is None:
-            if prefix in obj.name and prefix != obj.name:
-                name = os.path.relpath(obj.name, start=prefix)
-                ref = os.path.join(path, name)
+            # We're adding a directory (prefix), so calculate a relative path.
+            if str(posix_prefix) in str(posix_key) and posix_prefix != posix_key:
+                name = posix_key.relative_to(posix_prefix)
+                ref = posix_path / name
             else:
-                name = os.path.basename(obj.name)
+                name = posix_key.name
+                ref = posix_path
         elif multi:
-            # We're listing a path and user provided name, just prepend it
-            name = os.path.join(name, os.path.basename(obj.name))
-            ref = os.path.join(path, name)
+            # We're adding a directory with a name override.
+            relpath = posix_key.relative_to(posix_prefix)
+            name = pathlib.PurePosixPath(name) / relpath
+            ref = posix_path / relpath
         return ArtifactManifestEntry(
-            name,
-            util.to_forward_slash_path(ref),  # GCS always uses linux style paths
+            str(name),
+            'gs://' + str(ref).lstrip('gs:/'),  # HACK: PosixPath normalizes gs:// into gs:/
             obj.md5_hash,
             size=obj.size,
             extra=self._extra_from_obj(obj),
