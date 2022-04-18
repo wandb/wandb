@@ -264,7 +264,10 @@ class DirWatcher:
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
                     for g in list(globs):
-                        paths = glob.glob(os.path.join(self._dir, g))
+                        import os
+                        if os.environ['GLOBMEM_REPRO_CALL_GLOB'] == '1':
+                            paths = glob.glob(os.path.join(self._dir, g))
+                        continue
                         if any(save_name in p for p in paths):
                             if policy == "live":
                                 Handler = PolicyLive

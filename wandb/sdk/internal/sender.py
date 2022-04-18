@@ -819,11 +819,13 @@ class SendManager:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
 
     def send_history(self, record: "Record") -> None:
+        return
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
 
     def send_summary(self, record: "Record") -> None:
+        return
         summary_dict = proto_util.dict_from_proto_list(record.summary.update)
         self._cached_summary = summary_dict
         self._update_summary()
