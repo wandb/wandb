@@ -50,6 +50,7 @@ def mock_boto(artifact, path=False):
             class Version:
                 def Object(self):
                     return S3Object(version_id=version)
+
             return Version()
 
         def Bucket(self, bucket):
@@ -58,6 +59,7 @@ def mock_boto(artifact, path=False):
         def BucketVersioning(self, bucket):
             class BucketStatus:
                 status = "Enabled"
+
             return BucketStatus()
 
     mock = S3Resource()
