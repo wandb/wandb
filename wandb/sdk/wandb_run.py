@@ -720,6 +720,7 @@ class Run:
     @_run_decorator._attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
+        # TODO: Create a config_unnested property based on this?
         return self._config
 
     @property  # type: ignore
