@@ -87,10 +87,6 @@ def parse_config(
     """Parse a config object into a dictionary."""
     if exclude and include:
         raise UsageError("Expected at most only one of exclude or include")
-
-    # Un-nest any nested dicts in the params
-    params = unnest_config(params)
-
     if isinstance(params, str):
         params = config_util.dict_from_config_file(params, must_exist=True)
     params = _to_dict(params)
@@ -98,6 +94,8 @@ def parse_config(
         params = {key: value for key, value in params.items() if key in include}
     if exclude:
         params = {key: value for key, value in params.items() if key not in exclude}
+    # Un-nest any nested dicts in the params
+    params = unnest_config(params)
     return params
 
 
