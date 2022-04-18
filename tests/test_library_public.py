@@ -172,6 +172,7 @@ SYMBOLS_RUN = {
     "watch",
     "unwatch",
     "config",
+    "config_nested",
     "config_static",
     "log",
     "log_artifact",
