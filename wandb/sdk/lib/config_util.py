@@ -116,6 +116,10 @@ def dict_from_config_file(filename, must_exist=False):
     if config_version is not None and config_version != 1:
         raise ConfigError("Unknown config version")
     data = dict()
+    # TODO: Nested config possible insertion point
     for k, v in loaded.items():
         data[k] = v["value"]
     return data
+
+def nest(foo):
+    return foo

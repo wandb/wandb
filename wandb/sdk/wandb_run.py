@@ -720,8 +720,18 @@ class Run:
     @_run_decorator._attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
-        # TODO: Create a config_unnested property based on this?
         return self._config
+
+    @property  # type: ignore
+    @_run_decorator._attach
+    def config_nested(self) -> wandb_config.Config:
+        """Returns the config object associated with this run,
+        
+        Any values with a '.' in their name are put into a nested
+        dictionary within the stem. If a '.' is found, but no valid
+        key is found with the stem, it is ignored.
+        """
+        return config_util.nest(self._config)
 
     @property  # type: ignore
     @_run_decorator._attach
