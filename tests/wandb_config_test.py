@@ -119,3 +119,6 @@ def test_load_empty_config_default(runner, capsys):
         warn_msg = "wandb: WARNING Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
         print(err_log)
         assert warn_msg in err_log
+
+def test_nested_config_parse():
+    pass
