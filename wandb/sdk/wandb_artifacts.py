@@ -1414,10 +1414,9 @@ class S3Handler(StorageHandler):
         bucket, key, version = self._parse_uri(path)
         path = f"s3://{bucket}/{key}"
         if not self.versioning_enabled(bucket) and version:
-            if not self.versioning_enabled() and version:
-                raise ValueError(
-                    f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
-                )
+            raise ValueError(
+                f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
+            )
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
@@ -1543,12 +1542,12 @@ class GCSHandler(StorageHandler):
         self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
-    def versioning_enabled(self, bucket: str) -> bool:
+    def versioning_enabled(self, bucket_path: str) -> bool:
         if self._versioning_enabled is not None:
             return self._versioning_enabled
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
-        bucket = self._client.bucket(bucket)
+        bucket = self._client.bucket(bucket_path)
         bucket.reload()
         self._versioning_enabled = bucket.versioning_enabled
         return self._versioning_enabled
