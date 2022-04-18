@@ -20,7 +20,7 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
-from urllib.parse import quote, parse_qsl, urlparse
+from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
 import wandb
