@@ -423,6 +423,7 @@ def test_add_reference_s3_no_checksum(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact)
         # TODO: Should we require name in this case?
         artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
 

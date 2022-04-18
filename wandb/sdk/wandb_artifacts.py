@@ -1321,7 +1321,7 @@ class S3Handler(StorageHandler):
 
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
-        version = query.get("versionId", None)
+        version = query.get("versionId")
 
         return bucket, key, version
 
