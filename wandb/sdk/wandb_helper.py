@@ -1,6 +1,6 @@
 import inspect
 import types
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from wandb.errors import ConfigError, UsageError
 
@@ -80,7 +80,7 @@ def _unflatten_dict(d: Dict, delimiter: str) -> None:
 
 
 def parse_config(
-    params: Dict,
+    params: Union[Dict, str],
     exclude: List[str] = None,
     include: List[str] = None,
 ) -> Dict:
