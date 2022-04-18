@@ -1494,29 +1494,33 @@ class S3Handler(StorageHandler):
             prefix: The prefix to add (will be the same as `path` for directories)
             multi: Whether or not this is a multi-object add
         """
+        bucket, key, _ = self._parse_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = pathlib.PurePosixPath(obj.key)  # the bucket key
-        posix_path = pathlib.PurePosixPath(path)
+        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+            key
+        )  # the path, with the scheme stripped
         posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = pathlib.PurePosixPath(name or "")
+        posix_ref = posix_path
 
-        ref = posix_path
         if name is None:
             # We're adding a directory (prefix), so calculate a relative path.
             if str(posix_prefix) in str(posix_key) and posix_prefix != posix_key:
-                name = posix_key.relative_to(posix_prefix)
-                ref = posix_path / name
+                posix_name = posix_key.relative_to(posix_prefix)
+                posix_ref = posix_path / posix_name
             else:
-                name = posix_key.name
-                ref = posix_path
+                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_ref = posix_path
         elif multi:
             # We're adding a directory with a name override.
             relpath = posix_key.relative_to(posix_prefix)
-            name = pathlib.PurePosixPath(name) / relpath
-            ref = posix_path / relpath
+            posix_name = posix_name / relpath
+            posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            str(name),
-            's3://' + str(ref).lstrip('s3:/'),  # HACK: PosixPath normalizes s3:// into s3:/
+            str(posix_name),
+            f"{self.scheme}://{str(posix_ref)}",
             self._etag_from_obj(obj),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
@@ -1705,29 +1709,33 @@ class GCSHandler(StorageHandler):
             prefix: The prefix to add (will be the same as `path` for directories)
             multi: Whether or not this is a multi-object add
         """
+        bucket, key, _ = self._parse_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = pathlib.PurePosixPath(obj.name)  # the bucket key
-        posix_path = pathlib.PurePosixPath(path)
+        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+            key
+        )  # the path, with the scheme stripped
         posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = pathlib.PurePosixPath(name or "")
+        posix_ref = posix_path
 
-        ref = posix_path
         if name is None:
             # We're adding a directory (prefix), so calculate a relative path.
             if str(posix_prefix) in str(posix_key) and posix_prefix != posix_key:
-                name = posix_key.relative_to(posix_prefix)
-                ref = posix_path / name
+                posix_name = posix_key.relative_to(posix_prefix)
+                posix_ref = posix_path / posix_name
             else:
-                name = posix_key.name
-                ref = posix_path
+                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_ref = posix_path
         elif multi:
             # We're adding a directory with a name override.
             relpath = posix_key.relative_to(posix_prefix)
-            name = pathlib.PurePosixPath(name) / relpath
-            ref = posix_path / relpath
+            posix_name = posix_name / relpath
+            posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            str(name),
-            'gs://' + str(ref).lstrip('gs:/'),  # HACK: PosixPath normalizes gs:// into gs:/
+            str(posix_name),
+            f"{self.scheme}://{str(posix_ref)}",
             obj.md5_hash,
             size=obj.size,
             extra=self._extra_from_obj(obj),
