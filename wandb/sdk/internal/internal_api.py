@@ -9,7 +9,7 @@ import datetime
 from io import BytesIO
 import json
 import os
-from pkg_resources import parse_version  # type: ignore
+from pkg_resources import parse_version
 import re
 import requests
 import logging
