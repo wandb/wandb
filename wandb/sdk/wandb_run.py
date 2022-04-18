@@ -81,6 +81,7 @@ from .lib.printer import get_printer
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
 from .wandb_artifacts import Artifact
+from .wandb_helper import unnest_config
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
@@ -731,7 +732,7 @@ class Run:
         dictionary within the stem. If a '.' is found, but no valid
         key is found with the stem, it is ignored.
         """
-        return config_util.nest(self._config)
+        return unnest_config(self._config)
 
     @property  # type: ignore
     @_run_decorator._attach

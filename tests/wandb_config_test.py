@@ -136,3 +136,8 @@ def test_nested_config_helpers():
     nested_config = wandb_sdk.helper.nest_config(valid_nested_config)
     unnested_config = wandb_sdk.helper.nest_config(nested_config)
     assert valid_nested_config == unnested_config
+
+    valid_nested_config = {"foo": {"bar": {"baz": 1, "boz": 2}}}
+    nested_config = wandb_sdk.helper.nest_config(valid_nested_config)
+    unnested_config = wandb_sdk.helper.nest_config(nested_config)
+    assert valid_nested_config == unnested_config
