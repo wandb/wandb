@@ -31,7 +31,7 @@ def _flatten_dict(d: Dict, delimiter: str) -> None:
     if type(d) == dict:
         for k, v in list(d.items()):
             if type(v) == dict:
-                _flatten_dict(v)
+                _flatten_dict(v, delimiter)
                 d.pop(k)
                 if not isinstance(k, str):
                     raise ConfigError(
