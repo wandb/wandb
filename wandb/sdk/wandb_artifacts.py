@@ -1480,7 +1480,7 @@ class S3Handler(StorageHandler):
             ref = os.path.join(path, relpath)
         return ArtifactManifestEntry(
             name,
-            ref,
+            util.to_forward_slash_path(ref),  # S3 references always use linux style paths
             self._etag_from_obj(obj),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
@@ -1662,7 +1662,11 @@ class GCSHandler(StorageHandler):
             name = os.path.join(name, os.path.basename(obj.name))
             ref = os.path.join(path, name)
         return ArtifactManifestEntry(
-            name, ref, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj)
+            name,
+            util.to_forward_slash_path(ref),  # GCS always uses linux style paths
+            obj.md5_hash,
+            size=obj.size,
+            extra=self._extra_from_obj(obj)
         )
 
     @staticmethod
