@@ -117,6 +117,7 @@ def dict_from_config_file(filename, must_exist=False):
         data[k] = v["value"]
     return data
 
+
 def nest(foo):
     # TODO: Possible location of nest and un-nest
     return foo

@@ -82,6 +82,7 @@ def test_run_sweep_overlap():
     run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=8, param3=9)
 
+
 def test_nested_config():
     nested_config = {"foo": {"bar": 1}}
     wandb.init(config=nested_config)

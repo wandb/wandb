@@ -60,7 +60,7 @@ class ExecutionError(Error):
 
 class ConfigError(Error):
     """Issue parsing or updating a config."""
-    
+
     pass
 
 

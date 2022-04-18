@@ -726,7 +726,7 @@ class Run:
     @_run_decorator._attach
     def config_nested(self) -> wandb_config.Config:
         """Returns the config object associated with this run,
-        
+
         Any values with a '.' in their name are put into a nested
         dictionary within the stem. If a '.' is found, but no valid
         key is found with the stem, it is ignored.
