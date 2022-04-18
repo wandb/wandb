@@ -1413,7 +1413,7 @@ class S3Handler(StorageHandler):
         # parsing. Once we have that, we can store the rest of the
         # metadata in the artifact entry itself.
         bucket, key, version = self._parse_uri(path)
-        path = f"s3://{bucket}/{key}"
+        path = f"{self.scheme}://{bucket}/{key}"
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
                 f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
@@ -1654,7 +1654,7 @@ class GCSHandler(StorageHandler):
         # such as version identifiers, pare down the path to just the bucket
         # and key.
         bucket, key, version = self._parse_uri(path)
-        path = f"gs://{bucket}/{key}"
+        path = f"{self.scheme}://{bucket}/{key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
