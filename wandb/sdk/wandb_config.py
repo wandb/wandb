@@ -5,6 +5,7 @@ config.
 import logging
 
 import wandb
+from wandb.errors import ConfigError
 from wandb.util import (
     _is_artifact,
     _is_artifact_string,
@@ -249,7 +250,7 @@ class Config:
             val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
-                raise config_util.ConfigError(
+                raise ConfigError(
                     (
                         'Attempted to change value of key "{}" '
                         "from {} to {}\n"

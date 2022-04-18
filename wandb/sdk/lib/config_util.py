@@ -3,7 +3,7 @@ import logging
 import os
 
 import wandb
-from wandb.errors import Error
+from wandb.errors import ConfigError
 from wandb.util import load_yaml
 import yaml
 
@@ -11,10 +11,6 @@ from . import filesystem
 
 
 logger = logging.getLogger("wandb")
-
-
-class ConfigError(Error):
-    pass
 
 
 def dict_from_proto_list(obj_list):
@@ -122,4 +118,5 @@ def dict_from_config_file(filename, must_exist=False):
     return data
 
 def nest(foo):
+    # TODO: Possible location of nest and un-nest
     return foo

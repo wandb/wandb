@@ -58,6 +58,12 @@ class ExecutionError(Error):
     pass
 
 
+class ConfigError(Error):
+    """Issue parsing or updating a config."""
+    
+    pass
+
+
 class DockerError(Error):
     """Raised when attempting to execute a docker command"""
 
