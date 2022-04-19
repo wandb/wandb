@@ -83,6 +83,7 @@ def parse_config(
     params: Any,
     exclude: List[str] = None,
     include: List[str] = None,
+    unnest: bool = None,
 ) -> Dict:
     """Parse a config object into a dictionary."""
     # Handle some cases where params is not a dictionary
@@ -126,5 +127,6 @@ def parse_config(
             key: value for key, value in params.items() if key not in exclude
         }
     # Un-nest any nested dicts in the params
-    params_dict = unnest_config(params_dict)
+    if unnest:
+        params_dict = unnest_config(params_dict)
     return params_dict

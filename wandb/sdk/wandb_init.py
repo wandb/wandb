@@ -187,6 +187,7 @@ class _WandbInit:
             init_config,
             include=kwargs.pop("config_include_keys", None),
             exclude=kwargs.pop("config_exclude_keys", None),
+            unnest=kwargs.pop("config_unnest", None),
         )
 
         # merge config with sweep or sagemaker (or config file)
@@ -775,6 +776,7 @@ def init(
     magic: Union[dict, str, bool] = None,
     config_exclude_keys=None,
     config_include_keys=None,
+    config_unnest: Optional[bool] = None,
     anonymous: Optional[str] = None,
     mode: Optional[str] = None,
     allow_val_change: Optional[bool] = None,
@@ -911,6 +913,8 @@ def init(
         config_exclude_keys: (list, optional) string keys to exclude from
             `wandb.config`.
         config_include_keys: (list, optional) string keys to include in
+            `wandb.config`.
+        config_unnest: (bool, optional) If true, will unnest all nested dicts in
             `wandb.config`.
         anonymous: (str, optional) Controls anonymous data logging. Options:
             - `"never"` (default): requires you to link your W&B account before
