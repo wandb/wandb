@@ -290,7 +290,7 @@ class LaunchProject:
                     command = os.environ.get("SHELL", "bash")
                     entry_point = f"{command} {program_name}"
                 else:
-                    raise LaunchError("Unsupported entrypoint: {}".format(program_name))
+                    raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 print(entry_point)
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
