@@ -8,13 +8,11 @@ For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 import copy
-import datetime
 import logging
 import os
 import platform
 import sys
 import tempfile
-import time
 import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
@@ -30,6 +28,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.deprecate import deprecate, Deprecated
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
@@ -92,6 +91,8 @@ class _WandbInit:
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
 
+        self.deprecated_features_used: Dict[str, str] = dict()
+
     def setup(self, kwargs) -> None:  # noqa: C901
         """Completes setup for `wandb.init()`.
 
@@ -136,16 +137,8 @@ class _WandbInit:
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
         settings_param = kwargs.pop("settings", None)
-        if settings_param is not None:
-            if isinstance(settings_param, Settings):
-                # todo: check the logic here. this _only_ comes up in tests?
-                # update settings with settings_param using whatever
-                # source each parameter has there
-                settings._apply_settings(settings_param, _logger=logger)
-            elif isinstance(settings_param, dict):
-                # if it is a mapping, update the settings with it
-                # explicitly using Source.INIT
-                settings.update(settings_param, source=Source.INIT)
+        if settings_param is not None and isinstance(settings_param, (Settings, dict)):
+            settings.update(settings_param, source=Source.INIT)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -177,19 +170,23 @@ class _WandbInit:
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
 
-        config_include_keys = kwargs.pop("config_include_keys", None)
-        config_exclude_keys = kwargs.pop("config_exclude_keys", None)
-
-        # todo: deprecate config_include_keys and config_exclude_keys
-        # if config_include_keys or config_exclude_keys:
-        #     wandb.termwarn(
-        #       "config_include_keys and config_exclude_keys are deprecated:"
-        #       " use config=wandb.helper.parse_config(config_object, include=('key',))"
-        #       " or config=wandb.helper.parse_config(config_object, exclude=('key',))"
-        #     )
+        # todo: remove this once officially deprecated
+        deprecated_kwargs = {
+            "config_include_keys": (
+                "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
+            ),
+            "config_exclude_keys": (
+                "Use `config=wandb.helper.parse_config(config_object, exclude=('key',))` instead."
+            ),
+        }
+        for deprecated_kwarg, msg in deprecated_kwargs.items():
+            if kwargs.get(deprecated_kwarg):
+                self.deprecated_features_used[deprecated_kwarg] = msg
 
         init_config = parse_config(
-            init_config, include=config_include_keys, exclude=config_exclude_keys
+            init_config,
+            include=kwargs.pop("config_include_keys", None),
+            exclude=kwargs.pop("config_exclude_keys", None),
         )
 
         # merge config with sweep or sagemaker (or config file)
@@ -262,14 +259,7 @@ class _WandbInit:
             settings.update({"save_code": False}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
-        time_stamp: float = time.time()
-        settings.update(
-            {
-                "_start_time": time_stamp,
-                "_start_datetime": datetime.datetime.fromtimestamp(time_stamp),
-            },
-            source=Source.INIT,
-        )
+        settings._set_run_start_time(source=Source.INIT)
 
         if not settings._noop:
             self._log_setup(settings)
@@ -290,8 +280,8 @@ class _WandbInit:
     def _enable_logging(self, log_fname, run_id=None):
         """Enables logging to the global debug log.
 
-        This adds a run_id to the log, in case of muliple processes on the same machine.
-        Currently there is no way to disable logging after it's enabled.
+        This adds a run_id to the log, in case of multiple processes on the same machine.
+        Currently, there is no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(log_fname)
         handler.setLevel(logging.INFO)
@@ -581,7 +571,7 @@ class _WandbInit:
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
-            # fixme: detected issues with settings
+            # todo: detected issues with settings.
             if self.settings.__dict__["_Settings__preprocessing_warnings"]:
                 tel.issues.settings__preprocessing_warnings = True
             if self.settings.__dict__["_Settings__validation_warnings"]:
@@ -594,6 +584,14 @@ class _WandbInit:
                 run._label_probe_notebook(self.notebook)
             else:
                 run._label_probe_main()
+
+        for deprecated_feature, msg in self.deprecated_features_used.items():
+            warning_message = f"`{deprecated_feature}` is deprecated. {msg}"
+            deprecate(
+                field_name=getattr(Deprecated, "init__" + deprecated_feature),
+                warning_message=warning_message,
+                run=run,
+            )
 
         logger.info("updated telemetry")
 
