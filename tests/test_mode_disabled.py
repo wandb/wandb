@@ -2,8 +2,6 @@
 disabled mode test.
 """
 
-from __future__ import division
-
 import pytest  # type: ignore
 
 import wandb
@@ -29,7 +27,7 @@ def test_disabled_ops(test_settings):
     print(run / 1.2)
     print(run // 10)
     print(run % 10)
-    print(run ** 10)
+    print(run**10)
     print(run << 10)
     print(run >> 10)
     print(run & 2)

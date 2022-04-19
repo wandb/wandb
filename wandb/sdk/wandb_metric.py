@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """
 metric.
 """
@@ -13,7 +11,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 logger = logging.getLogger("wandb")
 
 
-class Metric(object):
+class Metric:
     """
     Metric object
     """

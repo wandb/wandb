@@ -6,6 +6,7 @@ import torch.optim as optim
 
 import wandb
 
+
 def main():
     wandb.init()
 
@@ -38,7 +39,7 @@ def main():
     class NGramLanguageModeler(nn.Module):
 
         def __init__(self, vocab_size, embedding_dim, context_size):
-            super(NGramLanguageModeler, self).__init__()
+            super().__init__()
             self.embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
             self.linear1 = nn.Linear(context_size * embedding_dim, 128)
             self.linear2 = nn.Linear(128, vocab_size)
@@ -95,5 +96,6 @@ def main():
         losses.append(total_loss)
     print(losses)  # The loss decreased every iteration over the training data!
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

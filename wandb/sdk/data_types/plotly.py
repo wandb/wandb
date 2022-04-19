@@ -49,7 +49,7 @@ class Plotly(Media):
         return cls(val)
 
     def __init__(self, val: Union["plotly.Figure", "matplotlib.artist.Artist"]):
-        super(Plotly, self).__init__()
+        super().__init__()
         # First, check to see if the incoming `val` object is a plotfly figure
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
             # If it is not, but it is a matplotlib figure, then attempt to convert it to plotly
@@ -76,6 +76,6 @@ class Plotly(Media):
         return os.path.join("media", "plotly")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(Plotly, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
