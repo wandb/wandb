@@ -167,7 +167,7 @@ class LaunchProject:
 
     def add_entry_point(self, command: str) -> "EntryPoint":
         """Adds an entry point to the project."""
-        entry_point = split(command)
+        entry_point = split(command)[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
@@ -291,7 +291,7 @@ class LaunchProject:
                     entry_point = f"{command} {program_name}"
                 else:
                     raise LaunchError("Unsupported entrypoint: {}".format(program_name))
-
+                print(entry_point)
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]

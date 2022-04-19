@@ -78,7 +78,7 @@ def default_ctx():
         "emulate_azure": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
-        "return_jupyter_in_run_info": False,
+        "run_script_type": "python",
         "alerts": [],
         "gorilla_supports_launch_agents": True,
         "launch_agents": {},
@@ -152,8 +152,10 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-    if ctx["return_jupyter_in_run_info"]:
+    if ctx["run_script_type"] == "notebook":
         program_name = "one_cell.ipynb"
+    elif ctx["run_script_type"] == "shell":
+        program_name = "test.sh"
     else:
         program_name = "train.py"
     return {
@@ -1836,8 +1838,10 @@ def create_app(user_ctx=None):
                     },
                 }
         elif file == "wandb-metadata.json":
-            if ctx["return_jupyter_in_run_info"]:
+            if ctx["run_script_type"] == "notebook":
                 code_path = "one_cell.ipynb"
+            elif ctx["run_script_type"] == "script":
+                code_path = "test.sh"
             else:
                 code_path = "train.py"
             result = {
