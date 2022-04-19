@@ -86,7 +86,7 @@ def test_run_sweep_overlap():
 def test_nested_config():
     nested_config = {"foo": {"bar": 1}}
     run = wandb.init(mode="offline", config=nested_config, config_unnest=True)
-    assert run.config == {"foo.bar": 1}
+    assert run.config.as_dict() == {"foo.bar": 1}
     assert run.config_nested == nested_config
 
 

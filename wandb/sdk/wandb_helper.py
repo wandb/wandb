@@ -1,3 +1,4 @@
+from copy import deepcopy
 import inspect
 import types
 from typing import Any, Dict, List
@@ -11,13 +12,17 @@ NESTED_CONFIG_DELIMITER = "."
 
 
 def nest_config(params: Dict, delimiter: str = NESTED_CONFIG_DELIMITER) -> Dict:
-    _unflatten_dict(params, delimiter)
-    return params
+    # Deepcopy to prevent modifying the original params object
+    params_copy: Dict = deepcopy(params)
+    _unflatten_dict(params_copy, delimiter)
+    return params_copy
 
 
 def unnest_config(params: Dict, delimiter: str = NESTED_CONFIG_DELIMITER) -> Dict:
-    _flatten_dict(params, delimiter)
-    return params
+    # Deepcopy to prevent modifying the original params object
+    params_copy: Dict = deepcopy(params)
+    _flatten_dict(params_copy, delimiter)
+    return params_copy
 
 
 def _flatten_dict(d: Dict, delimiter: str) -> None:
@@ -63,19 +68,20 @@ def _unflatten_dict(d: Dict, delimiter: str) -> None:
             if delimiter in k:
                 subdict: Dict = d
                 subkeys: List[str] = k.split(delimiter)
-                for i, subkey in enumerate(subkeys):
-                    # Check to see if key is in parent level dict
-                    if subkey in d and not isinstance(subdict[subkey], dict):
-                        conflict_key: str = delimiter.join(subkeys[: i + 1])
-                        raise ConfigError(
-                            f"While un-nesting config, found key {subkey} which conflics with key {conflict_key}"
-                        )
+                for i, subkey in enumerate(subkeys[:-1]):
+                    if subkey in subdict:
+                        subdict = subdict[subkey]
+                        if not isinstance(subdict, dict):
+                            conflict_key: str = delimiter.join(subkeys[: i + 1])
+                            raise ConfigError(
+                                f"While nesting config, found key {subkey} which conflics with key {conflict_key}"
+                            )
                     else:
                         # Create a nested dictionary under the parent key
                         _d: Dict = dict()
                         subdict[subkey] = _d
                         subdict = _d
-                if isinstance(subdict, dict):
+                if isinstance(subdict, dict): 
                     subdict[subkeys[-1]] = d.pop(k)
 
 
