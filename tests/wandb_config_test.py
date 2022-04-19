@@ -132,6 +132,10 @@ def test_nested_config_helpers():
     with pytest.raises(ConfigError):
         _ = wandb_sdk.helper.unnest_config(invalid_nested_config)
 
+    invalid_unnested_config = {1: "foo"}
+    with pytest.raises(ConfigError):
+        _ = wandb_sdk.helper.nest_config(invalid_unnested_config)
+
     invalid_unnested_config = {"foo": 1, "foo.bar": {"baz": 2}}
     with pytest.raises(ConfigError):
         _ = wandb_sdk.helper.nest_config(invalid_unnested_config)
