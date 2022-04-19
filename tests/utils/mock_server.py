@@ -1840,7 +1840,7 @@ def create_app(user_ctx=None):
         elif file == "wandb-metadata.json":
             if ctx["run_script_type"] == "notebook":
                 code_path = "one_cell.ipynb"
-            elif ctx["run_script_type"] == "script":
+            elif ctx["run_script_type"] == "shell":
                 code_path = "test.sh"
             else:
                 code_path = "train.py"

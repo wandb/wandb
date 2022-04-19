@@ -281,7 +281,6 @@ class LaunchProject:
 
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
-
             if not self._entry_points:
                 _, ext = os.path.splitext(program_name)
                 if ext == ".py":
@@ -291,7 +290,6 @@ class LaunchProject:
                     entry_point = f"{command} {program_name}"
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
-                print(entry_point)
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
