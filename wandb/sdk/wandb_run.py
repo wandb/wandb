@@ -52,8 +52,7 @@ from wandb.util import (
     to_forward_slash_path,
 )
 from wandb.viz import (
-    create_custom_chart,
-    custom_chart_panel_config,
+    custom_chart,
     CustomChart,
     Visualize,
 )
@@ -259,7 +258,7 @@ class _run_decorator:  # noqa: N801
 
 
 class Run:
-    """A unit of computation logged by wandb. Typically this is an ML experiment.
+    """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
     <!--yeadoc-test:run-object-basic-->
@@ -310,7 +309,7 @@ class Run:
     to `wandb.init`. For more details on distributed training with W&B, check out
     [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
 
-    Currently there is a parallel `Run` object in the `wandb.Api`. Eventually these
+    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
 
     Attributes:
@@ -409,6 +408,9 @@ class Run:
         self._step = 0
         self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
+        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
+        #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
 
         _datatypes_set_callback(self._datatypes_callback)
@@ -1128,10 +1130,9 @@ class Run:
         val: Any = None,
         data: Dict[str, object] = None,
     ) -> None:
-        logger.info("config_cb %s %s %s", key, val, data)
-        if not self._backend or not self._backend.interface:
-            return
-        self._backend.interface.publish_config(key=key, val=val, data=data)
+        logger.info(f"config_cb {key} {val} {data}")
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact]
@@ -1182,31 +1183,27 @@ class Run:
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
-        custom_charts = {}
+        chart_keys = set()
         for k in row:
             if isinstance(row[k], Visualize):
-                config = {
-                    "id": row[k].viz_id,
-                    "historyFieldSettings": {"key": k, "x-axis": "_step"},
-                }
-                row[k] = row[k].value
-                self._config_callback(val=config, key=("_wandb", "viz", k))
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(k)
+                row[k] = row[k]._data
+                self._config_callback(val=value, key=key)
             elif isinstance(row[k], CustomChart):
-                custom_charts[k] = row[k]
-                custom_chart = row[k]
+                chart_keys.add(k)
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(
+                    "Vega2", row[k].user_query(f"{k}_table")
+                )
+                row[k] = row[k]._data
+                self._config_callback(val=value, key=key)
 
-        for k, custom_chart in custom_charts.items():
+        for k in chart_keys:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
             #     a non-custom chart to this key?
-            row.pop(k)
-            # add the table under a different key
-            table_key = k + "_table"
-            row[table_key] = custom_chart.table
-            # add the panel
-            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
-            self._add_panel(k, "Vega2", panel_config)
-
+            row[f"{k}_table"] = row.pop(k)
         return row
 
     def _partial_history_callback(
@@ -1406,7 +1403,7 @@ class Run:
         wandb keeps track of a global step, which by default increments with each
         call to `wandb.log`, so logging related metrics together is encouraged.
         If it's inconvenient to log related metrics together
-        calling `wandb.log({"train-loss": 0.5, commit=False})` and then
+        calling `wandb.log({"train-loss": 0.5}, commit=False)` and then
         `wandb.log({"accuracy": 0.9})` is equivalent to calling
         `wandb.log({"train-loss": 0.5, "accuracy": 0.9})`.
 
@@ -1715,9 +1712,13 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
-    # TODO(jhr): annotate this
     @staticmethod
-    def plot_table(vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
+    def plot_table(
+        vega_spec_name: str,
+        data_table: "wandb.Table",
+        fields: Dict[str, Any],
+        string_fields: Optional[Dict[str, Any]] = None,
+    ) -> CustomChart:
         """Creates a custom plot on a table.
 
         Arguments:
@@ -1730,10 +1731,7 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        visualization = create_custom_chart(
-            vega_spec_name, data_table, fields, string_fields or {}
-        )
-        return visualization
+        return custom_chart(vega_spec_name, data_table, fields, string_fields or {})
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
