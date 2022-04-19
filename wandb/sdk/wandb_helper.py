@@ -1,7 +1,7 @@
 from copy import deepcopy
 import inspect
 import types
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from wandb.errors import ConfigError, UsageError
 
@@ -66,7 +66,7 @@ def _unflatten_dict(d: Dict, delimiter: str) -> None:
                     f"Config keys must be strings, found {k} of type {type(k)}"
                 )
             if delimiter in k:
-                subdict: Dict = d
+                subdict: Union[Any, Dict] = d
                 subkeys: List[str] = k.split(delimiter)
                 for i, subkey in enumerate(subkeys[:-1]):
                     if subkey in subdict:
@@ -81,7 +81,7 @@ def _unflatten_dict(d: Dict, delimiter: str) -> None:
                         _d: Dict = dict()
                         subdict[subkey] = _d
                         subdict = _d
-                if isinstance(subdict, dict): 
+                if isinstance(subdict, dict):
                     subdict[subkeys[-1]] = d.pop(k)
 
 
