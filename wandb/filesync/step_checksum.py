@@ -10,32 +10,32 @@ import wandb.util
 from wandb.filesync import step_upload
 
 
-RequestUpload = NamedTuple(
-    "RequestUpload",
-    (
-        ("path", str),
-        ("save_name", str),
-        ("artifact_id", str),
-        ("copy", bool),
-        ("use_prepare_flow", bool),
-        ("save_fn", Callable[..., Any]),
-        ("digest", Any),
-    ),
-)
-RequestStoreManifestFiles = NamedTuple(
-    "RequestStoreManifestFiles",
-    (("manifest", Any), ("artifact_id", str), ("save_fn", Callable[..., Any])),
-)
-RequestCommitArtifact = NamedTuple(
-    "RequestCommitArtifact",
-    (
-        ("artifact_id", str),
-        ("finalize", bool),
-        ("before_commit", Callable[..., Any]),
-        ("on_commit", Callable[..., Any]),
-    ),
-)
-RequestFinish = NamedTuple("RequestFinish", (("callback", Callable[..., Any]),))
+class RequestUpload(NamedTuple):
+    path: str
+    save_name: str
+    artifact_id: str
+    copy: bool
+    use_prepare_flow: bool
+    save_fn: Callable[..., Any]
+    digest: Any
+
+
+class RequestStoreManifestFiles(NamedTuple):
+    manifest: Any
+    artifact_id: str
+    save_fn: Callable[..., Any]
+
+
+class RequestCommitArtifact(NamedTuple):
+    artifact_id: str
+    finalize: bool
+    before_commit: Callable[..., Any]
+    on_commit: Callable[..., Any]
+
+
+class RequestFinish(NamedTuple):
+    callback: Callable[..., Any]
+
 
 Event = Union[
     RequestUpload, RequestStoreManifestFiles, RequestCommitArtifact, RequestFinish

@@ -20,16 +20,18 @@ RequestUpload = NamedTuple(
         ("digest", Any),
     ),
 )
-RequestCommitArtifact = NamedTuple(
-    "RequestCommitArtifact",
-    (
-        ("artifact_id", str),
-        ("finalize", bool),
-        ("before_commit", Callable[..., Any]),
-        ("on_commit", Callable[..., Any]),
-    ),
-)
-RequestFinish = NamedTuple("RequestFinish", (("callback", Callable[..., Any]),))
+
+
+class RequestCommitArtifact(NamedTuple):
+    artifact_id: str
+    finalize: bool
+    before_commit: Callable[..., Any]
+    on_commit: Callable[..., Any]
+
+
+class RequestFinish(NamedTuple):
+    callback: Callable[..., Any]
+
 
 Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish]
 
