@@ -1,5 +1,4 @@
 import _thread as thread
-import ast
 import atexit
 from collections.abc import Mapping
 from datetime import timedelta

@@ -62,7 +62,7 @@ def main():
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
                     if "wandb" in req:
-                        req = "git+https://github.com/wandb/client.git@gong/deployable-launch-agent"
+                        req = "git+https://github.com/wandb/client.git@gong/deployable-launch-agent-v2"
                     reqs.append(req.strip())
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
