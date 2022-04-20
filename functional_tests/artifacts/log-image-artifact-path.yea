@@ -1,0 +1,20 @@
+id: 0.artifacts.log-image-artifact-path
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 2
+  - :op:contains_regex:
+    - :wandb:runs[0][files]
+    - media/images/image_(.*).png
+  - :op:contains:
+    - :wandb:runs[0][summary][image]
+    - path
+  - :op:not_contains_regex:
+    - :wandb:runs[1][files]
+    - media/images/image_(.*).png
+  - :op:not_contains:
+    - :wandb:runs[1][summary][image]
+    - path
+  - :op:contains:
+    - :wandb:runs[1][summary][image]
+    - artifact_path
