@@ -45,6 +45,30 @@ if TYPE_CHECKING:
     )
 
 
+import orjson
+
+
+def dumps(obj: Any, **kwargs: Any) -> str:
+    """Wrapper for <json|orjson>.dumps"""
+    cls = kwargs.pop("cls", None)
+    try:
+        _kwargs = kwargs.copy()
+        if cls:
+            _kwargs["default"] = cls.default
+        encoded = orjson.dumps(obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs).decode()
+    except Exception as e:
+        logger.exception(f"Error using orjson.dumps: {e}")
+        _kwargs = kwargs.copy()
+        if cls:
+            _kwargs["cls"] = cls
+        encoded = json.dumps(obj, **_kwargs)
+
+    return encoded
+
+
+# dumps = json.dumps
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -816,7 +840,7 @@ class SendManager:
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
-            self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
+            self._fs.push(filenames.HISTORY_FNAME, dumps(history_dict))
 
     def send_history(self, record: "Record") -> None:
         history = record.history
@@ -1106,16 +1130,20 @@ class SendManager:
         logger.info("shutting down sender")
         # if self._tb_watcher:
         #     self._tb_watcher.finish()
+        print(self._dir_watcher, self._pusher, self._fs)
         if self._dir_watcher:
             self._dir_watcher.finish()
             self._dir_watcher = None
         if self._pusher:
+            print("pusher finish")
             self._pusher.finish()
             self._pusher.join()
             self._pusher = None
         if self._fs:
+            print("fs finish")
             self._fs.finish(self._exit_code)
             self._fs = None
+        print("sender finished")
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()

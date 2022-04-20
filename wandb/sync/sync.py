@@ -253,6 +253,7 @@ class SyncThread(threading.Thread):
             exit_pb = None
             finished = False
             shown = False
+            i = 0
             while True:
                 data = self._robust_scan(ds)
                 if data is None:
@@ -267,6 +268,9 @@ class SyncThread(threading.Thread):
                 while not sm._record_q.empty():
                     data = sm._record_q.get(block=True)
                     sm.send(data)
+
+                print(i, sm._exit_result)
+                i += 1
 
                 if pb.control.req_resp:
                     result = sm._result_q.get(block=True)

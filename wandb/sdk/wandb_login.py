@@ -66,7 +66,7 @@ def login(
         bool: if key is configured
 
     Raises:
-        UsageError - if api_key can not configured and no tty
+        UsageError - if api_key cannot be configured and no tty
     """
 
     _handle_host_wandb_setting(host)
