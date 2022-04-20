@@ -41,28 +41,7 @@ def _server_accepts_image_filenames() -> bool:
 
 
 def _server_accepts_artifact_path() -> bool:
-    # Note on Version:
-    # * On 04/05/2022 the UI was modified to accept artifact_paths in the media
-    #   panel:
-    #   https://github.com/wandb/core/commit/341e05a9335a75cc306f74c081ed345cd369636a
-    # * At the time, the max_cli_version was set to 0.12.11:
-    #   https://github.com/wandb/core/blob/341e05a9335a75cc306f74c081ed345cd369636a/services/gorilla/deploy/gorilla/values.yaml#L59
-    # * On the same day (04/05/2022) we made a custom release for a customer
-    #   (0.9.50-[CUSTOMER]):
-    #   https://hub.docker.com/r/wandb/local-dev/tags?page=1&name=0.9.50
-    # * As of this writing (04/15/2022), the max_cli_version is set to 0.12.14,
-    #   which will be set in local version >= 0.9.51:
-    #   https://github.com/wandb/core/commit/b10b86888118249733b6eaa874b121591820a359
-    #
-    # Therefore, setting this version to 0.12.14 is the most accurate, however
-    # this will exclude the target customer. Therefore, setting this version to
-    # 0.12.11 is an acceptable compromise as it will only be incorrect for
-    # customers on local version 0.9.50. Customers on <=0.9.49 will correctly
-    # return false, and customers on >=0.9.51 will correctly return true.
-    #
-    # After the target customer re-updates local, we can bump this to 0.12.14
-    # safely.
-    target_version = "0.12.11"
+    target_version = "0.12.14"
     max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
     return max_cli_version is not None and parse_version(
         target_version
