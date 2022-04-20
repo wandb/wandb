@@ -156,8 +156,10 @@ def run(ctx):
         program_name = "one_cell.ipynb"
     elif ctx["run_script_type"] == "shell":
         program_name = "test.sh"
-    else:
+    elif ctx["run_script_type"] == "python":
         program_name = "train.py"
+    elif ctx["run_script_type"] == "unknown":
+        program_name = "blah.unk"
     return {
         "id": "test",
         "name": "test",
@@ -1842,8 +1844,10 @@ def create_app(user_ctx=None):
                 code_path = "one_cell.ipynb"
             elif ctx["run_script_type"] == "shell":
                 code_path = "test.sh"
-            else:
+            elif ctx["run_script_type"] == "python":
                 code_path = "train.py"
+            elif ctx["run_script_type"] == "unknown":
+                code_path = "blah.unk"
             result = {
                 "docker": "test/docker",
                 "program": "train.py",

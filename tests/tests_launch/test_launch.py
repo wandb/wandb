@@ -8,6 +8,7 @@ import sys
 import pytest
 import wandb
 from wandb.apis import PublicApi
+from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.docker import pull_docker_image
 import wandb.sdk.launch.launch as launch
@@ -1243,3 +1244,19 @@ def test_launch_shell_script(
         project="new-test",
     )
     assert str(run.get_status()) == "finished"
+
+
+def test_launch_unknown_entrypoint(
+    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
+):
+    live_mock_server.set_ctx({"run_script_type": "unknown"})
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    with pytest.raises(LaunchError):
+        launch.run(
+            "https://wandb.ai/mock_server_entity/test/runs/shell1",
+            api,
+            project="new-test",
+        )
