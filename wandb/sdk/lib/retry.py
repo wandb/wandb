@@ -25,12 +25,12 @@ class TransientError(Exception):
     """
 
     def __init__(self, msg=None, exc=None):
-        super(TransientError, self).__init__(msg)
+        super().__init__(msg)
         self.message = msg
         self.exception = exc
 
 
-class Retry(object):
+class Retry:
     """Creates a retryable version of a function.
 
     Calling this will call the passed function, retrying if any exceptions in
@@ -88,7 +88,7 @@ class Retry(object):
 
         sleep_base = kwargs.pop("retry_sleep_base", 1)
 
-        # an extra function to allow performing more logic on the filtered exceptiosn
+        # an extra function to allow performing more logic on the filtered exception
         check_retry_fn = kwargs.pop("check_retry_fn", self._check_retry_fn)
 
         sleep = sleep_base

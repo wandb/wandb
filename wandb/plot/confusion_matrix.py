@@ -1,10 +1,18 @@
+from typing import Optional, Sequence
+
 import wandb
 from wandb import util
 
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, title=None):
+def confusion_matrix(
+    probs: Optional[Sequence[Sequence]] = None,
+    y_true: Optional[Sequence] = None,
+    preds: Optional[Sequence] = None,
+    class_names: Optional[Sequence[str]] = None,
+    title: Optional[str] = None,
+):
     """
     Computes a multi-run confusion matrix.
 
@@ -61,7 +69,7 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
     else:
         class_inds = set(preds).union(set(y_true))
         n_classes = len(class_inds)
-        class_names = ["Class_{}".format(i) for i in range(1, n_classes + 1)]
+        class_names = [f"Class_{i}" for i in range(1, n_classes + 1)]
 
     # get mapping of inds to class index in case user has weird prediction indices
     class_mapping = {}

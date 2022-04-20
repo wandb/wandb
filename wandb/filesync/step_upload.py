@@ -1,8 +1,8 @@
 """Batching file prepare requests to our API."""
 
 import collections
+import queue
 import threading
-from six.moves import queue
 
 from wandb.filesync import upload_job
 from wandb.errors.term import termerror
@@ -18,7 +18,7 @@ RequestCommitArtifact = collections.namedtuple(
 RequestFinish = collections.namedtuple("RequestFinish", ("callback"))
 
 
-class StepUpload(object):
+class StepUpload:
     def __init__(self, api, stats, event_queue, max_jobs, file_stream, silent=False):
         self._api = api
         self._stats = stats

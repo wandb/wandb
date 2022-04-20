@@ -12,8 +12,9 @@ from wandb_probe import wandb_probe_package
 
 def add_wandb_env_variables(op):
     env = {
-        "WANDB_API_KEY": os.environ["WANDB_API_KEY"],
-        "WANDB_BASE_URL": os.environ["WANDB_BASE_URL"],
+        "WANDB_API_KEY": os.getenv("WANDB_API_KEY"),
+        "WANDB_BASE_URL": os.getenv("WANDB_BASE_URL"),
+        "WANDB_KUBEFLOW_URL": os.getenv("WANDB_KUBEFLOW_URL"),
         "WANDB_PROJECT": "wandb_kfp_integration_test",
     }
 
@@ -92,7 +93,7 @@ def train_model(
 
     class Net(nn.Module):
         def __init__(self):
-            super(Net, self).__init__()
+            super().__init__()
             self.conv1 = nn.Conv2d(1, 32, 3, 1)
             self.conv2 = nn.Conv2d(32, 64, 3, 1)
             self.dropout1 = nn.Dropout(0.25)

@@ -38,15 +38,20 @@ class Object3D(BatchableMedia):
     ```
     """
 
-    SUPPORTED_TYPES: ClassVar[Set[str]] = set(
-        ["obj", "gltf", "glb", "babylon", "stl", "pts.json"]
-    )
+    SUPPORTED_TYPES: ClassVar[Set[str]] = {
+        "obj",
+        "gltf",
+        "glb",
+        "babylon",
+        "stl",
+        "pts.json",
+    }
     _log_type: ClassVar[str] = "object3D-file"
 
     def __init__(
         self, data_or_path: Union["np.ndarray", str, "TextIO"], **kwargs: str
     ) -> None:
-        super(Object3D, self).__init__()
+        super().__init__()
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
@@ -115,7 +120,11 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                    data,
+                    fp,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                    indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif util.is_numpy_array(data_or_path):
@@ -142,7 +151,11 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                    list_data,
+                    fp,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                    indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
@@ -153,7 +166,7 @@ class Object3D(BatchableMedia):
         return os.path.join("media", "object3D")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(Object3D, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):

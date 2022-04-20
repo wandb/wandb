@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import LogMultiprocessError, UsageError
+from wandb.errors import MultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
@@ -37,22 +37,26 @@ def test_deprecated_run_log_sync(fake_run, capsys):
 
 def test_run_log_mp_warn(fake_run, capsys):
     run = fake_run()
-    run._init_pid += 1
+    _init_pid = run._init_pid
+    run._init_pid = _init_pid + 1
     run.log(dict(this=1))
     _, stderr = capsys.readouterr()
     assert (
-        f"log() ignored (called from pid={os.getpid()}, init called from pid={run._init_pid})"
+        f"`log` ignored (called from pid={os.getpid()}, `init` called from pid={run._init_pid})"
         in stderr
     )
+    run._init_pid = _init_pid
 
 
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
-    run._init_pid += 1
-    with pytest.raises(LogMultiprocessError) as excinfo:
+    _init_pid = run._init_pid
+    run._init_pid = _init_pid + 1
+    with pytest.raises(MultiprocessError) as excinfo:
         run.log(dict(this=1))
-        assert "log() does not support multiprocessing" in str(excinfo.value)
+        assert "`log` does not support multiprocessing" in str(excinfo.value)
+    run._init_pid = _init_pid
     run.finish()
 
 
@@ -146,14 +150,14 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         with open("test.py", "w") as f:
             f.write('print("test")')
 
-        # first, ditch user preference for code saving
-        # since it has higher priority for policy settings
-        live_mock_server.set_ctx({"code_saving_enabled": None})
-        # note that save_code is a policy by definition
+        # simulate user turning on code saving in UI
+        live_mock_server.set_ctx({"code_saving_enabled": True})
         test_settings.update(
             save_code=None,
-            code_dir=".",
-            source=wandb.sdk.wandb_settings.Source.SETTINGS,
+            source=wandb.sdk.wandb_settings.Source.BASE,
+        )
+        test_settings.update(
+            code_dir=".", source=wandb.sdk.wandb_settings.Source.SETTINGS
         )
         run = wandb.init(settings=test_settings)
         assert run._settings.save_code is save_code
@@ -313,15 +317,21 @@ def test_use_artifact_offline(live_mock_server, test_settings):
     run.finish()
 
 
-def test_run_urls(test_settings):
+@pytest.mark.skip(
+    reason=(
+        "mock server enforces entity=mock_server_entity and project=test,"
+        "this should only work on a live server, or mock_server would need customization."
+    )
+)
+def test_run_urls(live_mock_server, test_settings):
     base_url = "https://my.cool.site.com"
     entity = "me"
-    project = "test"
-    test_settings.update(dict(base_url=base_url, entity=entity, project=project))
+    project = "lol"
+    test_settings.update(base_url=base_url, entity=entity, project=project)
     run = wandb.init(settings=test_settings)
     assert run.get_project_url() == f"{base_url}/{entity}/{project}"
     assert run.get_url() == f"{base_url}/{entity}/{project}/runs/{run.id}"
-    run.finish
+    run.finish()
 
 
 def test_use_artifact(live_mock_server, test_settings):
@@ -643,7 +653,10 @@ def test_wandb_artifact_config_update(
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
-    run = wandb.init(settings=test_settings)
+    run = wandb.init(
+        config_include_keys=("lol",),
+        settings=test_settings,
+    )
     # use deprecated features
     deprecated_features = [
         run.mode,
@@ -654,11 +667,13 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
     telemetry = ctx_util.telemetry
     # TelemetryRecord field 10 is Deprecated,
     # whose fields 2-4 correspond to deprecated wandb.run features
+    # fields 7 & 8 are deprecated wandb.init kwargs
     telemetry_deprecated = telemetry.get("10", [])
     assert (
         (2 in telemetry_deprecated)
         and (3 in telemetry_deprecated)
         and (4 in telemetry_deprecated)
+        and (7 in telemetry_deprecated)
     )
     run.finish()
 
@@ -716,10 +731,23 @@ def test_settings_unexpected_args_telemetry(
         run.finish()
 
 
-def test_attach_same_process(test_settings):
+def test_attach_same_process(live_mock_server, test_settings):
     with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
         with pytest.raises(RuntimeError) as excinfo:
             run = wandb.init(settings=test_settings)
             new_run = pickle.loads(pickle.dumps(run))
             new_run.log({"a": 2})
     assert "attach in the same process is not supported" in str(excinfo.value)
+
+
+def test_init_with_settings(live_mock_server, test_settings):
+    # test that when calling `wandb.init(settings=wandb.Settings(...))`,
+    # the settings are passed with Source.INIT as the source
+    test_settings.update(_disable_stats=True)
+    run = wandb.init(settings=test_settings)
+    assert run.settings._disable_stats
+    assert (
+        run.settings.__dict__["_disable_stats"].source
+        == wandb_sdk.wandb_settings.Source.INIT
+    )
+    run.finish()

@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """
 progress.
 """
@@ -9,7 +7,7 @@ import os
 from wandb.errors import CommError
 
 
-class Progress(object):
+class Progress:
     """A helper class for displaying progress"""
 
     ITER_BYTES = 1024 * 1024

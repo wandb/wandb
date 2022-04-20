@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 test_git_repo
@@ -7,8 +6,6 @@ test_git_repo
 
 Tests for the `wandb.GitRepo` module.
 """
-import platform
-import pytest
 
 import wandb
 

@@ -96,9 +96,18 @@ def unpatch_kfp():
 
 def patch_kfp():
     to_patch = [
-        ("kfp.components", create_component_from_func,),
-        ("kfp.components._python_op", create_component_from_func,),
-        ("kfp.components._python_op", _get_function_source_definition,),
+        (
+            "kfp.components",
+            create_component_from_func,
+        ),
+        (
+            "kfp.components._python_op",
+            create_component_from_func,
+        ),
+        (
+            "kfp.components._python_op",
+            _get_function_source_definition,
+        ),
         ("kfp.components._python_op", strip_type_hints),
     ]
 
@@ -281,7 +290,9 @@ def create_component_from_func(
         packages_to_install=packages_to_install,
     )
     if annotations:
-        component_spec.metadata = structures.MetadataSpec(annotations=annotations,)
+        component_spec.metadata = structures.MetadataSpec(
+            annotations=annotations,
+        )
 
     if output_component_file:
         component_spec.save(output_component_file)

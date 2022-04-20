@@ -36,8 +36,8 @@ class KubernetesSubmittedRun(AbstractRun):
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         name: str,
+        pod_names: List[str],
         namespace: Optional[str] = "default",
-        pod_names: List[str] = None,
     ) -> None:
         self.batch_api = batch_api
         self.core_api = core_api
@@ -61,7 +61,7 @@ class KubernetesSubmittedRun(AbstractRun):
     def wait(self) -> bool:
         while True:
             status = self.get_status()
-            wandb.termlog("Job {} status: {}".format(self.name, status))
+            wandb.termlog(f"Job {self.name} status: {status}")
             if status.state != "running":
                 break
             time.sleep(5)
@@ -79,22 +79,17 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.pod_names[0], namespace=self.namespace
             )
         except Exception as e:
+            self._fail_count += 1
             if self._fail_count == 1:
                 wandb.termlog(
                     "Failed to get pod status for job: {}. Will wait up to 10 minutes for job to start.".format(
                         self.name
                     )
                 )
-            self._fail_count += 1
             if self._fail_count > MAX_KUBERNETES_RETRIES:
-                if hasattr(e, "body") and hasattr(e.body, "message"):
-                    raise LaunchError(
-                        f"Failed to start job {self.name}, because of error {str(e.body.message)}"
-                    )
-                else:
-                    raise LaunchError(
-                        f"Failed to start job {self.name}, because of error {str(e)}"
-                    )
+                raise LaunchError(
+                    f"Failed to start job {self.name}, because of error {str(e)}"
+                )
 
         # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
         if status.succeeded == 1:
@@ -136,7 +131,12 @@ class KubernetesSubmittedRun(AbstractRun):
 
 
 class KubernetesRunner(AbstractRunner):
-    def _set_context(self, kubernetes, config_file, resource_args):
+    def _set_context(
+        self,
+        kubernetes: Any,  # noqa: F811
+        config_file: str,
+        resource_args: Dict[str, Any],  # noqa: F811
+    ) -> Any:
         all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
             config_file
         )
@@ -145,9 +145,7 @@ class KubernetesRunner(AbstractRunner):
             for c in all_contexts:
                 if c["name"] == context_name:
                     return c
-            raise LaunchError(
-                "Specified context {} was not found.".format(context_name)
-            )
+            raise LaunchError(f"Specified context {context_name} was not found.")
         else:
             return active_context
 
@@ -205,7 +203,8 @@ class KubernetesRunner(AbstractRunner):
             context["context"].get("namespace", "default") if context else "default"
         )
         namespace = resource_args.get(
-            "namespace", job_metadata.get("namespace", default),
+            "namespace",
+            job_metadata.get("namespace", default),
         )
 
         # name precedence: resource args override > name in spec file > generated name
@@ -345,14 +344,14 @@ class KubernetesRunner(AbstractRunner):
         job_name = job_response.metadata.labels["job-name"]
 
         pods = core_api.list_namespaced_pod(
-            label_selector="job-name={}".format(job_name), namespace=namespace
+            label_selector=f"job-name={job_name}", namespace=namespace
         )
         timeout = TIMEOUT
         while len(pods.items) == 0 and timeout > 0:
             time.sleep(1)
             timeout -= 1
             pods = core_api.list_namespaced_pod(
-                label_selector="job-name={}".format(job_name), namespace=namespace
+                label_selector=f"job-name={job_name}", namespace=namespace
             )
 
         if timeout == 0:
@@ -370,7 +369,11 @@ class KubernetesRunner(AbstractRunner):
         )
 
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, namespace, pod_names
+            batch_api,
+            core_api,
+            job_name,
+            pod_names,
+            namespace,
         )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:

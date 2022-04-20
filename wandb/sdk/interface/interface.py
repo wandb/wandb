@@ -62,7 +62,7 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     return policy
 
 
-class InterfaceBase(object):
+class InterfaceBase:
     _run: Optional["Run"]
     _drop: bool
 
@@ -290,7 +290,8 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -498,13 +499,11 @@ class InterfaceBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str]
-    ) -> None:
+    def publish_tbdata(self, log_dir: str, save: bool, root_logdir: str = "") -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
+        tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
     @abstractmethod
@@ -535,7 +534,6 @@ class InterfaceBase(object):
             item.key = k
             item.value_json = json_dumps_safer_history(v)
         if publish_step and step is not None:
-            # assert step is not None
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush

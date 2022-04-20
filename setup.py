@@ -33,7 +33,6 @@ media_requirements = [
     "rdkit-pypi",
 ]
 launch_requirements = [
-    "docker",
     "nbconvert",
     "chardet",
     "iso8601",
@@ -43,7 +42,7 @@ launch_requirements = [
 
 setup(
     name="wandb",
-    version="0.12.12.dev1",
+    version="0.12.15.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
+from .service_base import _pbmap_apply_dict
 from .streams import StreamMux
 from ..lib import tracelog
 from ..lib.proto_util import settings_dict_from_pbmap
@@ -108,7 +109,7 @@ class SockServerReadThread(threading.Thread):
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(
                 self, shandler_str, None
             )
-            assert shandler, "unknown handle: {}".format(shandler_str)
+            assert shandler, f"unknown handle: {shandler_str}"
             shandler(sreq)
 
     def stop(self) -> None:
@@ -128,7 +129,9 @@ class SockServerReadThread(threading.Thread):
         iface = self._mux.get_stream(stream_id).interface
         self._clients.add_client(self._sock_client)
         iface_reader_thread = SockServerInterfaceReaderThread(
-            clients=self._clients, iface=iface, stopped=self._stopped,
+            clients=self._clients,
+            iface=iface,
+            stopped=self._stopped,
         )
         iface_reader_thread.start()
 
@@ -143,7 +146,15 @@ class SockServerReadThread(threading.Thread):
         stream_id = request._info.stream_id
 
         self._clients.add_client(self._sock_client)
+        inform_attach_response = spb.ServerInformAttachResponse()
+        _pbmap_apply_dict(
+            inform_attach_response._settings_map,
+            dict(self._mux._streams[stream_id]._settings),
+        )
+        response = spb.ServerResponse(inform_attach_response=inform_attach_response)
+        self._sock_client.send_server_response(response)
         iface = self._mux.get_stream(stream_id).interface
+
         assert iface
 
     def server_record_communicate(self, sreq: "spb.ServerRequest") -> None:

@@ -1,5 +1,6 @@
 import logging
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -147,7 +148,10 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)
@@ -172,23 +176,23 @@ def get_docker_command(
 
     # hacky handling of env vars, needs to be improved
     for env_key, env_value in env_vars.items():
-        cmd += ["-e", f"{shlex_quote(env_key)}={shlex_quote(env_value)}"]
+        cmd += ["-e", f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
 
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
             if isinstance(value, bool) and value:
                 if len(name) == 1:
-                    cmd += ["-" + shlex_quote(name)]
+                    cmd += ["-" + shlex.quote(name)]
                 else:
-                    cmd += ["--" + shlex_quote(name)]
+                    cmd += ["--" + shlex.quote(name)]
             else:
                 # Passed name=value
                 if len(name) == 1:
-                    cmd += ["-" + shlex_quote(name), shlex_quote(str(value))]
+                    cmd += ["-" + shlex.quote(name), shlex.quote(str(value))]
                 else:
-                    cmd += ["--" + shlex_quote(name), shlex_quote(str(value))]
+                    cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
 
-    cmd += [shlex_quote(image)]
+    cmd += [shlex.quote(image)]
     cmd += [entry_cmd]
     return cmd

@@ -1,11 +1,11 @@
 import datetime
 import os
+import shlex
 import time
 from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
-from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
 from wandb.errors import LaunchError
@@ -110,9 +110,9 @@ class VertexRunner(AbstractRunner):
             raise LaunchError(
                 "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key artifact_repo."
             )
-        gcp_docker_host = resource_args.get(
-            "docker_host"
-        ) or "{region}-docker.pkg.dev".format(region=gcp_region)
+        gcp_docker_host = (
+            resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
+        )
         gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
         gcp_accelerator_type = (
             resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
@@ -145,7 +145,10 @@ class VertexRunner(AbstractRunner):
             image_uri = launch_project.docker_image
         else:
             image_uri = construct_gcp_image_uri(
-                launch_project, gcp_artifact_repo, gcp_project, gcp_docker_host,
+                launch_project,
+                gcp_artifact_repo,
+                gcp_project,
+                gcp_docker_host,
             )
 
             generate_docker_image(
@@ -226,7 +229,7 @@ class VertexRunner(AbstractRunner):
 def get_gcp_config(config: str = "default") -> Any:
     return yaml.safe_load(
         run_shell(
-            ["gcloud", "config", "configurations", "describe", shlex_quote(config)]
+            ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
         )[0]
     )
 
@@ -239,9 +242,9 @@ def exists_on_gcp(image: str, tag: str) -> bool:
             "docker",
             "images",
             "list",
-            shlex_quote(image),
+            shlex.quote(image),
             "--include-tags",
-            "--filter=tags:{}".format(shlex_quote(tag)),
+            f"--filter=tags:{shlex.quote(tag)}",
         ]
     )
     return tag in out and "sha256:" in out

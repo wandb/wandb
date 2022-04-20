@@ -9,7 +9,6 @@ from typing import Any, Dict, Iterable, List, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
 
@@ -39,7 +38,7 @@ def _convert_access(access: str) -> str:
     return access
 
 
-class LaunchAgent(object):
+class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
     def __init__(
@@ -73,7 +72,7 @@ class LaunchAgent(object):
             entity, project, queues, self.gorilla_supports_agents
         )
         self._id = create_response["launchAgentId"]
-        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
+        self._name = ""  # hacky: want to display this to the user, but we don't get it back from gql until polling starts. fix later
         self._queues = queues if queues else ["default"]
 
     @property
@@ -85,7 +84,10 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue, entity=self._entity, project=self._project, agent_id=self._id,
+                queue,
+                entity=self._entity,
+                project=self._project,
+                agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
@@ -105,7 +107,7 @@ class LaunchAgent(object):
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
-            wandb.termerror("Failed to update agent status to {}".format(status))
+            wandb.termerror(f"Failed to update agent status to {status}")
 
     def finish_job_id(self, job_id: Union[str, int]) -> None:
         """Removes the job from our list for now."""
@@ -211,7 +213,6 @@ class LaunchAgent(object):
                             except Exception as e:
                                 wandb.termerror(f"Error running job: {e}")
                                 self._api.ack_run_queue_item(job["runQueueItemId"])
-                            break  # do a full housekeeping loop before popping more jobs
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
