@@ -1,4 +1,4 @@
-## 0.12.15 (April 20, 2022)
+## 0.12.15 (April 21, 2022)
 
 #### :nail_care: Enhancement
 * Optimize wandb.Image logging when linked to an artifact by @annirudh in https://github.com/wandb/client/pull/3418
