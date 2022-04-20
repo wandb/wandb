@@ -73,9 +73,9 @@ roleRef:
 ---
 apiVersion: v1
 data:
-  wandb-base-url: "https://api.qa.wandb.ai" ### TODO: SET YOUR WANDB BASE URL
-  wandb-project: "launch_test" # TODO: SET YOUR ML PROJECT
-  max-jobs: "-1" # TODO: SET YOUR MAX CONCURRENT JOBS HERE
+  wandb-base-url: "https://api.wandb.ai" ### TODO: SET YOUR WANDB BASE URL
+  wandb-project: "launch-demo" # TODO: SET YOUR ML PROJECT
+  wandb-agent-max-jobs: "-1" # TODO: SET YOUR MAX CONCURRENT JOBS HERE
 kind: ConfigMap
 metadata:
   name: wandb-setup
@@ -88,4 +88,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: "e3b128254499772882e0ebe97ddf0fb0ca578437"  ### API KEY HERE
+  password: ""  ### API KEY HERE
