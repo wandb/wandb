@@ -112,6 +112,8 @@ def mocked_fetchable_git_repo_shell():
             f.write("test")
         with open(os.path.join(dst_dir, "test.sh"), "w") as f:
             f.write("python train.py")
+        with open(os.path.join(dst_dir, "unknown.unk"), "w") as f:
+            f.write("test")
         return mock.Mock()
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
@@ -1247,16 +1249,19 @@ def test_launch_shell_script(
 
 
 def test_launch_unknown_entrypoint(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo_shell,
 ):
     live_mock_server.set_ctx({"run_script_type": "unknown"})
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    with pytest.raises(LaunchError):
+    with pytest.raises(LaunchError) as e_info:
         launch.run(
             "https://wandb.ai/mock_server_entity/test/runs/shell1",
             api,
             project="new-test",
         )
+    assert "Unsupported entrypoint:" in str(e_info.value)

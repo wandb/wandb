@@ -159,7 +159,7 @@ def run(ctx):
     elif ctx["run_script_type"] == "python":
         program_name = "train.py"
     elif ctx["run_script_type"] == "unknown":
-        program_name = "blah.unk"
+        program_name = "unknown.unk"
     return {
         "id": "test",
         "name": "test",
@@ -1847,7 +1847,7 @@ def create_app(user_ctx=None):
             elif ctx["run_script_type"] == "python":
                 code_path = "train.py"
             elif ctx["run_script_type"] == "unknown":
-                code_path = "blah.unk"
+                code_path = "unknown.unk"
             result = {
                 "docker": "test/docker",
                 "program": "train.py",
