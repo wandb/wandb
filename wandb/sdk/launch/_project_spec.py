@@ -156,11 +156,7 @@ class LaunchProject:
     def get_single_entry_point(self) -> Optional["EntryPoint"]:
         """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
         # assuming project only has 1 entry point, pull that out
-<<<<<<< HEAD
-        # tmp fn until we figure out if we wanna support multiple entry points or not
-=======
         # tmp fn until we figure out if we want to support multiple entry points or not
->>>>>>> master
         if not self._entry_points:
             if not self.docker_image:
                 raise LaunchError(
@@ -171,30 +167,12 @@ class LaunchProject:
 
     def add_entry_point(self, command: str) -> "EntryPoint":
         """Adds an entry point to the project."""
-<<<<<<< HEAD
         command = command.split(" ")
         entry_point = command[-1]
         cmd = [quote(c) for c in command]
-        print("CMD", cmd)
         new_entrypoint = EntryPoint(name=entry_point, command=" ".join(cmd))
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
-=======
-        _, file_extension = os.path.splitext(entry_point)
-        ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
-        if file_extension in ext_to_cmd:
-            command = f"{ext_to_cmd[file_extension]} {quote(entry_point)}"
-            new_entrypoint = EntryPoint(name=entry_point, command=command)
-            self._entry_points[entry_point] = new_entrypoint
-            return new_entrypoint
-        raise ExecutionError(
-            "Could not find {0} among entry points {1} or interpret {0} as a "
-            "runnable script. Supported script file extensions: "
-            "{2}".format(
-                entry_point, list(self._entry_points.keys()), list(ext_to_cmd.keys())
-            )
-        )
->>>>>>> master
 
     def get_entry_point(self, entry_point: str) -> "EntryPoint":
         """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
@@ -216,11 +194,7 @@ class LaunchProject:
             run_info = utils.fetch_wandb_project_run_info(
                 source_entity, source_project, source_run_name, internal_api
             )
-<<<<<<< HEAD
             program_name = run_info.get("codePath") or run_info["program"]
-=======
-            entry_point = run_info.get("codePath") or run_info["program"]
->>>>>>> master
 
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
@@ -292,17 +266,10 @@ class LaunchProject:
 
             if (
                 "_session_history.ipynb" in os.listdir(self.project_dir)
-<<<<<<< HEAD
                 or ".ipynb" in program_name
             ):
                 program_name = utils.convert_jupyter_notebook_to_script(
                     program_name, self.project_dir
-=======
-                or ".ipynb" in entry_point
-            ):
-                entry_point = utils.convert_jupyter_notebook_to_script(
-                    entry_point, self.project_dir
->>>>>>> master
                 )
 
             # Download any frozen requirements
@@ -325,7 +292,7 @@ class LaunchProject:
                     command = os.environ.get("SHELL", "bash")
                     entry_point = f"{command} {program_name}"
                 else:
-                    raise LaunchError("Unsupported entrypoint: {}".format(program_name))
+                    raise LaunchError(f"Unsupported entrypoint: {program_name}")
 
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
@@ -493,11 +460,7 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     assert launch_project.project_dir is not None
-<<<<<<< HEAD
-    # this prioritizes pip and we don't support any cases where both are present
-=======
     # this prioritizes pip, and we don't support any cases where both are present
->>>>>>> master
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.txt")

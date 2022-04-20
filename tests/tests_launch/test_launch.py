@@ -180,19 +180,11 @@ def check_project_spec(
         )
     assert project_spec.resource == resource
     if resource_args:
-<<<<<<< HEAD
-        assert set([(k, v) for k, v in resource_args.items()]) == set(
-            [(k, v) for k, v in project_spec.resource_args.items()]
-        )
-    if project_spec.source == _project_spec.LaunchSource.WANDB:
-        with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
-=======
         assert {(k, v) for k, v in resource_args.items()} == {
             (k, v) for k, v in project_spec.resource_args.items()
         }
     if project_spec.source == _project_spec.LaunchSource.WANDB:
         with open(os.path.join(project_spec.project_dir, "patch.txt")) as fp:
->>>>>>> master
             contents = fp.read()
             assert contents == "testing"
 
@@ -841,13 +833,9 @@ def test_launch_no_server_info(
     )
     try:
         launch.run(
-<<<<<<< HEAD
-            "https://wandb.ai/mock_server_entity/test/runs/1", api, project="new-test",
-=======
             "https://wandb.ai/mock_server_entity/test/runs/1",
             api,
             project="new-test",
->>>>>>> master
         )
     except wandb.errors.LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)

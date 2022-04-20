@@ -275,14 +275,10 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
     return user_create
 
 
-<<<<<<< HEAD
-def generate_dockerfile(launch_project: LaunchProject, runner_type: str,) -> str:
-=======
 def generate_dockerfile(
     launch_project: LaunchProject,
     runner_type: str,
 ) -> str:
->>>>>>> master
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]
