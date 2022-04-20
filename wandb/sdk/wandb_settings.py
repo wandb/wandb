@@ -466,6 +466,7 @@ class Settings:
     sync_symlink_latest: str
     system_sample: int
     system_sample_seconds: int
+    timeout: int
     timespec: str
     tmp_dir: str
     username: str
@@ -635,6 +636,7 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            timeout={"value": 30, "preprocessor": lambda x: int(x)},
             timespec={
                 "hook": (
                     lambda _: (
@@ -1288,7 +1290,6 @@ class Settings:
             _logger.info(
                 f"Loading settings from environment variables: {_redact_dict(env)}"
             )
-
         self.update(env, source=Source.ENV)
 
     def _infer_settings_from_environment(

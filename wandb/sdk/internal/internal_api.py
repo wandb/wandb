@@ -798,14 +798,18 @@ class Api:
         """
         )
 
+        variable_values = {
+            "entity": entity,
+            "project": project_name,
+            "name": name,
+        }
+
+        logger.info(f"run resume status variables: {variable_values}")
         response = self.gql(
             query,
-            variable_values={
-                "entity": entity,
-                "project": project_name,
-                "name": name,
-            },
+            variable_values=variable_values,
         )
+        logger.info(f"run resume status response: {response}")
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
             return None
@@ -1314,8 +1318,9 @@ class Api:
             "sweep": sweep_name,
             "summaryMetrics": summary_metrics,
         }
-
+        logger.info(f"upsert run variables: {variable_values}")
         response = self.gql(mutation, variable_values=variable_values, **kwargs)
+        logger.info(f"upsert run response: {response}")
 
         run = response["upsertBucket"]["bucket"]
         project = run.get("project")
