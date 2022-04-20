@@ -16,7 +16,7 @@ spec:
       serviceAccountName: wandb-launch-serviceaccount
       containers:
       - name: launch-agent
-        image: wandb/launch-agent-dev:2a76d25c
+        image: wandb/launch-agent-dev:b7236ae1
         resources:
           limits:
             memory: "2Gi"
