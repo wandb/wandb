@@ -40,6 +40,14 @@ def _server_accepts_image_filenames() -> bool:
     return parse_version("0.12.10") <= parse_version(max_cli_version)
 
 
+def _server_accepts_artifact_path() -> bool:
+    target_version = "0.12.14"
+    max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
+    return max_cli_version is not None and parse_version(
+        target_version
+    ) <= parse_version(max_cli_version)
+
+
 class Image(BatchableMedia):
     """Format images for logging to W&B.
 
@@ -324,7 +332,10 @@ class Image(BatchableMedia):
         # space, but there are also custom charts, and maybe others. Let's
         # commit to getting all that fixed up before moving this to  the top
         # level Media class.
-        if self._get_artifact_entry_ref_url() is None:
+        if (
+            not _server_accepts_artifact_path()
+            or self._get_artifact_entry_ref_url() is None
+        ):
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
