@@ -625,10 +625,10 @@ class _WandbInit:
                 )
         else:
             logger.info(
-                f"communicating run to backend with {self.settings.timeout} second timeout"
+                f"communicating run to backend with {self.settings.init_timeout} second timeout"
             )
             run_result = backend.interface.communicate_run(
-                run, timeout=self.settings.timeout
+                run, timeout=self.settings.init_timeout
             )
 
             error_message: Optional[str] = None

@@ -410,6 +410,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
+    init_timeout: int
     is_local: bool
     label_disable: bool
     launch: bool
@@ -466,7 +467,6 @@ class Settings:
     sync_symlink_latest: str
     system_sample: int
     system_sample_seconds: int
-    timeout: int
     timespec: str
     tmp_dir: str
     username: str
@@ -538,6 +538,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            init_timeout={"value": 30, "preprocessor": lambda x: int(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -636,7 +637,6 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
-            timeout={"value": 30, "preprocessor": lambda x: int(x)},
             timespec={
                 "hook": (
                     lambda _: (
