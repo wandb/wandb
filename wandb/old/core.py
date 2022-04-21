@@ -5,7 +5,6 @@ The purpose of this module is to break circular imports.
 """
 
 import os
-import string
 import sys
 import time
 import tempfile
@@ -54,7 +53,7 @@ class Error(Exception):
     """Base W&B Error"""
 
     def __init__(self, message):
-        super(Error, self).__init__(message)
+        super().__init__(message)
         self.message = message
 
     # For python 2 support
@@ -84,7 +83,7 @@ def termlog(string='', newline=True, repeat=True):
         repeat (bool, optional): If set to False only prints the string once per process
     """
     if string:
-        line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
+        line = '\n'.join([f'{LOG_STRING}: {s}'
                           for s in string.split('\n')])
     else:
         line = ''
@@ -103,13 +102,13 @@ def termlog(string='', newline=True, repeat=True):
 
 
 def termwarn(string, **kwargs):
-    string = '\n'.join(['{} {}'.format(WARN_STRING, s)
+    string = '\n'.join([f'{WARN_STRING} {s}'
                         for s in string.split('\n')])
     termlog(string=string, newline=True, **kwargs)
 
 
 def termerror(string, **kwargs):
-    string = '\n'.join(['{} {}'.format(ERROR_STRING, s)
+    string = '\n'.join([f'{ERROR_STRING} {s}'
                         for s in string.split('\n')])
     termlog(string=string, newline=True, **kwargs)
 

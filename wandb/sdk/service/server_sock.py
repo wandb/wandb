@@ -109,7 +109,7 @@ class SockServerReadThread(threading.Thread):
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(
                 self, shandler_str, None
             )
-            assert shandler, "unknown handle: {}".format(shandler_str)
+            assert shandler, f"unknown handle: {shandler_str}"
             shandler(sreq)
 
     def stop(self) -> None:
@@ -129,7 +129,9 @@ class SockServerReadThread(threading.Thread):
         iface = self._mux.get_stream(stream_id).interface
         self._clients.add_client(self._sock_client)
         iface_reader_thread = SockServerInterfaceReaderThread(
-            clients=self._clients, iface=iface, stopped=self._stopped,
+            clients=self._clients,
+            iface=iface,
+            stopped=self._stopped,
         )
         iface_reader_thread.start()
 

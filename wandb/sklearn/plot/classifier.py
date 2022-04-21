@@ -168,7 +168,12 @@ def confusion_matrix(
 
     if not_missing and correct_types:
         confusion_matrix_chart = calculate.confusion_matrix(
-            y_true, y_pred, labels, true_labels, pred_labels, normalize,
+            y_true,
+            y_pred,
+            labels,
+            true_labels,
+            pred_labels,
+            normalize,
         )
 
         wandb.log({"confusion_matrix": confusion_matrix_chart})

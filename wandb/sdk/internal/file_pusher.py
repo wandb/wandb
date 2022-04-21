@@ -73,7 +73,7 @@ class FilePusher:
             if not self.is_alive():
                 stop = True
             summary = self._stats.summary()
-            line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
+            line = " {:.2f}MB of {:.2f}MB uploaded ({:.2f}MB deduped)\r".format(
                 summary["uploaded_bytes"] / 1048576.0,
                 summary["total_bytes"] / 1048576.0,
                 summary["deduped_bytes"] / 1048576.0,

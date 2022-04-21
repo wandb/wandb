@@ -1,4 +1,3 @@
-#
 import json
 import os
 import tempfile
@@ -36,9 +35,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
             for content in manifest.contents
         }
     else:
-        raise Exception(
-            "unknown artifact manifest version: {}".format(manifest.version)
-        )
+        raise Exception(f"unknown artifact manifest version: {manifest.version}")
 
     return {
         "version": manifest.version,
@@ -51,7 +48,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
     }
 
 
-class ArtifactSaver(object):
+class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
     def __init__(
@@ -99,7 +96,10 @@ class ArtifactSaver(object):
                 artifact_collection_name = name
                 tag = alias
             alias_specs.append(
-                {"artifactCollectionName": artifact_collection_name, "alias": tag,}
+                {
+                    "artifactCollectionName": artifact_collection_name,
+                    "alias": tag,
+                }
             )
 
         """Returns the server artifact."""
@@ -189,7 +189,8 @@ class ArtifactSaver(object):
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
                 _, resp = self._api.update_artifact_manifest(
-                    artifact_manifest_id, digest=digest,
+                    artifact_manifest_id,
+                    digest=digest,
                 )
             else:
                 # In the regular flow, we can recreate the full manifest with the
@@ -244,9 +245,7 @@ class ArtifactSaver(object):
                     artifact_file_path = util.uri_from_path(entry.ref)
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
-                        raise RuntimeError(
-                            "Could not resolve client id {}".format(client_id)
-                        )
+                        raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = "wandb-artifact://{}/{}".format(
                         util.b64_to_hex_id(artifact_id), artifact_file_path
                     )

@@ -52,8 +52,7 @@ from wandb.util import (
     to_forward_slash_path,
 )
 from wandb.viz import (
-    create_custom_chart,
-    custom_chart_panel_config,
+    custom_chart,
     CustomChart,
     Visualize,
 )
@@ -155,7 +154,7 @@ class RunStatusChecker:
                     if (
                         hr.http_status_code == 200 or hr.http_status_code == 0
                     ):  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog("{}".format(hr.http_response_text))
+                        wandb.termlog(f"{hr.http_response_text}")
                     else:
                         wandb.termlog(
                             "{} encountered ({}), retrying request".format(
@@ -199,7 +198,7 @@ class _run_decorator:  # noqa: N801
 
             # * `_attach_id` is only assigned in service hence for all non-service cases
             # it will be a passthrough.
-            # * `_attach_pid` is only assigned in _init (using _attach_pid gurantees single attach):
+            # * `_attach_pid` is only assigned in _init (using _attach_pid guarantees single attach):
             #   - for non-fork case the object is shared through pickling so will be None.
             #   - for fork case the new process share mem space hence the value would be of parent process.
             if (
@@ -215,7 +214,7 @@ class _run_decorator:  # noqa: N801
                     wandb._attach(run=self)
                 except Exception as e:
                     # In case the attach fails we will raise the exception that caused the issue.
-                    # This exception should be caught and fail the exction of the program.
+                    # This exception should be caught and fail the execution of the program.
                     cls._is_attaching = ""
                     raise e
                 cls._is_attaching = ""
@@ -243,7 +242,7 @@ class _run_decorator:  # noqa: N801
                     )
                     # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
                     # - for fork case will use the settings of the parent process
-                    # - only point of incosistent behavior from forked and non-forked cases
+                    # - only point of inconsistent behavior from forked and non-forked cases
                     settings = getattr(self, "_settings", None)
                     if settings and settings["strict"]:
                         wandb.termerror(message, repeat=False)
@@ -259,7 +258,7 @@ class _run_decorator:  # noqa: N801
 
 
 class Run:
-    """A unit of computation logged by wandb. Typically this is an ML experiment.
+    """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
     Create a run with `wandb.init()`:
     <!--yeadoc-test:run-object-basic-->
@@ -305,12 +304,12 @@ class Run:
     [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
 
     In distributed training, you can either create a single run in the rank 0 process
-    and then log information only from that process or you can create a run in each process,
+    and then log information only from that process, or you can create a run in each process,
     logging from each separately, and group the results together with the `group` argument
     to `wandb.init`. For more details on distributed training with W&B, check out
     [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
 
-    Currently there is a parallel `Run` object in the `wandb.Api`. Eventually these
+    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
 
     Attributes:
@@ -384,7 +383,7 @@ class Run:
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        # pid is set so we know if this run object was initialized by this process
+        # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
         self._init(settings=settings, config=config, sweep_config=sweep_config)
 
@@ -409,6 +408,9 @@ class Run:
         self._step = 0
         self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
+        # todo: eventually would be nice to make this configurable using self._settings._start_time
+        #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
+        #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
 
         _datatypes_set_callback(self._datatypes_callback)
@@ -474,7 +476,8 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            settings_dict=self._settings, process_context="user",
+            settings_dict=self._settings,
+            process_context="user",
         )
 
         # Populate config
@@ -588,13 +591,14 @@ class Run:
 
     def __setattr__(self, attr: str, value: object) -> None:
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
-            raise Exception("Attribute {} is not supported on Run object.".format(attr))
-        super(Run, self).__setattr__(attr, value)
+            raise Exception(f"Attribute {attr} is not supported on Run object.")
+        super().__setattr__(attr, value)
 
     @staticmethod
     def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
-            pytorch_ignite="ignite", transformers_huggingface="transformers",
+            pytorch_ignite="ignite",
+            transformers_huggingface="transformers",
         )
 
         # calculate mod_map, a mapping from module_name to telem_name
@@ -920,18 +924,18 @@ class Run:
     ) -> Optional[Artifact]:
         """Saves the current state of your code to a W&B Artifact.
 
-        By default it walks the current directory and logs all files that end with `.py`.
+        By default, it walks the current directory and logs all files that end with `.py`.
 
         Arguments:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
-            name: (str, optional) The name of our code artifact. By default we'll name
+            name: (str, optional) The name of our code artifact. By default, we'll name
                 the artifact `source-$RUN_ID`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
                 defaults to: `lambda path: path.endswith(".py")`
             exclude_fn: A callable that accepts a file path and returns `True` when it should be
-                excluded and `False` otherwise. Thisdefaults to: `lambda path: False`
+                excluded and `False` otherwise. This defaults to: `lambda path: False`
 
         Examples:
             Basic usage
@@ -1039,7 +1043,7 @@ class Run:
                 )
         for v in kwargs:
             wandb.termwarn(
-                "Label added for unsupported key '{}' (ignored).".format(v),
+                f"Label added for unsupported key '{v}' (ignored).",
                 repeat=False,
             )
 
@@ -1089,7 +1093,7 @@ class Run:
             if isinstance(lines, str):
                 lines = lines.split()
         except Exception as e:
-            logger.info("Unable to probe notebook: {}".format(e))
+            logger.info(f"Unable to probe notebook: {e}")
             return
         if lines:
             self._label_probe_lines(lines)
@@ -1126,10 +1130,9 @@ class Run:
         val: Any = None,
         data: Dict[str, object] = None,
     ) -> None:
-        logger.info("config_cb %s %s %s", key, val, data)
-        if not self._backend or not self._backend.interface:
-            return
-        self._backend.interface.publish_config(key=key, val=val, data=data)
+        logger.info(f"config_cb {key} {val} {data}")
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact]
@@ -1180,31 +1183,27 @@ class Run:
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
-        custom_charts = {}
+        chart_keys = set()
         for k in row:
             if isinstance(row[k], Visualize):
-                config = {
-                    "id": row[k].viz_id,
-                    "historyFieldSettings": {"key": k, "x-axis": "_step"},
-                }
-                row[k] = row[k].value
-                self._config_callback(val=config, key=("_wandb", "viz", k))
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(k)
+                row[k] = row[k]._data
+                self._config_callback(val=value, key=key)
             elif isinstance(row[k], CustomChart):
-                custom_charts[k] = row[k]
-                custom_chart = row[k]
+                chart_keys.add(k)
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(
+                    "Vega2", row[k].user_query(f"{k}_table")
+                )
+                row[k] = row[k]._data
+                self._config_callback(val=value, key=key)
 
-        for k, custom_chart in custom_charts.items():
+        for k in chart_keys:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
             #     a non-custom chart to this key?
-            row.pop(k)
-            # add the table under a different key
-            table_key = k + "_table"
-            row[table_key] = custom_chart.table
-            # add the panel
-            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
-            self._add_panel(k, "Vega2", panel_config)
-
+            row[f"{k}_table"] = row.pop(k)
         return row
 
     def _partial_history_callback(
@@ -1286,7 +1285,8 @@ class Run:
         self._step = self._get_starting_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            process_context="user", settings_dict=self._settings,
+            process_context="user",
+            settings_dict=self._settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1403,7 +1403,7 @@ class Run:
         wandb keeps track of a global step, which by default increments with each
         call to `wandb.log`, so logging related metrics together is encouraged.
         If it's inconvenient to log related metrics together
-        calling `wandb.log({"train-loss": 0.5, commit=False})` and then
+        calling `wandb.log({"train-loss": 0.5}, commit=False)` and then
         `wandb.log({"accuracy": 0.9})` is equivalent to calling
         `wandb.log({"train-loss": 0.5, "accuracy": 0.9})`.
 
@@ -1595,11 +1595,9 @@ class Run:
             if os.path.isabs(glob_str):
                 base_path = os.path.dirname(glob_str)
                 wandb.termwarn(
-                    (
-                        "Saving files without folders. If you want to preserve "
-                        "sub directories pass base_path to wandb.save, i.e. "
-                        'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
-                    )
+                    "Saving files without folders. If you want to preserve "
+                    "sub directories pass base_path to wandb.save, i.e. "
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
                 )
             else:
                 base_path = "."
@@ -1714,9 +1712,13 @@ class Run:
         )
         self._finish(exit_code=exit_code)
 
-    # TODO(jhr): annotate this
     @staticmethod
-    def plot_table(vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
+    def plot_table(
+        vega_spec_name: str,
+        data_table: "wandb.Table",
+        fields: Dict[str, Any],
+        string_fields: Optional[Dict[str, Any]] = None,
+    ) -> CustomChart:
         """Creates a custom plot on a table.
 
         Arguments:
@@ -1729,10 +1731,7 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        visualization = create_custom_chart(
-            vega_spec_name, data_table, fields, string_fields or {}
-        )
-        return visualization
+        return custom_chart(vega_spec_name, data_table, fields, string_fields or {})
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -1959,7 +1958,7 @@ class Run:
         self._telemetry_obj_active = True
         self._telemetry_flush()
 
-        # object is about to be returned to the user, dont let them modify it
+        # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
     def _on_finish(self) -> None:
@@ -1982,7 +1981,6 @@ class Run:
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
 
-        print("")
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer
         )
@@ -1994,7 +1992,8 @@ class Run:
                 )
                 logger.info(f"got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    self._poll_exit_response, printer=self._printer,
+                    self._poll_exit_response,
+                    printer=self._printer,
                 )
             time.sleep(0.1)
 
@@ -2023,10 +2022,15 @@ class Run:
         )
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2035,8 +2039,13 @@ class Run:
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2101,7 +2110,7 @@ class Run:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
         for k in kwargs:
-            wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
+            wandb.termwarn(f"Unhandled define_metric() arg: {k}")
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (
@@ -2135,18 +2144,14 @@ class Run:
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
-                    raise wandb.Error(
-                        "Unhandled define_metric() arg: summary op: {}".format(i)
-                    )
+                    raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
-                raise wandb.Error(
-                    "Unhandled define_metric() arg: goal: {}".format(goal)
-                )
+                raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2191,8 +2196,8 @@ class Run:
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -2245,7 +2250,12 @@ class Run:
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
-                    self, artifact, portfolio, aliases, entity, project,
+                    self,
+                    artifact,
+                    portfolio,
+                    aliases,
+                    entity,
+                    project,
                 )
             else:
                 # TODO: implement offline mode + sync
@@ -2314,7 +2324,8 @@ class Run:
                     )
                 self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2600,7 +2611,7 @@ class Run:
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
-                name = "run-%s-%s" % (self._run_id, os.path.basename(artifact_or_path))
+                name = f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type)
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
@@ -2724,7 +2735,9 @@ class Run:
 
     @staticmethod
     def _header_wandb_version_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         if settings.quiet or settings.silent:
             return
@@ -2734,7 +2747,9 @@ class Run:
 
     @staticmethod
     def _header_sync_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2756,7 +2771,9 @@ class Run:
 
     @staticmethod
     def _header_run_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         if settings._offline or settings.silent:
@@ -2971,32 +2988,26 @@ class Run:
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
         total_files = sum(
-            [
-                sum(
-                    [
-                        response.file_counts.wandb_count,
-                        response.file_counts.media_count,
-                        response.file_counts.artifact_count,
-                        response.file_counts.other_count,
-                    ]
-                )
-                for response in poll_exit_responses
-                if response and response.file_counts
-            ]
+            sum(
+                [
+                    response.file_counts.wandb_count,
+                    response.file_counts.media_count,
+                    response.file_counts.artifact_count,
+                    response.file_counts.other_count,
+                ]
+            )
+            for response in poll_exit_responses
+            if response and response.file_counts
         )
         uploaded = sum(
-            [
-                response.pusher_stats.uploaded_bytes
-                for response in poll_exit_responses
-                if response and response.pusher_stats
-            ]
+            response.pusher_stats.uploaded_bytes
+            for response in poll_exit_responses
+            if response and response.pusher_stats
         )
         total = sum(
-            [
-                response.pusher_stats.total_bytes
-                for response in poll_exit_responses
-                if response and response.pusher_stats
-            ]
+            response.pusher_stats.total_bytes
+            for response in poll_exit_responses
+            if response and response.pusher_stats
         )
 
         line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
@@ -3064,7 +3075,9 @@ class Run:
         if log_dir:
             # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
-            printer.display(f"Find logs at: {printer.files(log_dir)}",)
+            printer.display(
+                f"Find logs at: {printer.files(log_dir)}",
+            )
 
     @staticmethod
     def _footer_history_summary_info(
@@ -3096,13 +3109,16 @@ class Run:
 
             history_rows = []
             for key, values in sorted(sampled_history.items()):
-                if any((not isinstance(value, numbers.Number) for value in values)):
+                if any(not isinstance(value, numbers.Number) for value in values):
                     continue
                 sparkline = printer.sparklines(values)
                 if sparkline:
                     history_rows.append([key, sparkline])
             if history_rows:
-                history_grid = printer.grid(history_rows, "Run history:",)
+                history_grid = printer.grid(
+                    history_rows,
+                    "Run history:",
+                )
                 panel.append(history_grid)
 
         # Render summary if available
@@ -3116,7 +3132,7 @@ class Run:
             logger.info("rendering summary")
             summary_rows = []
             for key, value in sorted(final_summary.items()):
-                # arrays etc. might be too large. for now we just don't print them
+                # arrays etc. might be too large. for now, we just don't print them
                 if isinstance(value, str):
                     value = value[:20] + "..." * (len(value) >= 20)
                     summary_rows.append([key, value])
@@ -3127,7 +3143,10 @@ class Run:
                     continue
 
             if summary_rows:
-                summary_grid = printer.grid(summary_rows, "Run summary:",)
+                summary_grid = printer.grid(
+                    summary_rows,
+                    "Run summary:",
+                )
                 panel.append(summary_grid)
 
         if panel:
@@ -3233,7 +3252,7 @@ def restore(
     """Downloads the specified file from cloud storage.
 
     File is placed into the current directory or run directory.
-    By default will only download the file if it doesn't already exist.
+    By default, will only download the file if it doesn't already exist.
 
     Arguments:
         name: the name of the file
@@ -3268,7 +3287,7 @@ def restore(
         root = os.getcwd()
     path = os.path.join(root, name)
     if os.path.exists(path) and replace is False:
-        return open(path, "r")
+        return open(path)
     if is_disabled:
         return None
     files = api_run.files([name])
@@ -3276,14 +3295,13 @@ def restore(
         return None
     # if the file does not exist, the file has an md5 of 0
     if files[0].md5 == "0":
-        raise ValueError("File {} not found in {}.".format(name, run_path or root))
+        raise ValueError(f"File {name} not found in {run_path or root}.")
     return files[0].download(root=root, replace=True)
 
 
-# propigate our doc string to the runs restore method
+# propagate our doc string to the runs restore method
 try:
     Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
 except AttributeError:
     pass
 

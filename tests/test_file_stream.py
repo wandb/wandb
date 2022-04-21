@@ -2,7 +2,6 @@
 file_stream tests.
 """
 
-from __future__ import print_function
 from dataclasses import dataclass
 
 import json

@@ -1,8 +1,8 @@
 """MessageFuturePoll - Derived from MessageFuture but implementing polling loop
 
-MesssageFuture represents a message result of an asynchronous operation.
+MessageFuture represents a message result of an asynchronous operation.
 
-MesssageFuturePoll implements a polling loop to periodically query for a
+MessageFuturePoll implements a polling loop to periodically query for a
 completed async operation.
 
 """
@@ -20,7 +20,7 @@ class MessageFuturePoll(MessageFuture):
     _xid: str
 
     def __init__(self, fn: Any, xid: str) -> None:
-        super(MessageFuturePoll, self).__init__()
+        super().__init__()
         self._fn = fn
         self._xid = xid
 
