@@ -643,7 +643,9 @@ class _WandbInit:
 
                 # Shutdown the backend and get rid of the logger
                 # we don't need to do console cleanup at this point
-                backend.cleanup()
+                # TODO(service) better handle of failure case
+                if not manager:
+                    backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
             assert run_result and run_result.run
