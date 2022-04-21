@@ -478,6 +478,9 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _disable_meta={"preprocessor": _str_as_bool},
+            _disable_stats={"preprocessor": _str_as_bool},
+            _disable_viewer={"preprocessor": _str_as_bool},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
@@ -500,7 +503,7 @@ class Settings:
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
-            _save_requirements={"value": True},
+            _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
