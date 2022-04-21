@@ -187,6 +187,7 @@ def set_trace():
 def load_ipython_extension(ipython):
     ipython.register_magics(wandb.jupyter.WandBMagics)
 
+
 if wandb_sdk.lib.ipython.in_jupyter():
     from IPython import get_ipython
 
