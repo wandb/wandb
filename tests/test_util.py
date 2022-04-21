@@ -15,7 +15,6 @@ if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow as tf
 
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy
 import plotly
@@ -509,7 +508,12 @@ def test_resolve_aliases():
     assert aliases == ["boom", "latest"]
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
 def test_bfloat16_to_float():
+    import jax.numpy as jnp
+
     array = jnp.array(1.0, dtype=jnp.bfloat16)
     # array to scalar bfloat16
     array_cast = util.json_friendly(array)
