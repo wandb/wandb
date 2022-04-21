@@ -276,6 +276,7 @@ def reset_setup():
     yield
     wandb.teardown()
 
+
 @pytest.fixture(autouse=True)
 def local_netrc(monkeypatch):
     """Never use our real credentials, put them in their own isolated dir"""
@@ -466,9 +467,9 @@ def wandb_init_run(request, runner, mocker, mock_server):
             # wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
             # with mock.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock):
             run = wandb.init(
-                    settings=dict(console="off", mode="offline", _except_exit=False),
+                settings=dict(console="off", mode="offline", _except_exit=False),
                 **args["wandb_init"],
-                )
+            )
             yield run
             run.finish()
     finally:
