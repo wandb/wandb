@@ -2,6 +2,7 @@ import base64
 import contextlib
 import hashlib
 import os
+import pathlib
 import re
 import shutil
 import tempfile
@@ -20,7 +21,7 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
 import wandb
@@ -1315,11 +1316,15 @@ class S3Handler(StorageHandler):
         self._botocore = util.get_module("botocore")
         return self._s3
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str]:
+    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
         url = urlparse(uri)
+        query = dict(parse_qsl(url.query))
+
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
-        return bucket, key
+        version = query.get("versionId")
+
+        return bucket, key, version
 
     def versioning_enabled(self, bucket: str) -> bool:
         self.init_boto()
@@ -1350,7 +1355,7 @@ class S3Handler(StorageHandler):
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
         assert manifest_entry.ref is not None
-        bucket, key = self._parse_uri(manifest_entry.ref)
+        bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
         extra_args = {}
@@ -1402,12 +1407,28 @@ class S3Handler(StorageHandler):
     ) -> Sequence[ArtifactEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
-        bucket, key = self._parse_uri(path)
+
+        # The passed in path might have query string parameters.
+        # We only need to care about a subset, like version, when
+        # parsing. Once we have that, we can store the rest of the
+        # metadata in the artifact entry itself.
+        bucket, key, version = self._parse_uri(path)
+        path = f"{self.scheme}://{bucket}/{key}"
+        if not self.versioning_enabled(bucket) and version:
+            raise ValueError(
+                f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
+            )
+
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
 
-        objs = [self._s3.Object(bucket, key)]
+        # If an explicit version is specified, use that. Otherwise, use the head version.
+        objs = (
+            [self._s3.ObjectVersion(bucket, key, version).Object()]
+            if version
+            else [self._s3.Object(bucket, key)]
+        )
         start_time = None
         multi = False
         try:
@@ -1465,22 +1486,41 @@ class S3Handler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        ref = path
+        """
+        Arguments:
+            obj: The S3 object
+            path: The S3-style path (e.g.: "s3://bucket/file.txt")
+            name: The user assigned name, or None if not specified
+            prefix: The prefix to add (will be the same as `path` for directories)
+            multi: Whether or not this is a multi-object add
+        """
+        bucket, key, _ = self._parse_uri(path)
+
+        # Always use posix paths, since that's what S3 uses.
+        posix_key = pathlib.PurePosixPath(obj.key)  # the bucket key
+        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+            key
+        )  # the path, with the scheme stripped
+        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = pathlib.PurePosixPath(name or "")
+        posix_ref = posix_path
+
         if name is None:
-            if prefix in obj.key and prefix != obj.key:
-                relpath = os.path.relpath(obj.key, start=prefix)
-                name = relpath
-                ref = os.path.join(path, relpath)
+            # We're adding a directory (prefix), so calculate a relative path.
+            if str(posix_prefix) in str(posix_key) and posix_prefix != posix_key:
+                posix_name = posix_key.relative_to(posix_prefix)
+                posix_ref = posix_path / posix_name
             else:
-                name = os.path.basename(obj.key)
-                ref = path
+                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_ref = posix_path
         elif multi:
-            relpath = os.path.relpath(obj.key, start=prefix)
-            name = os.path.join(name, relpath)
-            ref = os.path.join(path, relpath)
+            # We're adding a directory with a name override.
+            relpath = posix_key.relative_to(posix_prefix)
+            posix_name = posix_name / relpath
+            posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            name,
-            ref,
+            str(posix_name),
+            f"{self.scheme}://{str(posix_ref)}",
             self._etag_from_obj(obj),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
@@ -1520,12 +1560,12 @@ class GCSHandler(StorageHandler):
         self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
-    def versioning_enabled(self, bucket: "gcs_module.bucket.Bucket") -> bool:
+    def versioning_enabled(self, bucket_path: str) -> bool:
         if self._versioning_enabled is not None:
             return self._versioning_enabled
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
-        bucket = self._client.bucket(bucket)
+        bucket = self._client.bucket(bucket_path)
         bucket.reload()
         self._versioning_enabled = bucket.versioning_enabled
         return self._versioning_enabled
@@ -1544,11 +1584,12 @@ class GCSHandler(StorageHandler):
         self._client = storage.Client()
         return self._client
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str]:
+    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
         url = urlparse(uri)
         bucket = url.netloc
         key = url.path[1:]
-        return bucket, key
+        version = url.fragment if url.fragment else None
+        return bucket, key, version
 
     def load_path(
         self,
@@ -1570,7 +1611,7 @@ class GCSHandler(StorageHandler):
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
         assert manifest_entry.ref is not None
-        bucket, key = self._parse_uri(manifest_entry.ref)
+        bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
         obj = None
@@ -1608,13 +1649,23 @@ class GCSHandler(StorageHandler):
     ) -> Sequence[ArtifactEntry]:
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
-        bucket, key = self._parse_uri(path)
+
+        # After parsing any query params / fragments for additional context,
+        # such as version identifiers, pare down the path to just the bucket
+        # and key.
+        bucket, key, version = self._parse_uri(path)
+        path = f"{self.scheme}://{bucket}/{key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
+        if not self.versioning_enabled(bucket) and version:
+            raise ValueError(
+                f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
+            )
 
         if not checksum:
             return [ArtifactManifestEntry(name or key, path, digest=path)]
+
         start_time = None
-        obj = self._client.bucket(bucket).get_blob(key)
+        obj = self._client.bucket(bucket).get_blob(key, generation=version)
         multi = obj is None
         if multi:
             start_time = time.time()
@@ -1650,19 +1701,44 @@ class GCSHandler(StorageHandler):
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
-        ref = path
+        """
+        Arguments:
+            obj: The GCS object
+            path: The GCS-style path (e.g.: "gs://bucket/file.txt")
+            name: The user assigned name, or None if not specified
+            prefix: The prefix to add (will be the same as `path` for directories)
+            multi: Whether or not this is a multi-object add
+        """
+        bucket, key, _ = self._parse_uri(path)
+
+        # Always use posix paths, since that's what S3 uses.
+        posix_key = pathlib.PurePosixPath(obj.name)  # the bucket key
+        posix_path = pathlib.PurePosixPath(bucket) / pathlib.PurePosixPath(
+            key
+        )  # the path, with the scheme stripped
+        posix_prefix = pathlib.PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_name = pathlib.PurePosixPath(name or "")
+        posix_ref = posix_path
+
         if name is None:
-            if prefix in obj.name and prefix != obj.name:
-                name = os.path.relpath(obj.name, start=prefix)
-                ref = os.path.join(path, name)
+            # We're adding a directory (prefix), so calculate a relative path.
+            if str(posix_prefix) in str(posix_key) and posix_prefix != posix_key:
+                posix_name = posix_key.relative_to(posix_prefix)
+                posix_ref = posix_path / posix_name
             else:
-                name = os.path.basename(obj.name)
+                posix_name = pathlib.PurePosixPath(posix_key.name)
+                posix_ref = posix_path
         elif multi:
-            # We're listing a path and user provided name, just prepend it
-            name = os.path.join(name, os.path.basename(obj.name))
-            ref = os.path.join(path, name)
+            # We're adding a directory with a name override.
+            relpath = posix_key.relative_to(posix_prefix)
+            posix_name = posix_name / relpath
+            posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
-            name, ref, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj)
+            str(posix_name),
+            f"{self.scheme}://{str(posix_ref)}",
+            obj.md5_hash,
+            size=obj.size,
+            extra=self._extra_from_obj(obj),
         )
 
     @staticmethod
