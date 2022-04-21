@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""Base case - main process init/finish.
-"""
+"""Log a bfloat16 tensor."""
+
 import jax.numpy as jnp
 import wandb
 
+
 if __name__ == "__main__":
     run = wandb.init()
-
     m1 = jnp.array(1., dtype=jnp.float32)
     run.log(dict(m1=m1))
     m2 = jnp.array(2., dtype=jnp.bfloat16)

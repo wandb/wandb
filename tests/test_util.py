@@ -509,7 +509,14 @@ def test_resolve_aliases():
     assert aliases == ["boom", "latest"]
 
 
-def test_jax_bfloat16_to_np_float32():
+def test_bfloat16_to_float():
     array = jnp.array(1.0, dtype=jnp.bfloat16)
-    array_cast = util.get_jax_tensor(array)
-    assert array_cast.dtype == "float32"
+    # array to scalar bfloat16
+    array_cast = util.json_friendly(array)
+    assert array_cast[1] is True
+    assert array_cast[0].__class__.__name__ == "bfloat16"
+    # scalar bfloat16 to float
+    array_cast = util.json_friendly(array_cast[0])
+    assert array_cast[0] == 1.0
+    assert array_cast[1] is True
+    assert isinstance(array_cast[0], float)

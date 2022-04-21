@@ -607,12 +607,8 @@ def json_friendly(  # noqa: C901
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
-        elif (
-            isinstance(obj, np.generic)
-            and (
-                obj.dtype.kind == "f"
-                or obj.dtype == "bfloat16"
-            )
+        elif isinstance(obj, np.generic) and (
+            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
         ):
             # obj is a numpy float with precision greater than that of native python float
             # (i.e., float96 or float128) or it is of custom type such as bfloat16.
