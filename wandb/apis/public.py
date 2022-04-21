@@ -593,6 +593,8 @@ class Api:
     def user(self, username_or_email):
         """Return a user from a username or email address
 
+        Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
+
         Arguments:
             username_or_email: (str) The username or email address of the user
 
@@ -612,6 +614,8 @@ class Api:
 
     def users(self, username_or_email):
         """Return all users from a partial username or email address query
+
+        Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
 
         Arguments:
             username_or_email: (str) The prefix or suffix of the user you want to find
