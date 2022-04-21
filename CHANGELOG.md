@@ -1,10 +1,16 @@
 ## 0.12.xx (TBD)
 
 #### :nail_care: Enhancement
-* Add boolean flag arg macro by @hugo.ponte in https://github.com/wandb/client/pull/3489
 * Add support for nested configs by @hugo.ponte in https://github.com/wandb/client/pull/3530
 
 #### :bug: Bug Fix
+
+## 0.12.15 (April 21, 2022)
+
+#### :nail_care: Enhancement
+* Optimize wandb.Image logging when linked to an artifact by @tssweeney in https://github.com/wandb/client/pull/3418
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.14...v0.12.15
 
 ## 0.12.14 (April 8, 2022)
 
