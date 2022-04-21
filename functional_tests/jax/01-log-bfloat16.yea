@@ -16,4 +16,7 @@ assert:
   - :wandb:runs[0][summary]:
       m1: 1
       m2: 2
+      m3:
+        - 3
+        - 4
   - :wandb:runs[0][exitcode]: 0
