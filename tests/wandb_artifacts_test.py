@@ -16,10 +16,10 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 
 def mock_boto(artifact, path=False):
     class S3Object:
-        def __init__(self, name="my_object.pb", metadata=None):
+        def __init__(self, name="my_object.pb", metadata=None, version_id=None):
             self.metadata = metadata or {"md5": "1234567890abcde"}
             self.e_tag = '"1234567890abcde"'
-            self.version_id = "1"
+            self.version_id = version_id or "1"
             self.name = name
             self.key = name
             self.content_length = 10
@@ -46,8 +46,21 @@ def mock_boto(artifact, path=False):
         def Object(self, bucket, key):
             return S3Object()
 
+        def ObjectVersion(self, bucket, key, version):
+            class Version:
+                def Object(self):
+                    return S3Object(version_id=version)
+
+            return Version()
+
         def Bucket(self, bucket):
             return S3Bucket()
+
+        def BucketVersioning(self, bucket):
+            class BucketStatus:
+                status = "Enabled"
+
+            return BucketStatus()
 
     mock = S3Resource()
     handler = artifact._storage_policy._handler._handlers["s3"]
@@ -59,16 +72,22 @@ def mock_boto(artifact, path=False):
 
 def mock_gcs(artifact, path=False):
     class Blob:
-        def __init__(self, name="my_object.pb", metadata=None):
+        def __init__(self, name="my_object.pb", metadata=None, generation=None):
             self.md5_hash = "1234567890abcde"
             self.etag = "1234567890abcde"
-            self.generation = "1"
+            self.generation = generation or "1"
             self.name = name
             self.size = 10
 
     class GSBucket:
+        def __init__(self):
+            self.versioning_enabled = True
+
+        def reload(self, *args, **kwargs):
+            return
+
         def get_blob(self, *args, **kwargs):
-            return None if path else Blob()
+            return None if path else Blob(generation=kwargs.get("generation"))
 
         def list_blobs(self, *args, **kwargs):
             return [Blob(), Blob(name="my_other_object.pb")]
@@ -336,6 +355,22 @@ def test_add_s3_reference_object(runner, mocker):
         }
 
 
+def test_add_s3_reference_object_with_version(runner, mocker):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact)
+        artifact.add_reference("s3://my-bucket/my_object.pb?versionId=2")
+
+        assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "2"},
+            "size": 10,
+        }
+
+
 def test_add_s3_reference_object_with_name(runner, mocker):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -388,6 +423,7 @@ def test_add_reference_s3_no_checksum(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact)
         # TODO: Should we require name in this case?
         artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
 
@@ -411,6 +447,22 @@ def test_add_gs_reference_object(runner, mocker):
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
             "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
+
+
+def test_add_gs_reference_object_with_version(runner, mocker):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_gcs(artifact)
+        artifact.add_reference("gs://my-bucket/my_object.pb#2")
+
+        assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "2"},
             "size": 10,
         }
 
