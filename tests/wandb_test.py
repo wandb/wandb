@@ -446,7 +446,6 @@ def test_run_offline(wandb_init_run):
 @pytest.mark.wandb_args(env={"WANDB_ENTITY": "ent1"})
 def test_run_entity(wandb_init_run):
     assert wandb.run.entity == "ent1"
-    wandb.finish()
 
 
 @pytest.mark.wandb_args(env={"WANDB_PROJECT": "proj1"})
@@ -455,7 +454,7 @@ def test_run_project(wandb_init_run):
 
 
 @pytest.mark.wandb_args(env={"WANDB_PROJECT": "proj1"})
-def test_run_project(wandb_init_run):
+def test_run_project_name(wandb_init_run):
     assert wandb.run.project_name() == "proj1"
 
 

@@ -424,7 +424,7 @@ def test_keras_convert_model_non_sequential():
 
 
 def test_data_logger_val_data_lists(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets=np.array([[i] for i in range(10)]),
@@ -449,11 +449,10 @@ def test_data_logger_val_data_lists(live_mock_server, test_settings):
             ]
         )
         assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
-        run.finish()
 
 
 def test_data_logger_val_data_dicts(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs={
                 "ia": np.array([[i, i, i] for i in range(10)]),
@@ -488,13 +487,12 @@ def test_data_logger_val_data_dicts(live_mock_server, test_settings):
         )
 
         assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
-        run.finish()
 
 
 def test_data_logger_val_indexes(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         table = wandb.Table(columns=["label"], data=[["cat"]])
-        vd = ValidationDataLogger(
+        ValidationDataLogger(
             inputs={
                 "ia": np.array([[i, i, i] for i in range(10)]),
                 "ib": np.array([[i, i, i] for i in range(10)]),
@@ -506,13 +504,12 @@ def test_data_logger_val_indexes(live_mock_server, test_settings):
             class_labels=None,
             infer_missing_processors=False,
         )
-        run.finish()
 
 
 def test_data_logger_val_invalid(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         with pytest.raises(AssertionError):
-            vd = ValidationDataLogger(
+            ValidationDataLogger(
                 inputs={
                     "ia": np.array([[i, i, i] for i in range(10)]),
                     "ib": np.array([[i, i, i] for i in range(10)]),
@@ -524,11 +521,10 @@ def test_data_logger_val_invalid(live_mock_server, test_settings):
                 class_labels=None,
                 infer_missing_processors=False,
             )
-        run.finish()
 
 
 def test_data_logger_val_user_proc(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets=np.array([[i] for i in range(10)]),
@@ -570,11 +566,10 @@ def test_data_logger_val_user_proc(live_mock_server, test_settings):
             ]
         )
         assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
-        run.finish()
 
 
 def test_data_logger_val_inferred_proc(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         np.random.seed(42)
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
@@ -656,11 +651,10 @@ def test_data_logger_val_inferred_proc(live_mock_server, test_settings):
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
-        run.finish()
 
 
 def test_data_logger_val_inferred_proc_no_class(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets={
@@ -740,11 +734,10 @@ def test_data_logger_val_inferred_proc_no_class(live_mock_server, test_settings)
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
-        run.finish()
 
 
 def test_data_logger_pred(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets=np.array([[i] for i in range(10)]),
@@ -761,11 +754,10 @@ def test_data_logger_pred(live_mock_server, test_settings):
         assert set(tcols) == set(cols)
         assert np.all([t.data[i] == [i, i] for i in range(10)])
         assert t._get_artifact_entry_ref_url() is not None
-        run.finish()
 
 
 def test_data_logger_pred_user_proc(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets=np.array([[i] for i in range(10)]),
@@ -782,11 +774,10 @@ def test_data_logger_pred_user_proc(live_mock_server, test_settings):
         assert set(tcols) == set(cols)
         assert np.all([t.data[i] == [i, i, i + 1] for i in range(10)])
         assert t._get_artifact_entry_ref_url() is not None
-        run.finish()
 
 
 def test_data_logger_pred_inferred_proc(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets=np.array([[i] for i in range(10)]),
@@ -865,11 +856,10 @@ def test_data_logger_pred_inferred_proc(live_mock_server, test_settings):
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
-        run.finish()
 
 
 def test_data_logger_pred_inferred_proc_no_classes(live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
+    with wandb.init(settings=test_settings):
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets=np.array([[i] for i in range(10)]),
@@ -948,7 +938,6 @@ def test_data_logger_pred_inferred_proc_no_classes(live_mock_server, test_settin
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
-        run.finish()
 
 
 @pytest.mark.timeout(300)
