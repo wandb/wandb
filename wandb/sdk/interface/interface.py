@@ -13,7 +13,7 @@ from abc import abstractmethod
 import json
 import logging
 import os
-from typing import Any, Iterable, Optional, Tuple, Union
+from typing import Any, Iterable, Literal, Optional, Tuple, Union, cast
 from typing import TYPE_CHECKING
 
 from wandb.apis.public import Artifact as PublicArtifact
@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("wandb")
+PolicyName = Literal["end", "now", "live"]
 
 
 def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
@@ -52,14 +53,14 @@ def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
+def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> PolicyName:
     if enum == pb.FilesItem.PolicyType.NOW:
         policy = "now"
     elif enum == pb.FilesItem.PolicyType.END:
         policy = "end"
     elif enum == pb.FilesItem.PolicyType.LIVE:
         policy = "live"
-    return policy
+    return cast(PolicyName, policy)  # TODO(spencerpearson): don't lie
 
 
 class InterfaceBase:
