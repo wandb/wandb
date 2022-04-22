@@ -76,8 +76,8 @@ class _Service:
             pid_str = str(os.getpid())
             exec_cmd_list = [sys.executable, "-m"]
             # Add coverage collection if needed
-            # if os.environ.get("COVERAGE_RCFILE"):
-            #     exec_cmd_list += ["coverage", "run", "-m"]
+            if os.environ.get("YEA_IS_RUNNING") and os.environ.get("COVERAGE_RCFILE"):
+                exec_cmd_list += ["coverage", "run", "-m"]
             service_args = [
                 "wandb",
                 "service",
