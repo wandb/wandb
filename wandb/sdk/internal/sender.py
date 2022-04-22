@@ -942,7 +942,11 @@ class SendManager:
         self._telemetry_obj.MergeFrom(telem)
         self._update_config()
 
-    def _save_file(self, fname: GlobStr, policy: interface.PolicyName = "end") -> None:
+    def _save_file(
+        self,
+        fname: GlobStr,
+        policy: "wandb_internal_pb2.FilesItem.PolicyType.V" = wandb_internal_pb2.FilesItem.PolicyType.END,
+    ) -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)
@@ -951,7 +955,7 @@ class SendManager:
         files = record.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
-            self._save_file(GlobStr(k.path), interface.file_enum_to_policy(k.policy))
+            self._save_file(GlobStr(k.path), k.policy)
 
     def send_header(self, record: "Record") -> None:
         pass

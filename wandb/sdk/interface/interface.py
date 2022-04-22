@@ -53,16 +53,6 @@ def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> PolicyName:
-    if enum == pb.FilesItem.PolicyType.NOW:
-        policy = "now"
-    elif enum == pb.FilesItem.PolicyType.END:
-        policy = "end"
-    elif enum == pb.FilesItem.PolicyType.LIVE:
-        policy = "live"
-    return cast(PolicyName, policy)  # TODO(spencerpearson): don't lie
-
-
 class InterfaceBase:
     _run: Optional["Run"]
     _drop: bool
