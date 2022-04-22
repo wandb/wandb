@@ -460,7 +460,6 @@ def wandb_init_run(request, runner, mocker, mock_server):
         with mock.patch.dict(os.environ, {k: v for k, v in args["env"].items()}):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
-            #  We want to run setup every time in tests
             run = wandb.init(
                 settings=dict(console="off", mode="offline", _except_exit=False),
                 **args["wandb_init"],
