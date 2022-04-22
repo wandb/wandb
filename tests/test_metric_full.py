@@ -156,7 +156,6 @@ def test_metric_no_sync_step(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
     run.define_metric("val", summary="min", step_metric="mystep", step_sync=False)
     _gen_metric_sync_step(run)
-    run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     history = ctx_util.history
@@ -172,7 +171,6 @@ def test_metric_sync_step(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
     run.define_metric("val", summary="min", step_metric="mystep", step_sync=True)
     _gen_metric_sync_step(run)
-    run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     summary = ctx_util.summary
     history = ctx_util.history
@@ -193,7 +191,6 @@ def test_metric_mult(live_mock_server, test_settings, parse_ctx):
     run.define_metric("mystep", hide=True)
     run.define_metric("*", step_metric="mystep")
     _gen_metric_sync_step(run)
-    run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     metrics = ctx_util.metrics
     assert metrics and len(metrics) == 3
@@ -204,7 +201,6 @@ def test_metric_goal(live_mock_server, test_settings, parse_ctx):
     run.define_metric("mystep", hide=True)
     run.define_metric("*", step_metric="mystep", goal="maximize")
     _gen_metric_sync_step(run)
-    run.finish()
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     metrics = ctx_util.metrics
     assert metrics and len(metrics) == 3
