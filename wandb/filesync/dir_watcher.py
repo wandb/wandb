@@ -3,7 +3,7 @@ import os
 import fnmatch
 import queue
 import time
-from typing import TYPE_CHECKING, Literal, NewType, Optional
+from typing import TYPE_CHECKING, NewType, Optional
 
 from wandb import util
 from wandb.proto import wandb_internal_pb2
