@@ -27,7 +27,6 @@ from . import internal_api
 from . import update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
-from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib import tracelog
