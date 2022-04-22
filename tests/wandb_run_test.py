@@ -676,7 +676,6 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
         and (4 in telemetry_deprecated)
         and (7 in telemetry_deprecated)
     )
-    run.finish()
 
 
 # test that information about validation errors in wandb.Settings is included in telemetry
@@ -732,12 +731,11 @@ def test_settings_unexpected_args_telemetry(
         run.finish()
 
 
-def test_attach_same_process(live_mock_server, test_settings):
-    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
-        with pytest.raises(RuntimeError) as excinfo:
-            run = wandb.init(settings=test_settings)
-            new_run = pickle.loads(pickle.dumps(run))
-            new_run.log({"a": 2})
+def test_attach_same_process(test_settings):
+    with pytest.raises(RuntimeError) as excinfo:
+        run = wandb.init(settings=test_settings)
+        new_run = pickle.loads(pickle.dumps(run))
+        new_run.log({"a": 2})
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 
