@@ -219,11 +219,7 @@ SYMBOLS_RUN_OTHER = {
     "project_name",
 }
 
-SYMBOLS_SERVICE = {
-    "attach",
-    "detach",
-    "teardown"
-}
+SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
 
 
 def test_library_run():
