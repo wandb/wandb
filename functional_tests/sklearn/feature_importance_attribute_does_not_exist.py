@@ -21,6 +21,7 @@ from sklearn import datasets
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 import wandb
+
 wandb.init("my-scikit-integration")
 
 wbcd = wisconsin_breast_cancer_data = datasets.load_breast_cancer()
