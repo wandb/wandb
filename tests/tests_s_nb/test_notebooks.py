@@ -176,6 +176,7 @@ def test_mocked_notebook_html_default(live_mock_server, test_settings, mocked_ip
     mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
     with wandb.init(settings=test_settings) as run:
         run.log({"acc": 99, "loss": 0})
+        run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
@@ -201,6 +202,7 @@ def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipyt
 def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipython):
     with wandb.init(settings=test_settings) as run:
         run.display()
+        run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
