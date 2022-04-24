@@ -41,6 +41,7 @@ import wandb
 # yea test will grab this
 # data_url = "https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv"
 # !wget {data_url} -O "wine.csv"
+
 # Load data
 wine_quality = pd.read_csv("wine.csv")
 y = wine_quality["quality"]
@@ -69,4 +70,5 @@ wandb.sklearn.plot_calibration_curve(model, X_train, y_train, "RandomForestClass
 print(model.n_features_)
 
 outs = model.predict(X_train)
+
 run.finish()
