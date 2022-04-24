@@ -70,7 +70,7 @@ def test_disabled_ops(test_settings):
     print(bool(run))
 
 
-def test_disabled_dir(test_settings, mocker):
+def test_disabled_dir(test_settings):
     tmp_dir = "/tmp/dir"
     with mock.patch("tempfile.gettempdir", lambda: tmp_dir):
         run = wandb.init(mode="disabled", settings=test_settings)
