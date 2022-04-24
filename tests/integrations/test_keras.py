@@ -129,11 +129,10 @@ def test_keras_resume_best_metric(
     wandb.finish()
 
 
-def test_keras_image_bad_data(dummy_model, dummy_data, wandb_init_run):
-    error = False
-    data, labels = dummy_data
+def test_keras_image_bad_data(dummy_model, dummy_data):
 
-    try:
+    with pytest.raises(ValueError):
+        data, labels = dummy_data
         dummy_model.fit(
             *dummy_data,
             epochs=2,
@@ -141,9 +140,6 @@ def test_keras_image_bad_data(dummy_model, dummy_data, wandb_init_run):
             validation_data=(data.reshape(10), labels),
             callbacks=[WandbCallback(data_type="image")]
         )
-    except ValueError:
-        error = True
-    assert error
 
 
 def test_keras_image_binary(

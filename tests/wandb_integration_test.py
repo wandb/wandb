@@ -444,14 +444,12 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     # file created, should be uploaded
     with open(file_path, "w") as fp:
         fp.write("a" * 10000)
-        fp.close()
     run.save(file_path, policy="live")
     # on save file is sent
     sent += os.path.getsize(file_path)
     time.sleep(2.1)
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     # 2.1 seconds is longer than set rate limit
     sent += os.path.getsize(file_path)
     # give watchdog time to register the change
@@ -459,12 +457,10 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     # file updated within modified time, should not be uploaded
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     time.sleep(2.0)
     # file updated outside of rate limit should be uploaded
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     sent += os.path.getsize(file_path)
     time.sleep(2)
 
