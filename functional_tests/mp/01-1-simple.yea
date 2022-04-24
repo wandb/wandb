@@ -1,4 +1,4 @@
-id: 0.mp.01-simple
+id: 0.mp.01-1-simple
 plugin:
   - wandb
 tag:
