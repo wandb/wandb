@@ -514,9 +514,7 @@ class InterfaceShared(InterfaceBase):
     ) -> Optional[pb.InspectIntentResponse]:
         request = pb.Request(inspect_intent=intent)
         record = self._make_record(request=request)
-        print("INSPECT", record)
         result = self._communicate(record)
-        print("INSPECT2", result)
         if result is None:
             return None
         return result.response.inspect_intent_response

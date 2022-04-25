@@ -665,15 +665,10 @@ class HandleManager:
         else:
             self._accumulate_time = 0
 
-        print("JUNK1", self._settings._disable_stats)
         if not self._settings._disable_stats:
-            print("JUNK2", self._settings._disable_stats)
             pid = os.getpid()
-            print("JUNK3", self._settings._disable_stats)
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
-            print("JUNK4", self._settings._disable_stats)
             self._system_stats.start()
-            print("JUNK5", self._settings._disable_stats)
 
         if not self._settings._disable_meta and not run_start.run.resumed:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface)
@@ -856,7 +851,6 @@ class HandleManager:
     def handle_request_propose_intent_done(self, record: Record) -> None:
         intent_id = record.request.propose_intent_done.intent_id
         outcome = record.request.propose_intent_done.outcome
-        print("intent done", intent_id, outcome)
         self._intents[intent_id] = outcome
 
     def handle_request_recall_intent(self, record: Record) -> None:
@@ -867,7 +861,7 @@ class HandleManager:
         self._respond_result(result)
 
     def handle_request_recall_intent_done(self, record: Record) -> None:
-        print("recall intent done", record)
+        pass
 
     def handle_request_inspect_intent(self, record: Record) -> None:
         assert record.control.req_resp
@@ -876,7 +870,6 @@ class HandleManager:
 
         result = proto_util._result_from_record(record)
         data = self._intents.get(intent_id)
-        print("intent get", intent_id, data)
         if data:
             result.response.inspect_intent_response.outcome.CopyFrom(data)
         self._respond_result(result)

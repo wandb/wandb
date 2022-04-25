@@ -44,6 +44,8 @@ class Intent:
                 self._outcome = response.outcome
                 done = True
                 continue
+            if on_progress:
+                on_progress()
             time.sleep(1)
 
     def recall(self):
