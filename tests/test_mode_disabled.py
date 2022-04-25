@@ -3,6 +3,7 @@ disabled mode test.
 """
 
 import pytest  # type: ignore
+from unittest import mock
 
 import wandb
 import pickle
@@ -69,10 +70,10 @@ def test_disabled_ops(test_settings):
     print(bool(run))
 
 
-def test_disabled_dir(test_settings, mocker):
+def test_disabled_dir(test_settings):
     tmp_dir = "/tmp/dir"
-    mocker.patch("tempfile.gettempdir", lambda: tmp_dir)
-    run = wandb.init(mode="disabled", settings=test_settings)
+    with mock.patch("tempfile.gettempdir", lambda: tmp_dir):
+        run = wandb.init(mode="disabled", settings=test_settings)
     assert run.dir == tmp_dir
 
 

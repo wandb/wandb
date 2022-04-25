@@ -70,3 +70,5 @@ wandb.sklearn.plot_calibration_curve(model, X_train, y_train, "RandomForestClass
 print(model.n_features_)
 
 outs = model.predict(X_train)
+
+run.finish()
