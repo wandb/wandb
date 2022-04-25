@@ -273,7 +273,7 @@ def test_nested_shape():
         (torch.Tensor([float("nan"), float("inf"), -float("inf")]), True),
     ],
 )
-def test_no_finite_values(test_input, expected, wandb_init_run):
+def test_no_finite_values(test_input, expected):
     torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch_history._no_finite_values(test_input) is expected
@@ -288,7 +288,7 @@ def test_no_finite_values(test_input, expected, wandb_init_run):
         (torch.Tensor([0.0, float("nan"), float("inf")]), torch.Tensor([0.0])),
     ],
 )
-def test_remove_infs_nans(test_input, expected, wandb_init_run):
+def test_remove_infs_nans(test_input, expected):
     torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch.equal(torch_history._remove_infs_nans(test_input), expected)
