@@ -8,7 +8,6 @@ import numpy as np
 import operator
 import os
 import sys
-import warnings
 
 from itertools import chain
 from pkg_resources import parse_version
@@ -591,6 +590,10 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     )
             if self.save_model:
                 self._save_model(epoch)
+
+            if self.save_model_as_artifact:
+                self._save_model_as_artifact(epoch)
+
             self.best = self.current
 
     # This is what keras used pre tensorflow.keras
@@ -678,9 +681,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
             self._attempt_evaluation_log()
-
-        if self.save_model_as_artifact:
-            self._save_model_as_artifact()
 
     def on_test_begin(self, logs=None):
         pass
@@ -971,23 +971,28 @@ class WandbCallback(tf.keras.callbacks.Callback):
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
         except (ImportError, RuntimeError, TypeError) as e:
-            wandb.termwarn(
-                "Can't save model in HDF5 format. You can find the SavedModel as W&B Artifact."
+            wandb.termerror(
+                "Can't save model in the h5py format. The model will be saved as "
+                "W&B Artifacts in the SavedModel format."
             )
             self.save_model = False
-        finally:
-            # Save the model in the SavedModel format
-            self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
             self.save_model_as_artifact = True
 
-    def _save_model_as_artifact(self):
+    def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
             return
         try:
+            # Save the model in the SavedModel format.
+            self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
+
+            # Log the model as artifact.
             model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
             model_artifact.add_dir(self.filepath[:-3])
-            wandb.run.log_artifact(model_artifact)
-            # Remove the SavedModel from wandb dir as it cannot be restored using wandb.restore.
+            wandb.run.log_artifact(
+                model_artifact, aliases=["latest", "best", f"epoch_{epoch}"]
+            )
+
+            # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
             import shutil
 
             shutil.rmtree(self.filepath[:-3])
