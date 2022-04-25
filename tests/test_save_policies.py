@@ -4,6 +4,7 @@ import time
 
 import wandb
 from wandb.filesync.dir_watcher import PolicyLive
+from wandb.proto import wandb_internal_pb2
 
 
 @pytest.fixture
@@ -80,5 +81,5 @@ def test_policy_on_modified_size_rate_limited(mocked_live_policy):
 
 
 def test_live_policy_policy(mocked_live_policy):
-    assert mocked_live_policy.policy == "live"
+    assert mocked_live_policy.policy == wandb_internal_pb2.FilesItem.PolicyType.LIVE
     wandb.finish()
