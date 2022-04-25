@@ -2,17 +2,18 @@
 intents.
 """
 
-import time
-import string
 import secrets
-
+import string
+import time
 from typing import Optional
+
 from wandb.proto import wandb_internal_pb2 as pb
 
 
 def get_random_intent_id(length: int = 12) -> str:
-    intent_id = ''.join(secrets.choice(string.ascii_lowercase + string.digits)
-                                                  for i in range(length))
+    intent_id = "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for i in range(length)
+    )
     return intent_id
 
 

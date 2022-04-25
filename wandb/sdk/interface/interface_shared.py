@@ -477,7 +477,9 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(request=request)
         _ = self._communicate(record)
 
-    def _propose_intent(self, propose_intent: pb.ProposeIntentRequest) -> Optional[pb.ProposeIntentResponse]:
+    def _propose_intent(
+        self, propose_intent: pb.ProposeIntentRequest
+    ) -> Optional[pb.ProposeIntentResponse]:
         request = pb.Request(propose_intent=propose_intent)
         record = self._make_record(request=request)
         result = self._communicate(record)
@@ -485,11 +487,15 @@ class InterfaceShared(InterfaceBase):
             return None
         return result.response.propose_intent_response
 
-    def _propose_intent_done(self, propose_intent_done: pb.ProposeIntentDoneRequest) -> None:
+    def _propose_intent_done(
+        self, propose_intent_done: pb.ProposeIntentDoneRequest
+    ) -> None:
         rec = self._make_request(propose_intent_done=propose_intent_done)
         self._publish(rec)
 
-    def _recall_intent(self, recall_intent: pb.RecallIntentRequest) -> Optional[pb.RecallIntentResponse]:
+    def _recall_intent(
+        self, recall_intent: pb.RecallIntentRequest
+    ) -> Optional[pb.RecallIntentResponse]:
         request = pb.Request(recall_intent=recall_intent)
         record = self._make_record(request=request)
         result = self._communicate(record)
@@ -497,11 +503,15 @@ class InterfaceShared(InterfaceBase):
             return None
         return result.response.recall_intent_response
 
-    def _recall_intent_done(self, recall_intent_done: pb.RecallIntentDoneRequest) -> None:
+    def _recall_intent_done(
+        self, recall_intent_done: pb.RecallIntentDoneRequest
+    ) -> None:
         rec = self._make_request(recall_intent_done=recall_intent_done)
         self._publish(rec)
 
-    def _inspect_intent(self, intent: pb.InspectIntentRequest) -> Optional[pb.InspectIntentResponse]:
+    def _inspect_intent(
+        self, intent: pb.InspectIntentRequest
+    ) -> Optional[pb.InspectIntentResponse]:
         request = pb.Request(inspect_intent=intent)
         record = self._make_record(request=request)
         print("INSPECT", record)

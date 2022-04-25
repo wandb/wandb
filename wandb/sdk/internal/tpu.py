@@ -88,8 +88,10 @@ def is_tpu_available():
     try:
         print("TPU2")
         from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore # noqa
+
         print("TPU3")
         from tensorflow.python.profiler import profiler_client  # type: ignore # noqa
+
         print("TPU4")
     except (
         ImportError,

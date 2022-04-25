@@ -637,7 +637,9 @@ class SendManager:
 
     def send_run(self, record: "Record", file_dir: str = None) -> None:
         is_wandb_init = self._run is None
-        error = self._send_run(record=record.run, file_dir=file_dir, is_wandb_init=is_wandb_init)
+        error = self._send_run(
+            record=record.run, file_dir=file_dir, is_wandb_init=is_wandb_init
+        )
         result = proto_util._result_from_record(record)
         if error:
             if record.control.req_resp:
@@ -653,7 +655,9 @@ class SendManager:
             result.run_result.run.CopyFrom(self._run)
             self._respond_result(result)
 
-    def _send_run(self, run: "RunRecord", file_dir: str = None, is_wandb_init: bool = True) -> str:
+    def _send_run(
+        self, run: "RunRecord", file_dir: str = None, is_wandb_init: bool = True
+    ) -> str:
         error = None
 
         # save start time of a run
@@ -1176,7 +1180,9 @@ class SendManager:
         error = self._send_run(run=run)
 
         intent_id = record.request.propose_intent.intent_id
-        propose_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(intent_id=intent_id)
+        propose_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(
+            intent_id=intent_id
+        )
         propose_intent_done.outcome.run_result.run.CopyFrom(self._run)
         propose_intent_done.outcome.is_resolved = True
         self._interface._propose_intent_done(propose_intent_done)
@@ -1184,7 +1190,9 @@ class SendManager:
     def send_request_recall_intent(self, record: wandb_internal_pb2.Record) -> None:
         print("recall intent")
         intent_id = record.request.recall_intent.intent_id
-        recall_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(intent_id=intent_id)
+        recall_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(
+            intent_id=intent_id
+        )
         self._interface._recall_intent_done(recall_intent_done)
 
     def __next__(self) -> "Record":
