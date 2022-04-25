@@ -612,7 +612,7 @@ class StreamWrapper(RedirectBase):
         if data:
             for cb in self.cbs:
                 try:
-                    cb(data)
+                    cb(data.encode("utf-8"))
                 except Exception:
                     pass  # TODO(frz)
 
@@ -763,7 +763,7 @@ class Redirect(RedirectBase):
         if data:
             for cb in self.cbs:
                 try:
-                    cb(data)
+                    cb(data.encode("utf-8"))
                 except Exception:
                     pass  # TODO(frz)
 
