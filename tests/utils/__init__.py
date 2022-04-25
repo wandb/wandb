@@ -4,7 +4,7 @@ from tests.utils.dummy_data import (
     matplotlib_without_image,
 )
 from tests.utils.mock_server import mock_server, default_ctx, create_app, ParseCTX
-from tests.utils.mock_backend import BackendMock
+
 from tests.utils.mock_requests import InjectRequests
 from tests.utils.records import RecordsUtil
 from tests.utils.notebook_client import WandbNotebookClient
@@ -21,7 +21,6 @@ from tests.utils.utils import (
 )
 
 __all__ = [
-    "BackendMock",
     "ParseCTX",
     "RecordsUtil",
     "WandbNotebookClient",
