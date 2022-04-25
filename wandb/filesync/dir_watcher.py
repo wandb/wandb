@@ -185,9 +185,9 @@ class DirWatcher:
         self._dir = file_dir or settings.files_dir
         self._settings = settings
         self._user_file_policies = {
-            wandb_internal_pb2.PolicyType.END: set(),
-            wandb_internal_pb2.PolicyType.LIVE: set(),
-            wandb_internal_pb2.PolicyType.NOW: set(),
+            wandb_internal_pb2.FilesItem.PolicyType.END: set(),
+            wandb_internal_pb2.FilesItem.PolicyType.LIVE: set(),
+            wandb_internal_pb2.FilesItem.PolicyType.NOW: set(),
         }
         self._file_pusher = file_pusher
         self._file_event_handlers = {}
