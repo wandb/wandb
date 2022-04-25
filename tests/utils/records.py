@@ -33,6 +33,10 @@ class RecordsUtil:
         return list(self._get_all("history"))
 
     @property
+    def files(self):
+        return list(self._get_all("files"))
+
+    @property
     def metric(self):
         return list(self._get_all("metric"))
 
