@@ -496,7 +496,10 @@ class Table(Media):
             max_rows = Table.MAX_ROWS
         n_rows = len(self.data)
         if n_rows > max_rows and warn:
-            if wandb.run and wandb.run.settings.table_raise_on_max_row_limit_exceeded:
+            if wandb.run and (
+                wandb.run.settings.table_raise_on_max_row_limit_exceeded
+                or wandb.run.settings.strict
+            ):
                 raise ValueError(
                     f"Table row limit exceeded: table has {n_rows} rows, limit is {max_rows}. "
                     f"To increase the maximum number of allowed rows in a wandb.Table, override "
