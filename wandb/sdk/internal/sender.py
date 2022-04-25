@@ -636,9 +636,25 @@ class SendManager:
         # TODO: do something if sync spell is not successful?
 
     def send_run(self, record: "Record", file_dir: str = None) -> None:
-        run = record.run
-        error = None
         is_wandb_init = self._run is None
+        error = self._send_run(record=record.run, file_dir=file_dir, is_wandb_init=is_wandb_init)
+        result = proto_util._result_from_record(record)
+        if error:
+            if record.control.req_resp:
+                result.run_result.run.CopyFrom(record.run)
+                result.run_result.error.CopyFrom(error)
+                self._respond_result(result)
+            return
+
+        if record.control.req_resp:
+            # TODO: we could do self._interface.publish_defer(resp) to notify
+            # the handler not to actually perform server updates for this uuid
+            # because the user process will send a summary update when we resume
+            result.run_result.run.CopyFrom(self._run)
+            self._respond_result(result)
+
+    def _send_run(self, run: "RunRecord", file_dir: str = None, is_wandb_init: bool = True) -> str:
+        error = None
 
         # save start time of a run
         self._start_time = run.start_time.seconds
@@ -661,15 +677,8 @@ class SendManager:
             # Only check resume status on `wandb.init`
             error = self._maybe_setup_resume(run)
 
-        if error is not None:
-            if record.control.req_resp:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
-            return
+        if error:
+            return error
 
         # Save the resumed config
         if self._resume_state.config is not None:
@@ -691,14 +700,6 @@ class SendManager:
 
         self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
-
-        if record.control.req_resp:
-            result = proto_util._result_from_record(record)
-            # TODO: we could do self._interface.publish_defer(resp) to notify
-            # the handler not to actually perform server updates for this uuid
-            # because the user process will send a summary update when we resume
-            result.run_result.run.CopyFrom(self._run)
-            self._respond_result(result)
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
@@ -1167,6 +1168,24 @@ class SendManager:
                 "latestVersionString", latest_local_version
             )
         return local_info
+
+    def send_request_propose_intent(self, record: wandb_internal_pb2.Record) -> None:
+        print("propose intent")
+
+        run = record.request.propose_intent.intent.run
+        error = self._send_run(run=run)
+
+        intent_id = record.request.propose_intent.intent_id
+        propose_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(intent_id=intent_id)
+        propose_intent_done.outcome.run_result.run.CopyFrom(self._run)
+        propose_intent_done.outcome.is_resolved = True
+        self._interface._propose_intent_done(propose_intent_done)
+
+    def send_request_recall_intent(self, record: wandb_internal_pb2.Record) -> None:
+        print("recall intent")
+        intent_id = record.request.recall_intent.intent_id
+        recall_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(intent_id=intent_id)
+        self._interface._recall_intent_done(recall_intent_done)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)

@@ -121,6 +121,9 @@ class HandleManager:
         # TODO: implement release protocol to clean this up
         self._artifact_xid_done = dict()
 
+        # TODO: use managed object instead of simple dict
+        self._intents = dict()
+
     def __len__(self) -> int:
         return self._record_q.qsize()
 
@@ -662,10 +665,15 @@ class HandleManager:
         else:
             self._accumulate_time = 0
 
+        print("JUNK1", self._settings._disable_stats)
         if not self._settings._disable_stats:
+            print("JUNK2", self._settings._disable_stats)
             pid = os.getpid()
+            print("JUNK3", self._settings._disable_stats)
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
+            print("JUNK4", self._settings._disable_stats)
             self._system_stats.start()
+            print("JUNK5", self._settings._disable_stats)
 
         if not self._settings._disable_meta and not run_start.run.resumed:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface)
@@ -830,3 +838,45 @@ class HandleManager:
         item = history.item.add()
         item.key = "_runtime"
         item.value_json = json.dumps(history_dict[item.key])
+
+    def handle_request_propose_intent(self, record: Record) -> None:
+        assert record.control.req_resp
+
+        intent_id = record.request.propose_intent.intent_id
+        if intent_id in self._intents:
+            print(f"intent already active: {intent_id}")
+            return None
+        self._intents[intent_id] = None
+
+        self._dispatch_record(record)
+
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
+
+    def handle_request_propose_intent_done(self, record: Record) -> None:
+        intent_id = record.request.propose_intent_done.intent_id
+        outcome = record.request.propose_intent_done.outcome
+        print("intent done", intent_id, outcome)
+        self._intents[intent_id] = outcome
+
+    def handle_request_recall_intent(self, record: Record) -> None:
+        assert record.control.req_resp
+        self._dispatch_record(record)
+
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
+
+    def handle_request_recall_intent_done(self, record: Record) -> None:
+        print("recall intent done", record)
+
+    def handle_request_inspect_intent(self, record: Record) -> None:
+        assert record.control.req_resp
+
+        intent_id = record.request.inspect_intent.intent_id
+
+        result = proto_util._result_from_record(record)
+        data = self._intents.get(intent_id)
+        print("intent get", intent_id, data)
+        if data:
+            result.response.inspect_intent_response.outcome.CopyFrom(data)
+        self._respond_result(result)

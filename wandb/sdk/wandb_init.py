@@ -27,6 +27,7 @@ from wandb.util import _is_artifact, _is_artifact_string, sentry_exc
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
+from .lib import intents
 from .lib import RunDisabled, SummaryDisabled
 from .lib.deprecate import deprecate, Deprecated
 from .lib.printer import get_printer
@@ -623,10 +624,15 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
-            logger.info("communicating run to backend with 30 second timeout")
-            run_result = backend.interface.communicate_run(run, timeout=30)
-
+            run_result = None
             error_message: Optional[str] = None
+
+            logger.info("communicating run to backend with 30 second timeout")
+            intent = intents.Intent(run=run, interface=backend.interface)
+            intent.wait(timeout=30, on_progress=None, on_timeout=None)
+            if intent.outcome:
+                run_result = intent.outcome.run_result
+
             if not run_result:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"

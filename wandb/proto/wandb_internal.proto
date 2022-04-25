@@ -470,9 +470,14 @@ message Request {
     ArtifactSendRequest   artifact_send = 14;
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
+    ProposeIntentDoneRequest propose_intent_done = 17;
+    RecallIntentDoneRequest  recall_intent_done = 18;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
+    ProposeIntentRequest  propose_intent = 67;
+    RecallIntentRequest   recall_intent = 68;
+    InspectIntentRequest  inspect_intent = 69;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -496,6 +501,9 @@ message Response {
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
+    ProposeIntentResponse  propose_intent_response = 67;
+    RecallIntentResponse   recall_intent_response = 68;
+    InspectIntentResponse  inspect_intent_response = 69;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -784,4 +792,69 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
+}
+
+/************************
+ * Intents
+ *
+ * Verbs:
+ *   propose
+ *   recall
+ *   inspect
+ *
+ ************************/
+
+
+message IntentDefinition {
+  oneof intent_type {
+    RunRecord run = 2;
+  }
+}
+
+message IntentOutcome {
+  oneof intent_outcome_type {
+    RunUpdateResult run_result = 1;
+  }
+  string error = 2;
+  bool is_resolved = 3;
+}
+
+// propose
+
+message ProposeIntentRequest {
+  string intent_id = 1;
+  IntentDefinition intent = 2;
+}
+
+message ProposeIntentResponse {
+  string error = 2;
+  IntentOutcome outcome = 3;
+}
+
+message ProposeIntentDoneRequest {
+  string intent_id = 1;
+  IntentOutcome outcome = 2;
+}
+
+// recall
+
+message RecallIntentRequest {
+  string intent_id = 1;
+}
+
+message RecallIntentResponse {
+}
+
+message RecallIntentDoneRequest {
+  string intent_id = 1;
+}
+
+// inspect
+
+message InspectIntentRequest {
+  string intent_id = 1;
+}
+
+message InspectIntentResponse {
+  IntentOutcome outcome = 1;
 }
