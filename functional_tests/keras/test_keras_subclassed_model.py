@@ -14,7 +14,7 @@ dataset = (x, y)
 
 class DummyModel(tf.keras.Model):
     def __init__(self, num_classes=10):
-        super(DummyModel, self).__init__()
+        super().__init__()
         self.conv = tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1))
         self.flatten = tf.keras.layers.Flatten()
         self.classifier = tf.keras.layers.Dense(10, activation="softmax")
