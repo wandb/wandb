@@ -1,13 +1,61 @@
 """ Sweeps using Launch. 
 
 SweepRun(AbstractRun)
-SweepAgentRun(AbstractRun)
-SweepAdvisorRun(AbstractRun)
+SweepAgentRun(SweepRun)
+- Agent that pulls SweepRuns from queue and runs them
+SweepAdvisorRun(SweepRun)
 
 SweepRunner(AbstractRunner)
+- Creates an Advisor if it doesn't exist
+- Can creates Agents
 
-ClassicSweepRun(AbstractRun)
-ClassicSweepController(AbstractRun)
+Current Flow
+- User creates a sweep with CLI, API, or GUI
+    - Sweep is new entry in RunQueues (Sweeps) table
+- User creates agent nodes
+- Agents register with backend, ask for runs based on sweep_id
+- Anaconda2 uses sweep information to push runs to RunQueueItems (Sweeps) table
+- Agents pull runs from RunQueueItems table, perform work, and push results to RunQueueItems table
+
+New Flow:
+- User creates a sweep with CLI, API, or GUI
+    - Sweep is new entry in RunQueues (Launch) table
+    - Sweep is new entry in RunQueues (Sweeps) table 
+- User launches advisor nodes
+- User launches agent nodes
+- Advisors register with backend, populates RunQueueItems (Launch) table
+- Agents register with backend, ask for runs based on sweep_id, launch_id
+- Agents pull runs from RunQueueItems table, perform work, and push results to RunQueueItems table
+
+
+
++----------------------------------------+
+| Tables_in_wandb_dev                    |
++----------------------------------------+
+| agents                                 |
+| jobs                                   |
+| launch_agents                          |
+| plans                                  |
+| project_fields                         |
+| project_tags                           |
+| projects                               |
+| projects_deletion_state                |
+| published_runs                         |
+| repos                                  |
+| run_compute_hours                      |
+| run_compute_hours_backfill_state       |
+| run_fields                             |
+| run_queue_items                        |
+| run_queues                             |
+| run_storage_stats                      |
+| run_storage_stats_state                |
+| run_summary_metrics_diffs              |
+| runs                                   |
+| runs_group                             |
+| runs_scrubber_state                    |
+| sweep_prior_runs                       |
+| sweeps                                 |
++----------------------------------------+
 
 """
 
@@ -40,8 +88,6 @@ class SweepRun(AbstractRun):
         _logger.debug("Created SweepRun for sweep_id: %s", sweep_id)
         self._sweep_id: str = sweep_id
         self._random_state: int = random_state
-
-    def random_state():
 
 
 class ClassicSweepAgentRun(SweepRun):
@@ -147,3 +193,28 @@ class SweepLaunchRunner(AbstractRunner):
         # Populate table with agents if none found
 
         return 
+
+
+def _run_tune():
+    from ray import tune
+    from ray.tune.logger import DEFAULT_LOGGERS
+    from ray.tune.integration.wandb import WandbLoggerCallback
+    tune.run(
+        train_fn,
+        config={
+            # define search space here
+            "parameter_1": tune.choice([1, 2, 3]),
+            "parameter_2": tune.choice([4, 5, 6]),
+        },
+        callbacks=[WandbLoggerCallback(
+            project="Optimization_Project",
+            api_key_file="/path/to/file",
+            log_config=True)])
+
+def _tune_trainable(
+    config: Dict,
+    func: Callable,
+) -> None:
+    from ray import tune
+    score = func(config=config)
+    tune.report(score=score)
