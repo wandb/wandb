@@ -9,7 +9,7 @@ import datetime
 from io import BytesIO
 import json
 import os
-from pkg_resources import parse_version  # type: ignore
+from pkg_resources import parse_version
 import re
 import requests
 import logging
@@ -17,7 +17,6 @@ import socket
 import sys
 
 import click
-import six
 import yaml
 
 import wandb
@@ -48,7 +47,7 @@ class Api:
 
     Arguments:
         default_settings(dict, optional): If you aren't using a settings
-        file or you wish to override the section to use in the settings file
+        file, or you wish to override the section to use in the settings file
         Override the settings here.
     """
 
@@ -144,7 +143,7 @@ class Api:
             logger.error("%s response executing GraphQL." % res.status_code)
             logger.error(res.text)
             self.display_gorilla_error_if_found(res)
-            six.reraise(*sys.exc_info())
+            raise
 
     def display_gorilla_error_if_found(self, res):
         try:
@@ -578,7 +577,7 @@ class Api:
             },
         )
         if response["project"] is None or response["project"]["sweep"] is None:
-            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep))
+            raise ValueError(f"Sweep {entity}/{project}/{sweep} not found")
         data = response["project"]["sweep"]
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
@@ -593,7 +592,7 @@ class Api:
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
         Returns:
-                [{"id",name","description"}]
+                [{"id","name","description"}]
         """
         query = gql(
             """
@@ -729,7 +728,7 @@ class Api:
         patch = None
         metadata = {}
 
-        # If we use the `names` paramter on the `files` node, then the server
+        # If we use the `names` parameter on the `files` node, then the server
         # will helpfully give us and 'open' file handle to the files that don't
         # exist. This is so that we can upload data to it. However, in this
         # case, we just want to download that file and not upload to it, so
@@ -742,7 +741,7 @@ class Api:
             variable_values["pattern"] = filename
             response = self.gql(query, variable_values=variable_values)
             if response["model"] == None:
-                raise CommError("Run {}/{}/{} not found".format(entity, project, run))
+                raise CommError(f"Run {entity}/{project}/{run} not found")
             run = response["model"]["bucket"]
             # we only need to fetch this config once
             if variable_values["includeConfig"]:
@@ -801,7 +800,11 @@ class Api:
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1370,7 +1373,7 @@ class Api:
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
-        """Generate temporary resumeable upload urls
+        """Generate temporary resumable upload urls
 
         Arguments:
             project (str): The project to download
@@ -1427,9 +1430,7 @@ class Api:
             result = {file["name"]: file for file in self._flatten_edges(run["files"])}
             return run["id"], run["files"]["uploadHeaders"], result
         else:
-            raise CommError(
-                "Run does not exist {}/{}/{}.".format(entity, project, run_id)
-            )
+            raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
 
     @normalize_exceptions
     def download_urls(self, project, run=None, entity=None):
@@ -1472,10 +1473,15 @@ class Api:
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
-            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
+            raise CommError(f"Run does not exist {entity}/{project}/{run}.")
         files = self._flatten_edges(query_result["model"]["bucket"]["files"])
         return {file["name"]: file for file in files if file}
 
@@ -1554,7 +1560,8 @@ class Api:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
 
         Returns:
-            A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
+            A tuple of the file's local path and the streaming response. The streaming response is None if the file
+            already existed and was up-to-date.
         """
         fileName = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
@@ -1582,7 +1589,8 @@ class Api:
             else:
                 md5 = None
             content_settings = self._azure_blob_module.ContentSettings(
-                content_md5=md5, content_type=extra_headers.get("Content-Type"),
+                content_md5=md5,
+                content_type=extra_headers.get("Content-Type"),
             )
             client.upload_blob(
                 file,
@@ -1611,7 +1619,7 @@ class Api:
             bytes uploaded since the last time it was called, used to report progress
 
         Returns:
-            The requests library response object
+            The `requests` library response object
         """
         extra_headers = extra_headers.copy()
         response = None
@@ -1628,11 +1636,11 @@ class Api:
                 response = requests.put(url, data=progress, headers=extra_headers)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error("upload_file exception {}: {}".format(url, e))
+            logger.error(f"upload_file exception {url}: {e}")
             request_headers = e.request.headers if e.request is not None else ""
-            logger.error("upload_file request headers: {}".format(request_headers))
+            logger.error(f"upload_file request headers: {request_headers}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error("upload_file response body: {}".format(response_content))
+            logger.error(f"upload_file response body: {response_content}")
             status_code = e.response.status_code if e.response is not None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
@@ -1641,7 +1649,7 @@ class Api:
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
                 e = retry.TransientError(exc=e)
-                six.reraise(type(e), e, sys.exc_info()[2])
+                raise e.with_traceback(sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
 
@@ -1653,7 +1661,7 @@ class Api:
 
         Arguments:
             host (str): hostname
-            persistent (bool): long running or oneoff
+            persistent (bool): long-running or one-off
             sweep (str): sweep id
             project_name: (str): model that contains sweep
         """
@@ -1771,7 +1779,7 @@ class Api:
         config = deepcopy(config)
 
         # explicitly cast to dict in case config was passed as a sweepconfig
-        # sweepconfig does not serialize cleanly to yaml and breaks graphql
+        # sweepconfig does not serialize cleanly to yaml and breaks graphql,
         # but it is a subclass of dict, so this conversion is clean
         config = dict(config)
 
@@ -1956,7 +1964,7 @@ class Api:
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
-            The requests library response object
+            The `requests` library response object
         """
         project, run = self.parse_slug(project, run=run)
         urls = self.download_urls(project, run, entity)
@@ -1995,7 +2003,7 @@ class Api:
                 total_bytes) as argument else if True, renders a progress bar to stream.
 
         Returns:
-            The requests library response object
+            The `requests` library response object
         """
         if project is None:
             project = self.get_project()
@@ -2019,9 +2027,9 @@ class Api:
             file_url = file_info["url"]
 
             # If the upload URL is relative, fill it in with the base URL,
-            # since its a proxied file store like the on-prem VM.
+            # since it's a proxied file store like the on-prem VM.
             if file_url.startswith("/"):
-                file_url = "{}{}".format(self.api_url, file_url)
+                file_url = f"{self.api_url}{file_url}"
 
             try:
                 # To handle Windows paths
@@ -2032,7 +2040,7 @@ class Api:
                     if isinstance(files, dict)
                     else open(normal_name, "rb")
                 )
-            except IOError:
+            except OSError:
                 print(f"{file_name} does not exist")
                 continue
             if progress:
@@ -2250,6 +2258,9 @@ class Api:
         can_handle_dedupe = max_cli_version is None or parse_version(
             "0.12.10"
         ) <= parse_version(max_cli_version)
+        can_handle_history = max_cli_version is None or parse_version(
+            "0.12.12"
+        ) <= parse_version(max_cli_version)
 
         mutation = gql(
             """
@@ -2311,13 +2322,17 @@ class Api:
             # For backwards compatibility with older backends that don't support
             # distributed writers or digest deduplication.
             (
-                "$historyStep: Int64!," if history_step not in [0, None] else "",
+                "$historyStep: Int64!,"
+                if can_handle_history and history_step not in [0, None]
+                else "",
                 "$distributedID: String," if distributed_id else "",
                 "$clientID: ID!," if can_handle_client_id else "",
                 "$sequenceClientID: ID!," if can_handle_client_id else "",
                 "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
                 # line sep
-                "historyStep: $historyStep," if history_step not in [0, None] else "",
+                "historyStep: $historyStep,"
+                if can_handle_history and history_step not in [0, None]
+                else "",
                 "distributedID: $distributedID," if distributed_id else "",
                 "clientID: $clientID," if can_handle_client_id else "",
                 "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
@@ -2523,7 +2538,8 @@ class Api:
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2538,7 +2554,12 @@ class Api:
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")

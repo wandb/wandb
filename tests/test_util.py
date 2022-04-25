@@ -358,7 +358,9 @@ def test_make_tarfile():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = os.path.join(tmpdir, "foo.tar.gz")
         util.make_tarfile(
-            output_filename=tmpfile, source_dir=tmpdir, archive_name="lol",
+            output_filename=tmpfile,
+            source_dir=tmpdir,
+            archive_name="lol",
         )
         assert os.path.exists(tmpfile)
         assert tarfile.is_tarfile(tmpfile)
@@ -504,3 +506,21 @@ def test_resolve_aliases():
 
     aliases = util._resolve_aliases("boom")
     assert aliases == ["boom", "latest"]
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+def test_bfloat16_to_float():
+    import jax.numpy as jnp
+
+    array = jnp.array(1.0, dtype=jnp.bfloat16)
+    # array to scalar bfloat16
+    array_cast = util.json_friendly(array)
+    assert array_cast[1] is True
+    assert array_cast[0].__class__.__name__ == "bfloat16"
+    # scalar bfloat16 to float
+    array_cast = util.json_friendly(array_cast[0])
+    assert array_cast[0] == 1.0
+    assert array_cast[1] is True
+    assert isinstance(array_cast[0], float)

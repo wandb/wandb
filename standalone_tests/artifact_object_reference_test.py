@@ -1,4 +1,4 @@
-# Suggest running as: WANDB_BASE_URL=http://api.wandb.test python artifact_object_reference_test.py                                                               timothysweeney@Timothys-MacBook-Pro
+# Suggest running as: WANDB_BASE_URL=http://api.wandb.test python artifact_object_reference_test.py
 import shutil
 
 import os
@@ -7,15 +7,9 @@ import base64
 import time
 from math import sin, cos, pi
 import numpy as np
-import sys
 from bokeh.plotting import figure
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.interface import artifacts
-else:
-    from wandb.sdk_py27.interface import artifacts
-
+from wandb.sdk.interface import artifacts
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -35,10 +29,11 @@ import wandb
 
 columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio", "np_data"]
 
+
 def _make_wandb_image(suffix=""):
     class_labels = {1: "tree", 2: "car", 3: "road"}
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "test{}.png".format(suffix))
+    im_path = os.path.join(test_folder, "..", "assets", f"test{suffix}.png")
     return wandb.Image(
         im_path,
         classes=wandb.Classes([
@@ -259,7 +254,7 @@ def test_artifact_add_reference_via_url():
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
         artifact.add_reference(
-            "wandb-artifact://{}/{}".format(_b64_to_hex_id(upstream_artifact.id),str(upstream_artifact_file_path)),
+            f"wandb-artifact://{_b64_to_hex_id(upstream_artifact.id)}/{str(upstream_artifact_file_path)}",
             middle_artifact_file_path,
         )
         run.log_artifact(artifact)
@@ -269,7 +264,7 @@ def test_artifact_add_reference_via_url():
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
         artifact.add_reference(
-            "wandb-artifact://{}/{}".format(_b64_to_hex_id(middle_artifact.id),str(middle_artifact_file_path)),
+            f"wandb-artifact://{_b64_to_hex_id(middle_artifact.id)}/{str(middle_artifact_file_path)}",
             downstream_artifact_file_path,
         )
         run.log_artifact(artifact)
@@ -285,7 +280,7 @@ def test_artifact_add_reference_via_url():
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
         with open(
-            os.path.join(downstream_path, downstream_artifact_file_path), "r"
+            os.path.join(downstream_path, downstream_artifact_file_path)
         ) as file:
             assert file.read() == file_text
 
@@ -359,9 +354,10 @@ def test_add_reference_via_artifact_entry():
         #     os.path.join(downstream_path, downstream_artifact_file_path)
         # )
         with open(
-            os.path.join(downstream_path, downstream_artifact_file_path), "r"
+            os.path.join(downstream_path, downstream_artifact_file_path)
         ) as file:
             assert file.read() == file_text
+
 
 # # Artifact1.get(MEDIA_NAME) => media obj
 def test_get_artifact_obj_by_name():
@@ -761,7 +757,7 @@ def test_simple_partition_table():
         row = [i,i*i,2**i]
         data.append(row)
         table = wandb.Table(columns=columns, data=[row])
-        artifact.add(table, "{}/{}".format(table_parts_dir, i))
+        artifact.add(table, f"{table_parts_dir}/{i}")
     partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     run.log_artifact(artifact)
@@ -769,7 +765,7 @@ def test_simple_partition_table():
 
     # test
     run = wandb.init()
-    partition_table = run.use_artifact("{}:latest".format(artifact_name)).get(table_name)
+    partition_table = run.use_artifact(f"{artifact_name}:latest").get(table_name)
     for ndx, row in partition_table.iterrows():
         assert row == data[ndx]
     run.finish()
@@ -777,8 +773,8 @@ def test_simple_partition_table():
 
 def test_distributed_artifact_simple():
     table_name = "dataset"
-    artifact_name = "simple_dist_dataset_{}".format(round(time.time()))
-    group_name = "test_group_{}".format(np.random.rand())
+    artifact_name = f"simple_dist_dataset_{round(time.time())}"
+    group_name = f"test_group_{np.random.rand()}"
     artifact_type = "distributed_dataset"
     count = 2
     images = []
@@ -789,7 +785,7 @@ def test_distributed_artifact_simple():
         run = wandb.init(group=group_name)
         artifact = wandb.Artifact(artifact_name, type=artifact_type)
         image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-        path = "image_{}".format(i)
+        path = f"image_{i}"
         images.append(image)
         image_paths.append(path)
         artifact.add(image, path)
@@ -807,13 +803,10 @@ def test_distributed_artifact_simple():
 
     # test
     run = wandb.init()
-    artifact = run.use_artifact("{}:latest".format(artifact_name))
+    artifact = run.use_artifact(f"{artifact_name}:latest")
     assert len(artifact.manifest.entries.keys()) == count * 2
     # for image, path in zip(images, image_paths):
     #     assert image == artifact.get(path)
-
-
-
 
 
 if __name__ == "__main__":
@@ -844,9 +837,9 @@ if __name__ == "__main__":
         try:
             test_fn()
             _cleanup()
-            print("{}/{} Complete".format(ndx+1, len(test_fns)))
+            print(f"{ndx+1}/{len(test_fns)} Complete")
         except Exception as exception:
-            print("error on function {}".format(test_fn.__name__))
+            print(f"error on function {test_fn.__name__}")
             raise exception
 
     if WANDB_PROJECT_ENV is not None:

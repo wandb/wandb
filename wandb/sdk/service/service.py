@@ -76,7 +76,7 @@ class _Service:
             pid_str = str(os.getpid())
             exec_cmd_list = [sys.executable, "-m"]
             # Add coverage collection if needed
-            if os.environ.get("COVERAGE_RCFILE"):
+            if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
             service_args = [
                 "wandb",
@@ -92,7 +92,9 @@ class _Service:
             else:
                 service_args.append("--serve-sock")
             internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args, env=os.environ, **kwargs,
+                exec_cmd_list + service_args,
+                env=os.environ,
+                **kwargs,
             )
             ports_found = self._wait_for_ports(fname, proc=internal_proc)
             assert ports_found

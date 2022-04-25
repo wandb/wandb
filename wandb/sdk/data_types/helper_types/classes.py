@@ -22,7 +22,7 @@ class Classes(Media):
         Args:
             class_set (list): list of dicts in the form of {"id":int|str, "name":str}
         """
-        super(Classes, self).__init__()
+        super().__init__()
         for class_obj in class_set:
             assert "id" in class_obj and "name" in class_obj
         self._class_set = class_set
@@ -43,7 +43,7 @@ class Classes(Media):
         # be able to operate fully without an artifact in play.
         # In all other cases, artifact should be a true artifact.
         if run_or_artifact is not None:
-            json_obj = super(Classes, self).to_json(run_or_artifact)
+            json_obj = super().to_json(run_or_artifact)
         json_obj["_type"] = Classes._log_type
         json_obj["class_set"] = self._class_set
         return json_obj
@@ -117,7 +117,7 @@ class _ClassesIdType(_dtypes.Type):
         return cls(py_obj)
 
     def to_json(self, artifact: Optional["LocalArtifact"] = None) -> Dict[str, Any]:
-        cl_dict = super(_ClassesIdType, self).to_json(artifact)
+        cl_dict = super().to_json(artifact)
         # TODO (tss): Refactor this block with the similar one in wandb.Image.
         # This is a bit of a smell that the classes object does not follow
         # the same file-pattern as other media types.
@@ -135,7 +135,9 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
+        cls,
+        json_dict: Dict[str, Any],
+        artifact: Optional["PublicArtifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (

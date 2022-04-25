@@ -1,5 +1,3 @@
-#
-
 import re
 from types import TracebackType
 from typing import ContextManager, Dict, List, Optional, Type
@@ -19,7 +17,7 @@ if TYPE_CHECKING:
 _LABEL_TOKEN: str = "@wandbcode{"
 
 
-class _TelemetryObject(object):
+class _TelemetryObject:
     _run: Optional["wandb_run.Run"]
     _obj: TelemetryRecord
 

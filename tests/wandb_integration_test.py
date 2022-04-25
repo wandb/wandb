@@ -48,7 +48,8 @@ def test_resume_allow_success(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="File syncing is somewhat busted in windows",
+    platform.system() == "Windows",
+    reason="File syncing is somewhat busted in windows",
 )
 def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
     with runner.isolation():
@@ -65,7 +66,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         files_sorted = sorted(
             [
                 "config.yaml",
-                "code/tests/logs/{}/train.py".format(test_name),
+                f"code/tests/logs/{test_name}/train.py",
                 "requirements.txt",
                 "wandb-metadata.json",
                 "wandb-summary.json",
@@ -76,13 +77,11 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
             print("Files from server", files)
             assert (
                 sorted(
-                    [
-                        f
-                        for f in files
-                        if not f.endswith(".patch")
-                        and not f.endswith("pt.trace.json")
-                        and f != "output.log"
-                    ]
+                    f
+                    for f in files
+                    if not f.endswith(".patch")
+                    and not f.endswith("pt.trace.json")
+                    and f != "output.log"
                 )
                 == files_sorted
             )
@@ -156,6 +155,7 @@ def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
         assert "bar" not in run.config
         run.finish()
 
+        test_settings._set_run_start_time()  # update timestamp
         run = wandb.init(
             reinit=True,
             resume=True,
@@ -168,6 +168,7 @@ def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
         assert "baz" not in run.config
         run.finish()
 
+        test_settings._set_run_start_time()  # update timestamp
         with pytest.raises(wandb.errors.UsageError):
             wandb.init(
                 reinit=True,
@@ -201,7 +202,8 @@ def test_network_fault_files(live_mock_server, test_settings):
 
 def test_ignore_globs_wandb_files(live_mock_server, test_settings):
     test_settings.update(
-        ignore_globs=["requirements.txt"], source=wandb.sdk.wandb_settings.Source.INIT,
+        ignore_globs=["requirements.txt"],
+        source=wandb.sdk.wandb_settings.Source.INIT,
     )
     run = wandb.init(settings=test_settings)
     run.finish()
@@ -211,7 +213,13 @@ def test_ignore_globs_wandb_files(live_mock_server, test_settings):
         f
         for f in sorted(ctx["storage"][run.id])
         if not f.endswith(".patch") and not f.endswith(".py")
-    ] == sorted(["wandb-metadata.json", "config.yaml", "wandb-summary.json",])
+    ] == sorted(
+        [
+            "wandb-metadata.json",
+            "config.yaml",
+            "wandb-summary.json",
+        ]
+    )
 
 
 # TODO(jhr): look into why this timeout needed to be extend for windows
@@ -265,7 +273,7 @@ def test_dir_on_import(runner, live_mock_server, test_settings):
             )
             assert not os.path.isdir(
                 custom_env_path
-            ), "Unexpected directory at {}".format(custom_env_path)
+            ), f"Unexpected directory at {custom_env_path}"
 
 
 def test_dir_on_init(runner, live_mock_server, test_settings):
@@ -418,7 +426,8 @@ def test_end_to_end_preempting_via_module_func(live_mock_server):
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
 def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     test_settings.update(
-        {"start_method": "thread"}, source=wandb.sdk.wandb_settings.Source.INIT,
+        {"start_method": "thread"},
+        source=wandb.sdk.wandb_settings.Source.INIT,
     )
 
     def mock_min_size(self, size):
@@ -435,14 +444,12 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     # file created, should be uploaded
     with open(file_path, "w") as fp:
         fp.write("a" * 10000)
-        fp.close()
     run.save(file_path, policy="live")
     # on save file is sent
     sent += os.path.getsize(file_path)
     time.sleep(2.1)
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     # 2.1 seconds is longer than set rate limit
     sent += os.path.getsize(file_path)
     # give watchdog time to register the change
@@ -450,12 +457,10 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     # file updated within modified time, should not be uploaded
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     time.sleep(2.0)
     # file updated outside of rate limit should be uploaded
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     sent += os.path.getsize(file_path)
     time.sleep(2)
 

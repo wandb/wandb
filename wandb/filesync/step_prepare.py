@@ -1,23 +1,30 @@
 """Batching file prepare requests to our API."""
 
-import collections
+import queue
 import threading
 import time
-from six.moves import queue
+from typing import Any, Callable, NamedTuple, Sequence, Union
 
 # Request for a file to be prepared.
-RequestPrepare = collections.namedtuple(
-    "RequestPrepare", ("prepare_fn", "on_prepare", "response_queue")
-)
-
-RequestFinish = collections.namedtuple("RequestFinish", ())
-
-ResponsePrepare = collections.namedtuple(
-    "ResponsePrepare", ("upload_url", "upload_headers", "birth_artifact_id")
-)
+class RequestPrepare(NamedTuple):
+    prepare_fn: Callable[..., Any]
+    on_prepare: Callable[..., Any]
+    response_queue: "queue.Queue[ResponsePrepare]"
 
 
-class StepPrepare(object):
+RequestFinish = NamedTuple("RequestFinish", ())
+
+
+class ResponsePrepare(NamedTuple):
+    upload_url: str
+    upload_headers: Sequence[str]
+    birth_artifact_id: str
+
+
+Event = Union[RequestPrepare, RequestFinish, ResponsePrepare]
+
+
+class StepPrepare:
     """A thread that batches requests to our file prepare API.
 
     Any number of threads may call prepare_async() in parallel. The PrepareBatcher thread
@@ -93,7 +100,7 @@ class StepPrepare(object):
 
     def prepare_async(self, prepare_fn, on_prepare=None):
         """Request the backend to prepare a file for upload.
-        
+
         Returns:
             response_queue: a queue containing the prepare result. The prepare result is
                 either a file upload url, or None if the file doesn't need to be uploaded.

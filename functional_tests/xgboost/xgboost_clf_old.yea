@@ -5,7 +5,7 @@ command:
     program: test_xgboost_clf_old.py
 depend:
     requirements:
-        - xgboost>=1.3.0
+        - xgboost>=1.3.0,<1.6.0
         
 assert:
   - :wandb:runs_len: 1
