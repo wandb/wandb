@@ -3047,9 +3047,11 @@ class Run:
                 off=(quiet or settings.quiet),
             )
         else:
-            info = [
-                f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
-            ]
+            info = []
+            if settings.run_name and settings.run_url:
+                info = [
+                    f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+                ]
             if pool_exit_response and pool_exit_response.file_counts:
 
                 logger.info("logging synced files")
@@ -3073,8 +3075,7 @@ class Run:
 
         log_dir = settings.log_user or settings.log_internal
         if log_dir:
-            # printer = printer or get_printer(settings._jupyter)
-            log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
+            log_dir = os.path.dirname(log_dir)
             printer.display(
                 f"Find logs at: {printer.files(log_dir)}",
             )
