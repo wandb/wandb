@@ -18,7 +18,7 @@ from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import util
-from wandb.filesync.dir_watcher import DirWatcher, GlobStr
+from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 
 from . import artifacts
@@ -27,6 +27,7 @@ from . import internal_api
 from . import update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
+from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib import tracelog
@@ -839,7 +840,7 @@ class SendManager:
         summary_path = os.path.join(self._settings.files_dir, filenames.SUMMARY_FNAME)
         with open(summary_path, "w") as f:
             f.write(json_summary)
-        self._save_file(GlobStr(filenames.SUMMARY_FNAME))
+        self._save_file(interface.GlobStr(filenames.SUMMARY_FNAME))
 
     def send_stats(self, record: "Record") -> None:
         stats = record.stats
@@ -941,11 +942,7 @@ class SendManager:
         self._telemetry_obj.MergeFrom(telem)
         self._update_config()
 
-    def _save_file(
-        self,
-        fname: GlobStr,
-        policy: "wandb_internal_pb2.FilesItem.PolicyType.V" = wandb_internal_pb2.FilesItem.PolicyType.END,
-    ) -> None:
+    def _save_file(self, fname: interface.GlobStr, policy: interface.PolicyName = "end") -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)
@@ -954,7 +951,7 @@ class SendManager:
         files = record.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
-            self._save_file(GlobStr(k.path), k.policy)
+            self._save_file(interface.GlobStr(k.path), interface.file_enum_to_policy(k.policy))
 
     def send_header(self, record: "Record") -> None:
         pass

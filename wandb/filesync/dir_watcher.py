@@ -3,10 +3,10 @@ import os
 import fnmatch
 import queue
 import time
-from typing import TYPE_CHECKING, NewType, Optional
+from typing import TYPE_CHECKING, Mapping, MutableSet, NewType, Optional
 
 from wandb import util
-from wandb.proto import wandb_internal_pb2
+from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -17,11 +17,10 @@ wd_polling = util.vendor_import("watchdog.observers.polling")
 wd_events = util.vendor_import("watchdog.events")
 if TYPE_CHECKING:
     wd_api = util.vendor_import("watchdog.observers.api")
+    from wandb.sdk.interface.interface import PolicyName
 
 PathStr = str  # TODO(spencerpearson): would be nice to use Path here
-GlobStr = NewType("GlobStr", str)
 SaveName = NewType("SaveName", str)
-PolicyType = wandb_internal_pb2.FilesItem.PolicyType
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class FileEventHandler:
         return self._last_sync == os.path.getmtime(self.file_path)
 
     @property
-    def policy(self) -> PolicyType:
+    def policy(self) -> "PolicyName":
         raise NotImplementedError
 
     def on_modified(self, force: bool = False) -> None:
@@ -77,8 +76,8 @@ class PolicyNow(FileEventHandler):
         pass
 
     @property
-    def policy(self) -> PolicyType:
-        return PolicyType.NOW
+    def policy(self) -> "PolicyName":
+        return "now"
 
 
 class PolicyEnd(FileEventHandler):
@@ -92,8 +91,8 @@ class PolicyEnd(FileEventHandler):
         self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
     @property
-    def policy(self) -> PolicyType:
-        return PolicyType.END
+    def policy(self) -> "PolicyName":
+        return "end"
 
 
 class PolicyLive(FileEventHandler):
@@ -168,8 +167,8 @@ class PolicyLive(FileEventHandler):
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
     @property
-    def policy(self) -> PolicyType:
-        return PolicyType.LIVE
+    def policy(self) -> "PolicyName":
+        return "live"
 
 
 class DirWatcher:
@@ -184,10 +183,10 @@ class DirWatcher:
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
-        self._user_file_policies = {
-            wandb_internal_pb2.FilesItem.PolicyType.END: set(),
-            wandb_internal_pb2.FilesItem.PolicyType.LIVE: set(),
-            wandb_internal_pb2.FilesItem.PolicyType.NOW: set(),
+        self._user_file_policies: Mapping[PolicyName, MutableSet[GlobStr]] = {
+            "end": set(),
+            "live": set(),
+            "now": set(),
         }
         self._file_pusher = file_pusher
         self._file_event_handlers = {}
@@ -205,9 +204,7 @@ class DirWatcher:
         except StopIteration:
             return None
 
-    def update_policy(
-        self, path: GlobStr, policy: "wandb_internal_pb2.FilesItem.PolicyType.V"
-    ) -> None:
+    def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
         self._user_file_policies[policy].add(path)
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = os.path.relpath(src_path, self._dir)
@@ -296,16 +293,16 @@ class DirWatcher:
             else:
                 Handler = PolicyEnd
                 for policy, globs in self._user_file_policies.items():
-                    if policy == PolicyType.END:
+                    if policy == "end":
                         continue
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
                     for g in list(globs):
                         paths = glob.glob(os.path.join(self._dir, g))
                         if any(save_name in p for p in paths):
-                            if policy == PolicyType.LIVE:
+                            if policy == "live":
                                 Handler = PolicyLive
-                            elif policy == PolicyType.NOW:
+                            elif policy == "now":
                                 Handler = PolicyNow
                 self._file_event_handlers[save_name] = Handler(
                     file_path, save_name, self._api, self._file_pusher

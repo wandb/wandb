@@ -93,6 +93,7 @@ if TYPE_CHECKING:
         ArtifactEntry,
         ArtifactManifest,
     )
+    from .interface.interface import FilesDict, GlobStr, PolicyName
 
     from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
@@ -1178,7 +1179,7 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files = dict(files=[(glob.escape(fname), "now")])
+        files: "FilesDict" = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1549,7 +1550,7 @@ class Run:
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: str = "live",
+        policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
@@ -1579,7 +1580,7 @@ class Run:
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: str = "live",
+        policy: PolicyName = "live",
     ) -> Union[bool, List[str]]:
 
         if policy not in ("live", "end", "now"):
@@ -1601,7 +1602,7 @@ class Run:
                 )
             else:
                 base_path = "."
-        wandb_glob_str = os.path.relpath(glob_str, base_path)
+        wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
 
@@ -1640,7 +1641,7 @@ class Run:
                 )
                 % file_str
             )
-        files_dict = dict(files=[(wandb_glob_str, policy)])
+        files_dict: "FilesDict" = dict(files=[(wandb_glob_str, policy)])
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
