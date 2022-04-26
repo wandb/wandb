@@ -341,7 +341,7 @@ class InterfaceBase:
     ) -> Optional[pb.SampledHistoryResponse]:
         raise NotImplementedError
 
-    def _make_files(self, files_dict: FilesDict) -> pb.FilesRecord:
+    def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
@@ -349,7 +349,7 @@ class InterfaceBase:
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def publish_files(self, files_dict: FilesDict) -> None:
+    def publish_files(self, files_dict: "FilesDict") -> None:
         files = self._make_files(files_dict)
         self._publish_files(files)
 
