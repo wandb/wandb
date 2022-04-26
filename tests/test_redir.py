@@ -281,7 +281,6 @@ def test_offline_compression(test_settings, capfd, runner, console):
         assert "UIOP" in binary_log
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("console", console_modes)
 @pytest.mark.parametrize("numpy", [True, False])
 # @pytest.mark.timeout(120)
@@ -304,7 +303,7 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
             print("LOG" * 1000000)
             print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
             print("===finish===")
-            time.sleep(3)
+            # time.sleep(3)
             run.finish()
 
             binary_log_file = (
