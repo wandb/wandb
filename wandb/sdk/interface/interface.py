@@ -46,7 +46,6 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import Literal, TypedDict
 
-
     PolicyName = Literal["now", "live", "end"]
     FilesDict = TypedDict("FilesDict", {"files": Iterable[Tuple[GlobStr, PolicyName]]})
 
