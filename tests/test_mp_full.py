@@ -33,8 +33,7 @@ def test_multiproc_default(live_mock_server, test_settings, parse_ctx):
     s = {k: v for k, v in dict(summary).items() if not k.startswith("_")}
     assert dict(val=3, val2=1, mystep=3) == s
 
-
-# @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
+@pytest.mark.skip
 @pytest.mark.skipif(sys.version_info >= (3, 10), reason="flaky?")
 def test_multiproc_ignore(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
@@ -61,9 +60,8 @@ def test_multiproc_ignore(live_mock_server, test_settings, parse_ctx):
     s = {k: v for k, v in dict(summary).items() if not k.startswith("_")}
     assert dict(val=3, val2=1, mystep=3) == s
 
-
+@pytest.mark.skip
 @pytest.mark.flaky
-# @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
 @pytest.mark.xfail(platform.system() == "Darwin", reason="console parse_ctx issues")
 def test_multiproc_strict(live_mock_server, test_settings, parse_ctx):
     test_settings.update(strict="true", source=wandb.sdk.wandb_settings.Source.INIT)
