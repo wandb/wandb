@@ -13,6 +13,7 @@ from abc import abstractmethod
 import json
 import logging
 import os
+import sys
 from typing import Any, Iterable, NewType, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
@@ -39,7 +40,12 @@ GlobStr = NewType("GlobStr", str)
 
 if TYPE_CHECKING:
     from ..wandb_run import Run
-    from typing import Literal, TypedDict
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal, TypedDict
+    else:
+        from typing_extensions import Literal, TypedDict
+
 
     PolicyName = Literal["now", "live", "end"]
     FilesDict = TypedDict("FilesDict", {"files": Iterable[Tuple[GlobStr, PolicyName]]})
