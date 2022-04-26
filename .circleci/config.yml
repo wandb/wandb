@@ -107,12 +107,15 @@ workflows:
             - "nightly"
             - << pipeline.schedule.name >>
     jobs:
+      - notify_nightly_start:
+          context: slack-secrets
       - test:
           name: "code-check"
           image: "python:3.6"
           toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
           context: slack-secrets
           notify_on_failure: true
+
   main:
     when:
       and:
@@ -522,3 +525,26 @@ jobs:
           no_output_timeout: 25m
       - save-kfp-cache
       - save-test-results
+
+  notify_nightly_start:
+    docker:
+      - image: 'cimg/base:stable'
+    steps:
+      - slack/notify:
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "plain_text",
+                      "text": ":runner: *Nightly run started!*",
+                      "emoji": true
+                    }
+                  ]
+                }
+              ]
+            }
+          event: always
+          channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
