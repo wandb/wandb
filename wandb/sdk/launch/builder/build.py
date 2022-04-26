@@ -110,7 +110,7 @@ PIP_TEMPLATE = """
 RUN python -m venv /env
 # make sure we install into the env
 ENV PATH="/env/bin:$PATH"
-COPY {requirements_files} .
+COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
 """
 
@@ -139,7 +139,6 @@ RUN useradd \
 
 SAGEMAKER_ENTRYPOINT_TEMPLATE = """
 COPY ./src/train {workdir}
-RUN chmod +x {workdir}/train
 ENTRYPOINT ["sh", "train"]
 """
 
@@ -460,7 +459,7 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
     return name + version_string
 
 
-def _create_build_ctx(
+def _create_docker_build_ctx(
     launch_project: LaunchProject,
     dockerfile_contents: str,
 ) -> str:

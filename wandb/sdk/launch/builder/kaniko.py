@@ -14,7 +14,7 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
-from .build import _create_build_ctx, generate_dockerfile
+from .build import _create_docker_build_ctx, generate_dockerfile
 from .._project_spec import (
     create_metadata_file,
     EntryPoint,
@@ -143,8 +143,14 @@ class KanikoBuilder(AbstractBuilder):
         context_file.close()
 
         if self.builder_config.get("cloud-provider") == "AWS":
-            boto3 = get_module("boto3", "aws requires boto3")
-            botocore = get_module("botocore", "aws requires botocore")
+            boto3 = get_module(
+                "boto3",
+                "AWS cloud provider requires boto3, install with pip install wandb[launch]",
+            )
+            botocore = get_module(
+                "botocore",
+                "aws cloud-provider requires botocore,  install with pip install wandb[launch]",
+            )
 
             s3_client = boto3.client("s3")
 
@@ -160,7 +166,8 @@ class KanikoBuilder(AbstractBuilder):
         # TODO: support gcp and azure cloud providers
         elif self.builder_config.get("cloud-provider") == "gcp":
             storage = get_module(
-                "google.cloud.storage", "gcp requires google-cloud-storage"
+                "google.cloud.storage",
+                "gcp provider requires google-cloud-storage,  install with pip install wandb[launch]",
             )
 
             storage_client = storage.Client()
@@ -199,7 +206,7 @@ class KanikoBuilder(AbstractBuilder):
             docker_args,
             sanitize_wandb_api_key(dockerfile_str),
         )
-        context_path = _create_build_ctx(launch_project, dockerfile_str)
+        context_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         run_id = launch_project.run_id
 
         _, api_client = get_kube_context_and_api_client(

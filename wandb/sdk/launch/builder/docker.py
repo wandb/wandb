@@ -8,7 +8,7 @@ from wandb.errors import DockerError, LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .build import (
-    _create_build_ctx,
+    _create_docker_build_ctx,
     construct_local_image_uri,
     generate_dockerfile,
     validate_docker_installation,
@@ -68,7 +68,7 @@ class DockerBuilder(AbstractBuilder):
             # command arguments
             with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
                 fp.write(entry_cmd)
-        build_ctx_path = _create_build_ctx(launch_project, dockerfile_str)
+        build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
             docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)

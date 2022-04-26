@@ -3,7 +3,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from wandb.apis.internal import Api
-from wandb.errors import ExecutionError
+from wandb.errors import ExecutionError, LaunchError
 import yaml
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
@@ -47,7 +47,7 @@ def resolve_agent_config(
                 config = yaml.safe_load(f)
                 print(config)
             except yaml.YAMLError as e:
-                print(e)
+                raise LaunchError(f"Invalid launch agent config: {e}")
         resolved_config.update(dict(config))
     if os.environ.get("WANDB_PROJECT") is not None:
         resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})

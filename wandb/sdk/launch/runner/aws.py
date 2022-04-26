@@ -85,7 +85,10 @@ class AWSSagemakerRunner(AbstractRunner):
     ) -> Optional[AbstractRun]:
         _logger.info("using AWSSagemakerRunner")
 
-        boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
+        boto3 = get_module(
+            "boto3",
+            "AWSSagemakerRunner requires boto3 to be installed,  install with pip install wandb[launch]",
+        )
 
         given_sagemaker_args = launch_project.resource_args.get("sagemaker")
         if given_sagemaker_args is None:

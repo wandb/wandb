@@ -405,7 +405,9 @@ def maybe_create_imagepull_secret(
         and registry_config.get("url") is not None
         and registry_config.get("credentials") is not None
     ):
-        boto3 = get_module("boto3", "AWS ECR requires boto3")
+        boto3 = get_module(
+            "boto3", "AWS ECR requires boto3,  install with pip install wandb[launch]"
+        )
         ecr_client = boto3.client("ecr")
         try:
             encoded_token = ecr_client.get_authorization_token()["authorizationData"][
