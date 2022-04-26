@@ -47,7 +47,10 @@ if TYPE_CHECKING:
         from typing_extensions import Literal, TypedDict
 
     PolicyName = Literal["now", "live", "end"]
-    FilesDict = TypedDict("FilesDict", {"files": Iterable[Tuple[GlobStr, PolicyName]]})
+
+    class FilesDict(TypedDict):
+        files: Iterable[Tuple[GlobStr, PolicyName]]
+
 
 logger = logging.getLogger("wandb")
 
