@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import shlex
 import shutil
 import sys
 import tempfile
@@ -10,19 +9,17 @@ from typing import Any, Dict, Optional, Tuple
 
 from dockerpycreds.utils import find_executable  # type: ignore
 import pkg_resources
+from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
-from wandb.errors import DockerError, LaunchError
+from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from ._project_spec import (
-    create_metadata_file,
-    EntryPoint,
-    get_entry_point_command,
+from .._project_spec import (
     LaunchProject,
 )
-from .utils import _is_wandb_dev_uri, _is_wandb_local_uri, sanitize_wandb_api_key
-from ..lib.git import GitRepo
+from ..utils import _is_wandb_dev_uri, _is_wandb_local_uri
+from ...lib.git import GitRepo
 
 _logger = logging.getLogger(__name__)
 
@@ -33,9 +30,8 @@ DEFAULT_CUDA_VERSION = "10.0"
 
 def validate_docker_installation() -> None:
     """Verify if Docker is installed on host machine."""
-    _logger.info("Validating docker installation")
     if not find_executable("docker"):
-        raise LaunchError(
+        raise ExecutionError(
             "Could not find Docker executable. "
             "Ensure Docker is installed as per the instructions "
             "at https://docs.docker.com/install/overview/."
@@ -84,8 +80,8 @@ COPY --chown={uid} src/ {workdir}
 
 ENV PYTHONUNBUFFERED=1
 
-# sagemaker requires a fixed entrypoint to a `train` file in the dockerfile
-{sagemaker_entrypoint}
+# some resources (eg sagemaker) have unique entrypoint requirements
+{entrypoint_setup}
 """
 
 # this goes into base_setup in TEMPLATE
@@ -114,7 +110,7 @@ PIP_TEMPLATE = """
 RUN python -m venv /env
 # make sure we install into the env
 ENV PATH="/env/bin:$PATH"
-COPY {requirements_files} .
+COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
 """
 
@@ -139,6 +135,11 @@ RUN useradd \
     --gid 0 \
     --uid {uid} \
     {user} || echo ""
+"""
+
+SAGEMAKER_ENTRYPOINT_TEMPLATE = """
+COPY ./src/train {workdir}
+ENTRYPOINT ["sh", "train"]
 """
 
 
@@ -221,14 +222,17 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     return env_vars
 
 
-def get_requirements_section(launch_project: LaunchProject) -> str:
-    buildx_installed = docker.is_buildx_installed()
-    if not buildx_installed:
-        wandb.termwarn(
-            "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
-        )
+def get_requirements_section(launch_project: LaunchProject, builder_type: str) -> str:
+    if builder_type == "docker":
+        buildx_installed = docker.is_buildx_installed()
+        if not buildx_installed:
+            wandb.termwarn(
+                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+            )
+            prefix = "RUN WANDB_DISABLE_CACHE=true"
+    elif builder_type == "kaniko":
         prefix = "RUN WANDB_DISABLE_CACHE=true"
-
+        buildx_installed = False
     if launch_project.deps_type == "pip":
         requirements_files = []
         if launch_project.project_dir is not None and os.path.exists(
@@ -236,7 +240,6 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
         ):
             requirements_files += ["src/requirements.txt"]
             pip_install_line = "pip install -r requirements.txt"
-
         if launch_project.project_dir is not None and os.path.exists(
             os.path.join(launch_project.project_dir, "requirements.frozen.txt")
         ):
@@ -246,7 +249,6 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
                 _parse_existing_requirements(launch_project)
                 + "python _wandb_bootstrap.py"
             )
-
         if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
 
@@ -275,9 +277,31 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
     return user_create
 
 
+def get_entrypoint_setup(
+    launch_project: LaunchProject, entry_cmd: str, workdir: str, runner_type: str
+) -> str:
+    if runner_type == "sagemaker":
+        # this check will always pass, since this is only called in the build case where
+        # the project_dir is set
+        assert launch_project.project_dir is not None
+        # sagemaker automatically appends train after the entrypoint
+        # by redirecting to running a train script we can avoid issues
+        # with argparse, and hopefully if the user intends for the train
+        # argument to be present it is captured in the original jobs
+        # command arguments
+        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
+            fp.write(entry_cmd)
+        return SAGEMAKER_ENTRYPOINT_TEMPLATE.format(workdir=workdir)
+
+    # no need to specify an entrypoint in the dockerfile outside of sagemaker
+    return ""
+
+
 def generate_dockerfile(
     launch_project: LaunchProject,
+    entry_cmd: str,
     runner_type: str,
+    builder_type: str,
 ) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
@@ -298,7 +322,7 @@ def generate_dockerfile(
             if py_major == "3"
             else "continuumio/miniconda:latest"
         )
-    requirements_section = get_requirements_section(launch_project)
+    requirements_section = get_requirements_section(launch_project, builder_type)
 
     # ----- stage 2: base -----
     python_base_setup = get_base_setup(launch_project, py_version, py_major)
@@ -308,9 +332,9 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = f"/home/{username}"
 
-    sagemaker_entrypoint = ""
-    if runner_type == "sagemaker":
-        sagemaker_entrypoint = 'ENTRYPOINT ["sh", "train"]'
+    entrypoint_section = get_entrypoint_setup(
+        launch_project, entry_cmd, workdir, runner_type
+    )
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -319,53 +343,10 @@ def generate_dockerfile(
         uid=userid,
         user_setup=user_setup,
         workdir=workdir,
-        sagemaker_entrypoint=sagemaker_entrypoint,
+        entrypoint_setup=entrypoint_section,
     )
 
     return dockerfile_contents
-
-
-def generate_docker_image(
-    launch_project: LaunchProject,
-    image_uri: str,
-    entrypoint: Optional[EntryPoint],
-    docker_args: Dict[str, Any],
-    runner_type: str,
-) -> str:
-    if entrypoint is None:
-        raise LaunchError("No entrypoint found while building image")
-
-    dockerfile_str = generate_dockerfile(launch_project, runner_type)
-    entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
-    create_metadata_file(
-        launch_project,
-        image_uri,
-        sanitize_wandb_api_key(entry_cmd),
-        docker_args,
-        sanitize_wandb_api_key(dockerfile_str),
-    )
-    if runner_type == "sagemaker" and launch_project.project_dir is not None:
-        # sagemaker automatically appends train after the entrypoint
-        # by redirecting to running a train script we can avoid issues
-        # with argparse, and hopefully if the user intends for the train
-        # argument to be present it is captured in the original jobs
-        # command arguments
-        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-            fp.write(entry_cmd)
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-    dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
-    try:
-        docker.build(tags=[image_uri], file=dockerfile, context_path=build_ctx_path)
-    except DockerError as e:
-        raise LaunchError(f"Error communicating with docker client: {e}")
-
-    try:
-        os.remove(build_ctx_path)
-    except Exception:
-        _logger.info(
-            "Temporary docker context file %s was not deleted.", build_ctx_path
-        )
-    return image_uri
 
 
 _inspected_images = {}
@@ -374,6 +355,7 @@ _inspected_images = {}
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     """Checks if a specific image is already available,
     optionally raising an exception"""
+    _logger.info("Checking if base image exists...")
     try:
         data = docker.run(["docker", "image", "inspect", docker_image])
         # always true, since return stderr defaults to false
@@ -384,6 +366,7 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     except (DockerError, ValueError) as e:
         if should_raise:
             raise e
+        _logger.info("Base image not found. Generating new base image")
         return False
 
 
@@ -400,15 +383,12 @@ def pull_docker_image(docker_image: str) -> None:
         # don't pull images if they exist already, eg if they are local images
         return
     try:
-        _logger.info("Pulling user provided docker image")
         docker.run(["docker", "pull", docker_image])
     except DockerError as e:
         raise LaunchError(f"Docker server returned error: {e}")
 
 
 def construct_local_image_uri(launch_project: LaunchProject) -> str:
-    if launch_project.project_dir is None and launch_project.docker_image is None:
-        raise LaunchError("Must specify either project_dir or docker_image")
     assert launch_project.project_dir is not None
     image_uri = _get_docker_image_uri(
         name=launch_project.image_name,
@@ -428,6 +408,12 @@ def construct_gcp_image_uri(
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
 
 
+def construct_gcp_registry_uri(
+    gcp_repo: str, gcp_project: str, gcp_registry: str
+) -> str:
+    return "/".join([gcp_registry, gcp_project, gcp_repo])
+
+
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
     requirements_line = ""
     assert launch_project.project_dir is not None
@@ -443,7 +429,7 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                         name = pkg.name.lower()  # type: ignore
                     else:
                         name = str(pkg)
-                    include_only.add(shlex.quote(name))
+                    include_only.add(shlex_quote(name))
                 except StopIteration:
                     break
                 # Different versions of pkg_resources throw different errors
@@ -478,9 +464,9 @@ def _create_docker_build_ctx(
     dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
-    assert launch_project.project_dir is not None
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
+    assert launch_project.project_dir is not None
     shutil.copytree(
         src=launch_project.project_dir,
         dst=dst_path,
