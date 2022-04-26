@@ -1893,10 +1893,10 @@ class Run:
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
+        self._hooks = ExitHooks()
 
         manager = self._wl and self._wl._get_manager()
         if not manager:
-            self._hooks = ExitHooks()
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
