@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   win: circleci/windows@2.4.0
+  slack: circleci/slack@4.9.3
 
 parameters:
   manual:
@@ -43,6 +44,9 @@ parameters:
   manual_xdist:
     type: integer
     default: 1
+  tox_version:
+    type: string
+    default: "3.24.0"
 
 commands:
   save-tox-cache:
@@ -59,24 +63,24 @@ commands:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
-              keys:
-              - v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.30-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+          keys:
+            - v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+            - v0.30-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   save-kfp-cache:
     description: "Save kfp environment to cache"
     steps:
-            - save_cache:
-                paths:
-                  - /opt/circleci/.pyenv/
-                  - ./.tox
-                key: v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+      - save_cache:
+          paths:
+            - /opt/circleci/.pyenv/
+            - ./.tox
+          key: v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-kfp-cache:
     description: "Restore kfp environment from cache"
     steps:
       - restore_cache:
-              keys:
-              - v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.30-kfpenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+          keys:
+            - v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+            - v0.30-kfpenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   save-test-results:
     description: "Save test results"
     steps:
@@ -93,384 +97,428 @@ commands:
                 path: cover-results
 
 workflows:
-  main:
-    unless: << pipeline.parameters.manual >>
+  nightly:
+    when:
+      and:
+        - equal:
+            - scheduled_pipeline
+            - << pipeline.trigger_source >>
+        - equal:
+            - "nightly"
+            - << pipeline.schedule.name >>
     jobs:
       - test:
-         name: "code-check"
-         image: "python:3.6"
-         toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+          name: "code-check"
+          image: "python:3.6"
+          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+          context: slack-secrets
+          notify_on_failure: true
+  main:
+    when:
+      and:
+        - not:
+            equal:
+              - scheduled_pipeline
+              - << pipeline.trigger_source >>
+        - not: << pipeline.parameters.manual >>
+    jobs:
       - test:
-         name: "unit-s_base-lin-py36"
-         image: "python:3.6"
-         toxenv: "py36,covercircle"
-      - test:
-         name: "unit-s_base-lin-py37"
-         image: "python:3.7"
-         toxenv: "py37"
-      - test:
-         name: "unit-s_base-lin-py38"
-         image: "python:3.8"
-         toxenv: "py38"
-      - test:
-         name: "unit-s_base-lin-py39"
-         image: "python:3.9"
-         toxenv: "py39"
-# Enable when circle offers python 3.10 image
+          name: "code-check"
+          image: "python:3.6"
+          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+          # fixme: this is here for testing, remove it
+          context: slack-secrets
+          notify_on_failure: true
 #      - test:
-#         name: "unit-s_base-lin-py310"
-#         image: "python:3.10"
-#         toxenv: "py310"
-      #
-      # functional linux tests
-      #
-      - test:
-         name: "func-s_base-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_base-py37,func-covercircle"
-      - test:
-         name: "func-s_sklearn-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_sklearn-py37,func-covercircle"
-      - test:
-         name: "func-s_metaflow-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_metaflow-py37,func-covercircle"
-      - test:
-         name: "func-s_tf115-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf115-py37,func-covercircle"
-      - test:
-         name: "func-s_tf21-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf21-py37,func-covercircle"
-      - test:
-         name: "func-s_tf25-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf25-py37,func-covercircle"
-      - test:
-         name: "func-s_tf26-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf26-py37,func-covercircle"
-      - test:
-         name: "func-s_service-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_service-py37,func-covercircle"
-      - test:
-         name: "func-s_noml-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_noml-py37,func-covercircle"
-      - test:
-         name: "func-s_grpc-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_grpc-py37,func-covercircle"
-      - test:
-         name: "func-s_py310-lin-py310"
-         image: "python:3.10"
-         toxenv: "func-s_py310-py310,func-covercircle"
-      - test:
-         name: "func-s_docs-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_docs-py37,func-covercircle"
-      - test:
-         name: "func-s_imports1-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports1-py37"
-      - test:
-         name: "func-s_imports2-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports2-py37"
-      - test:
-         name: "func-s_imports3-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports3-py37"
-      - test:
-         name: "func-s_imports4-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports4-py37"
-      - test:
-         name: "func-s_imports5-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports5-py37"
-      - test:
-         name: "func-s_imports6-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports6-py37"
-      - test:
-         name: "func-s_imports7-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports7-py37"
-      #
-      # functional win tests
-      #
-      - win:
-         name: "func-s_base-win-py37"
-         toxenv: "func-s_base-py37"
-         parallelism: 1
-         xdist: 1
-      #
-      # unit win/mac tests
-      #
-      - win:
-         name: "unit-s_base-win-py37"
-         toxenv: "py37,wincovercircle -- --timeout 300"
-      - mac:
-         name: "unit-s_base-mac-py37"
-         toxenv: "py37"
-      #
-      # launch tests
-      #
-      - launch:
-         name: "mach-launch"
-         toxenv: "pylaunch,covercircle"
-      #
-      # kfp tests
-      #
-      - kfp:
-         name: "mach-kubeflow"
-         toxenv: "func-s_kfp-py37"
-      #
-      # sharded unittests
-      #
-      # s_nb: notebook tests
-      - test:
-         name: "unit-s_nb-lin-py36"
-         image: "python:3.6"
-         toxenv: "unit-s_nb-py36,unit-covercircle"
-      - win:
-         name: "unit-s_nb-win-py37"
-         toxenv: "unit-s_nb-py37"
-         parallelism: 1
-         xdist: 1
-      - mac:
-         name: "unit-s_nb-mac-py37"
-         toxenv: "unit-s_nb-py37"
-         parallelism: 1
-         xdist: 1
-      # s_kfp: kubeflow pipeline tests
-      - test:
-         name: "unit-s_kfp-lin-py36"
-         image: "python:3.6"
-         toxenv: "unit-s_kfp-py36,unit-covercircle"
-      - win:
-         name: "unit-s_kfp-win-py37"
-         toxenv: "unit-s_kfp-py37"
-         parallelism: 1
-         xdist: 1
-      - mac:
-         name: "unit-s_kfp-mac-py37"
-         toxenv: "unit-s_kfp-py37"
-         parallelism: 1
-         xdist: 1
+#          name: "unit-s_base-lin-py36"
+#          image: "python:3.6"
+#          toxenv: "py36,covercircle"
+#      - test:
+#          name: "unit-s_base-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "py37"
+#      - test:
+#          name: "unit-s_base-lin-py38"
+#          image: "python:3.8"
+#          toxenv: "py38"
+#      - test:
+#          name: "unit-s_base-lin-py39"
+#          image: "python:3.9"
+#          toxenv: "py39"
+## Enable when circle offers python 3.10 image
+##      - test:
+##         name: "unit-s_base-lin-py310"
+##         image: "python:3.10"
+##         toxenv: "py310"
+##
+#      # functional linux tests
+#      #
+#      - test:
+#          name: "func-s_base-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_base-py37,func-covercircle"
+#      - test:
+#          name: "func-s_sklearn-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_sklearn-py37,func-covercircle"
+#      - test:
+#          name: "func-s_metaflow-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_metaflow-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf115-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf115-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf21-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf21-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf25-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf25-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf26-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf26-py37,func-covercircle"
+#      - test:
+#          name: "func-s_service-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_service-py37,func-covercircle"
+#      - test:
+#          name: "func-s_noml-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_noml-py37,func-covercircle"
+#      - test:
+#          name: "func-s_grpc-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_grpc-py37,func-covercircle"
+#      - test:
+#          name: "func-s_py310-lin-py310"
+#          image: "python:3.10"
+#          toxenv: "func-s_py310-py310,func-covercircle"
+#      - test:
+#          name: "func-s_docs-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_docs-py37,func-covercircle"
+#      - test:
+#          name: "func-s_imports1-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports1-py37"
+#      - test:
+#          name: "func-s_imports2-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports2-py37"
+#      - test:
+#          name: "func-s_imports3-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports3-py37"
+#      - test:
+#          name: "func-s_imports4-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports4-py37"
+#      - test:
+#          name: "func-s_imports5-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports5-py37"
+#      - test:
+#          name: "func-s_imports6-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports6-py37"
+#      - test:
+#          name: "func-s_imports7-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports7-py37"
+#      #
+#      # functional win tests
+#      #
+#      - win:
+#          name: "func-s_base-win-py37"
+#          toxenv: "func-s_base-py37"
+#          parallelism: 1
+#          xdist: 1
+#      #
+#      # unit win/mac tests
+#      #
+#      - win:
+#          name: "unit-s_base-win-py37"
+#          toxenv: "py37,wincovercircle -- --timeout 300"
+#      - mac:
+#          name: "unit-s_base-mac-py37"
+#          toxenv: "py37"
+#      #
+#      # launch tests
+#      #
+#      - launch:
+#          name: "mach-launch"
+#          toxenv: "pylaunch,covercircle"
+#      #
+#      # kfp tests
+#      #
+#      - kfp:
+#          name: "mach-kubeflow"
+#          toxenv: "func-s_kfp-py37"
+#      #
+#      # sharded unittests
+#      #
+#      # s_nb: notebook tests
+#      - test:
+#          name: "unit-s_nb-lin-py36"
+#          image: "python:3.6"
+#          toxenv: "unit-s_nb-py36,unit-covercircle"
+#      - win:
+#          name: "unit-s_nb-win-py37"
+#          toxenv: "unit-s_nb-py37"
+#          parallelism: 1
+#          xdist: 1
+#      - mac:
+#          name: "unit-s_nb-mac-py37"
+#          toxenv: "unit-s_nb-py37"
+#          parallelism: 1
+#          xdist: 1
+#      # s_kfp: kubeflow pipeline tests
+#      - test:
+#          name: "unit-s_kfp-lin-py36"
+#          image: "python:3.6"
+#          toxenv: "unit-s_kfp-py36,unit-covercircle"
+#      - win:
+#          name: "unit-s_kfp-win-py37"
+#          toxenv: "unit-s_kfp-py37"
+#          parallelism: 1
+#          xdist: 1
+#      - mac:
+#          name: "unit-s_kfp-mac-py37"
+#          toxenv: "unit-s_kfp-py37"
+#          parallelism: 1
+#          xdist: 1
+
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
       - test:
-         name: << pipeline.parameters.manual_test_name >>
-         image: << pipeline.parameters.manual_test_image >>
-         toxenv: << pipeline.parameters.manual_test_toxenv >>
-         parallelism: << pipeline.parameters.manual_parallelism >>
-         xdist: << pipeline.parameters.manual_xdist >>
+          name: << pipeline.parameters.manual_test_name >>
+          image: << pipeline.parameters.manual_test_image >>
+          toxenv: << pipeline.parameters.manual_test_toxenv >>
+          parallelism: << pipeline.parameters.manual_parallelism >>
+          xdist: << pipeline.parameters.manual_xdist >>
+
   manual_win:
     when: << pipeline.parameters.manual_win >>
     jobs:
       - win:
-         name: << pipeline.parameters.manual_win_name >>
-         toxenv: << pipeline.parameters.manual_win_toxenv >>
-         parallelism: << pipeline.parameters.manual_parallelism >>
-         xdist: << pipeline.parameters.manual_xdist >>
+          name: << pipeline.parameters.manual_win_name >>
+          toxenv: << pipeline.parameters.manual_win_toxenv >>
+          parallelism: << pipeline.parameters.manual_parallelism >>
+          xdist: << pipeline.parameters.manual_xdist >>
+
   manual_mac:
     when: << pipeline.parameters.manual_mac >>
     jobs:
       - mac:
-         name: << pipeline.parameters.manual_mac_name >>
-         toxenv: << pipeline.parameters.manual_mac_toxenv >>
-         parallelism: << pipeline.parameters.manual_parallelism >>
-         xdist: << pipeline.parameters.manual_xdist >>
+          name: << pipeline.parameters.manual_mac_name >>
+          toxenv: << pipeline.parameters.manual_mac_toxenv >>
+          parallelism: << pipeline.parameters.manual_parallelism >>
+          xdist: << pipeline.parameters.manual_xdist >>
 
 jobs:
-    test:
-        resource_class: xlarge
-        parameters:
-            image:
-              type: string
-            toxenv:
-              type: string
-            parallelism:
-              type: integer
-              default: 1
-            xdist:
-              type: integer
-              default: 1
-        docker:
-            - image: << parameters.image >>
-        working_directory: /mnt/ramdisk
-        steps:
-            - checkout
-            - run:
-                  name: Install system deps
-                  command: apt-get update && apt-get install -y libsndfile1 ffmpeg
-            - run:
-                  name: Install python dependencies
-                  command: |
-                      pip install tox==3.24.0
-            - restore-tox-cache
-            - run:
-                  name: Run tests
-                  command: |
-                      tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 25m
-            - save-tox-cache
-            - save-test-results
-    win:
-        parameters:
-            toxenv:
-              type: string
-            parallelism:
-              type: integer
-              default: 4
-            xdist:
-              type: integer
-              default: 3
-        executor: win/default
-        parallelism: << parameters.parallelism >>
-        steps:
-            - checkout
-            - run:
-                  name: Install python dependencies
-                  command: |
-                      pip install tox==3.24.0
-            - restore-tox-cache
-            - run:
-                  name: Temporary conda hack
-                  shell: bash.exe
-                  command: |
-                      cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
-            - run:
-                  name: Run tests
-                  shell: bash.exe
-                  command: |
-                      CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 10m
-            - save-tox-cache
-            - save-test-results
-    mac:
-        # TODO: how to set resource class?
-        parameters:
-            toxenv:
-              type: string
-            parallelism:
-              type: integer
-              default: 4
-            xdist:
-              type: integer
-              default: 3
-        macos:
-            xcode: 11.4.1
-        parallelism: << parameters.parallelism >>
-        steps:
-            - checkout
-            - run:
-                  name: Install python dependencies
-                  command: |
-                      pip3 install tox==3.24.0
-            - restore-tox-cache
-            - run:
-                  name: Run tests
-                  # Tests failed with Too many open files, so added ulimit
-                  command: |
-                      ulimit -n 4096
-                      CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 10m
-            - save-tox-cache
-            - save-test-results
+  test:
+    resource_class: xlarge
+    parameters:
+      image:
+        type: string
+      toxenv:
+        type: string
+      parallelism:
+        type: integer
+        default: 1
+      xdist:
+        type: integer
+        default: 1
+      notify_on_failure:
+        type: boolean
+        default: false
+    docker:
+      - image: << parameters.image >>
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install python dependencies
+          command: |
+            pip install tox==<< pipeline.parameters.tox_version >>
+      - restore-tox-cache
+      - run:
+          name: Run tests
+          command: |
+            tox -v -e << parameters.toxenv >>
+          no_output_timeout: 25m
+      - save-tox-cache
+      - save-test-results
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                # fixme: this is for testing, should be changed to "fail"
+                event: always
+#                event: fail
+                template: basic_fail_1
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-    launch:
-      parameters:
-        toxenv:
-          type: string
-      machine:
-          image: ubuntu-2004:202104-01
-          docker_layer_caching: true
-      resource_class: large
-      steps:
-        - attach_workspace:
-                  at: .
-        - checkout
-        - run:
-            name: Install python dependencies, build r2d
-            command: |
-                pip3 install tox==3.24.0
-                pip3 install chardet
-                pip3 install iso8601
-        - run:
-            name: pull base docker images
-            command: |
-                docker pull nvidia/cuda:10.0-runtime
-                docker pull python:3.6-buster
-        - restore-tox-cache
-        - run:
-            name: Run tests
-            command: |
-                python3 -m tox -vv -e << parameters.toxenv >>
-            no_output_timeout: 10m
-        - save-tox-cache
-        - save-test-results
+  win:
+    parameters:
+      toxenv:
+        type: string
+      parallelism:
+        type: integer
+        default: 4
+      xdist:
+        type: integer
+        default: 3
+    executor: win/default
+    parallelism: << parameters.parallelism >>
+    steps:
+      - checkout
+      - run:
+          name: Install python dependencies
+          command: |
+            pip install tox==3.24.0
+      - restore-tox-cache
+      - run:
+          name: Temporary conda hack
+          shell: bash.exe
+          command: |
+            cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
+      - run:
+          name: Run tests
+          shell: bash.exe
+          command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+          no_output_timeout: 10m
+      - save-tox-cache
+      - save-test-results
 
-    kfp:
-      parameters:
-        toxenv:
-          type: string
-      machine:
-          image: ubuntu-2004:202104-01
-          docker_layer_caching: true
-      resource_class: large
-      steps:
-        - attach_workspace:
-                  at: .
-        - checkout
-        - restore-kfp-cache
-        - run:
-              name: Install system deps
-              command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
-        - run:
-              name: Use py37
-              command: |
-                  pyenv install -s 3.7.0
-                  pyenv versions
-                  pyenv global 3.7.0
-        - run:
-              name: Install python dependencies
-              command: |
-                  pip install --upgrade pip
-                  pip install tox==3.24.0
-        - run:
-              name: Install kubectl
-              command: |
-                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-        - run:
-              name: Install kind
-              command: |
-                  curl -Lo ./kind/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 --create-dirs
-                  chmod +x ./kind/kind
-                  export PATH="./kind:$PATH"
-                  kind create cluster
-        - run:
-              name: Install KFP
-              command: |
-                  export PIPELINE_VERSION=1.7.1
-                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
-                  sleep 10s
-                  kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
-                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
-                  sleep 10s
-                  kubectl wait --for condition=ready --timeout=300s pods -n kubeflow --all
-                  kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80 &
-        - run:
-              name: Run tests
-              command: |
-                  tox -v -e << parameters.toxenv >>
-              no_output_timeout: 25m
-        - save-kfp-cache
-        - save-test-results
+  mac:
+    # TODO: how to set resource class?
+    parameters:
+      toxenv:
+        type: string
+      parallelism:
+        type: integer
+        default: 4
+      xdist:
+        type: integer
+        default: 3
+    macos:
+      xcode: 11.4.1
+    parallelism: << parameters.parallelism >>
+    steps:
+      - checkout
+      - run:
+          name: Install python dependencies
+          command: |
+            pip3 install tox==3.24.0
+      - restore-tox-cache
+      - run:
+          name: Run tests
+          # Tests failed with Too many open files, so added ulimit
+          command: |
+            ulimit -n 4096
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
+          no_output_timeout: 10m
+      - save-tox-cache
+      - save-test-results
+
+  launch:
+    parameters:
+      toxenv:
+        type: string
+    machine:
+      image: ubuntu-2004:202104-01
+      docker_layer_caching: true
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: .
+      - checkout
+      - run:
+          name: Install python dependencies, build r2d
+          command: |
+            pip3 install tox==3.24.0
+            pip3 install chardet
+            pip3 install iso8601
+      - run:
+          name: pull base docker images
+          command: |
+            docker pull nvidia/cuda:10.0-runtime
+            docker pull python:3.6-buster
+      - restore-tox-cache
+      - run:
+          name: Run tests
+          command: |
+            python3 -m tox -vv -e << parameters.toxenv >>
+          no_output_timeout: 10m
+      - save-tox-cache
+      - save-test-results
+
+  kfp:
+    parameters:
+      toxenv:
+        type: string
+    machine:
+      image: ubuntu-2004:202104-01
+      docker_layer_caching: true
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: .
+      - checkout
+      - restore-kfp-cache
+      - run:
+          name: Install system deps
+          command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Use py37
+          command: |
+            pyenv install -s 3.7.0
+            pyenv versions
+            pyenv global 3.7.0
+      - run:
+          name: Install python dependencies
+          command: |
+            pip install --upgrade pip
+            pip install tox==3.24.0
+      - run:
+          name: Install kubectl
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - run:
+          name: Install kind
+          command: |
+            curl -Lo ./kind/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 --create-dirs
+            chmod +x ./kind/kind
+            export PATH="./kind:$PATH"
+            kind create cluster
+      - run:
+          name: Install KFP
+          command: |
+            export PIPELINE_VERSION=1.7.1
+            kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
+            sleep 10s
+            kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+            kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
+            sleep 10s
+            kubectl wait --for condition=ready --timeout=300s pods -n kubeflow --all
+            kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80 &
+      - run:
+          name: Run tests
+          command: |
+            tox -v -e << parameters.toxenv >>
+          no_output_timeout: 25m
+      - save-kfp-cache
+      - save-test-results
