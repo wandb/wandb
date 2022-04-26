@@ -942,7 +942,7 @@ class SendManager:
         self._telemetry_obj.MergeFrom(telem)
         self._update_config()
 
-    def _save_file(self, fname: interface.GlobStr, policy: interface.PolicyName = "end") -> None:
+    def _save_file(self, fname: interface.GlobStr, policy: "interface.PolicyName" = "end") -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)

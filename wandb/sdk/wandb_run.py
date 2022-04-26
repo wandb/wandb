@@ -1580,7 +1580,7 @@ class Run:
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: PolicyName = "live",
+        policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
 
         if policy not in ("live", "end", "now"):
