@@ -114,7 +114,7 @@ PIP_TEMPLATE = """
 RUN python -m venv /env
 # make sure we install into the env
 ENV PATH="/env/bin:$PATH"
-COPY {requirements_files} .
+COPY {requirements_files} ./
 {buildx_optional_prefix} {pip_install}
 """
 
