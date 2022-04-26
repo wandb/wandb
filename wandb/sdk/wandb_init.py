@@ -515,6 +515,7 @@ class _WandbInit:
 
         manager = self._wl._get_manager()
         if manager:
+            logger.info(f"setting up manager: {manager}")
             manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
         backend = Backend(settings=self.settings, manager=manager)
@@ -623,8 +624,12 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
-            logger.info("communicating run to backend with 30 second timeout")
-            run_result = backend.interface.communicate_run(run, timeout=30)
+            logger.info(
+                f"communicating run to backend with {self.settings.init_timeout} second timeout"
+            )
+            run_result = backend.interface.communicate_run(
+                run, timeout=self.settings.init_timeout
+            )
 
             error_message: Optional[str] = None
             if not run_result:
