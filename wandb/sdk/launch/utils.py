@@ -34,6 +34,7 @@ PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
+LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
@@ -379,3 +380,70 @@ def to_camel_case(maybe_snake_str: str) -> str:
 def run_shell(args: List[str]) -> Tuple[str, str]:
     out = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()
+
+
+def validate_build_and_registry_configs(
+    build_config: Dict[str, Any], registry_config: Dict[str, Any]
+) -> None:
+    build_config_credentials = build_config.get("credentials", {})
+    registry_config_credentials = registry_config.get("credentials", {})
+    if (
+        build_config_credentials
+        and registry_config_credentials
+        and build_config_credentials != registry_config_credentials
+    ):
+        raise LaunchError("registry and build config credential mismatch")
+
+
+def get_kube_context_and_api_client(
+    kubernetes: Any,  # noqa: F811
+    resource_args: Dict[str, Any],  # noqa: F811
+) -> Tuple[Any, Any]:
+
+    config_file = resource_args.get("config_file", None)
+    context = None
+    if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
+        # context only exist in the non-incluster case
+
+        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
+            config_file
+        )
+        context = None
+        if resource_args.get("context"):
+            context_name = resource_args["context"]
+            for c in all_contexts:
+                if c["name"] == context_name:
+                    context = c
+                    break
+            raise LaunchError(f"Specified context {context_name} was not found.")
+        else:
+            context = active_context
+
+        kubernetes.config.load_kube_config(config_file, context["name"])
+        api_client = kubernetes.config.new_client_from_config(
+            config_file, context=context["name"]
+        )
+        return context, api_client
+    else:
+        kubernetes.config.load_incluster_config()
+        api_client = kubernetes.client.api_client.ApiClient()
+        return context, api_client
+
+
+def resolve_build_and_registry_config(
+    default_launch_config: Optional[Dict[str, Any]],
+    build_config: Optional[Dict[str, Any]],
+    registry_config: Optional[Dict[str, Any]],
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    resolved_build_config: Dict[str, Any] = {}
+    if build_config is None and default_launch_config is not None:
+        resolved_build_config = default_launch_config.get("build", {})
+    elif build_config is not None:
+        resolved_build_config = build_config
+    resolved_registry_config: Dict[str, Any] = {}
+    if registry_config is None and default_launch_config is not None:
+        resolved_registry_config = default_launch_config.get("registry", {})
+    elif registry_config is not None:
+        resolved_registry_config = registry_config
+    validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
+    return resolved_build_config, resolved_registry_config
