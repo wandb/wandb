@@ -958,7 +958,7 @@ def sweep(
     "--resource",
     "-r",
     metavar="BACKEND",
-    default="local",
+    default=None,
     help="Execution resource to use for run. Supported values: 'local'."
     " If passed in, will override the resource value passed in using a config file."
     " Defaults to 'local'.",
@@ -1081,6 +1081,11 @@ def launch(
     else:
         config = {}
 
+    if resource is None and config.get("resource") is not None:
+        resource = config.get("resource")
+    elif resource is None:
+        resource = "local"
+
     if (
         uri is None
         and docker_image is None
@@ -1149,8 +1154,13 @@ def launch(
     default=None,
     help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
 )
+@click.option(
+    "--config", "-c", default=None, help="path to the agent config yaml to use"
+)
 @display_error
-def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
+def launch_agent(
+    ctx, project=None, entity=None, queues=None, max_jobs=None, config=None
+):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1160,28 +1170,19 @@ def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     wandb.termlog(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
-    if project is None:
-        project = os.environ.get("WANDB_PROJECT")
-
-        if project is None:
-            raise LaunchError(
-                "You must specify a project name or set WANDB_PROJECT environment variable."
-            )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
-    if api.api_key is None:
-        wandb.termlog("Login to W&B to use the launch agent feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
-
-    if entity is None:
-        entity = api.default_entity
-    if max_jobs is None:
-        max_jobs = float(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))
+    agent_config, api = wandb_launch.resolve_agent_config(
+        api, entity, project, max_jobs, queues
+    )
+    if agent_config.get("project") is None:
+        raise LaunchError(
+            "You must specify a project name or set WANDB_PROJECT environment variable."
+        )
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs)
+    wandb_launch.create_and_run_agent(api, agent_config)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

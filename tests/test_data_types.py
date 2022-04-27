@@ -586,6 +586,32 @@ def test_table_default():
     }
 
 
+def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
+    test_settings.update({"table_raise_on_max_row_limit_exceeded": True})
+    run = wandb.init(settings=test_settings)
+
+    # make this smaller just for this one test to make the runtime shorter
+    with mock.patch("wandb.Table.MAX_ARTIFACT_ROWS", 10):
+        table = wandb.Table(
+            data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(),
+            columns=["col1"],
+        )
+
+        with pytest.raises(ValueError):
+            run.log({"table": table})
+
+        with mock.patch(
+            "wandb.Table.MAX_ARTIFACT_ROWS", wandb.Table.MAX_ARTIFACT_ROWS + 1
+        ):
+            try:
+                # should no longer raise
+                run.log({"table": table})
+            except Exception as e:
+                assert (
+                    False
+                ), f"Logging a big table with an overridden limit raised with {e}"
+
+
 def test_table_eq_debug():
     # Invalid Type
     a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])

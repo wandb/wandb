@@ -7,15 +7,13 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
-from ..docker import (
-    construct_local_image_uri,
-    generate_docker_image,
+from ..builder.build import (
     get_env_vars_dict,
     pull_docker_image,
-    validate_docker_installation,
 )
 from ..utils import (
     _is_wandb_local_uri,
@@ -73,8 +71,12 @@ class LocalSubmittedRun(AbstractRun):
 class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
-        validate_docker_installation()
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if launch_project.cuda:
@@ -96,14 +98,12 @@ class LocalRunner(AbstractRunner):
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
         else:
-            # build our own image
-            image_uri = construct_local_image_uri(launch_project)
-            generate_docker_image(
+            repository: Optional[str] = registry_config.get("url")
+            image_uri = builder.build_image(
                 launch_project,
-                image_uri,
+                repository,
                 entry_point,
                 docker_args,
-                runner_type="local",
             )
 
         if not self.ack_run_queue_item(launch_project):
