@@ -381,11 +381,10 @@ class Run:
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
-        sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._init(settings=settings, config=config, sweep_config=sweep_config)
+        self._init(settings=settings, config=config)
 
     def _init(
         self,
@@ -503,7 +502,7 @@ class Run:
             self._attach_id = self._settings.run_id
 
     def _populate_sweep_or_launch_config(
-        self, config: Optional[Dict[str, Any]], sweep_config: Optional[Dict[str, Any]]
+        self, sweep_config: Optional[Dict[str, Any]]
     ) -> None:
         self._launch_artifact_mapping: Dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
