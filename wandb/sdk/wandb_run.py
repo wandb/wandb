@@ -3076,7 +3076,7 @@ class Run:
 
         log_dir = settings.log_user or settings.log_internal
         if log_dir:
-            log_dir = os.path.dirname(log_dir)
+            log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
             printer.display(
                 f"Find logs at: {printer.files(log_dir)}",
             )
