@@ -515,7 +515,7 @@ class _WandbInit:
 
         manager = self._wl._get_manager()
         if manager:
-            logger.info(f"setting up manager")
+            logger.info("setting up manager")
             manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
         backend = Backend(settings=self.settings, manager=manager)
