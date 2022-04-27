@@ -5,9 +5,9 @@ import queue
 import shutil
 import threading
 from typing import Any, Callable, NamedTuple, Union
-import wandb.util
 
 from wandb.filesync import step_upload
+import wandb.util
 
 
 class RequestUpload(NamedTuple):
@@ -61,7 +61,6 @@ class StepChecksum:
         self._thread.daemon = True
 
     def _thread_body(self):
-        finished = False
         while True:
             req = self._request_queue.get()
             if isinstance(req, RequestUpload):
