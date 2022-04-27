@@ -4,6 +4,7 @@ import os
 import wandb
 from wandb.cli import cli
 from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE
 import pytest
 
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
@@ -65,9 +66,19 @@ def test_launch_agent_base(
     live_mock_server,
     mocked_fetchable_git_repo,
     kill_agent_on_update_job,
+    monkeypatch,
 ):
+    monkeypatch.setattr(
+        wandb.sdk.launch.utils,
+        "LAUNCH_CONFIG_FILE",
+        os.path.join("./config/wandb/launch-config.yaml"),
+    )
+    launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
 
     with runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+            json.dump(launch_config, f)
         result = runner.invoke(cli.launch_agent, "test_project")
         ctx = live_mock_server.get_ctx()
         assert ctx["num_popped"] == 1
@@ -227,7 +238,9 @@ def test_launch_no_docker_exec(
     mocked_fetchable_git_repo,
     test_settings,
 ):
-    monkeypatch.setattr(wandb.sdk.launch.docker, "find_executable", lambda name: False)
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build, "find_executable", lambda name: False
+    )
     result = runner.invoke(
         cli.launch,
         ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
@@ -369,7 +382,6 @@ def test_launch_agent_project_environment_variable(
 
 def test_launch_agent_no_project(runner, test_settings, live_mock_server):
     result = runner.invoke(cli.launch_agent)
-    print(result.exit_code, result.output, result.exception)
     assert result.exit_code == 1
     assert (
         "You must specify a project name or set WANDB_PROJECT environment variable."

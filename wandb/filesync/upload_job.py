@@ -1,6 +1,6 @@
 import collections
-import os
 import logging
+import os
 import threading
 
 import wandb
@@ -62,11 +62,6 @@ class UploadJob(threading.Thread):
                 self._file_stream.push_success(self.artifact_id, self.save_name)
 
     def push(self):
-        try:
-            size = os.path.getsize(self.save_path)
-        except OSError:
-            size = 0
-
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
