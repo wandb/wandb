@@ -12,6 +12,7 @@ jobs:
         docker:
             - image: cimg/base:stable
         steps:
+            - add_ssh_keys
             - run:
                   name: Print Slack env vars
                   command: echo $SLACK_ACCESS_TOKEN
