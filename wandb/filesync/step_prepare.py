@@ -5,6 +5,7 @@ import threading
 import time
 from typing import Any, Callable, NamedTuple, Sequence, Union
 
+
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
     prepare_fn: Callable[..., Any]

@@ -3,6 +3,7 @@ import os
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from dockerpycreds.utils import find_executable  # type: ignore
 import requests
 from wandb.docker import auth
 from wandb.docker import www_authenticate
@@ -39,8 +40,11 @@ def is_buildx_installed() -> bool:
     global _buildx_installed
     if _buildx_installed is not None:
         return _buildx_installed
-    help_output = shell(["buildx", "--help"])
-    _buildx_installed = help_output is not None and "buildx" in help_output
+    if not find_executable("docker"):
+        _buildx_installed = False
+    else:
+        help_output = shell(["buildx", "--help"])
+        _buildx_installed = help_output is not None and "buildx" in help_output
     return _buildx_installed
 
 
