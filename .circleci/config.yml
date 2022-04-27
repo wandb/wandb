@@ -10,10 +10,14 @@ jobs:
     print_secrets:
         resource_class: small
         docker:
-            - image: cimg/base:stable
+            #- image: cimg/base:stable
+            - image: python:3.7
         steps:
             - add_ssh_keys
             - checkout
+            - run:
+                name: Some python
+                command: python -c 'import os; print(os.environ)'
             - run:
                 name: Print Slack env vars
                 command: echo $SLACK_ACCESS_TOKEN
