@@ -1413,11 +1413,11 @@ class Run:
         the data on the client side or you may get degraded performance.
 
         Arguments:
-            row: (dict, optional) A dict of serializable python objects i.e `str`,
+            data: (dict, optional) A dict of serializable python objects i.e `str`,
                 `ints`, `floats`, `Tensors`, `dicts`, or any of the `wandb.data_types`.
             commit: (boolean, optional) Save the metrics dict to the wandb server
                 and increment the step.  If false `wandb.log` just updates the current
-                metrics dict with the row argument and metrics won't be saved until
+                metrics dict with the data argument and metrics won't be saved until
                 `wandb.log` is called with `commit=True`.
             step: (integer, optional) The global step in processing. This persists
                 any non-committed earlier steps but defaults to not committing the
@@ -1895,10 +1895,10 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-        self._hooks.hook()
 
         manager = self._wl and self._wl._get_manager()
         if not manager:
+            self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
