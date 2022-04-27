@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   win: circleci/windows@2.4.0
   slack: circleci/slack@4.9.3
+  gcp-gke: circleci/gcp-gke@1.4.0
 
 parameters:
   manual:
@@ -125,6 +126,7 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
+
       - test:
           name: "code-check"
           image: "python:3.6"
