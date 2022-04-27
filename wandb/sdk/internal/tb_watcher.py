@@ -14,6 +14,7 @@ from typing import Any, TYPE_CHECKING
 
 import wandb
 from wandb import util
+from wandb.sdk.interface.interface import GlobStr
 from wandb.viz import CustomChart
 
 from . import run as internal_run
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from .settings_static import SettingsStatic
     from typing import Dict, List, Optional
     from wandb.proto.wandb_internal_pb2 import RunRecord
+    from wandb.sdk.interface.interface import FilesDict
     from queue import PriorityQueue
     from tensorboard.compat.proto.event_pb2 import ProtoEvent
     from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
@@ -53,7 +55,7 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    interface.publish_files(dict(files=[(glob.escape(file_name), "live")]))
+    interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
 
 
 def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
@@ -106,7 +108,7 @@ class TBWatcher:
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer = None
+        self._consumer: Optional[TBEventConsumer] = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
@@ -348,8 +350,8 @@ class TBEventConsumer:
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
-        def datatypes_cb(fname: str) -> None:
-            files = dict(files=[(fname, "now")])
+        def datatypes_cb(fname: GlobStr) -> None:
+            files: "FilesDict" = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
         # this is only used for logging artifacts
