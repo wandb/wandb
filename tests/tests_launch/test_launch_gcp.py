@@ -36,7 +36,7 @@ def patched_get_gcp_config(config="default"):
 
 
 def patched_docker_push(repo, tag):
-    return  # noop
+    return ""  # noop
 
 
 def mock_aiplatform_init(project, location, staging_bucket, job_dict):
@@ -110,7 +110,8 @@ def test_launch_gcp_vertex(
     job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
     monkeypatch.setattr(
-        "wandb.docker.push",
+        wandb.docker,
+        "push",
         lambda repo, tag: patched_docker_push(repo, tag),
     )
 
@@ -149,7 +150,8 @@ def test_launch_gcp_vertex_failed(
     job_dict = setup_mock_aiplatform(FAILED, monkeypatch)
 
     monkeypatch.setattr(
-        "wandb.docker.push",
+        wandb.docker,
+        "push",
         lambda repo, tag: patched_docker_push(repo, tag),
     )
 
