@@ -492,6 +492,39 @@ def test_preprocess_base_url(url, processed_url):
     assert s.base_url == processed_url
 
 
+@pytest.mark.parametrize(
+    "setting",
+    [
+        "_disable_meta",
+        "_disable_stats",
+        "_disable_viewer",
+        "disable_code",
+        "disable_git",
+        "disabled",
+        "force",
+        "label_disable",
+        "launch",
+        "quiet",
+        "reinit",
+        "relogin",
+        "sagemaker_disable",
+        "save_code",
+        "show_colors",
+        "show_emoji",
+        "show_errors",
+        "show_info",
+        "show_warnings",
+        "silent",
+        "strict",
+    ],
+)
+def test_preprocess_bool_settings(setting: str):
+    with mock.patch.dict(os.environ, {"WANDB_" + setting.upper(): "true"}):
+        s = Settings()
+        s._apply_env_vars(environ=os.environ)
+        assert s[setting] is True
+
+
 def test_code_saving_save_code_env_false(live_mock_server, test_settings):
     test_settings.update({"save_code": None}, source=Source.BASE)
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE="false"):
