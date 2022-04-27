@@ -673,6 +673,7 @@ class _WandbInit:
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
+        run._populate_sweep_or_launch_config(self.config, self.sweep_config)
         for k, v in self.init_artifact_config.items():
             run.config.update({k: v}, allow_val_change=True)
 
