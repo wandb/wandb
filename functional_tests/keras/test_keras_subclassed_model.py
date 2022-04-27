@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import tensorflow as tf
 import wandb
@@ -38,3 +40,15 @@ model.fit(
     validation_data=(x, y),
     callbacks=[WandbCallback()],
 )
+
+# Finishing the run to upload the artifact.
+# This is needed to test if the SavedModel model was logged.
+run.finish()
+
+api = wandb.Api()
+artifact = api.artifact(f"{run.project}/model-{run.name}:latest")
+download_dir = artifact.download()
+files = os.listdir(download_dir)
+assert files[0] == 'variables'
+assert files[1] == 'keras_metadata.pb'
+assert files[2] == 'saved_model.pb'

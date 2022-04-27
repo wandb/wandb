@@ -984,19 +984,16 @@ class WandbCallback(tf.keras.callbacks.Callback):
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
             return
-        try:
-            # Save the model in the SavedModel format.
-            # TODO: Replace this manual artifact creation with the `log_model` method
-            # after `log_model` is released from beta.
-            self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
-            # Log the model as artifact.
-            model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
-            model_artifact.add_dir(self.filepath[:-3])
-            wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
+        # Save the model in the SavedModel format.
+        # TODO: Replace this manual artifact creation with the `log_model` method
+        # after `log_model` is released from beta.
+        self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
-            # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
-            shutil.rmtree(self.filepath[:-3])
-        except (ImportError, RuntimeError) as e:
-            wandb.termerror(f"Can't save model as artifact % {e}")
-            self.save_model_as_artifact = False
+        # Log the model as artifact.
+        model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
+        model_artifact.add_dir(self.filepath[:-3])
+        wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
+
+        # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
+        shutil.rmtree(self.filepath[:-3])
