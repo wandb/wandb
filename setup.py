@@ -34,9 +34,13 @@ media_requirements = [
 ]
 launch_requirements = [
     "nbconvert",
+    "nbformat",
     "chardet",
     "iso8601",
     "typing_extensions",
+    "boto3",
+    "google-cloud-storage",
+    "kubernetes",
 ]
 
 

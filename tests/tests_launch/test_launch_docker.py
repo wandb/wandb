@@ -11,7 +11,7 @@ from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
 )
-from wandb.sdk.launch.docker import (
+from wandb.sdk.launch.builder.build import (
     construct_gcp_image_uri,
     docker_image_exists,
     generate_dockerfile,
@@ -88,10 +88,7 @@ def test_run_cuda_version(
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
     assert test_project.cuda is True
-    dockerfile = generate_dockerfile(
-        test_project,
-        "local",
-    )
+    dockerfile = generate_dockerfile(test_project, "", "local", "docker")
     assert "FROM nvidia/cuda:11.0-runtime as base" in dockerfile
 
     # cuda specified False, turned off
@@ -106,10 +103,7 @@ def test_run_cuda_version(
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
     assert test_project.cuda is False
-    dockerfile = generate_dockerfile(
-        test_project,
-        "local",
-    )
+    dockerfile = generate_dockerfile(test_project, "", "local", "docker")
     assert "FROM python:" in dockerfile
 
     # differing versions, use specified
@@ -127,10 +121,7 @@ def test_run_cuda_version(
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
     assert test_project.cuda is True
-    dockerfile = generate_dockerfile(
-        test_project,
-        "local",
-    )
+    dockerfile = generate_dockerfile(test_project, "", "local", "docker")
     assert "FROM nvidia/cuda:10.0-runtime as base" in dockerfile
 
 
@@ -154,10 +145,7 @@ def test_dockerfile_conda(
 
     assert test_project.deps_type == "conda"
 
-    dockerfile = generate_dockerfile(
-        test_project,
-        "local",
-    )
+    dockerfile = generate_dockerfile(test_project, "", "local", "docker")
     assert "conda env create -f environment.yml" in dockerfile
     assert "FROM continuumio/miniconda3:latest as build" in dockerfile
     assert "RUN --mount=type=cache,mode=0777,target=/opt/conda/pkgs" in dockerfile
@@ -184,10 +172,7 @@ def test_dockerfile_nodeps(
 
     assert test_project.deps_type is None
 
-    dockerfile = generate_dockerfile(
-        test_project,
-        "local",
-    )
+    dockerfile = generate_dockerfile(test_project, "", "local", "docker")
     assert "environment.yml" not in dockerfile
     assert "requirements.txt" not in dockerfile
 
@@ -211,10 +196,7 @@ def test_buildx_not_installed(
     test_project = create_project_from_spec(test_spec, api)
     test_project = fetch_and_validate_project(test_project, api)
 
-    dockerfile = generate_dockerfile(
-        test_project,
-        "local",
-    )
+    dockerfile = generate_dockerfile(test_project, "", "local", "docker")
 
     assert "RUN WANDB_DISABLE_CACHE=true" in dockerfile
 
