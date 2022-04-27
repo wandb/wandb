@@ -480,6 +480,15 @@ class Run:
             process_context="user",
         )
 
+        # Populate config
+        config = config or dict()
+        wandb_key = "_wandb"
+        config.setdefault(wandb_key, dict())
+        if self._settings.save_code and self._settings.program_relpath:
+            config[wandb_key]["code_path"] = to_forward_slash_path(
+                os.path.join("code", self._settings.program_relpath)
+            )
+
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
@@ -496,16 +505,8 @@ class Run:
     def _populate_sweep_or_launch_config(
         self, config: Optional[Dict[str, Any]], sweep_config: Optional[Dict[str, Any]]
     ) -> None:
-        # Populate config
-        config = config or dict()
-        wandb_key = "_wandb"
-        config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping: Dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
-        if self._settings.save_code and self._settings.program_relpath:
-            config[wandb_key]["code_path"] = to_forward_slash_path(
-                os.path.join("code", self._settings.program_relpath)
-            )
         if sweep_config:
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
