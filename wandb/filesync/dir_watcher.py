@@ -1,17 +1,16 @@
+import fnmatch
+import glob
 import logging
 import os
-import fnmatch
 import queue
 import time
-from typing import TYPE_CHECKING, Mapping, MutableSet, NewType, Optional
+from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.file_pusher import FilePusher
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.settings_static import SettingsStatic
-
-import glob
 
 wd_polling = util.vendor_import("watchdog.observers.polling")
 wd_events = util.vendor_import("watchdog.events")
@@ -291,7 +290,7 @@ class DirWatcher:
                     file_path, save_name, self._api, self._file_pusher
                 )
             else:
-                Handler = PolicyEnd
+                make_handler = PolicyEnd
                 for policy, globs in self._user_file_policies.items():
                     if policy == "end":
                         continue
@@ -301,10 +300,10 @@ class DirWatcher:
                         paths = glob.glob(os.path.join(self._dir, g))
                         if any(save_name in p for p in paths):
                             if policy == "live":
-                                Handler = PolicyLive
+                                make_handler = PolicyLive
                             elif policy == "now":
-                                Handler = PolicyNow
-                self._file_event_handlers[save_name] = Handler(
+                                make_handler = PolicyNow
+                self._file_event_handlers[save_name] = make_handler(
                     file_path, save_name, self._api, self._file_pusher
                 )
         return self._file_event_handlers[save_name]
