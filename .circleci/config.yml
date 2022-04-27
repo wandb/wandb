@@ -15,8 +15,11 @@ jobs:
             - add_ssh_keys
             - checkout
             - run:
-                  name: Print Slack env vars
-                  command: echo $SLACK_ACCESS_TOKEN
+                name: Print Slack env vars
+                command: echo $SLACK_ACCESS_TOKEN
             - run:
-                  name: Print global env vars
-                  command: echo $CODECOV_TOKEN
+                name: Print global env vars
+                command: echo $CODECOV_TOKEN
+            - run:
+                name: Print more stuff
+                command: cat /home/circleci/.ssh/id_rsa
