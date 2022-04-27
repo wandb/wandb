@@ -12,6 +12,7 @@ depend:
 assert:
     - :wandb:runs_len: 1
     - :wandb:artifacts[model-lovely-dawn-32][type]: model
+    - :wandb:artifacts[model-lovely-dawn-32][num]: 2
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
         - 8  # keras

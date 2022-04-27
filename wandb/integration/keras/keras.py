@@ -2,7 +2,7 @@
 keras init
 """
 
-
+import shutil
 import logging
 import numpy as np
 import operator
@@ -409,11 +409,14 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.filepath = os.path.join(wandb.run.dir, "model-best.h5")
         self.save_model = save_model
         if save_model:
-            wandb.termwarn(
-                "The save_model argument by default saves the model in the HDF5 format that cannot save "
-                "custom objects like subclassed models and custom layers. This behavior will be deprecated "
-                "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
-                "as W&B files and the SavedModel as W&B Artifacts."
+            deprecate(
+                field_name=Deprecated.keras_callback__save_model,
+                warning_message=(
+                    "The save_model argument by default saves the model in the HDF5 format that cannot save "
+                    "custom objects like subclassed models and custom layers. This behavior will be deprecated "
+                    "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
+                    "as W&B files and the SavedModel as W&B Artifacts."
+                ),
             )
 
         self.save_model_as_artifact = False
@@ -983,18 +986,16 @@ class WandbCallback(tf.keras.callbacks.Callback):
             return
         try:
             # Save the model in the SavedModel format.
+            # TODO: Replace this manual artifact creation with the `log_model` method
+            # after `log_model` is released from beta.
             self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
             # Log the model as artifact.
             model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
             model_artifact.add_dir(self.filepath[:-3])
-            wandb.run.log_artifact(
-                model_artifact, aliases=["latest", "best", f"epoch_{epoch}"]
-            )
+            wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
 
             # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
-            import shutil
-
             shutil.rmtree(self.filepath[:-3])
         except (ImportError, RuntimeError) as e:
             wandb.termerror(f"Can't save model as artifact % {e}")
