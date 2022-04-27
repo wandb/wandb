@@ -470,6 +470,7 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
+    table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -478,6 +479,9 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _disable_meta={"preprocessor": _str_as_bool},
+            _disable_stats={"preprocessor": _str_as_bool},
+            _disable_viewer={"preprocessor": _str_as_bool},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
@@ -500,7 +504,7 @@ class Settings:
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
-            _save_requirements={"value": True},
+            _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -635,6 +639,10 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            table_raise_on_max_row_limit_exceeded={
+                "value": False,
+                "preprocessor": _str_as_bool,
+            },
             timespec={
                 "hook": (
                     lambda _: (

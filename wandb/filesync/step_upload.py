@@ -4,8 +4,8 @@ import queue
 import threading
 from typing import Any, Callable, NamedTuple, Union
 
-from wandb.filesync import upload_job
 from wandb.errors.term import termerror
+from wandb.filesync import upload_job
 
 
 RequestUpload = NamedTuple(

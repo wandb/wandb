@@ -62,7 +62,7 @@ from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import InterfaceBase
+from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
@@ -93,6 +93,7 @@ if TYPE_CHECKING:
         ArtifactEntry,
         ArtifactManifest,
     )
+    from .interface.interface import FilesDict, PolicyName
 
     from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
@@ -1178,7 +1179,7 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files = dict(files=[(glob.escape(fname), "now")])
+        files: "FilesDict" = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1412,11 +1413,11 @@ class Run:
         the data on the client side or you may get degraded performance.
 
         Arguments:
-            row: (dict, optional) A dict of serializable python objects i.e `str`,
+            data: (dict, optional) A dict of serializable python objects i.e `str`,
                 `ints`, `floats`, `Tensors`, `dicts`, or any of the `wandb.data_types`.
             commit: (boolean, optional) Save the metrics dict to the wandb server
                 and increment the step.  If false `wandb.log` just updates the current
-                metrics dict with the row argument and metrics won't be saved until
+                metrics dict with the data argument and metrics won't be saved until
                 `wandb.log` is called with `commit=True`.
             step: (integer, optional) The global step in processing. This persists
                 any non-committed earlier steps but defaults to not committing the
@@ -1549,7 +1550,7 @@ class Run:
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: str = "live",
+        policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
@@ -1579,7 +1580,7 @@ class Run:
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: str = "live",
+        policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
 
         if policy not in ("live", "end", "now"):
@@ -1601,7 +1602,7 @@ class Run:
                 )
             else:
                 base_path = "."
-        wandb_glob_str = os.path.relpath(glob_str, base_path)
+        wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
 
@@ -1640,7 +1641,7 @@ class Run:
                 )
                 % file_str
             )
-        files_dict = dict(files=[(wandb_glob_str, policy)])
+        files_dict: "FilesDict" = dict(files=[(wandb_glob_str, policy)])
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
@@ -1894,10 +1895,10 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-        self._hooks.hook()
 
         manager = self._wl and self._wl._get_manager()
         if not manager:
+            self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
