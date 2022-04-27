@@ -20,6 +20,9 @@ import traceback
 import click
 from click.exceptions import ClickException
 
+from wandb.sdk.backend.backend import Backend
+from wandb.sdk import wandb_setup
+
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
 import wandb
@@ -38,6 +41,7 @@ from wandb.sdk.lib.wburls import wburls
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
+from wandb.sync import sync_service
 import yaml
 
 
@@ -419,6 +423,107 @@ def init(ctx, project, entity, reset, mode):
             run=click.style("python <train.py>", bold=True),
         )
     )
+
+
+# HACK HACK HACK
+
+from wandb.sdk.lib import filesystem
+
+def _set_logger(log_object):
+    """Configure module logger."""
+    global logger
+    logger = log_object
+
+def _enable_logging(log_fname, run_id=None):
+        """Enables logging to the global debug log.
+
+        This adds a run_id to the log, in case of multiple processes on the same machine.
+        Currently, there is no way to disable logging after it's enabled.
+        """
+        handler = logging.FileHandler(log_fname)
+        handler.setLevel(logging.INFO)
+
+        class WBFilter(logging.Filter):
+            def filter(self, record):
+                record.run_id = run_id
+                return True
+
+        if run_id:
+            formatter = logging.Formatter(
+                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+                "[%(run_id)s:%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+            )
+        else:
+            formatter = logging.Formatter(
+                "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+                "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+            )
+
+        handler.setFormatter(formatter)
+        if run_id:
+            handler.addFilter(WBFilter())
+        logger.propagate = False
+        logger.addHandler(handler)
+        # TODO: make me configurable
+        logger.setLevel(logging.DEBUG)
+
+
+def _hack_setup_logging(_wl, settings):
+        # Stolen from wandb_init.py
+        filesystem._safe_makedirs(os.path.dirname(settings.log_user))
+        filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
+        filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
+        filesystem._safe_makedirs(settings.files_dir)
+        filesystem._safe_makedirs(settings._tmp_code_dir)
+
+        _set_logger(logging.getLogger("wandb"))
+        _enable_logging(settings.log_user)
+
+        _wl._early_logger_flush(logger)
+        logger.info(f"Logging user logs to {settings.log_user}")
+        logger.info(f"Logging internal logs to {settings.log_internal}")
+
+
+class SyncRun:
+    def __init__(self):
+        pass
+
+    def _set_iface_pid(self, _):
+        pass
+
+
+@cli.command(
+    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
+)
+@click.pass_context
+@click.argument("path", nargs=-1, type=click.Path(exists=True))
+def sync2(
+    ctx,
+    path=None,
+    ):
+    wandb.require("service")
+    settings_dict = dict(run_id="sync2")
+    _wl = wandb_setup.setup(settings=settings_dict)
+    _hack_setup_logging(_wl, _wl.settings)
+    manager = _wl._get_manager()
+    assert manager
+    settings: Settings = _wl.settings.copy()
+    print("SET", settings)
+    run_id = "sync2"
+    settings.update(dict(run_id=run_id))
+    # manager._inform_init(settings=settings, run_id=settings.run_id)
+    manager._inform_sync(settings=settings, run_id=run_id)
+
+    backend = Backend(settings=settings, manager=manager)
+    backend.ensure_launched()
+    backend.server_connect()
+
+    # hack
+    run = SyncRun()
+    run._run_id = run_id
+
+    backend._hack_set_run(run)
+    backend.interface.publish_sync(path[0])
 
 
 @cli.command(

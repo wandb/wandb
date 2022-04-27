@@ -31,6 +31,7 @@ class Record(google.protobuf.message.Message):
     METRIC_FIELD_NUMBER: builtins.int
     RUN_FIELD_NUMBER: builtins.int
     EXIT_FIELD_NUMBER: builtins.int
+    SYNC_FIELD_NUMBER: builtins.int
     FINAL_FIELD_NUMBER: builtins.int
     HEADER_FIELD_NUMBER: builtins.int
     FOOTER_FIELD_NUMBER: builtins.int
@@ -83,6 +84,9 @@ class Record(google.protobuf.message.Message):
     def exit(self) -> global___RunExitRecord: ...
 
     @property
+    def sync(self) -> global___SyncRecord: ...
+
+    @property
     def final(self) -> global___FinalRecord: ...
 
     @property
@@ -122,6 +126,7 @@ class Record(google.protobuf.message.Message):
         metric : typing.Optional[global___MetricRecord] = ...,
         run : typing.Optional[global___RunRecord] = ...,
         exit : typing.Optional[global___RunExitRecord] = ...,
+        sync : typing.Optional[global___SyncRecord] = ...,
         final : typing.Optional[global___FinalRecord] = ...,
         header : typing.Optional[global___HeaderRecord] = ...,
         footer : typing.Optional[global___FooterRecord] = ...,
@@ -132,9 +137,9 @@ class Record(google.protobuf.message.Message):
         uuid : typing.Text = ...,
         _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","run","exit","final","header","footer","preempting","link_artifact","request"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"sync",b"sync",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"sync",b"sync",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","run","exit","sync","final","header","footer","preempting","link_artifact","request"]: ...
 global___Record = Record
 
 class Control(google.protobuf.message.Message):
@@ -438,6 +443,31 @@ class RunExitResult(google.protobuf.message.Message):
     def __init__(self,
         ) -> None: ...
 global___RunExitResult = RunExitResult
+
+class SyncRecord(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DIR_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    dir: typing.Text = ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
+    def __init__(self,
+        *,
+        dir : typing.Text = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"dir",b"dir"]) -> None: ...
+global___SyncRecord = SyncRecord
+
+class SyncResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___SyncResult = SyncResult
 
 class RunPreemptingRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

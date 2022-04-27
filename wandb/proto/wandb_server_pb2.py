@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"D\n\x15ServerShutdownRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x18\n\x16ServerShutdownResponse\"B\n\x13ServerStatusRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x16\n\x14ServerStatusResponse\")\n\x10StringTupleValue\x12\x15\n\rstring_values\x18\x01 \x03(\t\"\xe1\x01\n\rSettingsValue\x12\x13\n\tint_value\x18\x01 \x01(\x03H\x00\x12\x16\n\x0cstring_value\x18\x02 \x01(\tH\x00\x12\x15\n\x0b\x66loat_value\x18\x03 \x01(\x01H\x00\x12\x14\n\nbool_value\x18\x04 \x01(\x08H\x00\x12\x14\n\nnull_value\x18\x05 \x01(\x08H\x00\x12\x37\n\x0btuple_value\x18\x06 \x01(\x0b\x32 .wandb_internal.StringTupleValueH\x00\x12\x19\n\x0ftimestamp_value\x18\x07 \x01(\tH\x00\x42\x0c\n\nvalue_type\"\xea\x01\n\x17ServerInformInitRequest\x12O\n\r_settings_map\x18\x32 \x03(\x0b\x32\x38.wandb_internal.ServerInformInitRequest.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"\x1a\n\x18ServerInformInitResponse\"\xec\x01\n\x18ServerInformStartRequest\x12P\n\r_settings_map\x18\x32 \x03(\x0b\x32\x39.wandb_internal.ServerInformStartRequest.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"\x1b\n\x19ServerInformStartResponse\"H\n\x19ServerInformFinishRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformFinishResponse\"H\n\x19ServerInformAttachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xf0\x01\n\x1aServerInformAttachResponse\x12R\n\r_settings_map\x18\x32 \x03(\x0b\x32;.wandb_internal.ServerInformAttachResponse.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"H\n\x19ServerInformDetachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformDetachResponse\"]\n\x1bServerInformTeardownRequest\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1e\n\x1cServerInformTeardownResponse\"\xa4\x04\n\rServerRequest\x12\x30\n\x0erecord_publish\x18\x01 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12\x34\n\x12record_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12>\n\x0binform_init\x18\x03 \x01(\x0b\x32\'.wandb_internal.ServerInformInitRequestH\x00\x12\x42\n\rinform_finish\x18\x04 \x01(\x0b\x32).wandb_internal.ServerInformFinishRequestH\x00\x12\x42\n\rinform_attach\x18\x05 \x01(\x0b\x32).wandb_internal.ServerInformAttachRequestH\x00\x12\x42\n\rinform_detach\x18\x06 \x01(\x0b\x32).wandb_internal.ServerInformDetachRequestH\x00\x12\x46\n\x0finform_teardown\x18\x07 \x01(\x0b\x32+.wandb_internal.ServerInformTeardownRequestH\x00\x12@\n\x0cinform_start\x18\x08 \x01(\x0b\x32(.wandb_internal.ServerInformStartRequestH\x00\x42\x15\n\x13server_request_type\"\xb0\x04\n\x0eServerResponse\x12\x34\n\x12result_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.ResultH\x00\x12H\n\x14inform_init_response\x18\x03 \x01(\x0b\x32(.wandb_internal.ServerInformInitResponseH\x00\x12L\n\x16inform_finish_response\x18\x04 \x01(\x0b\x32*.wandb_internal.ServerInformFinishResponseH\x00\x12L\n\x16inform_attach_response\x18\x05 \x01(\x0b\x32*.wandb_internal.ServerInformAttachResponseH\x00\x12L\n\x16inform_detach_response\x18\x06 \x01(\x0b\x32*.wandb_internal.ServerInformDetachResponseH\x00\x12P\n\x18inform_teardown_response\x18\x07 \x01(\x0b\x32,.wandb_internal.ServerInformTeardownResponseH\x00\x12J\n\x15inform_start_response\x18\x08 \x01(\x0b\x32).wandb_internal.ServerInformStartResponseH\x00\x42\x16\n\x14server_response_type2\xd4\x17\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12I\n\x06\x41ttach\x12\x1d.wandb_internal.AttachRequest\x1a\x1e.wandb_internal.AttachResponse\"\x00\x12>\n\x06TBSend\x12\x18.wandb_internal.TBRecord\x1a\x18.wandb_internal.TBResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12[\n\rRunPreempting\x12#.wandb_internal.RunPreemptingRecord\x1a#.wandb_internal.RunPreemptingResult\"\x00\x12\x46\n\x06Metric\x12\x1c.wandb_internal.MetricRecord\x1a\x1c.wandb_internal.MetricResult\"\x00\x12]\n\nPartialLog\x12%.wandb_internal.PartialHistoryRequest\x1a&.wandb_internal.PartialHistoryResponse\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x43\n\x05\x46iles\x12\x1b.wandb_internal.FilesRecord\x1a\x1b.wandb_internal.FilesResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12\x43\n\x05\x41lert\x12\x1b.wandb_internal.AlertRecord\x1a\x1b.wandb_internal.AlertResult\"\x00\x12L\n\x08\x41rtifact\x12\x1e.wandb_internal.ArtifactRecord\x1a\x1e.wandb_internal.ArtifactResult\"\x00\x12X\n\x0cLinkArtifact\x12\".wandb_internal.LinkArtifactRecord\x1a\".wandb_internal.LinkArtifactResult\"\x00\x12[\n\x0c\x41rtifactSend\x12#.wandb_internal.ArtifactSendRequest\x1a$.wandb_internal.ArtifactSendResponse\"\x00\x12[\n\x0c\x41rtifactPoll\x12#.wandb_internal.ArtifactPollRequest\x1a$.wandb_internal.ArtifactPollResponse\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12\x46\n\x05Pause\x12\x1c.wandb_internal.PauseRequest\x1a\x1d.wandb_internal.PauseResponse\"\x00\x12I\n\x06Resume\x12\x1d.wandb_internal.ResumeRequest\x1a\x1e.wandb_internal.ResumeResponse\"\x00\x12I\n\x06Status\x12\x1d.wandb_internal.StatusRequest\x1a\x1e.wandb_internal.StatusResponse\"\x00\x12\x61\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a&.wandb_internal.ServerShutdownResponse\"\x00\x12[\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a$.wandb_internal.ServerStatusResponse\"\x00\x12g\n\x10ServerInformInit\x12\'.wandb_internal.ServerInformInitRequest\x1a(.wandb_internal.ServerInformInitResponse\"\x00\x12j\n\x11ServerInformStart\x12(.wandb_internal.ServerInformStartRequest\x1a).wandb_internal.ServerInformStartResponse\"\x00\x12m\n\x12ServerInformFinish\x12).wandb_internal.ServerInformFinishRequest\x1a*.wandb_internal.ServerInformFinishResponse\"\x00\x12m\n\x12ServerInformAttach\x12).wandb_internal.ServerInformAttachRequest\x1a*.wandb_internal.ServerInformAttachResponse\"\x00\x12m\n\x12ServerInformDetach\x12).wandb_internal.ServerInformDetachRequest\x1a*.wandb_internal.ServerInformDetachResponse\"\x00\x12s\n\x14ServerInformTeardown\x12+.wandb_internal.ServerInformTeardownRequest\x1a,.wandb_internal.ServerInformTeardownResponse\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"D\n\x15ServerShutdownRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x18\n\x16ServerShutdownResponse\"B\n\x13ServerStatusRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x16\n\x14ServerStatusResponse\")\n\x10StringTupleValue\x12\x15\n\rstring_values\x18\x01 \x03(\t\"\xe1\x01\n\rSettingsValue\x12\x13\n\tint_value\x18\x01 \x01(\x03H\x00\x12\x16\n\x0cstring_value\x18\x02 \x01(\tH\x00\x12\x15\n\x0b\x66loat_value\x18\x03 \x01(\x01H\x00\x12\x14\n\nbool_value\x18\x04 \x01(\x08H\x00\x12\x14\n\nnull_value\x18\x05 \x01(\x08H\x00\x12\x37\n\x0btuple_value\x18\x06 \x01(\x0b\x32 .wandb_internal.StringTupleValueH\x00\x12\x19\n\x0ftimestamp_value\x18\x07 \x01(\tH\x00\x42\x0c\n\nvalue_type\"\xea\x01\n\x17ServerInformInitRequest\x12O\n\r_settings_map\x18\x32 \x03(\x0b\x32\x38.wandb_internal.ServerInformInitRequest.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"\x1a\n\x18ServerInformInitResponse\"\xec\x01\n\x18ServerInformStartRequest\x12P\n\r_settings_map\x18\x32 \x03(\x0b\x32\x39.wandb_internal.ServerInformStartRequest.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"\x1b\n\x19ServerInformStartResponse\"H\n\x19ServerInformFinishRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformFinishResponse\"\xea\x01\n\x17ServerInformSyncRequest\x12O\n\r_settings_map\x18\x32 \x03(\x0b\x32\x38.wandb_internal.ServerInformSyncRequest.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"\x1a\n\x18ServerInformSyncResponse\"H\n\x19ServerInformAttachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xf0\x01\n\x1aServerInformAttachResponse\x12R\n\r_settings_map\x18\x32 \x03(\x0b\x32;.wandb_internal.ServerInformAttachResponse.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"H\n\x19ServerInformDetachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformDetachResponse\"]\n\x1bServerInformTeardownRequest\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1e\n\x1cServerInformTeardownResponse\"\x89\x06\n\rServerRequest\x12\x30\n\x0erecord_publish\x18\x01 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12\x34\n\x12record_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.RecordH\x00\x12>\n\x0binform_init\x18\x03 \x01(\x0b\x32\'.wandb_internal.ServerInformInitRequestH\x00\x12\x42\n\rinform_finish\x18\x04 \x01(\x0b\x32).wandb_internal.ServerInformFinishRequestH\x00\x12>\n\x0binform_sync\x18P \x01(\x0b\x32\'.wandb_internal.ServerInformSyncRequestH\x00\x12\x42\n\rinform_attach\x18\x05 \x01(\x0b\x32).wandb_internal.ServerInformAttachRequestH\x00\x12\x42\n\rinform_detach\x18\x06 \x01(\x0b\x32).wandb_internal.ServerInformDetachRequestH\x00\x12\x46\n\x0finform_teardown\x18\x07 \x01(\x0b\x32+.wandb_internal.ServerInformTeardownRequestH\x00\x12@\n\x0cinform_start\x18\x08 \x01(\x0b\x32(.wandb_internal.ServerInformStartRequestH\x00\x12\x35\n\nsync_start\x18\n \x01(\x0b\x32\x1f.wandb_internal.ServerSyncStartH\x00\x12\x37\n\x0bsync_status\x18\x0b \x01(\x0b\x32 .wandb_internal.ServerSyncStatusH\x00\x12\x33\n\tsync_stop\x18\x0c \x01(\x0b\x32\x1e.wandb_internal.ServerSyncStopH\x00\x42\x15\n\x13server_request_type\"\x88\x06\n\x0eServerResponse\x12\x34\n\x12result_communicate\x18\x02 \x01(\x0b\x32\x16.wandb_internal.ResultH\x00\x12H\n\x14inform_init_response\x18\x03 \x01(\x0b\x32(.wandb_internal.ServerInformInitResponseH\x00\x12L\n\x16inform_finish_response\x18\x04 \x01(\x0b\x32*.wandb_internal.ServerInformFinishResponseH\x00\x12L\n\x16inform_attach_response\x18\x05 \x01(\x0b\x32*.wandb_internal.ServerInformAttachResponseH\x00\x12L\n\x16inform_detach_response\x18\x06 \x01(\x0b\x32*.wandb_internal.ServerInformDetachResponseH\x00\x12P\n\x18inform_teardown_response\x18\x07 \x01(\x0b\x32,.wandb_internal.ServerInformTeardownResponseH\x00\x12J\n\x15inform_start_response\x18\x08 \x01(\x0b\x32).wandb_internal.ServerInformStartResponseH\x00\x12\x46\n\x13sync_start_response\x18\n \x01(\x0b\x32\'.wandb_internal.ServerSyncStartResponseH\x00\x12H\n\x14sync_status_response\x18\x0b \x01(\x0b\x32(.wandb_internal.ServerSyncStatusResponseH\x00\x12\x44\n\x12sync_stop_response\x18\x0c \x01(\x0b\x32&.wandb_internal.ServerSyncStopResponseH\x00\x42\x16\n\x14server_response_type\"L\n\x0fServerSyncStart\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x12\x0c\n\x04path\x18\x01 \x01(\t\"\x19\n\x17ServerSyncStartResponse\"?\n\x10ServerSyncStatus\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"P\n\x18ServerSyncStatusResponse\x12\x34\n\x06status\x18\x01 \x03(\x0b\x32$.wandb_internal.ServerSyncStatusItem\"6\n\x14ServerSyncStatusItem\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x10\n\x08progress\x18\x02 \x01(\x05\"=\n\x0eServerSyncStop\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x18\n\x16ServerSyncStopResponse2\xd4\x17\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12I\n\x06\x41ttach\x12\x1d.wandb_internal.AttachRequest\x1a\x1e.wandb_internal.AttachResponse\"\x00\x12>\n\x06TBSend\x12\x18.wandb_internal.TBRecord\x1a\x18.wandb_internal.TBResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12[\n\rRunPreempting\x12#.wandb_internal.RunPreemptingRecord\x1a#.wandb_internal.RunPreemptingResult\"\x00\x12\x46\n\x06Metric\x12\x1c.wandb_internal.MetricRecord\x1a\x1c.wandb_internal.MetricResult\"\x00\x12]\n\nPartialLog\x12%.wandb_internal.PartialHistoryRequest\x1a&.wandb_internal.PartialHistoryResponse\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x43\n\x05\x46iles\x12\x1b.wandb_internal.FilesRecord\x1a\x1b.wandb_internal.FilesResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12\x43\n\x05\x41lert\x12\x1b.wandb_internal.AlertRecord\x1a\x1b.wandb_internal.AlertResult\"\x00\x12L\n\x08\x41rtifact\x12\x1e.wandb_internal.ArtifactRecord\x1a\x1e.wandb_internal.ArtifactResult\"\x00\x12X\n\x0cLinkArtifact\x12\".wandb_internal.LinkArtifactRecord\x1a\".wandb_internal.LinkArtifactResult\"\x00\x12[\n\x0c\x41rtifactSend\x12#.wandb_internal.ArtifactSendRequest\x1a$.wandb_internal.ArtifactSendResponse\"\x00\x12[\n\x0c\x41rtifactPoll\x12#.wandb_internal.ArtifactPollRequest\x1a$.wandb_internal.ArtifactPollResponse\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12\x46\n\x05Pause\x12\x1c.wandb_internal.PauseRequest\x1a\x1d.wandb_internal.PauseResponse\"\x00\x12I\n\x06Resume\x12\x1d.wandb_internal.ResumeRequest\x1a\x1e.wandb_internal.ResumeResponse\"\x00\x12I\n\x06Status\x12\x1d.wandb_internal.StatusRequest\x1a\x1e.wandb_internal.StatusResponse\"\x00\x12\x61\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a&.wandb_internal.ServerShutdownResponse\"\x00\x12[\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a$.wandb_internal.ServerStatusResponse\"\x00\x12g\n\x10ServerInformInit\x12\'.wandb_internal.ServerInformInitRequest\x1a(.wandb_internal.ServerInformInitResponse\"\x00\x12j\n\x11ServerInformStart\x12(.wandb_internal.ServerInformStartRequest\x1a).wandb_internal.ServerInformStartResponse\"\x00\x12m\n\x12ServerInformFinish\x12).wandb_internal.ServerInformFinishRequest\x1a*.wandb_internal.ServerInformFinishResponse\"\x00\x12m\n\x12ServerInformAttach\x12).wandb_internal.ServerInformAttachRequest\x1a*.wandb_internal.ServerInformAttachResponse\"\x00\x12m\n\x12ServerInformDetach\x12).wandb_internal.ServerInformDetachRequest\x1a*.wandb_internal.ServerInformDetachResponse\"\x00\x12s\n\x14ServerInformTeardown\x12+.wandb_internal.ServerInformTeardownRequest\x1a,.wandb_internal.ServerInformTeardownResponse\"\x00\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__base__pb2.DESCRIPTOR,wandb_dot_proto_dot_wandb__internal__pb2.DESCRIPTOR,wandb_dot_proto_dot_wandb__telemetry__pb2.DESCRIPTOR,])
 
@@ -515,6 +515,108 @@ _SERVERINFORMFINISHRESPONSE = _descriptor.Descriptor(
 )
 
 
+_SERVERINFORMSYNCREQUEST_SETTINGSMAPENTRY = _descriptor.Descriptor(
+  name='SettingsMapEntry',
+  full_name='wandb_internal.ServerInformSyncRequest.SettingsMapEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='wandb_internal.ServerInformSyncRequest.SettingsMapEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='wandb_internal.ServerInformSyncRequest.SettingsMapEntry.value', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=b'8\001',
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=762,
+  serialized_end=843,
+)
+
+_SERVERINFORMSYNCREQUEST = _descriptor.Descriptor(
+  name='ServerInformSyncRequest',
+  full_name='wandb_internal.ServerInformSyncRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='_settings_map', full_name='wandb_internal.ServerInformSyncRequest._settings_map', index=0,
+      number=50, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='_info', full_name='wandb_internal.ServerInformSyncRequest._info', index=1,
+      number=200, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[_SERVERINFORMSYNCREQUEST_SETTINGSMAPENTRY, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1246,
+  serialized_end=1480,
+)
+
+
+_SERVERINFORMSYNCRESPONSE = _descriptor.Descriptor(
+  name='ServerInformSyncResponse',
+  full_name='wandb_internal.ServerInformSyncResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1482,
+  serialized_end=1508,
+)
+
+
 _SERVERINFORMATTACHREQUEST = _descriptor.Descriptor(
   name='ServerInformAttachRequest',
   full_name='wandb_internal.ServerInformAttachRequest',
@@ -542,8 +644,8 @@ _SERVERINFORMATTACHREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1245,
-  serialized_end=1317,
+  serialized_start=1510,
+  serialized_end=1582,
 )
 
 
@@ -619,8 +721,8 @@ _SERVERINFORMATTACHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1320,
-  serialized_end=1560,
+  serialized_start=1585,
+  serialized_end=1825,
 )
 
 
@@ -651,8 +753,8 @@ _SERVERINFORMDETACHREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1562,
-  serialized_end=1634,
+  serialized_start=1827,
+  serialized_end=1899,
 )
 
 
@@ -676,8 +778,8 @@ _SERVERINFORMDETACHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1636,
-  serialized_end=1664,
+  serialized_start=1901,
+  serialized_end=1929,
 )
 
 
@@ -715,8 +817,8 @@ _SERVERINFORMTEARDOWNREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1666,
-  serialized_end=1759,
+  serialized_start=1931,
+  serialized_end=2024,
 )
 
 
@@ -740,8 +842,8 @@ _SERVERINFORMTEARDOWNRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1761,
-  serialized_end=1791,
+  serialized_start=2026,
+  serialized_end=2056,
 )
 
 
@@ -782,29 +884,57 @@ _SERVERREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='inform_attach', full_name='wandb_internal.ServerRequest.inform_attach', index=4,
+      name='inform_sync', full_name='wandb_internal.ServerRequest.inform_sync', index=4,
+      number=80, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='inform_attach', full_name='wandb_internal.ServerRequest.inform_attach', index=5,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='inform_detach', full_name='wandb_internal.ServerRequest.inform_detach', index=5,
+      name='inform_detach', full_name='wandb_internal.ServerRequest.inform_detach', index=6,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='inform_teardown', full_name='wandb_internal.ServerRequest.inform_teardown', index=6,
+      name='inform_teardown', full_name='wandb_internal.ServerRequest.inform_teardown', index=7,
       number=7, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='inform_start', full_name='wandb_internal.ServerRequest.inform_start', index=7,
+      name='inform_start', full_name='wandb_internal.ServerRequest.inform_start', index=8,
       number=8, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sync_start', full_name='wandb_internal.ServerRequest.sync_start', index=9,
+      number=10, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sync_status', full_name='wandb_internal.ServerRequest.sync_status', index=10,
+      number=11, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sync_stop', full_name='wandb_internal.ServerRequest.sync_stop', index=11,
+      number=12, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -826,8 +956,8 @@ _SERVERREQUEST = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=1794,
-  serialized_end=2342,
+  serialized_start=2059,
+  serialized_end=2836,
 )
 
 
@@ -888,6 +1018,27 @@ _SERVERRESPONSE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sync_start_response', full_name='wandb_internal.ServerResponse.sync_start_response', index=7,
+      number=10, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sync_status_response', full_name='wandb_internal.ServerResponse.sync_status_response', index=8,
+      number=11, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sync_stop_response', full_name='wandb_internal.ServerResponse.sync_stop_response', index=9,
+      number=12, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -905,8 +1056,232 @@ _SERVERRESPONSE = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=2345,
-  serialized_end=2905,
+  serialized_start=2839,
+  serialized_end=3615,
+)
+
+
+_SERVERSYNCSTART = _descriptor.Descriptor(
+  name='ServerSyncStart',
+  full_name='wandb_internal.ServerSyncStart',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='_info', full_name='wandb_internal.ServerSyncStart._info', index=0,
+      number=200, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='path', full_name='wandb_internal.ServerSyncStart.path', index=1,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3617,
+  serialized_end=3693,
+)
+
+
+_SERVERSYNCSTARTRESPONSE = _descriptor.Descriptor(
+  name='ServerSyncStartResponse',
+  full_name='wandb_internal.ServerSyncStartResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3695,
+  serialized_end=3720,
+)
+
+
+_SERVERSYNCSTATUS = _descriptor.Descriptor(
+  name='ServerSyncStatus',
+  full_name='wandb_internal.ServerSyncStatus',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='_info', full_name='wandb_internal.ServerSyncStatus._info', index=0,
+      number=200, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3722,
+  serialized_end=3785,
+)
+
+
+_SERVERSYNCSTATUSRESPONSE = _descriptor.Descriptor(
+  name='ServerSyncStatusResponse',
+  full_name='wandb_internal.ServerSyncStatusResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='status', full_name='wandb_internal.ServerSyncStatusResponse.status', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3787,
+  serialized_end=3867,
+)
+
+
+_SERVERSYNCSTATUSITEM = _descriptor.Descriptor(
+  name='ServerSyncStatusItem',
+  full_name='wandb_internal.ServerSyncStatusItem',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='path', full_name='wandb_internal.ServerSyncStatusItem.path', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='progress', full_name='wandb_internal.ServerSyncStatusItem.progress', index=1,
+      number=2, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3869,
+  serialized_end=3923,
+)
+
+
+_SERVERSYNCSTOP = _descriptor.Descriptor(
+  name='ServerSyncStop',
+  full_name='wandb_internal.ServerSyncStop',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='_info', full_name='wandb_internal.ServerSyncStop._info', index=0,
+      number=200, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3925,
+  serialized_end=3986,
+)
+
+
+_SERVERSYNCSTOPRESPONSE = _descriptor.Descriptor(
+  name='ServerSyncStopResponse',
+  full_name='wandb_internal.ServerSyncStopResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3988,
+  serialized_end=4012,
 )
 
 _SERVERSHUTDOWNREQUEST.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
@@ -942,6 +1317,10 @@ _SERVERINFORMSTARTREQUEST_SETTINGSMAPENTRY.containing_type = _SERVERINFORMSTARTR
 _SERVERINFORMSTARTREQUEST.fields_by_name['_settings_map'].message_type = _SERVERINFORMSTARTREQUEST_SETTINGSMAPENTRY
 _SERVERINFORMSTARTREQUEST.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
 _SERVERINFORMFINISHREQUEST.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
+_SERVERINFORMSYNCREQUEST_SETTINGSMAPENTRY.fields_by_name['value'].message_type = _SETTINGSVALUE
+_SERVERINFORMSYNCREQUEST_SETTINGSMAPENTRY.containing_type = _SERVERINFORMSYNCREQUEST
+_SERVERINFORMSYNCREQUEST.fields_by_name['_settings_map'].message_type = _SERVERINFORMSYNCREQUEST_SETTINGSMAPENTRY
+_SERVERINFORMSYNCREQUEST.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
 _SERVERINFORMATTACHREQUEST.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
 _SERVERINFORMATTACHRESPONSE_SETTINGSMAPENTRY.fields_by_name['value'].message_type = _SETTINGSVALUE
 _SERVERINFORMATTACHRESPONSE_SETTINGSMAPENTRY.containing_type = _SERVERINFORMATTACHRESPONSE
@@ -953,10 +1332,14 @@ _SERVERREQUEST.fields_by_name['record_publish'].message_type = wandb_dot_proto_d
 _SERVERREQUEST.fields_by_name['record_communicate'].message_type = wandb_dot_proto_dot_wandb__internal__pb2._RECORD
 _SERVERREQUEST.fields_by_name['inform_init'].message_type = _SERVERINFORMINITREQUEST
 _SERVERREQUEST.fields_by_name['inform_finish'].message_type = _SERVERINFORMFINISHREQUEST
+_SERVERREQUEST.fields_by_name['inform_sync'].message_type = _SERVERINFORMSYNCREQUEST
 _SERVERREQUEST.fields_by_name['inform_attach'].message_type = _SERVERINFORMATTACHREQUEST
 _SERVERREQUEST.fields_by_name['inform_detach'].message_type = _SERVERINFORMDETACHREQUEST
 _SERVERREQUEST.fields_by_name['inform_teardown'].message_type = _SERVERINFORMTEARDOWNREQUEST
 _SERVERREQUEST.fields_by_name['inform_start'].message_type = _SERVERINFORMSTARTREQUEST
+_SERVERREQUEST.fields_by_name['sync_start'].message_type = _SERVERSYNCSTART
+_SERVERREQUEST.fields_by_name['sync_status'].message_type = _SERVERSYNCSTATUS
+_SERVERREQUEST.fields_by_name['sync_stop'].message_type = _SERVERSYNCSTOP
 _SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
   _SERVERREQUEST.fields_by_name['record_publish'])
 _SERVERREQUEST.fields_by_name['record_publish'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
@@ -970,6 +1353,9 @@ _SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
   _SERVERREQUEST.fields_by_name['inform_finish'])
 _SERVERREQUEST.fields_by_name['inform_finish'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
 _SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
+  _SERVERREQUEST.fields_by_name['inform_sync'])
+_SERVERREQUEST.fields_by_name['inform_sync'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
+_SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
   _SERVERREQUEST.fields_by_name['inform_attach'])
 _SERVERREQUEST.fields_by_name['inform_attach'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
 _SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
@@ -981,6 +1367,15 @@ _SERVERREQUEST.fields_by_name['inform_teardown'].containing_oneof = _SERVERREQUE
 _SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
   _SERVERREQUEST.fields_by_name['inform_start'])
 _SERVERREQUEST.fields_by_name['inform_start'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
+_SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
+  _SERVERREQUEST.fields_by_name['sync_start'])
+_SERVERREQUEST.fields_by_name['sync_start'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
+_SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
+  _SERVERREQUEST.fields_by_name['sync_status'])
+_SERVERREQUEST.fields_by_name['sync_status'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
+_SERVERREQUEST.oneofs_by_name['server_request_type'].fields.append(
+  _SERVERREQUEST.fields_by_name['sync_stop'])
+_SERVERREQUEST.fields_by_name['sync_stop'].containing_oneof = _SERVERREQUEST.oneofs_by_name['server_request_type']
 _SERVERRESPONSE.fields_by_name['result_communicate'].message_type = wandb_dot_proto_dot_wandb__internal__pb2._RESULT
 _SERVERRESPONSE.fields_by_name['inform_init_response'].message_type = _SERVERINFORMINITRESPONSE
 _SERVERRESPONSE.fields_by_name['inform_finish_response'].message_type = _SERVERINFORMFINISHRESPONSE
@@ -988,6 +1383,9 @@ _SERVERRESPONSE.fields_by_name['inform_attach_response'].message_type = _SERVERI
 _SERVERRESPONSE.fields_by_name['inform_detach_response'].message_type = _SERVERINFORMDETACHRESPONSE
 _SERVERRESPONSE.fields_by_name['inform_teardown_response'].message_type = _SERVERINFORMTEARDOWNRESPONSE
 _SERVERRESPONSE.fields_by_name['inform_start_response'].message_type = _SERVERINFORMSTARTRESPONSE
+_SERVERRESPONSE.fields_by_name['sync_start_response'].message_type = _SERVERSYNCSTARTRESPONSE
+_SERVERRESPONSE.fields_by_name['sync_status_response'].message_type = _SERVERSYNCSTATUSRESPONSE
+_SERVERRESPONSE.fields_by_name['sync_stop_response'].message_type = _SERVERSYNCSTOPRESPONSE
 _SERVERRESPONSE.oneofs_by_name['server_response_type'].fields.append(
   _SERVERRESPONSE.fields_by_name['result_communicate'])
 _SERVERRESPONSE.fields_by_name['result_communicate'].containing_oneof = _SERVERRESPONSE.oneofs_by_name['server_response_type']
@@ -1009,6 +1407,19 @@ _SERVERRESPONSE.fields_by_name['inform_teardown_response'].containing_oneof = _S
 _SERVERRESPONSE.oneofs_by_name['server_response_type'].fields.append(
   _SERVERRESPONSE.fields_by_name['inform_start_response'])
 _SERVERRESPONSE.fields_by_name['inform_start_response'].containing_oneof = _SERVERRESPONSE.oneofs_by_name['server_response_type']
+_SERVERRESPONSE.oneofs_by_name['server_response_type'].fields.append(
+  _SERVERRESPONSE.fields_by_name['sync_start_response'])
+_SERVERRESPONSE.fields_by_name['sync_start_response'].containing_oneof = _SERVERRESPONSE.oneofs_by_name['server_response_type']
+_SERVERRESPONSE.oneofs_by_name['server_response_type'].fields.append(
+  _SERVERRESPONSE.fields_by_name['sync_status_response'])
+_SERVERRESPONSE.fields_by_name['sync_status_response'].containing_oneof = _SERVERRESPONSE.oneofs_by_name['server_response_type']
+_SERVERRESPONSE.oneofs_by_name['server_response_type'].fields.append(
+  _SERVERRESPONSE.fields_by_name['sync_stop_response'])
+_SERVERRESPONSE.fields_by_name['sync_stop_response'].containing_oneof = _SERVERRESPONSE.oneofs_by_name['server_response_type']
+_SERVERSYNCSTART.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
+_SERVERSYNCSTATUS.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
+_SERVERSYNCSTATUSRESPONSE.fields_by_name['status'].message_type = _SERVERSYNCSTATUSITEM
+_SERVERSYNCSTOP.fields_by_name['_info'].message_type = wandb_dot_proto_dot_wandb__base__pb2.__RECORDINFO
 DESCRIPTOR.message_types_by_name['ServerShutdownRequest'] = _SERVERSHUTDOWNREQUEST
 DESCRIPTOR.message_types_by_name['ServerShutdownResponse'] = _SERVERSHUTDOWNRESPONSE
 DESCRIPTOR.message_types_by_name['ServerStatusRequest'] = _SERVERSTATUSREQUEST
@@ -1021,6 +1432,8 @@ DESCRIPTOR.message_types_by_name['ServerInformStartRequest'] = _SERVERINFORMSTAR
 DESCRIPTOR.message_types_by_name['ServerInformStartResponse'] = _SERVERINFORMSTARTRESPONSE
 DESCRIPTOR.message_types_by_name['ServerInformFinishRequest'] = _SERVERINFORMFINISHREQUEST
 DESCRIPTOR.message_types_by_name['ServerInformFinishResponse'] = _SERVERINFORMFINISHRESPONSE
+DESCRIPTOR.message_types_by_name['ServerInformSyncRequest'] = _SERVERINFORMSYNCREQUEST
+DESCRIPTOR.message_types_by_name['ServerInformSyncResponse'] = _SERVERINFORMSYNCRESPONSE
 DESCRIPTOR.message_types_by_name['ServerInformAttachRequest'] = _SERVERINFORMATTACHREQUEST
 DESCRIPTOR.message_types_by_name['ServerInformAttachResponse'] = _SERVERINFORMATTACHRESPONSE
 DESCRIPTOR.message_types_by_name['ServerInformDetachRequest'] = _SERVERINFORMDETACHREQUEST
@@ -1029,6 +1442,13 @@ DESCRIPTOR.message_types_by_name['ServerInformTeardownRequest'] = _SERVERINFORMT
 DESCRIPTOR.message_types_by_name['ServerInformTeardownResponse'] = _SERVERINFORMTEARDOWNRESPONSE
 DESCRIPTOR.message_types_by_name['ServerRequest'] = _SERVERREQUEST
 DESCRIPTOR.message_types_by_name['ServerResponse'] = _SERVERRESPONSE
+DESCRIPTOR.message_types_by_name['ServerSyncStart'] = _SERVERSYNCSTART
+DESCRIPTOR.message_types_by_name['ServerSyncStartResponse'] = _SERVERSYNCSTARTRESPONSE
+DESCRIPTOR.message_types_by_name['ServerSyncStatus'] = _SERVERSYNCSTATUS
+DESCRIPTOR.message_types_by_name['ServerSyncStatusResponse'] = _SERVERSYNCSTATUSRESPONSE
+DESCRIPTOR.message_types_by_name['ServerSyncStatusItem'] = _SERVERSYNCSTATUSITEM
+DESCRIPTOR.message_types_by_name['ServerSyncStop'] = _SERVERSYNCSTOP
+DESCRIPTOR.message_types_by_name['ServerSyncStopResponse'] = _SERVERSYNCSTOPRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 ServerShutdownRequest = _reflection.GeneratedProtocolMessageType('ServerShutdownRequest', (_message.Message,), {
@@ -1131,6 +1551,28 @@ ServerInformFinishResponse = _reflection.GeneratedProtocolMessageType('ServerInf
   })
 _sym_db.RegisterMessage(ServerInformFinishResponse)
 
+ServerInformSyncRequest = _reflection.GeneratedProtocolMessageType('ServerInformSyncRequest', (_message.Message,), {
+
+  'SettingsMapEntry' : _reflection.GeneratedProtocolMessageType('SettingsMapEntry', (_message.Message,), {
+    'DESCRIPTOR' : _SERVERINFORMSYNCREQUEST_SETTINGSMAPENTRY,
+    '__module__' : 'wandb.proto.wandb_server_pb2'
+    # @@protoc_insertion_point(class_scope:wandb_internal.ServerInformSyncRequest.SettingsMapEntry)
+    })
+  ,
+  'DESCRIPTOR' : _SERVERINFORMSYNCREQUEST,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInformSyncRequest)
+  })
+_sym_db.RegisterMessage(ServerInformSyncRequest)
+_sym_db.RegisterMessage(ServerInformSyncRequest.SettingsMapEntry)
+
+ServerInformSyncResponse = _reflection.GeneratedProtocolMessageType('ServerInformSyncResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERINFORMSYNCRESPONSE,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInformSyncResponse)
+  })
+_sym_db.RegisterMessage(ServerInformSyncResponse)
+
 ServerInformAttachRequest = _reflection.GeneratedProtocolMessageType('ServerInformAttachRequest', (_message.Message,), {
   'DESCRIPTOR' : _SERVERINFORMATTACHREQUEST,
   '__module__' : 'wandb.proto.wandb_server_pb2'
@@ -1195,9 +1637,59 @@ ServerResponse = _reflection.GeneratedProtocolMessageType('ServerResponse', (_me
   })
 _sym_db.RegisterMessage(ServerResponse)
 
+ServerSyncStart = _reflection.GeneratedProtocolMessageType('ServerSyncStart', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSYNCSTART,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerSyncStart)
+  })
+_sym_db.RegisterMessage(ServerSyncStart)
+
+ServerSyncStartResponse = _reflection.GeneratedProtocolMessageType('ServerSyncStartResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSYNCSTARTRESPONSE,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerSyncStartResponse)
+  })
+_sym_db.RegisterMessage(ServerSyncStartResponse)
+
+ServerSyncStatus = _reflection.GeneratedProtocolMessageType('ServerSyncStatus', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSYNCSTATUS,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerSyncStatus)
+  })
+_sym_db.RegisterMessage(ServerSyncStatus)
+
+ServerSyncStatusResponse = _reflection.GeneratedProtocolMessageType('ServerSyncStatusResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSYNCSTATUSRESPONSE,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerSyncStatusResponse)
+  })
+_sym_db.RegisterMessage(ServerSyncStatusResponse)
+
+ServerSyncStatusItem = _reflection.GeneratedProtocolMessageType('ServerSyncStatusItem', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSYNCSTATUSITEM,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerSyncStatusItem)
+  })
+_sym_db.RegisterMessage(ServerSyncStatusItem)
+
+ServerSyncStop = _reflection.GeneratedProtocolMessageType('ServerSyncStop', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSYNCSTOP,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerSyncStop)
+  })
+_sym_db.RegisterMessage(ServerSyncStop)
+
+ServerSyncStopResponse = _reflection.GeneratedProtocolMessageType('ServerSyncStopResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSYNCSTOPRESPONSE,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerSyncStopResponse)
+  })
+_sym_db.RegisterMessage(ServerSyncStopResponse)
+
 
 _SERVERINFORMINITREQUEST_SETTINGSMAPENTRY._options = None
 _SERVERINFORMSTARTREQUEST_SETTINGSMAPENTRY._options = None
+_SERVERINFORMSYNCREQUEST_SETTINGSMAPENTRY._options = None
 _SERVERINFORMATTACHRESPONSE_SETTINGSMAPENTRY._options = None
 
 _INTERNALSERVICE = _descriptor.ServiceDescriptor(
@@ -1207,8 +1699,8 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=2908,
-  serialized_end=5936,
+  serialized_start=4015,
+  serialized_end=7043,
   methods=[
   _descriptor.MethodDescriptor(
     name='RunUpdate',

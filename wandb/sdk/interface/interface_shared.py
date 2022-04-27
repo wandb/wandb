@@ -163,6 +163,7 @@ class InterfaceShared(InterfaceBase):
         history: pb.HistoryRecord = None,
         stats: pb.StatsRecord = None,
         exit: pb.RunExitRecord = None,
+        sync: pb.SyncRecord = None,
         artifact: pb.ArtifactRecord = None,
         tbrecord: pb.TBRecord = None,
         alert: pb.AlertRecord = None,
@@ -190,6 +191,8 @@ class InterfaceShared(InterfaceBase):
             record.stats.CopyFrom(stats)
         elif exit:
             record.exit.CopyFrom(exit)
+        elif sync:
+            record.sync.CopyFrom(sync)
         elif artifact:
             record.artifact.CopyFrom(artifact)
         elif tbrecord:
@@ -410,6 +413,10 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         rec = self._make_record(exit=exit_data)
+        self._publish(rec)
+
+    def _publish_sync(self, sync_data: pb.SyncRecord) -> None:
+        rec = self._make_record(sync=sync_data)
         self._publish(rec)
 
     def _communicate_poll_exit(
