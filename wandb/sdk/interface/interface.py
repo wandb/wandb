@@ -13,7 +13,8 @@ from abc import abstractmethod
 import json
 import logging
 import os
-from typing import Any, Iterable, Optional, Tuple, Union
+import sys
+from typing import Any, Iterable, NewType, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
 from wandb.apis.public import Artifact as PublicArtifact
@@ -35,14 +36,26 @@ from .message_future import MessageFuture
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..wandb_artifacts import Artifact
 
+GlobStr = NewType("GlobStr", str)
+
 if TYPE_CHECKING:
     from ..wandb_run import Run
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal, TypedDict
+    else:
+        from typing_extensions import Literal, TypedDict
+
+    PolicyName = Literal["now", "live", "end"]
+
+    class FilesDict(TypedDict):
+        files: Iterable[Tuple[GlobStr, PolicyName]]
 
 
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
+def file_policy_to_enum(policy: "PolicyName") -> "pb.FilesItem.PolicyType.V":
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -52,9 +65,9 @@ def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
+def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
     if enum == pb.FilesItem.PolicyType.NOW:
-        policy = "now"
+        policy: PolicyName = "now"
     elif enum == pb.FilesItem.PolicyType.END:
         policy = "end"
     elif enum == pb.FilesItem.PolicyType.LIVE:
@@ -336,7 +349,7 @@ class InterfaceBase:
     ) -> Optional[pb.SampledHistoryResponse]:
         raise NotImplementedError
 
-    def _make_files(self, files_dict: dict) -> pb.FilesRecord:
+    def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
@@ -344,7 +357,7 @@ class InterfaceBase:
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def publish_files(self, files_dict: dict) -> None:
+    def publish_files(self, files_dict: "FilesDict") -> None:
         files = self._make_files(files_dict)
         self._publish_files(files)
 
