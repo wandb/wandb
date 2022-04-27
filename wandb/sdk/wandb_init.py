@@ -525,7 +525,6 @@ class _WandbInit:
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
         # resuming needs access to the server, check server_status()?
-
         run = Run(
             config=self.config, settings=self.settings, sweep_config=self.sweep_config
         )
@@ -669,7 +668,7 @@ class _WandbInit:
 
         self._wl._global_run_stack.append(run)
         self.run = run
-
+        run._populate_sweep_or_launch_config(self.config, self.sweep_config)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted

@@ -480,6 +480,28 @@ class Run:
             process_context="user",
         )
 
+        # interface pid and port configured when backend is configured (See _hack_set_run)
+        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        self._iface_pid = None
+        self._iface_port = None
+        self._attach_id = None
+        self._is_attached = False
+
+        self._attach_pid = os.getpid()
+
+        # for now, use runid as attach id, this could/should be versioned in the future
+        if self._settings._require_service:
+            self._attach_id = self._settings.run_id
+
+    def _set_iface_pid(self, iface_pid: int) -> None:
+        self._iface_pid = iface_pid
+
+    def _set_iface_port(self, iface_port: int) -> None:
+        self._iface_port = iface_port
+
+    def _populate_sweep_or_launch_config(
+        self, config: Optional[Dict[str, Any]], sweep_config: Optional[Dict[str, Any]]
+    ) -> None:
         # Populate config
         config = config or dict()
         wandb_key = "_wandb"
@@ -536,25 +558,6 @@ class Run:
                     launch_run_config, user="launch", _allow_val_change=True
                 )
         self._config._update(config, ignore_locked=True)
-
-        # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
-        self._iface_pid = None
-        self._iface_port = None
-        self._attach_id = None
-        self._is_attached = False
-
-        self._attach_pid = os.getpid()
-
-        # for now, use runid as attach id, this could/should be versioned in the future
-        if self._settings._require_service:
-            self._attach_id = self._settings.run_id
-
-    def _set_iface_pid(self, iface_pid: int) -> None:
-        self._iface_pid = iface_pid
-
-    def _set_iface_port(self, iface_port: int) -> None:
-        self._iface_port = iface_port
 
     def _initialize_launch_artifact_maps(self, artifacts: Dict[str, Any]) -> None:
         for key, item in artifacts.items():
