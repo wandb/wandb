@@ -62,7 +62,7 @@ from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import InterfaceBase
+from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
@@ -93,7 +93,7 @@ if TYPE_CHECKING:
         ArtifactEntry,
         ArtifactManifest,
     )
-    from .interface.interface import FilesDict, GlobStr, PolicyName
+    from .interface.interface import FilesDict, PolicyName
 
     from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
