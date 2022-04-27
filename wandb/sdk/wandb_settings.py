@@ -410,6 +410,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
+    init_timeout: int
     is_local: bool
     label_disable: bool
     launch: bool
@@ -541,6 +542,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            init_timeout={"value": 30, "preprocessor": lambda x: int(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -1296,7 +1298,6 @@ class Settings:
             _logger.info(
                 f"Loading settings from environment variables: {_redact_dict(env)}"
             )
-
         self.update(env, source=Source.ENV)
 
     def _infer_settings_from_environment(
