@@ -391,7 +391,6 @@ class Run:
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
-        sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
 
         self._settings = settings
@@ -488,6 +487,7 @@ class Run:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", self._settings.program_relpath)
             )
+        self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
@@ -552,7 +552,6 @@ class Run:
                 self._config.update_locked(
                     launch_run_config, user="launch", _allow_val_change=True
                 )
-        self._config._update(config, ignore_locked=True)
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid

@@ -526,9 +526,7 @@ class _WandbInit:
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(
-            config=self.config, settings=self.settings, sweep_config=self.sweep_config
-        )
+        run = Run(config=self.config, settings=self.settings)
 
         # probe the active start method
         active_start_method: Optional[str] = None
