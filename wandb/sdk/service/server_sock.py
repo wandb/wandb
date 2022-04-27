@@ -173,6 +173,22 @@ class SockServerReadThread(threading.Thread):
         assert iface.record_q
         iface.record_q.put(record)
 
+    def server_inform_sync(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_sync
+        stream_id = request._info.stream_id
+        settings = settings_dict_from_pbmap(request._settings_map)
+        print("server sync", stream_id)
+        self._mux.add_stream(stream_id, settings=settings)
+
+        iface = self._mux.get_stream(stream_id).interface
+        self._clients.add_client(self._sock_client)
+        iface_reader_thread = SockServerInterfaceReaderThread(
+            clients=self._clients,
+            iface=iface,
+            stopped=self._stopped,
+        )
+        iface_reader_thread.start()
+
     def server_inform_finish(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_finish
         stream_id = request._info.stream_id

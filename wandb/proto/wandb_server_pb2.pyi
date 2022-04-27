@@ -213,6 +213,50 @@ class ServerInformFinishResponse(google.protobuf.message.Message):
         ) -> None: ...
 global___ServerInformFinishResponse = ServerInformFinishResponse
 
+class ServerInformSyncRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    class SettingsMapEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: typing.Text = ...
+
+        @property
+        def value(self) -> global___SettingsValue: ...
+
+        def __init__(self,
+            *,
+            key : typing.Text = ...,
+            value : typing.Optional[global___SettingsValue] = ...,
+            ) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal[u"value",b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal[u"key",b"key",u"value",b"value"]) -> None: ...
+
+    _SETTINGS_MAP_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+
+    @property
+    def _settings_map(self) -> google.protobuf.internal.containers.MessageMap[typing.Text, global___SettingsValue]: ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
+    def __init__(self,
+        *,
+        _settings_map : typing.Optional[typing.Mapping[typing.Text, global___SettingsValue]] = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"_settings_map",b"_settings_map"]) -> None: ...
+global___ServerInformSyncRequest = ServerInformSyncRequest
+
+class ServerInformSyncResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ServerInformSyncResponse = ServerInformSyncResponse
+
 class ServerInformAttachRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     _INFO_FIELD_NUMBER: builtins.int
@@ -318,10 +362,14 @@ class ServerRequest(google.protobuf.message.Message):
     RECORD_COMMUNICATE_FIELD_NUMBER: builtins.int
     INFORM_INIT_FIELD_NUMBER: builtins.int
     INFORM_FINISH_FIELD_NUMBER: builtins.int
+    INFORM_SYNC_FIELD_NUMBER: builtins.int
     INFORM_ATTACH_FIELD_NUMBER: builtins.int
     INFORM_DETACH_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_FIELD_NUMBER: builtins.int
     INFORM_START_FIELD_NUMBER: builtins.int
+    SYNC_START_FIELD_NUMBER: builtins.int
+    SYNC_STATUS_FIELD_NUMBER: builtins.int
+    SYNC_STOP_FIELD_NUMBER: builtins.int
 
     @property
     def record_publish(self) -> wandb.proto.wandb_internal_pb2.Record: ...
@@ -336,6 +384,9 @@ class ServerRequest(google.protobuf.message.Message):
     def inform_finish(self) -> global___ServerInformFinishRequest: ...
 
     @property
+    def inform_sync(self) -> global___ServerInformSyncRequest: ...
+
+    @property
     def inform_attach(self) -> global___ServerInformAttachRequest: ...
 
     @property
@@ -347,20 +398,33 @@ class ServerRequest(google.protobuf.message.Message):
     @property
     def inform_start(self) -> global___ServerInformStartRequest: ...
 
+    @property
+    def sync_start(self) -> global___ServerSyncStart: ...
+
+    @property
+    def sync_status(self) -> global___ServerSyncStatus: ...
+
+    @property
+    def sync_stop(self) -> global___ServerSyncStop: ...
+
     def __init__(self,
         *,
         record_publish : typing.Optional[wandb.proto.wandb_internal_pb2.Record] = ...,
         record_communicate : typing.Optional[wandb.proto.wandb_internal_pb2.Record] = ...,
         inform_init : typing.Optional[global___ServerInformInitRequest] = ...,
         inform_finish : typing.Optional[global___ServerInformFinishRequest] = ...,
+        inform_sync : typing.Optional[global___ServerInformSyncRequest] = ...,
         inform_attach : typing.Optional[global___ServerInformAttachRequest] = ...,
         inform_detach : typing.Optional[global___ServerInformDetachRequest] = ...,
         inform_teardown : typing.Optional[global___ServerInformTeardownRequest] = ...,
         inform_start : typing.Optional[global___ServerInformStartRequest] = ...,
+        sync_start : typing.Optional[global___ServerSyncStart] = ...,
+        sync_status : typing.Optional[global___ServerSyncStatus] = ...,
+        sync_stop : typing.Optional[global___ServerSyncStop] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"inform_attach",b"inform_attach",u"inform_detach",b"inform_detach",u"inform_finish",b"inform_finish",u"inform_init",b"inform_init",u"inform_start",b"inform_start",u"inform_teardown",b"inform_teardown",u"record_communicate",b"record_communicate",u"record_publish",b"record_publish",u"server_request_type",b"server_request_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"inform_attach",b"inform_attach",u"inform_detach",b"inform_detach",u"inform_finish",b"inform_finish",u"inform_init",b"inform_init",u"inform_start",b"inform_start",u"inform_teardown",b"inform_teardown",u"record_communicate",b"record_communicate",u"record_publish",b"record_publish",u"server_request_type",b"server_request_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_request_type",b"server_request_type"]) -> typing_extensions.Literal["record_publish","record_communicate","inform_init","inform_finish","inform_attach","inform_detach","inform_teardown","inform_start"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"inform_attach",b"inform_attach",u"inform_detach",b"inform_detach",u"inform_finish",b"inform_finish",u"inform_init",b"inform_init",u"inform_start",b"inform_start",u"inform_sync",b"inform_sync",u"inform_teardown",b"inform_teardown",u"record_communicate",b"record_communicate",u"record_publish",b"record_publish",u"server_request_type",b"server_request_type",u"sync_start",b"sync_start",u"sync_status",b"sync_status",u"sync_stop",b"sync_stop"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"inform_attach",b"inform_attach",u"inform_detach",b"inform_detach",u"inform_finish",b"inform_finish",u"inform_init",b"inform_init",u"inform_start",b"inform_start",u"inform_sync",b"inform_sync",u"inform_teardown",b"inform_teardown",u"record_communicate",b"record_communicate",u"record_publish",b"record_publish",u"server_request_type",b"server_request_type",u"sync_start",b"sync_start",u"sync_status",b"sync_status",u"sync_stop",b"sync_stop"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_request_type",b"server_request_type"]) -> typing_extensions.Literal["record_publish","record_communicate","inform_init","inform_finish","inform_sync","inform_attach","inform_detach","inform_teardown","inform_start","sync_start","sync_status","sync_stop"]: ...
 global___ServerRequest = ServerRequest
 
 class ServerResponse(google.protobuf.message.Message):
@@ -372,6 +436,9 @@ class ServerResponse(google.protobuf.message.Message):
     INFORM_DETACH_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_START_RESPONSE_FIELD_NUMBER: builtins.int
+    SYNC_START_RESPONSE_FIELD_NUMBER: builtins.int
+    SYNC_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
+    SYNC_STOP_RESPONSE_FIELD_NUMBER: builtins.int
 
     @property
     def result_communicate(self) -> wandb.proto.wandb_internal_pb2.Result: ...
@@ -394,6 +461,15 @@ class ServerResponse(google.protobuf.message.Message):
     @property
     def inform_start_response(self) -> global___ServerInformStartResponse: ...
 
+    @property
+    def sync_start_response(self) -> global___ServerSyncStartResponse: ...
+
+    @property
+    def sync_status_response(self) -> global___ServerSyncStatusResponse: ...
+
+    @property
+    def sync_stop_response(self) -> global___ServerSyncStopResponse: ...
+
     def __init__(self,
         *,
         result_communicate : typing.Optional[wandb.proto.wandb_internal_pb2.Result] = ...,
@@ -403,8 +479,102 @@ class ServerResponse(google.protobuf.message.Message):
         inform_detach_response : typing.Optional[global___ServerInformDetachResponse] = ...,
         inform_teardown_response : typing.Optional[global___ServerInformTeardownResponse] = ...,
         inform_start_response : typing.Optional[global___ServerInformStartResponse] = ...,
+        sync_start_response : typing.Optional[global___ServerSyncStartResponse] = ...,
+        sync_status_response : typing.Optional[global___ServerSyncStatusResponse] = ...,
+        sync_stop_response : typing.Optional[global___ServerSyncStopResponse] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"inform_attach_response",b"inform_attach_response",u"inform_detach_response",b"inform_detach_response",u"inform_finish_response",b"inform_finish_response",u"inform_init_response",b"inform_init_response",u"inform_start_response",b"inform_start_response",u"inform_teardown_response",b"inform_teardown_response",u"result_communicate",b"result_communicate",u"server_response_type",b"server_response_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"inform_attach_response",b"inform_attach_response",u"inform_detach_response",b"inform_detach_response",u"inform_finish_response",b"inform_finish_response",u"inform_init_response",b"inform_init_response",u"inform_start_response",b"inform_start_response",u"inform_teardown_response",b"inform_teardown_response",u"result_communicate",b"result_communicate",u"server_response_type",b"server_response_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_response_type",b"server_response_type"]) -> typing_extensions.Literal["result_communicate","inform_init_response","inform_finish_response","inform_attach_response","inform_detach_response","inform_teardown_response","inform_start_response"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"inform_attach_response",b"inform_attach_response",u"inform_detach_response",b"inform_detach_response",u"inform_finish_response",b"inform_finish_response",u"inform_init_response",b"inform_init_response",u"inform_start_response",b"inform_start_response",u"inform_teardown_response",b"inform_teardown_response",u"result_communicate",b"result_communicate",u"server_response_type",b"server_response_type",u"sync_start_response",b"sync_start_response",u"sync_status_response",b"sync_status_response",u"sync_stop_response",b"sync_stop_response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"inform_attach_response",b"inform_attach_response",u"inform_detach_response",b"inform_detach_response",u"inform_finish_response",b"inform_finish_response",u"inform_init_response",b"inform_init_response",u"inform_start_response",b"inform_start_response",u"inform_teardown_response",b"inform_teardown_response",u"result_communicate",b"result_communicate",u"server_response_type",b"server_response_type",u"sync_start_response",b"sync_start_response",u"sync_status_response",b"sync_status_response",u"sync_stop_response",b"sync_stop_response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_response_type",b"server_response_type"]) -> typing_extensions.Literal["result_communicate","inform_init_response","inform_finish_response","inform_attach_response","inform_detach_response","inform_teardown_response","inform_start_response","sync_start_response","sync_status_response","sync_stop_response"]: ...
 global___ServerResponse = ServerResponse
+
+class ServerSyncStart(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    _INFO_FIELD_NUMBER: builtins.int
+    PATH_FIELD_NUMBER: builtins.int
+    path: typing.Text = ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
+    def __init__(self,
+        *,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+        path : typing.Text = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"path",b"path"]) -> None: ...
+global___ServerSyncStart = ServerSyncStart
+
+class ServerSyncStartResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ServerSyncStartResponse = ServerSyncStartResponse
+
+class ServerSyncStatus(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    _INFO_FIELD_NUMBER: builtins.int
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
+    def __init__(self,
+        *,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+global___ServerSyncStatus = ServerSyncStatus
+
+class ServerSyncStatusResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    STATUS_FIELD_NUMBER: builtins.int
+
+    @property
+    def status(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerSyncStatusItem]: ...
+
+    def __init__(self,
+        *,
+        status : typing.Optional[typing.Iterable[global___ServerSyncStatusItem]] = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"status",b"status"]) -> None: ...
+global___ServerSyncStatusResponse = ServerSyncStatusResponse
+
+class ServerSyncStatusItem(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    PATH_FIELD_NUMBER: builtins.int
+    PROGRESS_FIELD_NUMBER: builtins.int
+    path: typing.Text = ...
+    progress: builtins.int = ...
+
+    def __init__(self,
+        *,
+        path : typing.Text = ...,
+        progress : builtins.int = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"path",b"path",u"progress",b"progress"]) -> None: ...
+global___ServerSyncStatusItem = ServerSyncStatusItem
+
+class ServerSyncStop(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    _INFO_FIELD_NUMBER: builtins.int
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
+    def __init__(self,
+        *,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
+global___ServerSyncStop = ServerSyncStop
+
+class ServerSyncStopResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ServerSyncStopResponse = ServerSyncStopResponse

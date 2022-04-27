@@ -103,6 +103,14 @@ message ServerInformFinishRequest {
 message ServerInformFinishResponse {
 }
 
+message ServerInformSyncRequest {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformSyncResponse {
+}
+
 message ServerInformAttachRequest {
   _RecordInfo _info = 200;
 }
@@ -137,11 +145,15 @@ message ServerRequest {
     Record record_communicate = 2;
     ServerInformInitRequest inform_init = 3;
     ServerInformFinishRequest inform_finish = 4;
+    ServerInformSyncRequest inform_sync = 80;
     ServerInformAttachRequest inform_attach = 5;
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
 
+    ServerSyncStart sync_start = 10;
+    ServerSyncStatus sync_status = 11;
+    ServerSyncStop sync_stop = 12;
   }
 }
 
@@ -155,5 +167,40 @@ message ServerResponse {
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
 
+    ServerSyncStartResponse sync_start_response = 10;
+    ServerSyncStatusResponse sync_status_response = 11;
+    ServerSyncStopResponse sync_stop_response = 12;
   }
+}
+
+/*
+ * Sync commands
+ */
+
+message ServerSyncStart {
+  _RecordInfo _info = 200;
+  string path = 1;
+}
+
+message ServerSyncStartResponse {
+}
+
+message ServerSyncStatus {
+  _RecordInfo _info = 200;
+}
+
+message ServerSyncStatusResponse {
+  repeated ServerSyncStatusItem status = 1;
+}
+
+message ServerSyncStatusItem {
+  string path = 1;
+  int32 progress = 2;
+}
+
+message ServerSyncStop {
+  _RecordInfo _info = 200;
+}
+
+message ServerSyncStopResponse {
 }

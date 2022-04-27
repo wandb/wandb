@@ -581,6 +581,12 @@ class HandleManager:
 
         self._save_summary(self._consolidated_summary)
 
+    def handle_sync(self, record: Record) -> None:
+        print("handle sync")
+
+        # read from data store up to some about of data.. and schedule work
+        # this could be in the handler or in another thread? lots of choices
+
     def handle_exit(self, record: Record) -> None:
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time

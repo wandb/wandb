@@ -39,6 +39,7 @@ message Record {
     // Higher numbers for less frequent data
     RunRecord       run = 17;
     RunExitRecord   exit = 18;
+    SyncRecord      sync = 51;
     FinalRecord     final = 20;
     HeaderRecord    header = 21;
     FooterRecord    footer = 22;
@@ -158,6 +159,17 @@ message RunExitRecord {
 }
 
 message RunExitResult {
+}
+
+/*
+ * SyncRecord: start sync
+ */
+message SyncRecord {
+  string dir = 1;
+  _RecordInfo _info = 200;
+}
+
+message SyncResult {
 }
 
 /*

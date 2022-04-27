@@ -635,6 +635,19 @@ class InterfaceBase:
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         raise NotImplementedError
 
+    def _make_sync(self, dir: str) -> pb.SyncRecord:
+        sync = pb.SyncRecord()
+        sync.dir = dir
+        return sync
+
+    def publish_sync(self, dir: str) -> None:
+        sync_data = self._make_sync(dir)
+        self._publish_sync(sync_data)
+
+    @abstractmethod
+    def _publish_sync(self, exit_data: pb.SyncRecord) -> None:
+        raise NotImplementedError
+
     def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
         poll_exit = pb.PollExitRequest()
         resp = self._communicate_poll_exit(poll_exit)

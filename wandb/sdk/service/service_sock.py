@@ -46,6 +46,17 @@ class ServiceSockInterface(ServiceInterface):
         assert self._sock_client
         self._sock_client.send(inform_start=inform_start)
 
+    def _svc_inform_sync(self, settings: "Settings", run_id: str = None) -> None:
+        assert run_id
+        inform_sync = spb.ServerInformSyncRequest()
+        inform_sync._info.stream_id = run_id
+
+        settings_dict = settings.make_static()
+        _pbmap_apply_dict(inform_sync._settings_map, settings_dict)
+
+        assert self._sock_client
+        self._sock_client.send(inform_sync=inform_sync)
+
     def _svc_inform_finish(self, run_id: str = None) -> None:
         assert run_id
         inform_finish = spb.ServerInformFinishRequest()
