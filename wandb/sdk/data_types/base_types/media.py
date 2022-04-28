@@ -233,9 +233,9 @@ class Media(WBValue):
                         and self._path
                         in self._artifact_target.artifact._added_local_paths
                     ):
-                        entry = self._artifact_target.artifact._added_local_paths.get(
+                        entry = self._artifact_target.artifact._added_local_paths[
                             self._path
-                        )
+                        ]
                         artifact.add_reference(entry.ref_url(), name=name)
                     # A special case for remote audio references...
                     elif isinstance(self, Audio) and Audio.path_is_reference(
