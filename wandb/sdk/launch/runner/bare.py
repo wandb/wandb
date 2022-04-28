@@ -13,6 +13,7 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
     validate_wandb_python_deps,
+    parse_wandb_uri,
 )
 
 
@@ -44,10 +45,12 @@ class BareRunner(AbstractRunner):
 
         cmd: List[Any] = []
 
+        # Check to make sure local python dependencies match run's requirement.txt
+        _, _, run_name = parse_wandb_uri(self.uri)
         validate_wandb_python_deps(
             launch_project.target_entity,
             launch_project.target_project,
-            "RUN_NAME",  # TODO: How to get run name? Is there even a run at this point?
+            run_name,
             self._api,
             launch_project.project_dir,
         )
