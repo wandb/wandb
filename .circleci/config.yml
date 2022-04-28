@@ -556,6 +556,9 @@ jobs:
       - image: 'cimg/base:stable'
     steps:
       - gke/install
+      - run:
+          name: Update gcloud components
+          command: gcloud --quiet components update
       - gke/update-kubeconfig-with-credentials:
           cluster: gcp-testing
           perform-login: true
