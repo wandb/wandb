@@ -242,15 +242,15 @@ class Media(WBValue):
                         self._path
                     ):
                         artifact.add_reference(self._path, name=name)
-                    # At last, we directly store the file in the artifact. We make sure
-                    # to update the artifact target if appropriate.
+                    # At last, we directly store the file in the artifact.
                     else:
                         entry = artifact.add_file(
                             self._path, name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
-                        if self._artifact_target is None:
-                            self._set_artifact_target(artifact)
+                # We make sure to update the artifact target if appropriate.
+                if self._artifact_target is None:
+                    self._set_artifact_target(artifact)
                 json_obj["path"] = name
                 json_obj["sha256"] = self._sha256
             json_obj["_type"] = self._log_type
