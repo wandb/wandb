@@ -157,7 +157,7 @@ class Media(WBValue):
         # into Media itself we should get rid of them
         from wandb.data_types import Audio
 
-        json_obj = super().to_json(run)
+        json_obj = {}
         if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
             json_obj.update(
                 {
