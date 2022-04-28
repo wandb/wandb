@@ -157,7 +157,7 @@ class Media(WBValue):
         # into Media itself we should get rid of them
         from wandb.data_types import Audio
 
-        json_obj = {}
+        json_obj = super().to_json(run)
         if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
             json_obj.update(
                 {
@@ -216,6 +216,10 @@ class Media(WBValue):
                             os.path.basename(self._path),
                         )
 
+                    if self._artifact_target is not None and self._path in self._artifact_target.artifact._added_local_paths:
+                        entry = self._artifact_target.artifact._added_local_paths.get(self._path)
+                        artifact.add_reference(entry.ref_url(), name=name)
+
                     # if not, check to see if there is a source artifact for this object
                     if (
                         self._artifact_source
@@ -240,6 +244,8 @@ class Media(WBValue):
                             self._path, name=name, is_tmp=self._is_tmp
                         )
                         name = entry.path
+                        if self._artifact_target is None:
+                            self._set_artifact_target(artifact)
 
                 json_obj["path"] = name
                 json_obj["sha256"] = self._sha256
