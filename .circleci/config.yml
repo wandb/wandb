@@ -133,7 +133,9 @@ commands:
             gcloud container clusters create $GKE_CLUSTER_NAME \
             --num-nodes=1 --machine-type=n1-standard-1 \
             --disk-size=100 --disk-type=pd-ssd \
-            --accelerator=type=nvidia-tesla-k80,count=1
+            --accelerator=type=nvidia-tesla-t4,count=1
+#            list gpus available in zone:
+#            gcloud compute accelerator-types list | grep us-central1
 #            TPU support
 #           gcloud beta container clusters update cluster-name --enable-tpu
 #           gcloud container clusters get-credentials
