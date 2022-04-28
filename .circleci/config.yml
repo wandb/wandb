@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   win: circleci/windows@2.4.0
   slack: circleci/slack@4.9.3
+  go: circleci/go@1.3.0
   gke: circleci/gcp-gke@1.4.0
 
 parameters:
@@ -96,234 +97,56 @@ commands:
                 path: mypy-results
             - store_artifacts:
                 path: cover-results
-
-workflows:
-  nightly:
-    when:
-      and:
-        - equal:
-            - scheduled_pipeline
-            - << pipeline.trigger_source >>
-        - equal:
-            - "nightly"
-            - << pipeline.schedule.name >>
-    jobs:
-      - notify_nightly_start:
-          context: slack-secrets
-      - test:
-          name: "code-check"
-          image: "python:3.6"
-          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
-          context: slack-secrets
-          notify_on_failure: true
-
-  main:
-    when:
-      and:
-        - not:
-            equal:
-              - scheduled_pipeline
-              - << pipeline.trigger_source >>
-        - not: << pipeline.parameters.manual >>
-    jobs:
-      - test_gpu
-#      - test:
-#          name: "code-check"
-#          image: "python:3.6"
-#          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
-#          # fixme: this is here for testing, remove it
-#          context: slack-secrets
-#          notify_on_failure: true
-#      - test:
-#          name: "unit-s_base-lin-py36"
-#          image: "python:3.6"
-#          toxenv: "py36,covercircle"
-#      - test:
-#          name: "unit-s_base-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "py37"
-#      - test:
-#          name: "unit-s_base-lin-py38"
-#          image: "python:3.8"
-#          toxenv: "py38"
-#      - test:
-#          name: "unit-s_base-lin-py39"
-#          image: "python:3.9"
-#          toxenv: "py39"
-## Enable when circle offers python 3.10 image
-##      - test:
-##         name: "unit-s_base-lin-py310"
-##         image: "python:3.10"
-##         toxenv: "py310"
-##
-#      # functional linux tests
-#      #
-#      - test:
-#          name: "func-s_base-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_base-py37,func-covercircle"
-#      - test:
-#          name: "func-s_sklearn-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_sklearn-py37,func-covercircle"
-#      - test:
-#          name: "func-s_metaflow-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_metaflow-py37,func-covercircle"
-#      - test:
-#          name: "func-s_tf115-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_tf115-py37,func-covercircle"
-#      - test:
-#          name: "func-s_tf21-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_tf21-py37,func-covercircle"
-#      - test:
-#          name: "func-s_tf25-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_tf25-py37,func-covercircle"
-#      - test:
-#          name: "func-s_tf26-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_tf26-py37,func-covercircle"
-#      - test:
-#          name: "func-s_service-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_service-py37,func-covercircle"
-#      - test:
-#          name: "func-s_noml-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_noml-py37,func-covercircle"
-#      - test:
-#          name: "func-s_grpc-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_grpc-py37,func-covercircle"
-#      - test:
-#          name: "func-s_py310-lin-py310"
-#          image: "python:3.10"
-#          toxenv: "func-s_py310-py310,func-covercircle"
-#      - test:
-#          name: "func-s_docs-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_docs-py37,func-covercircle"
-#      - test:
-#          name: "func-s_imports1-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_imports1-py37"
-#      - test:
-#          name: "func-s_imports2-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_imports2-py37"
-#      - test:
-#          name: "func-s_imports3-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_imports3-py37"
-#      - test:
-#          name: "func-s_imports4-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_imports4-py37"
-#      - test:
-#          name: "func-s_imports5-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_imports5-py37"
-#      - test:
-#          name: "func-s_imports6-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_imports6-py37"
-#      - test:
-#          name: "func-s_imports7-lin-py37"
-#          image: "python:3.7"
-#          toxenv: "func-s_imports7-py37"
-#      #
-#      # functional win tests
-#      #
-#      - win:
-#          name: "func-s_base-win-py37"
-#          toxenv: "func-s_base-py37"
-#          parallelism: 1
-#          xdist: 1
-#      #
-#      # unit win/mac tests
-#      #
-#      - win:
-#          name: "unit-s_base-win-py37"
-#          toxenv: "py37,wincovercircle -- --timeout 300"
-#      - mac:
-#          name: "unit-s_base-mac-py37"
-#          toxenv: "py37"
-#      #
-#      # launch tests
-#      #
-#      - launch:
-#          name: "mach-launch"
-#          toxenv: "pylaunch,covercircle"
-#      #
-#      # kfp tests
-#      #
-#      - kfp:
-#          name: "mach-kubeflow"
-#          toxenv: "func-s_kfp-py37"
-#      #
-#      # sharded unittests
-#      #
-#      # s_nb: notebook tests
-#      - test:
-#          name: "unit-s_nb-lin-py36"
-#          image: "python:3.6"
-#          toxenv: "unit-s_nb-py36,unit-covercircle"
-#      - win:
-#          name: "unit-s_nb-win-py37"
-#          toxenv: "unit-s_nb-py37"
-#          parallelism: 1
-#          xdist: 1
-#      - mac:
-#          name: "unit-s_nb-mac-py37"
-#          toxenv: "unit-s_nb-py37"
-#          parallelism: 1
-#          xdist: 1
-#      # s_kfp: kubeflow pipeline tests
-#      - test:
-#          name: "unit-s_kfp-lin-py36"
-#          image: "python:3.6"
-#          toxenv: "unit-s_kfp-py36,unit-covercircle"
-#      - win:
-#          name: "unit-s_kfp-win-py37"
-#          toxenv: "unit-s_kfp-py37"
-#          parallelism: 1
-#          xdist: 1
-#      - mac:
-#          name: "unit-s_kfp-mac-py37"
-#          toxenv: "unit-s_kfp-py37"
-#          parallelism: 1
-#          xdist: 1
-
-  manual_test:
-    when: << pipeline.parameters.manual_test >>
-    jobs:
-      - test:
-          name: << pipeline.parameters.manual_test_name >>
-          image: << pipeline.parameters.manual_test_image >>
-          toxenv: << pipeline.parameters.manual_test_toxenv >>
-          parallelism: << pipeline.parameters.manual_parallelism >>
-          xdist: << pipeline.parameters.manual_xdist >>
-
-  manual_win:
-    when: << pipeline.parameters.manual_win >>
-    jobs:
-      - win:
-          name: << pipeline.parameters.manual_win_name >>
-          toxenv: << pipeline.parameters.manual_win_toxenv >>
-          parallelism: << pipeline.parameters.manual_parallelism >>
-          xdist: << pipeline.parameters.manual_xdist >>
-
-  manual_mac:
-    when: << pipeline.parameters.manual_mac >>
-    jobs:
-      - mac:
-          name: << pipeline.parameters.manual_mac_name >>
-          toxenv: << pipeline.parameters.manual_mac_toxenv >>
-          parallelism: << pipeline.parameters.manual_parallelism >>
-          xdist: << pipeline.parameters.manual_xdist >>
+  checkout_ml_testing_accelerators:
+    steps:
+      - run:
+          name: Checkout ml-testing-accelerators
+          command: |
+            git clone https://github.com/GoogleCloudPlatform/ml-testing-accelerators.git
+  install_jsonnet:
+    steps:
+      - run:
+          name: Install jsonnet
+          command: |
+            go get github.com/google/go-jsonnet/cmd/jsonnet
+  create_gke_cluster:
+    parameters:
+      cluster:
+        description: cluster name
+        type: string
+        default: gke-yea
+      no-output-timeout:
+        description: >
+          Elapsed time that the cluster creation command can run on CircleCI without
+          output. The string is a decimal with unit suffix, such as “20m”, “1.25h”,
+          “5s”
+        type: string
+        default: 10m
+    steps:
+      - run:
+          name: Create GKE cluster
+          command: |
+            echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+            gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
+            gcloud --quiet config set project $GOOGLE_PROJECT_ID
+            gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
+            gcloud container clusters create $GKE_CLUSTER_NAME \
+            --num-nodes=1 --machine-type=n1-standard-1 \
+            --disk-size=100 --disk-type=pd-ssd \
+            --accelerator=type=nvidia-tesla-k80,count=1
+#            TPU support
+#           gcloud beta container clusters update cluster-name --enable-tpu
+#           gcloud container clusters get-credentials
+#            TPU support
+#            --release-channel=stable \
+#            --scopes=cloud-platform \
+#            --enable-ip-alias \
+#            --enable-tpu
+#            e2-medium
+#            --accelerator=type=nvidia-tesla-k80,count=1
+          environment:
+            GKE_CLUSTER_NAME: <<parameters.cluster >>
+          no_output_timeout: <<parameters.no-output-timeout>>
 
 jobs:
   test:
@@ -555,17 +378,251 @@ jobs:
     docker:
       - image: 'cimg/base:stable'
     steps:
+#      - checkout
+      - go/install
+      - checkout_ml_testing_accelerators
+      - install_jsonnet
       - gke/install
       - run:
           name: Update gcloud components
           command: gcloud --quiet components update
-      - gke/create-cluster:
-          cluster: gcp-testing
-          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
-#          additional-args: --max-age=20m
-          perform-login: true
+      - create_gke_cluster:
+          cluster: gke-yea
+#      - gke/create-cluster:
+#          cluster: gcp-testing
+#          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
+##          additional-args: --max-age=20m
+#          perform-login: true
       - run:
           name: List clusters
           command: gcloud container clusters list
       - gke/delete-cluster:
-          cluster: gcp-testing
+          cluster: gke-yea
+
+workflows:
+  nightly:
+    when:
+      and:
+        - equal:
+            - scheduled_pipeline
+            - << pipeline.trigger_source >>
+        - equal:
+            - "nightly"
+            - << pipeline.schedule.name >>
+    jobs:
+      - notify_nightly_start:
+          context: slack-secrets
+      - test:
+          name: "code-check"
+          image: "python:3.6"
+          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+          context: slack-secrets
+          notify_on_failure: true
+
+  main:
+    when:
+      and:
+        - not:
+            equal:
+              - scheduled_pipeline
+              - << pipeline.trigger_source >>
+        - not: << pipeline.parameters.manual >>
+    jobs:
+      - test_gpu
+#      - test:
+#          name: "code-check"
+#          image: "python:3.6"
+#          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+#          # fixme: this is here for testing, remove it
+#          context: slack-secrets
+#          notify_on_failure: true
+#      - test:
+#          name: "unit-s_base-lin-py36"
+#          image: "python:3.6"
+#          toxenv: "py36,covercircle"
+#      - test:
+#          name: "unit-s_base-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "py37"
+#      - test:
+#          name: "unit-s_base-lin-py38"
+#          image: "python:3.8"
+#          toxenv: "py38"
+#      - test:
+#          name: "unit-s_base-lin-py39"
+#          image: "python:3.9"
+#          toxenv: "py39"
+## Enable when circle offers python 3.10 image
+##      - test:
+##         name: "unit-s_base-lin-py310"
+##         image: "python:3.10"
+##         toxenv: "py310"
+##
+#      # functional linux tests
+#      #
+#      - test:
+#          name: "func-s_base-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_base-py37,func-covercircle"
+#      - test:
+#          name: "func-s_sklearn-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_sklearn-py37,func-covercircle"
+#      - test:
+#          name: "func-s_metaflow-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_metaflow-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf115-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf115-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf21-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf21-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf25-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf25-py37,func-covercircle"
+#      - test:
+#          name: "func-s_tf26-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_tf26-py37,func-covercircle"
+#      - test:
+#          name: "func-s_service-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_service-py37,func-covercircle"
+#      - test:
+#          name: "func-s_noml-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_noml-py37,func-covercircle"
+#      - test:
+#          name: "func-s_grpc-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_grpc-py37,func-covercircle"
+#      - test:
+#          name: "func-s_py310-lin-py310"
+#          image: "python:3.10"
+#          toxenv: "func-s_py310-py310,func-covercircle"
+#      - test:
+#          name: "func-s_docs-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_docs-py37,func-covercircle"
+#      - test:
+#          name: "func-s_imports1-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports1-py37"
+#      - test:
+#          name: "func-s_imports2-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports2-py37"
+#      - test:
+#          name: "func-s_imports3-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports3-py37"
+#      - test:
+#          name: "func-s_imports4-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports4-py37"
+#      - test:
+#          name: "func-s_imports5-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports5-py37"
+#      - test:
+#          name: "func-s_imports6-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports6-py37"
+#      - test:
+#          name: "func-s_imports7-lin-py37"
+#          image: "python:3.7"
+#          toxenv: "func-s_imports7-py37"
+#      #
+#      # functional win tests
+#      #
+#      - win:
+#          name: "func-s_base-win-py37"
+#          toxenv: "func-s_base-py37"
+#          parallelism: 1
+#          xdist: 1
+#      #
+#      # unit win/mac tests
+#      #
+#      - win:
+#          name: "unit-s_base-win-py37"
+#          toxenv: "py37,wincovercircle -- --timeout 300"
+#      - mac:
+#          name: "unit-s_base-mac-py37"
+#          toxenv: "py37"
+#      #
+#      # launch tests
+#      #
+#      - launch:
+#          name: "mach-launch"
+#          toxenv: "pylaunch,covercircle"
+#      #
+#      # kfp tests
+#      #
+#      - kfp:
+#          name: "mach-kubeflow"
+#          toxenv: "func-s_kfp-py37"
+#      #
+#      # sharded unittests
+#      #
+#      # s_nb: notebook tests
+#      - test:
+#          name: "unit-s_nb-lin-py36"
+#          image: "python:3.6"
+#          toxenv: "unit-s_nb-py36,unit-covercircle"
+#      - win:
+#          name: "unit-s_nb-win-py37"
+#          toxenv: "unit-s_nb-py37"
+#          parallelism: 1
+#          xdist: 1
+#      - mac:
+#          name: "unit-s_nb-mac-py37"
+#          toxenv: "unit-s_nb-py37"
+#          parallelism: 1
+#          xdist: 1
+#      # s_kfp: kubeflow pipeline tests
+#      - test:
+#          name: "unit-s_kfp-lin-py36"
+#          image: "python:3.6"
+#          toxenv: "unit-s_kfp-py36,unit-covercircle"
+#      - win:
+#          name: "unit-s_kfp-win-py37"
+#          toxenv: "unit-s_kfp-py37"
+#          parallelism: 1
+#          xdist: 1
+#      - mac:
+#          name: "unit-s_kfp-mac-py37"
+#          toxenv: "unit-s_kfp-py37"
+#          parallelism: 1
+#          xdist: 1
+
+  manual_test:
+    when: << pipeline.parameters.manual_test >>
+    jobs:
+      - test:
+          name: << pipeline.parameters.manual_test_name >>
+          image: << pipeline.parameters.manual_test_image >>
+          toxenv: << pipeline.parameters.manual_test_toxenv >>
+          parallelism: << pipeline.parameters.manual_parallelism >>
+          xdist: << pipeline.parameters.manual_xdist >>
+
+  manual_win:
+    when: << pipeline.parameters.manual_win >>
+    jobs:
+      - win:
+          name: << pipeline.parameters.manual_win_name >>
+          toxenv: << pipeline.parameters.manual_win_toxenv >>
+          parallelism: << pipeline.parameters.manual_parallelism >>
+          xdist: << pipeline.parameters.manual_xdist >>
+
+  manual_mac:
+    when: << pipeline.parameters.manual_mac >>
+    jobs:
+      - mac:
+          name: << pipeline.parameters.manual_mac_name >>
+          toxenv: << pipeline.parameters.manual_mac_toxenv >>
+          parallelism: << pipeline.parameters.manual_parallelism >>
+          xdist: << pipeline.parameters.manual_xdist >>
