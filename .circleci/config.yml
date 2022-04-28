@@ -128,9 +128,8 @@ workflows:
     jobs:
       - gke/create-cluster:
           cluster: gcp-testing
-          additional-args:
-            # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
-            - --max-age=20m
+          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
+          additional-args: --max-age=20m
       - steps:
           run: gcloud container clusters list
       - gke/delete-cluster:
