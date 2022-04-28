@@ -3,7 +3,7 @@ version: 2.1
 orbs:
   win: circleci/windows@2.4.0
   slack: circleci/slack@4.9.3
-  gcp-gke: circleci/gcp-gke@1.4.0
+  gke: circleci/gcp-gke@1.4.0
 
 parameters:
   manual:
