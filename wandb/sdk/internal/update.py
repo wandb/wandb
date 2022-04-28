@@ -76,30 +76,30 @@ def check_available(current_version: str) -> Optional[Dict[str, Optional[str]]]:
     if not package_info:
         return None
 
-    name = wandb._wandb_module
+    wandb_module_name = wandb._wandb_module
 
     latest_version, pip_prerelease, deleted, yanked, yanked_reason = package_info
     upgrade_message = (
         "%s version %s is available!  To upgrade, please run:\n"
         " $ pip install %s --upgrade%s"
         % (
-            wandb._wandb_module,
+            wandb_module_name,
             latest_version,
-            wandb._wandb_module,
+            wandb_module_name,
             " --pre" if pip_prerelease else "",
         )
     )
     delete_message = None
     if deleted:
         delete_message = "{} version {} has been retired!  Please upgrade.".format(
-            wandb._wandb_module,
+            wandb_module_name,
             current_version,
         )
     yank_message = None
     if yanked:
         reason_message = "(%s)  " % yanked_reason if yanked_reason else ""
         yank_message = "{} version {} has been recalled!  {}Please upgrade.".format(
-            wandb._wandb_module,
+            wandb_module_name,
             current_version,
             reason_message,
         )
