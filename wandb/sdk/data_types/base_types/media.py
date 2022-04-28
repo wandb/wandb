@@ -216,8 +216,14 @@ class Media(WBValue):
                             os.path.basename(self._path),
                         )
 
-                    if self._artifact_target is not None and self._path in self._artifact_target.artifact._added_local_paths:
-                        entry = self._artifact_target.artifact._added_local_paths.get(self._path)
+                    if (
+                        self._artifact_target is not None
+                        and self._path
+                        in self._artifact_target.artifact._added_local_paths
+                    ):
+                        entry = self._artifact_target.artifact._added_local_paths.get(
+                            self._path
+                        )
                         artifact.add_reference(entry.ref_url(), name=name)
 
                     # if not, check to see if there is a source artifact for this object
