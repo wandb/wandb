@@ -230,7 +230,13 @@ def main():
     group = os.environ.get("WANDB_RUN_GROUP")
     job_type = os.environ.get("WANDB_JOB_TYPE")
 
-    run_data = dict(run_id=run_id, project=project, group=group, job_type=job_type, config=dict(parm1=2, param2=3))
+    run_data = dict(
+        run_id=run_id,
+        project=project,
+        group=group,
+        job_type=job_type,
+        config=dict(parm1=2, param2=3),
+    )
     wic.run_start(run_id)
     run_result = wic.run_update(run_data)
     run = run_result.run

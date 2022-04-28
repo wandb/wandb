@@ -33,8 +33,8 @@ def main():
         output = net(torch.ones((64, 1, 28, 28)))
         loss = F.mse_loss(output, torch.ones((64, 10)))
         output.backward(torch.ones(64, 10))
-        writer.add_scalar("loss", loss / 64, i+1)
-        writer.add_image("example", torch.ones((1, 28, 28)), i+1)
+        writer.add_scalar("loss", loss / 64, i + 1)
+        writer.add_image("example", torch.ones((1, 28, 28)), i + 1)
     writer.close()
 
 

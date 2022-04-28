@@ -8,6 +8,7 @@ import sys
 
 import wandb
 
+
 def main(argv):
     # test to ensure
     run = wandb.init()
@@ -16,27 +17,58 @@ def main(argv):
     print(f"Started run {run_project}/{run_id}")
 
     try:
-        os.makedirs('./chdir_test')
+        os.makedirs("./chdir_test")
     except Exception as e:
         pass
 
-    os.chdir('./chdir_test')
+    os.chdir("./chdir_test")
     # log some table data, which is saved in the media folder
     pr_data = [
-        ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0],
-        ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0], ['setosa', 1.0, 1.0],
-        ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0],
-        ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0], ['setosa', 1.0, 0.0],
-        ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 1.0],
-        ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 1.0],
-        ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 1.0], ['versicolor', 1.0, 0.0], ['versicolor', 1.0, 0.0],
-        ['versicolor', 1.0, 0.0], ['versicolor', 1.0, 0.0], ['versicolor', 1.0, 0.0], ['versicolor', 1.0, 0.0],
-        ['versicolor', 1.0, 0.0], ['versicolor', 1.0, 0.0], ['versicolor', 1.0, 0.0], ['versicolor', 1.0, 0.0]
-        ]
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 1.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["setosa", 1.0, 0.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 1.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+        ["versicolor", 1.0, 0.0],
+    ]
 
     # convert the data to a table
     pr_table = wandb.Table(data=pr_data, columns=["class", "precision", "recall"])
-    wandb.log({'pr_table': pr_table})
+    wandb.log({"pr_table": pr_table})
     wandb.finish()
 
     # Check results
@@ -47,5 +79,6 @@ def main(argv):
     assert media_file.size > 0
     print("Success")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main(sys.argv)

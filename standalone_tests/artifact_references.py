@@ -11,8 +11,8 @@ S3_BUCKET = "s3://kubeml"
 PREFIX = wandb.util.generate_id()
 GCS_NAME = f"gcs-artifact-{PREFIX}"
 S3_NAME = f"s3-artifact-{PREFIX}"
-GCS_REMOTE = f'{GCS_BUCKET}/artifact-versions/{PREFIX}'
-S3_REMOTE = f'{S3_BUCKET}/artifact-versions/{PREFIX}'
+GCS_REMOTE = f"{GCS_BUCKET}/artifact-versions/{PREFIX}"
+S3_REMOTE = f"{S3_BUCKET}/artifact-versions/{PREFIX}"
 ENTITY = "wandb"
 
 
@@ -34,13 +34,13 @@ def sync_buckets(root):
     # Sync up
     gs = (root, GCS_REMOTE)
     s3 = (root, S3_REMOTE)
-    os.system('gsutil rsync %s %s' % gs)
-    os.system('aws s3 sync %s %s' % s3)
+    os.system("gsutil rsync %s %s" % gs)
+    os.system("aws s3 sync %s %s" % s3)
     # Sync down
     gs = (GCS_REMOTE, root)
     s3 = (S3_REMOTE, root)
-    os.system('gsutil rsync %s %s' % gs)
-    os.system('aws s3 sync %s %s' % s3)
+    os.system("gsutil rsync %s %s" % gs)
+    os.system("aws s3 sync %s %s" % s3)
 
 
 def log_artifacts():
@@ -56,8 +56,12 @@ def log_artifacts():
 
 def download_artifacts(gcs_alias="v0", s3_alias="v0"):
     api = wandb.Api()
-    gcs_art = api.artifact(name=f"{ENTITY}/artifact-references/{GCS_NAME}:{gcs_alias}", type="dataset")
-    s3_art = api.artifact(name=f"{ENTITY}/artifact-references/{S3_NAME}:{s3_alias}", type="dataset")
+    gcs_art = api.artifact(
+        name=f"{ENTITY}/artifact-references/{GCS_NAME}:{gcs_alias}", type="dataset"
+    )
+    s3_art = api.artifact(
+        name=f"{ENTITY}/artifact-references/{S3_NAME}:{s3_alias}", type="dataset"
+    )
     gcs_art.download()
     s3_art.download()
     return gcs_art, s3_art
@@ -105,14 +109,14 @@ def main(argv):
     print("latest S3")
     latest_s3_cmp.report()
 
-    assert v1_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
-    assert v1_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert v1_gcs_cmp.common == ["even.txt", "every.txt", "odd.txt"]
+    assert v1_s3_cmp.common == ["even.txt", "every.txt", "odd.txt"]
 
-    assert v2_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
-    assert v2_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert v2_gcs_cmp.common == ["even.txt", "every.txt", "odd.txt"]
+    assert v2_s3_cmp.common == ["even.txt", "every.txt", "odd.txt"]
 
-    assert latest_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
-    assert latest_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert latest_gcs_cmp.common == ["even.txt", "every.txt", "odd.txt"]
+    assert latest_s3_cmp.common == ["even.txt", "every.txt", "odd.txt"]
 
 
 if __name__ == "__main__":

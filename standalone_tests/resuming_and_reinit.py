@@ -50,5 +50,5 @@ def main(args):
     print(run.history(stream="system"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv)

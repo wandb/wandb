@@ -27,7 +27,21 @@ os.environ["WANDB_SILENT"] = WANDB_SILENT
 
 import wandb
 
-columns = ["id", "class_id", "string", "bool", "int", "float", "Image", "Clouds", "HTML", "Video", "Bokeh", "Audio", "np_data"]
+columns = [
+    "id",
+    "class_id",
+    "string",
+    "bool",
+    "int",
+    "float",
+    "Image",
+    "Clouds",
+    "HTML",
+    "Video",
+    "Bokeh",
+    "Audio",
+    "np_data",
+]
 
 
 def _make_wandb_image(suffix=""):
@@ -36,11 +50,13 @@ def _make_wandb_image(suffix=""):
     im_path = os.path.join(test_folder, "..", "assets", f"test{suffix}.png")
     return wandb.Image(
         im_path,
-        classes=wandb.Classes([
-        {"id": 1, "name": "tree"},
-        {"id": 2, "name": "car"},
-        {"id": 3, "name": "road"},
-    ]),
+        classes=wandb.Classes(
+            [
+                {"id": 1, "name": "tree"},
+                {"id": 2, "name": "car"},
+                {"id": 3, "name": "road"},
+            ]
+        ),
         boxes={
             "predictions": {
                 "box_data": [
@@ -106,6 +122,7 @@ def _make_wandb_image(suffix=""):
         },
     )
 
+
 def _make_point_cloud():
     # Generate a symetric pattern
     POINT_COUNT = 20000
@@ -114,8 +131,9 @@ def _make_point_cloud():
     theta_chi = pi * np.random.rand(POINT_COUNT, 2)
 
     def gen_point(theta, chi, i):
-        p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + \
-            cos(chi) * 7 * sin((2 * i - 4) / 2 * (i + 2))
+        p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + cos(chi) * 7 * sin(
+            (2 * i - 4) / 2 * (i + 2)
+        )
 
         x = p * sin(chi) * cos(theta)
         y = p * sin(chi) * sin(theta)
@@ -132,35 +150,44 @@ def _make_point_cloud():
 
     return wandb.Object3D(wave_pattern(0))
 
+
 # static assets for comparisons
 pc1 = _make_point_cloud()
 pc2 = _make_point_cloud()
 pc3 = _make_point_cloud()
 pc4 = _make_point_cloud()
 
+
 def _make_bokeh():
     x = [1, 2, 3, 4, 5]
     y = [6, 7, 2, 4, 5]
-    p = figure(title="simple line example", x_axis_label='x', y_axis_label='y')
+    p = figure(title="simple line example", x_axis_label="x", y_axis_label="y")
     p.line(x, y, legend_label="Temp.", line_width=2)
 
     return wandb.data_types.Bokeh(p)
+
 
 b1 = _make_bokeh()
 b2 = _make_bokeh()
 b3 = _make_bokeh()
 b4 = _make_bokeh()
 
+
 def _make_html():
     return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
 
+
 def _make_video():
-    return wandb.Video(np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)) # 1 second video of 10x10 pixels
+    return wandb.Video(
+        np.random.randint(0, high=255, size=(4, 1, 10, 10), dtype=np.uint8)
+    )  # 1 second video of 10x10 pixels
+
 
 vid1 = _make_video()
 vid2 = _make_video()
 vid3 = _make_video()
 vid4 = _make_video()
+
 
 def _make_wandb_audio(frequency, caption):
     SAMPLE_RATE = 44100
@@ -171,44 +198,100 @@ def _make_wandb_audio(frequency, caption):
     )
     return wandb.Audio(data, SAMPLE_RATE, caption)
 
+
 aud1 = _make_wandb_audio(440, "four forty")
 
 aud_ref_https = wandb.Audio(
     "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
-    caption="star wars https"
+    caption="star wars https",
 )
 aud_ref_s3 = wandb.Audio(
-    "s3://wandb-artifacts-refs-public-test/StarWars3.wav",
-    caption="star wars s3"
+    "s3://wandb-artifacts-refs-public-test/StarWars3.wav", caption="star wars s3"
 )
 aud_ref_gs = wandb.Audio(
-    "gs://wandb-artifact-refs-public-test/StarWars3.wav",
-    caption="star wars gs"
+    "gs://wandb-artifact-refs-public-test/StarWars3.wav", caption="star wars gs"
 )
 
 np_data = np.random.randint(255, size=(4, 16, 16, 3))
 
+
 def _make_wandb_table():
-    classes = wandb.Classes([
-        {"id": 1, "name": "tree"},
-        {"id": 2, "name": "car"},
-        {"id": 3, "name": "road"},
-    ])
+    classes = wandb.Classes(
+        [
+            {"id": 1, "name": "tree"},
+            {"id": 2, "name": "car"},
+            {"id": 3, "name": "road"},
+        ]
+    )
     table = wandb.Table(
         columns=[c for c in columns[:-1]],
         data=[
-            [1, 1, "string1", True, 1, 1.1, _make_wandb_image(), pc1, _make_html(), vid1, b1, aud1],
-            [2, 2, "string2", True, 1, 1.2, _make_wandb_image(), pc2, _make_html(), vid2, b2, aud_ref_https],
-            [3, 1, "string3", False, -0, -1.3, _make_wandb_image("2"), pc3, _make_html(), vid3, b3, aud_ref_s3],
-            [4, 3, "string4", False, -0, -1.4, _make_wandb_image("2"), pc4, _make_html(), vid4, b4, aud_ref_gs],
+            [
+                1,
+                1,
+                "string1",
+                True,
+                1,
+                1.1,
+                _make_wandb_image(),
+                pc1,
+                _make_html(),
+                vid1,
+                b1,
+                aud1,
+            ],
+            [
+                2,
+                2,
+                "string2",
+                True,
+                1,
+                1.2,
+                _make_wandb_image(),
+                pc2,
+                _make_html(),
+                vid2,
+                b2,
+                aud_ref_https,
+            ],
+            [
+                3,
+                1,
+                "string3",
+                False,
+                -0,
+                -1.3,
+                _make_wandb_image("2"),
+                pc3,
+                _make_html(),
+                vid3,
+                b3,
+                aud_ref_s3,
+            ],
+            [
+                4,
+                3,
+                "string4",
+                False,
+                -0,
+                -1.4,
+                _make_wandb_image("2"),
+                pc4,
+                _make_html(),
+                vid4,
+                b4,
+                aud_ref_gs,
+            ],
         ],
     )
     table.cast("class_id", classes.get_type())
     table.add_column(columns[-1], np_data)
     return table
 
+
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
+
 
 def _b64_to_hex_id(id_string):
     return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
@@ -216,7 +299,7 @@ def _b64_to_hex_id(id_string):
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
 def test_artifact_add_reference_via_url():
-    """ This test creates three artifacts. The middle artifact references the first artifact's file,
+    """This test creates three artifacts. The middle artifact references the first artifact's file,
     and the last artifact references the middle artifact's reference. The end result of downloading
     the last artifact in a fresh, forth run, should be that all 3 artifacts are downloaded and that
     the file in the last artifact is actually a symlink to the first artifact's file.
@@ -279,9 +362,7 @@ def test_artifact_add_reference_via_url():
     with wandb.init() as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
-        with open(
-            os.path.join(downstream_path, downstream_artifact_file_path)
-        ) as file:
+        with open(os.path.join(downstream_path, downstream_artifact_file_path)) as file:
             assert file.read() == file_text
 
 
@@ -349,13 +430,13 @@ def test_add_reference_via_artifact_entry():
     with wandb.init() as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
-        downstream_path = downstream_artifact.download() # should not fail on second download.
+        downstream_path = (
+            downstream_artifact.download()
+        )  # should not fail on second download.
         # assert os.path.islink(
         #     os.path.join(downstream_path, downstream_artifact_file_path)
         # )
-        with open(
-            os.path.join(downstream_path, downstream_artifact_file_path)
-        ) as file:
+        with open(os.path.join(downstream_path, downstream_artifact_file_path)) as file:
             assert file.read() == file_text
 
 
@@ -415,6 +496,7 @@ def test_adding_artifact_by_object():
         # assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
         assert downstream_artifact.get("T2") == _make_wandb_image()
 
+
 def _cleanup():
     artifacts.get_artifacts_cache()._artifacts_by_id = {}
     if os.path.isdir("wandb"):
@@ -467,8 +549,6 @@ def test_nested_reference_artifact():
         assert table == table_2
         artifact_3.download()
 
-    
-
 
 def test_table_slice_reference_artifact():
     with wandb.init() as run:
@@ -503,7 +583,7 @@ def test_table_slice_reference_artifact():
         artifact_3 = run.use_artifact("reference_data:latest")
         table1 = artifact_3.get("table1")
         table2 = artifact_3.get("table2")
-    
+
     assert not os.path.isdir(os.path.join(artifact_2._default_root()))
     # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
     # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test2.png"))
@@ -518,9 +598,10 @@ def test_table_slice_reference_artifact():
                     assert np.all(eq)
                 else:
                     assert eq
-    
+
     assert_eq_data(t1.data[:1], table1.data)
     assert_eq_data(t1.data[1:], table2.data)
+
 
 # General helper function which will perform the following:
 #   Add the object to an artifact
@@ -546,7 +627,7 @@ def assert_media_obj_referential_equality(obj):
 
     if hasattr(obj, "_eq_debug"):
         obj._eq_debug(obj1, True)
-    
+
     assert obj1 == obj
 
     target_path = os.path.join(orig_dir, "obj." + type(obj)._log_type + ".json")
@@ -611,11 +692,14 @@ def test_image_refs():
 def test_point_cloud_refs():
     assert_media_obj_referential_equality(_make_point_cloud())
 
+
 def test_bokeh_refs():
     assert_media_obj_referential_equality(_make_bokeh())
 
+
 def test_html_refs():
     assert_media_obj_referential_equality(_make_html())
+
 
 def test_video_refs():
     assert_media_obj_referential_equality(_make_video())
@@ -624,11 +708,13 @@ def test_video_refs():
 def test_joined_table_refs():
     assert_media_obj_referential_equality(_make_wandb_joinedtable())
 
+
 def test_audio_refs():
     # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
     assert_media_obj_referential_equality(aud_ref_https)
     assert_media_obj_referential_equality(aud_ref_s3)
     assert_media_obj_referential_equality(aud_ref_gs)
+
 
 def test_joined_table_referential():
     src_image_1 = _make_wandb_image()
@@ -659,6 +745,7 @@ def test_joined_table_referential():
         src_jt_1._eq_debug(src_jt_2, True)
         assert src_jt_1 == src_jt_2
 
+
 def test_joined_table_add_by_path():
     src_image_1 = _make_wandb_image()
     src_image_2 = _make_wandb_image()
@@ -676,7 +763,9 @@ def test_joined_table_add_by_path():
         tables.add(jt, "jt")
 
         # Make sure it errors when you are not referencing the correct table names
-        jt_bad = wandb.JoinedTable("bad_table_name.table.json", "bad_table_name.table.json", "id")
+        jt_bad = wandb.JoinedTable(
+            "bad_table_name.table.json", "bad_table_name.table.json", "id"
+        )
         got_err = False
         try:
             tables.add(jt_bad, "jt_bad")
@@ -690,9 +779,11 @@ def test_joined_table_add_by_path():
     with wandb.init() as run:
         tables_2 = wandb.Artifact("tables_2", "database")
         upstream = run.use_artifact("tables:latest")
-        
+
         # Able to add by reference
-        jt = wandb.JoinedTable(upstream.get_path("src_table_1"), upstream.get_path("src_table_2"), "id")
+        jt = wandb.JoinedTable(
+            upstream.get_path("src_table_1"), upstream.get_path("src_table_2"), "id"
+        )
         tables_2.add(jt, "jt")
         run.log_artifact(tables_2)
 
@@ -700,11 +791,21 @@ def test_joined_table_add_by_path():
     with wandb.init() as run:
         tables_2 = run.use_artifact("tables_2:latest")
         jt_2 = tables_2.get("jt")
-        assert wandb.JoinedTable(upstream.get("src_table_1"), upstream.get("src_table_2"), "id") == jt_2
+        assert (
+            wandb.JoinedTable(
+                upstream.get("src_table_1"), upstream.get("src_table_2"), "id"
+            )
+            == jt_2
+        )
+
 
 def test_image_reference_with_preferred_path():
-    orig_im_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test.png")
-    orig_im_path_2 = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test2.png")
+    orig_im_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test.png"
+    )
+    orig_im_path_2 = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "..", "assets", "test2.png"
+    )
     desired_artifact_path = "images/sample.png"
     with wandb.init() as run:
         artifact = wandb.Artifact("artifact_1", type="test_artifact")
@@ -712,25 +813,27 @@ def test_image_reference_with_preferred_path():
         artifact.add_file(orig_im_path, desired_artifact_path)
         # create an image that uses this image (it should be smart enough not to add the image twice)
         image = wandb.Image(orig_im_path)
-        image_2 = wandb.Image(orig_im_path_2) # this one does not have the path preadded
+        image_2 = wandb.Image(
+            orig_im_path_2
+        )  # this one does not have the path preadded
         # add the image to the table
-        table = wandb.Table(["image"], data=[[image],[image_2]])
+        table = wandb.Table(["image"], data=[[image], [image_2]])
         # add the table to the artifact
         artifact.add(table, "table")
         run.log_artifact(artifact)
-    
+
     _cleanup()
     with wandb.init() as run:
         artifact_1 = run.use_artifact("artifact_1:latest")
         original_table = artifact_1.get("table")
 
         artifact = wandb.Artifact("artifact_2", type="test_artifact")
-        
+
         # add the image by reference
         image = wandb.Image(original_table.data[0][0])
         image_2 = wandb.Image(original_table.data[1][0])
         # add the image to the table
-        table = wandb.Table(["image"], data=[[image],[image_2]])
+        table = wandb.Table(["image"], data=[[image], [image_2]])
         # add the table to the artifact
         artifact.add(table, "table")
         run.log_artifact(artifact)
@@ -739,8 +842,9 @@ def test_image_reference_with_preferred_path():
     with wandb.init() as run:
         artifact_2 = run.use_artifact("artifact_2:latest")
         artifact_2.download()
-    
+
     # This test just checks that all this logic does not fail
+
 
 def test_simple_partition_table():
     table_name = "dataset"
@@ -754,7 +858,7 @@ def test_simple_partition_table():
     run = wandb.init()
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     for i in range(5):
-        row = [i,i*i,2**i]
+        row = [i, i * i, 2**i]
         data.append(row)
         table = wandb.Table(columns=columns, data=[row])
         artifact.add(table, f"{table_parts_dir}/{i}")

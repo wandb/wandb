@@ -29,15 +29,15 @@ def main():
     And see thy blood warm when thou feel'st it cold.""".split()
     # we should tokenize the input, but we will ignore that for now
     # build a list of tuples.  Each tuple is ([ word_i-2, word_i-1 ], target word)
-    trigrams = [([test_sentence[i], test_sentence[i + 1]], test_sentence[i + 2])
-                for i in range(len(test_sentence) - 2)]
+    trigrams = [
+        ([test_sentence[i], test_sentence[i + 1]], test_sentence[i + 2])
+        for i in range(len(test_sentence) - 2)
+    ]
 
     vocab = set(test_sentence)
     word_to_ix = {word: i for i, word in enumerate(vocab)}
 
-
     class NGramLanguageModeler(nn.Module):
-
         def __init__(self, vocab_size, embedding_dim, context_size):
             super().__init__()
             self.embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
@@ -50,7 +50,6 @@ def main():
             out = self.linear2(out)
             log_probs = F.log_softmax(out, dim=1)
             return log_probs
-
 
     has_cuda = torch.cuda.is_available()
 
@@ -68,7 +67,9 @@ def main():
 
             # Step 1. Prepare the inputs to be passed to the model (i.e, turn the words
             # into integer indices and wrap them in tensors)
-            context_idxs = torch.tensor([word_to_ix[w] for w in context], dtype=torch.long)
+            context_idxs = torch.tensor(
+                [word_to_ix[w] for w in context], dtype=torch.long
+            )
             context_idxs = context_idxs.cuda() if has_cuda else context_idxs
 
             # Step 2. Recall that torch *accumulates* gradients. Before passing in a

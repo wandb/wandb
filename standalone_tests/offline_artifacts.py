@@ -13,18 +13,24 @@ project = f"offline_artifacts_2_{mode}"
 
 
 def random_image():
-    return wandb.Image(np.random.randint(255, size=(32,32)))
+    return wandb.Image(np.random.randint(255, size=(32, 32)))
 
 
 def make_dataset():
-    return wandb.Table(data=[
-        [str(i), random_image()]
-        for i in range(dataset_size)
-    ], columns=["id", "input_image"])
+    return wandb.Table(
+        data=[[str(i), random_image()] for i in range(dataset_size)],
+        columns=["id", "input_image"],
+    )
 
 
 def make_linked_table(dataset):
-    tab = wandb.Table(data=[[str(np.random.choice(range(dataset_size)).tolist()), i, random_image()] for i in range(pred_size)], columns=["fk_id", "tab_id", "pred_img"])
+    tab = wandb.Table(
+        data=[
+            [str(np.random.choice(range(dataset_size)).tolist()), i, random_image()]
+            for i in range(pred_size)
+        ],
+        columns=["fk_id", "tab_id", "pred_img"],
+    )
     tab.set_fk("fk_id", dataset, "id")
     return tab
 

@@ -4,8 +4,9 @@ import wandb
 
 # Checks if wandb has issues during set up in a multithreaded environment
 def thread_test(n):
-    run = wandb.init(project='threadtest')
+    run = wandb.init(project="threadtest")
     run.log({"thread": n})
+
 
 def main():
     try:
@@ -20,5 +21,6 @@ def main():
         print("Issue with calling wandb init in a multithreaded situation")
         assert False
 
-if __name__== "__main__":
+
+if __name__ == "__main__":
     main()
