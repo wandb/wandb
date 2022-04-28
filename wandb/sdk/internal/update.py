@@ -5,7 +5,9 @@ import requests
 import wandb
 
 
-def _find_available(current_version: str) -> Optional[Tuple[str, bool, bool, bool, Optional[str]]]:
+def _find_available(
+    current_version: str,
+) -> Optional[Tuple[str, bool, bool, bool, Optional[str]]]:
     pypi_url = f"https://pypi.org/pypi/{wandb._wandb_module}/json"
 
     yanked_dict = {}
@@ -78,9 +80,14 @@ def check_available(current_version: str) -> Optional[Dict[str, Optional[str]]]:
 
     latest_version, pip_prerelease, deleted, yanked, yanked_reason = package_info
     upgrade_message = (
-        f"{name} version {latest_version} is available!  "
-        "To upgrade, please run:\n"
-        f' $ pip install {latest_version} --upgrade{" --pre" if pip_prerelease else ""}'
+        "%s version %s is available!  To upgrade, please run:\n"
+        " $ pip install %s --upgrade%s"
+        % (
+            wandb._wandb_module,
+            latest_version,
+            wandb._wandb_module,
+            " --pre" if pip_prerelease else "",
+        )
     )
     delete_message = None
     if deleted:
