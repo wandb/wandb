@@ -1,3 +1,4 @@
+import os
 import logging
 import shlex
 from typing import Any, List, Optional
@@ -11,6 +12,7 @@ from ..builder.build import get_env_vars_dict
 from ..utils import (
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
+    validate_wandb_python_deps,
 )
 
 
@@ -19,17 +21,18 @@ _logger = logging.getLogger(__name__)
 
 class BareRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun.
-    
+
     BareRunner is very similar to a LocalRunner, except it does not
     run the command inside a docker container. Instead, it runs the
     command specified directly on the BARE machine.
-    
+
     """
 
     def run(
         self,
         launch_project: LaunchProject,
-        *args, **kwargs,
+        *args,
+        **kwargs,
     ) -> Optional[AbstractRun]:
         if args is not None:
             _logger.warning(f"BareRunner.run received unused args {args}")
@@ -38,8 +41,16 @@ class BareRunner(AbstractRunner):
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         entry_point = launch_project.get_single_entry_point()
-        
+
         cmd: List[Any] = []
+
+        validate_wandb_python_deps(
+            launch_project.target_entity,
+            launch_project.target_project,
+            "RUN_NAME",  # TODO: How to get run name? Is there even a run at this point?
+            self._api,
+            launch_project.project_dir,
+        )
 
         env_vars = get_env_vars_dict(launch_project, self._api)
         for env_key, env_value in env_vars.items():
@@ -53,7 +64,7 @@ class BareRunner(AbstractRunner):
 
         command_str = " ".join(cmd).strip()
         wandb.termlog(
-            "Launching run in docker with command: {}".format(
+            "Launching run on bare machine with command: {}".format(
                 sanitize_wandb_api_key(command_str)
             )
         )

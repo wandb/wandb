@@ -5,6 +5,7 @@ import platform
 import re
 import subprocess
 import sys
+from tkinter import W
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
@@ -258,6 +259,50 @@ def download_wandb_python_deps(
                 file.write(data)
         return "requirements.frozen.txt"
     return None
+
+
+def local_python_deps(
+    dir: str, filename: str = "requirements.local.txt"
+) -> Optional[str]:
+    cmd = ["pip", "freeze" ">", os.path.join(dir, filename)]
+    try:
+        env = os.environ
+        _ = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE)
+        return filename
+    except subprocess.CalledProcessError as e:
+        wandb.termerror(f"Command failed: {e}")
+        return None
+
+
+def validate_wandb_python_deps(
+    entity: str, project: str, run_name: str, api: Api, dir: str
+) -> None:
+    """Warns if local python dependencies differ from wandb requirements.txt"""
+
+    _requirements_file = download_wandb_python_deps(entity, project, run_name, api, dir)
+    with open(_requirements_file) as f:
+        wandb_python_deps: List[str] = f.read().splitlines()
+
+    _requirements_file = local_python_deps(dir)
+    with open(local_python_deps(dir)) as f:
+        local_python_deps: List[str] = f.read().splitlines()
+
+    # Convert requirements lists into dicts to compare
+    wandb_deps_dict: Dict[str, str] = {
+        name: version
+        for name, version in [dep.split("==") for dep in wandb_python_deps]
+    }
+    local_deps_dict: Dict[str, str] = {
+        name: version
+        for name, version in [dep.split("==") for dep in local_python_deps]
+    }
+
+    # Compare the two dicts and throw warnings
+    for name, version in local_deps_dict.items():
+        if wandb_deps_dict.get(name) != version:
+            _logger.warning(
+                f"Local python dependency {name}=={version} differs from wandb requirements.txt, which is {name}=={wandb_deps_dict.get(name,'<NOT FOUND>')}"
+            )
 
 
 def fetch_project_diff(
