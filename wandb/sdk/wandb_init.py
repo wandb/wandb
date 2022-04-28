@@ -537,8 +537,9 @@ class _WandbInit:
         if self.settings.start_method == "thread":
             active_start_method = self.settings.start_method
         else:
-            get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
-            active_start_method = get_start_fn() if get_start_fn else None
+            active_start_method = getattr(
+                backend._multiprocessing, "get_start_method", lambda: None
+            )()
 
         # Populate initial telemetry
         with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
@@ -646,11 +647,11 @@ class _WandbInit:
                 error_message = run_result.error.message
             if error_message:
                 logger.error(f"encountered error: {error_message}")
-
-                # Shutdown the backend and get rid of the logger
-                # we don't need to do console cleanup at this point
-                backend.cleanup()
-                self.teardown()
+                if not manager:
+                    # Shutdown the backend and get rid of the logger
+                    # we don't need to do console cleanup at this point
+                    backend.cleanup()
+                    self.teardown()
                 raise UsageError(error_message)
             assert run_result and run_result.run
             if run_result.run.resumed:
@@ -1013,7 +1014,7 @@ def init(
             # TODO(jhr): figure out how to make this RunDummy
             run = None
     except UsageError as e:
-        wandb.termerror(str(e))
+        wandb.termerror(str(e), repeat=False)
         raise
     except KeyboardInterrupt as e:
         assert logger
