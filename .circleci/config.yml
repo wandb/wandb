@@ -126,14 +126,22 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-
-      - test:
-          name: "code-check"
-          image: "python:3.6"
-          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
-          # fixme: this is here for testing, remove it
-          context: slack-secrets
-          notify_on_failure: true
+      - gke/create-cluster:
+          cluster: gcp-testing
+          additional-args:
+            # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
+            - --max-age=20m
+      - steps:
+          run: gcloud container clusters list
+      - gke/delete-cluster:
+          cluster: gcp-testing
+#      - test:
+#          name: "code-check"
+#          image: "python:3.6"
+#          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+#          # fixme: this is here for testing, remove it
+#          context: slack-secrets
+#          notify_on_failure: true
 #      - test:
 #          name: "unit-s_base-lin-py36"
 #          image: "python:3.6"
