@@ -126,14 +126,7 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - gke/create-cluster:
-          cluster: gcp-testing
-          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
-          additional-args: --max-age=20m
-      - steps:
-          run: gcloud container clusters list
-      - gke/delete-cluster:
-          cluster: gcp-testing
+      - test_gpu
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
@@ -557,3 +550,21 @@ jobs:
             }
           event: always
           channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
+  test_gpu:
+    docker:
+      - image: 'cimg/base:stable'
+    steps:
+      - gke/install
+      - gcp-gke/update-kubeconfig-with-credentials:
+          cluster: gcp-testing
+          perform-login: true
+      - gke/create-cluster:
+          cluster: gcp-testing
+          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
+          additional-args: --max-age=20m
+      - run:
+          name: List clusters
+          command: gcloud container clusters list
+      - gke/delete-cluster:
+          cluster: gcp-testing
