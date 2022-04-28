@@ -9,6 +9,7 @@ import yaml
 import pytest
 import wandb
 from wandb.apis import PublicApi
+from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 import wandb.sdk.launch.launch as launch
@@ -93,6 +94,28 @@ def mocked_fetchable_git_repo_nodeps():
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return mock.Mock()
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
+
+
+@pytest.fixture
+def mocked_fetchable_git_repo_shell():
+    m = mock.Mock()
+
+    def populate_dst_dir(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        with open(os.path.join(dst_dir, "test.sh"), "w") as f:
+            f.write("python train.py")
+        with open(os.path.join(dst_dir, "unknown.unk"), "w") as f:
             f.write("test")
         return mock.Mock()
 
@@ -815,13 +838,11 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
     assert agent._max_jobs == float("inf")
 
 
-# @pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython, monkeypatch
 ):
-    live_mock_server.set_ctx({"return_jupyter_in_run_info": True})
+    live_mock_server.set_ctx({"run_script_type": "notebook"})
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1249,6 +1270,66 @@ def test_launch_cuda_config_false_prev_run_cuda(
 
     returned_command = launch.run(**kwargs)
     assert "--gpus all" not in returned_command
+
+
+def test_launch_entrypoint(test_settings):
+    entry_point_string = "python main.py"
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    launch_project = _project_spec.LaunchProject(
+        "https://wandb.ai/mock_server_entity/test/runs/1",
+        api,
+        {},
+        None,
+        None,
+        None,
+        {},
+        {},
+        {},
+        "local",
+        {},
+        None,
+    )
+    launch_project.add_entry_point(entry_point_string)
+    calced_ep = launch_project.get_single_entry_point().compute_command({"blah": 2})
+    assert calced_ep == "python main.py --blah 2"
+
+
+@pytest.mark.timeout(320)
+def test_launch_shell_script(
+    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
+):
+    live_mock_server.set_ctx({"run_script_type": "shell"})
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    run = launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/shell1",
+        api,
+        project="new-test",
+    )
+    assert str(run.get_status()) == "finished"
+
+
+def test_launch_unknown_entrypoint(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo_shell,
+):
+    live_mock_server.set_ctx({"run_script_type": "unknown"})
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    with pytest.raises(LaunchError) as e_info:
+        launch.run(
+            "https://wandb.ai/mock_server_entity/test/runs/shell1",
+            api,
+            project="new-test",
+        )
+    assert "Unsupported entrypoint:" in str(e_info.value)
 
 
 def test_launch_build_config_file(
