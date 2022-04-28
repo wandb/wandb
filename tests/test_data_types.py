@@ -1,3 +1,4 @@
+import io
 import wandb
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
@@ -5,7 +6,6 @@ import numpy as np
 import pytest
 import PIL
 import os
-import six
 import sys
 import glob
 import platform
@@ -469,7 +469,7 @@ def test_molecule(mocked_run):
 def test_molecule_file(mocked_run):
     with open("test.pdb", "w") as f:
         f.write("00000")
-    mol = wandb.Molecule(open("test.pdb", "r"))
+    mol = wandb.Molecule(open("test.pdb"))
     mol.bind_to_run(mocked_run, "rad", "summary")
     wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
@@ -526,10 +526,12 @@ def test_molecule_from_rdkit_invalid_input(mocked_run):
 
 
 def test_html_str(mocked_run):
-    html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
+    html_str = "<html><body><h1>Hello</h1></body></html>"
+    html = wandb.Html(html_str)
     html.bind_to_run(mocked_run, "rad", "summary")
     wandb.Html.seq_to_json([html], mocked_run, "rad", "summary")
     assert os.path.exists(html._path)
+    assert html == wandb.Html(html_str)
     wandb.finish()
 
 
@@ -582,6 +584,32 @@ def test_table_default():
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"],
     }
+
+
+def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
+    test_settings.update({"table_raise_on_max_row_limit_exceeded": True})
+    run = wandb.init(settings=test_settings)
+
+    # make this smaller just for this one test to make the runtime shorter
+    with mock.patch("wandb.Table.MAX_ARTIFACT_ROWS", 10):
+        table = wandb.Table(
+            data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(),
+            columns=["col1"],
+        )
+
+        with pytest.raises(ValueError):
+            run.log({"table": table})
+
+        with mock.patch(
+            "wandb.Table.MAX_ARTIFACT_ROWS", wandb.Table.MAX_ARTIFACT_ROWS + 1
+        ):
+            try:
+                # should no longer raise
+                run.log({"table": table})
+            except Exception as e:
+                assert (
+                    False
+                ), f"Logging a big table with an overridden limit raised with {e}"
 
 
 def test_table_eq_debug():
@@ -713,7 +741,7 @@ def test_object3d_io(mocked_run):
     f = utils.fixture_open("Box.gltf")
     body = f.read()
 
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
     obj = wandb.Object3D(ioObj, file_type="obj")
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
@@ -735,7 +763,7 @@ def test_object3d_unsupported_numpy():
 
     f = utils.fixture_open("Box.gltf")
     body = f.read()
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
 
     with pytest.raises(ValueError):
         wandb.Object3D(ioObj)
@@ -1156,9 +1184,9 @@ def test_log_with_back_slash_windows(live_mock_server, test_settings):
     # windows doesnt allow a backslash in media keys right now
     if platform.system() == "Windows":
         with pytest.raises(ValueError):
-            run.log({"train\image": wb_image})
+            run.log({r"train\image": wb_image})
     else:
-        run.log({"train\image": wb_image})
+        run.log({r"train\image": wb_image})
 
     run.finish()
     assert True

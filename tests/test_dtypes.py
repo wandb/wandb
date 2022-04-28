@@ -120,13 +120,13 @@ def test_set_const_type():
     wb_type = ConstType(set())
     assert wb_type.assign(set()) == wb_type
     assert wb_type.assign(None) == InvalidType()
-    assert wb_type.assign(set([1])) == InvalidType()
+    assert wb_type.assign({1}) == InvalidType()
     assert wb_type.assign([]) == InvalidType()
 
-    wb_type = ConstType(set([1, 2, 3]))
+    wb_type = ConstType({1, 2, 3})
     assert wb_type.assign(set()) == InvalidType()
     assert wb_type.assign(None) == InvalidType()
-    assert wb_type.assign(set([1, 2, 3])) == wb_type
+    assert wb_type.assign({1, 2, 3}) == wb_type
     assert wb_type.assign([1, 2, 3]) == InvalidType()
 
 

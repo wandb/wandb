@@ -66,7 +66,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         files_sorted = sorted(
             [
                 "config.yaml",
-                "code/tests/logs/{}/train.py".format(test_name),
+                f"code/tests/logs/{test_name}/train.py",
                 "requirements.txt",
                 "wandb-metadata.json",
                 "wandb-summary.json",
@@ -77,13 +77,11 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
             print("Files from server", files)
             assert (
                 sorted(
-                    [
-                        f
-                        for f in files
-                        if not f.endswith(".patch")
-                        and not f.endswith("pt.trace.json")
-                        and f != "output.log"
-                    ]
+                    f
+                    for f in files
+                    if not f.endswith(".patch")
+                    and not f.endswith("pt.trace.json")
+                    and f != "output.log"
                 )
                 == files_sorted
             )
@@ -157,6 +155,7 @@ def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
         assert "bar" not in run.config
         run.finish()
 
+        test_settings._set_run_start_time()  # update timestamp
         run = wandb.init(
             reinit=True,
             resume=True,
@@ -169,6 +168,7 @@ def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
         assert "baz" not in run.config
         run.finish()
 
+        test_settings._set_run_start_time()  # update timestamp
         with pytest.raises(wandb.errors.UsageError):
             wandb.init(
                 reinit=True,
@@ -273,7 +273,7 @@ def test_dir_on_import(runner, live_mock_server, test_settings):
             )
             assert not os.path.isdir(
                 custom_env_path
-            ), "Unexpected directory at {}".format(custom_env_path)
+            ), f"Unexpected directory at {custom_env_path}"
 
 
 def test_dir_on_init(runner, live_mock_server, test_settings):
@@ -444,14 +444,12 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     # file created, should be uploaded
     with open(file_path, "w") as fp:
         fp.write("a" * 10000)
-        fp.close()
     run.save(file_path, policy="live")
     # on save file is sent
     sent += os.path.getsize(file_path)
     time.sleep(2.1)
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     # 2.1 seconds is longer than set rate limit
     sent += os.path.getsize(file_path)
     # give watchdog time to register the change
@@ -459,12 +457,10 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     # file updated within modified time, should not be uploaded
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     time.sleep(2.0)
     # file updated outside of rate limit should be uploaded
     with open(file_path, "a") as fp:
         fp.write("a" * 10000)
-        fp.close()
     sent += os.path.getsize(file_path)
     time.sleep(2)
 

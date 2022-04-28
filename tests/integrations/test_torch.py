@@ -26,7 +26,7 @@ def dummy_torch_tensor(size, requires_grad=True):
 
 class DynamicModule(nn.Module):
     def __init__(self):
-        super(DynamicModule, self).__init__()
+        super().__init__()
         self.choices = nn.ModuleDict(
             {"conv": nn.Conv2d(10, 10, 3), "pool": nn.MaxPool2d(3)}
         )
@@ -66,7 +66,7 @@ class EmbModelWrapper(nn.Module):
 
 class Discrete(nn.Module):
     def __init__(self):
-        super(Discrete, self).__init__()
+        super().__init__()
 
     def forward(self, x):
         return nn.functional.softmax(x, dim=0)
@@ -74,7 +74,7 @@ class Discrete(nn.Module):
 
 class DiscreteModel(nn.Module):
     def __init__(self, num_outputs=2):
-        super(DiscreteModel, self).__init__()
+        super().__init__()
         self.linear1 = nn.Linear(1, 10)
         self.linear2 = nn.Linear(10, num_outputs)
         self.dist = Discrete()
@@ -87,7 +87,7 @@ class DiscreteModel(nn.Module):
 
 class ParameterModule(nn.Module):
     def __init__(self):
-        super(ParameterModule, self).__init__()
+        super().__init__()
         self.params = nn.ParameterList(
             [nn.Parameter(torch.ones(10, 10)) for i in range(10)]
         )
@@ -102,7 +102,7 @@ class ParameterModule(nn.Module):
 
 class Sequence(nn.Module):
     def __init__(self):
-        super(Sequence, self).__init__()
+        super().__init__()
         self.lstm1 = nn.LSTMCell(1, 51)
         self.lstm2 = nn.LSTMCell(51, 51)
         self.linear = nn.Linear(51, 1)
@@ -130,7 +130,7 @@ class Sequence(nn.Module):
 
 class ConvNet(nn.Module):
     def __init__(self):
-        super(ConvNet, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.conv2_drop = nn.Dropout2d()
@@ -273,7 +273,7 @@ def test_nested_shape():
         (torch.Tensor([float("nan"), float("inf"), -float("inf")]), True),
     ],
 )
-def test_no_finite_values(test_input, expected, wandb_init_run):
+def test_no_finite_values(test_input, expected):
     torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch_history._no_finite_values(test_input) is expected
@@ -288,7 +288,7 @@ def test_no_finite_values(test_input, expected, wandb_init_run):
         (torch.Tensor([0.0, float("nan"), float("inf")]), torch.Tensor([0.0])),
     ],
 )
-def test_remove_infs_nans(test_input, expected, wandb_init_run):
+def test_remove_infs_nans(test_input, expected):
     torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch.equal(torch_history._remove_infs_nans(test_input), expected)

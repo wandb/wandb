@@ -1,22 +1,21 @@
-#
 """
-tensor b watcher.
+tensorboard watcher.
 """
 
 import glob
 import logging
 import os
+import queue
 import socket
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
-import six
-from six.moves import queue
 import wandb
 from wandb import util
-from wandb.viz import custom_chart_panel_config, CustomChart
+from wandb.sdk.interface.interface import GlobStr
+from wandb.viz import CustomChart
 
 from . import run as internal_run
 
@@ -26,11 +25,12 @@ if TYPE_CHECKING:
     from .settings_static import SettingsStatic
     from typing import Dict, List, Optional
     from wandb.proto.wandb_internal_pb2 import RunRecord
-    from six.moves.queue import PriorityQueue
+    from wandb.sdk.interface.interface import FilesDict
+    from queue import PriorityQueue
     from tensorboard.compat.proto.event_pb2 import ProtoEvent
     from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
 
-    HistoryDict = Dict[str, object]
+    HistoryDict = Dict[str, Any]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -55,7 +55,7 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    interface.publish_files(dict(files=[(glob.escape(file_name), "live")]))
+    interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
 
 
 def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
@@ -96,7 +96,7 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     return created_time >= int(start_time)  # noqa: W503
 
 
-class TBWatcher(object):
+class TBWatcher:
     _logdirs: "Dict[str, TBDirWatcher]"
     _watcher_queue: "PriorityQueue"
 
@@ -108,7 +108,7 @@ class TBWatcher(object):
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer = None
+        self._consumer: Optional[TBEventConsumer] = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
@@ -166,15 +166,15 @@ class TBWatcher(object):
         tbdir_watcher.start()
 
     def finish(self) -> None:
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.shutdown()
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.finish()
         if self._consumer:
             self._consumer.finish()
 
 
-class TBDirWatcher(object):
+class TBDirWatcher:
     def __init__(
         self,
         tbwatcher: "TBWatcher",
@@ -234,7 +234,7 @@ class TBDirWatcher(object):
 
         class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path: str) -> None:
-                super(EventFileLoader, self).__init__(file_path)
+                super().__init__(file_path)
                 if save:
                     if REMOTE_FILE_TOKEN in file_path:
                         logger.warning(
@@ -311,7 +311,7 @@ class TBDirWatcher(object):
         self._thread.join()
 
 
-class Event(object):
+class Event:
     """An event wrapper to enable priority queueing"""
 
     def __init__(self, event: "ProtoEvent", namespace: "Optional[str]"):
@@ -325,7 +325,7 @@ class Event(object):
         return False
 
 
-class TBEventConsumer(object):
+class TBEventConsumer:
     """Consumes tfevents from a priority queue.  There should always
     only be one of these per run_manager.  We wait for 10 seconds of queued
     events to reduce the chance of multiple tfevent files triggering
@@ -350,8 +350,8 @@ class TBEventConsumer(object):
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
-        def datatypes_cb(fname: str) -> None:
-            files = dict(files=[(fname, "now")])
+        def datatypes_cb(fname: GlobStr) -> None:
+            files: "FilesDict" = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
         # this is only used for logging artifacts
@@ -423,28 +423,26 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row: "HistoryDict") -> None:
-        chart_keys = []
-        for key, item in row.items():
-            if isinstance(item, CustomChart):
-                panel_config = custom_chart_panel_config(item, key, key + "_table")
-                config = {"panel_type": "Vega2", "panel_config": panel_config}
-                chart_keys.append(key)
-                self._tbwatcher._interface.publish_config(
-                    val=config, key=("_wandb", "visualize", key)
+        chart_keys = set()
+        for k in row:
+            if isinstance(row[k], CustomChart):
+                chart_keys.add(k)
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(
+                    "Vega2", row[k].user_query(f"{k}_table")
                 )
-                row[key] = item.table
+                row[k] = row[k]._data
+                self._tbwatcher._interface.publish_config(val=value, key=key)
 
-        for chart_key in chart_keys:
-            table = row[chart_key]
-            row.pop(chart_key)
-            row[chart_key + "_table"] = table
+        for k in chart_keys:
+            row[f"{k}_table"] = row.pop(k)
 
         self._tbwatcher._interface.publish_history(
             row, run=self._internal_run, publish_step=False
         )
 
 
-class TBHistory(object):
+class TBHistory:
     _data: "HistoryDict"
     _added: "List[HistoryDict]"
 

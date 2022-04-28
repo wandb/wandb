@@ -7,7 +7,7 @@ import enum
 import json
 import logging
 import os
-from shlex import quote
+from shlex import quote, split
 import tempfile
 from typing import Any, Dict, Optional, Tuple
 
@@ -36,7 +36,7 @@ class LaunchSource(enum.IntEnum):
     DOCKER: int = 4
 
 
-class LaunchProject(object):
+class LaunchProject:
     """A launch project specification."""
 
     def __init__(
@@ -142,10 +142,10 @@ class LaunchProject(object):
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return "{}_launch".format(self.target_project)
+        return f"{self.target_project}_launch"
 
     def clear_parameter_run_config_collisions(self) -> None:
-        """Clear values from the overide run config values if a matching key exists in the override arguments."""
+        """Clear values from the override run config values if a matching key exists in the override arguments."""
         if not self.override_config:
             return
         keys = [key for key in self.override_config.keys()]
@@ -156,7 +156,7 @@ class LaunchProject(object):
     def get_single_entry_point(self) -> Optional["EntryPoint"]:
         """Returns the first entrypoint for the project, or None if no entry point was provided because a docker image was provided."""
         # assuming project only has 1 entry point, pull that out
-        # tmp fn until we figure out if we wanna support multiple entry points or not
+        # tmp fn until we figure out if we want to support multiple entry points or not
         if not self._entry_points:
             if not self.docker_image:
                 raise LaunchError(
@@ -165,22 +165,12 @@ class LaunchProject(object):
             return None
         return list(self._entry_points.values())[0]
 
-    def add_entry_point(self, entry_point: str) -> "EntryPoint":
+    def add_entry_point(self, command: str) -> "EntryPoint":
         """Adds an entry point to the project."""
-        _, file_extension = os.path.splitext(entry_point)
-        ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
-        if file_extension in ext_to_cmd:
-            command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
-            new_entrypoint = EntryPoint(name=entry_point, command=command)
-            self._entry_points[entry_point] = new_entrypoint
-            return new_entrypoint
-        raise ExecutionError(
-            "Could not find {0} among entry points {1} or interpret {0} as a "
-            "runnable script. Supported script file extensions: "
-            "{2}".format(
-                entry_point, list(self._entry_points.keys()), list(ext_to_cmd.keys())
-            )
-        )
+        entry_point = split(command)[-1]
+        new_entrypoint = EntryPoint(name=entry_point, command=command)
+        self._entry_points[entry_point] = new_entrypoint
+        return new_entrypoint
 
     def get_entry_point(self, entry_point: str) -> "EntryPoint":
         """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
@@ -202,7 +192,7 @@ class LaunchProject(object):
             run_info = utils.fetch_wandb_project_run_info(
                 source_entity, source_project, source_run_name, internal_api
             )
-            entry_point = run_info.get("codePath") or run_info["program"]
+            program_name = run_info.get("codePath") or run_info["program"]
 
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
@@ -254,18 +244,18 @@ class LaunchProject(object):
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
                 # For cases where the entry point wasn't checked into git
-                if not os.path.exists(os.path.join(self.project_dir, entry_point)):
+                if not os.path.exists(os.path.join(self.project_dir, program_name)):
                     downloaded_entrypoint = utils.download_entry_point(
                         source_entity,
                         source_project,
                         source_run_name,
                         internal_api,
-                        entry_point,
+                        program_name,
                         self.project_dir,
                     )
                     if not downloaded_entrypoint:
                         raise LaunchError(
-                            f"Entrypoint: {entry_point} does not exist, "
+                            f"Entrypoint file: {program_name} does not exist, "
                             "and could not be downloaded. Please specify the entrypoint for this run."
                         )
                     # if the entrypoint is downloaded and inserted into the project dir
@@ -274,10 +264,10 @@ class LaunchProject(object):
 
             if (
                 "_session_history.ipynb" in os.listdir(self.project_dir)
-                or ".ipynb" in entry_point
+                or ".ipynb" in program_name
             ):
-                entry_point = utils.convert_jupyter_notebook_to_script(
-                    entry_point, self.project_dir
+                program_name = utils.convert_jupyter_notebook_to_script(
+                    program_name, self.project_dir
                 )
 
             # Download any frozen requirements
@@ -291,8 +281,15 @@ class LaunchProject(object):
 
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
-
             if not self._entry_points:
+                _, ext = os.path.splitext(program_name)
+                if ext == ".py":
+                    entry_point = f"python {program_name}"
+                elif ext == ".sh":
+                    command = os.environ.get("SHELL", "bash")
+                    entry_point = f"{command} {program_name}"
+                else:
+                    raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
@@ -304,13 +301,13 @@ class LaunchProject(object):
 
             if not self._entry_points:
                 wandb.termlog(
-                    "Entry point for repo not specified, defaulting to main.py"
+                    "Entry point for repo not specified, defaulting to python main.py"
                 )
-                self.add_entry_point("main.py")
+                self.add_entry_point("python main.py")
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
-class EntryPoint(object):
+class EntryPoint:
     """An entry point into a wandb launch specification."""
 
     def __init__(self, name: str, command: str):
@@ -372,7 +369,7 @@ class EntryPoint(object):
         command_arr = [command_with_params]
         command_arr.extend(
             [
-                "--%s %s" % (key, value) if value is not None else "--%s" % (key)
+                f"--{key} {value}" if value is not None else f"--{key}"
                 for key, value in extra_params.items()
             ]
         )
@@ -380,7 +377,7 @@ class EntryPoint(object):
 
     @staticmethod
     def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
-        """Sanitizes a dictionary of paramaeters, quoting values, except for keys with None values."""
+        """Sanitizes a dictionary of parameters, quoting values, except for keys with None values."""
         return {
             (str(key)): (quote(str(value)) if value is not None else None)
             for key, value in param_dict.items()
@@ -457,7 +454,7 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     assert launch_project.project_dir is not None
-    # this prioritizes pip and we don't support any cases where both are present
+    # this prioritizes pip, and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.txt")

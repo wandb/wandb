@@ -506,3 +506,21 @@ def test_resolve_aliases():
 
     aliases = util._resolve_aliases("boom")
     assert aliases == ["boom", "latest"]
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+def test_bfloat16_to_float():
+    import jax.numpy as jnp
+
+    array = jnp.array(1.0, dtype=jnp.bfloat16)
+    # array to scalar bfloat16
+    array_cast = util.json_friendly(array)
+    assert array_cast[1] is True
+    assert array_cast[0].__class__.__name__ == "bfloat16"
+    # scalar bfloat16 to float
+    array_cast = util.json_friendly(array_cast[0])
+    assert array_cast[0] == 1.0
+    assert array_cast[1] is True
+    assert isinstance(array_cast[0], float)

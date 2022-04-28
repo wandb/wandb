@@ -10,6 +10,7 @@ import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .._project_spec import LaunchProject
 
@@ -26,7 +27,7 @@ State = Literal[
 ]
 
 
-class Status(object):
+class Status:
     def __init__(self, state: "State" = "unknown", data=None):  # type: ignore
         self.state = state
         self.data = data or {}
@@ -72,7 +73,7 @@ class AbstractRun(ABC):
                     return popen.stdout.read()
             return popen
         except subprocess.CalledProcessError as e:
-            wandb.termerror("Command failed: {}".format(e))
+            wandb.termerror(f"Command failed: {e}")
             return None
 
     @abstractmethod
@@ -154,7 +155,12 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 
         Returns a SubmittedRun object to track the execution

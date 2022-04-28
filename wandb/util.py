@@ -52,7 +52,6 @@ import requests
 import sentry_sdk  # type: ignore
 from sentry_sdk import capture_exception, capture_message
 import shortuuid  # type: ignore
-import six
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
@@ -171,7 +170,7 @@ def sentry_reraise(exc: Any) -> None:
     sentry_exc(exc)
     # this will messily add this "reraise" function to the stack trace
     # but hopefully it's not too bad
-    six.reraise(type(exc), exc, sys.exc_info()[2])
+    raise exc.with_traceback(sys.exc_info()[2])
 
 
 def sentry_set_scope(
@@ -230,7 +229,7 @@ def sentry_set_scope(
             if all(params.values()):
                 # here we're guaranteed that entity, project, base_url all have valid values
                 app_url = wandb.util.app_url(params["base_url"])
-                e, p = [quote(params[k]) for k in ["entity", "project"]]
+                e, p = (quote(params[k]) for k in ["entity", "project"])
 
                 # TODO: the settings object will be updated to contain run_url and sweep_url
                 # This is done by passing a settings_map in the run_start protocol buffer message
@@ -608,11 +607,14 @@ def json_friendly(  # noqa: C901
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
-        elif isinstance(obj, np.generic) and obj.dtype.kind == "f":
+        elif isinstance(obj, np.generic) and (
+            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+        ):
             # obj is a numpy float with precision greater than that of native python float
-            # (i.e., float96 or float128). in this case obj.item() does not return a native
-            # python float to avoid loss of precision, so we need to explicitly cast this
-            # down to a 64bit float
+            # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+            # in these cases, obj.item() does not return a native
+            # python float (in the first case - to avoid loss of precision,
+            # so we need to explicitly cast this down to a 64bit float)
             obj = float(obj)
 
     elif isinstance(obj, bytes):
@@ -621,7 +623,7 @@ def json_friendly(  # noqa: C901
         obj = obj.isoformat()
     elif callable(obj):
         obj = (
-            "{}.{}".format(obj.__module__, obj.__qualname__)
+            f"{obj.__module__}.{obj.__qualname__}"
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
@@ -892,7 +894,7 @@ def find_runner(program: str) -> Union[None, list, List[str]]:
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except IOError:  # PermissionError doesn't exist in 2.7
+        except OSError:  # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith("#!"):
@@ -1037,7 +1039,7 @@ def image_id_from_k8s() -> Optional[str]:
                 k8s_server,
                 verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
                 timeout=3,
-                headers={"Authorization": "Bearer {}".format(open(token_path).read())},
+                headers={"Authorization": f"Bearer {open(token_path).read()}"},
             )
             res.raise_for_status()
         except requests.RequestException:
@@ -1079,7 +1081,7 @@ def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
         try:
             result = q.get(True, timeout)
             if isinstance(result, Exception):
-                six.reraise(type(result), result, sys.exc_info()[2])
+                raise result.with_traceback(sys.exc_info()[2])
             return result, thread
         except queue.Empty:
             return None, thread
@@ -1271,7 +1273,7 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     entity = None
     project = None
     sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, six.string_types):
+    if not isinstance(sweep_id, str):
         return "Expected string sweep_id"
 
     sweep_split = sweep_id.split("/")
@@ -1507,7 +1509,7 @@ def handle_sweep_config_violations(warnings: List[str]) -> None:
 def _log_thread_stacks() -> None:
     """Log all threads, useful for debugging."""
 
-    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+    thread_map = {t.ident: t.name for t in threading.enumerate()}
 
     for thread_id, frame in sys._current_frames().items():
         logger.info(
@@ -1561,10 +1563,10 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
 def load_json_yaml_dict(config: str) -> Any:
     ext = os.path.splitext(config)[-1]
     if ext == ".json":
-        with open(config, "r") as f:
+        with open(config) as f:
             return json.load(f)
     elif ext == ".yaml":
-        with open(config, "r") as f:
+        with open(config) as f:
             return yaml.safe_load(f)
     else:
         try:
@@ -1637,7 +1639,7 @@ def _is_artifact(v: Any) -> bool:
 
 
 def _is_artifact_string(v: Any) -> bool:
-    return isinstance(v, six.string_types) and v.startswith("wandb-artifact://")
+    return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
 def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
@@ -1673,6 +1675,18 @@ def _get_max_cli_version() -> Union[str, None]:
 
 
 def _is_offline() -> bool:
-    return (  # type: ignore [no-any-return]
+    return (  # type: ignore[no-any-return]
         wandb.run is not None and wandb.run.settings._offline
     ) or wandb.setup().settings._offline
+
+
+def ensure_text(
+    string: Union[str, bytes], encoding: str = "utf-8", errors: str = "strict"
+) -> str:
+    """Coerce s to str."""
+    if isinstance(string, bytes):
+        return string.decode(encoding, errors)
+    elif isinstance(string, str):
+        return string
+    else:
+        raise TypeError(f"not expecting type '{type(string)}'")

@@ -4,13 +4,12 @@ import wandb
 from wandb.cli import cli
 import numpy as np
 from click.testing import CliRunner
-# import traceback
 import sys
 
 dataset_size = 250
 pred_size = 100
 mode = "offline" if len(sys.argv) <= 1 or sys.argv[1] != "--online" else "online"
-project = "offline_artifacts_2_{}".format(mode)
+project = f"offline_artifacts_2_{mode}"
 
 
 def random_image():

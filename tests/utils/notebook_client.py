@@ -1,8 +1,5 @@
-try:
-    from nbclient import NotebookClient
-    from nbclient.client import CellExecutionError
-except ImportError:  # TODO: no fancy notebook fun in python2
-    NotebookClient = object
+from nbclient import NotebookClient
+from nbclient.client import CellExecutionError
 
 
 class WandbNotebookClient(NotebookClient):

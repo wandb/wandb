@@ -1,4 +1,3 @@
-#
 """
 sample.
 """
@@ -6,7 +5,7 @@ sample.
 import math
 
 
-class UniformSampleAccumulator(object):
+class UniformSampleAccumulator:
     def __init__(self, min_samples=None):
         self._samples = min_samples or 64
         # force power of 2 samples
@@ -37,7 +36,7 @@ class UniformSampleAccumulator(object):
         for b in range(self._buckets):
             b = (b + self._buckets_index) % self._buckets
             vals = [self._bucket[b][i] for i in range(self._index[b])]
-            print("{}: {}".format(b, vals))
+            print(f"{b}: {vals}")
 
     def add(self, val):
         self._count += 1

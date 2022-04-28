@@ -84,13 +84,17 @@ def check_available(current_version: str) -> Optional[Dict[str, Optional[str]]]:
     )
     delete_message = None
     if deleted:
-        delete_message = f"{name} version {current_version} has been retired!  Please upgrade."
+        delete_message = "{} version {} has been retired!  Please upgrade.".format(
+            wandb._wandb_module,
+            current_version,
+        )
     yank_message = None
     if yanked:
-        reason_message = f"({yanked_reason})  " if yanked_reason else ""
-        yank_message = (
-            f"{name} version {current_version} has been recalled!  "
-            f"{reason_message}Please upgrade."
+        reason_message = "(%s)  " % yanked_reason if yanked_reason else ""
+        yank_message = "{} version {} has been recalled!  {}Please upgrade.".format(
+            wandb._wandb_module,
+            current_version,
+            reason_message,
         )
 
     # A new version is available!
