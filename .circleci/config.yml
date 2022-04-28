@@ -556,7 +556,7 @@ jobs:
       - image: 'cimg/base:stable'
     steps:
       - gke/install
-      - gcp-gke/update-kubeconfig-with-credentials:
+      - gke/update-kubeconfig-with-credentials:
           cluster: gcp-testing
           perform-login: true
       - gke/create-cluster:
