@@ -66,7 +66,7 @@ class _Service:
         # - https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
 
-        kwargs: Dict[str, Any] = dict(close_fds=True)
+        kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
 
         pid = os.getpid()
 
