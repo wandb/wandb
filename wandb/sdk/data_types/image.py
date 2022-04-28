@@ -332,9 +332,12 @@ class Image(BatchableMedia):
         # space, but there are also custom charts, and maybe others. Let's
         # commit to getting all that fixed up before moving this to  the top
         # level Media class.
-        if (
-            not _server_accepts_artifact_path()
-            or self._get_artifact_entry_ref_url() is None
+        if not _server_accepts_artifact_path() or (
+            self._get_artifact_entry_ref_url() is None
+            and not (
+                self._artifact_target is not None
+                and self._path in self._artifact_target.artifact._added_local_paths
+            )
         ):
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
