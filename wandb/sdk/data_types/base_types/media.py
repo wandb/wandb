@@ -215,23 +215,9 @@ class Media(WBValue):
                             self._sha256[:20],
                             os.path.basename(self._path),
                         )
-
-                    if (
-                        self._artifact_target is not None
-                        and self._path
-                        in self._artifact_target.artifact._added_local_paths
-                    ):
-                        entry = self._artifact_target.artifact._added_local_paths.get(
-                            self._path
-                        )
-                        artifact.add_reference(entry.ref_url(), name=name)
-
-                    # if not, check to see if there is a source artifact for this object
-                    if (
-                        self._artifact_source
-                        is not None
-                        # and self._artifact_source.artifact != artifact
-                    ):
+                    
+                    # First, if there is a source artifact for this Media - if so, we store a reference to the source
+                    if self._artifact_source is not None:
                         default_root = self._artifact_source.artifact._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
@@ -241,10 +227,17 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self._artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
+                    # Next, we check if there is a target artifact, storing a reference if so.
+                    elif self._artifact_target is not None and self._path in self._artifact_target.artifact._added_local_paths:
+                        entry = self._artifact_target.artifact._added_local_paths.get(self._path)
+                        artifact.add_reference(entry.ref_url(), name=name)
+                    # A special case for remote audio references...
                     elif isinstance(self, Audio) and Audio.path_is_reference(
                         self._path
                     ):
                         artifact.add_reference(self._path, name=name)
+                    # At last, we directly store the file in the artifact. We make sure
+                    # to update the artifact target if appropriate.
                     else:
                         entry = artifact.add_file(
                             self._path, name=name, is_tmp=self._is_tmp

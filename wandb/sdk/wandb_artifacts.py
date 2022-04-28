@@ -526,7 +526,7 @@ class Artifact(ArtifactInterface):
         # the checksum should match
         entry = self.add_file(file_path, name, is_tmp_name)
         self._added_objs[obj_id] = _AddedObj(entry, obj)
-        if obj._artifact_target is None:
+        if obj._artifact_target is None or obj._artifact_target.name is None:
             obj._set_artifact_target(self, entry.path)
 
         if is_tmp_name:
