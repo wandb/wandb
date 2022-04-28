@@ -584,11 +584,7 @@ class StreamWrapper(RedirectBase):
             self._old_write(data)
             self._queue.put(data)
 
-        if sys.version_info[0] > 2:
-            stream.write = write
-        else:
-            self._old_stream = stream
-            setattr(sys, self.src, _WrappedStream(stream, write))
+        stream.write = write
 
         self._queue = queue.Queue()
         self._stopped = threading.Event()
@@ -619,10 +615,7 @@ class StreamWrapper(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        if sys.version_info[0] > 2:
-            self.src_wrapped_stream.write = self._old_write
-        else:
-            setattr(sys, self.src, self._old_stream)
+        self.src_wrapped_stream.write = self._old_write
 
         self._stopped.set()
         self._emulator_write_thread.join(timeout=5)
