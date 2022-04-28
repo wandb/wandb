@@ -215,7 +215,7 @@ class Media(WBValue):
                             self._sha256[:20],
                             os.path.basename(self._path),
                         )
-                    
+
                     # First, if there is a source artifact for this Media - if so, we store a reference to the source
                     if self._artifact_source is not None:
                         default_root = self._artifact_source.artifact._default_root()
@@ -228,8 +228,14 @@ class Media(WBValue):
                         path = self._artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
                     # Next, we check if there is a target artifact, storing a reference if so.
-                    elif self._artifact_target is not None and self._path in self._artifact_target.artifact._added_local_paths:
-                        entry = self._artifact_target.artifact._added_local_paths.get(self._path)
+                    elif (
+                        self._artifact_target is not None
+                        and self._path
+                        in self._artifact_target.artifact._added_local_paths
+                    ):
+                        entry = self._artifact_target.artifact._added_local_paths.get(
+                            self._path
+                        )
                         artifact.add_reference(entry.ref_url(), name=name)
                     # A special case for remote audio references...
                     elif isinstance(self, Audio) and Audio.path_is_reference(
@@ -245,7 +251,6 @@ class Media(WBValue):
                         name = entry.path
                         if self._artifact_target is None:
                             self._set_artifact_target(artifact)
-
                 json_obj["path"] = name
                 json_obj["sha256"] = self._sha256
             json_obj["_type"] = self._log_type

@@ -302,7 +302,7 @@ class Image(BatchableMedia):
                 _boxes[key] = BoundingBoxes2D.from_json(boxes[key], source_artifact)
                 _boxes[key]._key = key
 
-        res = cls(
+        return cls(
             source_artifact.get_path(json_obj["path"]).download(),
             caption=json_obj.get("caption"),
             grouping=json_obj.get("grouping"),
@@ -310,8 +310,6 @@ class Image(BatchableMedia):
             boxes=_boxes,
             masks=_masks,
         )
-        res._set_artifact_source(source_artifact)
-        return res
 
     @classmethod
     def get_media_subdir(cls: Type["Image"]) -> str:
