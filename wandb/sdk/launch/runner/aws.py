@@ -113,7 +113,9 @@ class AWSSagemakerRunner(AbstractRunner):
                 "of the launch agent config."
             )
 
-        default_output_path = self.backend_config.get("runner", {}).get("output")
+        default_output_path = self.backend_config.get("runner", {}).get(
+            "s3_output_path"
+        )
 
         region = get_region(given_sagemaker_args, registry_config.get("region"))
         instance_role = False
@@ -306,7 +308,7 @@ def build_sagemaker_args(
             "No sagemaker args specified. Specify sagemaker args in resource_args"
         )
     if sagemaker_args.get("OutputDataConfig") is None:
-        sagemaker_args["OutputDataConfig"] = default_output_path
+        sagemaker_args["OutputDataConfig"] = {"S3OutputPath": default_output_path}
 
     if sagemaker_args.get("OutputDataConfig") is None:
         raise LaunchError(
