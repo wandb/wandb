@@ -147,6 +147,9 @@ message Deprecated {
   bool run__join = 4; // wandb.run.join() called
   bool plots = 5; // wandb.plots.* called
   bool run__log_sync = 6; // wandb.run.log(sync=...) called
+  bool init__config_include_keys = 7 ; // wandb.init(config_include_keys=...) called
+  bool init__config_exclude_keys = 8 ; // wandb.init(config_exclude_keys=...) called
+  bool keras_callback__save_model = 9; // wandb.keras.WandbCallback(save_model=True) called
 }
 
 message Issues {

@@ -66,7 +66,7 @@ class _Service:
         # - https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
 
-        kwargs: Dict[str, Any] = dict(close_fds=True)
+        kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
 
         pid = os.getpid()
 
@@ -76,7 +76,7 @@ class _Service:
             pid_str = str(os.getpid())
             exec_cmd_list = [sys.executable, "-m"]
             # Add coverage collection if needed
-            if os.environ.get("COVERAGE_RCFILE"):
+            if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
             service_args = [
                 "wandb",

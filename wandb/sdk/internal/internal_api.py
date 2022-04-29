@@ -9,7 +9,7 @@ import datetime
 from io import BytesIO
 import json
 import os
-from pkg_resources import parse_version  # type: ignore
+from pkg_resources import parse_version
 import re
 import requests
 import logging
@@ -419,6 +419,7 @@ class Api:
             viewer {
                 id
                 entity
+                username
                 email
                 flags
                 teams {
@@ -1548,7 +1549,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, stream=True)
+        response = requests.get(url, auth=("user", self.api_key), stream=True)
         response.raise_for_status()
         return (int(response.headers.get("content-length", 0)), response)
 

@@ -1,6 +1,5 @@
 import atexit
 from contextlib import contextmanager
-import datetime
 import logging
 import os
 import platform
@@ -226,8 +225,6 @@ def test_settings(test_dir, mocker, live_mock_server):
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     settings = wandb.Settings(
-        _start_datetime=datetime.datetime.now(),
-        _start_time=time.time(),
         api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
         console="off",
@@ -237,6 +234,7 @@ def test_settings(test_dir, mocker, live_mock_server):
         run_id=wandb.util.generate_id(),
         save_code=False,
     )
+    settings._set_run_start_time()
     yield settings
     # Just in case someone forgets to join in tests. ...well, please don't!
     if wandb.run is not None:
@@ -462,15 +460,12 @@ def wandb_init_run(request, runner, mocker, mock_server):
         with mock.patch.dict(os.environ, {k: v for k, v in args["env"].items()}):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
-            #  We want to run setup every time in tests
-            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
             run = wandb.init(
                 settings=dict(console="off", mode="offline", _except_exit=False),
                 **args["wandb_init"],
             )
             yield run
-            wandb.finish()
+            run.finish()
     finally:
         unset_globals()
 
@@ -482,9 +477,6 @@ def wandb_init(request, runner, mocker, mock_server):
             mocks_from_args(mocker, default_wandb_args(), mock_server)
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
-            #  We want to run setup every time in tests
-            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
             return wandb.init(
                 settings=dict(console="off", mode="offline", _except_exit=False),
                 *args,

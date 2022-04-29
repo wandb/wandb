@@ -29,7 +29,7 @@ metadata:
   name: job-creator
 rules:
 - apiGroups: [""]
-  resources: ["pods", "pods/log"]
+  resources: ["pods", "pods/log", "secrets"]
   verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
 - apiGroups: ["batch"]
   resources: ["jobs", "jobs/status"]
@@ -73,12 +73,27 @@ roleRef:
 ---
 apiVersion: v1
 data:
-  wandb-base-url: "https://api.wandb.ai" ### TODO: SET YOUR WANDB BASE URL
-  wandb-project: "launch_test" # TODO: SET YOUR ML PROJECT
-  max-jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
+  launch-config.yaml: |
+    base_url: https://api.wandb.ai # TODO: SET YOUR WANDB BASE URL
+    project: launch-welcome # TODO: SET YOUR ML PROJECT
+    max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
+    registry:
+      url: # TODO: SET ECR REPOSITORY URL HERE
+      ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
+      credentials:
+        secret-name: aws-secret # TODO: SET SECRET NAME HERE
+        secret-mount-path: /root/.aws/ # SET MOUNT PATH HERE for aws /root/.aws
+    build:
+      type: kaniko
+      cloud-provider: AWS # TODO: SET CLOUD PROVIDER HERE
+      credentials:
+        secret-name: aws-secret
+        secret-mount-path: /root/.aws/
+      build-context-store: wandb-build # name here
+
 kind: ConfigMap
 metadata:
-  name: wandb-setup
+  name: wandb-launch-configmap
   namespace: wandb
 ---
 apiVersion: v1

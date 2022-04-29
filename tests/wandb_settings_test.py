@@ -492,6 +492,39 @@ def test_preprocess_base_url(url, processed_url):
     assert s.base_url == processed_url
 
 
+@pytest.mark.parametrize(
+    "setting",
+    [
+        "_disable_meta",
+        "_disable_stats",
+        "_disable_viewer",
+        "disable_code",
+        "disable_git",
+        "disabled",
+        "force",
+        "label_disable",
+        "launch",
+        "quiet",
+        "reinit",
+        "relogin",
+        "sagemaker_disable",
+        "save_code",
+        "show_colors",
+        "show_emoji",
+        "show_errors",
+        "show_info",
+        "show_warnings",
+        "silent",
+        "strict",
+    ],
+)
+def test_preprocess_bool_settings(setting: str):
+    with mock.patch.dict(os.environ, {"WANDB_" + setting.upper(): "true"}):
+        s = Settings()
+        s._apply_env_vars(environ=os.environ)
+        assert s[setting] is True
+
+
 def test_code_saving_save_code_env_false(live_mock_server, test_settings):
     test_settings.update({"save_code": None}, source=Source.BASE)
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE="false"):
@@ -892,7 +925,7 @@ def test_override_login_settings_with_dict(live_mock_server, test_settings):
 
 def test_start_run():
     s = Settings()
-    s._start_run()
+    s._set_run_start_time()
     assert s._Settings_start_time is not None
     assert s._Settings_start_datetime is not None
 
@@ -995,3 +1028,13 @@ def test_local_api_key_validation():
 
     # ensure that base_url is applied first without causing an error in api_key validation
     wandb.Settings()._apply_settings(s)
+
+
+def test_run_urls():
+    base_url = "https://my.cool.site.com"
+    entity = "me"
+    project = "lol"
+    run_id = "123"
+    s = Settings(base_url=base_url, entity=entity, project=project, run_id=run_id)
+    assert s.project_url == f"{base_url}/{entity}/{project}"
+    assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
