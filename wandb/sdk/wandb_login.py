@@ -90,6 +90,7 @@ class _WandbLogin:
         self._settings: Union[Settings, Dict[str, Any], None] = None
         self._backend = None
         self._silent = None
+        self._entity = None
         self._wl = None
         self._key = None
         self._relogin = None
@@ -124,6 +125,9 @@ class _WandbLogin:
     def set_silent(self, silent: bool):
         self._silent = silent
 
+    def set_entity(self, entity: str):
+        self._entity = entity
+
     def login(self):
         apikey_configured = self.is_apikey_configured()
         if self._settings.relogin or self._relogin:
@@ -137,22 +141,28 @@ class _WandbLogin:
         return apikey_configured
 
     def login_display(self):
-        # check to see if we got an entity from the setup call
-        active_entity = self._wl._get_entity()
-        login_info_str = "(use `wandb login --relogin` to force relogin)"
-        if active_entity:
-            login_state_str = "Currently logged in as:"
-            wandb.termlog(
-                "{} {} {}".format(
-                    login_state_str,
-                    click.style(active_entity, fg="yellow"),
-                    login_info_str,
-                ),
-                repeat=False,
-            )
+        username = self._wl._get_username()
+
+        if username:
+            # check to see if we got an entity from the setup call or from the user
+            entity = self._entity or self._wl._get_entity()
+
+            entity_str = ""
+            # check if entity exist, valid (is part of a certain team) and different from the username
+            if entity and entity in self._wl._get_teams() and entity != username:
+                entity_str = f" ({click.style(entity, fg='yellow')})"
+
+            login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}"
         else:
             login_state_str = "W&B API key is configured"
-            wandb.termlog(f"{login_state_str} {login_info_str}", repeat=False)
+
+        login_info_str = (
+            f"Use {click.style('`wandb login --relogin`', bold=True)} to force relogin"
+        )
+        wandb.termlog(
+            f"{login_state_str}. {login_info_str}",
+            repeat=False,
+        )
 
     def configure_api_key(self, key):
         if self._settings._jupyter and not self._settings.silent:
@@ -238,6 +248,7 @@ def _login(
     _backend=None,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
+    _entity: Optional[str] = None,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)
@@ -256,6 +267,10 @@ def _login(
     _silent = kwargs.pop("_silent", None)
     if _silent:
         wlogin.set_silent(_silent)
+
+    _entity = kwargs.pop("_entity", None)
+    if _entity:
+        wlogin.set_entity(_entity)
 
     # configure login object
     wlogin.setup(kwargs)

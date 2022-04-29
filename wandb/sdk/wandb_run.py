@@ -1895,10 +1895,10 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-        self._hooks.hook()
 
         manager = self._wl and self._wl._get_manager()
         if not manager:
+            self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
@@ -3048,9 +3048,11 @@ class Run:
                 off=(quiet or settings.quiet),
             )
         else:
-            info = [
-                f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
-            ]
+            info = []
+            if settings.run_name and settings.run_url:
+                info = [
+                    f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+                ]
             if pool_exit_response and pool_exit_response.file_counts:
 
                 logger.info("logging synced files")
@@ -3074,7 +3076,6 @@ class Run:
 
         log_dir = settings.log_user or settings.log_internal
         if log_dir:
-            # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
             printer.display(
                 f"Find logs at: {printer.files(log_dir)}",
