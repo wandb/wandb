@@ -61,6 +61,7 @@ commands:
                 paths:
                   - ./.tox
                 key: v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
@@ -68,6 +69,7 @@ commands:
           keys:
             - v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
             - v0.30-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+
   save-kfp-cache:
     description: "Save kfp environment to cache"
     steps:
@@ -76,6 +78,7 @@ commands:
             - /opt/circleci/.pyenv/
             - ./.tox
           key: v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+
   restore-kfp-cache:
     description: "Restore kfp environment from cache"
     steps:
@@ -83,6 +86,7 @@ commands:
           keys:
             - v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
             - v0.30-kfpenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+
   save-test-results:
     description: "Save test results"
     steps:
@@ -97,18 +101,21 @@ commands:
                 path: mypy-results
             - store_artifacts:
                 path: cover-results
+
   checkout_ml_testing_accelerators:
     steps:
       - run:
           name: Checkout ml-testing-accelerators
           command: |
             git clone https://github.com/GoogleCloudPlatform/ml-testing-accelerators.git
+
   install_jsonnet:
     steps:
       - run:
           name: Install jsonnet
           command: |
             go get github.com/google/go-jsonnet/cmd/jsonnet
+
   setup_gcloud:
     steps:
       - run:
@@ -119,6 +126,7 @@ commands:
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
             gcloud auth configure-docker --quiet gcr.io
+
   create_gke_cluster:
     parameters:
       cluster:
@@ -156,6 +164,18 @@ commands:
           environment:
             GKE_CLUSTER_NAME: <<parameters.cluster >>
           no_output_timeout: <<parameters.no-output-timeout>>
+
+  setup_docker_buildx:
+    description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
+    parameters:
+      docker_layer_caching:
+        type: boolean
+        default: false
+    steps:
+      - setup_remote_docker:
+          version: 20.10.12
+          docker_layer_caching: << parameters.docker_layer_caching >>
+      - run: apk add docker-cli-buildx=0.8.2-r1  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
 jobs:
   test:
@@ -393,6 +413,8 @@ jobs:
           name: Update gcloud components
           command: gcloud --quiet components update
 #      - restore-sdk-gpu-cache
+      - setup_docker_buildx:
+          docker_layer_caching: false
       - run:
           name: Build SDK Docker image for GPU
           command: |
@@ -404,7 +426,7 @@ jobs:
       - run:
           name: Push SDK Docker image for GPU
           command: |
-            docker push wandb-client-cicd/gpu-sdk-image:latest
+            docker push gcr.io/wandb-client-cicd/gpu-sdk-image:latest
 
   test_gpu:
     docker:
