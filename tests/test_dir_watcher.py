@@ -1,5 +1,6 @@
 """dir_watcher tests"""
 
+import os
 from typing import Callable, TYPE_CHECKING
 from unittest.mock import Mock, call
 
@@ -34,12 +35,16 @@ def dir_watcher(settings, file_pusher, tmpdir: py.path.local) -> DirWatcher:
         file_observer_for_testing=Mock(),
     )
 
+def write_with_mtime(path: py.path.local, content: bytes, mtime: int) -> None:
+    path.write_binary(content)
+    os.utime(str(path), (mtime, mtime))
+
 
 @pytest.mark.parametrize(
     ["write_file", "expect_called"],
     [
-        (lambda f: f.write_binary(b"content"), True),
-        (lambda f: f.write_binary(b""), False),
+        (lambda f: write_with_mtime(f, b"content", mtime=0), True),
+        (lambda f: write_with_mtime(f, b"", mtime=0), False),
         (lambda f: None, False),
     ],
 )
@@ -77,7 +82,7 @@ def test_dirwatcher_update_policy_on_nonexistent_file_calls_file_changed_when_fi
     f = tmpdir / "my-file.txt"
     dir_watcher.update_policy(str(f), policy)
 
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
 
     file_pusher.file_changed.assert_not_called()
     dir_watcher._on_file_created(Mock(src_path=str(f)))
@@ -88,7 +93,7 @@ def test_dirwatcher_finish_uploads_unheardof_files(
     tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher
 ):
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     dir_watcher.finish()
     file_pusher.file_changed.assert_called_once_with("my-file.txt", str(f), copy=False)
 
@@ -98,7 +103,7 @@ def test_dirwatcher_finish_skips_now_files(
 ):
     f = tmpdir / "my-file.txt"
     dir_watcher.update_policy(str(f), "now")
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     dir_watcher.finish()
     file_pusher.file_changed.assert_not_called()
 
@@ -107,7 +112,7 @@ def test_dirwatcher_finish_uploads_end_files(
     tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher
 ):
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     dir_watcher.update_policy(str(f), "end")
     dir_watcher.finish()
     file_pusher.file_changed.assert_called_once_with("my-file.txt", str(f), copy=False)
@@ -121,10 +126,10 @@ def test_dirwatcher_finish_uploads_live_files_iff_changed(
     changed: bool,
 ):
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     dir_watcher.update_policy(str(f), "live")
     if changed:
-        f.write_binary(b"new content")
+        write_with_mtime(f, b"new content", mtime=1)
 
     file_pusher.file_changed.reset_mock()
     dir_watcher.finish()
@@ -143,7 +148,7 @@ def test_dirwatcher_finish_skips_ignoreglob_files(
         settings.ignore_globs = ["*.txt"]
 
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     dir_watcher.update_policy(str(f), "end")
     dir_watcher.finish()
     assert file_pusher.file_changed.called == (not ignore)
@@ -153,7 +158,7 @@ def test_dirwatcher_prefers_live_policy_when_multiple_rules_match_file(
     tmpdir: py.path.local, dir_watcher: DirWatcher
 ):
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     dir_watcher.update_policy("*.txt", "live")
     dir_watcher.update_policy("my-file.*", "end")
     dir_watcher.update_policy("my-*.txt", "now")
@@ -169,7 +174,7 @@ def test_dirwatcher_can_overwrite_policy_for_file(
     tmpdir: py.path.local, dir_watcher: DirWatcher
 ):
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     dir_watcher.update_policy("my-file.txt", "live")
     assert isinstance(
         dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyLive
@@ -184,7 +189,7 @@ def test_policylive_uploads_nonempty_unchanged_file_on_modified(
     tmpdir: py.path.local, file_pusher: Mock
 ):
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     policy = PolicyLive(str(f), f.basename, Mock(), file_pusher)
     policy.on_modified()
     file_pusher.file_changed.assert_called_once_with(f.basename, str(f))
@@ -195,7 +200,7 @@ def test_policylive_ratelimits_modified_file_reupload(
 ):
     elapsed = 0
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     policy = PolicyLive(
         str(f), f.basename, Mock(), file_pusher, clock_for_testing=lambda: elapsed
     )
@@ -207,26 +212,29 @@ def test_policylive_ratelimits_modified_file_reupload(
     )
 
     file_pusher.reset_mock()
-    f.write_binary(b"new content")
     elapsed = threshold - 1
+    write_with_mtime(f, b"new content", mtime=elapsed)
     policy.on_modified()
     file_pusher.file_changed.assert_not_called()
 
     elapsed = threshold + 1
+    write_with_mtime(f, b"new content", mtime=elapsed)
     policy.on_modified()
     file_pusher.file_changed.assert_called()
 
 
 def test_policylive_forceuploads_on_finish(tmpdir: py.path.local, file_pusher: Mock):
+    elapsed = 0
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     policy = PolicyLive(
-        str(f), f.basename, Mock(), file_pusher, clock_for_testing=lambda: 0
+        str(f), f.basename, Mock(), file_pusher, clock_for_testing=lambda: elapsed
     )
     policy.on_modified()
     file_pusher.reset_mock()
 
-    f.write_binary(b"new content")
+    elapsed += 1
+    write_with_mtime(f, b"new content", mtime=elapsed)
     policy.on_modified()  # modifying the file shouldn't re-upload it because of the rate-limiting...
     file_pusher.file_changed.assert_not_called()
     policy.finish()  # ...but finish() should force a re-upload
@@ -237,11 +245,12 @@ def test_policynow_uploads_on_modified_iff_not_already_uploaded(
     tmpdir: py.path.local, file_pusher: Mock
 ):
     f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
+    write_with_mtime(f, b"content", mtime=0)
     policy = PolicyNow(str(f), f.basename, Mock(), file_pusher)
 
     policy.on_modified()
     file_pusher.file_changed.assert_called()
     file_pusher.reset_mock()
+    write_with_mtime(f, b"content", mtime=99999)
     policy.on_modified()
     file_pusher.file_changed.assert_not_called()
