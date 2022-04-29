@@ -184,7 +184,7 @@ class LaunchAgent:
             self.default_config.get("runner") is not None
             and self.default_config["runner"].get("type") == resource
         ):
-            backend_config["runner"] = self.config.get("runner")
+            backend_config["runner"] = self.default_config.get("runner")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")
