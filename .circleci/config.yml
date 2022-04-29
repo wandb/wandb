@@ -183,13 +183,6 @@ commands:
             GKE_CLUSTER_NAME: <<parameters.cluster >>
           no_output_timeout: <<parameters.no-output-timeout>>
 
-  sdk_gpu_docker:
-    steps:
-      - sdk_docker:
-          description: "SDK Docker image for GPU"
-          path: "./standalone_tests/dockerfiles/gke_gpu"
-          image_name: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
-
 jobs:
   test:
     resource_class: xlarge
@@ -511,10 +504,13 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - sdk_gpu_docker
+      - sdk_docker:
+          description: "SDK Docker image for GPU"
+          path: "./standalone_tests/dockerfiles/gke_gpu"
+          image_name: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
       - test_gpu:
           requires:
-            - sdk_gpu_docker
+            - sdk_docker
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
