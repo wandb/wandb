@@ -261,13 +261,14 @@ def download_wandb_python_deps(
     return None
 
 
-def local_python_deps(
+def get_local_python_deps(
     dir: str, filename: str = "requirements.local.txt"
 ) -> Optional[str]:
-    cmd = ["pip", "freeze" ">", os.path.join(dir, filename)]
+    cmd = ["pip", "freeze"]
     try:
         env = os.environ
-        _ = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE)
+        with open(os.path.join(dir, filename), 'w') as f:
+            subprocess.call(cmd, env=env, stdout=f)
         return filename
     except subprocess.CalledProcessError as e:
         wandb.termerror(f"Command failed: {e}")
@@ -280,29 +281,32 @@ def validate_wandb_python_deps(
     """Warns if local python dependencies differ from wandb requirements.txt"""
 
     _requirements_file = download_wandb_python_deps(entity, project, run_name, api, dir)
+    _requirements_file = os.path.join(dir, _requirements_file)
     with open(_requirements_file) as f:
         wandb_python_deps: List[str] = f.read().splitlines()
 
-    _requirements_file = local_python_deps(dir)
-    with open(local_python_deps(dir)) as f:
+    _requirements_file = get_local_python_deps(dir)
+    _requirements_file = os.path.join(dir, _requirements_file)
+    with open(_requirements_file) as f:
         local_python_deps: List[str] = f.read().splitlines()
 
     # Convert requirements lists into dicts to compare
-    wandb_deps_dict: Dict[str, str] = {
-        name: version
-        for name, version in [dep.split("==") for dep in wandb_python_deps]
-    }
-    local_deps_dict: Dict[str, str] = {
-        name: version
-        for name, version in [dep.split("==") for dep in local_python_deps]
-    }
+    # wandb_deps_dict: Dict[str, str] = {
+    #     name: version
+    #     for name, version in [dep.split("==") for dep in wandb_python_deps]
+    # }
+    # local_deps_dict: Dict[str, str] = {
+    #     name: version
+    #     for name, version in [dep.split("==") for dep in local_python_deps]
+    # }
 
-    # Compare the two dicts and throw warnings
-    for name, version in local_deps_dict.items():
-        if wandb_deps_dict.get(name) != version:
-            _logger.warning(
-                f"Local python dependency {name}=={version} differs from wandb requirements.txt, which is {name}=={wandb_deps_dict.get(name,'<NOT FOUND>')}"
-            )
+    # TODO: More advanced comparison that accounts for weirdness in requirements files
+    # # Compare the two dicts and throw warnings
+    # for name, version in local_deps_dict.items():
+    #     if wandb_deps_dict.get(name) != version:
+    #         _logger.warning(
+    #             f"Local python dependency {name}=={version} differs from wandb requirements.txt, which is {name}=={wandb_deps_dict.get(name,'<NOT FOUND>')}"
+    #         )
 
 
 def fetch_project_diff(

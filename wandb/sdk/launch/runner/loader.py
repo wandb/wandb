@@ -9,6 +9,7 @@ from .aws import AWSSagemakerRunner
 from .gcp_vertex import VertexRunner
 from .kubernetes import KubernetesRunner
 from .local import LocalRunner
+from .bare import BareRunner
 
 
 __logger__ = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ __logger__ = logging.getLogger(__name__)
 # Statically register backend defined in wandb
 WANDB_RUNNERS: Dict[str, Type["AbstractRunner"]] = {
     "local": LocalRunner,
+    "bare": BareRunner,
     "gcp-vertex": VertexRunner,
     "sagemaker": AWSSagemakerRunner,
     "kubernetes": KubernetesRunner,
