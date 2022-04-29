@@ -4,7 +4,7 @@ import logging
 import os
 import queue
 import time
-from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
+from typing import Callable, Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
@@ -112,30 +112,33 @@ class PolicyLive(FileEventHandler):
         api: Api,
         file_pusher: FilePusher,
         *args,
+        clock_for_testing: Callable[[], float] = time.time,
         **kwargs
     ):
         super().__init__(file_path, save_name, api, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
+        self._clock = clock_for_testing
 
     @property
     def current_size(self) -> int:
         return os.path.getsize(self.file_path)
 
-    def min_wait_for_size(self, size: int) -> float:
-        if self.current_size < self.TEN_MB:
+    @classmethod
+    def min_wait_for_size(cls, size: int) -> float:
+        if size < cls.TEN_MB:
             return 60
-        elif self.current_size < self.HUNDRED_MB:
+        elif size < cls.HUNDRED_MB:
             return 5 * 60
-        elif self.current_size < self.ONE_GB:
+        elif size < cls.ONE_GB:
             return 10 * 60
         else:
             return 20 * 60
 
     def should_update(self) -> bool:
-        if self._last_uploaded_time:
+        if self._last_uploaded_time is not None:
             # Check rate limit by time elapsed
-            time_elapsed = time.time() - self._last_uploaded_time
+            time_elapsed = self._clock() - self._last_uploaded_time
             # if more than 15 seconds has passed potentially upload it
             if time_elapsed < self.RATE_LIMIT_SECONDS:
                 return False
@@ -161,7 +164,7 @@ class PolicyLive(FileEventHandler):
 
     def save_file(self) -> None:
         self._last_sync = os.path.getmtime(self.file_path)
-        self._last_uploaded_time = time.time()
+        self._last_uploaded_time = self._clock()
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
@@ -177,6 +180,7 @@ class DirWatcher:
         api: Api,
         file_pusher: FilePusher,
         file_dir: Optional[PathStr] = None,
+        file_observer_for_testing: Optional[wd_polling.PollingObserver] = None,
     ):
         self._api = api
         self._file_count = 0
@@ -189,7 +193,8 @@ class DirWatcher:
         }
         self._file_pusher = file_pusher
         self._file_event_handlers = {}
-        self._file_observer = wd_polling.PollingObserver()
+
+        self._file_observer = wd_polling.PollingObserver() if file_observer_for_testing is None else file_observer_for_testing
         self._file_observer.schedule(
             self._per_file_event_handler(), self._dir, recursive=True
         )
@@ -291,18 +296,14 @@ class DirWatcher:
                 )
             else:
                 make_handler = PolicyEnd
-                for policy, globs in self._user_file_policies.items():
-                    if policy == "end":
-                        continue
+                for policy, handler_type in [("now", PolicyNow), ("live", PolicyLive)]:
+                    globs = self._user_file_policies[policy]
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
                     for g in list(globs):
                         paths = glob.glob(os.path.join(self._dir, g))
                         if any(save_name in p for p in paths):
-                            if policy == "live":
-                                make_handler = PolicyLive
-                            elif policy == "now":
-                                make_handler = PolicyNow
+                            make_handler = handler_type
                 self._file_event_handlers[save_name] = make_handler(
                     file_path, save_name, self._api, self._file_pusher
                 )
