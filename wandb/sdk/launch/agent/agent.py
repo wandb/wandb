@@ -181,8 +181,8 @@ class LaunchAgent:
         )
         builder = load_builder(build_config)
         if (
-            self.config.get("runner") is not None
-            and self.config["runner"].get("type") == resource
+            self.default_config.get("runner") is not None
+            and self.default_config["runner"].get("type") == resource
         ):
             backend_config["runner"] = self.config.get("runner")
         backend = load_backend(resource, self._api, backend_config)
