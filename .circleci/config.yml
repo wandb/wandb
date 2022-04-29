@@ -527,13 +527,13 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - sdk_docker:
-          description: "SDK Docker image for GPU"
-          path: "./standalone_tests/shards/gke_gpu"
-          image_name: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
+#      - sdk_docker:
+#          description: "SDK Docker image for GPU"
+#          path: "./standalone_tests/shards/gke_gpu"
+#          image_name: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
       - test_gpu:
-          requires:
-            - sdk_docker
+#          requires:
+#            - sdk_docker
           path: "./standalone_tests/shards/gke_gpu"
 #      - test:
 #          name: "code-check"
