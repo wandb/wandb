@@ -400,8 +400,6 @@ jobs:
             docker push wandb-client-cicd/gpu-sdk-image:latest
 
   test_gpu:
-    requires:
-      - sdk_gpu_docker
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -456,7 +454,9 @@ workflows:
         - not: << pipeline.parameters.manual >>
     jobs:
       - sdk_gpu_docker
-#      - test_gpu
+#      - test_gpu:
+#          requires:
+#            - sdk_gpu_docker
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
