@@ -532,6 +532,7 @@ workflows:
       - test_gpu:
           requires:
             - sdk_docker
+          path: "./standalone_tests/shards/gke_gpu"
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
