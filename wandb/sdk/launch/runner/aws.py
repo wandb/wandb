@@ -128,10 +128,6 @@ class AWSSagemakerRunner(AbstractRunner):
             caller_id = client.get_caller_identity()
 
         account_id = caller_id["Account"]
-        if instance_role:
-            role_arn = caller_id["Arn"]
-        else:
-            role_arn = get_role_arn(given_sagemaker_args, account_id)
         role_arn = get_role_arn(given_sagemaker_args, self.backend_config, account_id)
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
