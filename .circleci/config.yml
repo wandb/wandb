@@ -116,6 +116,18 @@ commands:
           command: |
             go get github.com/google/go-jsonnet/cmd/jsonnet
 
+  setup_docker_buildx:
+    description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
+    parameters:
+      docker_layer_caching:
+        type: boolean
+        default: false
+    steps:
+      - setup_remote_docker:
+          version: 20.10.12
+          docker_layer_caching: << parameters.docker_layer_caching >>
+      - run: apk add docker-cli-buildx=0.8.2-r1  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+
   setup_gcloud:
     steps:
       - run:
@@ -140,12 +152,18 @@ commands:
           “5s”
         type: string
         default: 10m
+      image:
+        description: >
+          The image to use for the cluster. The image must be in the same project
+          as the cluster.
+        type: string
     steps:
       - setup_gcloud
       - run:
           name: Create GKE cluster
           command: |
             gcloud container clusters create $GKE_CLUSTER_NAME \
+            --image=<< parameters.image >> \
             --num-nodes=1 --machine-type=n1-standard-2 \
             --disk-size=100 --disk-type=pd-ssd \
             --accelerator=type=nvidia-tesla-t4,count=1
@@ -164,18 +182,6 @@ commands:
           environment:
             GKE_CLUSTER_NAME: <<parameters.cluster >>
           no_output_timeout: <<parameters.no-output-timeout>>
-
-  setup_docker_buildx:
-    description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
-    parameters:
-      docker_layer_caching:
-        type: boolean
-        default: false
-    steps:
-      - setup_remote_docker:
-          version: 20.10.12
-          docker_layer_caching: << parameters.docker_layer_caching >>
-      - run: apk add docker-cli-buildx=0.8.2-r1  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
 jobs:
   test:
@@ -403,7 +409,14 @@ jobs:
           event: always
           channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  sdk_gpu_docker:
+  sdk_docker:
+    parameters:
+      name:
+        type: string
+      path:
+        type: string
+      image:
+        type: string
     docker:
       - image: 'google/cloud-sdk:alpine'
     steps:
@@ -416,15 +429,15 @@ jobs:
       - setup_docker_buildx:
           docker_layer_caching: false
       - run:
-          name: Build SDK Docker image for GPU
+          name: Build << parameters.name >>
           command: |
-            cd ./standalone_tests/dockerfiles/gke_gpu
-            docker build -t gcr.io/wandb-client-cicd/gpu-sdk-image:latest .
+            cd << parameters.path >>
+            docker build -t << parameters.image >> .
 #      - save-sdk-gpu-cache
       - setup_gcloud
       # push to artifact registry on GCP
       - run:
-          name: Push SDK Docker image for GPU
+          name: Push << parameters.name >>
           command: |
             docker push gcr.io/wandb-client-cicd/gpu-sdk-image:latest
 
@@ -442,6 +455,7 @@ jobs:
           command: gcloud --quiet components update
       - create_gke_cluster:
           cluster: gke-yea
+          image: gcr.io/wandb-client-cicd/gpu-sdk-image:latest
 #      - gke/create-cluster:
 #          cluster: gcp-testing
 #          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
@@ -449,7 +463,11 @@ jobs:
 #          perform-login: true
       - run:
           name: List clusters
-          command: gcloud container clusters list
+          # fixme:
+          command: |
+            gcloud container clusters list
+            sleep 60
+            gcloud container clusters get-logs gke-yea
       - gke/delete-cluster:
           cluster: gke-yea
 
@@ -482,10 +500,13 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - sdk_gpu_docker
-#      - test_gpu:
-#          requires:
-#            - sdk_gpu_docker
+      - sdk_docker:
+          name: "SDK Docker image for GPU"
+          path: "./standalone_tests/dockerfiles/gke_gpu"
+          image: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
+      - test_gpu:
+          requires:
+            - sdk_gpu_docker
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
