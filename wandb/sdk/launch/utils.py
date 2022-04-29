@@ -189,13 +189,17 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 def is_bare_wandb_uri(uri: str) -> bool:
     """Checks if the uri is of the format /entity/project/runs/run_name"""
     _logger.info(f"Checking if uri {uri} is bare...")
-    if not uri.startswith("/"):
-        return False
-    result = uri.split("/")[1:]
-    # a bare wandb uri will have 4 parts, with the last being the run name
-    # and the second last being "runs"
-    if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
-        return True
+    if uri.startswith("/"):
+        result = uri.split("/")[1:]
+        print(result)
+        # a bare wandb uri will have 4 parts, with the last being the run name
+        # and the second last being "runs"
+        if len(result) == 4 and result[-2] == "runs":
+            return True
+    elif not uri.startswith("/"):
+        result = uri.split("/")
+        if len(result) == 4 and result[-2] == "runs":
+            return True
     return False
 
 
