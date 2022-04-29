@@ -35,6 +35,7 @@ def dir_watcher(settings, file_pusher, tmpdir: py.path.local) -> DirWatcher:
         file_observer_for_testing=Mock(),
     )
 
+
 def write_with_mtime(path: py.path.local, content: bytes, mtime: int) -> None:
     path.write_binary(content)
     os.utime(str(path), (mtime, mtime))
