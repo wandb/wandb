@@ -451,6 +451,8 @@ jobs:
       image_name:
         type: string
         default: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
+      path:
+        type: string
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -470,17 +472,27 @@ jobs:
 #          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
 ##          additional-args: --max-age=20m
 #          perform-login: true
-      - gke/rollout-image:
-          cluster: << parameters.cluster >>
-          container: << parameters.image_name >>
-          deployment: sdk-gpu-deployment
       - run:
-          name: List clusters
+          name: Spin up pod
+          command: |
+            kubectl apply -f << parameters.path >>/pod.yaml
+      - run:
+          name: List clusters and pods
           # fixme:
           command: |
+            echo "Clusters:"
             gcloud container clusters list
+            echo "\nPods:"
+            kubectl get pods
             sleep 60
+            echo "\nCluster logs:"
             gcloud container clusters get-logs << parameters.cluster >>
+            echo "\nPod logs:"
+            kubectl logs gpu-pod
+      - run:
+          name: Delete pod
+          command: |
+            kubectl delete -f << parameters.path >>/pod.yaml
       - gke/delete-cluster:
           cluster: << parameters.cluster >>
 
@@ -515,7 +527,7 @@ workflows:
     jobs:
       - sdk_docker:
           description: "SDK Docker image for GPU"
-          path: "./standalone_tests/dockerfiles/gke_gpu"
+          path: "./standalone_tests/shards/gke_gpu"
           image_name: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
       - test_gpu:
           requires:
