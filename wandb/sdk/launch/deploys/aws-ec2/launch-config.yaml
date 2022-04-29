@@ -13,4 +13,4 @@ build:
 runner:
   type: sagemaker
   role_arn: # TODO: fill in sagemaker execution role
-  output: # TODO: set your sagemaker artifact output bucket
+  s3_output_path: # TODO: set your sagemaker artifact output bucket
