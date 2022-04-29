@@ -18,9 +18,11 @@ if TYPE_CHECKING:
 def file_pusher():
     return Mock()
 
+
 @pytest.fixture
 def settings():
     return Mock(ignore_globs=[])
+
 
 @pytest.fixture
 def dir_watcher(settings, file_pusher, tmpdir: py.path.local) -> DirWatcher:
@@ -31,6 +33,7 @@ def dir_watcher(settings, file_pusher, tmpdir: py.path.local) -> DirWatcher:
         file_dir=str(tmpdir),
         file_observer_for_testing=Mock(),
     )
+
 
 @pytest.mark.parametrize(
     ["write_file", "expect_called"],
@@ -80,31 +83,46 @@ def test_dirwatcher_update_policy_on_nonexistent_file_calls_file_changed_when_fi
     dir_watcher._on_file_created(Mock(src_path=str(f)))
     assert file_pusher.file_changed.called == expect_called
 
-def test_dirwatcher_finish_uploads_unheardof_files(tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher):
+
+def test_dirwatcher_finish_uploads_unheardof_files(
+    tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher
+):
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
     dir_watcher.finish()
-    file_pusher.file_changed.assert_called_once_with('my-file.txt', str(f), copy=False)
+    file_pusher.file_changed.assert_called_once_with("my-file.txt", str(f), copy=False)
 
-def test_dirwatcher_finish_skips_now_files(tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher):
+
+def test_dirwatcher_finish_skips_now_files(
+    tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher
+):
     f = tmpdir / "my-file.txt"
-    dir_watcher.update_policy(str(f), 'now')
+    dir_watcher.update_policy(str(f), "now")
     f.write_binary(b"content")
     dir_watcher.finish()
     file_pusher.file_changed.assert_not_called()
 
-def test_dirwatcher_finish_uploads_end_files(tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher):
-    f = tmpdir / "my-file.txt"
-    f.write_binary(b"content")
-    dir_watcher.update_policy(str(f), 'end')
-    dir_watcher.finish()
-    file_pusher.file_changed.assert_called_once_with('my-file.txt', str(f), copy=False)
 
-@pytest.mark.parametrize('changed', [True, False])
-def test_dirwatcher_finish_uploads_live_files_iff_changed(tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher, changed: bool):
+def test_dirwatcher_finish_uploads_end_files(
+    tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher
+):
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
-    dir_watcher.update_policy(str(f), 'live')
+    dir_watcher.update_policy(str(f), "end")
+    dir_watcher.finish()
+    file_pusher.file_changed.assert_called_once_with("my-file.txt", str(f), copy=False)
+
+
+@pytest.mark.parametrize("changed", [True, False])
+def test_dirwatcher_finish_uploads_live_files_iff_changed(
+    tmpdir: py.path.local,
+    file_pusher: FilePusher,
+    dir_watcher: DirWatcher,
+    changed: bool,
+):
+    f = tmpdir / "my-file.txt"
+    f.write_binary(b"content")
+    dir_watcher.update_policy(str(f), "live")
     if changed:
         f.write_binary(b"new content")
 
@@ -112,49 +130,81 @@ def test_dirwatcher_finish_uploads_live_files_iff_changed(tmpdir: py.path.local,
     dir_watcher.finish()
     assert file_pusher.file_changed.called == changed
 
-@pytest.mark.parametrize('ignore', [True, False])
-def test_dirwatcher_finish_skips_ignoreglob_files(tmpdir: py.path.local, file_pusher: FilePusher, dir_watcher: DirWatcher, settings, ignore: bool):
+
+@pytest.mark.parametrize("ignore", [True, False])
+def test_dirwatcher_finish_skips_ignoreglob_files(
+    tmpdir: py.path.local,
+    file_pusher: FilePusher,
+    dir_watcher: DirWatcher,
+    settings,
+    ignore: bool,
+):
     if ignore:
-        settings.ignore_globs = ['*.txt']
+        settings.ignore_globs = ["*.txt"]
 
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
-    dir_watcher.update_policy(str(f), 'end')
+    dir_watcher.update_policy(str(f), "end")
     dir_watcher.finish()
     assert file_pusher.file_changed.called == (not ignore)
 
-def test_dirwatcher_prefers_live_policy_when_multiple_rules_match_file(tmpdir: py.path.local, dir_watcher: DirWatcher):
+
+def test_dirwatcher_prefers_live_policy_when_multiple_rules_match_file(
+    tmpdir: py.path.local, dir_watcher: DirWatcher
+):
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
-    dir_watcher.update_policy('*.txt', 'live')
-    dir_watcher.update_policy('my-file.*', 'end')
-    dir_watcher.update_policy('my-*.txt', 'now')
-    assert isinstance(dir_watcher._get_file_event_handler(str(f), 'my-file.txt'), PolicyLive)
+    dir_watcher.update_policy("*.txt", "live")
+    dir_watcher.update_policy("my-file.*", "end")
+    dir_watcher.update_policy("my-*.txt", "now")
+    assert isinstance(
+        dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyLive
+    )
 
-@pytest.mark.skip(reason="Surprisingly, this test fails. Do we want to change behavior to make it pass? TODO(spencerpearson)")
-def test_dirwatcher_can_overwrite_policy_for_file(tmpdir: py.path.local, dir_watcher: DirWatcher):
+
+@pytest.mark.skip(
+    reason="Surprisingly, this test fails. Do we want to change behavior to make it pass? TODO(spencerpearson)"
+)
+def test_dirwatcher_can_overwrite_policy_for_file(
+    tmpdir: py.path.local, dir_watcher: DirWatcher
+):
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
-    dir_watcher.update_policy('my-file.txt', 'live')
-    assert isinstance(dir_watcher._get_file_event_handler(str(f), 'my-file.txt'), PolicyLive)
-    dir_watcher.update_policy('my-file.txt', 'end')
-    assert isinstance(dir_watcher._get_file_event_handler(str(f), 'my-file.txt'), PolicyEnd)
+    dir_watcher.update_policy("my-file.txt", "live")
+    assert isinstance(
+        dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyLive
+    )
+    dir_watcher.update_policy("my-file.txt", "end")
+    assert isinstance(
+        dir_watcher._get_file_event_handler(str(f), "my-file.txt"), PolicyEnd
+    )
 
-def test_policylive_uploads_nonempty_unchanged_file_on_modified(tmpdir: py.path.local, file_pusher: Mock):
+
+def test_policylive_uploads_nonempty_unchanged_file_on_modified(
+    tmpdir: py.path.local, file_pusher: Mock
+):
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
     policy = PolicyLive(str(f), f.basename, Mock(), file_pusher)
     policy.on_modified()
     file_pusher.file_changed.assert_called_once_with(f.basename, str(f))
 
-def test_policylive_ratelimits_modified_file_reupload(tmpdir: py.path.local, file_pusher: Mock):
+
+def test_policylive_ratelimits_modified_file_reupload(
+    tmpdir: py.path.local, file_pusher: Mock
+):
     elapsed = 0
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
-    policy = PolicyLive(str(f), f.basename, Mock(), file_pusher, clock_for_testing=lambda: elapsed)
+    policy = PolicyLive(
+        str(f), f.basename, Mock(), file_pusher, clock_for_testing=lambda: elapsed
+    )
     policy.on_modified()
 
-    threshold = max(PolicyLive.RATE_LIMIT_SECONDS, PolicyLive.min_wait_for_size(len(f.read_binary())))
+    threshold = max(
+        PolicyLive.RATE_LIMIT_SECONDS,
+        PolicyLive.min_wait_for_size(len(f.read_binary())),
+    )
 
     file_pusher.reset_mock()
     f.write_binary(b"new content")
@@ -166,10 +216,13 @@ def test_policylive_ratelimits_modified_file_reupload(tmpdir: py.path.local, fil
     policy.on_modified()
     file_pusher.file_changed.assert_called()
 
+
 def test_policylive_forceuploads_on_finish(tmpdir: py.path.local, file_pusher: Mock):
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
-    policy = PolicyLive(str(f), f.basename, Mock(), file_pusher, clock_for_testing=lambda: 0)
+    policy = PolicyLive(
+        str(f), f.basename, Mock(), file_pusher, clock_for_testing=lambda: 0
+    )
     policy.on_modified()
     file_pusher.reset_mock()
 
@@ -179,7 +232,10 @@ def test_policylive_forceuploads_on_finish(tmpdir: py.path.local, file_pusher: M
     policy.finish()  # ...but finish() should force a re-upload
     file_pusher.file_changed.assert_called()
 
-def test_policynow_uploads_on_modified_iff_not_already_uploaded(tmpdir: py.path.local, file_pusher: Mock):
+
+def test_policynow_uploads_on_modified_iff_not_already_uploaded(
+    tmpdir: py.path.local, file_pusher: Mock
+):
     f = tmpdir / "my-file.txt"
     f.write_binary(b"content")
     policy = PolicyNow(str(f), f.basename, Mock(), file_pusher)

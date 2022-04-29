@@ -194,7 +194,11 @@ class DirWatcher:
         self._file_pusher = file_pusher
         self._file_event_handlers = {}
 
-        self._file_observer = wd_polling.PollingObserver() if file_observer_for_testing is None else file_observer_for_testing
+        self._file_observer = (
+            wd_polling.PollingObserver()
+            if file_observer_for_testing is None
+            else file_observer_for_testing
+        )
         self._file_observer.schedule(
             self._per_file_event_handler(), self._dir, recursive=True
         )
