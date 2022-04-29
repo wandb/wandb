@@ -376,7 +376,32 @@ jobs:
           event: always
           channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
+  sdk_gpu_docker:
+    docker:
+      - image: 'cimg/base:stable'
+    steps:
+      - checkout
+      - gke/install
+      - run:
+          name: Update gcloud components
+          command: gcloud --quiet components update
+#      - restore-sdk-gpu-cache
+      - run:
+          name: Build SDK Docker image for GPU
+          command: |
+            cd ./standalone_tests/dockerfiles/gke_gpu
+            docker build -t wandb-client-cicd/gpu-sdk-image:latest .
+#      - save-sdk-gpu-cache
+      # push to artifact registry on GCP
+      - run:
+          name: Push SDK Docker image for GPU
+          command: |
+            gcloud auth configure-docker
+            docker push wandb-client-cicd/gpu-sdk-image:latest
+
   test_gpu:
+    requires:
+      - sdk_gpu_docker
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -430,7 +455,8 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - test_gpu
+      - sdk_gpu_docker
+#      - test_gpu
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
