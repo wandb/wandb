@@ -441,7 +441,18 @@ jobs:
           command: |
             docker push << parameters.image_name >>
 
+  - sdk_gpu_docker:
+      steps:
+        - sdk_docker:
+            description: "SDK Docker image for GPU"
+            path: "./standalone_tests/dockerfiles/gke_gpu"
+            image_name: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
+
   test_gpu:
+    parameters:
+      cluster:
+        type: string
+        default: "gke-yea"
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -454,8 +465,8 @@ jobs:
           name: Update gcloud components
           command: gcloud --quiet components update
       - create_gke_cluster:
-          cluster: gke-yea
-          image: gcr.io/wandb-client-cicd/gpu-sdk-image:latest
+          cluster: << parameters.cluster >>
+          image: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
 #      - gke/create-cluster:
 #          cluster: gcp-testing
 #          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
@@ -467,9 +478,9 @@ jobs:
           command: |
             gcloud container clusters list
             sleep 60
-            gcloud container clusters get-logs gke-yea
+            gcloud container clusters get-logs << parameters.cluster >>
       - gke/delete-cluster:
-          cluster: gke-yea
+          cluster: << parameters.cluster >>
 
 workflows:
   nightly:
@@ -500,10 +511,7 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - sdk_docker:
-          description: "SDK Docker image for GPU"
-          path: "./standalone_tests/dockerfiles/gke_gpu"
-          image_name: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
+      - sdk_gpu_docker
       - test_gpu:
           requires:
             - sdk_gpu_docker
