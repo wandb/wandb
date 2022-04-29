@@ -8,7 +8,7 @@ RUN apt-key adv --fetch-keys \
 
 ARG PYTHON_VERSION=3.8
 
-# Install some basic utilities
+# todo: enable docker image layer caching on circleci
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
@@ -34,21 +34,10 @@ RUN chmod 777 /home/sdk
 # clone wandb/client repository and install wandb sdk
 RUN git clone https://github.com/wandb/client.git /wandb/client \
     && cd /wandb/client \
-    && pip install -e .
+    && pip install -e . \
+    && pip install numpy torch torchvision --no-cache-dir
+# todo: replace with a proper tox+yea setup with
+#    && pip install -r requirements_dev.txt \
 
-CMD ["python"]
-
-## Set up the Conda environment instead?
-#ENV CONDA_AUTO_UPDATE_CONDA=false \
-#    PATH=/home/user/miniconda/bin:$PATH
-#COPY environment.yml /app/environment.yml
-#RUN curl -sLo ~/miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-py39_4.10.3-Linux-x86_64.sh \
-# && chmod +x ~/miniconda.sh \
-# && ~/miniconda.sh -b -p ~/miniconda \
-# && rm ~/miniconda.sh \
-# && conda env update -n base -f /app/environment.yml \
-# && rm /app/environment.yml \
-# && conda clean -ya
-#
-## Set the default command to python3
-#CMD ["python3"]
+WORKDIR /wandb/client
+CMD ["python", "standalone_tests/pytorch_bare.py"]
