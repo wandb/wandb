@@ -163,7 +163,6 @@ commands:
           name: Create GKE cluster
           command: |
             gcloud container clusters create $GKE_CLUSTER_NAME \
-            --image=<< parameters.image >> \
             --num-nodes=1 --machine-type=n1-standard-2 \
             --disk-size=100 --disk-type=pd-ssd \
             --accelerator=type=nvidia-tesla-t4,count=1
@@ -432,7 +431,10 @@ jobs:
           name: Build << parameters.description >>
           command: |
             cd << parameters.path >>
-            docker build -t << parameters.image_name >> .
+            docker build \
+              -t << parameters.image_name >> \
+              --build-arg PYTHON_VERSION=3.8 \
+              .
 #      - save-sdk-gpu-cache
       - setup_gcloud
       # push to artifact registry on GCP
@@ -446,6 +448,9 @@ jobs:
       cluster:
         type: string
         default: "gke-yea"
+      image_name:
+        type: string
+        default: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -459,12 +464,16 @@ jobs:
           command: gcloud --quiet components update
       - create_gke_cluster:
           cluster: << parameters.cluster >>
-          image: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
+          image: << parameters.image_name >>
 #      - gke/create-cluster:
 #          cluster: gcp-testing
 #          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
 ##          additional-args: --max-age=20m
 #          perform-login: true
+      - gke/rollout-image:
+          cluster: << parameters.cluster >>
+          container: << parameters.image_name >>
+          deployment: sdk-gpu-deployment
       - run:
           name: List clusters
           # fixme:
@@ -507,7 +516,7 @@ workflows:
       - sdk_docker:
           description: "SDK Docker image for GPU"
           path: "./standalone_tests/dockerfiles/gke_gpu"
-          image_name: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
+          image_name: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
       - test_gpu:
           requires:
             - sdk_docker
