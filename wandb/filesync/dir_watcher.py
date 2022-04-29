@@ -122,12 +122,13 @@ class PolicyLive(FileEventHandler):
     def current_size(self) -> int:
         return os.path.getsize(self.file_path)
 
-    def min_wait_for_size(self, size: int) -> float:
-        if self.current_size < self.TEN_MB:
+    @classmethod
+    def min_wait_for_size(cls, size: int) -> float:
+        if size < cls.TEN_MB:
             return 60
-        elif self.current_size < self.HUNDRED_MB:
+        elif size < cls.HUNDRED_MB:
             return 5 * 60
-        elif self.current_size < self.ONE_GB:
+        elif size < cls.ONE_GB:
             return 10 * 60
         else:
             return 20 * 60
