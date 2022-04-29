@@ -109,6 +109,16 @@ commands:
           name: Install jsonnet
           command: |
             go get github.com/google/go-jsonnet/cmd/jsonnet
+  setup_gcloud:
+    steps:
+      - run:
+          name: Setup gcloud
+          command: |
+            echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+            gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
+            gcloud --quiet config set project $GOOGLE_PROJECT_ID
+            gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
+            gcloud auth configure-docker --quiet gcr.io
   create_gke_cluster:
     parameters:
       cluster:
@@ -123,13 +133,10 @@ commands:
         type: string
         default: 10m
     steps:
+      - setup_gcloud
       - run:
           name: Create GKE cluster
           command: |
-            echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-            gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
-            gcloud --quiet config set project $GOOGLE_PROJECT_ID
-            gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
             gcloud container clusters create $GKE_CLUSTER_NAME \
             --num-nodes=1 --machine-type=n1-standard-2 \
             --disk-size=100 --disk-type=pd-ssd \
@@ -378,7 +385,7 @@ jobs:
 
   sdk_gpu_docker:
     docker:
-      - image: 'cimg/base:stable'
+      - image: 'google/cloud-sdk:alpine'
     steps:
       - checkout
       - gke/install
@@ -392,11 +399,11 @@ jobs:
             cd ./standalone_tests/dockerfiles/gke_gpu
             docker build -t wandb-client-cicd/gpu-sdk-image:latest .
 #      - save-sdk-gpu-cache
+      - setup_gcloud
       # push to artifact registry on GCP
       - run:
           name: Push SDK Docker image for GPU
           command: |
-            gcloud auth configure-docker
             docker push wandb-client-cicd/gpu-sdk-image:latest
 
   test_gpu:
