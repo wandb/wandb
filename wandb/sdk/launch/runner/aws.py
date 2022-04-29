@@ -117,14 +117,21 @@ class AWSSagemakerRunner(AbstractRunner):
         try:
             client = boto3.client("sts")
             instance_role = True
-            role_arn = client.get_caller_identity()["Arn"]
+            caller_id = client.get_caller_identity()
 
         except botocore.exceptions.NoCredentialsError:
             access_key, secret_key = get_aws_credentials(given_sagemaker_args)
             client = boto3.client(
                 "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
             )
-        account_id = client.get_caller_identity()["Account"]
+            caller_id = client.get_caller_identity()
+            # role_arn = given_sagemaker_args
+
+        account_id = caller_id["Account"]
+        if instance_role:
+            role_arn = caller_id["Arn"]
+        else:
+            role_arn = get_role_arn(given_sagemaker_args, account_id)
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
@@ -286,7 +293,7 @@ def merge_aws_tag_with_algorithm_specification(
 def build_sagemaker_args(
     launch_project: LaunchProject,
     api: Api,
-    account_id: str,
+    role_arn: str,
     aws_tag: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args = {}
@@ -309,7 +316,7 @@ def build_sagemaker_args(
         aws_tag,
     )
 
-    sagemaker_args["RoleArn"] = get_role_arn(given_sagemaker_args, account_id)
+    sagemaker_args["RoleArn"] = role_arn
 
     camel_case_args = {
         to_camel_case(key): item for key, item in given_sagemaker_args.items()
