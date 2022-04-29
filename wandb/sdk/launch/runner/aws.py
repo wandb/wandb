@@ -121,6 +121,7 @@ class AWSSagemakerRunner(AbstractRunner):
             caller_id = client.get_caller_identity()
 
         except botocore.exceptions.NoCredentialsError:
+            wandb.termlog("Got NoCredentialsError, assuming not instance role")
             access_key, secret_key = get_aws_credentials(given_sagemaker_args)
             client = boto3.client(
                 "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
