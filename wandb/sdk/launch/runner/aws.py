@@ -117,6 +117,7 @@ class AWSSagemakerRunner(AbstractRunner):
         try:
             client = boto3.client("sts")
             instance_role = True
+            role_arn = client.get_caller_identity()["Arn"]
 
         except botocore.exceptions.NoCredentialsError:
             access_key, secret_key = get_aws_credentials(given_sagemaker_args)
@@ -216,13 +217,15 @@ class AWSSagemakerRunner(AbstractRunner):
             return None
 
         _logger.info("Connecting to sagemaker client")
-
-        sagemaker_client = boto3.client(
-            "sagemaker",
-            region_name=region,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
+        if instance_role:
+            sagemaker_client = boto3.client("sagemaker", region_name=region)
+        else:
+            sagemaker_client = boto3.client(
+                "sagemaker",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
 
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
