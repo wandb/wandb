@@ -39,5 +39,7 @@ RUN git clone https://github.com/wandb/client.git /wandb/client \
 # todo: replace with a proper tox+yea setup with
 #    && pip install -r requirements_dev.txt \
 
+RUN PATH=/home/sdk/.local/bin:$PATH
+
 WORKDIR /wandb/client
 CMD ["python", "standalone_tests/pytorch_bare.py"]

@@ -419,7 +419,7 @@ jobs:
           name: Build SDK Docker image for GPU
           command: |
             cd ./standalone_tests/dockerfiles/gke_gpu
-            docker build -t wandb-client-cicd/gpu-sdk-image:latest .
+            docker build -t gcr.io/wandb-client-cicd/gpu-sdk-image:latest .
 #      - save-sdk-gpu-cache
       - setup_gcloud
       # push to artifact registry on GCP
