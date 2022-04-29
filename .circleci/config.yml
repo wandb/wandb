@@ -456,7 +456,7 @@ jobs:
     docker:
       - image: 'cimg/base:stable'
     steps:
-#      - checkout
+      - checkout
       - go/install
       - checkout_ml_testing_accelerators
       - install_jsonnet
@@ -478,18 +478,20 @@ jobs:
             kubectl apply -f << parameters.path >>/pod.yaml
       - run:
           name: List clusters and pods
-          # fixme:
+          # todo: use kubectl wait instead
           command: |
             echo "Clusters:"
             gcloud container clusters list
             echo "\nPods:"
             kubectl get pods
-            sleep 60
+            sleep 180
             echo "\nCluster logs:"
             gcloud container clusters get-logs << parameters.cluster >>
             echo "\nPod logs:"
             kubectl logs gpu-pod
       - run:
+          # todo: think deeply about how to ensure this happens regardless of the
+          #  pipeline state/outcomes of the individual tests
           name: Delete pod
           command: |
             kubectl delete -f << parameters.path >>/pod.yaml
