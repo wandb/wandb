@@ -47,11 +47,13 @@ class StreamRecord:
     _iface: InterfaceRelay
     _thread: StreamThread
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
+    _is_sync: bool
 
-    def __init__(self, settings: Dict[str, Any]) -> None:
+    def __init__(self, settings: Dict[str, Any], is_sync=False) -> None:
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
         self._relay_q = multiprocessing.Queue()
+        self._is_sync = is_sync
         process = multiprocessing.current_process()
         self._iface = InterfaceRelay(
             record_q=self._record_q,
@@ -147,8 +149,8 @@ class StreamMux:
     def set_pid(self, pid: int) -> None:
         self._pid = pid
 
-    def add_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
-        action = StreamAction(action="add", stream_id=stream_id, data=settings)
+    def add_stream(self, stream_id: str, settings: Dict[str, Any], is_sync: bool = False) -> None:
+        action = StreamAction(action="add", stream_id=stream_id, data=(settings, is_sync))
         self._action_q.put(action)
         action.wait_handled()
 
@@ -187,9 +189,9 @@ class StreamMux:
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord(action._data)
+        settings_dict, is_sync = action._data
+        stream = StreamRecord(settings_dict, is_sync=is_sync)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
-        settings_dict = action._data
         settings_dict[
             "_log_level"
         ] = (
@@ -279,6 +281,7 @@ class StreamMux:
         with self._streams_lock:
             # TODO: mark streams to prevent new modifications?
             streams_copy = self._streams.copy()
+        streams_copy = {k: v for k, v in streams_copy.items() if not v._is_sync}
         self._finish_all(streams_copy, exit_code)
         with self._streams_lock:
             self._streams = dict()

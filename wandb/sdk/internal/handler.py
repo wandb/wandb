@@ -72,6 +72,7 @@ class HandleManager:
     _stopped: Event
     _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
+    _reader_q: "Queue[Record]"
     _interface: InterfaceQueue
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
@@ -91,6 +92,7 @@ class HandleManager:
         stopped: Event,
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
+        reader_q: "Queue[Record]",
         interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
@@ -99,6 +101,7 @@ class HandleManager:
         self._stopped = stopped
         self._sender_q = sender_q
         self._writer_q = writer_q
+        self._reader_q = reader_q
         self._interface = interface
 
         self._tb_watcher = None
@@ -584,8 +587,8 @@ class HandleManager:
     def handle_sync(self, record: Record) -> None:
         print("handle sync")
 
-        # read from data store up to some about of data.. and schedule work
-        # this could be in the handler or in another thread? lots of choices
+        # pass message to reader thread
+        self._reader_q.put(record)
 
     def handle_exit(self, record: Record) -> None:
         if self._track_time is not None:

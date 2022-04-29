@@ -502,14 +502,14 @@ def sync2(
     path=None,
     ):
     wandb.require("service")
-    settings_dict = dict(run_id="sync2")
+    run_id = "sync2b3"
+    settings_dict = dict(run_id="sync2b3")
     _wl = wandb_setup.setup(settings=settings_dict)
     _hack_setup_logging(_wl, _wl.settings)
     manager = _wl._get_manager()
     assert manager
     settings: Settings = _wl.settings.copy()
     print("SET", settings)
-    run_id = "sync2"
     settings.update(dict(run_id=run_id))
     # manager._inform_init(settings=settings, run_id=settings.run_id)
     manager._inform_sync(settings=settings, run_id=run_id)

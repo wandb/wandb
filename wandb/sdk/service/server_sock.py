@@ -178,7 +178,7 @@ class SockServerReadThread(threading.Thread):
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
         print("server sync", stream_id)
-        self._mux.add_stream(stream_id, settings=settings)
+        self._mux.add_stream(stream_id, settings=settings, is_sync=True)
 
         iface = self._mux.get_stream(stream_id).interface
         self._clients.add_client(self._sock_client)
