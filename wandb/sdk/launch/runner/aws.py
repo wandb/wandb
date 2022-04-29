@@ -121,20 +121,15 @@ class AWSSagemakerRunner(AbstractRunner):
             caller_id = client.get_caller_identity()
 
         except botocore.exceptions.NoCredentialsError:
-            wandb.termlog("Got NoCredentialsError, assuming not instance role")
             access_key, secret_key = get_aws_credentials(given_sagemaker_args)
             client = boto3.client(
                 "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
             )
             caller_id = client.get_caller_identity()
-            # role_arn = given_sagemaker_args
 
         account_id = caller_id["Account"]
         if instance_role:
-            arn = caller_id["Arn"]
-            wandb.termlog(f"ARN {arn}")
-            role_arn = f"arn:aws:iam::{account_id}:role/{arn}"
-            wandb.termlog(role_arn)
+            role_arn = caller_id["Arn"]
         else:
             role_arn = get_role_arn(given_sagemaker_args, account_id)
 
@@ -250,7 +245,7 @@ class AWSSagemakerRunner(AbstractRunner):
             )
 
         sagemaker_args = build_sagemaker_args(
-            launch_project, self._api, account_id, image
+            launch_project, self._api, role_arn, image
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
