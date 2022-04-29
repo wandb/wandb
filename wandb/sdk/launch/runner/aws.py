@@ -89,6 +89,10 @@ class AWSSagemakerRunner(AbstractRunner):
             "boto3",
             "AWSSagemakerRunner requires boto3 to be installed,  install with pip install wandb[launch]",
         )
+        botocore = get_module(
+            "botocore",
+            "AWSSagemakerRunner requires botocore to be installed,  install with pip install wandb[launch]",
+        )
 
         given_sagemaker_args = launch_project.resource_args.get("sagemaker")
         if given_sagemaker_args is None:
@@ -99,19 +103,26 @@ class AWSSagemakerRunner(AbstractRunner):
             given_sagemaker_args.get(
                 "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
             )
-            is None
+            and registry_config.get("url") is None is None
         ):
             raise LaunchError(
                 "AWS sagemaker requires an ECR Repo to push the container to "
                 "set this by adding a `EcrRepoName` key to the sagemaker"
-                "field of resource_args"
+                "field of resource_args or through the url key in the registry section "
+                "of the launch agent config."
             )
 
-        region = get_region(given_sagemaker_args)
-        access_key, secret_key = get_aws_credentials(given_sagemaker_args)
-        client = boto3.client(
-            "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
-        )
+        region = get_region(given_sagemaker_args, registry_config.get("region"))
+        instance_role = False
+        try:
+            client = boto3.client("sts")
+            instance_role = True
+
+        except botocore.exceptions.NoCredentialsError:
+            access_key, secret_key = get_aws_credentials(given_sagemaker_args)
+            client = boto3.client(
+                "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+            )
         account_id = client.get_caller_identity()["Account"]
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
@@ -119,12 +130,15 @@ class AWSSagemakerRunner(AbstractRunner):
             given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
             is not None
         ):
-            sagemaker_client = boto3.client(
-                "sagemaker",
-                region_name=region,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-            )
+            if instance_role:
+                sagemaker_client = boto3.client("sagemaker", region_name=region)
+            else:
+                sagemaker_client = boto3.client(
+                    "sagemaker",
+                    region_name=region,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                )
             sagemaker_args = build_sagemaker_args(launch_project, self._api, account_id)
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
@@ -135,12 +149,15 @@ class AWSSagemakerRunner(AbstractRunner):
             return run
 
         _logger.info("Connecting to AWS ECR Client")
-        ecr_client = boto3.client(
-            "ecr",
-            region_name=region,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
+        if instance_role:
+            ecr_client = boto3.client("ecr", region_name=region)
+        else:
+            ecr_client = boto3.client(
+                "ecr",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
         token = ecr_client.get_authorization_token()
 
         ecr_repo_name = given_sagemaker_args.get(
@@ -352,8 +369,12 @@ def launch_sagemaker_job(
     return run
 
 
-def get_region(sagemaker_args: Dict[str, Any]) -> str:
+def get_region(
+    sagemaker_args: Dict[str, Any], registry_config_region: Optional[str] = None
+) -> str:
     region = sagemaker_args.get("region")
+    if region is None:
+        region = registry_config_region
     if region is None:
         region = os.environ.get("AWS_DEFAULT_REGION")
     if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):

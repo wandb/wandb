@@ -1,0 +1,19 @@
+version: 1
+project: uncategorized
+max_jobs: -1
+base_url: https://api.wandb.ai
+queues:
+ - default
+image_registry: 
+  url: # TODO: fill in uri of ECR Repo
+  ecr-repo-provider: "AWS"
+  region: "" # TODO: fill in region of ECR repo
+build: # Docker/Kaniko/...
+  # if kaniko
+  # type: "Kaniko"
+  cloud-provider: #AWS/GCP/Azure
+    credentials: #static/instance
+      # if static secret-name
+      secret-name: # user provided
+      # instance no op - all pods have access to ecr and s3
+    build-context-store: # under cloud provider because for now we don't support cross context
