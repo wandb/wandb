@@ -1,19 +1,16 @@
 version: 1
-project: uncategorized
-max_jobs: -1
-base_url: https://api.wandb.ai
+project: launch-welcome # TODO: set your project
+max_jobs: -1 # TODO: set the maximum number of concurrent jobs
+base_url: https://api.wandb.ai # TODO: set your api url
 queues:
  - default
-image_registry: 
-  url: # TODO: fill in uri of ECR Repo
-  ecr-repo-provider: "AWS"
-  region: "" # TODO: fill in region of ECR repo
-build: # Docker/Kaniko/...
-  # if kaniko
-  # type: "Kaniko"
-  cloud-provider: #AWS/GCP/Azure
-    credentials: #static/instance
-      # if static secret-name
-      secret-name: # user provided
-      # instance no op - all pods have access to ecr and s3
-    build-context-store: # under cloud provider because for now we don't support cross context
+registry: 
+  url: # TODO: fill in url of ECR Repo
+  ecr-repo-provider: AWS
+  region: us-east-1 # TODO: fill in region of ECR repo
+build:
+  type: docker
+runner:
+  type: sagemaker
+  role_arn: # TODO: fill in sagemaker execution role
+  output: # TODO: set your sagemaker artifact output bucket

@@ -113,6 +113,8 @@ class AWSSagemakerRunner(AbstractRunner):
                 "of the launch agent config."
             )
 
+        default_output_path = self.backend_config.get("runner", {}).get("output")
+
         region = get_region(given_sagemaker_args, registry_config.get("region"))
         instance_role = False
         try:
@@ -144,7 +146,9 @@ class AWSSagemakerRunner(AbstractRunner):
                     aws_access_key_id=access_key,
                     aws_secret_access_key=secret_key,
                 )
-            sagemaker_args = build_sagemaker_args(launch_project, self._api, account_id)
+            sagemaker_args = build_sagemaker_args(
+                launch_project, self._api, account_id, default_output_path
+            )
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
@@ -242,7 +246,7 @@ class AWSSagemakerRunner(AbstractRunner):
             )
 
         sagemaker_args = build_sagemaker_args(
-            launch_project, self._api, role_arn, image
+            launch_project, self._api, role_arn, image, default_output_path
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
@@ -292,12 +296,21 @@ def build_sagemaker_args(
     api: Api,
     role_arn: str,
     aws_tag: Optional[str] = None,
+    default_output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args = {}
     given_sagemaker_args = launch_project.resource_args.get("sagemaker")
+
     if given_sagemaker_args is None:
         raise LaunchError(
             "No sagemaker args specified. Specify sagemaker args in resource_args"
+        )
+    if sagemaker_args.get("OutputDataConfig") is None:
+        sagemaker_args["OutputDataConfig"] = default_output_path
+
+    if sagemaker_args.get("OutputDataConfig") is None:
+        raise LaunchError(
+            "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
         )
     sagemaker_args["TrainingJobName"] = (
         given_sagemaker_args.get("TrainingJobName") or launch_project.run_id
@@ -322,11 +335,6 @@ def build_sagemaker_args(
         **camel_case_args,
         **sagemaker_args,
     }
-
-    if sagemaker_args.get("OutputDataConfig") is None:
-        raise LaunchError(
-            "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
-        )
 
     if sagemaker_args.get("ResourceConfig") is None:
         raise LaunchError(
