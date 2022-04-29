@@ -411,11 +411,11 @@ jobs:
 
   sdk_docker:
     parameters:
-      name:
+      description:
         type: string
       path:
         type: string
-      image:
+      image_name:
         type: string
     docker:
       - image: 'google/cloud-sdk:alpine'
@@ -429,17 +429,17 @@ jobs:
       - setup_docker_buildx:
           docker_layer_caching: false
       - run:
-          name: Build << parameters.name >>
+          name: Build << parameters.description >>
           command: |
             cd << parameters.path >>
-            docker build -t << parameters.image >> .
+            docker build -t << parameters.image_name >> .
 #      - save-sdk-gpu-cache
       - setup_gcloud
       # push to artifact registry on GCP
       - run:
-          name: Push << parameters.name >>
+          name: Push << parameters.description >>
           command: |
-            docker push gcr.io/wandb-client-cicd/gpu-sdk-image:latest
+            docker push << parameters.image_name >>
 
   test_gpu:
     docker:
@@ -501,9 +501,9 @@ workflows:
         - not: << pipeline.parameters.manual >>
     jobs:
       - sdk_docker:
-          name: "SDK Docker image for GPU"
+          description: "SDK Docker image for GPU"
           path: "./standalone_tests/dockerfiles/gke_gpu"
-          image: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
+          image_name: "gcr.io/wandb-client-cicd/gpu-sdk-image:latest"
       - test_gpu:
           requires:
             - sdk_gpu_docker
