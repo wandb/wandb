@@ -51,7 +51,7 @@ class SockClient:
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
         header = struct.pack("<BI", ord("W"), raw_size)
-        self._sock.send(header + data)
+        self._sock.sendall(header + data)
 
     def send_server_request(self, msg: Any) -> None:
         self._send_message(msg)
@@ -71,7 +71,7 @@ class SockClient:
         inform_start: spb.ServerInformStartRequest = None,
         inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
-        inform_teardown: spb.ServerInformTeardownRequest = None
+        inform_teardown: spb.ServerInformTeardownRequest = None,
     ) -> spb.ServerResponse:
         self.send(
             inform_init=inform_init,
@@ -95,7 +95,7 @@ class SockClient:
         inform_start: spb.ServerInformStartRequest = None,
         inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
-        inform_teardown: spb.ServerInformTeardownRequest = None
+        inform_teardown: spb.ServerInformTeardownRequest = None,
     ) -> None:
         server_req = spb.ServerRequest()
         if inform_init:
