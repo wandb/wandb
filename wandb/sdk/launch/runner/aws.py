@@ -103,7 +103,8 @@ class AWSSagemakerRunner(AbstractRunner):
             given_sagemaker_args.get(
                 "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
             )
-            and registry_config.get("url") is None is None
+            is None
+            and registry_config.get("url") is None
         ):
             raise LaunchError(
                 "AWS sagemaker requires an ECR Repo to push the container to "
