@@ -130,7 +130,10 @@ class AWSSagemakerRunner(AbstractRunner):
 
         account_id = caller_id["Account"]
         if instance_role:
-            role_arn = caller_id["Arn"]
+            arn = caller_id["Arn"]
+            wandb.termlog(f"ARN {arn}")
+            role_arn = f"arn:aws:iam::{account_id}:role/{arn}"
+            wandb.termlog(role_arn)
         else:
             role_arn = get_role_arn(given_sagemaker_args, account_id)
 
