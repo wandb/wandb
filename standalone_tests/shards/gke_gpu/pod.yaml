@@ -4,7 +4,7 @@ metadata:
   name: gpu-pod
 spec:
   containers:
-  - name: sdk_gpu
+  - name: gpu-sdk
     image: wandb-client-cicd/gpu-sdk:latest
 #    ports:
 #    - containerPort: 80
