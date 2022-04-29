@@ -107,7 +107,7 @@ class AWSSagemakerRunner(AbstractRunner):
             and registry_config.get("url") is None
         ):
             raise LaunchError(
-                "AWS sagemaker requires an ECR Repo to push the container to "
+                "AWS sagemaker requires an ECR Repository to push the container to "
                 "set this by adding a `EcrRepoName` key to the sagemaker"
                 "field of resource_args or through the url key in the registry section "
                 "of the launch agent config."
@@ -185,7 +185,7 @@ class AWSSagemakerRunner(AbstractRunner):
                 "Must provide a repository url either through resource args or launch config file"
             )
 
-        if registry_config.get("ecr-repo-provider", "aws") != "aws":
+        if registry_config.get("ecr-repo-provider", "aws").lower() != "aws":
             raise LaunchError(
                 "Sagemaker jobs requires an AWS ECR Repo to push the container to"
             )
