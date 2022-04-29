@@ -180,6 +180,11 @@ class LaunchAgent:
             self.default_config, override_build_config, override_registry_config
         )
         builder = load_builder(build_config)
+        if (
+            self.config.get("runner") is not None
+            and self.config["runner"].get("type") == resource
+        ):
+            backend_config["runner"] = self.config.get("runner")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")

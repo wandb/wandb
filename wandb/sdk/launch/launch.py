@@ -37,6 +37,7 @@ def resolve_agent_config(
         "base_url": api.settings("base_url"),
         "registry": {},
         "build": {},
+        "runner": {},
     }
 
     resolved_config: Dict[str, Any] = defaults

@@ -132,6 +132,7 @@ class AWSSagemakerRunner(AbstractRunner):
             role_arn = caller_id["Arn"]
         else:
             role_arn = get_role_arn(given_sagemaker_args, account_id)
+        role_arn = get_role_arn(given_sagemaker_args, self.backend_config, account_id)
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
@@ -435,8 +436,12 @@ def get_aws_credentials(sagemaker_args: Dict[str, Any]) -> Tuple[str, str]:
     return access_key, secret_key
 
 
-def get_role_arn(sagemaker_args: Dict[str, Any], account_id: str) -> str:
+def get_role_arn(
+    sagemaker_args: Dict[str, Any], backend_config: Dict[str, Any], account_id: str
+) -> str:
     role_arn = sagemaker_args.get("RoleArn") or sagemaker_args.get("role_arn")
+    if role_arn is None:
+        role_arn = backend_config.get("runner", {}).get("role_arn")
     if role_arn is None or not isinstance(role_arn, str):
         raise LaunchError(
             "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"
