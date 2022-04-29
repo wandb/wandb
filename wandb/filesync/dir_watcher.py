@@ -9,7 +9,6 @@ from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.internal.file_pusher import FilePusher
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.settings_static import SettingsStatic
 
 wd_polling = util.vendor_import("watchdog.observers.polling")
@@ -29,7 +28,6 @@ class FileEventHandler:
         self,
         file_path: PathStr,
         save_name: SaveName,
-        api: Api,
         file_pusher: FilePusher,
         *args,
         **kwargs
@@ -40,7 +38,6 @@ class FileEventHandler:
         self.save_name = save_name
         self._file_pusher = file_pusher
         self._last_sync = None
-        self._api = api
 
     @property
     def synced(self) -> bool:
@@ -109,12 +106,11 @@ class PolicyLive(FileEventHandler):
         self,
         file_path: PathStr,
         save_name: SaveName,
-        api: Api,
         file_pusher: FilePusher,
         *args,
         **kwargs
     ):
-        super().__init__(file_path, save_name, api, file_pusher, *args, **kwargs)
+        super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
 
@@ -174,11 +170,9 @@ class DirWatcher:
     def __init__(
         self,
         settings: SettingsStatic,
-        api: Api,
         file_pusher: FilePusher,
         file_dir: Optional[PathStr] = None,
     ):
-        self._api = api
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
@@ -287,7 +281,7 @@ class DirWatcher:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:
                 self._file_event_handlers[save_name] = PolicyLive(
-                    file_path, save_name, self._api, self._file_pusher
+                    file_path, save_name, self._file_pusher
                 )
             else:
                 make_handler = PolicyEnd
@@ -304,7 +298,7 @@ class DirWatcher:
                             elif policy == "now":
                                 make_handler = PolicyNow
                 self._file_event_handlers[save_name] = make_handler(
-                    file_path, save_name, self._api, self._file_pusher
+                    file_path, save_name, self._file_pusher
                 )
         return self._file_event_handlers[save_name]
 
