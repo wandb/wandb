@@ -231,7 +231,6 @@ class StreamMux:
             return
 
         # TODO(settings) remove type ignore once SettingsStatic and Settings unified
-        print("")
         printer = get_printer(
             all(stream._settings._jupyter for stream in streams.values())
         )
