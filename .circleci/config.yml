@@ -159,6 +159,14 @@ commands:
         type: string
     steps:
       - setup_gcloud
+      # todo: check if cluster exists, delete if it does
+      - run:
+          name: Check if cluster exists and delete if it does
+          command: |
+            gcloud container clusters list --filter="name=<< parameters.cluster >>" --format="value(name)"
+            if [ $? -eq 0 ]; then
+              gcloud container clusters delete << parameters.cluster >> --quiet
+            fi
       - run:
           name: Create GKE cluster
           command: |
@@ -443,6 +451,16 @@ jobs:
           command: |
             docker push << parameters.image_name >>
 
+  # todo: think about an alternative to this:
+  #  - spin_up_cluster job that creates a cluster and returns success
+  #  - individual test jobs that use the cluster created by the spin_up_cluster job
+  #     - each requires spin_up_cluster to be run first
+  #     - each runs in parallel
+  #     - installs gcloud and gke and spins up a pod, deploys the test,
+  #       then polls the pod for results, and finally deletes the pod
+  #  - shut_down_cluster job that deletes the cluster created by the spin_up_cluster job
+  #     - requires spin_up_cluster to be run first
+  #     -
   test_gpu:
     parameters:
       cluster:
@@ -482,12 +500,15 @@ jobs:
           command: |
             echo "Clusters:"
             gcloud container clusters list
-            echo "\nPods:"
+            echo ""
+            echo "Pods:"
             kubectl get pods
             sleep 180
-            echo "\nCluster logs:"
+            echo ""
+            echo "Cluster logs:"
             gcloud container clusters get-logs << parameters.cluster >>
-            echo "\nPod logs:"
+            echo ""
+            echo "Pod logs:"
             kubectl logs gpu-pod
       - run:
           # todo: think deeply about how to ensure this happens regardless of the

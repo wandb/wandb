@@ -5,6 +5,6 @@ metadata:
 spec:
   containers:
   - name: gpu-sdk
-    image: wandb-client-cicd/gpu-sdk:latest
+    image: gcr.io/wandb-client-cicd/gpu-sdk:latest
 #    ports:
 #    - containerPort: 80
