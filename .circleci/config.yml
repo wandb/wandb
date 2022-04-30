@@ -505,9 +505,6 @@ jobs:
             kubectl get pods
             sleep 180
             echo ""
-            echo "Cluster logs:"
-            gcloud container clusters get-logs << parameters.cluster >>
-            echo ""
             echo "Pod logs:"
             kubectl logs gpu-pod
       - run:
