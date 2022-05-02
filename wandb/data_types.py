@@ -112,7 +112,11 @@ def _json_helper(val, artifact):
         return res
 
     if hasattr(val, "tolist"):
-        return _json_helper(val.tolist(), artifact)
+        if val.__class__.__name__ == 'datetime64':
+            # numpy datetime64 .tolist() returns nanoseconds. need to convert to milliseconds
+            return _json_helper(val.tolist() / int(1e6), artifact)
+        else:
+            return _json_helper(val.tolist(), artifact)
     elif hasattr(val, "item"):
         return _json_helper(val.item(), artifact)
 
