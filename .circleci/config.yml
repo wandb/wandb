@@ -430,7 +430,7 @@ jobs:
         type: string
       python_version:
         type: string
-        default: 3.8
+        default: "3.8"
       git_branch:
         type: string
         default: nightly
