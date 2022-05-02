@@ -530,7 +530,7 @@ jobs:
           command: |
             sleep 30
             kubectl logs -f << parameters.path >>/pod.yaml
-            exit_code=$(grep -c 'exit_code: 0' <<< "$(kubectl logs -f << parameters.path >>/pod.yaml)")
+            exit_code=$("$(kubectl logs -f << parameters.path >>/pod.yaml)" | grep -c 'exit_code: 0')
             if [ "$exit_code" -eq "1" ]; then
               echo "Pod for << parameters.image_name >> exited with code 0"
               exit 0
