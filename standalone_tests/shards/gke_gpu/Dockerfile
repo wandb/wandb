@@ -7,6 +7,7 @@ RUN apt-key adv --fetch-keys \
     https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
 
 ARG PYTHON_VERSION=3.8
+ARG GIT_BRANCH=master
 
 # todo: enable docker image layer caching on circleci
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -34,6 +35,7 @@ RUN chmod 777 /home/sdk
 # clone wandb/client repository and install wandb sdk
 RUN git clone https://github.com/wandb/client.git /wandb/client \
     && cd /wandb/client \
+    && git checkout ${GIT_BRANCH} \
     && pip install -e . \
     && pip install numpy torch torchvision --no-cache-dir
 # todo: replace with a proper tox+yea setup with

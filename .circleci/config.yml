@@ -109,12 +109,14 @@ commands:
           command: |
             git clone https://github.com/GoogleCloudPlatform/ml-testing-accelerators.git
 
+
   install_jsonnet:
     steps:
       - run:
           name: Install jsonnet
           command: |
             go get github.com/google/go-jsonnet/cmd/jsonnet
+
 
   setup_docker_buildx:
     description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
@@ -163,10 +165,12 @@ commands:
       - run:
           name: Check if cluster exists and delete if it does
           command: |
+            cluster_exists=$(gcloud container clusters list --filter="name=<< parameters.cluster >>" --format="value(name)" | wc -l | xargs)
             gcloud container clusters list --filter="name=<< parameters.cluster >>" --format="value(name)"
-            if [ $? -eq 0 ]; then
+            if [ $? -eq 0 ] && [ $cluster_exists -eq 1 ]; then
               gcloud container clusters delete << parameters.cluster >> --quiet
             fi
+            exit 0
       - run:
           name: Create GKE cluster
           command: |
@@ -424,6 +428,13 @@ jobs:
         type: string
       image_name:
         type: string
+      python_version:
+        type: string
+        default: 3.8
+      git_branch:
+        type: string
+        default: nightly
+#        default: master
     docker:
       - image: 'google/cloud-sdk:alpine'
     steps:
@@ -441,7 +452,8 @@ jobs:
             cd << parameters.path >>
             docker build \
               -t << parameters.image_name >> \
-              --build-arg PYTHON_VERSION=3.8 \
+              --build-arg PYTHON_VERSION=<< parameters.python_version >> \
+              --build-arg GIT_BRANCH=<< parameters.git_branch >> \
               .
 #      - save-sdk-gpu-cache
       - setup_gcloud
@@ -495,6 +507,19 @@ jobs:
           command: |
             kubectl apply -f << parameters.path >>/pod.yaml
       - run:
+          name: Wait for pod to be ready in a for loop
+          command: |
+            for i in {1..30}; do
+              kubectl get pods
+              if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
+                exit 0
+                break
+              fi
+              sleep 5
+            done
+            kubectl get pods
+            exit 1
+      - run:
           name: List clusters and pods
           # todo: use kubectl wait instead
           command: |
@@ -503,7 +528,7 @@ jobs:
             echo ""
             echo "Pods:"
             kubectl get pods
-            sleep 180
+            sleep 10
             echo ""
             echo "Pod logs:"
             kubectl logs gpu-pod
