@@ -507,31 +507,37 @@ jobs:
           command: |
             kubectl apply -f << parameters.path >>/pod.yaml
       - run:
-          name: Wait for pod to be ready in a for loop
+          name: Wait for pod to be ready
           command: |
-            for i in {1..30}; do
+            for i in {1..60}; do
               kubectl get pods
               if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> is ready"
                 exit 0
-                break
+              elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> is in an error state"
+                kubectl delete -f << parameters.path >>/pod.yaml
+                exit 1
               fi
               sleep 5
             done
+            echo "Pod for << parameters.image_name >> is not ready after 5 minutes, deleting pod"
             kubectl get pods
+            kubectl delete -f << parameters.path >>/pod.yaml
             exit 1
       - run:
-          name: List clusters and pods
-          # todo: use kubectl wait instead
+          name: Get pod logs, parse exit code
           command: |
-            echo "Clusters:"
-            gcloud container clusters list
-            echo ""
-            echo "Pods:"
-            kubectl get pods
-            sleep 10
-            echo ""
-            echo "Pod logs:"
-            kubectl logs gpu-pod
+            sleep 30
+            kubectl logs -f << parameters.path >>/pod.yaml
+            exit_code=$(grep -c 'exit_code: 0' <<< "$(kubectl logs -f << parameters.path >>/pod.yaml)")
+            if [ "$exit_code" -eq "1" ]; then
+              echo "Pod for << parameters.image_name >> exited with code 0"
+              exit 0
+            else
+              echo "Pod for << parameters.image_name >> exited with code $exit_code"
+              exit 1
+            fi
       - run:
           # todo: think deeply about how to ensure this happens regardless of the
           #  pipeline state/outcomes of the individual tests
@@ -570,13 +576,13 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-#      - sdk_docker:
-#          description: "SDK Docker image for GPU"
-#          path: "./standalone_tests/shards/gke_gpu"
-#          image_name: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
+      - sdk_docker:
+          description: "SDK Docker image for GPU"
+          path: "./standalone_tests/shards/gke_gpu"
+          image_name: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
       - test_gpu:
-#          requires:
-#            - sdk_docker
+          requires:
+            - sdk_docker
           path: "./standalone_tests/shards/gke_gpu"
 #      - test:
 #          name: "code-check"
