@@ -264,15 +264,60 @@ def download_wandb_python_deps(
 def get_local_python_deps(
     dir: str, filename: str = "requirements.local.txt"
 ) -> Optional[str]:
-    cmd = ["pip", "freeze"]
     try:
         env = os.environ
-        with open(os.path.join(dir, filename), 'w') as f:
-            subprocess.call(cmd, env=env, stdout=f)
+        with open(os.path.join(dir, filename), "w") as f:
+            subprocess.call(["pip", "freeze"], env=env, stdout=f)
         return filename
     except subprocess.CalledProcessError as e:
         wandb.termerror(f"Command failed: {e}")
         return None
+
+
+def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> List[str]:
+    """Returns a list of pip requirements that are not in req_1 but are in req_2."""
+
+    def _parse_req(req: List[str]) -> Dict[str, str]:
+        # TODO: This can be made more exhaustive, but for 99% of cases this is fine
+        # see https://pip.pypa.io/en/stable/reference/requirements-file-format/#example
+        d: Dict[str, str] = dict()
+        for line in req:
+            _name = None
+            _version = None
+            if line.startswith("#"):  # Ignore comments
+                continue
+            elif "git+" in line or "hg+" in line:
+                _name = line.split("#egg=")[1]
+                _version = line.split("@")[-1].split("#")[0]
+            elif "==" in line:
+                _s = line.split("==")
+                _name = _s[0].lower()
+                _version = _s[1].split("#")[0].strip()
+            elif ">=" in line:
+                _s = line.split(">=")
+                _name = _s[0].lower()
+                _version = _s[1].split("#")[0].strip()
+            elif ">" in line:
+                _s = line.split(">")
+                _name = _s[0].lower()
+                _version = _s[1].split("#")[0].strip()
+            else:
+                _name = line
+            if _name is not None:
+                d[_name] = _version
+        return d
+
+    # Use symmetric difference between dict representation to print errors
+    try:
+        req_1_dict: Dict[str, str] = _parse_req(req_1)
+        req_2_dict: Dict[str, str] = _parse_req(req_2)
+    except (ValueError, IndexError, KeyError) as e:
+        raise LaunchError(f"Failed to parse pip requirements: {e}")
+    diff: List[str] = []
+    for item in set(req_1_dict.items()) ^ set(req_2_dict.items()):
+        _logger.warning(f"Found mismatched item in requirements files: {item}")
+        diff.append(item)
+    return diff
 
 
 def validate_wandb_python_deps(
@@ -290,23 +335,7 @@ def validate_wandb_python_deps(
     with open(_requirements_file) as f:
         local_python_deps: List[str] = f.read().splitlines()
 
-    # Convert requirements lists into dicts to compare
-    # wandb_deps_dict: Dict[str, str] = {
-    #     name: version
-    #     for name, version in [dep.split("==") for dep in wandb_python_deps]
-    # }
-    # local_deps_dict: Dict[str, str] = {
-    #     name: version
-    #     for name, version in [dep.split("==") for dep in local_python_deps]
-    # }
-
-    # TODO: More advanced comparison that accounts for weirdness in requirements files
-    # # Compare the two dicts and throw warnings
-    # for name, version in local_deps_dict.items():
-    #     if wandb_deps_dict.get(name) != version:
-    #         _logger.warning(
-    #             f"Local python dependency {name}=={version} differs from wandb requirements.txt, which is {name}=={wandb_deps_dict.get(name,'<NOT FOUND>')}"
-    #         )
+    diff_pip_requirements(wandb_python_deps, local_python_deps)
 
 
 def fetch_project_diff(
