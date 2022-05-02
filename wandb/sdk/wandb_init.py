@@ -528,9 +528,7 @@ class _WandbInit:
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(
-            config=self.config, settings=self.settings, sweep_config=self.sweep_config
-        )
+        run = Run(config=self.config, settings=self.settings)
 
         # probe the active start method
         active_start_method: Optional[str] = None
@@ -680,6 +678,7 @@ class _WandbInit:
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
+        run._populate_sweep_or_launch_config(self.sweep_config)
         for k, v in self.init_artifact_config.items():
             run.config.update({k: v}, allow_val_change=True)
 
