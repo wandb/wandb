@@ -491,6 +491,7 @@ jobs:
           name: "Push << parameters.description >> to container registry"
           command: |
             docker push << parameters.image_name >>
+      # todo: clean up old images in gcr.io
 
   # Nightly workflow for the SDK.
   #  - spin_up_cluster job creates a GKE cluster
@@ -613,9 +614,8 @@ jobs:
             sleep 30
             
             logs=`kubectl logs << parameters.pod_name >>`
-            exit_code=`echo $logs | grep -c "commands failed"`
-            
             echo $logs
+            exit_code=`echo $(echo $logs | grep -c "commands failed")`
             
             echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
             kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
