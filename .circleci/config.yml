@@ -49,6 +49,12 @@ parameters:
   tox_version:
     type: string
     default: "3.24.0"
+  container_registry:
+    type: string
+    default: "gcr.io"
+  gcp_cluster_name:
+    type: string
+    default: "gke-yea"
 
 commands:
   save-tox-cache:
@@ -133,20 +139,20 @@ commands:
   setup_gcloud:
     steps:
       - run:
-          name: Setup gcloud
+          name: "Setup gcloud"
           command: |
             echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
-            gcloud auth configure-docker --quiet gcr.io
+            gcloud auth configure-docker --quiet << pipeline.parameters.container_registry >>
 
   create_gke_cluster:
     parameters:
       cluster:
         description: cluster name
         type: string
-        default: gke-yea
+        default: << pipeline.parameters.gcp_cluster_name >>
       no-output-timeout:
         description: >
           Elapsed time that the cluster creation command can run on CircleCI without
@@ -154,16 +160,10 @@ commands:
           “5s”
         type: string
         default: 10m
-      image:
-        description: >
-          The image to use for the cluster. The image must be in the same project
-          as the cluster.
-        type: string
     steps:
       - setup_gcloud
-      # todo: check if cluster exists, delete if it does
       - run:
-          name: Check if cluster exists and delete if it does
+          name: "Check if cluster exists and delete if it does"
           command: |
             cluster_exists=$(gcloud container clusters list --filter="name=<< parameters.cluster >>" --format="value(name)" | wc -l | xargs)
             gcloud container clusters list --filter="name=<< parameters.cluster >>" --format="value(name)"
@@ -172,7 +172,7 @@ commands:
             fi
             exit 0
       - run:
-          name: Create GKE cluster
+          name: "Create GKE cluster"
           command: |
             gcloud container clusters create $GKE_CLUSTER_NAME \
             --num-nodes=1 --machine-type=n1-standard-2 \
@@ -420,7 +420,7 @@ jobs:
           event: always
           channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  # Build a docker image for a yea shard of the nightly pipeline.
+  # Build the docker image for a yea shard of the nightly workflow.
   sdk_docker:
     parameters:
       description:
@@ -434,21 +434,21 @@ jobs:
         default: "3.8"
       git_branch:
         type: string
-        default: nightly
-#        default: master
+        default: "nightly"
+#        default: "master"
     docker:
-      - image: 'google/cloud-sdk:alpine'
+      - image: "google/cloud-sdk:alpine"
     steps:
       - checkout
       - gke/install
       - run:
-          name: Update gcloud components
+          name: "Update gcloud components"
           command: gcloud --quiet components update
 #      - restore-sdk-gpu-cache
       - setup_docker_buildx:
           docker_layer_caching: false
       - run:
-          name: Build << parameters.description >>
+          name: "Build << parameters.description >>"
           command: |
             cd << parameters.path >>
             docker build \
@@ -458,9 +458,8 @@ jobs:
               .
 #      - save-sdk-gpu-cache
       - setup_gcloud
-      # push to artifact registry on GCP
       - run:
-          name: Push << parameters.description >>
+          name: "Push << parameters.description >> to container registry"
           command: |
             docker push << parameters.image_name >>
 
@@ -474,11 +473,130 @@ jobs:
   #  - shut_down_cluster job that deletes the cluster created by the spin_up_cluster job
   #     - requires spin_up_cluster to be run first
   #     -
+
+  # manage cluster: spin it up and shut it down
+  spin_up_cluster:
+    parameters:
+      cluster:
+        type: string
+        default: << pipeline.parameters.gcp_cluster_name >>
+    docker:
+      - image: "cimg/base:stable"
+    steps:
+      - checkout
+      - go/install
+      - gke/install
+      - run:
+          name: "Update gcloud components"
+          command: gcloud --quiet components update
+      - create_gke_cluster:
+          cluster: << parameters.cluster >>
+      - run:
+          name: "Install GPU drivers"
+          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+
+  shut_down_cluster:
+    parameters:
+      cluster:
+        type: string
+        default: << pipeline.parameters.gcp_cluster_name >>
+    docker:
+      - image: "cimg/base:stable"
+    steps:
+      - checkout
+      - go/install
+      - gke/install
+      - run:
+          name: "Update gcloud components"
+          command: gcloud --quiet components update
+      - run:
+          # todo: think about how to check statuses of pods before deleting cluster
+          name: "Wait for pods to finish and exit"
+          command: |
+            echo "Waiting for pods to finish"
+            sleep 150
+            kubectl get pods --all-namespaces
+      - gke/delete-cluster:
+          cluster: << parameters.cluster >>
+
+  #
   test_gpu:
     parameters:
       cluster:
         type: string
-        default: "gke-yea"
+        default: << pipeline.parameters.gcp_cluster_name >>
+      image_name:
+        type: string
+        default: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+      path:
+        type: string
+      pod_config_name:
+        type: string
+        default: pod.yaml
+      pod_name: # same as in <path>/pod.yaml
+        type: string
+        default: "gpu-pod"
+    docker:
+      - image: 'cimg/base:stable'
+    steps:
+      - checkout
+      - go/install
+      - gke/install
+      - run:
+          name: "Update gcloud components"
+          command: gcloud --quiet components update
+      - run:
+          name: "Spin up pod"
+          command: |
+            kubectl apply -f << parameters.path >>/<< parameters.pod_config_name >>
+      - run:
+          name: "Wait for pod to be ready"
+          command: |
+            for i in {1..60}; do
+              kubectl get pods
+              if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> is ready"
+                exit 0
+              elif [ "$(kubectl get pods | grep -c 'Completed')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> has completed"
+                exit 0
+              fi
+              elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> is in an error state"
+                kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+                exit 1
+              fi
+              sleep 5
+            done
+            echo "Pod for << parameters.image_name >> is not ready after 5 minutes, deleting pod"
+            kubectl get pods
+            kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+            exit 1
+      - run:
+          name: "Wait for tests to finish, get pod logs, parse exit code, and delete pod"
+          command: |
+            sleep 30
+            
+            exit_code=$("$(kubectl logs << parameters.pod_name >>)" | grep -c 'exit_code: 0')
+            if [ "$exit_code" -eq "1" ]; then
+              echo "Pod for << parameters.image_name >> exited with code 0"
+              kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+              exit 0
+            else
+              echo "Pod for << parameters.image_name >> exited with code $exit_code"
+              kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+              exit 1
+            fi
+            echo "Unable to determine pod exit code, deleting pod"
+            kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+            exit 1
+
+
+  test_gpu_all_steps_in_one:
+    parameters:
+      cluster:
+        type: string
+        default: << pipeline.parameters.gcp_cluster_name >>
       image_name:
         type: string
         default: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
@@ -580,13 +698,20 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
+      # build docker images for yea shards
       - sdk_docker:
-          description: "SDK Docker image for GPU"
+          description: "SDK Docker image for GPU testing"
           path: "./standalone_tests/shards/gke_gpu"
-          image_name: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
+      # manage the gke cluster
+      - spin_up_cluster
+      - shut_down_cluster:
+          requires:
+            - spin_up_cluster
+      # run the tests
       - test_gpu:
           requires:
             - sdk_docker
+            - spin_up_cluster
           path: "./standalone_tests/shards/gke_gpu"
 #      - test:
 #          name: "code-check"
