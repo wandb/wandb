@@ -2,7 +2,7 @@ import pytest
 import random
 from wandb.errors import LaunchError
 
-from ..utils import diff_pip_requirements
+from wandb.sdk.launch.utils import diff_pip_requirements
 
 REQUIREMENT_FILE_BASIC = [
     "package-one==1.0.0",

@@ -179,7 +179,7 @@ def mock_cuda_run_info(monkeypatch):
     )
 
 
-@pytest.fixure
+@pytest.fixture
 def mock_download_url():
     def side_effect(*args, **kwargs):
         if args[1] == "wandb-metadata.json":
@@ -194,7 +194,7 @@ def mock_download_url():
         yield mock_api
 
 
-@pytest.fixure
+@pytest.fixture
 def mock_file_download_request():
     def side_effect(url):
         class MockedFileResponder:
