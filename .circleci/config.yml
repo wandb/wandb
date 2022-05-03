@@ -509,12 +509,13 @@ jobs:
       - run:
           name: "Update gcloud components"
           command: gcloud --quiet components update
+      - setup_gcloud
       - run:
           # todo: think about how to check statuses of pods before deleting cluster
           name: "Wait for pods to finish and exit"
           command: |
             echo "Waiting for pods to finish"
-            sleep 150
+            sleep 180
             kubectl get pods --all-namespaces
       - gke/delete-cluster:
           cluster: << parameters.cluster >>
@@ -545,6 +546,7 @@ jobs:
       - run:
           name: "Update gcloud components"
           command: gcloud --quiet components update
+      - setup_gcloud
       - run:
           name: "Spin up pod"
           command: |
