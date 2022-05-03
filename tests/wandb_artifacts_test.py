@@ -9,6 +9,7 @@ import shutil
 import wandb.data_types as data_types
 import numpy as np
 import time
+from datetime import datetime, timedelta, timezone
 from wandb.proto import wandb_internal_pb2 as pb
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
@@ -563,10 +564,16 @@ def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
         df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
         df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
 
+        current_time = datetime.now()
+        df_timestamp = pd.DataFrame(
+            [[current_time + timedelta(days=i)] for i in range(10)], columns=["date"]
+        )
+
         wb_table_float = wandb.Table(dataframe=df_float)
         wb_table_float32 = wandb.Table(dataframe=df_float32)
         wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
         wb_table_bool = wandb.Table(dataframe=df_bool)
+        wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
         run = wandb.init(settings=test_settings)
         artifact = wandb.Artifact("table-example", "dataset")
@@ -574,6 +581,15 @@ def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
         artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
         artifact.add(wb_table_float32, "wb_table_float32")
         artifact.add(wb_table_bool, "wb_table_bool")
+
+        # check that timestamp is correctly converted to ms and not ns
+        json_repr = wb_table_timestamp.to_json(artifact)
+        assert "data" in json_repr and np.isclose(
+            json_repr["data"][0][0],
+            current_time.replace(tzinfo=timezone.utc).timestamp() * 1000,
+        )
+        artifact.add(wb_table_timestamp, "wb_table_timestamp")
+
         run.log_artifact(artifact)
         run.finish()
 
