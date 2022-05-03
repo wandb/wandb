@@ -5,7 +5,6 @@ import platform
 import re
 import subprocess
 import sys
-from tkinter import W
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
