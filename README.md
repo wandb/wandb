@@ -282,6 +282,34 @@ all directly linked to run.
 
 **Learn about Artifacts [here →](https://www.wandb.com/articles/announcing-artifacts) | Read the [Docs](https://docs.wandb.com/artifacts)**
 
+# 💻  Run W&B Server Locally
+W&amp;B Local is a privately hosted Weights &amp; Biases server.  Securly and easily deploy a W&amp;B production server in Docker, Kubernettes, or in a privately-managed cloud.  Learn more about setting up a production W&amp;B deployment [Production Set Up Docs](https://docs.wandb.ai/guides/self-hosted/setup).
+
+## Quickstart
+1. On a machine with [Docker](https://docker.com) and [Python](https://www.python.org/) installed, run:
+    ```
+    1 pip install wandb --upgrade
+    2 wandb local
+    ```
+2. Generate a free license from the [Deployer](https://deploy.wandb.ai/).
+3. Add it to your local settings.
+
+  **Paste the license in the /system-admin page on your localhost**
+  
+  ![2022-02-24 22 13 59](https://user-images.githubusercontent.com/25806817/166265834-6a9d1be8-2af5-4c63-872e-8e5b3e4082aa.gif)
+
+## Docker
+Running `wandb local` will start our server and forward port 8080 on the host.  To have other machines report metrics to this server run: `wandb login --host=http://X.X.X.X:8080`.  You can also configure other machines with the following environment variables:
+```
+WANDB_BASE_URL=http://X.X.X.X:8080
+WANDB_API_KEY=XXXX
+```
+
+To run W&amp;B Local manually, you can use the docker:
+```
+docker run --rm -d -v wandb:/vol -p 8080:8080 --name wandb-local wandb/local
+```
+
 # Testing
 
 To run basic test use `make test`.  More detailed information can be found at CONTRIBUTING.md.
