@@ -483,6 +483,9 @@ jobs:
         default: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
       path:
         type: string
+      pod_name:  # same as in <path>/pod.yaml
+        type: string
+        default: "gpu-pod"
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -534,7 +537,7 @@ jobs:
             
             sleep 30
             
-            exit_code=$("$(kubectl logs -f << parameters.path >>/pod.yaml)" | grep -c 'exit_code: 0')
+            exit_code=$("$(kubectl logs << parameters.pod_name >>)" | grep -c 'exit_code: 0')
             if [ "$exit_code" -eq "1" ]; then
               echo "Pod for << parameters.image_name >> exited with code 0"
               exit 0
@@ -546,6 +549,7 @@ jobs:
           # todo: think deeply about how to ensure this happens regardless of the
           #  pipeline state/outcomes of the individual tests
           name: Delete pod
+          when: always
           command: |
             kubectl delete -f << parameters.path >>/pod.yaml
       - gke/delete-cluster:

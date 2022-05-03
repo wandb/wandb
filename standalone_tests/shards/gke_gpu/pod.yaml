@@ -7,6 +7,8 @@ spec:
   - name: gpu-sdk
     image: gcr.io/wandb-client-cicd/gpu-sdk:latest
 #    command: ["tail", "-f", "/dev/null"]
+    # do not restart the container if it exits
+    restartPolicy: Never
     resources:
       limits:
         nvidia.com/gpu: 1 # requesting 1 GPU
