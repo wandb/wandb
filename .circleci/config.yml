@@ -108,22 +108,6 @@ commands:
             - store_artifacts:
                 path: cover-results
 
-  checkout_ml_testing_accelerators:
-    steps:
-      - run:
-          name: Checkout ml-testing-accelerators
-          command: |
-            git clone https://github.com/GoogleCloudPlatform/ml-testing-accelerators.git
-
-
-  install_jsonnet:
-    steps:
-      - run:
-          name: Install jsonnet
-          command: |
-            go get github.com/google/go-jsonnet/cmd/jsonnet
-
-
   setup_docker_buildx:
     description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
     parameters:
@@ -508,9 +492,9 @@ jobs:
           command: |
             docker push << parameters.image_name >>
 
-  # todo: think about an alternative to this:
-  #  - spin_up_cluster job that creates a cluster and returns success
-  #  - individual test jobs that use the cluster created by the spin_up_cluster job
+  # Nightly workflow for the SDK.
+  #  - spin_up_cluster job creates a GKE cluster
+  #  - individual test jobs use the cluster created by the spin_up_cluster job
   #     - each requires spin_up_cluster to be run first
   #     - each runs in parallel
   #     - installs gcloud and gke and spins up a pod, deploys the test,
@@ -601,7 +585,7 @@ jobs:
           command: |
             kubectl apply -f << parameters.path >>/<< parameters.pod_config_name >>
       - run:
-          name: "Wait for pod to be ready"
+          name: "Wait for pod to be up and running"
           command: |
             for i in {1..60}; do
               kubectl get pods
@@ -623,101 +607,19 @@ jobs:
             kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
             exit 1
       - run:
+          # todo: make getting the exit_code more robust
           name: "Wait for tests to finish, get pod logs, parse exit code, and delete pod"
           command: |
             sleep 30
             
-            exit_code=$("$(kubectl logs << parameters.pod_name >>)" | grep -c 'exit_code: 0')
-            if [ "$exit_code" -eq "1" ]; then
-              echo "Pod for << parameters.image_name >> exited with code 0"
-              kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
-              exit 0
-            else
-              echo "Pod for << parameters.image_name >> exited with code $exit_code"
-              kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
-              exit 1
-            fi
-            echo "Unable to determine pod exit code, deleting pod"
+            logs=`kubectl logs << parameters.pod_name >>`
+            exit_code=`echo $logs | grep -c "commands failed"`
+            
+            echo $logs
+            
+            echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
             kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
-            exit 1
-
-
-  test_gpu_all_steps_in_one:
-    parameters:
-      cluster:
-        type: string
-        default: << pipeline.parameters.gcp_cluster_name >>
-      image_name:
-        type: string
-        default: "gcr.io/wandb-client-cicd/gpu-sdk:latest"
-      path:
-        type: string
-      pod_name:  # same as in <path>/pod.yaml
-        type: string
-        default: "gpu-pod"
-    docker:
-      - image: 'cimg/base:stable'
-    steps:
-      - checkout
-      - go/install
-      - checkout_ml_testing_accelerators
-      - install_jsonnet
-      - gke/install
-      - run:
-          name: Update gcloud components
-          command: gcloud --quiet components update
-      - create_gke_cluster:
-          cluster: << parameters.cluster >>
-          image: << parameters.image_name >>
-      - run:
-          name: Install GPU drivers
-          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
-      - run:
-          name: Spin up pod
-          command: |
-            kubectl apply -f << parameters.path >>/pod.yaml
-      - run:
-          name: Wait for pod to be ready
-          command: |
-            for i in {1..60}; do
-              kubectl get pods
-              if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> is ready"
-                exit 0
-              elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> is in an error state"
-                kubectl delete -f << parameters.path >>/pod.yaml
-                exit 1
-              fi
-              sleep 5
-            done
-            echo "Pod for << parameters.image_name >> is not ready after 5 minutes, deleting pod"
-            kubectl get pods
-            kubectl delete -f << parameters.path >>/pod.yaml
-            exit 1
-      - run:
-          name: Get pod logs, parse exit code
-          command: |
-            
-            sleep 30
-            
-            exit_code=$("$(kubectl logs << parameters.pod_name >>)" | grep -c 'exit_code: 0')
-            if [ "$exit_code" -eq "1" ]; then
-              echo "Pod for << parameters.image_name >> exited with code 0"
-              exit 0
-            else
-              echo "Pod for << parameters.image_name >> exited with code $exit_code"
-              exit 1
-            fi
-      - run:
-          # todo: think deeply about how to ensure this happens regardless of the
-          #  pipeline state/outcomes of the individual tests
-          name: Delete pod
-          when: always
-          command: |
-            kubectl delete -f << parameters.path >>/pod.yaml
-      - gke/delete-cluster:
-          cluster: << parameters.cluster >>
+            exit ${exit_code}
 
 workflows:
   nightly:
