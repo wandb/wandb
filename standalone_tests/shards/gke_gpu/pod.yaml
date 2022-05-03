@@ -6,5 +6,9 @@ spec:
   containers:
   - name: gpu-sdk
     image: gcr.io/wandb-client-cicd/gpu-sdk:latest
+#    command: ["tail", "-f", "/dev/null"]
+    resources:
+      limits:
+        nvidia.com/gpu: 1 # requesting 1 GPU
 #    ports:
 #    - containerPort: 80

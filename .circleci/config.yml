@@ -503,6 +503,9 @@ jobs:
 ##          additional-args: --max-age=20m
 #          perform-login: true
       - run:
+          name: Install GPU drivers
+          command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+      - run:
           name: Spin up pod
           command: |
             kubectl apply -f << parameters.path >>/pod.yaml
@@ -528,8 +531,9 @@ jobs:
       - run:
           name: Get pod logs, parse exit code
           command: |
+            
             sleep 30
-            kubectl logs -f << parameters.path >>/pod.yaml
+            
             exit_code=$("$(kubectl logs -f << parameters.path >>/pod.yaml)" | grep -c 'exit_code: 0')
             if [ "$exit_code" -eq "1" ]; then
               echo "Pod for << parameters.image_name >> exited with code 0"
