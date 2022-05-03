@@ -1,3 +1,43 @@
+## 0.12.16 (May 3, 2022)
+
+#### :nail_care: Enhancement
+* Improve W&B footer by aligning summary/history in notebook env by @kptkin in https://github.com/wandb/client/pull/3479
+* Enable experimental history step logging in artifacts by @raubitsj in https://github.com/wandb/client/pull/3502
+* Add `args_no_boolean_flags` macro to sweep configuration by @hu-po in https://github.com/wandb/client/pull/3489
+* Add logging support for `jax.bfloat.bfloat16` by @dmitryduev in https://github.com/wandb/client/pull/3528
+* Raise exception when Table size exceeds limit by @dannygoldstein in https://github.com/wandb/client/pull/3511
+* Add kaniko k8s builder for wandb launch by @KyleGoyette in https://github.com/wandb/client/pull/3492
+* Add wandb.init() timeout setting by @kptkin in https://github.com/wandb/client/pull/3579
+* Do not assume executable for given entrypoints with wandb launch by @KyleGoyette in https://github.com/wandb/client/pull/3461
+* Jupyter environments no longer collect command arguments by @KyleGoyette in https://github.com/wandb/client/pull/3456
+* Add support for TensorFlow/Keras SavedModel format by @ayulockin in https://github.com/wandb/client/pull/3276
+
+#### :bug: Bug Fix
+* Support version IDs in artifact refs, fix s3/gcs references in Windows by @annirudh in https://github.com/wandb/client/pull/3529
+* Fix support for multiple finish for single run using wandb-service by @kptkin in https://github.com/wandb/client/pull/3560
+* Fix duplicate backtrace when using wandb-service by @kptkin in https://github.com/wandb/client/pull/3575
+* Fix wrong entity displayed in login message by @kptkin in https://github.com/wandb/client/pull/3490
+* Fix hang when `wandb.init` is interrupted mid setup using wandb-service by @kptkin in https://github.com/wandb/client/pull/3569
+* Fix handling keyboard interrupt to avoid hangs with wandb-service enabled by @kptkin in https://github.com/wandb/client/pull/3566
+* Fix console logging with very long print out when using wandb-service by @kptkin in https://github.com/wandb/client/pull/3574
+* Fix broken artifact string in launch init config by @KyleGoyette in https://github.com/wandb/client/pull/3582
+
+#### :broom: Cleanup
+* Fix typo in wandb.log() docstring by @RobRomijnders in https://github.com/wandb/client/pull/3520
+* Cleanup custom chart code and add type annotations to plot functions by @kptkin in https://github.com/wandb/client/pull/3407
+* Improve `wandb.init(settings=)` to handle `Settings` object similarly to `dict` parameter by @dmitryduev in https://github.com/wandb/client/pull/3510
+* Add documentation note about api.viewer in api.user() and api.users() by @ramit-wandb in https://github.com/wandb/client/pull/3552
+* Be explicit about us being py3+ only in setup.py by @dmitryduev in https://github.com/wandb/client/pull/3549
+* Add type annotations to DirWatcher by @speezepearson in https://github.com/wandb/client/pull/3557
+* Improve wandb.log() docstring to use the correct argument name by @idaho777 in https://github.com/wandb/client/pull/3585
+
+## New Contributors
+* @RobRomijnders made their first contribution in https://github.com/wandb/client/pull/3520
+* @ramit-wandb made their first contribution in https://github.com/wandb/client/pull/3552
+* @idaho777 made their first contribution in https://github.com/wandb/client/pull/3585
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.15...v0.12.16
+
 ## 0.12.15 (April 21, 2022)
 
 #### :nail_care: Enhancement
