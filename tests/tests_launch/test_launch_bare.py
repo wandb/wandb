@@ -23,8 +23,6 @@ def test_launch_bare_base_case(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
-    mock_download_url,
-    mock_file_download_request,
     monkeypatch,
     capsys,
 ):
@@ -32,6 +30,8 @@ def test_launch_bare_base_case(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.download_url = mock_download_url
+    api.download_file = mock_file_download_request
 
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {

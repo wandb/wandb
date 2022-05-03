@@ -179,48 +179,34 @@ def mock_cuda_run_info(monkeypatch):
     )
 
 
-@pytest.fixture
-def mock_download_url():
-    def side_effect(*args, **kwargs):
-        if args[1] == "wandb-metadata.json":
-            return {"url": "urlForCodePath"}
-        elif args[1] == "code/main2.py":
-            return {"url": "main2.py"}
-        elif args[1] == "requirements.txt":
-            return {"url": "requirements"}
+def mock_download_url(*args, **kwargs):
+    if args[1] == "wandb-metadata.json":
+        return {"url": "urlForCodePath"}
+    elif args[1] == "code/main2.py":
+        return {"url": "main2.py"}
+    elif args[1] == "requirements.txt":
+        return {"url": "requirements"}
 
-    with mock.patch("wandb.sdk.internal.internal_api.Api") as mock_api:
-        mock_api.download_url = mock.Mock(side_effect=side_effect)
-        yield mock_api
+def mock_file_download_request(url):
+    class MockedFileResponder:
+        def __init__(self, url):
+            self.url: str = url
 
+        def json(self):
+            if self.url == "urlForCodePath":
+                return {"codePath": "main2.py"}
 
-@pytest.fixture
-def mock_file_download_request():
-    def side_effect(url):
-        class MockedFileResponder:
-            def __init__(self, url):
-                self.url: str = url
+        def iter_content(self, chunk_size):
+            if self.url == "requirements":
+                return [b"numpy==1.19.5\n", b"wandb==0.12.15\n"]
+            elif self.url == "main2.py":
+                return [
+                    b"import numpy\n",
+                    b"import wandb\n",
+                    b"print('ran server fetched code')\n",
+                ]
 
-            def json(self):
-                if self.url == "urlForCodePath":
-                    return {"codePath": "main2.py"}
-
-            def iter_content(self, chunk_size):
-                if self.url == "requirements":
-                    return [b"numpy==1.19.5\n", b"wandb==0.12.15\n"]
-                elif self.url == "main2.py":
-                    return [
-                        b"import numpy\n",
-                        b"import wandb\n",
-                        b"print('ran server fetched code')\n",
-                    ]
-
-        return 200, MockedFileResponder(url)
-
-    with mock.patch("wandb.sdk.internal.internal_api.Api") as mock_api:
-        mock_api.download_file = mock.Mock(side_effect=side_effect)
-        yield mock_api
-
+    return 200, MockedFileResponder(url)
 
 def check_project_spec(
     project_spec,
@@ -944,12 +930,12 @@ def test_launch_metadata(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
-    mock_download_url,
-    mock_file_download_request,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.download_url = mock_download_url
+    api.download_file = mock_file_download_request
 
     run = launch.run(
         "https://wandb.ai/mock_server_entity/test/runs/1",
