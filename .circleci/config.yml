@@ -702,6 +702,7 @@ workflows:
       - sdk_docker:
           description: "SDK Docker image for GPU testing"
           path: "./standalone_tests/shards/gke_gpu"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
       # manage the gke cluster
       - spin_up_cluster
       - shut_down_cluster:
