@@ -382,17 +382,15 @@ class Run:
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
-        sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._init(settings=settings, config=config, sweep_config=sweep_config)
+        self._init(settings=settings, config=config)
 
     def _init(
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
-        sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
 
         self._settings = settings
@@ -485,12 +483,30 @@ class Run:
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-        self._launch_artifact_mapping: Dict[str, Any] = {}
-        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if self._settings.save_code and self._settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", self._settings.program_relpath)
             )
+        self._config._update(config, ignore_locked=True)
+
+        # interface pid and port configured when backend is configured (See _hack_set_run)
+        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        self._iface_pid = None
+        self._iface_port = None
+        self._attach_id = None
+        self._is_attached = False
+
+        self._attach_pid = os.getpid()
+
+        # for now, use runid as attach id, this could/should be versioned in the future
+        if self._settings._require_service:
+            self._attach_id = self._settings.run_id
+
+    def _populate_sweep_or_launch_config(
+        self, sweep_config: Optional[Dict[str, Any]]
+    ) -> None:
+        self._launch_artifact_mapping: Dict[str, Any] = {}
+        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if sweep_config:
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
@@ -536,20 +552,6 @@ class Run:
                 self._config.update_locked(
                     launch_run_config, user="launch", _allow_val_change=True
                 )
-        self._config._update(config, ignore_locked=True)
-
-        # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
-        self._iface_pid = None
-        self._iface_port = None
-        self._attach_id = None
-        self._is_attached = False
-
-        self._attach_pid = os.getpid()
-
-        # for now, use runid as attach id, this could/should be versioned in the future
-        if self._settings._require_service:
-            self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid
@@ -1895,10 +1897,10 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-        self._hooks.hook()
 
         manager = self._wl and self._wl._get_manager()
         if not manager:
+            self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
@@ -3048,9 +3050,11 @@ class Run:
                 off=(quiet or settings.quiet),
             )
         else:
-            info = [
-                f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
-            ]
+            info = []
+            if settings.run_name and settings.run_url:
+                info = [
+                    f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+                ]
             if pool_exit_response and pool_exit_response.file_counts:
 
                 logger.info("logging synced files")
@@ -3074,7 +3078,6 @@ class Run:
 
         log_dir = settings.log_user or settings.log_internal
         if log_dir:
-            # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
             printer.display(
                 f"Find logs at: {printer.files(log_dir)}",

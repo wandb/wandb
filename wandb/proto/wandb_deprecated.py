@@ -18,7 +18,8 @@ DEPRECATED_FEATURES = Literal[
     "plots",
     "run__log_sync",
     "init__config_include_keys",
-    "init__config_exclude_keys"
+    "init__config_exclude_keys",
+    "keras_callback__save_model"
 ]
 
 
@@ -31,3 +32,4 @@ class Deprecated:
     run__log_sync: DEPRECATED_FEATURES = "run__log_sync"
     init__config_include_keys: DEPRECATED_FEATURES = "init__config_include_keys"
     init__config_exclude_keys: DEPRECATED_FEATURES = "init__config_exclude_keys"
+    keras_callback__save_model: DEPRECATED_FEATURES = "keras_callback__save_model"

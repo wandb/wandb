@@ -228,7 +228,7 @@ class _WandbInit:
         init_settings = {
             key: kwargs[key]
             for key in ["anonymous", "force", "mode", "resume"]
-            if kwargs.get(key, None) is not None
+            if kwargs.get(key) is not None
         }
         if init_settings:
             settings.update(init_settings, source=Source.INIT)
@@ -239,6 +239,7 @@ class _WandbInit:
                 force=kwargs.pop("force", None),
                 _disable_warning=True,
                 _silent=settings.quiet or settings.silent,
+                _entity=kwargs.get("entity") or settings.entity,
             )
 
         # apply updated global state after login was handled
@@ -515,6 +516,7 @@ class _WandbInit:
 
         manager = self._wl._get_manager()
         if manager:
+            logger.info("setting up manager")
             manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
         backend = Backend(settings=self.settings, manager=manager)
@@ -526,17 +528,16 @@ class _WandbInit:
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(
-            config=self.config, settings=self.settings, sweep_config=self.sweep_config
-        )
+        run = Run(config=self.config, settings=self.settings)
 
         # probe the active start method
         active_start_method: Optional[str] = None
         if self.settings.start_method == "thread":
             active_start_method = self.settings.start_method
         else:
-            get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
-            active_start_method = get_start_fn() if get_start_fn else None
+            active_start_method = getattr(
+                backend._multiprocessing, "get_start_method", lambda: None
+            )()
 
         # Populate initial telemetry
         with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
@@ -623,8 +624,12 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
-            logger.info("communicating run to backend with 30 second timeout")
-            run_result = backend.interface.communicate_run(run, timeout=30)
+            logger.info(
+                f"communicating run to backend with {self.settings.init_timeout} second timeout"
+            )
+            run_result = backend.interface.communicate_run(
+                run, timeout=self.settings.init_timeout
+            )
 
             error_message: Optional[str] = None
             if not run_result:
@@ -640,11 +645,11 @@ class _WandbInit:
                 error_message = run_result.error.message
             if error_message:
                 logger.error(f"encountered error: {error_message}")
-
-                # Shutdown the backend and get rid of the logger
-                # we don't need to do console cleanup at this point
-                backend.cleanup()
-                self.teardown()
+                if not manager:
+                    # Shutdown the backend and get rid of the logger
+                    # we don't need to do console cleanup at this point
+                    backend.cleanup()
+                    self.teardown()
                 raise UsageError(error_message)
             assert run_result and run_result.run
             if run_result.run.resumed:
@@ -673,6 +678,7 @@ class _WandbInit:
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
+        run._populate_sweep_or_launch_config(self.sweep_config)
         for k, v in self.init_artifact_config.items():
             run.config.update({k: v}, allow_val_change=True)
 
@@ -1007,7 +1013,7 @@ def init(
             # TODO(jhr): figure out how to make this RunDummy
             run = None
     except UsageError as e:
-        wandb.termerror(str(e))
+        wandb.termerror(str(e), repeat=False)
         raise
     except KeyboardInterrupt as e:
         assert logger
