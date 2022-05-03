@@ -160,6 +160,30 @@ commands:
           “5s”
         type: string
         default: 10m
+      num_nodes:
+        description: Number of nodes to create
+        type: integer
+        default: 1
+      machine_type:
+        description: GKE cluster machine type
+        type: string
+        default: "n1-standard-2"
+      disk_size:
+        description: GKE cluster disk size
+        type: integer
+        default: 100
+      disk_type:
+        description: GKE cluster disk type
+        type: string
+        default: "pd-ssd"
+      gpu_type:
+        description: GKE cluster GPU type
+        type: string
+        default: "nvidia-tesla-t4"
+      gpu_count:
+        description: GKE cluster GPU count
+        type: integer
+        default: 1
     steps:
       - setup_gcloud
       - run:
@@ -175,9 +199,9 @@ commands:
           name: "Create GKE cluster"
           command: |
             gcloud container clusters create $GKE_CLUSTER_NAME \
-            --num-nodes=1 --machine-type=n1-standard-2 \
-            --disk-size=100 --disk-type=pd-ssd \
-            --accelerator=type=nvidia-tesla-t4,count=1
+            --num-nodes=<< parameters.num_nodes >> --machine-type=<< parameters.machine_type >> \
+            --disk-size=<< parameters.disk_size >> --disk-type=<< parameters.disk_type >> \
+            --accelerator=type=<< parameters.gpu_type >>,count=<< parameters.gpu_count >>
 #            list gpus available in zone:
 #            gcloud compute accelerator-types list | grep us-central1
 #            TPU support
