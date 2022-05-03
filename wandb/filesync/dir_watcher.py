@@ -1,3 +1,4 @@
+import abc
 import fnmatch
 import glob
 import logging
@@ -23,7 +24,7 @@ SaveName = NewType("SaveName", str)
 logger = logging.getLogger(__name__)
 
 
-class FileEventHandler:
+class FileEventHandler(abc.ABC):
     def __init__(
         self,
         file_path: PathStr,
@@ -40,19 +41,22 @@ class FileEventHandler:
         self._last_sync = None
 
     @property
+    @abc.abstractmethod
     def policy(self) -> "PolicyName":
         raise NotImplementedError
 
+    @abc.abstractmethod
     def on_modified(self, force: bool = False) -> None:
-        pass
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def finish(self) -> None:
+        raise NotImplementedError
 
     def on_renamed(self, new_path: PathStr, new_name: SaveName) -> None:
         self.file_path = new_path
         self.save_name = new_name
         self.on_modified()
-
-    def finish(self) -> None:
-        self.on_modified(force=True)
 
 
 class PolicyNow(FileEventHandler):
@@ -74,6 +78,9 @@ class PolicyNow(FileEventHandler):
 
 class PolicyEnd(FileEventHandler):
     """This policy only updates at the end of the run"""
+
+    def on_modified(self, force: bool = False) -> None:
+        pass
 
     # TODO: make sure we call this
     def finish(self) -> None:
@@ -156,6 +163,9 @@ class PolicyLive(FileEventHandler):
         self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
+
+    def finish(self):
+        self.on_modified(force=True)
 
     @property
     def policy(self) -> "PolicyName":
