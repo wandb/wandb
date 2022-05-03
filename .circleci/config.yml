@@ -146,6 +146,8 @@ commands:
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
             gcloud auth configure-docker --quiet << pipeline.parameters.container_registry >>
+          environment:
+            GKE_CLUSTER_NAME: <<parameters.cluster >>
 
   create_gke_cluster:
     parameters:
@@ -217,6 +219,20 @@ commands:
           environment:
             GKE_CLUSTER_NAME: <<parameters.cluster >>
           no_output_timeout: <<parameters.no-output-timeout>>
+
+  get_gke_cluster_credentials:
+    parameters:
+      cluster:
+        description: cluster name
+        type: string
+        default: << pipeline.parameters.gcp_cluster_name >>
+    steps:
+      - run:
+          name: "Get gke cluster credentials"
+          command: |
+            gcloud container clusters get-credentials <<parameters.cluster >>
+          environment:
+            GKE_CLUSTER_NAME: <<parameters.cluster >>
 
 jobs:
   test:
@@ -534,6 +550,8 @@ jobs:
           name: "Update gcloud components"
           command: gcloud --quiet components update
       - setup_gcloud
+      - get_gke_cluster_credentials:
+          cluster: << parameters.cluster >>
       - run:
           # todo: think about how to check statuses of pods before deleting cluster
           name: "Wait for pods to finish and exit"
@@ -571,6 +589,8 @@ jobs:
           name: "Update gcloud components"
           command: gcloud --quiet components update
       - setup_gcloud
+      - get_gke_cluster_credentials:
+          cluster: << parameters.cluster >>
       - run:
           name: "Spin up pod"
           command: |
