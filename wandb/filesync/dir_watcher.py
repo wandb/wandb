@@ -43,10 +43,6 @@ class FileEventHandler:
         self._api = api
 
     @property
-    def synced(self) -> bool:
-        return self._last_sync == os.path.getmtime(self.file_path)
-
-    @property
     def policy(self) -> "PolicyName":
         raise NotImplementedError
 
@@ -122,12 +118,13 @@ class PolicyLive(FileEventHandler):
     def current_size(self) -> int:
         return os.path.getsize(self.file_path)
 
-    def min_wait_for_size(self, size: int) -> float:
-        if self.current_size < self.TEN_MB:
+    @classmethod
+    def min_wait_for_size(cls, size: int) -> float:
+        if size < cls.TEN_MB:
             return 60
-        elif self.current_size < self.HUNDRED_MB:
+        elif size < cls.HUNDRED_MB:
             return 5 * 60
-        elif self.current_size < self.ONE_GB:
+        elif size < cls.ONE_GB:
             return 10 * 60
         else:
             return 20 * 60
@@ -152,11 +149,10 @@ class PolicyLive(FileEventHandler):
 
     def on_modified(self, force: bool = False) -> None:
         if self.current_size == 0:
-            return 0
-        if not self.synced and self.should_update():
-            self.save_file()
-        # if the run is finished, or wandb.save is called explicitly save me
-        elif force and not self.synced:
+            return
+        if self._last_sync == os.path.getmtime(self.file_path):
+            return
+        if force or self.should_update():
             self.save_file()
 
     def save_file(self) -> None:
