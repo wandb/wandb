@@ -17,6 +17,7 @@ from wandb.errors import CommError, ExecutionError, LaunchError
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
 _VALID_IP_REGEX = r"^https?://[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?"
+_VALID_PIP_PACKAGE_REGEX = r"^[a-zA-Z0-9_.-]+$"
 _VALID_WANDB_REGEX = r"^https?://(api.)?wandb"
 _WANDB_URI_REGEX = re.compile(r"|".join([_VALID_WANDB_REGEX, _VALID_IP_REGEX]))
 _WANDB_QA_URI_REGEX = re.compile(
@@ -274,7 +275,7 @@ def get_local_python_deps(
         return None
 
 
-def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> List[str]:
+def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
     """Returns a list of pip requirements that are not in req_1 but are in req_2."""
 
     def _parse_req(req: List[str]) -> Dict[str, str]:
@@ -301,9 +302,12 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> List[str]:
                 _s = line.split(">")
                 _name = _s[0].lower()
                 _version = _s[1].split("#")[0].strip()
-            else:
+            elif re.match(_VALID_PIP_PACKAGE_REGEX, line) is not None:
                 _name = line
+            else:
+                raise ValueError(f"Unable to parse pip requirements file line: {line}")
             if _name is not None:
+                assert re.match(_VALID_PIP_PACKAGE_REGEX, _name), f"Invalid pip package name {_name}"
                 d[_name] = _version
         return d
 
@@ -311,13 +315,19 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> List[str]:
     try:
         req_1_dict: Dict[str, str] = _parse_req(req_1)
         req_2_dict: Dict[str, str] = _parse_req(req_2)
-    except (ValueError, IndexError, KeyError) as e:
+    except (AssertionError, ValueError, IndexError, KeyError) as e:
         raise LaunchError(f"Failed to parse pip requirements: {e}")
     diff: List[str] = []
     for item in set(req_1_dict.items()) ^ set(req_2_dict.items()):
-        _logger.warning(f"Found mismatched item in requirements files: {item}")
         diff.append(item)
-    return diff
+    # Parse through the diff to make it pretty
+    pretty_diff: Dict[str, str] = {}
+    for name, version in diff:
+        if pretty_diff.get(name) is None:
+            pretty_diff[name] = version
+        else:
+            pretty_diff[name] = f"v{version} and v{pretty_diff[name]}"
+    return pretty_diff
 
 
 def validate_wandb_python_deps(
