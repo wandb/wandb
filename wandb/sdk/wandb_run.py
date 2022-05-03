@@ -62,7 +62,7 @@ from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import InterfaceBase
+from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
@@ -93,6 +93,7 @@ if TYPE_CHECKING:
         ArtifactEntry,
         ArtifactManifest,
     )
+    from .interface.interface import FilesDict, PolicyName
 
     from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
@@ -381,17 +382,15 @@ class Run:
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
-        sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._init(settings=settings, config=config, sweep_config=sweep_config)
+        self._init(settings=settings, config=config)
 
     def _init(
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
-        sweep_config: Optional[Dict[str, Any]] = None,
     ) -> None:
 
         self._settings = settings
@@ -484,12 +483,30 @@ class Run:
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-        self._launch_artifact_mapping: Dict[str, Any] = {}
-        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if self._settings.save_code and self._settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", self._settings.program_relpath)
             )
+        self._config._update(config, ignore_locked=True)
+
+        # interface pid and port configured when backend is configured (See _hack_set_run)
+        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        self._iface_pid = None
+        self._iface_port = None
+        self._attach_id = None
+        self._is_attached = False
+
+        self._attach_pid = os.getpid()
+
+        # for now, use runid as attach id, this could/should be versioned in the future
+        if self._settings._require_service:
+            self._attach_id = self._settings.run_id
+
+    def _populate_sweep_or_launch_config(
+        self, sweep_config: Optional[Dict[str, Any]]
+    ) -> None:
+        self._launch_artifact_mapping: Dict[str, Any] = {}
+        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if sweep_config:
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
@@ -535,20 +552,6 @@ class Run:
                 self._config.update_locked(
                     launch_run_config, user="launch", _allow_val_change=True
                 )
-        self._config._update(config, ignore_locked=True)
-
-        # interface pid and port configured when backend is configured (See _hack_set_run)
-        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
-        self._iface_pid = None
-        self._iface_port = None
-        self._attach_id = None
-        self._is_attached = False
-
-        self._attach_pid = os.getpid()
-
-        # for now, use runid as attach id, this could/should be versioned in the future
-        if self._settings._require_service:
-            self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid
@@ -1178,7 +1181,7 @@ class Run:
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files = dict(files=[(glob.escape(fname), "now")])
+        files: "FilesDict" = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1412,11 +1415,11 @@ class Run:
         the data on the client side or you may get degraded performance.
 
         Arguments:
-            row: (dict, optional) A dict of serializable python objects i.e `str`,
+            data: (dict, optional) A dict of serializable python objects i.e `str`,
                 `ints`, `floats`, `Tensors`, `dicts`, or any of the `wandb.data_types`.
             commit: (boolean, optional) Save the metrics dict to the wandb server
                 and increment the step.  If false `wandb.log` just updates the current
-                metrics dict with the row argument and metrics won't be saved until
+                metrics dict with the data argument and metrics won't be saved until
                 `wandb.log` is called with `commit=True`.
             step: (integer, optional) The global step in processing. This persists
                 any non-committed earlier steps but defaults to not committing the
@@ -1549,7 +1552,7 @@ class Run:
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: str = "live",
+        policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
@@ -1579,7 +1582,7 @@ class Run:
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: str = "live",
+        policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
 
         if policy not in ("live", "end", "now"):
@@ -1601,7 +1604,7 @@ class Run:
                 )
             else:
                 base_path = "."
-        wandb_glob_str = os.path.relpath(glob_str, base_path)
+        wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
         if ".." + os.sep in wandb_glob_str:
             raise ValueError("globs can't walk above base_path")
 
@@ -1640,7 +1643,7 @@ class Run:
                 )
                 % file_str
             )
-        files_dict = dict(files=[(wandb_glob_str, policy)])
+        files_dict: "FilesDict" = dict(files=[(wandb_glob_str, policy)])
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
@@ -3076,7 +3079,7 @@ class Run:
 
         log_dir = settings.log_user or settings.log_internal
         if log_dir:
-            log_dir = os.path.dirname(log_dir)
+            log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
             printer.display(
                 f"Find logs at: {printer.files(log_dir)}",
             )

@@ -34,15 +34,19 @@ media_requirements = [
 ]
 launch_requirements = [
     "nbconvert",
+    "nbformat",
     "chardet",
     "iso8601",
     "typing_extensions",
+    "boto3",
+    "google-cloud-storage",
+    "kubernetes",
 ]
 
 
 setup(
     name="wandb",
-    version="0.12.16.dev1",
+    version="0.12.17.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
