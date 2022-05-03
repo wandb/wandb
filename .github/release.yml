@@ -6,6 +6,9 @@ changelog:
     - title: ":nail_care: Enhancement"
       labels:
         - changelog-enhancement
+    - title: ":broom: Cleanup"
+      labels:
+        - changelog-cleanup
     - title: ":bug: Bug Fix"
       labels:
         - "*"
