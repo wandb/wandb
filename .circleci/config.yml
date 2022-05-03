@@ -420,6 +420,7 @@ jobs:
           event: always
           channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
+  # Build a docker image for a yea shard of the nightly pipeline.
   sdk_docker:
     parameters:
       description:
@@ -500,11 +501,6 @@ jobs:
       - create_gke_cluster:
           cluster: << parameters.cluster >>
           image: << parameters.image_name >>
-#      - gke/create-cluster:
-#          cluster: gcp-testing
-#          # https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scheduled-deletion
-##          additional-args: --max-age=20m
-#          perform-login: true
       - run:
           name: Install GPU drivers
           command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml

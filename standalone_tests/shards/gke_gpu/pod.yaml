@@ -3,14 +3,14 @@ kind: Pod
 metadata:
   name: gpu-pod
 spec:
+  restartPolicy: Never
   containers:
-  - name: gpu-sdk
-    image: gcr.io/wandb-client-cicd/gpu-sdk:latest
-#    command: ["tail", "-f", "/dev/null"]
-    # do not restart the container if it exits
-    restartPolicy: Never
-    resources:
-      limits:
-        nvidia.com/gpu: 1 # requesting 1 GPU
-#    ports:
-#    - containerPort: 80
+    - name: gpu-sdk
+      image: gcr.io/wandb-client-cicd/gpu-sdk:latest
+  #    command: ["tail", "-f", "/dev/null"]
+      # do not restart the container if it exits
+      resources:
+        limits:
+          nvidia.com/gpu: 1 # requesting 1 GPU
+  #    ports:
+  #    - containerPort: 80
