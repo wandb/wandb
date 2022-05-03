@@ -611,7 +611,6 @@ jobs:
               elif [ "$(kubectl get pods | grep -c 'Completed')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> has completed"
                 exit 0
-              fi
               elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is in an error state"
                 kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
