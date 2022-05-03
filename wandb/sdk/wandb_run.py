@@ -1896,7 +1896,6 @@ class Run:
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
-
         self._hooks = ExitHooks()
 
         manager = self._wl and self._wl._get_manager()
