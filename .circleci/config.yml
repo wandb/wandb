@@ -137,10 +137,11 @@ commands:
       - run: apk add docker-cli-buildx=0.8.2-r1  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
   setup_gcloud:
-    cluster:
-      description: "cluster name"
-      type: string
-      default: << pipeline.parameters.gcp_cluster_name >>
+    parameters:
+      cluster:
+        description: "cluster name"
+        type: string
+        default: << pipeline.parameters.gcp_cluster_name >>
     steps:
       - run:
           name: "Setup gcloud"
