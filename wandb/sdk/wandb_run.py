@@ -2376,7 +2376,7 @@ class Run:
     @_run_decorator._attach
     def log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str, ArtifactEntryDictType],
+        artifact_or_path: Union[wandb_artifacts.Artifact, str, 'ArtifactEntryDictType'],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
