@@ -28,7 +28,7 @@ class BareRunner(AbstractRunner):
 
     """
 
-    def run(  # noqa type: ignore
+    def run(  # noqa no-untyped-def: ignore
         self,
         launch_project: LaunchProject,
         *args,
@@ -45,13 +45,13 @@ class BareRunner(AbstractRunner):
         cmd: List[Any] = []
 
         # Check to make sure local python dependencies match run's requirement.txt
-        _, _, run_name = parse_wandb_uri(launch_project.uri)  # noqa type: ignore
+        _, _, run_name = parse_wandb_uri(launch_project.uri)  # noqa arg-type: ignore
         validate_wandb_python_deps(
             launch_project.target_entity,
             launch_project.target_project,
             run_name,
             self._api,
-            launch_project.project_dir,  # noqa type: ignore
+            launch_project.project_dir,  # noqa arg-type: ignore
         )
 
         env_vars = get_env_vars_dict(launch_project, self._api)
