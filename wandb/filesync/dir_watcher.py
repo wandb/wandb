@@ -8,7 +8,6 @@ import time
 from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 
 from wandb import util
-from wandb.util import POW_10_BYTES
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -99,12 +98,8 @@ class PolicyLive(FileEventHandler):
     """This policy will upload files every RATE_LIMIT_SECONDS as it
     changes throttling as the size increases"""
 
-    # TEN_MB = 10 * POW_10_BYTES["MB"]
-    # HUNDRED_MB = 100 * POW_10_BYTES["MB"]
-    # ONE_GB = POW_10_BYTES["GB"]
-    # RATE_LIMIT_SECONDS = 15
+    unit_dict = dict(util.POW_10_BYTES)
     # Wait to upload until size has increased 20% from last upload
-    pow_10_Bytes = dict(POW_10_BYTES)
     RATE_LIMIT_SIZE_INCREASE = 1.2
 
     def __init__(
@@ -129,11 +124,11 @@ class PolicyLive(FileEventHandler):
 
     @classmethod
     def min_wait_for_size(cls, size: int) -> float:
-        if size < 10 * cls.pow_10_Bytes["MB"]:
+        if size < 10 * cls.unit_dict["MB"]:
             return 60
-        elif size < 100 * cls.pow_10_Bytes["MB"]:
+        elif size < 100 * cls.unit_dict["MB"]:
             return 5 * 60
-        elif size < cls.pow_10_Bytes["GB"]:
+        elif size < cls.unit_dict["GB"]:
             return 10 * 60
         else:
             return 20 * 60
