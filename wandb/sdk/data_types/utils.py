@@ -75,9 +75,14 @@ def val_to_json(
     converted = val
     typename = util.get_full_typename(val)
 
+    # // TODO: Do this much better
+    try:
+        val = wandb.sdk.data_types.saved_model._SavedModel.init(val)
+    except Exception:
+        # pass
+        val = val
     if util.is_pandas_data_frame(val):
         val = wandb.Table(dataframe=val)
-
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
