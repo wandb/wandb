@@ -1,5 +1,3 @@
-import json
-import os
 from typing import (
     Any,
     Dict,
@@ -15,45 +13,6 @@ from wandb.sdk.interface.artifacts import (
     Artifact as ArtifactInterface,
     ArtifactEntry,
 )
-
-
-def _add_any(
-    artifact: ArtifactInterface,
-    path_or_obj: Union[str, ArtifactEntry, data_types.WBValue],  # todo: add dataframe
-    name: Optional[str],
-) -> Any:
-    """High-level wrapper to add object(s) to an artifact - calls any of the .add* methods
-    under Artifact depending on the type of object that's passed in. This will probably be moved
-    to the Artifact class in the future.
-
-    Args:
-        artifact: `ArtifactInterface` - most likely a LocalArtifact created with `wandb.Artifact(...)`
-
-        path_or_obj: `Union[str, ArtifactEntry, data_types.WBValue]` - either a str or valid object which
-        indicates what to add to an artifact.
-
-        name: `str` - the name of the object which is added to an artifact.
-
-    Returns:
-        Type[Any] - Union[None, ArtifactManifestEntry, etc]
-
-    """
-    if isinstance(path_or_obj, ArtifactEntry):
-        return artifact.add_reference(path_or_obj, name)
-    elif isinstance(path_or_obj, data_types.WBValue):
-        return artifact.add(path_or_obj, name)
-    elif isinstance(path_or_obj, str):
-        if os.path.isdir(path_or_obj):
-            return artifact.add_dir(path_or_obj)
-        elif os.path.isfile(path_or_obj):
-            return artifact.add_file(path_or_obj)
-        else:
-            with artifact.new_file(name) as f:
-                f.write(json.dumps(path_or_obj, sort_keys=True))
-    else:
-        raise ValueError(
-            f"Expected `path_or_obj` to be instance of `ArtifactEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
-        )
 
 
 def _log_artifact_version(
@@ -92,22 +51,9 @@ def _log_artifact_version(
     else:
         run = wandb.run
 
-    if not scope_project:
-        name = f"{name}-{run.id}"
-
-    if metadata is None:
-        metadata = {}
-
-    art = wandb.Artifact(name, type, description, metadata, False, None)
-
-    for path in entries:
-        _add_any(art, entries[path], path)
-
-    # "latest" should always be present as an alias
-    aliases = wandb.util._resolve_aliases(aliases)
-    run.log_artifact(art, aliases=aliases)
-
-    return art
+    return run.log_artifact(
+        entries, name, type, aliases, description, metadata, scope_project
+    )
 
 
 def log_model(

@@ -61,6 +61,7 @@ from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
+from .data_types.base_types.wb_value import WBValue
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
@@ -86,7 +87,6 @@ from .wandb_setup import _WandbSetup
 
 
 if TYPE_CHECKING:
-    from .data_types.base_types.wb_value import WBValue
     from .wandb_alerts import AlertLevel
 
     from .interface.artifacts import (
@@ -101,6 +101,8 @@ if TYPE_CHECKING:
         GetSummaryResponse,
         SampledHistoryResponse,
     )
+
+    ArtifactEntryDictType = Dict[str, Union[str, ArtifactEntry, WBValue]]
 
 
 logger = logging.getLogger("wandb")
@@ -2374,10 +2376,13 @@ class Run:
     @_run_decorator._attach
     def log_artifact(
         self,
-        artifact_or_path: Union[wandb_artifacts.Artifact, str],
+        artifact_or_path: Union[wandb_artifacts.Artifact, str, ArtifactEntryDictType],
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        description: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        scope_project: Optional[bool] = None,
     ) -> wandb_artifacts.Artifact:
         """Declare an artifact as an output of a run.
 
@@ -2403,6 +2408,48 @@ class Run:
         Returns:
             An `Artifact` object.
         """
+        if not isinstance(artifact_or_path, dict):
+            if description is not None:
+                wandb.termwarn(
+                    "log_artifact's `description` parameter is only supported when passing an ArtifactEntryDictType"
+                )
+            if metadata is not None:
+                wandb.termwarn(
+                    "log_artifact's `metadata` parameter is only supported when passing an ArtifactEntryDictType"
+                )
+            if scope_project is not None:
+                wandb.termwarn(
+                    "log_artifact's `scope_project` parameter is only supported when passing an ArtifactEntryDictType"
+                )
+        else:
+            if name is None:
+                raise TypeError(
+                    "log_artifact requires a name when passing an ArtifactEntryDictType"
+                )
+            if type is None:
+                raise TypeError(
+                    "log_artifact requires a type when passing an ArtifactEntryDictType"
+                )
+            if not scope_project:
+                name = f"{name}-{self._run_id}"
+            if metadata is None:
+                metadata = {}
+            art = wandb.Artifact(name, type, description, metadata, False, None)
+            for path in artifact_or_path:
+                if isinstance(artifact_or_path[path], ArtifactEntry):
+                    return art.add_reference(artifact_or_path[path], path)
+                elif isinstance(artifact_or_path[path], WBValue):
+                    return art.add(artifact_or_path[path], path)
+                elif isinstance(artifact_or_path[path], str):
+                    if os.path.isdir(artifact_or_path[path]):
+                        return art.add_dir(artifact_or_path[path])
+                    elif os.path.isfile(artifact_or_path[path]):
+                        return art.add_file(artifact_or_path[path])
+                else:
+                    raise ValueError(
+                        f"Expected `path_or_obj` to be instance of `ArtifactEntry`, `WBValue`, or `str, found {type(artifact_or_path[path])}"
+                    )
+            artifact_or_path = art
         return self._log_artifact(
             artifact_or_path, name=name, type=type, aliases=aliases
         )
