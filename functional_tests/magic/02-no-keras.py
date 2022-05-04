@@ -7,7 +7,6 @@ plugin:
   - wandb
 tag:
   shard: noml
-
 command:
     args:
         - --layers=5
