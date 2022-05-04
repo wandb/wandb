@@ -1,3 +1,4 @@
+import abc
 import fnmatch
 import glob
 import logging
@@ -9,7 +10,6 @@ from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.internal.file_pusher import FilePusher
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.settings_static import SettingsStatic
 
 wd_polling = util.vendor_import("watchdog.observers.polling")
@@ -24,12 +24,11 @@ SaveName = NewType("SaveName", str)
 logger = logging.getLogger(__name__)
 
 
-class FileEventHandler:
+class FileEventHandler(abc.ABC):
     def __init__(
         self,
         file_path: PathStr,
         save_name: SaveName,
-        api: Api,
         file_pusher: FilePusher,
         *args,
         **kwargs
@@ -40,26 +39,24 @@ class FileEventHandler:
         self.save_name = save_name
         self._file_pusher = file_pusher
         self._last_sync = None
-        self._api = api
 
     @property
-    def synced(self) -> bool:
-        return self._last_sync == os.path.getmtime(self.file_path)
-
-    @property
+    @abc.abstractmethod
     def policy(self) -> "PolicyName":
         raise NotImplementedError
 
+    @abc.abstractmethod
     def on_modified(self, force: bool = False) -> None:
-        pass
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def finish(self) -> None:
+        raise NotImplementedError
 
     def on_renamed(self, new_path: PathStr, new_name: SaveName) -> None:
         self.file_path = new_path
         self.save_name = new_name
         self.on_modified()
-
-    def finish(self) -> None:
-        self.on_modified(force=True)
 
 
 class PolicyNow(FileEventHandler):
@@ -81,6 +78,9 @@ class PolicyNow(FileEventHandler):
 
 class PolicyEnd(FileEventHandler):
     """This policy only updates at the end of the run"""
+
+    def on_modified(self, force: bool = False) -> None:
+        pass
 
     # TODO: make sure we call this
     def finish(self) -> None:
@@ -109,12 +109,11 @@ class PolicyLive(FileEventHandler):
         self,
         file_path: PathStr,
         save_name: SaveName,
-        api: Api,
         file_pusher: FilePusher,
         *args,
         **kwargs
     ):
-        super().__init__(file_path, save_name, api, file_pusher, *args, **kwargs)
+        super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
 
@@ -122,12 +121,13 @@ class PolicyLive(FileEventHandler):
     def current_size(self) -> int:
         return os.path.getsize(self.file_path)
 
-    def min_wait_for_size(self, size: int) -> float:
-        if self.current_size < self.TEN_MB:
+    @classmethod
+    def min_wait_for_size(cls, size: int) -> float:
+        if size < cls.TEN_MB:
             return 60
-        elif self.current_size < self.HUNDRED_MB:
+        elif size < cls.HUNDRED_MB:
             return 5 * 60
-        elif self.current_size < self.ONE_GB:
+        elif size < cls.ONE_GB:
             return 10 * 60
         else:
             return 20 * 60
@@ -152,11 +152,10 @@ class PolicyLive(FileEventHandler):
 
     def on_modified(self, force: bool = False) -> None:
         if self.current_size == 0:
-            return 0
-        if not self.synced and self.should_update():
-            self.save_file()
-        # if the run is finished, or wandb.save is called explicitly save me
-        elif force and not self.synced:
+            return
+        if self._last_sync == os.path.getmtime(self.file_path):
+            return
+        if force or self.should_update():
             self.save_file()
 
     def save_file(self) -> None:
@@ -164,6 +163,9 @@ class PolicyLive(FileEventHandler):
         self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
+
+    def finish(self):
+        self.on_modified(force=True)
 
     @property
     def policy(self) -> "PolicyName":
@@ -174,11 +176,9 @@ class DirWatcher:
     def __init__(
         self,
         settings: SettingsStatic,
-        api: Api,
         file_pusher: FilePusher,
         file_dir: Optional[PathStr] = None,
     ):
-        self._api = api
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
@@ -287,7 +287,7 @@ class DirWatcher:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:
                 self._file_event_handlers[save_name] = PolicyLive(
-                    file_path, save_name, self._api, self._file_pusher
+                    file_path, save_name, self._file_pusher
                 )
             else:
                 make_handler = PolicyEnd
@@ -304,7 +304,7 @@ class DirWatcher:
                             elif policy == "now":
                                 make_handler = PolicyNow
                 self._file_event_handlers[save_name] = make_handler(
-                    file_path, save_name, self._api, self._file_pusher
+                    file_path, save_name, self._file_pusher
                 )
         return self._file_event_handlers[save_name]
 
