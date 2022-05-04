@@ -14,8 +14,6 @@ import subprocess
 import time
 from unittest import mock
 
-from requests import patch
-
 import wandb
 from .utils import fixture_open, first_filestream
 
@@ -424,13 +422,8 @@ def test_end_to_end_preempting_via_module_func(live_mock_server):
     run.finish()
 
 
-from unittest.mock import patch
-
-
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
-# @patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
-# @patch("wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", lambda self, size: 2)
 def test_live_policy_file_upload(live_mock_server, test_settings):
     test_settings.update(
         {

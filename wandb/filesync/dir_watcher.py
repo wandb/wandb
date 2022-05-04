@@ -98,6 +98,7 @@ class PolicyLive(FileEventHandler):
     """This policy will upload files every RATE_LIMIT_SECONDS as it
     changes throttling as the size increases"""
 
+    RATE_LIMIT_SECONDS = 15
     unit_dict = dict(util.POW_10_BYTES)
     # Wait to upload until size has increased 20% from last upload
     RATE_LIMIT_SIZE_INCREASE = 1.2
@@ -107,16 +108,24 @@ class PolicyLive(FileEventHandler):
         file_path: PathStr,
         save_name: SaveName,
         file_pusher: FilePusher,
-        rate_limit_sec: int,
-        min_wait_time: Optional[int] = None,
+        settings: SettingsStatic,
         *args,
         **kwargs,
     ):
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
-        self._rate_limit_sec = rate_limit_sec
-        self._min_wait_time = min_wait_time
+        try:
+            self.RATE_LIMIT_SECONDS = (
+                settings._live_policy_rate_limit or self.RATE_LIMIT_SECONDS
+            )
+        except AttributeError:
+            pass
+
+        try:
+            self._min_wait_time = settings._live_policy_wait_time
+        except AttributeError:
+            self._min_wait_time = None
 
     @property
     def current_size(self) -> int:
@@ -132,14 +141,13 @@ class PolicyLive(FileEventHandler):
             return 10 * 60
         else:
             return 20 * 60
-        # return 2
 
     def should_update(self) -> bool:
         if self._last_uploaded_time:
             # Check rate limit by time elapsed
             time_elapsed = time.time() - self._last_uploaded_time
             # if more than 15 seconds has passed potentially upload it
-            if time_elapsed < self._rate_limit_sec:
+            if time_elapsed < self.RATE_LIMIT_SECONDS:
                 return False
 
             # Check rate limit by size increase
@@ -291,11 +299,7 @@ class DirWatcher:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:
                 self._file_event_handlers[save_name] = PolicyLive(
-                    file_path,
-                    save_name,
-                    self._file_pusher,
-                    self._settings._live_policy_rate_limit,
-                    self._settings._live_policy_wait_time,
+                    file_path, save_name, self._file_pusher, self._settings
                 )
             else:
                 make_handler = PolicyEnd
@@ -312,11 +316,7 @@ class DirWatcher:
                             elif policy == "now":
                                 make_handler = PolicyNow
                 self._file_event_handlers[save_name] = make_handler(
-                    file_path,
-                    save_name,
-                    self._file_pusher,
-                    self._settings._live_policy_rate_limit,
-                    self._settings._live_policy_wait_time,
+                    file_path, save_name, self._file_pusher, self._settings
                 )
         return self._file_event_handlers[save_name]
 
