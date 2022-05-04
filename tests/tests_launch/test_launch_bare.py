@@ -24,7 +24,6 @@ def test_launch_bare_base_case(
     test_settings,
     mocked_fetchable_git_repo,
     monkeypatch,
-    capsys,
 ):
 
     api = wandb.sdk.internal.internal_api.Api(
@@ -40,18 +39,9 @@ def test_launch_bare_base_case(
         "entity": "mock_server_entity",
         "project": "test",
         "resource": "bare",
+        "synchronous": False,
     }
     run = launch.run(**kwargs)
-    run.wait()
 
+    assert run.command_proc.stdout.readline() == "... Done!"
     assert str(run.get_status()) == "finished"
-
-    outerr = capsys.readouterr()
-    breakpoint()
-
-    assert (
-        "Attempting to log a sequence of Image objects from multiple processes might result in data loss. Please upgrade your wandb server"
-        in outerr.err
-    )
-
-    breakpoint()
