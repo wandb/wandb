@@ -140,7 +140,7 @@ def val_to_json(
 
     if isinstance(val, WBValue):
         assert run
-        if isinstance(val, Media) and not val.is_bound():
+        if isinstance(val, WBValue) and not val.is_bound():
             if hasattr(val, "_log_type") and val._log_type in [
                 "table",
                 "partitioned-table",
