@@ -1,4 +1,3 @@
-import os
 import logging
 import shlex
 from typing import Any, List, Optional
@@ -10,10 +9,10 @@ from .local import _run_entry_point
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
+    parse_wandb_uri,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
     validate_wandb_python_deps,
-    parse_wandb_uri,
 )
 
 

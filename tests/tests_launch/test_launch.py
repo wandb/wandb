@@ -187,6 +187,7 @@ def mock_download_url(*args, **kwargs):
     elif args[1] == "requirements.txt":
         return {"url": "requirements"}
 
+
 def mock_file_download_request(url):
     class MockedFileResponder:
         def __init__(self, url):
@@ -210,6 +211,7 @@ def mock_file_download_request(url):
                 ]
 
     return 200, MockedFileResponder(url)
+
 
 def check_project_spec(
     project_spec,

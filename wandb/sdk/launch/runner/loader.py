@@ -6,10 +6,10 @@ from wandb.errors import LaunchError
 
 from .abstract import AbstractRunner
 from .aws import AWSSagemakerRunner
+from .bare import BareRunner
 from .gcp_vertex import VertexRunner
 from .kubernetes import KubernetesRunner
 from .local import LocalRunner
-from .bare import BareRunner
 
 
 __logger__ = logging.getLogger(__name__)
