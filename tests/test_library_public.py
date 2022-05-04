@@ -8,9 +8,6 @@ TODO:
     - deprecate ones that were public but we want to remove
 
 """
-
-import pytest
-
 import wandb
 
 SYMBOLS_ROOT_DATATYPES = {
@@ -144,6 +141,8 @@ SYMBOLS_TYPING = {
     "Union",
 }
 
+SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
+
 
 def test_library_root():
     symbol_list = dir(wandb)
@@ -218,8 +217,6 @@ SYMBOLS_RUN_OTHER = {
     "dir",
     "project_name",
 }
-
-SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
 
 
 def test_library_run():
