@@ -8,9 +8,6 @@ TODO:
     - deprecate ones that were public but we want to remove
 
 """
-
-import pytest
-
 import wandb
 
 SYMBOLS_ROOT_DATATYPES = {
@@ -144,6 +141,8 @@ SYMBOLS_TYPING = {
     "Union",
 }
 
+SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
+
 
 def test_library_root():
     symbol_list = dir(wandb)
@@ -155,6 +154,7 @@ def test_library_root():
         - SYMBOLS_ROOT_SDK
         - SYMBOLS_ROOT_OTHER
         - SYMBOLS_TYPING
+        - SYMBOLS_SERVICE
     )
     assert symbol_unknown == set()
 
@@ -230,6 +230,7 @@ def test_library_run():
         - SYMBOLS_RUN_RESUME
         - SYMBOLS_RUN_OTHER
         - SYMBOLS_TYPING
+        - SYMBOLS_SERVICE
     )
     assert symbol_unknown == set()
 
