@@ -2436,14 +2436,14 @@ class Run:
             art = wandb.Artifact(name, type, description, metadata, False, None)
             for path in artifact_or_path:
                 if isinstance(artifact_or_path[path], ArtifactEntry):
-                    return art.add_reference(artifact_or_path[path], path)
+                    art.add_reference(artifact_or_path[path], path)
                 elif isinstance(artifact_or_path[path], WBValue):
-                    return art.add(artifact_or_path[path], path)
+                    art.add(artifact_or_path[path], path)
                 elif isinstance(artifact_or_path[path], str):
                     if os.path.isdir(artifact_or_path[path]):
-                        return art.add_dir(artifact_or_path[path])
+                        art.add_dir(artifact_or_path[path])
                     elif os.path.isfile(artifact_or_path[path]):
-                        return art.add_file(artifact_or_path[path])
+                        art.add_file(artifact_or_path[path])
                 else:
                     raise ValueError(
                         f"Expected `path_or_obj` to be instance of `ArtifactEntry`, `WBValue`, or `str, found {type(artifact_or_path[path])}"
