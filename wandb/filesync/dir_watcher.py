@@ -111,13 +111,11 @@ class PolicyLive(FileEventHandler):
         save_name: SaveName,
         file_pusher: FilePusher,
         *args,
-        clock_for_testing: Callable[[], float] = time.time,
         **kwargs
     ):
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
-        self._clock = clock_for_testing
 
     @property
     def current_size(self) -> int:
@@ -137,7 +135,7 @@ class PolicyLive(FileEventHandler):
     def should_update(self) -> bool:
         if self._last_uploaded_time is not None:
             # Check rate limit by time elapsed
-            time_elapsed = self._clock() - self._last_uploaded_time
+            time_elapsed = time.time() - self._last_uploaded_time
             # if more than 15 seconds has passed potentially upload it
             if time_elapsed < self.RATE_LIMIT_SECONDS:
                 return False
@@ -162,7 +160,7 @@ class PolicyLive(FileEventHandler):
 
     def save_file(self) -> None:
         self._last_sync = os.path.getmtime(self.file_path)
-        self._last_uploaded_time = self._clock()
+        self._last_uploaded_time = time.time()
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
@@ -180,7 +178,6 @@ class DirWatcher:
         settings: SettingsStatic,
         file_pusher: FilePusher,
         file_dir: Optional[PathStr] = None,
-        file_observer_for_testing: Optional[wd_polling.PollingObserver] = None,
     ):
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
@@ -192,12 +189,7 @@ class DirWatcher:
         }
         self._file_pusher = file_pusher
         self._file_event_handlers = {}
-
-        self._file_observer = (
-            wd_polling.PollingObserver()
-            if file_observer_for_testing is None
-            else file_observer_for_testing
-        )
+        self._file_observer = wd_polling.PollingObserver()
         self._file_observer.schedule(
             self._per_file_event_handler(), self._dir, recursive=True
         )

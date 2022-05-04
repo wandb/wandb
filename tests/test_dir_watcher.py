@@ -3,12 +3,14 @@
 import os
 from pathlib import Path
 import tempfile
+import time
 from typing import Callable, TYPE_CHECKING
 from unittest.mock import Mock, call
 
 import pytest
 
 from wandb import Settings
+import wandb.filesync.dir_watcher
 from wandb.filesync.dir_watcher import DirWatcher, PolicyEnd, PolicyLive, PolicyNow
 from wandb.sdk.internal.file_pusher import FilePusher
 
@@ -33,12 +35,12 @@ def tempdir():
 
 
 @pytest.fixture
-def dir_watcher(settings, file_pusher, tempdir: Path) -> DirWatcher:
+def dir_watcher(settings, file_pusher, tempdir: Path, monkeypatch) -> DirWatcher:
+    monkeypatch.setattr(wandb.filesync.dir_watcher, 'wd_polling', Mock())
     return DirWatcher(
         settings=settings,
         file_pusher=file_pusher,
         file_dir=str(tempdir),
-        file_observer_for_testing=Mock(),
     )
 
 
@@ -203,13 +205,14 @@ def test_policylive_uploads_nonempty_unchanged_file_on_modified(
 
 
 def test_policylive_ratelimits_modified_file_reupload(
-    tempdir: Path, file_pusher: Mock
+    tempdir: Path, file_pusher: Mock, monkeypatch
 ):
     elapsed = 0
+    monkeypatch.setattr(time, "time", lambda: elapsed)
     f = tempdir / "my-file.txt"
     write_with_mtime(f, b"content", mtime=0)
     policy = PolicyLive(
-        str(f), f.name, file_pusher, clock_for_testing=lambda: elapsed
+        str(f), f.name, file_pusher
     )
     policy.on_modified()
 
@@ -230,12 +233,13 @@ def test_policylive_ratelimits_modified_file_reupload(
     file_pusher.file_changed.assert_called()
 
 
-def test_policylive_forceuploads_on_finish(tempdir: Path, file_pusher: Mock):
+def test_policylive_forceuploads_on_finish(tempdir: Path, file_pusher: Mock, monkeypatch):
     elapsed = 0
+    monkeypatch.setattr(time, "time", lambda: elapsed)
     f = tempdir / "my-file.txt"
     write_with_mtime(f, b"content", mtime=0)
     policy = PolicyLive(
-        str(f), f.name, file_pusher, clock_for_testing=lambda: elapsed
+        str(f), f.name, file_pusher
     )
     policy.on_modified()
     file_pusher.reset_mock()
