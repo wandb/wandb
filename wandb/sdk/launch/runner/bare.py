@@ -57,7 +57,7 @@ class BareRunner(AbstractRunner):
 
         env_vars = get_env_vars_dict(launch_project, self._api)
         for env_key, env_value in env_vars.items():
-            cmd += ["-e", f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
+            cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
 
         if not self.ack_run_queue_item(launch_project):
             return None

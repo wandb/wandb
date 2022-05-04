@@ -204,9 +204,9 @@ def mock_file_download_request(url):
                     b"import numpy\n",
                     b"import wandb\n",
                     b"import time\n",
-                    b"print('Starting python code! ...')\n",
+                    b"print('(main2.py) starting')\n",
                     b"time.sleep(1)\n",
-                    b"print('... Done!')\n",
+                    b"print('(main2.py) finished')\n",
                 ]
 
     return 200, MockedFileResponder(url)

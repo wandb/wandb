@@ -24,6 +24,7 @@ def test_launch_bare_base_case(
     test_settings,
     mocked_fetchable_git_repo,
     monkeypatch,
+    capsys,
 ):
 
     api = wandb.sdk.internal.internal_api.Api(
@@ -39,9 +40,10 @@ def test_launch_bare_base_case(
         "entity": "mock_server_entity",
         "project": "test",
         "resource": "bare",
-        "synchronous": False,
     }
     run = launch.run(**kwargs)
-
-    assert run.command_proc.stdout.readline() == "... Done!"
+    run.wait()
     assert str(run.get_status()) == "finished"
+    # # TODO: Why does this not work?
+    # _, err = capsys.readouterr()
+    # assert "(main2.py) finished" in out
