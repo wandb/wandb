@@ -145,6 +145,7 @@ def val_to_json(
                 "table",
                 "partitioned-table",
                 "joined-table",
+                "pytorch-model-file"
             ]:
 
                 # Special conditional to log tables as artifact entries as well.
