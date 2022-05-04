@@ -552,7 +552,6 @@ jobs:
       - gke/delete-cluster:
           cluster: << parameters.cluster >>
 
-  #
   test_gpu:
     parameters:
       cluster:
@@ -608,6 +607,7 @@ jobs:
             kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
             exit 1
       - run:
+          # todo: poll cluster for running/completed pods
           # todo: make getting the exit_code more robust
           name: "Wait for tests to finish, get pod logs, parse exit code, and delete pod"
           command: |
