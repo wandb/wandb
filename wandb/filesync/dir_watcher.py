@@ -291,7 +291,10 @@ class DirWatcher:
                 )
             else:
                 make_handler = PolicyEnd
-                for policy, handler_type in [("now", PolicyNow), ("live", PolicyLive)]:
+                for policy, handler_type in [("live", PolicyLive), ("now", PolicyNow)]:
+                    # TODO(spencerpearson): ^ that list should be in the _other_ order:
+                    # 'live' should take precedence over 'now', to err on the side of
+                    # keeping too much data rather than too little.
                     globs = self._user_file_policies[policy]
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
