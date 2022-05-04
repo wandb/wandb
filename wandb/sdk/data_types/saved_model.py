@@ -145,17 +145,23 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return cls(dl_path)
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        json_obj = {
+            "type": self._log_type,
+        }
         # Unlike other data types, we do not allow adding to a Run directly. There is a
         # bit of tech debt in the other data types which requires the input to `to_json`
         # to accept a Run or Artifact. However, Run additions should be deprecated in the future.
         # This check helps ensure we do not add to the debt.
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
-            return super().to_json(run_or_artifact)
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is not None:
+                json_obj["artifact_path"] = artifact_entry_url
+            artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
+            if artifact_entry_latest_url is not None:
+                json_obj["_latest_artifact_path"] = artifact_entry_latest_url
+            return json_obj
             # raise ValueError("SavedModel cannot be added to run - must use artifact")
         artifact = run_or_artifact
-        json_obj = {
-            "type": self._log_type,
-        }
         assert self._path is not None, "Cannot add SavedModel to Artifact without path"
         if os.path.isfile(self._path):
             # If the path is a file, then we can just add it to the artifact,
