@@ -5,7 +5,7 @@ import logging
 import os
 import queue
 import time
-from typing import Callable, Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
+from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
@@ -62,8 +62,6 @@ class FileEventHandler(abc.ABC):
 class PolicyNow(FileEventHandler):
     """This policy only uploads files now"""
 
-    policy: "PolicyName" = "now"
-
     def on_modified(self, force: bool = False) -> None:
         # only upload if we've never uploaded or when .save is called
         if self._last_sync is None or force:
@@ -73,11 +71,13 @@ class PolicyNow(FileEventHandler):
     def finish(self) -> None:
         pass
 
+    @property
+    def policy(self) -> "PolicyName":
+        return "now"
+
 
 class PolicyEnd(FileEventHandler):
     """This policy only updates at the end of the run"""
-
-    policy: "PolicyName" = "end"
 
     def on_modified(self, force: bool = False) -> None:
         pass
@@ -89,12 +89,14 @@ class PolicyEnd(FileEventHandler):
         self._last_sync = os.path.getmtime(self.file_path)
         self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
+    @property
+    def policy(self) -> "PolicyName":
+        return "end"
+
 
 class PolicyLive(FileEventHandler):
     """This policy will upload files every RATE_LIMIT_SECONDS as it
     changes throttling as the size increases"""
-
-    policy: "PolicyName" = "live"
 
     TEN_MB = 10000000
     HUNDRED_MB = 100000000
@@ -164,6 +166,10 @@ class PolicyLive(FileEventHandler):
 
     def finish(self):
         self.on_modified(force=True)
+
+    @property
+    def policy(self) -> "PolicyName":
+        return "live"
 
 
 class DirWatcher:
@@ -285,17 +291,18 @@ class DirWatcher:
                 )
             else:
                 make_handler = PolicyEnd
-                for handler_type in [PolicyLive, PolicyNow]:
-                    # TODO(spencerpearson): ^ that list should be in the _other_ order:
-                    # 'live' should take precedence over 'now', to err on the side of
-                    # keeping too much data rather than too little.
-                    globs = self._user_file_policies[handler_type.policy]
+                for policy, globs in self._user_file_policies.items():
+                    if policy == "end":
+                        continue
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
                     for g in list(globs):
                         paths = glob.glob(os.path.join(self._dir, g))
                         if any(save_name in p for p in paths):
-                            make_handler = handler_type
+                            if policy == "live":
+                                make_handler = PolicyLive
+                            elif policy == "now":
+                                make_handler = PolicyNow
                 self._file_event_handlers[save_name] = make_handler(
                     file_path, save_name, self._file_pusher
                 )
