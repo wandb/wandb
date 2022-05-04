@@ -297,6 +297,8 @@ class DirWatcher:
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
                     for g in list(globs):
+                        if g == glob.escape(g) and g != save_name:
+                            continue
                         paths = glob.glob(os.path.join(self._dir, g))
                         if any(save_name in p for p in paths):
                             if policy == "live":
