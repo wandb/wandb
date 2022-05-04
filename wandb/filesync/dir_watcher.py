@@ -7,9 +7,9 @@ import time
 from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 
 from wandb import util
+from wandb.util import POW_10_BYTES
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.internal.file_pusher import FilePusher
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.settings_static import SettingsStatic
 
 wd_polling = util.vendor_import("watchdog.observers.polling")
@@ -29,7 +29,6 @@ class FileEventHandler:
         self,
         file_path: PathStr,
         save_name: SaveName,
-        api: Api,
         file_pusher: FilePusher,
         *args,
         **kwargs
@@ -40,9 +39,9 @@ class FileEventHandler:
         self.save_name = save_name
         self._file_pusher = file_pusher
         self._last_sync = None
-        self._api = api
 
     @property
+    @abc.abstractmethod
     def policy(self) -> "PolicyName":
         raise NotImplementedError
 
@@ -94,25 +93,30 @@ class PolicyLive(FileEventHandler):
     """This policy will upload files every RATE_LIMIT_SECONDS as it
     changes throttling as the size increases"""
 
-    TEN_MB = 10000000
-    HUNDRED_MB = 100000000
-    ONE_GB = 1000000000
-    RATE_LIMIT_SECONDS = 15
+    # TEN_MB = 10 * POW_10_BYTES["MB"]
+    # HUNDRED_MB = 100 * POW_10_BYTES["MB"]
+    # ONE_GB = POW_10_BYTES["GB"]
+    # RATE_LIMIT_SECONDS = 15
     # Wait to upload until size has increased 20% from last upload
+    pow_10_Bytes = dict(POW_10_BYTES)
     RATE_LIMIT_SIZE_INCREASE = 1.2
 
     def __init__(
         self,
         file_path: PathStr,
         save_name: SaveName,
-        api: Api,
         file_pusher: FilePusher,
+        rate_limit_sec: int,
+        min_wait_time: Optional[int] = None,
         *args,
         **kwargs
     ):
-        super().__init__(file_path, save_name, api, file_pusher, *args, **kwargs)
+        super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
+        self._rate_limit_sec = rate_limit_sec
+        print("init:", min_wait_time)
+        self._min_wait_time = min_wait_time
 
     @property
     def current_size(self) -> int:
@@ -120,29 +124,39 @@ class PolicyLive(FileEventHandler):
 
     @classmethod
     def min_wait_for_size(cls, size: int) -> float:
-        if size < cls.TEN_MB:
+        if size < 10 * cls.pow_10_Bytes["MB"]:
             return 60
-        elif size < cls.HUNDRED_MB:
+        elif size < 100 * cls.pow_10_Bytes["MB"]:
             return 5 * 60
-        elif size < cls.ONE_GB:
+        elif size < cls.pow_10_Bytes["GB"]:
             return 10 * 60
         else:
             return 20 * 60
+        # return 2
 
     def should_update(self) -> bool:
         if self._last_uploaded_time:
             # Check rate limit by time elapsed
             time_elapsed = time.time() - self._last_uploaded_time
             # if more than 15 seconds has passed potentially upload it
-            if time_elapsed < self.RATE_LIMIT_SECONDS:
+            import os
+
+            print(os.getpid())
+            print("RATE_LIMIT_SECONDS:", self._rate_limit_sec)
+            print("time_elapsed:", time_elapsed)
+            if time_elapsed < self._rate_limit_sec:
                 return False
 
             # Check rate limit by size increase
             if float(self._last_uploaded_size) > 0:
+                print("self._last_uploaded_size:", self._last_uploaded_size)
                 size_increase = self.current_size / float(self._last_uploaded_size)
+                print("size_increase:", size_increase)
                 if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
                     return False
-            return time_elapsed > self.min_wait_for_size(self.current_size)
+            return time_elapsed > self._min_wait_time or self.min_wait_for_size(
+                self.current_size
+            )
 
         # if the file has never been uploaded, we'll upload it
         return True
@@ -170,11 +184,9 @@ class DirWatcher:
     def __init__(
         self,
         settings: SettingsStatic,
-        api: Api,
         file_pusher: FilePusher,
         file_dir: Optional[PathStr] = None,
     ):
-        self._api = api
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
@@ -251,6 +263,7 @@ class DirWatcher:
 
     def _on_file_modified(self, event: wd_events.FileModifiedEvent) -> None:
         logger.info("file/dir modified: %s", event.src_path)
+        print("_on_file_modified")
         if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._dir)
@@ -283,7 +296,11 @@ class DirWatcher:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:
                 self._file_event_handlers[save_name] = PolicyLive(
-                    file_path, save_name, self._api, self._file_pusher
+                    file_path,
+                    save_name,
+                    self._file_pusher,
+                    self._settings._live_policy_rate_limit,
+                    self._settings._live_policy_wait_time,
                 )
             else:
                 make_handler = PolicyEnd
@@ -300,7 +317,11 @@ class DirWatcher:
                             elif policy == "now":
                                 make_handler = PolicyNow
                 self._file_event_handlers[save_name] = make_handler(
-                    file_path, save_name, self._api, self._file_pusher
+                    file_path,
+                    save_name,
+                    self._file_pusher,
+                    self._settings._live_policy_rate_limit,
+                    self._settings._live_policy_wait_time,
                 )
         return self._file_event_handlers[save_name]
 

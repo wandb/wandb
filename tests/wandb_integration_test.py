@@ -14,6 +14,8 @@ import subprocess
 import time
 from unittest import mock
 
+from requests import patch
+
 import wandb
 from .utils import fixture_open, first_filestream
 
@@ -422,51 +424,50 @@ def test_end_to_end_preempting_via_module_func(live_mock_server):
     run.finish()
 
 
+from unittest.mock import patch
+
+
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
-def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
+# @patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
+# @patch("wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", lambda self, size: 2)
+def test_live_policy_file_upload(live_mock_server, test_settings):
     test_settings.update(
-        {"start_method": "thread"},
+        {
+            "start_method": "thread",
+            "_live_policy_rate_limit": 2,
+            "_live_policy_wait_time": 2,
+        },
         source=wandb.sdk.wandb_settings.Source.INIT,
     )
 
-    def mock_min_size(self, size):
-        return 2
-
-    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
-    mocker.patch(
-        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
-    )
-
-    run = wandb.init(settings=test_settings)
-    file_path = "saveFile"
-    sent = 0
-    # file created, should be uploaded
-    with open(file_path, "w") as fp:
-        fp.write("a" * 10000)
-    run.save(file_path, policy="live")
-    # on save file is sent
-    sent += os.path.getsize(file_path)
-    time.sleep(2.1)
-    with open(file_path, "a") as fp:
-        fp.write("a" * 10000)
-    # 2.1 seconds is longer than set rate limit
-    sent += os.path.getsize(file_path)
-    # give watchdog time to register the change
-    time.sleep(1.0)
-    # file updated within modified time, should not be uploaded
-    with open(file_path, "a") as fp:
-        fp.write("a" * 10000)
-    time.sleep(2.0)
-    # file updated outside of rate limit should be uploaded
-    with open(file_path, "a") as fp:
-        fp.write("a" * 10000)
-    sent += os.path.getsize(file_path)
-    time.sleep(2)
+    with wandb.init(settings=test_settings) as run:
+        file_path, sent = "saveFile", 0
+        # file created, should be uploaded
+        with open(file_path, "w") as fp:
+            fp.write("a" * 10000)
+        run.save(file_path, policy="live")
+        # on save file is sent
+        sent += os.path.getsize(file_path)
+        time.sleep(2.1)
+        with open(file_path, "a") as fp:
+            fp.write("a" * 10000)
+        # 2.1 seconds is longer than set rate limit
+        sent += os.path.getsize(file_path)
+        # give watchdog time to register the change
+        time.sleep(1.0)
+        # file updated within modified time, should not be uploaded
+        with open(file_path, "a") as fp:
+            fp.write("a" * 10000)
+        time.sleep(2.0)
+        # file updated outside of rate limit should be uploaded
+        with open(file_path, "a") as fp:
+            fp.write("a" * 10000)
+        sent += os.path.getsize(file_path)
+        time.sleep(2)
 
     server_ctx = live_mock_server.get_ctx()
     print(server_ctx["file_bytes"], sent)
     assert "saveFile" in server_ctx["file_bytes"].keys()
     # TODO: bug sometimes it seems that on windows the first file is sent twice
     assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000
-    run.finish()

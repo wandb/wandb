@@ -151,7 +151,7 @@ def test_save_live_glob_multi_write(mocked_run, mock_server, mocker, backend_int
     )
 
     with backend_interface() as interface:
-        interface.publish_files({"files": [("checkpoints/*", "live")]})
+        # interface.publish_files({"files": [("checkpoints/*", "live")]})
         mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
         test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
         test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")

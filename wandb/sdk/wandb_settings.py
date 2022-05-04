@@ -375,6 +375,8 @@ class Settings:
     _jupyter_path: str
     _jupyter_root: str
     _kaggle: bool
+    _live_policy_rate_limit: int
+    _live_policy_wait_time: Optional[int]
     _noop: bool
     _offline: bool
     _os: str
@@ -495,6 +497,8 @@ class Settings:
                 "auto_hook": True,
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
+            _live_policy_rate_limit={"value": 15},
+            # _live_policy_wait_time={"value": 15},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
             _offline={
                 "hook": (
