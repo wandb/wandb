@@ -282,8 +282,8 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
         # see https://pip.pypa.io/en/stable/reference/requirements-file-format/#example
         d: Dict[str, str] = dict()
         for line in req:
-            _name = None
-            _version = None
+            _name: str = None  # noqa type: ignore
+            _version: str = None  # noqa type: ignore
             if line.startswith("#"):  # Ignore comments
                 continue
             elif "git+" in line or "hg+" in line:
@@ -318,7 +318,7 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
         req_2_dict: Dict[str, str] = _parse_req(req_2)
     except (AssertionError, ValueError, IndexError, KeyError) as e:
         raise LaunchError(f"Failed to parse pip requirements: {e}")
-    diff: List[str] = []
+    diff: List[Tuple[str, str]] = []
     for item in set(req_1_dict.items()) ^ set(req_2_dict.items()):
         diff.append(item)
     # Parse through the diff to make it pretty
