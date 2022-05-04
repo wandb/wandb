@@ -376,7 +376,7 @@ class Settings:
     _jupyter_root: str
     _kaggle: bool
     _live_policy_rate_limit: int
-    _live_policy_wait_time: Optional[int]
+    _live_policy_wait_time: int
     _noop: bool
     _offline: bool
     _os: str
