@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import time
 from typing import Callable, TYPE_CHECKING
-from unittest.mock import Mock, call
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -35,13 +35,13 @@ def tempdir():
 
 
 @pytest.fixture
-def dir_watcher(settings, file_pusher, tempdir: Path, monkeypatch) -> DirWatcher:
-    monkeypatch.setattr(wandb.filesync.dir_watcher, 'wd_polling', Mock())
-    return DirWatcher(
-        settings=settings,
-        file_pusher=file_pusher,
-        file_dir=str(tempdir),
-    )
+def dir_watcher(settings, file_pusher, tempdir: Path) -> DirWatcher:
+    with patch.object(wandb.filesync.dir_watcher, "wd_polling", Mock()):
+        yield DirWatcher(
+            settings=settings,
+            file_pusher=file_pusher,
+            file_dir=str(tempdir),
+        )
 
 
 def write_with_mtime(path: Path, content: bytes, mtime: int) -> None:
@@ -163,7 +163,9 @@ def test_dirwatcher_finish_skips_ignoreglob_files(
     assert file_pusher.file_changed.called == (not ignore)
 
 
-@pytest.mark.skip(reason="Live *should* take precedence over Now, I think, but I don't want to change the existing behavior yet")
+@pytest.mark.skip(
+    reason="Live *should* take precedence over Now, I think, but I don't want to change the existing behavior yet"
+)
 def test_dirwatcher_prefers_live_policy_when_multiple_rules_match_file(
     tempdir: Path, dir_watcher: DirWatcher
 ):
@@ -205,52 +207,46 @@ def test_policylive_uploads_nonempty_unchanged_file_on_modified(
     file_pusher.file_changed.assert_called_once_with(f.name, str(f))
 
 
-def test_policylive_ratelimits_modified_file_reupload(
-    tempdir: Path, file_pusher: Mock, monkeypatch
-):
+def test_policylive_ratelimits_modified_file_reupload(tempdir: Path, file_pusher: Mock):
     elapsed = 0
-    monkeypatch.setattr(time, "time", lambda: elapsed)
-    f = tempdir / "my-file.txt"
-    write_with_mtime(f, b"content", mtime=0)
-    policy = PolicyLive(
-        str(f), f.name, file_pusher
-    )
-    policy.on_modified()
+    with patch.object(time, "time", lambda: elapsed):
+        f = tempdir / "my-file.txt"
+        write_with_mtime(f, b"content", mtime=0)
+        policy = PolicyLive(str(f), f.name, file_pusher)
+        policy.on_modified()
 
-    threshold = max(
-        PolicyLive.RATE_LIMIT_SECONDS,
-        PolicyLive.min_wait_for_size(len(f.read_bytes())),
-    )
+        threshold = max(
+            PolicyLive.RATE_LIMIT_SECONDS,
+            PolicyLive.min_wait_for_size(len(f.read_bytes())),
+        )
 
-    file_pusher.reset_mock()
-    elapsed = threshold - 1
-    write_with_mtime(f, b"new content", mtime=elapsed)
-    policy.on_modified()
-    file_pusher.file_changed.assert_not_called()
+        file_pusher.reset_mock()
+        elapsed = threshold - 1
+        write_with_mtime(f, b"new content", mtime=elapsed)
+        policy.on_modified()
+        file_pusher.file_changed.assert_not_called()
 
-    elapsed = threshold + 1
-    write_with_mtime(f, b"new content", mtime=elapsed)
-    policy.on_modified()
-    file_pusher.file_changed.assert_called()
+        elapsed = threshold + 1
+        write_with_mtime(f, b"new content", mtime=elapsed)
+        policy.on_modified()
+        file_pusher.file_changed.assert_called()
 
 
-def test_policylive_forceuploads_on_finish(tempdir: Path, file_pusher: Mock, monkeypatch):
+def test_policylive_forceuploads_on_finish(tempdir: Path, file_pusher: Mock):
     elapsed = 0
-    monkeypatch.setattr(time, "time", lambda: elapsed)
-    f = tempdir / "my-file.txt"
-    write_with_mtime(f, b"content", mtime=0)
-    policy = PolicyLive(
-        str(f), f.name, file_pusher
-    )
-    policy.on_modified()
-    file_pusher.reset_mock()
+    with patch.object(time, "time", lambda: elapsed):
+        f = tempdir / "my-file.txt"
+        write_with_mtime(f, b"content", mtime=0)
+        policy = PolicyLive(str(f), f.name, file_pusher)
+        policy.on_modified()
+        file_pusher.reset_mock()
 
-    elapsed += 1
-    write_with_mtime(f, b"new content", mtime=elapsed)
-    policy.on_modified()  # modifying the file shouldn't re-upload it because of the rate-limiting...
-    file_pusher.file_changed.assert_not_called()
-    policy.finish()  # ...but finish() should force a re-upload
-    file_pusher.file_changed.assert_called()
+        elapsed += 1
+        write_with_mtime(f, b"new content", mtime=elapsed)
+        policy.on_modified()  # modifying the file shouldn't re-upload it because of the rate-limiting...
+        file_pusher.file_changed.assert_not_called()
+        policy.finish()  # ...but finish() should force a re-upload
+        file_pusher.file_changed.assert_called()
 
 
 def test_policynow_uploads_on_modified_iff_not_already_uploaded(
