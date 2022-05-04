@@ -163,6 +163,7 @@ def test_dirwatcher_finish_skips_ignoreglob_files(
     assert file_pusher.file_changed.called == (not ignore)
 
 
+@pytest.mark.skip(reason="Live *should* take precedence over Now, I think, but I don't want to change the existing behavior yet")
 def test_dirwatcher_prefers_live_policy_when_multiple_rules_match_file(
     tempdir: Path, dir_watcher: DirWatcher
 ):
