@@ -92,6 +92,8 @@ FROM {py_base_image} as base
 # this goes into base_setup in TEMPLATE
 CUDA_SETUP_TEMPLATE = """
 FROM {cuda_base_image} as base
+# TODO: remove this once cuda has finished rotating their keys...
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
 RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
 
 # install python
