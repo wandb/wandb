@@ -32,7 +32,7 @@ class FileEventHandler(abc.ABC):
         save_name: SaveName,
         file_pusher: FilePusher,
         *args,
-        **kwargs
+        **kwargs,
     ) -> None:
         self.file_path = file_path
         # Convert windows paths to unix paths
@@ -115,13 +115,12 @@ class PolicyLive(FileEventHandler):
         rate_limit_sec: int,
         min_wait_time: Optional[int] = None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
         self._rate_limit_sec = rate_limit_sec
-        print("init:", min_wait_time)
         self._min_wait_time = min_wait_time
 
     @property
@@ -145,23 +144,16 @@ class PolicyLive(FileEventHandler):
             # Check rate limit by time elapsed
             time_elapsed = time.time() - self._last_uploaded_time
             # if more than 15 seconds has passed potentially upload it
-            import os
-
-            print(os.getpid())
-            print("RATE_LIMIT_SECONDS:", self._rate_limit_sec)
-            print("time_elapsed:", time_elapsed)
             if time_elapsed < self._rate_limit_sec:
                 return False
 
             # Check rate limit by size increase
             if float(self._last_uploaded_size) > 0:
-                print("self._last_uploaded_size:", self._last_uploaded_size)
                 size_increase = self.current_size / float(self._last_uploaded_size)
-                print("size_increase:", size_increase)
                 if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
                     return False
-            return time_elapsed > self._min_wait_time or self.min_wait_for_size(
-                self.current_size
+            return time_elapsed > (
+                self._min_wait_time or self.min_wait_for_size(self.current_size)
             )
 
         # if the file has never been uploaded, we'll upload it
@@ -271,8 +263,7 @@ class DirWatcher:
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
     def _on_file_modified(self, event: wd_events.FileModifiedEvent) -> None:
-        logger.info("file/dir modified: %s", event.src_path)
-        print("_on_file_modified")
+        logger.info(f"file/dir modified: { event.src_path}")
         if os.path.isdir(event.src_path):
             return None
         save_name = os.path.relpath(event.src_path, self._dir)
@@ -280,7 +271,7 @@ class DirWatcher:
 
     def _on_file_moved(self, event: wd_events.FileMovedEvent) -> None:
         # TODO: test me...
-        logger.info("file/dir moved: %s -> %s", event.src_path, event.dest_path)
+        logger.info(f"file/dir moved: {event.src_path} -> {event.dest_path}")
         if os.path.isdir(event.dest_path):
             return None
         old_save_name = os.path.relpath(event.src_path, self._dir)

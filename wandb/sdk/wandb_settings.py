@@ -498,7 +498,6 @@ class Settings:
             },
             _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
             _live_policy_rate_limit={"value": 15},
-            # _live_policy_wait_time={"value": 15},
             _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
             _offline={
                 "hook": (
