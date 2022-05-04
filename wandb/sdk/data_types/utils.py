@@ -140,7 +140,21 @@ def val_to_json(
 
     if isinstance(val, WBValue):
         assert run
-        if isinstance(val, WBValue) and not val.is_bound():
+        if hasattr(val, "_log_type") and val._log_type in [
+            "pytorch-model-file"
+        ]:
+            # Special conditional to log tables as artifact entries as well.
+            # I suspect we will generalize this as we transition to storing all
+            # files in an artifact
+            # we sanitize the key to meet the constraints defined in wandb_artifacts.py
+            # in this case, leaving only alpha numerics or underscores.
+            sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
+            art = wandb.wandb_sdk.wandb_artifacts.Artifact(
+                f"run-{run.id}-{sanitized_key}", "model"
+            )
+            art.add(val, key)
+            run.log_artifact(art)
+        if isinstance(val, Media) and not val.is_bound():
             if hasattr(val, "_log_type") and val._log_type in [
                 "table",
                 "partitioned-table",
@@ -154,20 +168,6 @@ def val_to_json(
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
                 art = wandb.wandb_sdk.wandb_artifacts.Artifact(
                     f"run-{run.id}-{sanitized_key}", "run_table"
-                )
-                art.add(val, key)
-                run.log_artifact(art)
-            if hasattr(val, "_log_type") and val._log_type in [
-                "pytorch-model-file"
-            ]:
-                # Special conditional to log tables as artifact entries as well.
-                # I suspect we will generalize this as we transition to storing all
-                # files in an artifact
-                # we sanitize the key to meet the constraints defined in wandb_artifacts.py
-                # in this case, leaving only alpha numerics or underscores.
-                sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = wandb.wandb_sdk.wandb_artifacts.Artifact(
-                    f"run-{run.id}-{sanitized_key}", "model"
                 )
                 art.add(val, key)
                 run.log_artifact(art)
