@@ -62,7 +62,7 @@ from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
 from .data_types.base_types.wb_value import WBValue
-from .interface.artifacts import Artifact as ArtifactInterface
+from .interface.artifacts import Artifact as ArtifactInterface, ArtifactEntry
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
@@ -90,7 +90,6 @@ if TYPE_CHECKING:
     from .wandb_alerts import AlertLevel
 
     from .interface.artifacts import (
-        ArtifactEntry,
         ArtifactManifest,
     )
     from .interface.interface import FilesDict, PolicyName
