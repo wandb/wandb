@@ -345,13 +345,13 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_obj = super().to_json(run_or_artifact)
-        assert isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact)
-        if self._dep_py_files_path is not None:
-            json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
-                run_or_artifact,
-                self._dep_py_files_path,
-                os.path.join(".wb_data", "extra_files"),
-            )
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+            if self._dep_py_files_path is not None:
+                json_obj["dep_py_files_path"] = _add_deterministic_dir_to_artifact(
+                    run_or_artifact,
+                    self._dep_py_files_path,
+                    os.path.join(".wb_data", "extra_files"),
+                )
         return json_obj
 
 
