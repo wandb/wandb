@@ -5,7 +5,7 @@ import logging
 import os
 import queue
 import time
-from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
+from typing import Iterable, Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
@@ -172,6 +172,12 @@ class PolicyLive(FileEventHandler):
         return "live"
 
 
+def fast_glob(g: GlobStr) -> Iterable[PathStr]:
+    """TODO(spencerpearson)"""
+    if g == glob.escape(g):
+        return [g] if os.path.exists(g) else []
+    return glob.glob(g)
+
 class DirWatcher:
     def __init__(
         self,
@@ -297,9 +303,7 @@ class DirWatcher:
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
                     for g in list(globs):
-                        if g == glob.escape(g) and g != save_name:
-                            continue
-                        paths = glob.glob(os.path.join(self._dir, g))
+                        paths = fast_glob(os.path.join(self._dir, g))
                         if any(save_name in p for p in paths):
                             if policy == "live":
                                 make_handler = PolicyLive
