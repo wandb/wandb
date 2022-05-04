@@ -270,6 +270,19 @@ def _fit_wrapper(self, fn, generator=None, *args, **kwargs):
 
 
 # NOTE(jhr): need to spell out all usable args so that users who inspect can see args
+def _magic_pl_trainer_init(
+    self,
+    logger=None,
+    *args,
+    **kwargs
+):
+    from pytorch_lightning.loggers import WandbLogger
+    # FIXME: pass config
+    wandb_logger = WandbLogger(log_model=True, save_code=True)
+    return self.__wb_magic_init__(logger=wandb_logger, *args, **kwargs)
+
+
+# NOTE(jhr): need to spell out all usable args so that users who inspect can see args
 def _magic_fit(
     self,
     x=None,
@@ -380,6 +393,12 @@ def _monkey_absl():
     if not call_after_init:
         return
     call_after_init(_absl_callback)
+
+
+def _monkey_lightning():
+    import pytorch_lightning as pl
+    pl.Trainer.__wb_magic_init__ = pl.Trainer.__init__
+    pl.Trainer.__init__ = _magic_pl_trainer_init
 
 
 def _process_system_args():
@@ -514,18 +533,25 @@ def magic_install(init_args=None):
     # if wandb.init has already been called, this call is ignored
     init_args = init_args or {}
     init_args["magic"] = True
-    wandb.init(**init_args)
 
-    # parse magic from wandb.config (from flattened to dict)
-    magic_from_config = {}
-    MAGIC_KEY = "wandb_magic"
-    for k in wandb.config.keys():
-        if not k.startswith(MAGIC_KEY + "."):
-            continue
-        d = _dict_from_keyval(k, wandb.config[k], json_parse=False)
-        _merge_dicts(d, magic_from_config)
-    magic_from_config = magic_from_config.get(MAGIC_KEY, {})
-    _merge_dicts(magic_from_config, _magic_config)
+    delay_wandb_init = False
+    if get_optional_module("pytorch_lightning"):
+        delay_wandb_init = True
+        magic_set = {}
+
+    if not delay_wandb_init:
+        wandb.init(**init_args)
+
+        # parse magic from wandb.config (from flattened to dict)
+        magic_from_config = {}
+        MAGIC_KEY = "wandb_magic"
+        for k in wandb.config.keys():
+            if not k.startswith(MAGIC_KEY + "."):
+                continue
+            d = _dict_from_keyval(k, wandb.config[k], json_parse=False)
+            _merge_dicts(d, magic_from_config)
+        magic_from_config = magic_from_config.get(MAGIC_KEY, {})
+        _merge_dicts(magic_from_config, _magic_config)
 
     # allow late config to disable magic
     if not _magic_config.get("enable"):
@@ -540,6 +566,9 @@ def magic_install(init_args=None):
     if get_optional_module("tensorflow"):
         if "tensorflow.python.keras" in sys.modules or "keras" in sys.modules:
             _monkey_tfkeras()
+
+    if get_optional_module("pytorch_lightning"):
+        _monkey_lightning()
 
     # Always setup import hooks looking for keras or tf.keras
     add_import_hook(fullname="keras", on_import=_monkey_tfkeras)
