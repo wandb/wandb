@@ -172,11 +172,13 @@ class PolicyLive(FileEventHandler):
         return "live"
 
 
-def fast_glob(g: GlobStr) -> Iterable[PathStr]:
-    """TODO(spencerpearson)"""
+def save_name_matches_glob(dir: PathStr, save_name: SaveName, g: GlobStr) -> bool:
+    """TODO(spencerpearson): document"""
+    fullglob = os.path.join(dir, g)
     if g == glob.escape(g):
-        return [g] if os.path.exists(g) else []
-    return glob.glob(g)
+        relglob = os.path.relpath(fullglob, dir)
+        return save_name.startswith(relglob) or save_name.endswith(relglob)
+    return any(save_name in p for p in glob.glob(fullglob))
 
 class DirWatcher:
     def __init__(
@@ -303,8 +305,7 @@ class DirWatcher:
                     # Convert set to list to avoid RuntimeError's
                     # TODO: we may need to add locks
                     for g in list(globs):
-                        paths = fast_glob(os.path.join(self._dir, g))
-                        if any(save_name in p for p in paths):
+                        if save_name_matches_glob(save_name=save_name, dir=self._dir, g=g):
                             if policy == "live":
                                 make_handler = PolicyLive
                             elif policy == "now":
