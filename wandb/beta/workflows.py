@@ -86,9 +86,7 @@ def _log_artifact_version(
 
     """
     if wandb.run is None:
-        run = wandb.init(
-            project=project, job_type=job_type, settings=wandb.Settings(silent="true")
-        )
+        run = wandb.init(project=project, job_type=job_type)
     else:
         run = wandb.run
 
