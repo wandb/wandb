@@ -365,6 +365,9 @@ class TBEventConsumer:
     def finish(self) -> None:
         self._delay = 0
         self._shutdown.set()
+        self._thread.join()
+        while self._thread.is_alive():
+            time.sleep(0.1)
         try:
             event = self._queue.get(True, 1)
         except queue.Empty:
@@ -376,7 +379,6 @@ class TBEventConsumer:
                 self._save_row(
                     item,
                 )
-        self._thread.join()
 
     def _thread_except_body(self) -> None:
         try:
