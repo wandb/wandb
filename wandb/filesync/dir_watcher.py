@@ -115,17 +115,10 @@ class PolicyLive(FileEventHandler):
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
-        try:
-            self.RATE_LIMIT_SECONDS = (
+        self.RATE_LIMIT_SECONDS = (
                 settings._live_policy_rate_limit or self.RATE_LIMIT_SECONDS
             )
-        except AttributeError:
-            pass
-
-        try:
-            self._min_wait_time = settings._live_policy_wait_time
-        except AttributeError:
-            self._min_wait_time = None
+        self._min_wait_time = settings._live_policy_wait_time
 
     @property
     def current_size(self) -> int:
