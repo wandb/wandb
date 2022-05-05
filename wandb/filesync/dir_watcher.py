@@ -5,7 +5,7 @@ import logging
 import os
 import queue
 import time
-from typing import Mapping, MutableSet, NewType, Optional, TYPE_CHECKING
+from typing import Mapping, MutableMapping, MutableSet, NewType, Optional, TYPE_CHECKING
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
@@ -189,6 +189,7 @@ class DirWatcher:
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
+        self._savename_file_policies: MutableMapping[SaveName, "PolicyName"] = {}
         self._user_file_policies: Mapping["PolicyName", MutableSet[GlobStr]] = {
             "end": set(),
             "live": set(),
@@ -211,7 +212,11 @@ class DirWatcher:
             return None
 
     def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
-        self._user_file_policies[policy].add(path)
+        if path == glob.escape(path):
+            save_name = os.path.relpath(os.path.join(self._dir, path), self._dir)
+            self._savename_file_policies[save_name] = policy
+        else:
+            self._user_file_policies[policy].add(path)
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = os.path.relpath(src_path, self._dir)
             feh = self._get_file_event_handler(src_path, save_name)
@@ -295,6 +300,18 @@ class DirWatcher:
             if "tfevents" in save_name or "graph.pbtxt" in save_name:
                 self._file_event_handlers[save_name] = PolicyLive(
                     file_path, save_name, self._file_pusher, self._settings
+                )
+            elif save_name in self._savename_file_policies:
+                policy_name = self._savename_file_policies[save_name]
+                make_handler = (
+                    PolicyLive
+                    if policy_name == "live"
+                    else PolicyNow
+                    if policy_name == "now"
+                    else PolicyEnd
+                )
+                self._file_event_handlers[save_name] = make_handler(
+                    file_path, save_name, self._file_pusher
                 )
             else:
                 make_handler = PolicyEnd
