@@ -182,7 +182,7 @@ class SendManager:
         Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        #TODO(settings) replace with wandb.Settings
+        # TODO(settings) replace with wandb.Settings
         sd: SettingsDict = dict(
             files_dir=files_dir,
             root_dir=root_dir,
@@ -203,7 +203,7 @@ class SendManager:
             email=None,
             silent=None,
             _live_policy_rate_limit=None,
-            _live_policy_wait_time=None
+            _live_policy_wait_time=None,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
