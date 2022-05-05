@@ -165,6 +165,13 @@ You can install `libsndfile` with the following command using [homebrew](https:/
 $ brew install libsndfile
 ```
 
+- The `moviepy` package requires the `ffmpeg` package to be installed in the system.
+You can install `ffmpeg` with the following command using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install ffmpeg
+```
+
 ## Code organization
 
 ```bash
