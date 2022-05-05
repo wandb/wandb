@@ -3,6 +3,7 @@ import shlex
 from typing import Any, List, Optional
 
 import wandb
+from wandb.errors import LaunchError
 
 from .abstract import AbstractRun, AbstractRunner
 from .local import _run_entry_point
@@ -28,7 +29,7 @@ class BareRunner(AbstractRunner):
 
     """
 
-    def run(  # noqa no-untyped-def: ignore
+    def run(  # type: ignore
         self,
         launch_project: LaunchProject,
         *args,
@@ -44,14 +45,19 @@ class BareRunner(AbstractRunner):
 
         cmd: List[Any] = []
 
+        if launch_project.uri is None:
+            raise LaunchError("Launch BareRunner requires a project uri")
+        if launch_project.project_dir is None:
+            raise LaunchError("Launch BareRunner requires a project dir")
+
         # Check to make sure local python dependencies match run's requirement.txt
-        _, _, run_name = parse_wandb_uri(launch_project.uri)  # noqa arg-type: ignore
+        _, _, run_name = parse_wandb_uri(launch_project.uri)
         validate_wandb_python_deps(
             launch_project.target_entity,
             launch_project.target_project,
             run_name,
             self._api,
-            launch_project.project_dir,  # noqa arg-type: ignore
+            launch_project.project_dir,
         )
 
         env_vars = get_env_vars_dict(launch_project, self._api)

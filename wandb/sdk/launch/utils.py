@@ -282,8 +282,8 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
         # see https://pip.pypa.io/en/stable/reference/requirements-file-format/#example
         d: Dict[str, str] = dict()
         for line in req:
-            _name: str = None  # noqa assignment: ignore
-            _version: str = None  # noqa assignment: ignore
+            _name: str = None  # type: ignore
+            _version: str = None  # type: ignore
             if line.startswith("#"):  # Ignore comments
                 continue
             elif "git+" in line or "hg+" in line:
@@ -337,16 +337,20 @@ def validate_wandb_python_deps(
     """Warns if local python dependencies differ from wandb requirements.txt"""
 
     _requirements_file = download_wandb_python_deps(entity, project, run_name, api, dir)
-    _requirements_file = os.path.join(dir, _requirements_file)  # noqa arg-type: ignore
-    with open(_requirements_file) as f:
-        wandb_python_deps: List[str] = f.read().splitlines()
+    if _requirements_file is not None:
+        _requirements_file = os.path.join(dir, _requirements_file)
+        with open(_requirements_file) as f:
+            wandb_python_deps: List[str] = f.read().splitlines()
 
-    _requirements_file = get_local_python_deps(dir)
-    _requirements_file = os.path.join(dir, _requirements_file)  # noqa arg-type: ignore
-    with open(_requirements_file) as f:
-        local_python_deps: List[str] = f.read().splitlines()
+        _requirements_file = get_local_python_deps(dir)
+        if _requirements_file is not None:
+            _requirements_file = os.path.join(dir, _requirements_file)
+            with open(_requirements_file) as f:
+                local_python_deps: List[str] = f.read().splitlines()
 
-    diff_pip_requirements(wandb_python_deps, local_python_deps)
+            diff_pip_requirements(wandb_python_deps, local_python_deps)
+            return
+    _logger.warning("Unable to validate local python dependencies")
 
 
 def fetch_project_diff(
