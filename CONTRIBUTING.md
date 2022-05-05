@@ -142,6 +142,21 @@ You can set up a subset of the target environments to test against, for example:
 The tool will also set up [`tox`](https://github.com/tox-dev/tox), which we use
 for automating development tasks such as code linting and testing.
 
+Note: to switch the default python version, edit the `.python-version` file in the repository root.
+
+### Mac with the Apple M1 chip
+
+The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
+the `h5py` package to be installed, which in turn requires `hdf5` to be installed in the system.
+You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands 
+using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install hdf5
+$ export HDF5_DIR="$(brew --prefix hdf5)"
+$ pip install --no-binary=h5py h5py
+```
+
 ## Code organization
 
 ```bash
