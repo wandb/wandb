@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union, Dict, List
 
 import jsonschema
-from .schema import validator, fill_validate_schema
+from .schema import validator, fill_validate_schema, validate_min_max
 from copy import deepcopy
 
 
@@ -28,13 +28,10 @@ def schema_violations_from_proposed_config(config: Dict) -> List[str]:
                 raise ValueError(
                     f"Invalid configuration for hyperparameter '{parameter_name}'"
                 )
-            if "min" in parameter_dict and "max" in parameter_dict:
-                # this comparison is type safe because the jsonschema enforces type uniformity
-                if parameter_dict["min"] >= parameter_dict["max"]:
-                    schema_violation_messages.append(
-                        f'{parameter_name}: min {parameter_dict["min"]} is not '
-                        f'less than max {parameter_dict["max"]}'
-                    )
+            try:
+                validate_min_max(parameter_name, parameter_dict)
+            except ValueError as e:
+                schema_violation_messages.append(e.args[0])
     return schema_violation_messages
 
 

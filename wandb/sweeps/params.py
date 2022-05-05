@@ -21,6 +21,7 @@ class HyperParameter:
     INT_UNIFORM = "param_int_uniform"
     UNIFORM = "param_uniform"
     LOG_UNIFORM = "param_loguniform"
+    INV_LOG_UNIFORM = "param_inv_loguniform"
     Q_UNIFORM = "param_quniform"
     Q_LOG_UNIFORM = "param_qloguniform"
     NORMAL = "param_normal"
@@ -45,7 +46,7 @@ class HyperParameter:
 
         self.name = name
 
-        result = fill_parameter(config)
+        result = fill_parameter(name, config)
         if result is None:
             raise jsonschema.ValidationError(
                 f"invalid hyperparameter configuration: {name}"
@@ -118,6 +119,12 @@ class HyperParameter:
             return stats.uniform.cdf(
                 np.log(x), self.config["min"], self.config["max"] - self.config["min"]
             )
+        elif self.type == HyperParameter.INV_LOG_UNIFORM:
+            return 1 - stats.uniform.cdf(
+                np.log(1 / x),
+                self.config["min"],
+                self.config["max"] - self.config["min"],
+            )
         elif self.type == HyperParameter.NORMAL or self.type == HyperParameter.Q_NORMAL:
             return stats.norm.cdf(x, loc=self.config["mu"], scale=self.config["sigma"])
         elif (
@@ -181,6 +188,14 @@ class HyperParameter:
             return np.exp(
                 stats.uniform.ppf(
                     x, self.config["min"], self.config["max"] - self.config["min"]
+                )
+            )
+        elif self.type == HyperParameter.INV_LOG_UNIFORM:
+            return np.exp(
+                -stats.uniform.ppf(
+                    1 - x,
+                    self.config["min"],
+                    self.config["max"] - self.config["min"],
                 )
             )
         elif self.type == HyperParameter.Q_LOG_UNIFORM:

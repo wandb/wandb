@@ -107,7 +107,7 @@ class SweepRun(BaseModel):
             The maximum or minimum metric.
         """
 
-        cmp_func = np.max if kind == "maximum" else np.min
+        cmp_func = max if kind == "maximum" else min
         try:
             summary_metric = [self.summary_metric(metric_name)]
         except KeyError:

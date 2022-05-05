@@ -67,7 +67,7 @@ default_filler = DefaultFiller(
 )
 
 
-def fill_parameter(config: Dict) -> Optional[Tuple[str, Dict]]:
+def fill_parameter(parameter_name: str, config: Dict) -> Optional[Tuple[str, Dict]]:
     # names of the parameter definitions that are allowed
     allowed_schemas = [
         d["$ref"].split("/")[-1]
@@ -85,8 +85,8 @@ def fill_parameter(config: Dict) -> Optional[Tuple[str, Dict]]:
         except jsonschema.ValidationError:
             continue
         else:
+            validate_min_max(parameter_name, config)
             filler = DefaultFiller(subschema, format_checker=format_checker)
-
             # this sets the defaults, modifying config inplace
             config = deepcopy(config)
             filler.validate(config)
@@ -95,10 +95,24 @@ def fill_parameter(config: Dict) -> Optional[Tuple[str, Dict]]:
     return None
 
 
+def validate_min_max(parameter_name: str, parameter_config: Dict) -> None:
+    if "min" in parameter_config and "max" in parameter_config:
+        # this comparison is type safe because the jsonschema enforces type uniformity
+        if parameter_config["min"] >= parameter_config["max"]:
+            raise ValueError(
+                f'{parameter_name}: min {parameter_config["min"]} is not '
+                f'less than max {parameter_config["max"]}'
+            )
+
+
 def fill_validate_metric(d: Dict) -> Dict:
     d = deepcopy(d)
 
     if "metric" in d:
+        if not isinstance(d["metric"], dict):
+            raise ValueError(
+                f"invalid type for metric: expected dict, got {type(d['metric'])}"
+            )
         if "goal" in d["metric"]:
             if (
                 d["metric"]["goal"]
@@ -143,7 +157,7 @@ def fill_validate_schema(d: Dict) -> Dict:
     # update the parameters
     filled = {}
     for k, v in validated["parameters"].items():
-        result = fill_parameter(v)
+        result = fill_parameter(k, v)
         if result is None:
             raise jsonschema.ValidationError(f"Parameter {k} is malformed")
         _, config = result

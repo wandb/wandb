@@ -18,10 +18,15 @@ git clone --quiet https://github.com/wandb/sweeps
 cd sweeps
 
 # check it out to the requested ref
-git checkout --quiet $SWEEPS_REF 
+git checkout --quiet $SWEEPS_REF
 
-if ! diff requirements.txt $CLIENT_ROOT/requirements.sweeps.txt; then
-    echo >&2 "ERROR: vendored sweeps does not match ref $SWEEPS_REF"
+# todo: this will skip platform-specific specifiers in requirements
+#       used to bypass a dependency clash on a Mac with the Apple M1 chip
+#       Remove once https://wandb.atlassian.net/browse/WB-8120 is resolved
+DIFF=$(echo -e "$(diff <(cat requirements.txt) <(grep -o '^[^;]*' $CLIENT_ROOT/requirements.sweeps.txt))")
+if [ "$DIFF" != "" ]; then
+    echo >&2 "ERROR: vendored sweeps' requirements do not match ref $SWEEPS_REF"
+    echo >&2 "$DIFF"
     echo >&2 "please run `make vendor-sweeps ref=$SWEEPS_REF` and commit the result"
     exit 1
 fi
