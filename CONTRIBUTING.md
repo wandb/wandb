@@ -146,7 +146,7 @@ Note: to switch the default python version, edit the `.python-version` file in t
 
 ### Mac with the Apple M1 chip
 
-The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
+- The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
 the `h5py` package to be installed, which in turn requires `hdf5` to be installed in the system.
 You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands 
 using [homebrew](https://brew.sh/):
@@ -157,7 +157,7 @@ $ export HDF5_DIR="$(brew --prefix hdf5)"
 $ pip install --no-binary=h5py h5py
 ```
 
-The `soundfile` package requires the `libsndfile` package to be installed in the system.
+- The `soundfile` package requires the `libsndfile` package to be installed in the system.
 Note that a pre-release version of `soundfile` will be installed.
 You can install `libsndfile` with the following command using [homebrew](https://brew.sh/):
 
