@@ -108,23 +108,18 @@ class PolicyLive(FileEventHandler):
         file_path: PathStr,
         save_name: SaveName,
         file_pusher: FilePusher,
-        settings: SettingsStatic,
+        settings: Optional[SettingsStatic] = None,
         *args,
         **kwargs,
     ):
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time = None
         self._last_uploaded_size = 0
-        try:
-            self.RATE_LIMIT_SECONDS = (
-                settings._live_policy_rate_limit or self.RATE_LIMIT_SECONDS
-            )
-        except AttributeError:
-            pass
-
-        try:
+        if settings is not None:
+            if settings._live_policy_rate_limit is not None:
+                self.RATE_LIMIT_SECONDS = settings._live_policy_rate_limit
             self._min_wait_time = settings._live_policy_wait_time
-        except AttributeError:
+        else:
             self._min_wait_time = None
 
     @property
