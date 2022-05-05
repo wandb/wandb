@@ -3,7 +3,6 @@ import shlex
 from typing import Any, List, Optional
 
 import wandb
-from wandb.errors import LaunchError
 
 from .abstract import AbstractRun, AbstractRunner
 from .local import _run_entry_point
@@ -46,9 +45,9 @@ class BareRunner(AbstractRunner):
         cmd: List[Any] = []
 
         if launch_project.uri is None:
-            raise LaunchError("Launch BareRunner requires a project uri")
+            _logger.warning("Launch BareRunner received empty project uri")
         if launch_project.project_dir is None:
-            raise LaunchError("Launch BareRunner requires a project dir")
+            _logger.warning("Launch BareRunner received empty project dir")
 
         # Check to make sure local python dependencies match run's requirement.txt
         _, _, run_name = parse_wandb_uri(launch_project.uri)

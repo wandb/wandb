@@ -9,11 +9,13 @@ REQUIREMENT_FILE_BASIC: List[str] = [
     "package-one==1.0.0",
     "# This is a comment in requirements.txt",
     "package-two",
+    "package-three>1.0.0",
 ]
 
 REQUIREMENT_FILE_BASIC_2: List[str] = [
     "package-one==2.0.0",
-    "package-two==1.0.0",
+    "package-two>=1.0.0",
+    "package-three==0.0.9",
 ]
 
 REQUIREMENT_FILE_GIT: List[str] = [
@@ -32,7 +34,7 @@ def test_diff_pip_requirements():
 
     # Empty requirements file should parse fine, but appear in diff
     diff = diff_pip_requirements([], REQUIREMENT_FILE_BASIC)
-    assert len(diff) == 2
+    assert len(diff) == 3
 
     # Invalid requirements should throw LaunchError
     with pytest.raises(LaunchError):
@@ -42,8 +44,8 @@ def test_diff_pip_requirements():
 
     # Version mismatch should appear in diff
     diff = diff_pip_requirements(REQUIREMENT_FILE_BASIC, REQUIREMENT_FILE_BASIC_2)
-    assert len(diff) == 2
+    assert len(diff) == 3
 
     # Github package should parse fine, but appear in diff
     diff = diff_pip_requirements(REQUIREMENT_FILE_BASIC, REQUIREMENT_FILE_GIT)
-    assert len(diff) == 2
+    assert len(diff) == 3
