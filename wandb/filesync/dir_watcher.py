@@ -138,7 +138,7 @@ class PolicyLive(FileEventHandler):
             return 20 * 60
 
     def should_update(self) -> bool:
-        if self._last_uploaded_time:
+        if self._last_uploaded_time is not None:
             # Check rate limit by time elapsed
             time_elapsed = time.time() - self._last_uploaded_time
             # if more than 15 seconds has passed potentially upload it
