@@ -30,8 +30,7 @@ docker
 stable_baselines3
 tensorboard
 gym
-jax[cpu]; python_version < '3.10' and platform.machine != 'arm64'
-jax; platform.machine == 'arm64'
+jax[cpu]
 fastcore; python_version > '3.6' and python_version < '3.10'
 fastcore==1.3.29; python_version == '3.6'
 pyarrow
