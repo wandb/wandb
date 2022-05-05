@@ -366,8 +366,7 @@ class TBEventConsumer:
         self._delay = 0
         self._shutdown.set()
         self._thread.join()
-        while self._thread.is_alive():
-            time.sleep(0.1)
+        # TODO: can the code below be dropped since the thread flushes on finish?
         try:
             event = self._queue.get(True, 1)
         except queue.Empty:
