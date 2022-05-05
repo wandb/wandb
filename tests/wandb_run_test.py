@@ -112,7 +112,12 @@ def test_run_pub_history(fake_run, record_q, records_util):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="numpy.float128 does not exist on windows"
+    platform.system() == "Windows",
+    reason="numpy.float128 does not exist on windows",
+)
+@pytest.mark.skipif(
+    platform.system() == "Darwin" and platform.machine() == "arm64",
+    reason="numpy.float128 does not exist on Macs with the Apple M1 chip",
 )
 def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util):
     # CLI: GH2255
