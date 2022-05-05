@@ -157,6 +157,14 @@ $ export HDF5_DIR="$(brew --prefix hdf5)"
 $ pip install --no-binary=h5py h5py
 ```
 
+The `soundfile` package requires the `libsndfile` package to be installed in the system.
+Note that a pre-release version of `soundfile` will be installed.
+You can install `libsndfile` with the following command using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install libsndfile
+```
+
 ## Code organization
 
 ```bash
