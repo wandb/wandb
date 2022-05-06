@@ -2,11 +2,10 @@ import platform
 import sys
 
 import pytest
+pytest.importorskip("sweeps")
+
+import sweeps
 import wandb
-
-pytest.importorskip("wandb.sweeps")
-
-from wandb import sweeps
 
 
 # todo: unskip once WB-8120 is resolved
