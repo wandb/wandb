@@ -1,1 +1,1 @@
-sweeps
+sweeps>=0.1.0
