@@ -1,4 +1,4 @@
-numpy>=1.15
+numpy>=1.15,<1.21
 scipy>=1.5.4
 PyYAML
 scikit_learn==0.24.1
