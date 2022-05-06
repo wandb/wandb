@@ -2,6 +2,7 @@ import platform
 import sys
 
 import pytest
+
 pytest.importorskip("sweeps")
 
 import sweeps
