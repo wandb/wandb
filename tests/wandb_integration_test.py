@@ -446,18 +446,21 @@ def test_live_policy_file_upload(live_mock_server, test_settings):
         with open(file_path, "a") as fp:
             fp.write("a" * 10000)
         # 2.1 seconds is longer than set rate limit
+        tic = time.time()
         sent += os.path.getsize(file_path)
         # give watchdog time to register the change
         time.sleep(1.0)
         # file updated within modified time, should not be uploaded
         with open(file_path, "a") as fp:
             fp.write("a" * 10000)
-        time.sleep(2.0)
-        # file updated outside of rate limit should be uploaded
-        with open(file_path, "a") as fp:
-            fp.write("a" * 10000)
-        sent += os.path.getsize(file_path)
-        time.sleep(2)
+        toc = time.time()
+        if toc - tic < 2:
+            # test flakes as I/O on CircleCI may be slow at times
+            time.sleep(2.0)
+            # file updated outside of rate limit should be uploaded
+            with open(file_path, "a") as fp:
+                fp.write("a" * 10000)
+            sent += os.path.getsize(file_path)
 
     server_ctx = live_mock_server.get_ctx()
     print(server_ctx["file_bytes"], sent)
