@@ -3,6 +3,9 @@ import sys
 
 import pytest
 import wandb
+
+pytest.importorskip("wandb.sweeps")
+
 from wandb import sweeps
 
 
