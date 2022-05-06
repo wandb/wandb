@@ -311,7 +311,7 @@ class DirWatcher:
                     else PolicyEnd
                 )
                 self._file_event_handlers[save_name] = make_handler(
-                    file_path, save_name, self._file_pusher
+                    file_path, save_name, self._file_pusher, self._settings
                 )
             else:
                 make_handler = PolicyEnd
