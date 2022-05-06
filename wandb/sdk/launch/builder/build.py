@@ -93,7 +93,7 @@ FROM {py_base_image} as base
 CUDA_SETUP_TEMPLATE = """
 FROM {cuda_base_image} as base
 # TODO: once NVIDIA their linux repository keys for all docker images
-RUN apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
 RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
 
 # install python
