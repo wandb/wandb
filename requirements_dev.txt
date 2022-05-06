@@ -39,6 +39,6 @@ metaflow>=2.3.5
 rdkit-pypi; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
 .[launch]
-.[sweeps]
+.[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
 cloudpickle
