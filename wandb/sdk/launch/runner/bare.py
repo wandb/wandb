@@ -50,10 +50,10 @@ class BareRunner(AbstractRunner):
             _logger.warning("Launch BareRunner received empty project dir")
 
         # Check to make sure local python dependencies match run's requirement.txt
-        _, _, run_name = parse_wandb_uri(launch_project.uri)  # type: ignore
+        source_entity, source_project, run_name = parse_wandb_uri(launch_project.uri)  # type: ignore
         validate_wandb_python_deps(
-            launch_project.target_entity,
-            launch_project.target_project,
+            source_entity,
+            source_project,
             run_name,
             self._api,
             launch_project.project_dir,  # type: ignore
