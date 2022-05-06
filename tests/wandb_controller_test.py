@@ -1,11 +1,12 @@
-import wandb
 import sys
+
 import pytest
 
 if sys.version_info >= (3, 10):
     pytest.importorskip("pydantic")
 
-from wandb import sweeps
+import sweeps
+import wandb
 
 
 def test_run_from_dict():
