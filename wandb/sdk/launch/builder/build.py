@@ -1,10 +1,11 @@
 import json
 import logging
 import os
+import shlex
 import shutil
 import sys
 import tempfile
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -15,9 +16,7 @@ from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from .._project_spec import (
-    LaunchProject,
-)
+from .._project_spec import EntryPoint, LaunchProject, compute_command_args
 from ..utils import _is_wandb_dev_uri, _is_wandb_local_uri
 from ...lib.git import GitRepo
 
@@ -137,7 +136,7 @@ RUN useradd \
     {user} || echo ""
 """
 
-SAGEMAKER_ENTRYPOINT_TEMPLATE = """
+ENTRYPOINT_TEMPLATE = """
 COPY ./src/train {workdir}
 ENTRYPOINT ["sh", "train"]
 """
@@ -278,28 +277,34 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
 
 
 def get_entrypoint_setup(
-    launch_project: LaunchProject, entry_cmd: str, workdir: str, runner_type: str
+    launch_project: LaunchProject,
+    entrypoint: EntryPoint,
+    workdir: str,
 ) -> str:
-    if runner_type == "sagemaker":
-        # this check will always pass, since this is only called in the build case where
-        # the project_dir is set
-        assert launch_project.project_dir is not None
-        # sagemaker automatically appends train after the entrypoint
-        # by redirecting to running a train script we can avoid issues
-        # with argparse, and hopefully if the user intends for the train
-        # argument to be present it is captured in the original jobs
-        # command arguments
-        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-            fp.write(entry_cmd)
-        return SAGEMAKER_ENTRYPOINT_TEMPLATE.format(workdir=workdir)
-
-    # no need to specify an entrypoint in the dockerfile outside of sagemaker
-    return ""
+    # if runner_type == "sagemaker":
+    # this check will always pass, since this is only called in the build case where
+    # the project_dir is set
+    assert launch_project.project_dir is not None
+    # sagemaker automatically appends train after the entrypoint
+    # by redirecting to running a train script we can avoid issues
+    # with argparse, and hopefully if the user intends for the train
+    # argument to be present it is captured in the original jobs
+    # command arguments
+    print(entrypoint)
+    with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
+        print("WRITING", join(entrypoint.command) + " $@")
+        fp.write("echo $@\n")
+        fp.write("shift; shift;\n")
+        fp.write(join(entrypoint.command) + " $@")
+    args = [join(compute_command_args(launch_project.override_args))]
+    print(args)
+    print(ENTRYPOINT_TEMPLATE.format(workdir=workdir, override_args=args))
+    return ENTRYPOINT_TEMPLATE.format(workdir=workdir, override_args=args)
 
 
 def generate_dockerfile(
     launch_project: LaunchProject,
-    entry_cmd: str,
+    entrypoint: EntryPoint,
     runner_type: str,
     builder_type: str,
 ) -> str:
@@ -332,9 +337,7 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = f"/home/{username}"
 
-    entrypoint_section = get_entrypoint_setup(
-        launch_project, entry_cmd, workdir, runner_type
-    )
+    entrypoint_section = get_entrypoint_setup(launch_project, entrypoint, workdir)
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -486,3 +489,8 @@ def _create_docker_build_ctx(
     with open(os.path.join(directory, _GENERATED_DOCKERFILE_NAME), "w") as handle:
         handle.write(dockerfile_contents)
     return directory
+
+
+def join(split_command: List[str]):
+    """Return a shell-escaped string from *split_command*."""
+    return " ".join(shlex.quote(arg) for arg in split_command)

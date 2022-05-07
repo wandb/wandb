@@ -97,29 +97,30 @@ class LocalRunner(AbstractRunner):
             image_uri = launch_project.docker_image
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
+            entry_cmd = get_entry_point_command(
+                entry_point, launch_project.override_args
+            )
+            command_str = join(
+                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+            ).strip()
         else:
             repository: Optional[str] = registry_config.get("url")
+            print("BUILDING IMAGE")
             image_uri = builder.build_image(
                 launch_project,
                 repository,
                 entry_point,
                 docker_args,
             )
+            entry_cmd = ["train", "--input", "2"]
+            command_str = join(
+                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+            ).strip()
 
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-
-        command_str = " ".join(
-            get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
-        ).strip()
-
-        wandb.termlog(
-            "Launching run in docker with command: {}".format(
-                sanitize_wandb_api_key(command_str)
-            )
-        )
+        wandb.termlog("Launching run in docker with command: {}".format(command_str))
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()
@@ -158,7 +159,7 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
 def get_docker_command(
     image: str,
     env_vars: Dict[str, str],
-    entry_cmd: str,
+    entry_cmd: List[str],
     docker_args: Dict[str, Any] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
@@ -192,5 +193,12 @@ def get_docker_command(
                     cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
 
     cmd += [shlex.quote(image)]
-    cmd += [entry_cmd]
+    print("ENTRY CMD", entry_cmd)
+    cmd += entry_cmd
+    print("get_docker_command", cmd)
     return cmd
+
+
+def join(split_command):
+    """Return a shell-escaped string from *split_command*."""
+    return " ".join(shlex.quote(arg) for arg in split_command)

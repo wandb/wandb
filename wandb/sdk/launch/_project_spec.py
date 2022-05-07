@@ -9,7 +9,7 @@ import logging
 import os
 from shlex import quote, split
 import tempfile
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
@@ -87,11 +87,7 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if (
-            "entry_point" in overrides
-            and overrides["entry_point"] is not None
-            and overrides["entry_point"] != ""
-        ):
+        if "entry_point" in overrides and overrides["entry_point"]:
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
         if self.uri is None:
@@ -142,7 +138,7 @@ class LaunchProject:
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return f"{self.target_project}_launch"
+        return f"{self.target_project.lower()}_launch"
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the override run config values if a matching key exists in the override arguments."""
@@ -165,9 +161,9 @@ class LaunchProject:
             return None
         return list(self._entry_points.values())[0]
 
-    def add_entry_point(self, command: str) -> "EntryPoint":
+    def add_entry_point(self, command: List[str]) -> "EntryPoint":
         """Adds an entry point to the project."""
-        entry_point = split(command)[-1]
+        entry_point = command[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
@@ -284,10 +280,10 @@ class LaunchProject:
             if not self._entry_points:
                 _, ext = os.path.splitext(program_name)
                 if ext == ".py":
-                    entry_point = f"python {program_name}"
+                    entry_point = ["python", program_name]
                 elif ext == ".sh":
                     command = os.environ.get("SHELL", "bash")
-                    entry_point = f"{command} {program_name}"
+                    entry_point = [command, program_name]
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 self.add_entry_point(entry_point)
@@ -303,23 +299,20 @@ class LaunchProject:
                 wandb.termlog(
                     "Entry point for repo not specified, defaulting to python main.py"
                 )
-                self.add_entry_point("python main.py")
+                self.add_entry_point(["python", "main.py"])
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
-    def __init__(self, name: str, command: str):
+    def __init__(self, name: str, command: List[str]):
         self.name = name
         self.command = command
         self.parameters: Dict[str, Any] = {}
 
     def _validate_parameters(self, user_parameters: Dict[str, Any]) -> None:
         missing_params = []
-        for name in self.parameters:
-            if name not in user_parameters and self.parameters[name].default is None:
-                missing_params.append(name)
         if missing_params:
             raise ExecutionError(
                 "No value given for missing parameters: %s"
@@ -328,7 +321,7 @@ class EntryPoint:
 
     def compute_parameters(
         self, user_parameters: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Optional[str]], Dict[str, Optional[str]]]:
+    ) -> Dict[str, Optional[str]]:
         """Validates and sanitizes parameters dict into expected dict format.
 
         Given a dict mapping user-specified param names to values, computes parameters to
@@ -341,39 +334,21 @@ class EntryPoint:
             user_parameters = {}
         # Validate params before attempting to resolve parameter values
         self._validate_parameters(user_parameters)
-        final_params = {}
         extra_params = {}
 
-        parameter_keys = list(self.parameters.keys())
-        for key in parameter_keys:
-            param_obj = self.parameters[key]
-            key_position = parameter_keys.index(key)
-            value = (
-                user_parameters[key]
-                if key in user_parameters
-                else self.parameters[key].default
-            )
-            final_params[key] = param_obj.compute_value(value, key_position)
-        for key in user_parameters:
-            if key not in final_params:
-                extra_params[key] = user_parameters[key]
-        return (
-            self._sanitize_param_dict(final_params),
-            self._sanitize_param_dict(extra_params),
-        )
+        return self._sanitize_param_dict(extra_params)
 
-    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> str:
+    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        params, extra_params = self.compute_parameters(user_parameters)
-        command_with_params = self.command.format(**params)
-        command_arr = [command_with_params]
+        extra_params = self.compute_parameters(user_parameters)
+        command_arr = self.command
         command_arr.extend(
             [
                 f"--{key} {value}" if value is not None else f"--{key}"
                 for key, value in extra_params.items()
             ]
         )
-        return " ".join(command_arr)
+        return command_arr
 
     @staticmethod
     def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
@@ -384,9 +359,24 @@ class EntryPoint:
         }
 
 
+def compute_command_args(parameters: Dict[str, Any]) -> List[str]:
+    # return [
+    #     f"--{key}" f"{value}" if value is not None else f"--{key}"
+    #     for key, value in parameters.items()
+    # ]
+    arr = []
+    for key, value in parameters.items():
+        if value is not None:
+            arr.append(f"--{key}")
+            arr.append(str(value))
+        else:
+            arr.append(f"--{key}")
+    return arr
+
+
 def get_entry_point_command(
     entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
-) -> str:
+) -> List[str]:
     """Returns the shell command to execute in order to run the specified entry point.
 
     Arguments:
@@ -397,7 +387,7 @@ def get_entry_point_command(
         List of strings representing the shell command to be executed
     """
     if entry_point is None:
-        return ""
+        return []
     return entry_point.compute_command(parameters)
 
 
