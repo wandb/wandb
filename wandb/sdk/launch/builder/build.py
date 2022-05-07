@@ -218,6 +218,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
 
+    env_vars["WANDB_ARGS"] = compute_command_args(launch_project.override_args)
+
     return env_vars
 
 
@@ -292,14 +294,8 @@ def get_entrypoint_setup(
     # command arguments
     print(entrypoint)
     with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-        print("WRITING", join(entrypoint.command) + " $@")
-        fp.write("echo $@\n")
-        fp.write("shift; shift;\n")
-        fp.write(join(entrypoint.command) + " $@")
-    args = [join(compute_command_args(launch_project.override_args))]
-    print(args)
-    print(ENTRYPOINT_TEMPLATE.format(workdir=workdir, override_args=args))
-    return ENTRYPOINT_TEMPLATE.format(workdir=workdir, override_args=args)
+        fp.write(join(entrypoint.command) + " $WANDB_ARGS")
+    return ENTRYPOINT_TEMPLATE.format(workdir=workdir)
 
 
 def generate_dockerfile(

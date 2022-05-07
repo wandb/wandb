@@ -371,7 +371,7 @@ def compute_command_args(parameters: Dict[str, Any]) -> List[str]:
             arr.append(str(value))
         else:
             arr.append(f"--{key}")
-    return arr
+    return " ".join(arr)
 
 
 def get_entry_point_command(

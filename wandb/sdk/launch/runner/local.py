@@ -100,7 +100,7 @@ class LocalRunner(AbstractRunner):
             entry_cmd = get_entry_point_command(
                 entry_point, launch_project.override_args
             )
-            command_str = join(
+            command_str = " ".join(
                 get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
             ).strip()
         else:
@@ -112,9 +112,8 @@ class LocalRunner(AbstractRunner):
                 entry_point,
                 docker_args,
             )
-            entry_cmd = ["train", "--input", "2"]
-            command_str = join(
-                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+            command_str = " ".join(
+                get_docker_command(image_uri, env_vars, ["train"], docker_args)
             ).strip()
 
         if not self.ack_run_queue_item(launch_project):
@@ -199,6 +198,6 @@ def get_docker_command(
     return cmd
 
 
-def join(split_command):
-    """Return a shell-escaped string from *split_command*."""
-    return " ".join(shlex.quote(arg) for arg in split_command)
+# def join(split_command):
+#     """Return a shell-escaped string from *split_command*."""
+#     return " ".join(shlex.quote(arg) for arg in split_command)
