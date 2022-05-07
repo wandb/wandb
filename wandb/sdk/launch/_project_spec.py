@@ -142,7 +142,7 @@ class LaunchProject:
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return f"{self.target_project}_launch"
+        return f"{self.target_project.lower()}_launch"
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the override run config values if a matching key exists in the override arguments."""
