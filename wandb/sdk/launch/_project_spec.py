@@ -310,57 +310,24 @@ class EntryPoint:
         self.name = name
         self.command = command
 
-    def compute_parameters(
-        self, user_parameters: Optional[Dict[str, Any]]
-    ) -> Dict[str, Optional[str]]:
-        """Validates and sanitizes parameters dict into expected dict format.
-
-        Given a dict mapping user-specified param names to values, computes parameters to
-        substitute into the command for this entry point. Returns a tuple (params, extra_params)
-        where `params` contains key-value pairs for parameters specified in the entry point
-        definition, and `extra_params` contains key-value pairs for additional parameters passed
-        by the user.
-        """
-        if user_parameters is None:
-            user_parameters = {}
-        extra_params = {}
-
-        return self._sanitize_param_dict(extra_params)
-
     def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        extra_params = self.compute_parameters(user_parameters)
         command_arr = self.command
-        command_arr.extend(
-            [
-                f"--{key} {value}" if value is not None else f"--{key}"
-                for key, value in extra_params.items()
-            ]
-        )
+        extras = compute_command_args(user_parameters)
+        command_arr += extras
+        print(command_arr)
         return command_arr
-
-    @staticmethod
-    def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
-        """Sanitizes a dictionary of parameters, quoting values, except for keys with None values."""
-        return {
-            (str(key)): (quote(str(value)) if value is not None else None)
-            for key, value in param_dict.items()
-        }
 
 
 def compute_command_args(parameters: Dict[str, Any]) -> List[str]:
-    # return [
-    #     f"--{key}" f"{value}" if value is not None else f"--{key}"
-    #     for key, value in parameters.items()
-    # ]
     arr = []
     for key, value in parameters.items():
         if value is not None:
             arr.append(f"--{key}")
-            arr.append(str(value))
+            arr.append(quote(str(value)))
         else:
             arr.append(f"--{key}")
-    return " ".join(arr)
+    return arr
 
 
 def get_entry_point_command(
@@ -377,6 +344,7 @@ def get_entry_point_command(
     """
     if entry_point is None:
         return []
+    print("get_entry_point_command", entry_point.compute_command(parameters))
     return entry_point.compute_command(parameters)
 
 
@@ -427,8 +395,10 @@ def fetch_and_validate_project(
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
-            wandb.termlog("Entry point for repo not specified, defaulting to main.py")
-            launch_project.add_entry_point("main.py")
+            wandb.termlog(
+                "Entry point for local directory not specified, defaulting to `python main.py`"
+            )
+            launch_project.add_entry_point(["python", "main.py"])
     else:
         launch_project._fetch_project_local(internal_api=api)
 

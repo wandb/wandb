@@ -105,6 +105,7 @@ class LocalRunner(AbstractRunner):
                 get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
             ).strip()
         else:
+            assert entry_point is not None
             repository: Optional[str] = registry_config.get("url")
             image_uri = builder.build_image(
                 launch_project,

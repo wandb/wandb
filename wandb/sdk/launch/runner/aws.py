@@ -114,7 +114,7 @@ class AWSSagemakerRunner(AbstractRunner):
             "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
         )
         account_id = client.get_caller_identity()["Account"]
-
+        entry_point = launch_project.get_single_entry_point()
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
             given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
@@ -126,7 +126,9 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             )
-            sagemaker_args = build_sagemaker_args(launch_project, self._api, account_id)
+            sagemaker_args = build_sagemaker_args(
+                launch_project, entry_point, self._api, account_id
+            )
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
@@ -183,7 +185,6 @@ class AWSSagemakerRunner(AbstractRunner):
                 "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )
 
-        entry_point = launch_project.get_single_entry_point()
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
@@ -207,8 +208,11 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_secret_access_key=secret_key,
         )
 
-        command_str = get_entry_point_command(entry_point, launch_project.override_args)
-        if command_str:
+        command_args = get_entry_point_command(
+            entry_point, launch_project.override_args
+        )
+        if command_args:
+            command_str = " ".join(command_args)
             wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_str}")
         else:
             wandb.termlog(

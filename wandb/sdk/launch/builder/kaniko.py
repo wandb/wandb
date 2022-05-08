@@ -193,11 +193,13 @@ class KanikoBuilder(AbstractBuilder):
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.run_id}"
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+        entry_cmd = " ".join(
+            get_entry_point_command(entrypoint, launch_project.override_args)
+        )
 
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
-            launch_project, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
