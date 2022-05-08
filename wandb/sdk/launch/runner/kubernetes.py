@@ -306,9 +306,8 @@ class KubernetesRunner(AbstractRunner):
             wandb.termwarn(
                 "Docker args are not supported for Kubernetes. Not using docker args"
             )
-        entry_cmd = shlex.split(
-            get_entry_point_command(entry_point, launch_project.override_args)
-        )
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
+        print(entry_cmd)
         if entry_cmd:
             # if user hardcodes cmd into their image, we don't need to run on top of that
             for cont in containers:

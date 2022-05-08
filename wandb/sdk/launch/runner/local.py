@@ -97,10 +97,6 @@ class LocalRunner(AbstractRunner):
             image_uri = launch_project.docker_image
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
-            if launch_project.override_args.get("entry_point"):
-                env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(
-                    launch_project.override_args["entry_point"]
-                )
             # if they've given an override to the entrypoint
             entry_cmd = get_entry_point_command(
                 entry_point, launch_project.override_args

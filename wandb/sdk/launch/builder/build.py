@@ -161,7 +161,7 @@ def _run_entry_point(command: str):
             cwd=os.getcwd(),
             env=env,
         )
-        process.wait()
+    return process.wait()
 
 
 if __name__ == "__main__":
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         cmd += " " + os.environ.get("WANDB_ARGS")
     print("RUNNING", cmd)
 
-    _run_entry_point(cmd)
+    sys.exit(_run_entry_point(cmd))
 """
 
 
@@ -258,11 +258,12 @@ def get_env_vars_dict(
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
-    # env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(entry_point.command)
-    print("ep command", entry_point.command)
-    print("Join", join(entry_point.command))
-    env_vars["WANDB_ARGS"] = compute_command_args(launch_project.override_args)
-    print(env_vars)
+    if launch_project.override_args.get("entry_point"):
+        env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(
+            launch_project.override_args["entry_point"]
+        )
+    if launch_project.override_args:
+        env_vars["WANDB_ARGS"] = compute_command_args(launch_project.override_args)
     return env_vars
 
 

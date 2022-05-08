@@ -162,9 +162,7 @@ class VertexRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
         # TODO: how to handle this?
-        entry_cmd = get_entry_point_command(
-            entry_point, launch_project.override_args
-        ).split()
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 
         worker_pool_specs = [
             {
