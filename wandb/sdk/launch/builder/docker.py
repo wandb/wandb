@@ -47,7 +47,7 @@ class DockerBuilder(AbstractBuilder):
             image_uri = construct_local_image_uri(launch_project)
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
         dockerfile_str = generate_dockerfile(
-            launch_project, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,

@@ -137,8 +137,47 @@ RUN useradd \
 """
 
 ENTRYPOINT_TEMPLATE = """
-COPY ./src/train {workdir}
-ENTRYPOINT ["sh", "train"]
+COPY ./src/train.py {workdir}
+ENTRYPOINT ["python", "train.py", "{entrypoint}"]
+"""
+
+PYTHON_ENTRYPOINT = """
+import subprocess
+import os
+import sys
+
+def _run_entry_point(command: str):
+    work_dir = os.getcwd()
+    env = os.environ.copy()
+    if os.name == "nt":
+        # we are running on windows
+        process = subprocess.Popen(
+            ["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env
+        )
+    else:
+        process = subprocess.Popen(
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=os.getcwd(),
+            env=env,
+        )
+        process.wait()
+
+
+if __name__ == "__main__":
+    print("CALLED MAIN FILE")
+    print(sys.argv[:])
+    cmd = ""
+    if os.environ.get("WANDB_ENTRYPOINT_COMMAND"):
+        cmd += os.environ.get("WANDB_ENTRYPOINT_COMMAND")
+    else:
+        cmd += sys.argv[1]
+
+    if os.environ.get("WANDB_ARGS"):
+        cmd += " " + os.environ.get("WANDB_ARGS")
+    print("RUNNING", cmd)
+
+    _run_entry_point(cmd)
 """
 
 
@@ -219,7 +258,9 @@ def get_env_vars_dict(
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
-    env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(entry_point.command)
+    # env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(entry_point.command)
+    print("ep command", entry_point.command)
+    print("Join", join(entry_point.command))
     env_vars["WANDB_ARGS"] = compute_command_args(launch_project.override_args)
     print(env_vars)
     return env_vars
@@ -282,6 +323,7 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
 
 def get_entrypoint_setup(
     launch_project: LaunchProject,
+    entry_point: EntryPoint,
     workdir: str,
 ) -> str:
     # if runner_type == "sagemaker":
@@ -293,13 +335,18 @@ def get_entrypoint_setup(
     # with argparse, and hopefully if the user intends for the train
     # argument to be present it is captured in the original jobs
     # command arguments
-    with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-        fp.write("$WANDB_ENTRYPOINT_COMMAND $WANDB_ARGS")
-    return ENTRYPOINT_TEMPLATE.format(workdir=workdir)
+    with open(os.path.join(launch_project.project_dir, "train.py"), "w") as fp:
+        # fp.write("echo $WANDB_ENTRYPOINT_COMMAND\n")
+        # fp.write("$WANDB_ENTRYPOINT_COMMAND $WANDB_ARGS")
+        fp.write(PYTHON_ENTRYPOINT)
+    return ENTRYPOINT_TEMPLATE.format(
+        workdir=workdir, entrypoint=join(entry_point.command)
+    )
 
 
 def generate_dockerfile(
     launch_project: LaunchProject,
+    entry_point: EntryPoint,
     runner_type: str,
     builder_type: str,
 ) -> str:
@@ -332,7 +379,7 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = f"/home/{username}"
 
-    entrypoint_section = get_entrypoint_setup(launch_project, workdir)
+    entrypoint_section = get_entrypoint_setup(launch_project, entry_point, workdir)
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -343,7 +390,7 @@ def generate_dockerfile(
         workdir=workdir,
         entrypoint_setup=entrypoint_section,
     )
-
+    print(dockerfile_contents)
     return dockerfile_contents
 
 
