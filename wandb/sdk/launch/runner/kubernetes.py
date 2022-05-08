@@ -294,11 +294,12 @@ class KubernetesRunner(AbstractRunner):
 
         self.populate_container_resources(containers, resource_args)
 
-        # env vars
-        env_vars = get_env_vars_dict(launch_project, self._api)
-
         # cmd
         entry_point = launch_project.get_single_entry_point()
+
+        # env vars
+        env_vars = get_env_vars_dict(launch_project, entry_point, self._api)
+
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         secret = None
         if docker_args and list(docker_args) != ["docker_image"]:

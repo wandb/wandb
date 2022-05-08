@@ -161,7 +161,7 @@ class VertexRunner(AbstractRunner):
 
         if not self.ack_run_queue_item(launch_project):
             return None
-
+        # TODO: how to handle this?
         entry_cmd = get_entry_point_command(
             entry_point, launch_project.override_args
         ).split()
@@ -179,7 +179,9 @@ class VertexRunner(AbstractRunner):
                     "command": entry_cmd,
                     "env": [
                         {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                        for k, v in get_env_vars_dict(
+                            launch_project, entry_point, self._api
+                        ).items()
                     ],
                 },
             }

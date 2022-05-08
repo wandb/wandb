@@ -187,7 +187,9 @@ def get_base_setup(
     return base_setup
 
 
-def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
+def get_env_vars_dict(
+    launch_project: LaunchProject, entry_point: EntryPoint, api: Api
+) -> Dict[str, str]:
     """Generates environment variables for the project.
 
     Arguments:
@@ -217,9 +219,9 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
-
+    env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(entry_point.command)
     env_vars["WANDB_ARGS"] = compute_command_args(launch_project.override_args)
-
+    print(env_vars)
     return env_vars
 
 
@@ -280,7 +282,6 @@ def get_user_setup(username: str, userid: int, runner_type: str) -> str:
 
 def get_entrypoint_setup(
     launch_project: LaunchProject,
-    entrypoint: EntryPoint,
     workdir: str,
 ) -> str:
     # if runner_type == "sagemaker":
@@ -292,15 +293,13 @@ def get_entrypoint_setup(
     # with argparse, and hopefully if the user intends for the train
     # argument to be present it is captured in the original jobs
     # command arguments
-    print(entrypoint)
     with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-        fp.write(join(entrypoint.command) + " $WANDB_ARGS")
+        fp.write("$WANDB_ENTRYPOINT_COMMAND $WANDB_ARGS")
     return ENTRYPOINT_TEMPLATE.format(workdir=workdir)
 
 
 def generate_dockerfile(
     launch_project: LaunchProject,
-    entrypoint: EntryPoint,
     runner_type: str,
     builder_type: str,
 ) -> str:
@@ -333,7 +332,7 @@ def generate_dockerfile(
     user_setup = get_user_setup(username, userid, runner_type)
     workdir = f"/home/{username}"
 
-    entrypoint_section = get_entrypoint_setup(launch_project, entrypoint, workdir)
+    entrypoint_section = get_entrypoint_setup(launch_project, workdir)
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,

@@ -46,9 +46,8 @@ class DockerBuilder(AbstractBuilder):
         else:
             image_uri = construct_local_image_uri(launch_project)
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
-        print("ENTRYOPINT ", entrypoint)
         dockerfile_str = generate_dockerfile(
-            launch_project, entrypoint, launch_project.resource, self.type
+            launch_project, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
@@ -57,7 +56,6 @@ class DockerBuilder(AbstractBuilder):
             docker_args,
             dockerfile_str,
         )
-        print(dockerfile_str)
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:

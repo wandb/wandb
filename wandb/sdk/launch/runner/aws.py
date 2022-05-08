@@ -16,6 +16,7 @@ from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
+    EntryPoint,
     get_entry_point_command,
     LaunchProject,
 )
@@ -183,7 +184,6 @@ class AWSSagemakerRunner(AbstractRunner):
             )
 
         entry_point = launch_project.get_single_entry_point()
-
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
@@ -207,18 +207,16 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_secret_access_key=secret_key,
         )
 
-        command_args = get_entry_point_command(
-            entry_point, launch_project.override_args
-        )
-        if command_args:
-            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_args}")
+        command_str = get_entry_point_command(entry_point, launch_project.override_args)
+        if command_str:
+            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_str}")
         else:
             wandb.termlog(
                 "Launching run on sagemaker with user-provided entrypoint in image"
             )
 
         sagemaker_args = build_sagemaker_args(
-            launch_project, self._api, account_id, image
+            launch_project, entry_point, self._api, account_id, image
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
@@ -265,6 +263,7 @@ def merge_aws_tag_with_algorithm_specification(
 
 def build_sagemaker_args(
     launch_project: LaunchProject,
+    entry_point: EntryPoint,
     api: Api,
     account_id: str,
     aws_tag: Optional[str] = None,
@@ -317,7 +316,7 @@ def build_sagemaker_args(
     given_env = given_sagemaker_args.get(
         "Environment", sagemaker_args.get("environment", {})
     )
-    calced_env = get_env_vars_dict(launch_project, api)
+    calced_env = get_env_vars_dict(launch_project, entry_point, api)
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env
 

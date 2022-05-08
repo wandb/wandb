@@ -91,12 +91,13 @@ class LocalRunner(AbstractRunner):
                 docker_args["add-host"] = "host.docker.internal:host-gateway"
 
         entry_point = launch_project.get_single_entry_point()
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(launch_project, entry_point, self._api)
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.docker_image
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
+            # if they've given an override to the entrypoint
             entry_cmd = get_entry_point_command(
                 entry_point, launch_project.override_args
             )
@@ -105,7 +106,6 @@ class LocalRunner(AbstractRunner):
             ).strip()
         else:
             repository: Optional[str] = registry_config.get("url")
-            print("BUILDING IMAGE")
             image_uri = builder.build_image(
                 launch_project,
                 repository,
@@ -113,7 +113,7 @@ class LocalRunner(AbstractRunner):
                 docker_args,
             )
             command_str = " ".join(
-                get_docker_command(image_uri, env_vars, ["train"], docker_args)
+                get_docker_command(image_uri, env_vars, [""], docker_args)
             ).strip()
 
         if not self.ack_run_queue_item(launch_project):
@@ -192,12 +192,10 @@ def get_docker_command(
                     cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
 
     cmd += [shlex.quote(image)]
-    print("ENTRY CMD", entry_cmd)
     cmd += entry_cmd
-    print("get_docker_command", cmd)
     return cmd
 
 
-# def join(split_command):
-#     """Return a shell-escaped string from *split_command*."""
-#     return " ".join(shlex.quote(arg) for arg in split_command)
+def join(split_command):
+    """Return a shell-escaped string from *split_command*."""
+    return " ".join(shlex.quote(arg) for arg in split_command)

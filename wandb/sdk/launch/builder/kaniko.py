@@ -197,7 +197,7 @@ class KanikoBuilder(AbstractBuilder):
 
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
-            launch_project, entry_cmd, launch_project.resource, self.type
+            launch_project, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
