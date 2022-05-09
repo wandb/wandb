@@ -2,8 +2,6 @@
 line-length = 88
 exclude = '''
   wandb/vendor/
-| wandb/sweeps/
-| wandb/sweeps_engine/
 | wandb/old/
 | wandb/bin/
 | wandb/proto/
@@ -24,9 +22,6 @@ exclude = '''
 | tools/strip_type_annotations.sh
 | tools/setup_dev_environment.sh
 | tools/loop.sh
-| tools/vendor_sweeps.sh
-| tools/verify_sweeps.sh
-| .sweeps_ref
 | __pycache__
 | .pyc
 '''
