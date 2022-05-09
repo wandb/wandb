@@ -84,6 +84,3 @@ bumpversion-to-dev:
 
 bumpversion-from-dev:
 	tox -e bumpversion-from-dev
-
-vendor-sweeps:  # expects an argument called ref=,  example usage: make vendor-sweeps ref=master
-	bash tools/vendor_sweeps.sh $(ref)
