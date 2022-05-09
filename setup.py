@@ -11,7 +11,7 @@ with open("package_readme.md") as readme_file:
 with open("requirements.txt") as requirements_file:
     requirements = requirements_file.read().splitlines()
 
-with open("requirements.sweeps.txt") as sweeps_requirements_file:
+with open("requirements_sweeps.txt") as sweeps_requirements_file:
     sweeps_requirements = sweeps_requirements_file.read().splitlines()
 
 
