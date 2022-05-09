@@ -107,7 +107,7 @@ def construct_launch_spec(
     entity: Optional[str],
     docker_image: Optional[str],
     resource: Optional[str],
-    entry_point: Optional[str],
+    entry_point: Optional[List[str]],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],

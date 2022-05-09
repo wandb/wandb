@@ -113,9 +113,11 @@ class LocalRunner(AbstractRunner):
                 entry_point,
                 docker_args,
             )
-            command_str = " ".join(
-                get_docker_command(image_uri, env_vars, [""], docker_args)
-            ).strip()
+            command_str = sanitize_wandb_api_key(
+                " ".join(
+                    get_docker_command(image_uri, env_vars, [""], docker_args)
+                ).strip()
+            )
 
         if not self.ack_run_queue_item(launch_project):
             return None
@@ -197,6 +199,6 @@ def get_docker_command(
     return cmd
 
 
-def join(split_command):
+def join(split_command: List[str]) -> str:
     """Return a shell-escaped string from *split_command*."""
     return " ".join(shlex.quote(arg) for arg in split_command)

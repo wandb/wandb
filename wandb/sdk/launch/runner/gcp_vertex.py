@@ -151,7 +151,7 @@ class VertexRunner(AbstractRunner):
                 gcp_project,
                 gcp_docker_host,
             )
-
+            assert entry_point is not None
             image_uri = builder.build_image(
                 launch_project,
                 repository,

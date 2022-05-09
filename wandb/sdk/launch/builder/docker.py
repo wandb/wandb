@@ -37,7 +37,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         repository: Optional[str],
-        entrypoint: Optional[EntryPoint],
+        entrypoint: EntryPoint,
         docker_args: Dict[str, Any],
     ) -> str:
 

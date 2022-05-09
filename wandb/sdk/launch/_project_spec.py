@@ -7,9 +7,9 @@ import enum
 import json
 import logging
 import os
-from shlex import quote, split
+from shlex import quote
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.apis.internal import Api
@@ -168,12 +168,6 @@ class LaunchProject:
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
 
-    def get_entry_point(self, entry_point: str) -> "EntryPoint":
-        """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
-        if entry_point in self._entry_points:
-            return self._entry_points[entry_point]
-        return self.add_entry_point(entry_point)
-
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         # these asserts are all guaranteed to pass, but are required by mypy
@@ -315,12 +309,13 @@ class EntryPoint:
         command_arr = self.command
         extras = compute_command_args(user_parameters)
         command_arr += extras
-        print(command_arr)
         return command_arr
 
 
-def compute_command_args(parameters: Dict[str, Any]) -> List[str]:
-    arr = []
+def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
+    arr: List[str] = []
+    if parameters is None:
+        return arr
     for key, value in parameters.items():
         if value is not None:
             arr.append(f"--{key}")
@@ -414,9 +409,8 @@ def fetch_and_validate_project(
     elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
         launch_project.deps_type = "conda"
 
-    first_entry_point = list(launch_project._entry_points.keys())[0]
-    _logger.info("validating entrypoint parameters")
-    launch_project.get_entry_point(first_entry_point)
+    # first_entry_point = list(launch_project._entry_points.keys())[0]
+    # launch_project.get_entry_point(first_entry_point)
     return launch_project
 
 

@@ -188,6 +188,7 @@ class AWSSagemakerRunner(AbstractRunner):
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
+            assert entry_point is not None
             # build our own image
             image = builder.build_image(
                 launch_project,
@@ -267,7 +268,7 @@ def merge_aws_tag_with_algorithm_specification(
 
 def build_sagemaker_args(
     launch_project: LaunchProject,
-    entry_point: EntryPoint,
+    entry_point: Optional[EntryPoint],
     api: Api,
     account_id: str,
     aws_tag: Optional[str] = None,

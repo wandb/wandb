@@ -16,7 +16,7 @@ from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from .._project_spec import EntryPoint, LaunchProject, compute_command_args
+from .._project_spec import compute_command_args, EntryPoint, LaunchProject
 from ..utils import _is_wandb_dev_uri, _is_wandb_local_uri
 from ...lib.git import GitRepo
 
@@ -228,7 +228,7 @@ def get_base_setup(
 
 
 def get_env_vars_dict(
-    launch_project: LaunchProject, entry_point: EntryPoint, api: Api
+    launch_project: LaunchProject, entry_point: Optional[EntryPoint], api: Api
 ) -> Dict[str, str]:
     """Generates environment variables for the project.
 
@@ -535,6 +535,6 @@ def _create_docker_build_ctx(
     return directory
 
 
-def join(split_command: List[str]):
+def join(split_command: List[str]) -> str:
     """Return a shell-escaped string from *split_command*."""
     return " ".join(shlex.quote(arg) for arg in split_command)

@@ -1,6 +1,5 @@
 import base64
 import json
-import shlex
 import time
 from typing import Any, Dict, List, Optional
 
@@ -342,7 +341,7 @@ class KubernetesRunner(AbstractRunner):
                 wandb.termwarn(
                     "Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
-
+            assert entry_point is not None
             image_uri = builder.build_image(
                 launch_project, repository, entry_point, docker_args
             )
