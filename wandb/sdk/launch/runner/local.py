@@ -122,7 +122,7 @@ class LocalRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
 
-        wandb.termlog("Launching run in docker with command: {}".format(command_str))
+        wandb.termlog(f"Launching run in docker with command: {command_str}")
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()
