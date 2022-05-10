@@ -86,7 +86,7 @@ class WandbCallback(BaseCallback):
         model_save_path: Optional[str] = None,
         model_save_freq: int = 0,
         gradient_save_freq: int = 0,
-        gradient_log: Literal["gradients", "parameters", "all"] = "all"
+        gradient_log: Literal["gradients", "parameters", "all"] = "all",
     ) -> None:
         super().__init__(verbose)
         if wandb.run is None:
