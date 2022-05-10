@@ -12,7 +12,6 @@ CONFIG = {
     ],
     "exclude": [
         os.path.join("wandb", "proto"),
-        os.path.join("wandb", "sweeps"),
         os.path.join("wandb", "vendor"),
         os.path.join("tests", "logs"),
     ],

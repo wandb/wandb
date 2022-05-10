@@ -24,7 +24,6 @@ source =
     wandb/
 
 omit =
-    wandb/sweeps/*
     wandb/vendor/*
     wandb/proto/*
 
@@ -34,6 +33,5 @@ exclude_lines =
     if TYPE_CHECKING:
 
 omit =
-    wandb/sweeps/*
     wandb/vendor/*
     wandb/proto/*

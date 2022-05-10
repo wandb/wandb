@@ -25,7 +25,6 @@ exclude =
     ./wandb/proto/
     ./wandb/proto_check/
     ./wandb/env.py
-    ./wandb/sweeps/
     ./wandb/integration/magic.py
     ./wandb/integration/keras/
     ./wandb/integration/metaflow/
