@@ -34,6 +34,7 @@ def test_multiproc_default(live_mock_server, test_settings, parse_ctx):
     s = {k: v for k, v in dict(summary).items() if not k.startswith("_")}
     assert dict(val=3, val2=1, mystep=3) == s
 
+
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
 @pytest.mark.skipif(sys.version_info >= (3, 10), reason="flaky?")
 @pytest.mark.skipif(
