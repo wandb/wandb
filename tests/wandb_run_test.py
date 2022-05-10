@@ -48,7 +48,7 @@ def test_run_log_mp_warn(fake_run, capsys):
     run._init_pid = _init_pid
 
 
-@pytest.mark.skip
+@pytest.mark.skipif(os.environ["WANDB_REQUIRE_SERVICE"], reason="differnt behavior with service")
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
@@ -734,10 +734,11 @@ def test_settings_unexpected_args_telemetry(
 
 
 def test_attach_same_process(test_settings):
-    with pytest.raises(RuntimeError) as excinfo:
-        run = wandb.init(settings=test_settings)
-        new_run = pickle.loads(pickle.dumps(run))
-        new_run.log({"a": 2})
+    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
+        with pytest.raises(RuntimeError) as excinfo:
+            run = wandb.init(settings=test_settings)
+            new_run = pickle.loads(pickle.dumps(run))
+            new_run.log({"a": 2})
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 
