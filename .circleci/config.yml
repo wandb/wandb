@@ -583,7 +583,7 @@ jobs:
       - run:
           name: "Propagate the WANDB_API_KEY environment variable to pod.yaml"
           command: |
-            sed -i -e 's/WANDB_API_KEY_PLACEHOLDER/$WANDB_API_KEY/g' << parameters.path >>/<< parameters.pod_config_name >>
+            sed -i -e 's/WANDB_API_KEY_PLACEHOLDER/'"$WANDB_API_KEY"'/g' << parameters.path >>/<< parameters.pod_config_name >>
       - run:
           name: "Spin up pod"
           command: |
