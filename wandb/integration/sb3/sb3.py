@@ -86,7 +86,7 @@ class WandbCallback(BaseCallback):
         model_save_path: Optional[str] = None,
         model_save_freq: int = 0,
         gradient_save_freq: int = 0,
-        log: Literal["gradients", "parameters", "all"] = "all",
+        log: Optional[Literal["gradients", "parameters", "all"]] = "all",
     ) -> None:
         super().__init__(verbose)
         if wandb.run is None:
@@ -96,9 +96,9 @@ class WandbCallback(BaseCallback):
         self.model_save_freq = model_save_freq
         self.model_save_path = model_save_path
         self.gradient_save_freq = gradient_save_freq
-        if log not in ["gradients", "parameters", "all"]:
+        if log not in ["gradients", "parameters", "all", None]:
             wandb.termwarn(
-                "`log` must be one of 'gradients', 'parameters', or 'all', "
+                "`log` must be one of `None`, 'gradients', 'parameters', or 'all', "
                 "falling back to 'all'"
             )
             log = "all"
