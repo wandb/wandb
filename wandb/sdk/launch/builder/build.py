@@ -198,15 +198,7 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
         Dictionary of environment variables.
     """
     env_vars = {}
-    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
-        _, _, port = api.settings("base_url").split(":")
-        base_url = f"http://host.docker.internal:{port}"
-    elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
-    else:
-        base_url = api.settings("base_url")
-    env_vars["WANDB_BASE_URL"] = base_url
-
+    env_vars["WANDB_BASE_URL"] = api.settings("base_url")
     env_vars["WANDB_API_KEY"] = api.api_key
     env_vars["WANDB_PROJECT"] = launch_project.target_project
     env_vars["WANDB_ENTITY"] = launch_project.target_entity
