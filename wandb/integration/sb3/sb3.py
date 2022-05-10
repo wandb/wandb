@@ -41,7 +41,7 @@ model.learn(
     callback=WandbCallback(
         model_save_path=f"models/{run.id}",
         gradient_save_freq=100,
-        gradient_log="all",
+        log="all",
     ),
 )
 ```
@@ -77,7 +77,7 @@ class WandbCallback(BaseCallback):
         model_save_path: Path to the folder where the model will be saved, The default value is `None` so the model is not logged
         model_save_freq: Frequency to save the model
         gradient_save_freq: Frequency to log gradient. The default value is 0 so the gradients are not logged
-        gradient_log: What to log. One of "gradients", "parameters", or "all".
+        log: What to log. One of "gradients", "parameters", or "all".
     """
 
     def __init__(
@@ -86,7 +86,7 @@ class WandbCallback(BaseCallback):
         model_save_path: Optional[str] = None,
         model_save_freq: int = 0,
         gradient_save_freq: int = 0,
-        gradient_log: Literal["gradients", "parameters", "all"] = "all",
+        log: Literal["gradients", "parameters", "all"] = "all",
     ) -> None:
         super().__init__(verbose)
         if wandb.run is None:
@@ -96,13 +96,13 @@ class WandbCallback(BaseCallback):
         self.model_save_freq = model_save_freq
         self.model_save_path = model_save_path
         self.gradient_save_freq = gradient_save_freq
-        if gradient_log not in ["gradients", "parameters", "all"]:
+        if log not in ["gradients", "parameters", "all"]:
             wandb.termwarn(
-                "`gradient_log` must be one of 'gradients', 'parameters', or 'all', "
+                "`log` must be one of 'gradients', 'parameters', or 'all', "
                 "falling back to 'all'"
             )
-            gradient_log = "all"
-        self.gradient_log = gradient_log
+            log = "all"
+        self.log = log
         # Create folder if needed
         if self.model_save_path is not None:
             os.makedirs(self.model_save_path, exist_ok=True)
@@ -127,7 +127,7 @@ class WandbCallback(BaseCallback):
             wandb.watch(
                 self.model.policy,
                 log_freq=self.gradient_save_freq,
-                log=self.gradient_log,
+                log=self.log,
             )
         wandb.config.setdefaults(d)
 
