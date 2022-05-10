@@ -38,7 +38,7 @@ def test_multiproc_default(live_mock_server, test_settings, parse_ctx):
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
 @pytest.mark.skipif(sys.version_info >= (3, 10), reason="flaky?")
 @pytest.mark.skipif(
-    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="differnt behavior with service"
+    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
 )
 def test_multiproc_ignore(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
@@ -70,7 +70,7 @@ def test_multiproc_ignore(live_mock_server, test_settings, parse_ctx):
 @pytest.mark.xfail(platform.system() == "Darwin", reason="console parse_ctx issues")
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
 @pytest.mark.skipif(
-    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="differnt behavior with service"
+    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
 )
 def test_multiproc_strict(live_mock_server, test_settings, parse_ctx):
     test_settings.update(strict="true", source=wandb.sdk.wandb_settings.Source.INIT)
