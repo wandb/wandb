@@ -39,8 +39,9 @@ model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs")
 model.learn(
     total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
-        gradient_save_freq=100,
         model_save_path=f"models/{run.id}",
+        gradient_save_freq=100,
+        gradient_log="all",
     ),
 )
 ```
@@ -48,8 +49,15 @@ model.learn(
 
 import logging
 import os
+import sys
+from typing import Optional
 
-from stable_baselines3.common.callbacks import BaseCallback
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+from stable_baselines3.common.callbacks import BaseCallback  # type: ignore
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
 
@@ -69,15 +77,17 @@ class WandbCallback(BaseCallback):
         model_save_path: Path to the folder where the model will be saved, The default value is `None` so the model is not logged
         model_save_freq: Frequency to save the model
         gradient_save_freq: Frequency to log gradient. The default value is 0 so the gradients are not logged
+        gradient_log: What to log. One of "gradients", "parameters", or "all".
     """
 
     def __init__(
         self,
         verbose: int = 0,
-        model_save_path: str = None,
+        model_save_path: Optional[str] = None,
         model_save_freq: int = 0,
         gradient_save_freq: int = 0,
-    ):
+        gradient_log: Literal["gradients", "parameters", "all"] = "all",
+    ) -> None:
         super().__init__(verbose)
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -86,6 +96,13 @@ class WandbCallback(BaseCallback):
         self.model_save_freq = model_save_freq
         self.model_save_path = model_save_path
         self.gradient_save_freq = gradient_save_freq
+        if gradient_log not in ["gradients", "parameters", "all"]:
+            wandb.termwarn(
+                "`gradient_log` must be one of 'gradients', 'parameters', or 'all', "
+                "falling back to 'all'"
+            )
+            gradient_log = "all"
+        self.gradient_log = gradient_log
         # Create folder if needed
         if self.model_save_path is not None:
             os.makedirs(self.model_save_path, exist_ok=True)
@@ -107,7 +124,11 @@ class WandbCallback(BaseCallback):
             else:
                 d[key] = str(self.model.__dict__[key])
         if self.gradient_save_freq > 0:
-            wandb.watch(self.model.policy, log_freq=self.gradient_save_freq, log="all")
+            wandb.watch(
+                self.model.policy,
+                log_freq=self.gradient_save_freq,
+                log=self.gradient_log,
+            )
         wandb.config.setdefaults(d)
 
     def _on_step(self) -> bool:
@@ -125,4 +146,4 @@ class WandbCallback(BaseCallback):
         self.model.save(self.path)
         wandb.save(self.path, base_path=self.model_save_path)
         if self.verbose > 1:
-            logger.info("Saving model checkpoint to " + self.path)
+            logger.info(f"Saving model checkpoint to {self.path}")
