@@ -206,8 +206,8 @@ commands:
 #            e2-medium
 #            --accelerator=type=nvidia-tesla-k80,count=1
           environment:
-            GKE_CLUSTER_NAME: <<parameters.cluster >>
-          no_output_timeout: <<parameters.no-output-timeout>>
+            GKE_CLUSTER_NAME: << parameters.cluster >>
+          no_output_timeout: << parameters.no-output-timeout>>
 
   get_gke_cluster_credentials:
     parameters:
@@ -219,9 +219,9 @@ commands:
       - run:
           name: "Get gke cluster credentials"
           command: |
-            gcloud container clusters get-credentials <<parameters.cluster >>
+            gcloud container clusters get-credentials << parameters.cluster >>
           environment:
-            GKE_CLUSTER_NAME: <<parameters.cluster >>
+            GKE_CLUSTER_NAME: << parameters.cluster >>
 
 jobs:
   test:
@@ -580,6 +580,10 @@ jobs:
       - setup_gcloud
       - get_gke_cluster_credentials:
           cluster: << parameters.cluster >>
+      - run:
+          name: "Propagate the WANDB_API_KEY environment variable to pod.yaml"
+          command: |
+            sed -i -e 's/WANDB_API_KEY_PLACEHOLDER/$WANDB_API_KEY/g' << parameters.path >>/<< parameters.pod_config_name >>
       - run:
           name: "Spin up pod"
           command: |
