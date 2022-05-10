@@ -11,13 +11,13 @@ __logger__ = logging.getLogger(__name__)
 
 
 # Statically register backend defined in wandb
-_WANDB_RUNNERS: List[str] = {
+WANDB_RUNNERS: List[str] = [
     "local",
     "bare",
     "gcp-vertex",
     "sagemaker",
     "kubernetes",
-}
+]
 
 
 def load_backend(
@@ -25,20 +25,27 @@ def load_backend(
 ) -> AbstractRunner:
     # Static backends
     if backend_name == "local":
-        from .aws import AWSSagemakerRunner
+        from .local import LocalRunner
+
         return LocalRunner(api, backend_config)
     elif backend_name == "bare":
         from .bare import BareRunner
+
         return BareRunner(api, backend_config)
     elif backend_name == "gcp-vertex":
         from .gcp_vertex import VertexRunner
+
         return VertexRunner(api, backend_config)
     elif backend_name == "sagemaker":
-        from .kubernetes import KubernetesRunner
+        from .aws import AWSSagemakerRunner
+
         return AWSSagemakerRunner(api, backend_config)
     elif backend_name == "kubernetes":
-        from .local import LocalRunner
+        from .kubernetes import KubernetesRunner
+
         return KubernetesRunner(api, backend_config)
     raise LaunchError(
         "Resource name not among available resources. Available resources: {} ".format(
-            ",".join(_WANDB_RUNNERS)))
+            ",".join(WANDB_RUNNERS)
+        )
+    )

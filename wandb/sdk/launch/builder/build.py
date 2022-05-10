@@ -18,7 +18,6 @@ from wandb.errors import DockerError, ExecutionError, LaunchError
 from .._project_spec import (
     LaunchProject,
 )
-from ..utils import _is_wandb_dev_uri, _is_wandb_local_uri
 from ...lib.git import GitRepo
 
 _logger = logging.getLogger(__name__)
