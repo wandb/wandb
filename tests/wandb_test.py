@@ -511,7 +511,7 @@ def test_run_url(wandb_init_run):
 
 def test_attach_usage_errors(wandb_init_run):
 
-    if not os.environ["WANDB_REQUIRE_SERVICE"]:
+    if not os.environ.get("WANDB_REQUIRE_SERVICE"):
         with pytest.raises(wandb.UsageError) as e:
             wandb._attach(run=wandb_init_run)
         assert (

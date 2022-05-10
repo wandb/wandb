@@ -49,7 +49,7 @@ def test_run_log_mp_warn(fake_run, capsys):
 
 
 @pytest.mark.skipif(
-    os.environ["WANDB_REQUIRE_SERVICE"], reason="differnt behavior with service"
+    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="differnt behavior with service"
 )
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
