@@ -48,7 +48,9 @@ def test_run_log_mp_warn(fake_run, capsys):
     run._init_pid = _init_pid
 
 
-@pytest.mark.skipif(os.environ["WANDB_REQUIRE_SERVICE"], reason="differnt behavior with service")
+@pytest.mark.skipif(
+    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
+)
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
