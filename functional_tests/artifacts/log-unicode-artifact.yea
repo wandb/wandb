@@ -1,4 +1,4 @@
-id: 0.artifacts.log-unicode-model
+id: 0.artifacts.log-unicode-artifact
 plugin:
   - wandb
 assert:
