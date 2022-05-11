@@ -1169,6 +1169,7 @@ def test_launch_local_cuda_command(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(320)
 def test_launch_local_cuda_config(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):

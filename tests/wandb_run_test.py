@@ -48,6 +48,9 @@ def test_run_log_mp_warn(fake_run, capsys):
     run._init_pid = _init_pid
 
 
+@pytest.mark.skipif(
+    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
+)
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
@@ -112,7 +115,12 @@ def test_run_pub_history(fake_run, record_q, records_util):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="numpy.float128 does not exist on windows"
+    platform.system() == "Windows",
+    reason="numpy.float128 does not exist on windows",
+)
+@pytest.mark.skipif(
+    platform.system() == "Darwin" and platform.machine() == "arm64",
+    reason="numpy.float128 does not exist on Macs with the Apple M1 chip",
 )
 def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util):
     # CLI: GH2255
@@ -677,7 +685,6 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
         and (4 in telemetry_deprecated)
         and (7 in telemetry_deprecated)
     )
-    run.finish()
 
 
 # test that information about validation errors in wandb.Settings is included in telemetry
@@ -733,7 +740,7 @@ def test_settings_unexpected_args_telemetry(
         run.finish()
 
 
-def test_attach_same_process(live_mock_server, test_settings):
+def test_attach_same_process(test_settings):
     with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="True"):
         with pytest.raises(RuntimeError) as excinfo:
             run = wandb.init(settings=test_settings)
