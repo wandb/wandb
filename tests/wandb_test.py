@@ -511,12 +511,13 @@ def test_run_url(wandb_init_run):
 
 def test_attach_usage_errors(wandb_init_run):
 
-    with pytest.raises(wandb.UsageError) as e:
-        wandb._attach(run=wandb_init_run)
-    assert (
-        "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
-        in str(e.value)
-    )
+    if not os.environ.get("WANDB_REQUIRE_SERVICE"):
+        with pytest.raises(wandb.UsageError) as e:
+            wandb._attach(run=wandb_init_run)
+        assert (
+            "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
+            in str(e.value)
+        )
 
     with pytest.raises(wandb.UsageError) as e:
         wandb._attach()
