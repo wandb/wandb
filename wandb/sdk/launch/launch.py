@@ -66,13 +66,13 @@ def resolve_agent_config(
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
         resolved_config.update({"max_jobs": max_jobs})
-
     if queues is not None:
         resolved_config.update({"queues": queues})
     if (
-        resolved_config["entity"] != defaults["entity"]
-        or resolved_config["api_key"] != defaults["api_key"]
-        or resolved_config["base_url"] != defaults["base_url"]
+        resolved_config["entity"] != api.default_entity
+        or resolved_config["api_key"] != api.api_key
+        or resolved_config["base_url"] != api.api_url
+        or resolved_config["project"] != api.settings("project")
     ):
         settings = dict(
             api_key=resolved_config["api_key"],
@@ -80,8 +80,11 @@ def resolve_agent_config(
             project=resolved_config["project"],
             entity=resolved_config["entity"],
         )
+        print("SETTINGS", settings)
         api = Api(default_settings=settings)
 
+    print("URL", api.api_url)
+    print("API_KEY", api.api_key)
     return resolved_config, api
 
 

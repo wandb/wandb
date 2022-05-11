@@ -54,8 +54,11 @@ class LaunchProject:
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
     ):
+        wandb.termlog(f"OLD URI {uri}")
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
+
+            wandb.termlog(f"NEW URI {uri}")
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
         self.api = api

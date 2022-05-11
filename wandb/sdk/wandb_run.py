@@ -1678,6 +1678,7 @@ class Run:
         return self._finish(exit_code, quiet)
 
     def _finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
+        print("start _finish")
         if quiet is not None:
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
@@ -1687,10 +1688,11 @@ class Run:
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
-
+        print("Cleanup")
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
+        print("late hooks")
         # detach logger / others meant to be run after we've shutdown the backend
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.LATE:
@@ -1702,6 +1704,7 @@ class Run:
         manager = self._wl and self._wl._get_manager()
         if manager:
             manager._inform_finish(run_id=self._run_id)
+        print("Done _finish")
 
     @_run_decorator._noop
     @_run_decorator._attach
@@ -1987,7 +1990,7 @@ class Run:
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer
         )
-
+        print("poll exit response")
         while not (self._poll_exit_response and self._poll_exit_response.done):
             if self._backend and self._backend.interface:
                 self._poll_exit_response = (
@@ -2403,6 +2406,7 @@ class Run:
         Returns:
             An `Artifact` object.
         """
+        print("logging artifact")
         return self._log_artifact(
             artifact_or_path, name=name, type=type, aliases=aliases
         )
@@ -2571,6 +2575,7 @@ class Run:
                 is_user_created=is_user_created,
                 use_after_commit=use_after_commit,
             )
+        print("Done logging")
         return artifact
 
     def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:

@@ -27,6 +27,7 @@ _WANDB_DEV_URI_REGEX = re.compile(
 _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
+_WANDB_DOCKER_HOST_URI_REGEX = re.compile(r"https?://host.docker.internal")
 
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
@@ -46,6 +47,7 @@ def _is_wandb_uri(uri: str) -> bool:
         or _WANDB_DEV_URI_REGEX.match(uri)
         or _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
         or _WANDB_QA_URI_REGEX.match(uri)
+        or _WANDB_DOCKER_HOST_URI_REGEX.match(uri)
     ) is not None
 
 
@@ -182,6 +184,9 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     stripped_uri = re.sub(
         _WANDB_QA_URI_REGEX, "", stripped_uri
     )  # also for testing just run it twice
+    stripped_uri = re.sub(
+        _WANDB_DOCKER_HOST_URI_REGEX, "", stripped_uri
+    )  # also for testing just run it twice
     entity, project, _, name = stripped_uri.split("/")[1:]
     return entity, project, name
 
@@ -190,10 +195,12 @@ def is_bare_wandb_uri(uri: str) -> bool:
     """Checks if the uri is of the format /entity/project/runs/run_name"""
     _logger.info(f"Checking if uri {uri} is bare...")
     if not uri.startswith("/"):
+        wandb.termlog("URI NOT STARTED WITH /")
         return False
     result = uri.split("/")[1:]
     # a bare wandb uri will have 4 parts, with the last being the run name
     # and the second last being "runs"
+    wandb.termlog(f"{len(result)}, {result[-2] == 'runs'}, {len(result[-1])}")
     if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
         return True
     return False

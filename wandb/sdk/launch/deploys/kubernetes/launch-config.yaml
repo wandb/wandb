@@ -74,11 +74,12 @@ roleRef:
 apiVersion: v1
 data:
   launch-config.yaml: |
-    base_url: https://api.wandb.ai # TODO: SET YOUR WANDB BASE URL
-    project: launch-welcome # TODO: SET YOUR ML PROJECT
+    base_url: http://host.docker.internal:8080 # TODO: SET YOUR WANDB BASE URL
+    project: ads # TODO: SET YOUR ML PROJECT
+    entity: kyle
     max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
     registry:
-      url: # TODO: SET ECR REPOSITORY URL HERE
+      url: 620830334183.dkr.ecr.us-east-1.amazonaws.com/private-test-repo # TODO: SET ECR REPOSITORY URL HERE
       ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
       credentials:
         secret-name: aws-secret # TODO: SET SECRET NAME HERE
@@ -103,4 +104,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: ""  ### API KEY HERE
+  password: local-120d0defadf9e6f80e4727d58db8fbd763447f6c  ### API KEY HERE
