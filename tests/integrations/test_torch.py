@@ -15,11 +15,6 @@ except ImportError:
         Module = object
 
 
-pytestmark = pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="PyTorch no longer supports py2"
-)
-
-
 def dummy_torch_tensor(size, requires_grad=True):
     return torch.ones(size, requires_grad=requires_grad)
 

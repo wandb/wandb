@@ -1,14 +1,19 @@
+import platform
 import sys
 
 import pytest
 
-if sys.version_info >= (3, 10):
-    pytest.importorskip("pydantic")
+pytest.importorskip("sweeps")
 
 import sweeps
 import wandb
 
 
+# todo: unskip once WB-8120 is resolved
+@pytest.mark.skipif(
+    sys.platform == "darwin" and platform.machine() == "arm64",
+    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
+)
 def test_run_from_dict():
 
     run = sweeps.SweepRun(
@@ -28,6 +33,11 @@ def test_run_from_dict():
     assert run.summary_metrics == {}
 
 
+# todo: unskip once WB-8120 is resolved
+@pytest.mark.skipif(
+    sys.platform == "darwin" and platform.machine() == "arm64",
+    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
+)
 def test_print_status(runner, mock_server, capsys):
     c = wandb.controller("test", entity="test", project="test")
     c.print_status()
@@ -41,6 +51,11 @@ def test_print_status(runner, mock_server, capsys):
         pass
 
 
+# todo: unskip once WB-8120 is resolved
+@pytest.mark.skipif(
+    sys.platform == "darwin" and platform.machine() == "arm64",
+    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
+)
 def test_controller_existing(mock_server):
     c = wandb.controller("test", entity="test", project="test")
     assert c.sweep_id == "test"
@@ -55,6 +70,11 @@ def test_controller_existing(mock_server):
     }
 
 
+# todo: unskip once WB-8120 is resolved
+@pytest.mark.skipif(
+    sys.platform == "darwin" and platform.machine() == "arm64",
+    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
+)
 def test_controller_new(mock_server):
     tuner = wandb.controller(
         {
