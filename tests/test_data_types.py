@@ -408,7 +408,6 @@ def test_create_bokeh_plot(mocked_run):
     bp.bind_to_run(mocked_run, "bokeh", 0)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_gif(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
     vid = wandb.Video(video, format="gif")
@@ -416,7 +415,6 @@ def test_video_numpy_gif(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_mp4(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
     vid = wandb.Video(video, format="mp4")
@@ -424,7 +422,6 @@ def test_video_numpy_mp4(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".mp4")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_multi(mocked_run):
     video = np.random.random(size=(2, 10, 3, 28, 28))
     vid = wandb.Video(video)
@@ -432,7 +429,6 @@ def test_video_numpy_multi(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_invalid():
     video = np.random.random(size=(3, 28, 28))
     with pytest.raises(ValueError):
