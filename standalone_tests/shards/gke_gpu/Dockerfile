@@ -20,8 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python${PYTHON_VERSION}-dev \
     build-essential \
-    libsndfile1 \
-    ffmpeg \
+    && apt-get install -y libsndfile1 ffmpeg \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3 /usr/bin/python
 
