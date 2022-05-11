@@ -351,7 +351,7 @@ class Artifact(ArtifactInterface):
 
     @contextlib.contextmanager
     def new_file(
-        self, name: str, mode: str = "w", encoding: str = "utf-8"
+        self, name: str, mode: str = "w", encoding: Optional[str] = None
     ) -> Generator[IO, None, None]:
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
