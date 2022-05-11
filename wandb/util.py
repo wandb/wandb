@@ -1418,7 +1418,7 @@ def fsync_open(
     Opens a path for I/O, guaranteeing that the file is flushed and
     fsynced when the file's context expires.
     """
-    kwargs = {} if encoding is not None else {"encoding":encoding}
+    kwargs = {} if encoding is None else {"encoding":encoding}
     with open(path, mode, **kwargs) as f:
         yield f
 
