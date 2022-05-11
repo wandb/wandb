@@ -7,6 +7,7 @@ your evaluation script, and each step would be tracked as a run in W&B.
 For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
+from argparse import Namespace
 import copy
 import logging
 import os
@@ -16,7 +17,9 @@ import tempfile
 import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
+from omegaconf import DictConfig
 import shortuuid  # type: ignore
+
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
@@ -770,7 +773,9 @@ def _attach(
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[Dict, str, None] = None,
+    config: Union[
+        Dict, Namespace, DictConfig, str, None
+    ] = None,  # DictConfig is the OmegaConf class
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
@@ -843,7 +848,7 @@ def init(
             entity, which is usually your username. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
-        config: (dict, argparse, absl.flags, str, optional)
+        config: (dict, absl.flags, argparse, DictConfig/OmegaConf, str, optional)
             This sets `wandb.config`, a dictionary-like object for saving inputs
             to your job, like hyperparameters for a model or settings for a data
             preprocessing job. The config will show up in a table in the UI that
@@ -851,6 +856,8 @@ def init(
             `.` in their names, and values should be under 10 MB.
             If dict, argparse or absl.flags: will load the key value pairs into
                 the `wandb.config` object.
+            If DictConfig/OmegaConf: will convert the OmegaConf into a primitive
+                dict container to be latter on properly parsed.
             If str: will look for a yaml file by that name, and load config from
                 that file into the `wandb.config` object.
         save_code: (bool, optional) Turn this on to save the main script or
