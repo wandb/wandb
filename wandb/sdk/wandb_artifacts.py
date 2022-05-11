@@ -350,14 +350,16 @@ class Artifact(ArtifactInterface):
         )
 
     @contextlib.contextmanager
-    def new_file(self, name: str, mode: str = "w") -> Generator[IO, None, None]:
+    def new_file(
+        self, name: str, mode: str = "w", encoding: str = "utf-8"
+    ) -> Generator[IO, None, None]:
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
             raise ValueError(f'File with name "{name}" already exists at "{path}"')
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        with util.fsync_open(path, mode) as f:
+        with util.fsync_open(path, mode, encoding) as f:
             yield f
 
         self.add_file(path, name=name)

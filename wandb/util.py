@@ -1412,13 +1412,13 @@ def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w"
+    path: Union[pathlib.Path, str], mode: str = "w", encoding: str = "utf-8"
 ) -> Generator[IO[Any], None, None]:
     """
     Opens a path for I/O, guaranteeing that the file is flushed and
     fsynced when the file's context expires.
     """
-    with open(path, mode) as f:
+    with open(path, mode, encoding=encoding) as f:
         yield f
 
         f.flush()

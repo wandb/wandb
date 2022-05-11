@@ -351,13 +351,14 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def new_file(self, name: str, mode: str = "w"):
+    def new_file(self, name: str, mode: str = "w", encoding: str = "utf-8"):
         """
         Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
             name: (str) The name of the new file being added to the artifact.
             mode: (str, optional) The mode in which to open the new file.
+            encoding: (str, optional) The encoding in which to open the new file.
 
         Examples:
             ```
