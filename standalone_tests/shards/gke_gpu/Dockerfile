@@ -6,6 +6,8 @@ RUN apt-key adv --fetch-keys \
 RUN apt-key adv --fetch-keys \
     https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 ARG PYTHON_VERSION=3.8
 ARG GIT_BRANCH=master
 ARG TOX_VERSION=3.24.0
@@ -20,7 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python${PYTHON_VERSION}-dev \
     build-essential \
-    && apt-get install -y libsndfile1 ffmpeg \
+    libsndfile1 \
+    ffmpeg \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3 /usr/bin/python
 
