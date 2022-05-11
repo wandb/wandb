@@ -1853,7 +1853,7 @@ class Run(Attrs):
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
-    def upload_file(self, path, root="."):
+    def upload_file(self, path: str, root: str = "."):
         """
         Arguments:
             path (str): name of file to upload.
@@ -1873,6 +1873,7 @@ class Run(Attrs):
         name = os.path.relpath(path, root)
         with open(os.path.join(root, name), "rb") as f:
             api.push({util.to_forward_slash_path(name): f})
+        time.sleep(0.3)
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
