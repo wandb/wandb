@@ -289,7 +289,7 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            pip install tox==3.24.0
+            pip install tox==<< pipeline.parameters.tox_version >>
       - restore-tox-cache
       - run:
           name: Temporary conda hack
@@ -324,7 +324,7 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            pip3 install tox==3.24.0
+            pip3 install tox==<< pipeline.parameters.tox_version >>
       - restore-tox-cache
       - run:
           name: Run tests
@@ -351,7 +351,7 @@ jobs:
       - run:
           name: Install python dependencies, build r2d
           command: |
-            pip3 install tox==3.24.0
+            pip3 install tox==<< pipeline.parameters.tox_version >>
             pip3 install chardet
             pip3 install iso8601
       - run:
@@ -394,7 +394,7 @@ jobs:
           name: Install python dependencies
           command: |
             pip install --upgrade pip
-            pip install tox==3.24.0
+            pip install tox==<< pipeline.parameters.tox_version >>
       - run:
           name: Install kubectl
           command: |
@@ -616,6 +616,22 @@ jobs:
           name: "Wait for tests to finish, get pod logs, parse exit code, and delete pod"
           command: |
             sleep 30
+            
+            for i in {1..60}; do
+              kubectl get pods
+              if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> is running"
+              elif [ "$(kubectl get pods | grep -c 'Completed')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> has completed"
+                break
+              elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+                echo "Pod for << parameters.image_name >> is in an error state"
+                kubectl logs << parameters.pod_name >>
+                kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+                exit 1
+              fi
+              sleep 5
+            done
             
             logs=`kubectl logs << parameters.pod_name >>`
             echo $logs

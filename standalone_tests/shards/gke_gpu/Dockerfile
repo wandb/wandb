@@ -8,6 +8,7 @@ RUN apt-key adv --fetch-keys \
 
 ARG PYTHON_VERSION=3.8
 ARG GIT_BRANCH=master
+ARG TOX_VERSION=3.24.0
 
 # todo: enable docker image layer caching on circleci
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python${PYTHON_VERSION}-dev \
     build-essential \
+    libsndfile1 \
+    ffmpeg \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3 /usr/bin/python
 
@@ -36,12 +39,13 @@ RUN chmod 777 /home/sdk
 RUN git clone https://github.com/wandb/client.git /wandb/client \
     && cd /wandb/client \
     && git checkout ${GIT_BRANCH} \
-    && pip install -e . \
-    && pip install numpy torch torchvision --no-cache-dir
-# todo: replace with a proper tox+yea setup with
+    && pip install --upgrade pip \
+    && pip install tox==${TOX_VERSION} --no-cache-dir
+#    && pip install -e . \
+#    && pip install numpy torch torchvision --no-cache-dir
 #    && pip install -r requirements_dev.txt \
 
 RUN PATH=/home/sdk/.local/bin:$PATH
 
 WORKDIR /wandb/client
-CMD ["python", "standalone_tests/pytorch_bare.py"]
+CMD ["tox", "-v", "-e", "standalone-gpu-py38"]
