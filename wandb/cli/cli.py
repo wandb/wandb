@@ -1151,7 +1151,7 @@ def launch(
     default=None,
     help="The entity to use. Defaults to current logged-in user",
 )
-@click.option("--queues", "-q", default="default", help="The queue names to poll")
+@click.option("--queues", "-q", default=None, help="The queue names to poll")
 @click.option(
     "--max-jobs",
     "-j",
@@ -1175,7 +1175,8 @@ def launch_agent(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
-    queues = queues.split(",")  # todo: check for none?
+    if queues is not None:
+        queues = queues.split(",")
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues
     )
