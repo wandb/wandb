@@ -189,7 +189,7 @@ def test_numpy(cls, capfd):
 
 
 @pytest.mark.skipif(
-    sys.version_info >= (3, 9) or sys.version_info < (3, 5),
+    sys.version_info >= (3, 9),
     reason="Torch not available.",
 )
 @pytest.mark.parametrize("cls", impls)
@@ -303,7 +303,7 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
             print("LOG" * 1000000)
             print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
             print("===finish===")
-            time.sleep(3)
+            time.sleep(5)
             run.finish()
 
             binary_log_file = (

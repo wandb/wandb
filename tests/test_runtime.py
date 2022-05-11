@@ -56,7 +56,7 @@ def test_runtime_resume(
     "end_cb, lower_bound",
     [
         (end_run_basic, 3),
-        (end_run_pause_resume, 6),
+        (end_run_pause_resume, 5),
         (end_run_pause_pause, 3),
         (end_run_resume_resume, 9),
         (end_run_resume_pause, 6),
