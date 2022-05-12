@@ -359,9 +359,14 @@ class Artifact(ArtifactInterface):
             raise ValueError(f'File with name "{name}" already exists at "{path}"')
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        with util.fsync_open(path, mode, encoding) as f:
-            yield f
-
+        try:
+            with util.fsync_open(path, mode, encoding) as f:
+                yield f
+        except UnicodeEncodeError as e:
+            wandb.termerror(
+                f"Failed to open the provided file (UnicodeEncodeError: {e}). Please fix the encoding"
+            )
+            raise e
         self.add_file(path, name=name)
 
     def add_file(
