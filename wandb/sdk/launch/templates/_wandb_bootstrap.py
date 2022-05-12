@@ -30,6 +30,7 @@ def install_deps(deps, failed=None):
     try:
         print("installing {}...".format(", ".join(deps)))
         sys.stdout.flush()
+        print("DEPS", deps)
         subprocess.check_output(
             ["pip", "install"] + OPTS + deps, stderr=subprocess.STDOUT
         )
@@ -38,6 +39,7 @@ def install_deps(deps, failed=None):
             sys.stderr.flush()
         return failed
     except subprocess.CalledProcessError as e:
+        print("EXCEPTION", e)
         if failed is None:
             failed = set()
         num_failed = len(failed)
@@ -68,6 +70,7 @@ def main():
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:
+                    print("Installing {} deps...".format(len(reqs)))
                     deps_failed = install_deps(reqs)
                     reqs = []
                     if deps_failed is not None:
