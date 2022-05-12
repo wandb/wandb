@@ -544,11 +544,10 @@ jobs:
           cluster: << parameters.cluster >>
       - run:
           # todo: think about how to check statuses of pods before deleting cluster
-          name: "Wait for pods to finish and exit"
+          name: "Wait for pods to finish and exit 180"
           command: |
             echo "Waiting for pods to finish"
             sleep 600
-#            sleep 180
             kubectl get pods --all-namespaces
       - gke/delete-cluster:
           cluster: << parameters.cluster >>
@@ -603,7 +602,6 @@ jobs:
               elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is in an error state"
                 echo $logs
-#                kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
                 exit 1
               fi
               sleep 5
@@ -629,7 +627,6 @@ jobs:
               elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is in an error state"
                 kubectl logs << parameters.pod_name >>
-#                kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
                 exit 1
               fi
               sleep 5
