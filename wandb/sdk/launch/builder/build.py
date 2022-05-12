@@ -241,6 +241,8 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
             pip_install_line = (
                 _parse_existing_requirements(launch_project)
                 + "python _wandb_bootstrap.py"
+                + "\n"
+                + "pip freeze"
             )
         if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
