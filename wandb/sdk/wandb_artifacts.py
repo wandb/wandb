@@ -1093,6 +1093,7 @@ class MultiHandler(StorageHandler):
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactEntry]:
         url = urlparse(path)
+        print("URL", url)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
                 return self._default_handler.store_path(

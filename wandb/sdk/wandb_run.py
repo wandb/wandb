@@ -29,6 +29,7 @@ from typing import (
     Union,
 )
 from typing import TYPE_CHECKING
+from xmlrpc.client import Boolean
 
 import requests
 import wandb
@@ -56,7 +57,7 @@ from wandb.viz import (
     CustomChart,
     Visualize,
 )
-
+from .data_types._dtypes import TypeRegistry, config_to_types, summary_to_types
 from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_metric
@@ -76,6 +77,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
+from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
@@ -444,6 +446,7 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
+        self._code_artifact = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -972,7 +975,10 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        return self._log_artifact(art)
+
+        code_art = self._log_artifact(art)
+        self._code_artifact = code_art
+        return code_art
 
     def get_url(self) -> Optional[str]:
         """Returns the url for the W&B run, if there is one.
@@ -1964,15 +1970,88 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+    def _has_job_reqs(self) -> bool:
+        """Returns True if the run has job requirements."""
+        has_repo = self._remote_url is not None and self._last_commit is not None
+        return has_repo or self._code_artifact or os.environ.get("WANDB_DOCKER")
+
+    def _create_job(self) -> None:
+        has_repo = self._remote_url is not None and self._last_commit is not None
+        if has_repo:
+            self._create_repo_job()
+        elif self._code_artifact:
+            self._create_artifact_job()
+        # elif os.environ.get("WANDB_DOCKER"):
+        # self._create_contaienr_job()
+
+    def _create_repo_job(self):
+        """Create a job from a repo"""
+        name = f"{self._remote_url}_{self._settings.program_relpath}"
+        job_artifact = wandb.Artifact(name, type="job")
+        input_types = self.config
+        output_types = self.summary
+        patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
+        if os.path.exists(patch_path):
+            job_artifact.add_file(patch_path, "diff.patch")
+        requirements_path = os.path.join(self._settings.filed_dir, "requirements.txt")
+        if os.path.exists(requirements_path):
+            job_artifact.add_file(requirements_path)
+        source_info = {
+            "source_type": "repo",
+            "repo": self._remote_url,
+            "commit": self._last_commit,
+            "entrypoint": self._settings.program_relpath,
+        }
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_info))
+
+        with job_artifact.new_file("input_types.json") as f:
+            f.write(json.dumps(input_types))
+
+        with job_artifact.new_file("output_types.json") as f:
+            f.write(json.dumps(output_types))
+
+        self.log_artifact(job_artifact)
+
+    def _create_artifact_job(self) -> None:
+        """Create a job from an artifact"""
+        ca = self._code_artifact.wait()
+        aname = ca.name.split(":")[0]
+        name = f"{aname}_{self._settings.program_relpath}"
+        job_artifact = wandb.Artifact(name, type="job")
+        input_types = self.config
+        output_types = self.summary
+        requirements_path = os.path.join(self._settings.files_dir, "requirements.txt")
+        if os.path.exists(requirements_path):
+            job_artifact.add_file(requirements_path)
+        source_info = {
+            "source_type": "artifact",
+            "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}",
+            "entrypoint": self._settings.program_relpath,
+        }
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_info))
+
+        job_artifact.add_reference(ca)
+
+        with job_artifact.new_file("input_types.json") as f:
+            f.write(json.dumps(input_types))
+
+        with job_artifact.new_file("output_types.json") as f:
+            f.write(json.dumps(output_types))
+
+        self.log_artifact(job_artifact)
+
     def _on_finish(self) -> None:
         trigger.call("on_finished")
-
         # populate final import telemetry
         with telemetry.context(run=self) as tel:
             self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
+        if self._has_job_reqs():
+            self._create_job()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 

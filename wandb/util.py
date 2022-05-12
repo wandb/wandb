@@ -1690,3 +1690,19 @@ def ensure_text(
         return string
     else:
         raise TypeError(f"not expecting type '{type(string)}'")
+
+
+def dict_to_types(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively traverses dictionary converting all values to wandb types."""
+    type_dict = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            if v.get("_type") is not None:
+                type_dict[k] = v["_type"]
+            else:
+                type_dict[k] = dict_to_types(v)
+        elif isinstance(v, list):
+            type_dict[k] = [dict_to_types(x) for x in v]
+        elif isinstance(v, wandb.types.WandbType):
+            type_dict[k] = v
+    pass

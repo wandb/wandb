@@ -862,6 +862,56 @@ class TypedDictType(Type):
         return "{}".format(self.params["type_map"])
 
 
+def config_to_types(config):
+    """Recursively traverses dictionary converting all values to wandb types."""
+    type_dict = {}
+    # return TypeRegistry.type_of
+    for k, v in config.items():
+        if isinstance(v, dict):
+            type_dict[k] = config_to_types(v)
+        elif isinstance(v, list):
+            type_dict[k] = [TypeRegistry.type_of(x) for x in v]
+        else:
+            type_dict[k] = TypeRegistry.type_of(v)
+    return type_dict
+
+
+def summary_to_types(summary):
+    """Recursively traverses dictionary converting all values to wandb types."""
+    type_dict = {}
+    return TypeRegistry.type_of(summary._as_dict())
+    for k, v in summary._as_dict().items():
+        if k.startswith("_"):
+            continue
+        if isinstance(v, dict):
+            if v.get("_type") is not None:
+                type_dict[k] = v.get("_type")
+            else:
+                type_dict[k] = dict_to_types(v)
+        elif isinstance(v, list):
+            type_dict[k] = [TypeRegistry.type_of(x) for x in v]
+        else:
+            type_dict[k] = TypeRegistry.type_of(v)
+    return type_dict
+
+
+def dict_to_types(d):
+    """Recursively traverses dictionary converting all values to wandb types."""
+    type_dict = {}
+    for k, v in d.items():
+
+        if isinstance(v, dict):
+            if v.get("_type") is not None:
+                type_dict[k] = v.get("_type")
+            else:
+                type_dict[k] = dict_to_types(v)
+        elif isinstance(v, list):
+            type_dict[k] = [TypeRegistry.type_of(x) for x in v]
+        else:
+            type_dict[k] = TypeRegistry.type_of(v)
+    return type_dict
+
+
 # Special Types
 TypeRegistry.add(InvalidType)
 TypeRegistry.add(AnyType)
