@@ -286,8 +286,12 @@ class Api:
         """
     )
 
-    def __init__(self, overrides={}, timeout: Optional[int] = None):
+    def __init__(
+        self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
+    ):
         self.settings = InternalApi().settings()
+        if api_key is not None:
+            self._api_key = api_key
         if self.api_key is None:
             wandb.login()
         self.settings.update(overrides)
@@ -376,6 +380,9 @@ class Api:
         # Environment should take precedence
         if os.getenv("WANDB_API_KEY"):
             key = os.environ["WANDB_API_KEY"]
+        # Constructor value should take further precedence
+        if hasattr(self, "_api_key"):
+            key = self._api_key
         return key
 
     @property

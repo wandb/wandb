@@ -674,3 +674,9 @@ def test_generate_api_key(mock_server, api):
     assert u.generate_api_key()
     mock_server.set_context("graphql_conflict", True)
     assert u.generate_api_key() is None
+
+
+def test_direct_specification_of_api_key(mock_server, test_settings):
+    # test_settings has a different API key
+    api = wandb.PublicApi(api_key="abcd" * 10)
+    assert api.api_key == "abcd" * 10
