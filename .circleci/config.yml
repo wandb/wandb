@@ -657,7 +657,7 @@ workflows:
       - test:
           name: "code-check"
           image: "python:3.6"
-          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
           context: slack-secrets
           notify_on_failure: true
 
@@ -689,7 +689,7 @@ workflows:
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
-#          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings,verify-sweeps"
+#          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
 #          # fixme: this is here for testing, remove it
 #          context: slack-secrets
 #          notify_on_failure: true
