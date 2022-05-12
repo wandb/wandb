@@ -58,7 +58,7 @@ class CustomChart:
         return ("_wandb", "visualize", key)
 
     @staticmethod
-    def user_query(table_key: str) -> Dict[str, Any]:
+    def user_query(column_key: str, table_key: str) -> Dict[str, Any]:
         return {
             "queryFields": [
                 {
@@ -70,7 +70,10 @@ class CustomChart:
                         {"name": "_defaultColorIndex", "fields": []},
                         {
                             "name": "summaryTable",
-                            "args": [{"name": "tableKey", "value": table_key}],
+                            "args": [
+                                {"name": "tableKey", "value": table_key},
+                                {"name": "tableColumns", "value": [column_key]},
+                            ],
                             "fields": [],
                         },
                     ],

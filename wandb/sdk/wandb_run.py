@@ -1197,7 +1197,7 @@ class Run:
                 chart_keys.add(k)
                 key = row[k].get_config_key(k)
                 value = row[k].get_config_value(
-                    "Vega2", row[k].user_query(f"{k}_table")
+                    "Vega2", row[k].user_query(k, f"{k}_table")
                 )
                 row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
