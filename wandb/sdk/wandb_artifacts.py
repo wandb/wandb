@@ -364,7 +364,7 @@ class Artifact(ArtifactInterface):
                 yield f
         except UnicodeEncodeError as e:
             wandb.termerror(
-                f"Failed to open the provided file (UnicodeEncodeError: {e}). Please fix the encoding"
+                f"Failed to open the provided file (UnicodeEncodeError: {e}). Please provide the proper encoding."
             )
             raise e
         self.add_file(path, name=name)
