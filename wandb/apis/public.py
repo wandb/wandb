@@ -290,8 +290,7 @@ class Api:
         self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
     ):
         self.settings = InternalApi().settings()
-        if api_key is not None:
-            self._api_key = api_key
+        self._api_key = api_key
         if self.api_key is None:
             wandb.login()
         self.settings.update(overrides)
