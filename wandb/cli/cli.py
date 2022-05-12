@@ -1425,7 +1425,9 @@ def local(ctx, port, env, daemon, upgrade, edge):
     if not find_executable("docker"):
         raise ClickException("Docker not installed, install it from https://docker.com")
     local_image_sha = wandb.docker.image_id("wandb/local").split("wandb/local")[-1]
-    registry_image_sha = wandb.docker.image_id_from_registry("wandb/local").split("wandb/local")[-1]
+    registry_image_sha = wandb.docker.image_id_from_registry("wandb/local").split(
+        "wandb/local"
+    )[-1]
     if local_image_sha != registry_image_sha:
         if upgrade:
             subprocess.call(["docker", "pull", "wandb/local"])
