@@ -57,10 +57,10 @@ try:
  
     @typedispatch
     def _serialize(filepath: Path, obj: np.ndarray) -> None:
-        ic("Serializing Numpy Array", filepath)
         np.save(filepath, obj)
  
-    # TODO Read from file function
+    def _deserialize_numpy(filepath: Path) -> np.ndarray:
+        return np.load(filepath)
  
 except ImportError:
     wandb.termwarn(
@@ -72,15 +72,12 @@ try:
  
     @typedispatch
     def _serialize(filepath: Path, obj: pd.DataFrame) -> None:
-        ic("Serializing Pandas DataFrame", filepath)
         if filepath.suffix == ".csv":
             obj.to_csv(filepath)
         elif filepath.suffix == ".json":
             obj.to_json(filepath)
         elif filepath.suffix == ".parquet":
             obj.to_parquet(filepath)
-        elif filepath.suffix == ".json":
-            obj.to_json(filepath)
         elif filepath.suffix == ".xlsx" or filepath.suffix == ".xls":
             obj.to_excel(filepath)
         elif filepath.suffix == ".xml":
@@ -89,6 +86,22 @@ try:
             obj.to_sql(filepath)
         else:
             obj.to_pickle(filepath)
+
+    def _deserialize_pandas(filepath: Path) -> pd.DataFrame:
+        if filepath.suffix == ".csv":
+            return pd.read_csv(filepath)
+        elif filepath.suffix == ".json":
+            return pd.read_json(filepath)
+        elif filepath.suffix == ".parquet":
+            return pd.read_parquet(filepath)
+        elif filepath.suffix == ".xlsx" or filepath.suffix == ".xls":
+            return pd.read_excel(filepath)
+        elif filepath.suffix == ".xml":
+            return pd.read_xml(filepath)
+        elif filepath.suffix == ".sql":
+            return pd.read_sql(filepath)
+        else:
+            return pd.read_pickle(filepath)
  
     # TODO Read from file function
  
@@ -103,8 +116,10 @@ try:
  
     @typedispatch
     def _serialize(filepath: Path, obj: Union[torch.Tensor, torch.nn.Module]) -> None:
-        ic("Serializing PyTorch Tensor", filepath)
         torch.save(obj, filepath)
+
+    def _deserialize_torch(filepath: Path) -> Union[torch.Tensor, torch.nn.Module]:
+        return torch.load(filepath)
  
     # TODO Read from file function
  
@@ -113,26 +128,25 @@ except ImportError:
         "Warning: `torch` is not installed. Logging torch Tensors as Artifacts may not work."
     )
  
-# Sklearn Models
-try:
-    import sklearn
- 
-    @typedispatch
-    def _serialize(filepath: Path, obj: sklearn.base.BaseEstimator) -> None:
-        ic("Serializing Scikit-Learn Model", filepath)
-        obj.save(filepath)
- 
-    # TODO Read from file function
-except ImportError:
-    wandb.termwarn(
-        "Warning: `sklearn` is not installed. Logging Scikit-Learn Models as Artifacts may not work."
-    )
- 
 # Pickle Objects - Default
 @typedispatch
 def _serialize(filepath: Path, obj: Any) -> None:
     with open(filepath, "wb") as f:
         pickle.dump(obj, f)
+
+def _deserialize_pickle(filepath: Path) -> Any:
+    with open(filepath, "rb") as f:
+        return pickle.load(f)
+
+def _deserialize(filepath: Path) -> Any:
+    if filepath.suffix == ".npy":
+        return _deserialize_numpy(filepath)
+    elif filepath.suffix in [".csv", ".json", ".parquet", ".xlsx", ".xls", ".xml", ".sql"]:
+        return _deserialize_pandas(filepath)
+    elif filepath.suffix == ".pt":
+        return _deserialize_torch(filepath)
+    else:
+        return _deserialize_pickle(filepath)
  
  
 class WandbArtifact(AbstractDataSet):
@@ -146,7 +160,7 @@ class WandbArtifact(AbstractDataSet):
         artifact_type: str,
         filepath: str,
         alias: Optional[str] = "latest",  # TODO List of aliases
-        override: Optional[bool] = False,
+        override: Optional[bool] = True,
     ) -> None:
         super(WandbArtifact, self).__init__()
  
@@ -169,7 +183,7 @@ class WandbArtifact(AbstractDataSet):
         }
  
     def _load(self) -> Any:  # TODO Load
-        artifact = self.run.use_artifact(self.artifact_name)
+        artifact = self.run.use_artifact(f"{self.artifact_name}:{self.alias}")
  
         if artifact is None:
             raise Exception(
@@ -183,15 +197,18 @@ class WandbArtifact(AbstractDataSet):
             if self.filepath.is_file():
                 self.filepath.unlink()
  
-        artifact.download(self.filepath)
+        artifact.download(self.filepath.parent) # TODO If filepath does not contain a directory, specify '.'
  
-        return self.filepath  # TODO Deserialize and return object
+        return _deserialize(self.filepath)  # TODO Deserialize and return object
  
     def _save(self, data: Any) -> None:
         artifact = wandb.Artifact(
-            self.artifact_name, type="KedroDataset"
-        )  # TODO change KedroDataset
+            self.artifact_name, type=self.artifact_type
+        )
  
+        if self.override:
+            if self.filepath.is_file():
+                self.filepath.unlink()
         # serialize data to self.filepath based on the type of data
         _serialize(self.filepath, data)
  
@@ -200,3 +217,6 @@ class WandbArtifact(AbstractDataSet):
  
         if self.run:
             self.run.log_artifact(artifact)
+
+        # Wait for artifact to be uploaded
+        artifact.wait()
