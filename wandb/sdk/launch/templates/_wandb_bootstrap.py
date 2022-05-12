@@ -42,6 +42,7 @@ def install_deps(deps, failed=None):
             failed = set()
         num_failed = len(failed)
         for line in e.output.decode("utf8").split("\n"):
+            print(line)
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
         failed = failed.intersection(deps)

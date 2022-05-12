@@ -238,10 +238,10 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         ):
             # if we have frozen requirements stored, copy those over and have them take precedence
             requirements_files += ["src/requirements.frozen.txt", "_wandb_bootstrap.py"]
-            pip_install_line = "pip install wandb"  # (
-            #     _parse_existing_requirements(launch_project)
-            #     + "python _wandb_bootstrap.py"
-            # )
+            pip_install_line = (
+                _parse_existing_requirements(launch_project)
+                + "python _wandb_bootstrap.py"
+            )
         if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
 
