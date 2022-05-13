@@ -50,4 +50,5 @@ RUN git clone https://github.com/wandb/client.git /wandb/client \
 RUN PATH=/home/sdk/.local/bin:$PATH
 
 WORKDIR /wandb/client
-CMD ["tox", "-v", "-e", "standalone-gpu-py38"]
+#CMD ["tail", "-f", "/dev/null"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py38"]

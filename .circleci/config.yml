@@ -265,9 +265,7 @@ jobs:
           condition: << parameters.notify_on_failure >>
           steps:
             - slack/notify:
-                # fixme: this is for testing, should be changed to "fail"
-                event: always
-#                event: fail
+                event: fail
                 template: basic_fail_1
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
@@ -426,7 +424,10 @@ jobs:
       - save-kfp-cache
       - save-test-results
 
-  notify_nightly_start:
+  notify_nightly:
+    parameters:
+      event:
+        type: string  # one of "start", "finish"
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -439,7 +440,7 @@ jobs:
                   "fields": [
                     {
                       "type": "plain_text",
-                      "text": ":runner: *Nightly run started!*",
+                      "text": ":runner: *Nightly run <<parameters.event>>ed!*",
                       "emoji": true
                     }
                   ]
@@ -651,14 +652,18 @@ workflows:
             - "nightly"
             - << pipeline.schedule.name >>
     jobs:
-      - notify_nightly_start:
+      - notify_nightly:
           context: slack-secrets
+          event: start
       - test:
           name: "code-check"
           image: "python:3.6"
           toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
           context: slack-secrets
           notify_on_failure: true
+      - notify_nightly:
+          context: slack-secrets
+          event: finish
 
   main:
     when:
