@@ -150,7 +150,7 @@ commands:
           output. The string is a decimal with unit suffix, such as “20m”, “1.25h”,
           “5s”
         type: string
-        default: 10m
+        default: 15m
       num_nodes:
         description: "Number of nodes to create"
         type: integer
@@ -219,6 +219,7 @@ commands:
       - run:
           name: "Get gke cluster credentials"
           command: |
+            gcloud components install gke-gcloud-auth-plugin
             gcloud container clusters get-credentials << parameters.cluster >>
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
@@ -427,7 +428,7 @@ jobs:
   notify_nightly:
     parameters:
       event:
-        type: string  # one of "start", "finish"
+        type: string  # must end with a regular verb in present tense :)
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -547,10 +548,14 @@ jobs:
           # todo: think about how to check statuses of pods before deleting cluster
           name: "Wait for pods to finish and exit 180"
           command: |
+#            check for running pods, exit once all finish
+
             echo "Waiting for pods to finish"
             sleep 600
             kubectl get pods --all-namespaces
+          no_output_timeout: "25m"
       - gke/delete-cluster:
+          when: always
           cluster: << parameters.cluster >>
 
   test_gpu:
@@ -569,6 +574,9 @@ jobs:
       pod_name: # same as in <path>/pod.yaml
         type: string
         default: "gpu-pod"
+      sleep_time:  # time in seconds to wait before re-checking pod status
+        type: integer
+        default: 5
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -592,7 +600,7 @@ jobs:
       - run:
           name: "Wait for pod to be up and running"
           command: |
-            for i in {1..60}; do
+            while true; do
               kubectl get pods
               if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is ready"
@@ -602,23 +610,21 @@ jobs:
                 exit 0
               elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is in an error state"
+                logs=`kubectl logs << parameters.pod_name >>`
                 echo $logs
                 exit 1
               fi
-              sleep 5
+              sleep << parameters.sleep_time >>
             done
-            echo "Pod for << parameters.image_name >> is not ready after 5 minutes, deleting pod"
-            kubectl get pods
-            kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
-            exit 1
+          no_output_timeout: "5m"
       - run:
           # todo: poll cluster for running/completed pods
           # todo: make getting the exit_code more robust
-          name: "Wait for tests to finish, get pod logs, parse exit code, and delete pod"
+          name: "Wait for tests to finish, get pod logs, and parse exit code"
           command: |
             sleep 30
             
-            for i in {1..60}; do
+            while true; do
               kubectl get pods
               if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is running"
@@ -630,16 +636,21 @@ jobs:
                 kubectl logs << parameters.pod_name >>
                 exit 1
               fi
-              sleep 5
+              sleep << parameters.sleep_time >>
             done
             
             logs=`kubectl logs << parameters.pod_name >>`
             echo $logs
             exit_code=`echo $(echo $logs | grep -c "commands failed")`
-            
             echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
-            kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
             exit ${exit_code}
+          no_output_timeout: "20m"
+      - run:
+          name: "Delete the pod"
+          when: always
+          command: |
+            kubectl get pods
+            kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
 
 workflows:
   nightly:
@@ -663,7 +674,9 @@ workflows:
           notify_on_failure: true
       - notify_nightly:
           context: slack-secrets
-          event: finish
+          requires:
+            - test
+          event: successfully finish
 
   main:
     when:
