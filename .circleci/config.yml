@@ -549,13 +549,13 @@ jobs:
           cluster: << parameters.cluster >>
       - run:
           # todo: think about how to check statuses of pods before deleting cluster
-          name: "Wait for pods to finish and exit 180"
+          name: "Wait for pods to finish"
           command: |
             echo "Waiting for pods to finish"
             sleep 300
             while true; do
               kubectl get pods
-              terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed`
+              terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>&1`
               all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
               if [ "$all_pods_terminated" -eq "1" ]; then
                 echo "All pods have terminated"
@@ -687,7 +687,7 @@ workflows:
       - notify_nightly:
           context: slack-secrets
           requires:
-            - test
+            - "code-check"
           event: successfully finish
 
   main:
