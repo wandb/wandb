@@ -856,7 +856,8 @@ class TestReportSetters:
 
 class TestPanelGridGetters:
     @pytest.mark.parametrize(
-        "property,path", [("open_run_set", ["metadata", "openRunSet"])],
+        "property,path",
+        [("open_run_set", ["metadata", "openRunSet"])],
     )
     def test_basic_property_getters(self, panel_grid, property, path):
         def value_getter(d, keys):
