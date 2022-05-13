@@ -532,6 +532,9 @@ jobs:
       cluster:
         type: string
         default: << pipeline.parameters.gcp_cluster_name >>
+      sleep_time: # time in seconds to wait before re-checking pod status
+        type: integer
+        default: 30
     docker:
       - image: "cimg/base:stable"
     steps:
@@ -549,14 +552,23 @@ jobs:
           name: "Wait for pods to finish and exit 180"
           command: |
             echo "Waiting for pods to finish"
-            sleep 1700
-            kubectl get pods --all-namespaces
+            sleep 300
+            while true; do
+              kubectl get pods
+              terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed`
+              all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
+              if [ "$all_pods_terminated" -eq "1" ]; then
+                echo "All pods have terminated"
+                break
+              fi
+              sleep << parameters.sleep_time >>
+            done
           no_output_timeout: "25m"
       - run:
           name: "Delete cluster"
           command: gcloud container clusters delete << parameters.cluster >>
           when: always
-          no_output_timeout: "20m"
+          no_output_timeout: "10m"
 
   test_gpu:
     parameters:
