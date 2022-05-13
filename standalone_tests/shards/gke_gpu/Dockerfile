@@ -14,6 +14,7 @@ ARG TOX_VERSION=3.24.0
 
 # todo: enable docker image layer caching on circleci
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    vim \
     curl \
     ca-certificates \
     sudo \
