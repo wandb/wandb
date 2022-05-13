@@ -32,6 +32,7 @@ RUN mkdir /wandb
 WORKDIR /wandb
 
 RUN adduser --disabled-password --gecos '' --shell /bin/bash sdk \
+    && adduser sdk sudo\
     && chown -R sdk:sdk /wandb
 RUN echo "sdk ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-sdk
 USER sdk
@@ -44,9 +45,6 @@ RUN git clone https://github.com/wandb/client.git /wandb/client \
     && git checkout ${GIT_BRANCH} \
     && pip install --upgrade pip \
     && pip install tox==${TOX_VERSION} --no-cache-dir
-#    && pip install -e . \
-#    && pip install numpy torch torchvision --no-cache-dir
-#    && pip install -r requirements_dev.txt \
 
 RUN PATH=/home/sdk/.local/bin:$PATH
 
