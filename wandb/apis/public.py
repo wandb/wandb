@@ -1879,7 +1879,6 @@ class Run(Attrs):
         name = os.path.relpath(path, root)
         with open(os.path.join(root, name), "rb") as f:
             _ = api.push({util.to_forward_slash_path(name): f})
-        time.sleep(1)
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
@@ -2455,10 +2454,8 @@ class File:
         self.client.execute(mutation, variable_values={"files": [self.id]})
 
     def __repr__(self):
-        return "<File {} ({}) {}>".format(
+        return "<File {}>".format(
             self.name,
-            self.mimetype,
-            util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
 
 
