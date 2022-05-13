@@ -1173,7 +1173,8 @@ class User(Attrs):
             A `User` object
         """
         res = api.client.execute(
-            cls.CREATE_USER_MUTATION, {"email": email, "admin": admin},
+            cls.CREATE_USER_MUTATION,
+            {"email": email, "admin": admin},
         )
         return User(api.client, res["createUser"]["user"])
 
@@ -3088,7 +3089,10 @@ class RunSet:
 
     def __generate_default_run_set_spec(self):
         default = {
-            "filters": {"op": "OR", "filters": [{"op": "AND", "filters": []}],},
+            "filters": {
+                "op": "OR",
+                "filters": [{"op": "AND", "filters": []}],
+            },
             "runFeed": {
                 "version": 2,
                 "columnVisible": {"run:name": False},
@@ -4458,7 +4462,10 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
+        response = client.execute(
+            Artifact.QUERY,
+            variable_values={"id": artifact_id},
+        )
 
         name = None
         if response.get("artifact") is not None:
@@ -4746,7 +4753,10 @@ class Artifact(artifacts.Artifact):
         )
         self.client.execute(
             mutation,
-            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
+            variable_values={
+                "artifactID": self.id,
+                "deleteAliases": delete_aliases,
+            },
         )
         return True
 
@@ -4877,7 +4887,8 @@ class Artifact(artifacts.Artifact):
         if log:
             delta = relativedelta(datetime.datetime.now() - start_time)
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}", prefix=False,
+                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
+                prefix=False,
             )
         return dirpath
 
@@ -5004,7 +5015,10 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
+                    {
+                        "artifactCollectionName": self._sequence_name,
+                        "alias": alias,
+                    }
                     for alias in self._aliases
                 ],
             },
@@ -5173,7 +5187,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         # yes, "name" is actually id
         runs = [
             Run(
@@ -5211,7 +5228,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(
