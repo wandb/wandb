@@ -548,8 +548,6 @@ jobs:
           # todo: think about how to check statuses of pods before deleting cluster
           name: "Wait for pods to finish and exit 180"
           command: |
-#            check for running pods, exit once all finish
-
             echo "Waiting for pods to finish"
             sleep 900
             kubectl get pods --all-namespaces
