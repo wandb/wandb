@@ -646,16 +646,9 @@ class Api:
                     else:
                         parts[-1] = "--" + parts[-1]
                 name, id = parts[-1].split("--")
-                return BetaReport(
-                    self.client,
-                    {
-                        "display_name": urllib.parse.unquote(name.replace("-", " ")),
-                        "id": id,
-                        "spec": "{}",
-                    },
-                    parts[0],
-                    parts[1],
-                )
+                entity, project = parts[:2]
+                return self.report(f"{entity}/{project}/reports/{id}")
+
         raise wandb.Error(
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
         )
@@ -746,15 +739,38 @@ class Api:
             entity = self.settings["entity"] or self.default_entity
         return Project(self.client, entity, name, {})
 
-    def report(self, path):
-        parts = path.split("/")
-        if len(parts) < 3:
-            raise ValueError("path must be team/project/report_name")
+    def report(self, path: str):
+        """
+        Get report at a given path.
 
-        reports = self.reports("/".join(parts[:2]), parts[-1])
-        if len(reports) > 0:
-            return reports[0]
-        return None
+        Arguments:
+            path: (str) Path to the target report in the form `entity/project/reports/reportId`.
+                You can get this by copy-pasting the URL after your wandb url.  For example:
+                `megatruong/report-editing/reports/My-fabulous-report-title--VmlldzoxOTc1Njk0`
+
+        Returns:
+            A `BetaReport` object which represents the report at `path`
+
+        Raises:
+            wandb.Error if path is invalid
+        """
+        try:
+            entity, project, *_, _reportId = path.split("/")
+            *_, reportId = _reportId.split("--")
+        except ValueError as e:
+            raise ValueError("path must be `entity/project/reports/reportId`") from e
+        else:
+            r = self.client.execute(
+                self.VIEW_REPORT_QUERY, variable_values={"reportId": reportId}
+            )
+            attrs = r["view"]
+
+            return BetaReport(
+                self.client,
+                attrs,
+                entity=attrs["project"].get("entityName") or entity,
+                project=attrs["project"].get("name") or project,
+            )
 
     def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
