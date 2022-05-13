@@ -549,7 +549,7 @@ jobs:
           name: "Wait for pods to finish and exit 180"
           command: |
             echo "Waiting for pods to finish"
-            sleep 900
+            sleep 1700
             kubectl get pods --all-namespaces
           no_output_timeout: "25m"
       - run:
