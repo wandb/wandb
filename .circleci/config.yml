@@ -551,7 +551,7 @@ jobs:
 #            check for running pods, exit once all finish
 
             echo "Waiting for pods to finish"
-            sleep 600
+            sleep 900
             kubectl get pods --all-namespaces
           no_output_timeout: "25m"
       - gke/delete-cluster:
