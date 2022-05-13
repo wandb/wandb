@@ -10,9 +10,11 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+import ast
 from collections import namedtuple
+from copy import deepcopy
 import datetime
-from functools import partial
+from functools import partial, wraps
 import json
 import logging
 import os
@@ -25,6 +27,7 @@ from typing import Optional
 import urllib
 
 from dateutil.relativedelta import relativedelta
+from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -39,7 +42,6 @@ from wandb.sdk.lib import ipython, retry
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
-
 
 logger = logging.getLogger(__name__)
 
@@ -285,6 +287,121 @@ class Api:
     }
         """
     )
+    CREATE_REPORT_MUTATION = gql(
+        """
+    mutation upsertView(
+            $id: ID
+            $entityName: String
+            $projectName: String
+            $type: String
+            $name: String
+            $displayName: String
+            $description: String
+            $spec: String!
+        ) {
+            upsertView(
+            input: {
+                id: $id
+                entityName: $entityName
+                projectName: $projectName
+                name: $name
+                displayName: $displayName
+                description: $description
+                type: $type
+                spec: $spec
+            }
+            ) {
+            view {
+                id
+                type
+                name
+                displayName
+                description
+                project {
+                    id
+                    name
+                    entityName
+                }
+                spec
+                updatedAt
+            }
+            inserted
+            }
+        }
+    """
+    )
+
+    VIEW_REPORT_QUERY = gql(
+        """
+        query SpecificReport($reportId: ID!) {
+            view(id: $reportId) {
+            id
+            type
+            name
+            displayName
+            description
+            project {
+                id
+                name
+                entityName
+            }
+            createdAt
+            updatedAt
+            spec
+            previewUrl
+            user {
+                name
+                username
+                userInfo
+            }
+            }
+        }
+        """
+    )
+
+    CREATE_PROJECT_MUTATION = gql(
+        """
+        mutation upsertModel(
+            $description: String
+            $entityName: String
+            $id: String
+            $name: String
+            $framework: String
+            $access: String
+            $views: JSONString
+        ) {
+            upsertModel(
+            input: {
+                description: $description
+                entityName: $entityName
+                id: $id
+                name: $name
+                framework: $framework
+                access: $access
+                views: $views
+            }
+            ) {
+            project {
+                id
+                name
+                entityName
+                description
+                access
+                views
+            }
+            model {
+                id
+                name
+                entityName
+                description
+                access
+                views
+            }
+            inserted
+            }
+        }
+    """
+    )
 
     def __init__(
         self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
@@ -326,6 +443,85 @@ class Api:
         if kwargs.get("entity") is None:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
+
+    def create_project(self, name, entity=None):
+        if entity is None:
+            entity = self.default_entity
+        try:
+            r = self.client.execute(
+                self.CREATE_PROJECT_MUTATION, {"entityName": entity, "name": name}
+            )
+        except Exception:
+            pass
+
+        if not r["upsertModel"]["inserted"]:
+            wandb.termwarn(f"Project already exists at `{entity}/{name}`")
+        else:
+            wandb.termlog(f"Created new project at {entity}/{name}")
+
+    # @_requires("report-editing")
+    def create_report(
+        self,
+        entity=None,
+        project=None,
+        description="No description",
+        title="Untitled Report",
+    ):
+        if entity is None and self.default_entity:
+            entity = self.default_entity
+
+        if project is None or entity is None:
+            raise ValueError(
+                f"Must provide entity and project that you have write access to! (got entity={entity}, project={project})"
+            )
+
+        def generate_name(length=12):
+            # This implementation roughly based this snippet in core
+            # https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
+
+            import numpy as np
+
+            rand = np.random.random()
+            rand = int(str(rand)[2:])
+            rand36 = np.base_repr(rand, 36)
+            return rand36.lower()[:length]
+
+        # create project if not exists
+        r = self.client.execute(
+            self.CREATE_PROJECT_MUTATION, {"entityName": entity, "name": project}
+        )
+
+        if r["upsertModel"]["inserted"]:
+            wandb.termwarn(
+                f"Project did not exist: Created new project at {entity}/{project}"
+            )
+
+        minimal_spec = {
+            "version": 5,
+            "panelSettings": {},
+            "blocks": [],
+            "width": "readable",
+            "authors": [],
+            "discussionThreads": [],
+            "ref": {},
+        }
+
+        r = self.client.execute(
+            self.CREATE_REPORT_MUTATION,
+            variable_values={
+                "entityName": entity,
+                "projectName": project,
+                "description": description,
+                "name": generate_name(),
+                "displayName": title,
+                "type": "runs",
+                "spec": json.dumps(minimal_spec),
+            },
+        )
+
+        report_id = r["upsertView"]["view"]["id"]
+
+        return self.report(f"{entity}/{project}/reports/{report_id}")
 
     def create_user(self, email, admin=False):
         """Creates a new user
@@ -2562,7 +2758,7 @@ class Reports(Paginator):
         return "<Reports {}>".format("/".join(self.project.path))
 
 
-class QueryGenerator:
+class QueryGenerator(object):
     """QueryGenerator is a helper object to write filters for runs"""
 
     INDIVIDUAL_OP_TO_MONGO = {
@@ -2628,15 +2824,43 @@ class QueryGenerator:
 
     def server_path_to_key(self, path):
         if path.startswith("config."):
-            return {"section": "config", "name": path.split("config.", 1)[0]}
+            return {"section": "config", "name": path.split("config.", 1)[1]}
         elif path.startswith("summary_metrics."):
-            return {"section": "summary", "name": path.split("summary_metrics.", 1)[0]}
+            return {"section": "summary", "name": path.split("summary_metrics.", 1)[1]}
         elif path.startswith("keys_info.keys."):
-            return {"section": "keys_info", "name": path.split("keys_info.keys.", 1)[0]}
+            return {"section": "keys_info", "name": path.split("keys_info.keys.", 1)[1]}
         elif path.startswith("tags."):
-            return {"section": "tags", "name": path.split("tags.", 1)[0]}
+            return {"section": "tags", "name": path.split("tags.", 1)[1]}
         else:
             return {"section": "run", "name": path}
+
+    def keys_to_order(self, keys):
+        orders = []
+        for key in keys["keys"]:
+            order = self.key_to_server_path(key["key"])
+            if key.get("ascending"):
+                order = "+" + order
+            else:
+                order = "-" + order
+            orders.append(order)
+        # return ",".join(orders)
+        return orders
+
+    def order_to_keys(self, order):
+        keys = []
+        for k in order:  # orderstr.split(","):
+            name = k[1:]
+            if k[0] == "+":
+                ascending = True
+            elif k[0] == "-":
+                ascending = False
+            else:
+                raise Exception("you must sort by ascending(+) or descending(-)")
+
+            key = {"key": {"section": "run", "name": name}, "ascending": ascending}
+            keys.append(key)
+
+        return {"keys": keys}
 
     def _to_mongo_individual(self, filter):
         if filter["key"]["name"] == "":
@@ -2657,7 +2881,7 @@ class QueryGenerator:
                 }
             else:
                 return {"tags": filter["key"]["name"]}
-        path = self.key_to_server_path(filter["key"]["name"])
+        path = self.key_to_server_path(filter["key"])
         if path is None:
             return path
         return {path: self._to_mongo_op_value(filter["op"], filter["value"])}
@@ -2674,9 +2898,13 @@ class QueryGenerator:
 
     def mongo_to_filter(self, filter):
         # Returns {"op": "OR", "filters": [{"op": "AND", "filters": []}]}
+        if filter is None:
+            return None  # this covers the case where self.filter_to_mongo returns None.
+
         group_op = None
         for key in filter.keys():
-            if self.MONGO_TO_GROUP_OP[key]:
+            # if self.MONGO_TO_GROUP_OP[key]:
+            if key in self.MONGO_TO_GROUP_OP:
                 group_op = key
                 break
         if group_op is not None:
@@ -2688,7 +2916,7 @@ class QueryGenerator:
             for k, v in filter.items():
                 if isinstance(v, dict):
                     # TODO: do we always have one key in this case?
-                    op = v.keys()[0]
+                    op = next(iter(v.keys()))
                     return {
                         "key": self.server_path_to_key(k),
                         "op": self.MONGO_TO_INDIVIDUAL_OP[op],
@@ -2698,30 +2926,243 @@ class QueryGenerator:
                     return {"key": self.server_path_to_key(k), "op": "=", "value": v}
 
 
-class RunSet(object):
-    def __init__(self, panel_grid, spec, open, offset=0):
+class PythonMongoishQueryGenerator:
+    def __init__(self, run_set):
+        self.run_set = run_set
+
+    FRONTEND_NAME_MAPPING = {
+        "ID": "name",
+        "Name": "displayName",
+        "Tags": "tags",
+        "State": "state",
+        "CreatedTimestamp": "createdAt",
+        "Runtime": "duration",
+        "User": "username",
+        "Sweep": "sweep",
+        "Group": "group",
+        "JobType": "jobType",
+        "Hostname": "host",
+        "UsingArtifact": "inputArtifacts",
+        "OutputtingArtifact": "outputArtifacts",
+        # "GroupedRuns": "__wb_group_by_all"
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+    AST_OPERATORS = {
+        ast.Lt: "$lt",
+        ast.LtE: "$lte",
+        ast.Gt: "$gt",
+        ast.GtE: "$gte",
+        ast.Eq: "=",
+        ast.Is: "=",
+        ast.NotEq: "$ne",
+        ast.IsNot: "$ne",
+        ast.In: "$in",
+        ast.NotIn: "$nin",
+        ast.And: "$and",
+        ast.Or: "$or",
+        ast.Not: "$not",
+    }
+
+    if parse_version(platform.python_version()) >= parse_version("3.8"):
+        AST_FIELDS = {
+            ast.Constant: "value",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+        }
+    else:
+        AST_FIELDS = {
+            ast.Str: "s",
+            ast.Num: "n",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+            ast.NameConstant: "value",
+        }
+
+    def _handle_compare(self, node):
+        # only left side can be a col
+        left = self.front_to_back(self._handle_fields(node.left))
+        op = self._handle_ops(node.ops[0])
+        right = self._handle_fields(node.comparators[0])
+
+        # Eq has no op for some reason
+        if op == "=":
+            return {left: right}
+        else:
+            return {left: {op: right}}
+
+    def _handle_fields(self, node):
+        result = getattr(node, self.AST_FIELDS.get(type(node)))
+        if isinstance(result, list):
+            return [self._handle_fields(node) for node in result]
+        elif isinstance(result, str):
+            return self._unconvert(result)
+        return result
+
+    def _handle_ops(self, node):
+        return self.AST_OPERATORS.get(type(node))
+
+    def _convert(self, filterstr):
+        _conversion = filterstr.replace(".", "__________")  # this is so silly
+        # return _conversion
+        return "(" + _conversion + ")"  # wrap expr to make it eval-able
+
+    def _unconvert(self, field_name):
+        return field_name.replace("__________", ".")  # maximum silly, but it works!
+
+    def python_to_mongo(self, filterstr):
+        try:
+            tree = ast.parse(self._convert(filterstr), mode="eval")
+        except SyntaxError as e:
+            raise ValueError(
+                "Invalid python comparison expression; form something like `my_col == 123`"
+            ) from e
+
+        multiple_filters = hasattr(tree.body, "op")
+
+        if multiple_filters:
+            op = self.AST_OPERATORS.get(type(tree.body.op))
+            values = [self._handle_compare(v) for v in tree.body.values]
+        else:
+            op = "$and"
+            values = [self._handle_compare(tree.body)]
+        return {"$or": [{op: values}]}
+
+    def front_to_back(self, name):
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config.{name}.value"
+        else:  # assume summary metrics
+            return f"summary_metrics.{name}"
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif name.startswith("config.") and name.endswith(".value"):
+            # strip is weird sometimes (??)
+            return name.replace("config.", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        wandb.termerror(f"Unknown token: {name}")
+        return name
+
+
+# @_requires("report-editing")
+class RunSet:
+    def __init__(self, panel_grid, spec=None, offset=0):
         self.panel_grid = panel_grid
-        self._open = open
         self.spec = spec
+        if self.spec is None:  # or spec is malformed?
+            self.spec = self.__generate_default_run_set_spec()
+        if "project" not in self.spec:
+            self.spec["project"] = deepcopy(self.panel_grid.report._attrs["project"])
         self.query_generator = QueryGenerator()
+        self.pm_query_generator = PythonMongoishQueryGenerator(self)
         self.offset = offset
         self.modified = False
 
+    def __repr__(self):
+        return f"<RunSet {self.entity}/{self.project}>"
+
+    def __generate_default_run_set_spec(self):
+        default = {
+            "filters": {"op": "OR", "filters": [{"op": "AND", "filters": []}],},
+            "runFeed": {
+                "version": 2,
+                "columnVisible": {"run:name": False},
+                "columnPinned": {},
+                "columnWidths": {},
+                "columnOrder": [],
+                "pageSize": 10,
+                "onlyShowSelected": False,
+            },
+            "sort": {
+                "keys": [
+                    {
+                        "key": {"section": "run", "name": "createdAt"},
+                        "ascending": False,
+                    }
+                ]
+            },
+            "enabled": True,
+            "name": "Run set",
+            "search": {"query": ""},
+            "grouping": [],
+            "selections": {"root": 1, "bounds": [], "tree": []},
+            "expandedRowAddresses": [],
+        }
+        return deepcopy(default)
+
+    def panel_grid_callback(setter):  # noqa: N805
+        @wraps(setter)
+        def wrapper(self, *args, **kwargs):
+            self.modified = True
+            self.panel_grid.run_set_callback(self)
+            setter(self, *args, **kwargs)
+
+        return wrapper
+
     @property
-    def runs(self, only_selected=True, per_page=50):
-        order = self.query_generator.key_to_server_path(self.spec["sort"]["key"])
-        if self.spec["sort"].get("ascending"):
-            order = "+" + order
-        else:
-            order = "-" + order
-        filters = self.query_generator.filter_to_mongo(self.spec["filters"])
-        if only_selected:
-            # TODO: handle this not always existing
-            filters["$or"][0]["$and"].append(
-                {"name": {"$in": self.spec["selections"]["tree"]}}
-            )
+    def name(self):
+        return self.spec["name"]
+
+    @name.setter
+    @panel_grid_callback
+    def name(self, new_name):
+        if not isinstance(new_name, str):
+            raise TypeError("Name must be a string")
+        self.spec["name"] = new_name
+
+    @property
+    def id(self):
+        return self.spec["id"]
+
+    @property
+    def entity(self):
+        return self.spec["project"]["entityName"]
+
+    @entity.setter
+    @panel_grid_callback
+    def entity(self, new_entity):
+        self.spec["project"]["entityName"] = new_entity
+
+    @property
+    def project(self):
+        return self.spec["project"]["name"]
+
+    @project.setter
+    @panel_grid_callback
+    def project(self, new_project):
+        self.spec["project"]["name"] = new_project
+
+    @property
+    def query(self):
+        return self.spec["search"]["query"]
+
+    @query.setter
+    def query(self, q):
+        self.spec["search"]["query"] = q
+
+    @property
+    def _runs_config(self):
+        # there must be a better way to do this...
+        config = {}
+        for run in Runs(self.panel_grid.report.client, self.entity, self.project):
+            config.update(run.config)
+        return config
+
+    @property
+    def runs(self, per_page=50):
+        order = ",".join(self.order)
+        filters = self.filters
         return Runs(
-            self.client,
+            self.panel_grid.report.client,
             self.entity,
             self.project,
             filters=filters,
@@ -2729,89 +3170,298 @@ class RunSet(object):
             per_page=per_page,
         )
 
-    @runs.setter
-    def set_runs(self, runs):
-        self.modified = True
-        self.spec["filters"] = self.query_generator.mongo_to_filter(runs.filters)
-        self.panel_grid.callback(self)
-
     @property
     def visible(self):
         return self.spec["selections"]["tree"]
 
     # TODO: handle wild sub selection madness?
     @visible.setter
-    def set_visible(self, run_ids):
-        self.modified = True
-        assert all([isinstance(run_id, str) for run_id in run_ids])
+    @panel_grid_callback
+    def visible(self, run_ids):
+        for run_id in run_ids:
+            if not isinstance(run_id, str):
+                raise TypeError("`run_ids` must be a valid list of run ids")
+            if len(run_id) != 8:
+                raise ValueError("valid run id must have 8 alphanumeric characters")
+
         self.spec["selections"]["tree"] = run_ids
-        self.panel_grid.callback(self)
-
-    @property
-    def open(self):
-        return self._open
-
-    @open.setter
-    def set_open(self, is_open):
-        self._open = is_open
-        self.modified = True
-        self.panel_grid.callback(self)
 
     @property
     def enabled(self):
         return self.spec["enabled"]
 
     @enabled.setter
-    def set_enabled(self, enabled):
-        self.modified = True
-        self.spec["enabled"] = enabled
-        self.panel_grid.callback(self)
+    @panel_grid_callback
+    def enabled(self, is_enabled):
+        if not isinstance(is_enabled, bool):
+            raise TypeError("Setting must be boolean")
+        self.spec["enabled"] = is_enabled
+
+    @property
+    def only_show_selected(self):
+        return self.spec["runFeed"]["onlyShowSelected"]
+
+    @only_show_selected.setter
+    @panel_grid_callback
+    def only_show_selected(self, is_only_show_selected):
+        if not isinstance(is_only_show_selected, bool):
+            raise TypeError("Setting must be boolean")
+        self.spec["runFeed"]["onlyShowSelected"] = is_only_show_selected
+
+    @property
+    def show_all_runs(self):
+        return bool(self.spec["selections"]["root"])
+
+    @show_all_runs.setter
+    @panel_grid_callback
+    def show_all_runs(self, flag):
+        if not isinstance(flag, bool):
+            raise TypeError("Setting must be boolean")
+        self.spec["selections"]["root"] = 1 if flag else 0
+
+    @property
+    def filters(self):
+        return self.query_generator.filter_to_mongo(self.spec["filters"])
+
+    def __validate_mongo_filters(self, mongo_filters):
+        # TODO: Validate if the col exists in this project
+        pass
+
+    @filters.setter
+    @panel_grid_callback
+    def filters(self, mongo_filters):
+        self.__validate_mongo_filters(mongo_filters)
+        self.spec["filters"] = self.query_generator.mongo_to_filter(mongo_filters)
+
+    def set_filters_with_python_expr(self, expr):
+        mongo = self.pm_query_generator.python_to_mongo(expr)
+        self.filters = mongo
+
+    @property
+    def order(self):
+        return self._order_to_cols()
+
+    @order.setter
+    @panel_grid_callback
+    def order(self, cols):
+        if not isinstance(cols, list):
+            raise TypeError("`order` must be a list of columns prefixed with +/-")
+        for col in cols:
+            # TODO: Validate if the col exists in this project
+            if not isinstance(col, str):
+                raise TypeError("columns must be strings")
+            if col[0] not in {"+", "-"}:
+                raise ValueError(
+                    'columns must be prefixed with "+" or "-" to indicate ascending or descending'
+                )
+        self.spec["sort"] = self._cols_to_order(cols)
+
+    @property
+    def groupby(self):
+        return self._groupby_to_cols()
+
+    @groupby.setter
+    @panel_grid_callback
+    def groupby(self, cols):
+        if not isinstance(cols, list):
+            raise TypeError("`groupby` must be a list of cols")
+        for col in cols:
+            # TODO: Validate if the col exists in this project
+            if not isinstance(col, str):
+                raise TypeError("cols must be string")
+        self.spec["grouping"] = self._cols_to_groupby(cols)
+
+    def _cols_to_order(self, cols):
+        _cols = [
+            col[0] + self.pm_query_generator.front_to_back(col[1:]) for col in cols
+        ]
+        return self.query_generator.order_to_keys(_cols)
+
+    def _order_to_cols(self):
+        cols = self.query_generator.keys_to_order(self.spec["sort"])
+        return [col[0] + self.pm_query_generator.back_to_front(col[1:]) for col in cols]
+
+    def _cols_to_groupby(self, cols):
+        _cols = [self.pm_query_generator.front_to_back(col) for col in cols]
+        return [self.query_generator.server_path_to_key(k) for k in _cols]
+
+    def _groupby_to_cols(self):
+        cols = [
+            self.query_generator.key_to_server_path(k) for k in self.spec["grouping"]
+        ]
+        return [self.pm_query_generator.back_to_front(col) for col in cols]
 
 
-class PanelGrid(object):
-    def __init__(self, report, spec, offset=0):
+# @_requires("report-editing")
+class PanelGrid:
+    def __init__(self, report, spec=None, offset=0):
         self.report = report
         self.spec = spec
+        if self.spec is None:
+            self.spec = self.__generate_default_panel_grid_spec()
         self.offset = offset
-        self.modifed = False
+        self.modified = False
+
+    def __repr__(self):
+        return f"<PanelGrid with {len(self.run_sets)} run set(s)>"
+
+    def __generate_default_panel_grid_spec(self):
+        default = {
+            "type": "panel-grid",
+            "children": [{"text": ""}],
+            "metadata": {
+                "openViz": True,
+                "panels": {
+                    "views": {"0": {"name": "Panels", "defaults": [], "config": []}},
+                    "tabs": ["0"],
+                },
+                "panelBankConfig": {
+                    "state": 0,
+                    "settings": {
+                        "autoOrganizePrefix": 2,
+                        "showEmptySections": False,
+                        "sortAlphabetically": False,
+                    },
+                    "sections": [
+                        {
+                            "name": "Hidden Panels",
+                            "isOpen": False,
+                            "panels": [],
+                            "type": "flow",
+                            "flowConfig": {
+                                "snapToColumns": True,
+                                "columnsPerPage": 3,
+                                "rowsPerPage": 2,
+                                "gutterWidth": 16,
+                                "boxWidth": 460,
+                                "boxHeight": 300,
+                            },
+                            "sorted": 0,
+                            "localPanelSettings": {
+                                "xAxis": "_step",
+                                "smoothingWeight": 0,
+                                "smoothingType": "exponential",
+                                "ignoreOutliers": False,
+                                "xAxisActive": False,
+                                "smoothingActive": False,
+                            },
+                        }
+                    ],
+                },
+                "panelBankSectionConfig": {
+                    "name": "Report Panels",
+                    "isOpen": False,
+                    "panels": [],
+                    "type": "grid",
+                    "flowConfig": {
+                        "snapToColumns": True,
+                        "columnsPerPage": 3,
+                        "rowsPerPage": 2,
+                        "gutterWidth": 16,
+                        "boxWidth": 460,
+                        "boxHeight": 300,
+                    },
+                    "sorted": 0,
+                    "localPanelSettings": {
+                        "xAxis": "_step",
+                        "smoothingWeight": 0,
+                        "smoothingType": "exponential",
+                        "ignoreOutliers": False,
+                        "xAxisActive": False,
+                        "smoothingActive": False,
+                    },
+                },
+                "customRunColors": {},
+                "runSets": [
+                    RunSet(self).spec
+                    # {
+                    #     "filters": {
+                    #         "op": "OR",
+                    #         "filters": [{"op": "AND", "filters": []}],
+                    #     },
+                    #     "runFeed": {
+                    #         "version": 2,
+                    #         "columnVisible": {"run:name": False},
+                    #         "columnPinned": {},
+                    #         "columnWidths": {},
+                    #         "columnOrder": [],
+                    #         "pageSize": 10,
+                    #         "onlyShowSelected": False,
+                    #     },
+                    #     "sort": {
+                    #         "keys": [
+                    #             {
+                    #                 "key": {"section": "run", "name": "createdAt"},
+                    #                 "ascending": False,
+                    #             }
+                    #         ]
+                    #     },
+                    #     "enabled": True,
+                    #     "name": "Run set",
+                    #     "search": {"query": ""},
+                    #     "grouping": [],
+                    #     "selections": {"root": 1, "bounds": [], "tree": []},
+                    #     "expandedRowAddresses": [],
+                    # }
+                ],
+                "openRunSet": 0,
+                "name": "unused-name",
+            },
+        }
+        return deepcopy(default)
+
+    @classmethod
+    def from_json(cls, report, spec):
+        return cls(report, spec)
+
+    def to_json(self):
+        return self.spec
+
+    def report_callback(setter):  # noqa: N805
+        @wraps(setter)
+        def wrapper(self, *args, **kwargs):
+            self.modified = True
+            self.report.panel_grid_callback(self)
+            setter(self, *args, **kwargs)
+
+        return wrapper
+
+    @report_callback
+    def run_set_callback(self, run_set):
+        self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
+        # if run_set.open:
+        #     self.open_run_set = run_set.offset
 
     @property
     def run_sets(self):
-        run_sets = []
-        for i, run_set in enumerate(self.spec["metadata"]["runSets"]):
-            run_sets.append(RunSet(self, run_set, i))
-        return run_sets
+        return [
+            RunSet(self, spec, offset=i)
+            for i, spec in enumerate(self.spec["metadata"]["runSets"])
+        ]
 
-    @property
-    def open(self):
-        return self.spec["panelBankSectionConfig"]["isOpen"]
-
-    @open.setter
-    def set_open(self, is_open):
-        self.modified = True
-        self.spec["panelBankSectionConfig"]["isOpen"] = is_open
-        self.report.callback(self)
+    @run_sets.setter
+    @report_callback
+    def run_sets(self, new_run_sets):
+        for rs in new_run_sets:
+            if not isinstance(rs, RunSet):
+                raise TypeError("All objects must be of type wb.RunSet")
+        self.spec["metadata"]["runSets"] = [rs.spec for rs in new_run_sets]
 
     @property
     def open_run_set(self):
         return self.spec["metadata"]["openRunSet"]
 
     @open_run_set.setter
-    def set_open_run_set(self, idx):
+    @report_callback
+    def open_run_set(self, idx):
         total_run_sets = len(self.run_sets)
-        assert (
-            idx <= total_run_sets
-        ), f"There are only {total_run_sets} run sets available."
-        self.modified = True
+        if not isinstance(idx, int):
+            raise TypeError(f"`idx` must be an int < {total_run_sets}")
+        if idx >= total_run_sets:
+            raise ValueError(
+                f"`idx` must be less than the total number of run sets ({total_run_sets})"
+            )
         self.spec["metadata"]["openRunSet"] = idx
-        self.report.callback(self)
-
-    def callback(self, run_set):
-        self.modified = True
-        self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
-        if run_set.open:
-            self.set_open_run_set(run_set.offset)
-        self.report.callback(self)
 
 
 class BetaReport(Attrs):
@@ -2837,8 +3487,8 @@ class BetaReport(Attrs):
         ```
 
     Attributes:
-        name (string): report name
-        description (string): report description;
+        display_name (string): report name
+        description (string): report description
         user (User): the user that created the report
         spec (dict): the spec off the report
         panel_grids (PanelGrid[]): The panel grid objects in a report
@@ -2848,7 +3498,7 @@ class BetaReport(Attrs):
 
     mutation = gql(
         """
-      mutation upsertView(
+        mutation upsertView(
             $id: ID
             $entityName: String
             $projectName: String
@@ -2877,6 +3527,7 @@ class BetaReport(Attrs):
                 displayName
                 description
                 project {
+                    id
                     name
                     entityName
                 }
@@ -2894,43 +3545,70 @@ class BetaReport(Attrs):
         self.project = project
         self.entity = entity
         self.modified = False
-        self._panel_grids = None
+        # self._panel_grids = None
         self.query_generator = QueryGenerator()
-        super().__init__(dict(attrs))
+        super(BetaReport, self).__init__(dict(attrs))
         self._attrs["spec"] = json.loads(self._attrs["spec"])
 
+    def top_callback(setter):  # noqa: N805
+        @wraps(setter)
+        def wrapper(self, *args, **kwargs):
+            self.modified = True
+            setter(self, *args, **kwargs)
+
+        return wrapper
+
+    @top_callback
+    def panel_grid_callback(self, panel_grid):
+        try:
+            self.panel_grids[panel_grid.offset] = panel_grid.spec
+        except IndexError:  # if you instantiate a new panel grid but have not assigned the report
+            pass  # there is nothing to callback on.
+
+    def __block_to_obj(self, block):
+        import wandb.apis.reports as wb
+
+        Block = wb.BLOCK_TO_OBJ_MAPPING[block["type"]]  # noqa: N806
+        if block["type"] == "panel-grid":
+            return PanelGrid.from_json(report=self, spec=block)
+        else:
+            return Block.from_json(spec=block)
+
     @property
-    def sections(self):
-        return self.spec["panelGroups"]
+    def blocks(self):
+        return [self.__block_to_obj(block) for block in self.spec["blocks"]]
+
+    @blocks.setter
+    @top_callback
+    def blocks(self, outline):
+        import wandb.apis.reports as wb
+
+        if not isinstance(outline, list):
+            raise TypeError(
+                "`blocks` must be a list of wb blocks (see wandb.apis.reports)"
+            )
+        for block in outline:
+            if not isinstance(block, (wb.Block, PanelGrid)):
+                raise TypeError(f"Must be a subclass of wb.Block (got: {block})")
+
+        # Treat PanelGrid as special case for now
+        self.spec["blocks"] = [
+            x.to_json() if not isinstance(x, PanelGrid) else x.spec for x in outline
+        ]
 
     @property
     def panel_grids(self):
-        if self._panel_grids is not None:
-            return self._panel_grids
         if self.spec.get("version", 0) != 5:
             raise ValueError(
                 "Only newer reports are supported, clone this report to migrate to the latest version."
             )
-        self._panel_grids = []
-        for block in self.spec["blocks"]:
-            if block["type"] == "panel-grid":
-                self._panel_grids.append(PanelGrid(self, block))
-        return self._panel_grids
+        return [block for block in self.blocks if isinstance(block, PanelGrid)]
 
     @property
     def run_sets(self):
-        run_sets = {}
-        idx = 0
-        for panel_grid in self.panel_grids:
-            for run_set in panel_grid.run_sets:
-                name = run_set["name"]
-                if name.startswith("Run set"):
-                    idx += 1
-                if run_sets.get(name):
-                    name = f"Run set {idx}"
-                run_sets[name] = run_set
-        return run_sets
+        return [panel_grid.run_sets for panel_grid in self.panel_grids]
 
+    # this may be confusing to report editors, but I am afraid to remove it...
     def runs(self, section, per_page=50, only_selected=True):
         run_set_idx = section.get("openRunSet", 0)
         run_set = section["runSets"][run_set_idx]
@@ -2959,6 +3637,38 @@ class BetaReport(Attrs):
         return self._attrs["updatedAt"]
 
     @property
+    def title(self):
+        return self._attrs["displayName"]
+
+    @title.setter
+    @top_callback
+    def title(self, x):
+        assert isinstance(x, str), "`title` must be a string"
+        self._attrs["displayName"] = x
+
+    @property
+    def description(self):
+        return self._attrs["description"]
+
+    @description.setter
+    @top_callback
+    def description(self, x):
+        assert isinstance(x, str), "`description` must be a string"
+        self._attrs["description"] = x
+
+    @property
+    def width(self):
+        return self.spec["width"]
+
+    @width.setter
+    @top_callback
+    def width(self, new_width):
+        valid_widths = ["readable", "fixed", "fluid"]
+        if new_width not in valid_widths:
+            raise ValueError(f"width must be one of {valid_widths}")
+        self.spec["width"] = new_width
+
+    @property
     def url(self):
         return self.client.app_url + "/".join(
             [
@@ -2984,18 +3694,14 @@ class BetaReport(Attrs):
             prefix = ipython.toggle_button("report")
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
-    def callback(self, panel_grid):
-        self.modified = True
-        self._panel_grids[panel_grid.offset] = panel_grid.spec
-
     def save(self, name=None, draft=False, clone=True, project=None, entity=None):
         if not self.modified:
             wandb.termwarn("Report hasn't been modified")
         view_type = "runs"
         if draft:
             view_type = "runs/draft"
-        # TODO: convert into report object
-        return self.client.execute(
+        # TODO: convert into report object -- is this required?  Just return self
+        self.client.execute(
             self.mutation,
             variable_values={
                 "id": None if clone else self.id,
@@ -3008,6 +3714,7 @@ class BetaReport(Attrs):
                 "spec": json.dumps(self.spec),
             },
         )
+        return self
 
     def _repr_html_(self) -> str:
         return self.to_html()
