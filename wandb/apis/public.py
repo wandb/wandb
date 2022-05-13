@@ -761,7 +761,7 @@ class Api:
             raise ValueError("path must be `entity/project/reports/reportId`") from e
         else:
             r = self.client.execute(
-                self.VIEW_REPORT_QUERY, variable_values={"reportId": reportId}
+                self.VIEW_REPORT_QUERY, variable_values={"reportId": _report_id}
             )
             attrs = r["view"]
 
