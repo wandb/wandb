@@ -1986,7 +1986,7 @@ class Run:
 
     def _create_repo_job(self):
         """Create a job from a repo"""
-        name = f"{self._remote_url}_{self._settings.program_relpath}"
+        name = f"{self._remote_url}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = self.config
         output_types = self.summary
@@ -2000,7 +2000,7 @@ class Run:
             "source_type": "repo",
             "repo": self._remote_url,
             "commit": self._last_commit,
-            "entrypoint": self._settings.program_relpath,
+            "entrypoint": self._settings.program,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
@@ -2017,7 +2017,7 @@ class Run:
         """Create a job from an artifact"""
         ca = self._code_artifact.wait()
         aname = ca.name.split(":")[0]
-        name = f"{aname}_{self._settings.program_relpath}"
+        name = f"{aname}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = self.config
         output_types = self.summary
@@ -2032,7 +2032,47 @@ class Run:
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
 
-        job_artifact.add_reference(ca)
+        with job_artifact.new_file("input_types.json") as f:
+            f.write(json.dumps(input_types))
+
+        with job_artifact.new_file("output_types.json") as f:
+            f.write(json.dumps(output_types))
+
+        self.log_artifact(job_artifact)
+
+    def _create_docker_job(self) -> None:
+        name = os.getenv("WANDB_DOCKER")
+        entrypoint = self._settings.program
+        job_artifact = wandb.Artifact(name, type="job")
+        input_types = self.config
+        output_types = self.summary
+        requirements_path = os.path.join(self._settings.files_dir, "requirements.txt")
+        if os.path.exists(requirements_path):
+            job_artifact.add_file(requirements_path)
+
+        backup = None
+        if self._remote_url and self._last_commit:
+            backup = {
+                "source_type": "repo",
+                "remote_url": self._remote_url,
+                "commit": self._last_commit,
+            }
+        elif self._code_artifact:
+            ca = self._code_artifact.wait()
+            aname = ca.name.split(":")[0]
+            backup = {
+                "source_type": "artifact",
+                "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}",
+            }
+
+        source_info = {
+            "source_type": "docker",
+            "docker": os.getenv("WANDB_DOCKER"),
+            "entrypoint": self._settings.program,
+            "backup": backup,
+        }
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_info))
 
         with job_artifact.new_file("input_types.json") as f:
             f.write(json.dumps(input_types))
