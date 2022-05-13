@@ -552,9 +552,11 @@ jobs:
             sleep 900
             kubectl get pods --all-namespaces
           no_output_timeout: "25m"
-      - gke/delete-cluster:
+      - run:
+          name: "Delete cluster"
+          command: gcloud container clusters delete << parameters.cluster >>
           when: always
-          cluster: << parameters.cluster >>
+          no_output_timeout: "20m"
 
   test_gpu:
     parameters:
