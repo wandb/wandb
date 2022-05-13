@@ -350,16 +350,23 @@ class Artifact(ArtifactInterface):
         )
 
     @contextlib.contextmanager
-    def new_file(self, name: str, mode: str = "w") -> Generator[IO, None, None]:
+    def new_file(
+        self, name: str, mode: str = "w", encoding: Optional[str] = None
+    ) -> Generator[IO, None, None]:
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
             raise ValueError(f'File with name "{name}" already exists at "{path}"')
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        with util.fsync_open(path, mode) as f:
-            yield f
-
+        try:
+            with util.fsync_open(path, mode, encoding) as f:
+                yield f
+        except UnicodeEncodeError as e:
+            wandb.termerror(
+                f"Failed to open the provided file (UnicodeEncodeError: {e}). Please provide the proper encoding."
+            )
+            raise e
         self.add_file(path, name=name)
 
     def add_file(

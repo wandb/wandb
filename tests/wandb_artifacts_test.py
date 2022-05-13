@@ -180,6 +180,16 @@ def test_add_new_file(runner):
         }
 
 
+def test_add_new_file_encode_error(runner, capsys):
+    with runner.isolated_filesystem():
+        with pytest.raises(UnicodeEncodeError):
+            artifact = wandb.Artifact(type="dataset", name="my-arty")
+            with artifact.new_file("wave.txt", mode="w", encoding="ascii") as f:
+                f.write("∂²u/∂t²=c²·∂²u/∂x²")
+    outerr = capsys.readouterr()
+    assert "ERROR Failed to open the provided file" in outerr.err
+
+
 def test_add_dir(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
