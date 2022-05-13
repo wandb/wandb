@@ -4,81 +4,15 @@ env:
   # share an ssh-agent socket across jobs
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
-on:  # Whenever a release is published,
+on: # Whenever a release is published,
   release:
     types: [published]
 
-jobs:  # update the docs.
+jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-
-      # setup: checkout docugen tool and docs from github
-      - name: checkout docugen repo
-        uses: actions/checkout@v2
+      - uses: wandb/docugen@v0.2.0
         with:
-          repository: wandb/docugen
-          path: documentation/docugen
-          persist-credentials: false
-      - name: checkout gitbook repo
-        uses: actions/checkout@v2
-        with:
-          repository: wandb/gitbook
-          path: documentation/gitbook
-          ref: en
-          persist-credentials: false
-      # setup: bring in python plus the requirements for generating docs and the new release
-      - name: setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
-      - name: setup python environment, including wandb client
-        env:
-          VERSION: ${{ github.event.release.tag_name }}
-        run: python -m pip install -r ./documentation/docugen/requirements.txt git+https://github.com/wandb/client.git@$VERSION
-
-      # generate the docs from the latest client library and overwrite gitbook contents
-      - name: generate documentation
-        working-directory: ./documentation/docugen
-        env:
-          VERSION: ${{ github.event.release.tag_name }}
-        run: python generate.py --template_file ../gitbook/SUMMARY.md --commit_id $VERSION --output_dir ../gitbook
-      # for debugging/tracking, display the generated table of contents
-      - name: display ToC
-        run: cat ./documentation/gitbook/SUMMARY.md
-
-      # authenticate machine user via SSH
-      - name: SSH authentication from secrets
-        env:
-          SSH_PASSPHRASE: ${{ secrets.WANDB_GITBOOK_SSH_PASSPHRASE }}
-          SSH_PRIVATE_KEY: ${{ secrets.WANDB_GITBOOK_SSH_PRIVATE_KEY }}
-        run: |
-          # create an agent pointing at the shared socket > hiding output
-          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
-          # put the passphrase > into a file && make it executable
-          echo 'echo $SSH_PASSPHRASE' > ~/.ssh_askpass && chmod +x ~/.ssh_askpass
-          # pass the private key | sans carriage returns | to ssh-add, along with the password returned by the file > hiding output
-          echo "$SSH_PRIVATE_KEY" | tr -d '\r' | DISPLAY=NONE SSH_ASKPASS=~/.ssh_askpass ssh-add - > /dev/null
-          rm ~/.ssh_askpass
-
-      # debug step: print out the added identity
-      - name: print ssh-add identities
-        run: ssh-add -l
-
-      # stage: commit the changes
-      - name: commit changes
-        working-directory: ./documentation/gitbook
-        env:
-          VERSION: ${{ github.event.release.tag_name }}
-        run: |
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add -A .
-          git commit -m "update reference docs to $VERSION"
-
-      # deploy: push to the gitbook repository, en branch
-      - name: push
-        working-directory: ./documentation/gitbook
-        run: |
-          git remote set-url origin git@github.com:wandb/gitbook.git
-          git push
+          gitbook-branch: en
+          access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}

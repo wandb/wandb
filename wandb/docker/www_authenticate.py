@@ -20,19 +20,19 @@ def _casefold(value):
 
 class CaseFoldedOrderedDict(OrderedDict):
     def __getitem__(self, key):
-        return super(CaseFoldedOrderedDict, self).__getitem__(_casefold(key))
+        return super().__getitem__(_casefold(key))
 
     def __setitem__(self, key, value):
-        super(CaseFoldedOrderedDict, self).__setitem__(_casefold(key), value)
+        super().__setitem__(_casefold(key), value)
 
     def __contains__(self, key):
-        return super(CaseFoldedOrderedDict, self).__contains__(_casefold(key))
+        return super().__contains__(_casefold(key))
 
     def get(self, key, default=None):
-        return super(CaseFoldedOrderedDict, self).get(_casefold(key), default)
+        return super().get(_casefold(key), default)
 
     def pop(self, key, default=None):
-        return super(CaseFoldedOrderedDict, self).pop(_casefold(key), default)
+        return super().pop(_casefold(key), default)
 
 
 def _group_pairs(tokens):
@@ -81,7 +81,7 @@ def parse(value):
     _group_pairs(tokens)
 
     challenges = CaseFoldedOrderedDict()
-    for name, tokens in _group_challenges(tokens):
+    for name, tokens in _group_challenges(tokens):  # noqa: B020
         args, kwargs = [], {}
         for token_name, value in tokens:
             if token_name == "token":

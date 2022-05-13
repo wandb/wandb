@@ -358,7 +358,9 @@ def test_make_tarfile():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = os.path.join(tmpdir, "foo.tar.gz")
         util.make_tarfile(
-            output_filename=tmpfile, source_dir=tmpdir, archive_name="lol",
+            output_filename=tmpfile,
+            source_dir=tmpdir,
+            archive_name="lol",
         )
         assert os.path.exists(tmpfile)
         assert tarfile.is_tarfile(tmpfile)
@@ -475,3 +477,50 @@ def test_is_databricks():
         dbutils.shell.sc = mock.MagicMock()
         dbutils.shell.sc.appName = "Databricks Shell"
         assert util._is_databricks()
+
+
+def test_parse_entity_project_item():
+    def f(*args, **kwargs):
+        return util._parse_entity_project_item(*args, **kwargs)
+
+    with pytest.raises(ValueError):
+        f("boom/a/b/c")
+
+    item, project, entity = f("myproj/mymodel:latest")
+    assert item == "mymodel:latest"
+    assert project == "myproj"
+    assert entity == ""
+
+    item, project, entity = f("boom")
+    assert item == "boom"
+    assert project == ""
+    assert entity == ""
+
+
+def test_resolve_aliases():
+    with pytest.raises(ValueError):
+        util._resolve_aliases(5)
+
+    aliases = util._resolve_aliases(["best", "dev"])
+    assert aliases == ["best", "dev", "latest"]
+
+    aliases = util._resolve_aliases("boom")
+    assert aliases == ["boom", "latest"]
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+def test_bfloat16_to_float():
+    import jax.numpy as jnp
+
+    array = jnp.array(1.0, dtype=jnp.bfloat16)
+    # array to scalar bfloat16
+    array_cast = util.json_friendly(array)
+    assert array_cast[1] is True
+    assert array_cast[0].__class__.__name__ == "bfloat16"
+    # scalar bfloat16 to float
+    array_cast = util.json_friendly(array_cast[0])
+    assert array_cast[0] == 1.0
+    assert array_cast[1] is True
+    assert isinstance(array_cast[0], float)

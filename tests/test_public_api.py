@@ -16,11 +16,6 @@ from wandb import Api
 from tests import utils
 
 
-@pytest.fixture
-def api(runner):
-    return Api()
-
-
 def test_api_auto_login_no_tty(mocker):
     with pytest.raises(wandb.UsageError):
         Api()
@@ -519,6 +514,13 @@ def test_artifact_manual_log(runner, mock_server, api):
     assert True
 
 
+def test_artifact_manual_link(runner, mock_server, api):
+    run = api.run("test/test/test")
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    with pytest.raises(wandb.CommError):
+        art.link("portfolio_name:latest")
+
+
 def test_artifact_manual_error(runner, mock_server, api):
     run = api.run("test/test/test")
     art = wandb.Artifact("test", type="dataset")
@@ -672,3 +674,9 @@ def test_generate_api_key(mock_server, api):
     assert u.generate_api_key()
     mock_server.set_context("graphql_conflict", True)
     assert u.generate_api_key() is None
+
+
+def test_direct_specification_of_api_key(mock_server, test_settings):
+    # test_settings has a different API key
+    api = wandb.PublicApi(api_key="abcd" * 10)
+    assert api.api_key == "abcd" * 10

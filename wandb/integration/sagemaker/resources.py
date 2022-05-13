@@ -10,7 +10,7 @@ def parse_sm_secrets():
     env_dict = dict()
     # Set secret variables
     if os.path.exists(sm_files.SM_SECRETS):
-        for line in open(sm_files.SM_SECRETS, "r"):
+        for line in open(sm_files.SM_SECRETS):
             key, val = line.strip().split("=", 1)
             env_dict[key] = val
     return env_dict
@@ -20,7 +20,8 @@ def parse_sm_resources():
     run_dict = dict()
     env_dict = dict()
     run_id = os.getenv("TRAINING_JOB_NAME")
-    if run_id:
+
+    if run_id and os.getenv("WANDB_RUN_ID") is None:
         run_dict["run_id"] = "-".join(
             [run_id, os.getenv("CURRENT_HOST", socket.gethostname())]
         )

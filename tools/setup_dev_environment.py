@@ -33,7 +33,10 @@ class Console:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-p", "--python-versions", nargs="+", help="Python versions to use with pyenv.",
+        "-p",
+        "--python-versions",
+        nargs="+",
+        help="Python versions to use with pyenv.",
     )
 
     args = parser.parse_args()
@@ -54,7 +57,9 @@ def main():
 
     # installed pyenv versions
     p = subprocess.run(
-        ["pyenv", "versions"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        ["pyenv", "versions"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
     existing_python_versions = set(
         re.findall(r"[*]*\s([\d.]+)", p.stdout.decode("utf-8"))

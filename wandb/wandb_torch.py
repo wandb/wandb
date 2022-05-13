@@ -4,8 +4,7 @@
 """
 
 import itertools
-import weakref
-from six.moves import reduce
+from functools import reduce
 from operator import mul
 
 from wandb import util
@@ -65,17 +64,15 @@ def log_track_update(log_track):
     return True
 
 
-class TorchHistory(object):
+class TorchHistory:
     """History methods specific to PyTorch"""
 
-    def __init__(self, history):
+    def __init__(self):
         global torch
         torch = wandb.util.get_module("torch", "Could not import torch")
-        self._history = weakref.ref(history)
         self._hook_handles = {}
         self._num_bins = 64
         self._is_cuda_histc_supported = None
-        self._jupyter_run = None
         self.hook_torch = TorchGraph.hook_torch
 
     def add_log_hooks_to_pytorch_module(
@@ -86,7 +83,6 @@ class TorchHistory(object):
         log_parameters=True,
         log_gradients=True,
         log_freq=0,
-        jupyter_run=None,
     ):
         """This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
@@ -95,9 +91,6 @@ class TorchHistory(object):
         """
         if name is not None:
             prefix = prefix + name
-
-        if jupyter_run:
-            self._jupyter_run = weakref.ref(jupyter_run)
 
         if not hasattr(module, "_wandb_hook_names"):
             module._wandb_hook_names = []
@@ -147,19 +140,7 @@ class TorchHistory(object):
         # checking for inheritance from _TensorBase didn't work for some reason
         if not hasattr(tensor, "shape"):
             cls = type(tensor)
-            raise TypeError(
-                "Expected Tensor, not {}.{}".format(cls.__module__, cls.__name__)
-            )
-        history = self._history()
-
-        # recover history from run if using jupyter
-        if history is None and self._jupyter_run:
-            jupyter_run = self._jupyter_run()
-            if jupyter_run:
-                history = jupyter_run.history
-
-        if history is None or not history.compute:
-            return
+            raise TypeError(f"Expected Tensor, not {cls.__module__}.{cls.__name__}")
 
         # HalfTensors on cpu do not support view(), upconvert to 32bit
         if isinstance(tensor, torch.HalfTensor):
@@ -183,7 +164,7 @@ class TorchHistory(object):
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
             tensor = flat.cpu().clone().numpy()
-            history._row_update({name: wandb.Histogram(tensor)})
+            wandb.run._log({name: wandb.Histogram(tensor)}, commit=False)
             return
 
         if flat.is_cuda:
@@ -254,8 +235,9 @@ class TorchHistory(object):
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
 
-        history._row_update(
-            {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
+        wandb.run._log(
+            {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))},
+            commit=False,
         )
 
     def _hook_variable_gradient_stats(self, var, name, log_track):
@@ -272,7 +254,7 @@ class TorchHistory(object):
 
         handle = self._hook_handles.get(name)
         if handle is not None and self._torch_hook_handle_is_valid(handle):
-            raise ValueError('A hook has already been set under name "{}"'.format(name))
+            raise ValueError(f'A hook has already been set under name "{name}"')
 
         def _callback(grad, log_track):
             if not log_track_update(log_track):
@@ -311,7 +293,7 @@ class TorchHistory(object):
 
 class TorchGraph(wandb.data_types.Graph):
     def __init__(self):
-        super(TorchGraph, self).__init__("torch")
+        super().__init__("torch")
         self._graph_hooks = set()
 
     @classmethod
@@ -415,7 +397,7 @@ class TorchGraph(wandb.data_types.Graph):
                 graph_hook = sub_module.register_forward_hook(
                     self.create_forward_hook(name, graph_idx)
                 )
-                wandb.run.history.torch._hook_handles[
+                wandb.run._torch._hook_handles[
                     "topology/" + str(id(graph_hook))
                 ] = graph_hook
                 if not hasattr(parent, "_wandb_hook_names"):

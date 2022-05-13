@@ -13,11 +13,11 @@ from abc import abstractmethod
 import json
 import logging
 import os
-from typing import Any, Iterable, Optional, Tuple, Union
+import sys
+from typing import Any, Iterable, NewType, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
-import six
-from wandb import data_types
+from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
@@ -33,16 +33,29 @@ from wandb.util import (
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
+from ..data_types.utils import history_dict_to_json, val_to_json
 from ..wandb_artifacts import Artifact
+
+GlobStr = NewType("GlobStr", str)
 
 if TYPE_CHECKING:
     from ..wandb_run import Run
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal, TypedDict
+    else:
+        from typing_extensions import Literal, TypedDict
+
+    PolicyName = Literal["now", "live", "end"]
+
+    class FilesDict(TypedDict):
+        files: Iterable[Tuple[GlobStr, PolicyName]]
 
 
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
+def file_policy_to_enum(policy: "PolicyName") -> "pb.FilesItem.PolicyType.V":
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -52,9 +65,9 @@ def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
+def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
     if enum == pb.FilesItem.PolicyType.NOW:
-        policy = "now"
+        policy: PolicyName = "now"
     elif enum == pb.FilesItem.PolicyType.END:
         policy = "end"
     elif enum == pb.FilesItem.PolicyType.LIVE:
@@ -62,7 +75,7 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     return policy
 
 
-class InterfaceBase(object):
+class InterfaceBase:
     _run: Optional["Run"]
     _drop: bool
 
@@ -140,7 +153,7 @@ class InterfaceBase(object):
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
-            for k, v in six.iteritems(data):
+            for k, v in data.items():
                 update = config.update.add()
                 update.key = k
                 update.value_json = json_dumps_safer(json_friendly(v)[0])
@@ -229,7 +242,7 @@ class InterfaceBase(object):
 
     def _make_summary_from_dict(self, summary_dict: dict) -> pb.SummaryRecord:
         summary = pb.SummaryRecord()
-        for k, v in six.iteritems(summary_dict):
+        for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
@@ -252,16 +265,14 @@ class InterfaceBase(object):
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in six.iteritems(value):
+            for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
                     value, path_from_root + "." + key
                 )
             return json_value
         else:
             friendly_value, converted = json_friendly(
-                data_types.val_to_json(
-                    self._run, path_from_root, value, namespace="summary"
-                )
+                val_to_json(self._run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -292,7 +303,8 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -337,7 +349,7 @@ class InterfaceBase(object):
     ) -> Optional[pb.SampledHistoryResponse]:
         raise NotImplementedError
 
-    def _make_files(self, files_dict: dict) -> pb.FilesRecord:
+    def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
@@ -345,7 +357,7 @@ class InterfaceBase(object):
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def publish_files(self, files_dict: dict) -> None:
+    def publish_files(self, files_dict: "FilesDict") -> None:
         files = self._make_files(files_dict)
         self._publish_files(files)
 
@@ -400,11 +412,37 @@ class InterfaceBase(object):
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
+    def publish_link_artifact(
+        self,
+        run: "Run",
+        artifact: Union[Artifact, PublicArtifact],
+        portfolio_name: str,
+        aliases: Iterable[str],
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
+        link_artifact = pb.LinkArtifactRecord()
+        if isinstance(artifact, Artifact):
+            link_artifact.client_id = artifact._client_id
+        else:
+            link_artifact.server_id = artifact.id if artifact.id else ""
+        link_artifact.portfolio_name = portfolio_name
+        link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_project = project or run.project
+        link_artifact.portfolio_aliases.extend(aliases)
+
+        self._publish_link_artifact(link_artifact)
+
+    @abstractmethod
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        raise NotImplementedError
+
     def communicate_artifact(
         self,
         run: "Run",
         artifact: Artifact,
         aliases: Iterable[str],
+        history_step: Optional[int] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -422,6 +460,8 @@ class InterfaceBase(object):
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
+        if history_step is not None:
+            log_artifact.history_step = history_step
         resp = self._communicate_artifact(log_artifact)
         return resp
 
@@ -472,13 +512,11 @@ class InterfaceBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str]
-    ) -> None:
+    def publish_tbdata(self, log_dir: str, save: bool, root_logdir: str = "") -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
+        tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
     @abstractmethod
@@ -489,17 +527,46 @@ class InterfaceBase(object):
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
+    def publish_partial_history(
+        self,
+        data: dict,
+        user_step: int,
+        step: Optional[int] = None,
+        flush: Optional[bool] = None,
+        publish_step: bool = True,
+        run: Optional["Run"] = None,
+    ) -> None:
+        run = run or self._run
+
+        data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
+        data.pop("_step", None)
+
+        partial_history = pb.PartialHistoryRequest()
+        for k, v in data.items():
+            item = partial_history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)
+        if publish_step and step is not None:
+            partial_history.step.num = step
+        if flush is not None:
+            partial_history.action.flush = flush
+        self._publish_partial_history(partial_history)
+
+    @abstractmethod
+    def _publish_partial_history(self, history: pb.PartialHistoryRequest) -> None:
+        raise NotImplementedError
+
     def publish_history(
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
         run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
+        data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
             assert step is not None
             history.step.num = step
         data.pop("_step", None)
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)

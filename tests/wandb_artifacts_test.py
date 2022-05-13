@@ -9,17 +9,18 @@ import shutil
 import wandb.data_types as data_types
 import numpy as np
 import time
+from datetime import datetime, timedelta, timezone
 from wandb.proto import wandb_internal_pb2 as pb
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def mock_boto(artifact, path=False):
-    class S3Object(object):
-        def __init__(self, name="my_object.pb", metadata=None):
+    class S3Object:
+        def __init__(self, name="my_object.pb", metadata=None, version_id=None):
             self.metadata = metadata or {"md5": "1234567890abcde"}
             self.e_tag = '"1234567890abcde"'
-            self.version_id = "1"
+            self.version_id = version_id or "1"
             self.name = name
             self.key = name
             self.content_length = 10
@@ -30,24 +31,37 @@ def mock_boto(artifact, path=False):
                     {"Error": {"Code": "404"}}, "HeadObject"
                 )
 
-    class Filtered(object):
+    class Filtered:
         def limit(self, *args, **kwargs):
             return [S3Object(), S3Object(name="my_other_object.pb")]
 
-    class S3Objects(object):
+    class S3Objects:
         def filter(self, **kwargs):
             return Filtered()
 
-    class S3Bucket(object):
+    class S3Bucket:
         def __init__(self, *args, **kwargs):
             self.objects = S3Objects()
 
-    class S3Resource(object):
+    class S3Resource:
         def Object(self, bucket, key):
             return S3Object()
 
+        def ObjectVersion(self, bucket, key, version):
+            class Version:
+                def Object(self):
+                    return S3Object(version_id=version)
+
+            return Version()
+
         def Bucket(self, bucket):
             return S3Bucket()
+
+        def BucketVersioning(self, bucket):
+            class BucketStatus:
+                status = "Enabled"
+
+            return BucketStatus()
 
     mock = S3Resource()
     handler = artifact._storage_policy._handler._handlers["s3"]
@@ -58,22 +72,28 @@ def mock_boto(artifact, path=False):
 
 
 def mock_gcs(artifact, path=False):
-    class Blob(object):
-        def __init__(self, name="my_object.pb", metadata=None):
+    class Blob:
+        def __init__(self, name="my_object.pb", metadata=None, generation=None):
             self.md5_hash = "1234567890abcde"
             self.etag = "1234567890abcde"
-            self.generation = "1"
+            self.generation = generation or "1"
             self.name = name
             self.size = 10
 
-    class GSBucket(object):
+    class GSBucket:
+        def __init__(self):
+            self.versioning_enabled = True
+
+        def reload(self, *args, **kwargs):
+            return
+
         def get_blob(self, *args, **kwargs):
-            return None if path else Blob()
+            return None if path else Blob(generation=kwargs.get("generation"))
 
         def list_blobs(self, *args, **kwargs):
             return [Blob(), Blob(name="my_other_object.pb")]
 
-    class GSClient(object):
+    class GSClient:
         def bucket(self, bucket):
             return GSBucket()
 
@@ -84,7 +104,7 @@ def mock_gcs(artifact, path=False):
 
 
 def mock_http(artifact, path=False, headers={}):
-    class Response(object):
+    class Response:
         def __init__(self, headers):
             self.headers = headers
 
@@ -97,7 +117,7 @@ def mock_http(artifact, path=False, headers={}):
         def raise_for_status(self):
             pass
 
-    class Session(object):
+    class Session:
         def __init__(self, name="file1.txt", headers=headers):
             self.headers = headers
 
@@ -336,6 +356,22 @@ def test_add_s3_reference_object(runner, mocker):
         }
 
 
+def test_add_s3_reference_object_with_version(runner, mocker):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact)
+        artifact.add_reference("s3://my-bucket/my_object.pb?versionId=2")
+
+        assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "2"},
+            "size": 10,
+        }
+
+
 def test_add_s3_reference_object_with_name(runner, mocker):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -388,6 +424,7 @@ def test_add_reference_s3_no_checksum(runner):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
         artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact)
         # TODO: Should we require name in this case?
         artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
 
@@ -411,6 +448,22 @@ def test_add_gs_reference_object(runner, mocker):
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
             "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
+
+
+def test_add_gs_reference_object_with_version(runner, mocker):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_gcs(artifact)
+        artifact.add_reference("gs://my-bucket/my_object.pb#2")
+
+        assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "2"},
             "size": 10,
         }
 
@@ -453,7 +506,11 @@ def test_add_http_reference_path(runner):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         mock_http(
-            artifact, headers={"ETag": '"abc"', "Content-Length": "256",},
+            artifact,
+            headers={
+                "ETag": '"abc"',
+                "Content-Length": "256",
+            },
         )
         artifact.add_reference("http://example.com/file1.txt")
 
@@ -463,7 +520,9 @@ def test_add_http_reference_path(runner):
             "digest": "abc",
             "ref": "http://example.com/file1.txt",
             "size": 256,
-            "extra": {"etag": '"abc"',},
+            "extra": {
+                "etag": '"abc"',
+            },
         }
 
 
@@ -505,10 +564,16 @@ def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
         df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
         df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
 
+        current_time = datetime.now()
+        df_timestamp = pd.DataFrame(
+            [[current_time + timedelta(days=i)] for i in range(10)], columns=["date"]
+        )
+
         wb_table_float = wandb.Table(dataframe=df_float)
         wb_table_float32 = wandb.Table(dataframe=df_float32)
         wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
         wb_table_bool = wandb.Table(dataframe=df_bool)
+        wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
         run = wandb.init(settings=test_settings)
         artifact = wandb.Artifact("table-example", "dataset")
@@ -516,6 +581,15 @@ def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
         artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
         artifact.add(wb_table_float32, "wb_table_float32")
         artifact.add(wb_table_bool, "wb_table_bool")
+
+        # check that timestamp is correctly converted to ms and not ns
+        json_repr = wb_table_timestamp.to_json(artifact)
+        assert "data" in json_repr and np.isclose(
+            json_repr["data"][0][0],
+            current_time.replace(tzinfo=timezone.utc).timestamp() * 1000,
+        )
+        artifact.add(wb_table_timestamp, "wb_table_timestamp")
+
         run.log_artifact(artifact)
         run.finish()
 
@@ -620,6 +694,12 @@ def test_add_obj_using_brackets(runner):
 
     with pytest.raises(ValueError):
         image = artifact["my-image"]
+
+
+def test_artifact_interface_link():
+    art = wandb.wandb_sdk.interface.artifacts.Artifact()
+    with pytest.raises(NotImplementedError):
+        _ = art.link("boom")
 
 
 def test_artifact_interface_get_item():
@@ -798,7 +878,7 @@ def test_add_obj_wbtable_images(runner):
                 "size": 64,
             },
             "media/images/641e917f31888a48f546/2x2.png": {
-                "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-table.table.json": {"digest": "apPaCuFMSlFoP7rztfZq5Q==", "size": 1290},
@@ -841,8 +921,8 @@ def test_artifact_upsert_no_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Upsert without a group or id should fail
@@ -859,8 +939,8 @@ def test_artifact_upsert_group_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Upsert with a group should succeed
@@ -876,8 +956,8 @@ def test_artifact_upsert_distributed_id(runner, live_mock_server, test_settings)
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Upsert with a distributed_id should succeed
@@ -893,8 +973,8 @@ def test_artifact_finish_no_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Finish without a distributed_id should fail
@@ -909,8 +989,8 @@ def test_artifact_finish_group_id(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Finish with a distributed_id should succeed
@@ -924,8 +1004,8 @@ def test_artifact_finish_distributed_id(runner, live_mock_server, test_settings)
     with runner.isolated_filesystem():
         # NOTE: these tests are against a mock server so they are testing the internal flows, but
         # not the actual data transfer.
-        artifact_name = "distributed_artifact_{}".format(round(time.time()))
-        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_name = f"distributed_artifact_{round(time.time())}"
+        group_name = f"test_group_{round(np.random.rand())}"
         artifact_type = "dataset"
 
         # Finish with a distributed_id should succeed
@@ -979,7 +1059,11 @@ def test_interface_commit_hash(runner):
 # todo: investigate why this test is flaking
 @pytest.mark.xfail(reason="flaky test")
 def test_artifact_incremental_internal(
-    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
+    mocked_run,
+    mock_server,
+    internal_sm,
+    backend_interface,
+    parse_ctx,
 ):
     artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
 
@@ -1062,6 +1146,7 @@ def test_artifact_references_internal(
             internal_sm.send_artifact(log_artifact)
 
 
+@pytest.mark.timeout(300)
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         run = wandb.init(settings=test_settings)

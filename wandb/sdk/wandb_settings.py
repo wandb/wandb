@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Dict,
     FrozenSet,
+    ItemsView,
     Iterable,
     Mapping,
     no_type_check,
@@ -27,7 +28,7 @@ from typing import (
     Tuple,
     Union,
 )
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse, urlsplit
 
 import wandb
 from wandb import util
@@ -72,13 +73,16 @@ def _get_wandb_dir(root_dir: str) -> str:
 
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
-        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory.")
+        wandb.termwarn(
+            f"Path {path} wasn't writable, using system temp directory.",
+            repeat=False,
+        )
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
     return os.path.expanduser(path)
 
 
-# fixme: should either return bool or error out. fix once confident.
+# todo: should either return bool or error out. fix once confident.
 def _str_as_bool(val: Union[str, bool]) -> bool:
     """
     Parse a string as a bool.
@@ -91,9 +95,10 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
     except (AttributeError, ValueError):
         pass
 
-    # fixme: remove this and only raise error once we are confident.
+    # todo: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. ", repeat=False,
+        f"Could not parse value {val} as a bool. ",
+        repeat=False,
     )
     raise UsageError(f"Could not parse value {val} as a bool.")
 
@@ -152,7 +157,7 @@ def _get_program_relpath_from_gitrepo(
 @enum.unique
 class Source(enum.IntEnum):
     OVERRIDE: int = 0
-    BASE: int = 1  # fixme: audit this
+    BASE: int = 1  # todo: audit this
     ORG: int = 2
     ENTITY: int = 3
     PROJECT: int = 4
@@ -188,7 +193,7 @@ class Property:
           E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
 
-    # fixme: this is a temporary measure to bypass validation of the settings
+    # todo: this is a temporary measure to bypass validation of the settings
     #  whose validation was not previously enforced to make sure we don't brake anything.
     __strict_validate_settings = {
         "project",
@@ -230,7 +235,7 @@ class Property:
         self._is_policy = is_policy
         self._source = source
 
-        # fixme: this is a temporary measure to collect stats on failed preprocessing and validation
+        # todo: this is a temporary measure to collect stats on failed preprocessing and validation
         self.__failed_preprocessing: bool = False
         self.__failed_validation: bool = False
 
@@ -278,14 +283,14 @@ class Property:
         return value
 
     def _validate(self, value: Any) -> Any:
-        self.__failed_validation = False  # fixme: this is a temporary measure
+        self.__failed_validation = False  # todo: this is a temporary measure
         if value is not None and self._validator is not None:
             _validator = (
                 [self._validator] if callable(self._validator) else self._validator
             )
             for v in _validator:
                 if not v(value):
-                    # fixme: this is a temporary measure to bypass validation of certain settings.
+                    # todo: this is a temporary measure to bypass validation of certain settings.
                     #  remove this once we are confident
                     if self.name in self.__strict_validate_settings:
                         raise ValueError(
@@ -354,6 +359,7 @@ class Settings:
     # and to help with IDE autocomplete.
     _args: Sequence[str]
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _colab: bool
     _config_dict: Config
     _console: SettingsConsole
     _cuda: str
@@ -369,9 +375,12 @@ class Settings:
     _jupyter_path: str
     _jupyter_root: str
     _kaggle: bool
+    _live_policy_rate_limit: int
+    _live_policy_wait_time: int
     _noop: bool
     _offline: bool
     _os: str
+    _platform: str
     _python: str
     _require_service: str
     _runqueue_item_id: str
@@ -390,6 +399,7 @@ class Settings:
     code_dir: str
     config_paths: Sequence[str]
     console: str
+    deployment: str
     disable_code: bool
     disable_git: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
@@ -402,6 +412,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
+    init_timeout: int
     is_local: bool
     label_disable: bool
     launch: bool
@@ -462,6 +473,7 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
+    table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -470,6 +482,13 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _disable_meta={"preprocessor": _str_as_bool},
+            _disable_stats={"preprocessor": _str_as_bool},
+            _disable_viewer={"preprocessor": _str_as_bool},
+            _colab={
+                "hook": lambda _: "google.colab" in sys.modules,
+                "auto_hook": True,
+            },
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
@@ -487,7 +506,8 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
-            _save_requirements={"value": True},
+            _platform={"value": util.get_platform_name()},
+            _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -500,12 +520,16 @@ class Settings:
             api_key={"validator": self._validate_api_key},
             base_url={
                 "value": "https://api.wandb.ai",
-                "preprocessor": lambda x: str(x).rstrip("/"),
+                "preprocessor": lambda x: str(x).strip().rstrip("/"),
                 "validator": self._validate_base_url,
             },
             console={"value": "auto", "validator": self._validate_console},
-            disable_code={"preprocessor": _str_as_bool, "is_policy": True},
-            disable_git={"preprocessor": _str_as_bool, "is_policy": True},
+            deployment={
+                "hook": lambda _: "local" if self.is_local else "cloud",
+                "auto_hook": True,
+            },
+            disable_code={"preprocessor": _str_as_bool},
+            disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
@@ -520,6 +544,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            init_timeout={"value": 30, "preprocessor": lambda x: int(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -574,7 +599,7 @@ class Settings:
             },
             run_url={"hook": lambda _: self._run_url(), "auto_hook": True},
             sagemaker_disable={"preprocessor": _str_as_bool},
-            save_code={"preprocessor": _str_as_bool, "is_policy": True},
+            save_code={"preprocessor": _str_as_bool},
             settings_system={
                 "value": os.path.join("~", ".config", "wandb", "settings"),
                 "hook": lambda x: self._path_convert(x),
@@ -618,11 +643,17 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            table_raise_on_max_row_limit_exceeded={
+                "value": False,
+                "preprocessor": _str_as_bool,
+            },
             timespec={
                 "hook": (
-                    lambda _: datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
-                    if self._start_time and self._start_datetime
-                    else None
+                    lambda _: (
+                        datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
+                        if self._start_datetime
+                        else None
+                    )
                 ),
                 "auto_hook": True,
             },
@@ -682,7 +713,7 @@ class Settings:
                 raise UsageError(
                     f'Invalid project name "{value}": exceeded 128 characters'
                 )
-            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            invalid_chars = {char for char in invalid_chars_list if char in value}
             if invalid_chars:
                 raise UsageError(
                     f'Invalid project name "{value}": '
@@ -728,19 +759,116 @@ class Settings:
     def _validate_api_key(value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
+
+        # if value.startswith("local") and not self.is_local:
+        #     raise UsageError(
+        #         "Attempting to use a local API key to connect to https://api.wandb.ai"
+        #     )
         # todo: move here the logic from sdk/lib/apikey.py
+
         return True
 
     @staticmethod
     def _validate_base_url(value: Optional[str]) -> bool:
-        if value is not None:
-            if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
-                # user might guess app.wandb.ai or wandb.ai is the default cloud server
-                raise UsageError(
-                    f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
-                )
-            elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
-                raise UsageError("http is not secure, please use https://api.wandb.ai")
+        """
+        Validate the base url of the wandb server.
+
+        param value: URL to validate
+
+        Based on the Django URLValidator, but with a few additional checks.
+
+        Copyright (c) Django Software Foundation and individual contributors.
+        All rights reserved.
+
+        Redistribution and use in source and binary forms, with or without modification,
+        are permitted provided that the following conditions are met:
+
+            1. Redistributions of source code must retain the above copyright notice,
+               this list of conditions and the following disclaimer.
+
+            2. Redistributions in binary form must reproduce the above copyright
+               notice, this list of conditions and the following disclaimer in the
+               documentation and/or other materials provided with the distribution.
+
+            3. Neither the name of Django nor the names of its contributors may be used
+               to endorse or promote products derived from this software without
+               specific prior written permission.
+
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+        ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+        WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+        ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+        (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+        LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+        ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+        SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        """
+        if value is None:
+            return True
+
+        ul = "\u00a1-\uffff"  # Unicode letters range (must not be a raw string).
+
+        # IP patterns
+        ipv4_re = (
+            r"(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)"
+            r"(?:\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}"
+        )
+        ipv6_re = r"\[[0-9a-f:.]+\]"  # (simple regex, validated later)
+
+        # Host patterns
+        hostname_re = (
+            r"[a-z" + ul + r"0-9](?:[a-z" + ul + r"0-9-]{0,61}[a-z" + ul + r"0-9])?"
+        )
+        # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
+        domain_re = r"(?:\.(?!-)[a-z" + ul + r"0-9-]{1,63}(?<!-))*"
+        tld_re = (
+            r"\."  # dot
+            r"(?!-)"  # can't start with a dash
+            r"(?:[a-z" + ul + "-]{2,63}"  # domain label
+            r"|xn--[a-z0-9]{1,59})"  # or punycode label
+            r"(?<!-)"  # can't end with a dash
+            r"\.?"  # may have a trailing dot
+        )
+        # host_re = "(" + hostname_re + domain_re + tld_re + "|localhost)"
+        # todo?: allow hostname to be just a hostname (no tld)?
+        host_re = "(" + hostname_re + domain_re + f"({tld_re})?" + "|localhost)"
+
+        regex = re.compile(
+            r"^(?:[a-z0-9.+-]*)://"  # scheme is validated separately
+            r"(?:[^\s:@/]+(?::[^\s:@/]*)?@)?"  # user:pass authentication
+            r"(?:" + ipv4_re + "|" + ipv6_re + "|" + host_re + ")"
+            r"(?::[0-9]{1,5})?"  # port
+            r"(?:[/?#][^\s]*)?"  # resource path
+            r"\Z",
+            re.IGNORECASE,
+        )
+        schemes = {"http", "https"}
+        unsafe_chars = frozenset("\t\r\n")
+
+        scheme = value.split("://")[0].lower()
+        split_url = urlsplit(value)
+        parsed_url = urlparse(value)
+
+        if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+            # user might guess app.wandb.ai or wandb.ai is the default cloud server
+            raise UsageError(
+                f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
+            )
+        elif re.match(r".*wandb\.ai[^\.]*$", value) and scheme != "https":
+            raise UsageError("http is not secure, please use https://api.wandb.ai")
+        elif parsed_url.netloc == "":
+            raise UsageError(f"Invalid URL: {value}")
+        elif unsafe_chars.intersection(value):
+            raise UsageError("URL cannot contain unsafe characters")
+        elif scheme not in schemes:
+            raise UsageError("URL must start with `http(s)://`")
+        elif not regex.search(value):
+            raise UsageError(f"{value} is not a valid server address")
+        elif split_url.hostname is None or len(split_url.hostname) > 253:
+            raise UsageError("hostname is invalid")
+
         return True
 
     # other helper methods
@@ -797,6 +925,9 @@ class Settings:
         return f"{project_url}{query}"
 
     def _run_url(self) -> str:
+        """
+        Return the run url.
+        """
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -804,13 +935,25 @@ class Settings:
         query = self._get_url_query_string()
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
-    def _start_run(self) -> None:
+    def _set_run_start_time(self, source: int = Source.BASE) -> None:
+        """
+        Set the time stamps for the settings.
+        Called once the run is initialized.
+        """
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
         object.__setattr__(self, "_Settings_start_datetime", datetime_now)
         object.__setattr__(self, "_Settings_start_time", time_stamp)
+        self.update(
+            _start_datetime=datetime_now,
+            _start_time=time_stamp,
+            source=source,
+        )
 
     def _sweep_url(self) -> str:
+        """
+        Return the sweep url.
+        """
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""
@@ -822,7 +965,7 @@ class Settings:
         self.__frozen: bool = False
         self.__initialized: bool = False
 
-        # fixme: this is collect telemetry on validation errors and unexpected args
+        # todo: this is collect telemetry on validation errors and unexpected args
         # values are stored as strings to avoid potential json serialization errors down the line
         self.__preprocessing_warnings: Dict[str, str] = dict()
         self.__validation_warnings: Dict[str, str] = dict()
@@ -865,10 +1008,14 @@ class Settings:
                 object.__setattr__(
                     self,
                     prop,
-                    Property(name=prop, validator=validators, source=Source.BASE,),
+                    Property(
+                        name=prop,
+                        validator=validators,
+                        source=Source.BASE,
+                    ),
                 )
 
-            # fixme: this is to collect stats on preprocessing and validation errors
+            # todo: this is to collect stats on preprocessing and validation errors
             if self.__dict__[prop].__dict__["_Property__failed_preprocessing"]:
                 self.__preprocessing_warnings[prop] = str(self.__dict__[prop]._value)
             if self.__dict__[prop].__dict__["_Property__failed_validation"]:
@@ -879,7 +1026,7 @@ class Settings:
         # allow only explicitly defined arguments
         if unexpected_arguments:
 
-            # fixme: remove this and raise error instead once we are confident
+            # todo: remove this and raise error instead once we are confident
             self.__unexpected_args.update(unexpected_arguments)
             wandb.termwarn(
                 f"Ignoring unexpected arguments: {unexpected_arguments}. "
@@ -906,7 +1053,7 @@ class Settings:
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
 
-        # fixme? freeze settings to prevent accidental changes
+        # todo? freeze settings to prevent accidental changes
         # self.freeze()
 
     def __str__(self) -> str:
@@ -932,7 +1079,7 @@ class Settings:
         """
         Ensure that a copy of the settings object is a truly deep copy
 
-        Note that the copied object will not be frozen  fixme? why is this needed?
+        Note that the copied object will not be frozen  todo? why is this needed?
         """
         # get attributes that are instances of the Property class:
         attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
@@ -982,13 +1129,37 @@ class Settings:
 
     def update(
         self,
-        settings: Optional[Dict[str, Any]] = None,
+        settings: Optional[Union[Dict[str, Any], "Settings"]] = None,
         source: int = Source.OVERRIDE,
         **kwargs: Any,
     ) -> None:
         """Update individual settings using the Property.update() method."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
             raise TypeError("Settings object is frozen")
+
+        if isinstance(settings, Settings):
+            # If a Settings object is passed, detect the settings that differ
+            # from defaults, collect them into a dict, and apply them using `source`.
+            # This comes up in `wandb.init(settings=wandb.Settings(...))` and
+            # seems like the behavior that the user would expect when calling init that way.
+            defaults = Settings()
+            settings_dict = dict()
+            for k, v in settings.__dict__.items():
+                if isinstance(v, Property):
+                    if v._value != defaults.__dict__[k]._value:
+                        settings_dict[k] = v._value
+            # todo: store warnings from the passed Settings object, if any,
+            #  to collect telemetry on validation errors and unexpected args.
+            #  remove this once strict checking is enforced.
+            for attr in (
+                "_Settings__unexpected_args",
+                "_Settings__preprocessing_warnings",
+                "_Settings__validation_warnings",
+            ):
+                getattr(self, attr).update(getattr(settings, attr))
+            # replace with the generated dict
+            settings = settings_dict
+
         # add kwargs to settings
         settings = settings or dict()
         # explicit kwargs take precedence over settings
@@ -1004,7 +1175,7 @@ class Settings:
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
-            # fixme: this is to collect stats on preprocessing and validation errors
+            # todo: this is to collect stats on preprocessing and validation errors
             if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
                 self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
             else:
@@ -1014,6 +1185,12 @@ class Settings:
                 self.__validation_warnings[key] = str(self.__dict__[key]._value)
             else:
                 self.__validation_warnings.pop(key, None)
+
+    def items(self) -> ItemsView[str, Any]:
+        return self.make_static().items()
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.make_static().get(key, default)
 
     def freeze(self) -> None:
         object.__setattr__(self, "_Settings__frozen", True)
@@ -1035,7 +1212,9 @@ class Settings:
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
     def _apply_settings(
-        self, settings: "Settings", _logger: Optional[_EarlyLogger] = None,
+        self,
+        settings: "Settings",
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Apply settings from a Settings object."""
         if _logger is not None:
@@ -1047,7 +1226,7 @@ class Settings:
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)
 
-        # fixme: this is to pass on info on unexpected args in settings
+        # todo: this is to pass on info on unexpected args in settings
         if settings.__dict__["_Settings__unexpected_args"]:
             self.__dict__["_Settings__unexpected_args"].update(
                 settings.__dict__["_Settings__unexpected_args"]
@@ -1072,7 +1251,8 @@ class Settings:
             if _logger is not None:
                 _logger.info(f"Loading settings from {self.settings_system}")
             self.update(
-                self._load_config_file(self.settings_system), source=Source.SYSTEM,
+                self._load_config_file(self.settings_system),
+                source=Source.SYSTEM,
             )
         if self.settings_workspace is not None:
             if _logger is not None:
@@ -1083,7 +1263,9 @@ class Settings:
             )
 
     def _apply_env_vars(
-        self, environ: Mapping[str, Any], _logger: Optional[_EarlyLogger] = None,
+        self,
+        environ: Mapping[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
@@ -1118,7 +1300,6 @@ class Settings:
             _logger.info(
                 f"Loading settings from environment variables: {_redact_dict(env)}"
             )
-
         self.update(env, source=Source.ENV)
 
     def _infer_settings_from_environment(
@@ -1186,7 +1367,8 @@ class Settings:
         if os.path.exists("/usr/local/cuda/version.txt"):
             with open("/usr/local/cuda/version.txt") as f:
                 settings["_cuda"] = f.read().split(" ")[-1].strip()
-        settings["_args"] = sys.argv[1:]
+        if not self._jupyter:
+            settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
         # hack to make sure we don't hang on windows
@@ -1201,7 +1383,8 @@ class Settings:
         self.update(settings, source=Source.ENV)
 
     def _infer_run_settings_from_environment(
-        self, _logger: Optional[_EarlyLogger] = None,
+        self,
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Modify settings based on environment (for runs only)."""
         # If there's not already a program file, infer it now.

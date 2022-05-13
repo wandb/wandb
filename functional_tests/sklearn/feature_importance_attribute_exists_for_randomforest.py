@@ -2,6 +2,8 @@
 """Tests that feature importance visualization is produced on RandomForest model
 ---
 id: 0.sklearn.feature_importance_attribute_exists_for_randomforest
+tag:
+  shard: sklearn
 plugin:
     - wandb
 depend:

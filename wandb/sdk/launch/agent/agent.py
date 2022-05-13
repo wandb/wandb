@@ -4,9 +4,8 @@ Implementation of launch agent.
 
 import logging
 import os
-import sys
 import time
-from typing import Any, Dict, Iterable, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -14,12 +13,13 @@ from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
-    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    resolve_build_and_registry_config,
 )
 
 AGENT_POLLING_INTERVAL = 10
@@ -40,20 +40,13 @@ def _convert_access(access: str) -> str:
     return access
 
 
-class LaunchAgent(object):
+class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    def __init__(
-        self,
-        entity: str,
-        project: str,
-        queues: Iterable[str] = None,
-        max_jobs: int = None,
-    ):
-        self._entity = entity
-        self._project = project
-        self._api = Api()
-        self._settings = wandb.Settings()
+    def __init__(self, api: Api, config: Dict[str, Any]):
+        self._entity = config.get("entity")
+        self._project = config.get("project")
+        self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[Union[int, str], AbstractRun] = {}
         self._ticks = 0
@@ -61,18 +54,25 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._max_jobs = max_jobs or 1
+        if config.get("max_jobs") == -1:
+            self._max_jobs = float("inf")
+        else:
+            self._max_jobs = config.get("max_jobs") or 1
+        self.default_config: Optional[Dict[str, Any]] = config
 
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
         )
+        self._queues = config.get("queues", ["default"])
         create_response = self._api.create_launch_agent(
-            entity, project, queues, self.gorilla_supports_agents
+            self._entity,
+            self._project,
+            self._queues,
+            self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
-        self._queues = queues if queues else ["default"]
 
     @property
     def job_ids(self) -> List[Union[int, str]]:
@@ -83,7 +83,10 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue, entity=self._entity, project=self._project, agent_id=self._id,
+                queue,
+                entity=self._entity,
+                project=self._project,
+                agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
@@ -103,7 +106,7 @@ class LaunchAgent(object):
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
-            wandb.termerror("Failed to update agent status to {}".format(status))
+            wandb.termerror(f"Failed to update agent status to {status}")
 
     def finish_job_id(self, job_id: Union[str, int]) -> None:
         """Removes the job from our list for now."""
@@ -116,7 +119,10 @@ class LaunchAgent(object):
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
-        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+        try:
+            if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+                self.finish_job_id(job_id)
+        except Exception:
             self.finish_job_id(job_id)
 
     def _validate_and_fix_spec_project_entity(
@@ -164,25 +170,20 @@ class LaunchAgent(object):
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-        if _is_wandb_local_uri(self._base_url):
-            _logger.info(
-                "Noted a local URI. Setting local network arguments for docker"
-            )
-            if sys.platform == "win32":
-                backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
-            else:
-                backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
-            if sys.platform == "linux" or sys.platform == "linux2":
-                backend_config[PROJECT_DOCKER_ARGS][
-                    "add-host"
-                ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
+        override_build_config = launch_spec.get("build")
+        override_registry_config = launch_spec.get("registry")
+
+        build_config, registry_config = resolve_build_and_registry_config(
+            self.default_config, override_build_config, override_registry_config
+        )
+        builder = load_builder(build_config)
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")
-        run = backend.run(project)
+        run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
             self._running += 1
@@ -198,13 +199,6 @@ class LaunchAgent(object):
             while True:
                 self._ticks += 1
                 job = None
-                if self._running < self._max_jobs:
-                    # only check for new jobs if we're not at max
-                    for queue in self._queues:
-                        job = self.pop_from_queue(queue)
-                        if job:
-                            self.run_job(job)
-                            break  # do a full housekeeping loop before popping more jobs
 
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
@@ -215,6 +209,16 @@ class LaunchAgent(object):
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
+                if self._running < self._max_jobs:
+                    # only check for new jobs if we're not at max
+                    for queue in self._queues:
+                        job = self.pop_from_queue(queue)
+                        if job:
+                            try:
+                                self.run_job(job)
+                            except Exception as e:
+                                wandb.termerror(f"Error running job: {e}")
+                                self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:

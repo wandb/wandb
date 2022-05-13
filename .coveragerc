@@ -12,6 +12,8 @@ canonicalsrc =
     .tox/func-s_imports-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_noml-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_sklearn-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
 
 [run]
 # TODO(jhr): enable this in the future
@@ -22,7 +24,6 @@ source =
     wandb/
 
 omit =
-    wandb/sweeps/*
     wandb/vendor/*
     wandb/proto/*
 
@@ -32,6 +33,5 @@ exclude_lines =
     if TYPE_CHECKING:
 
 omit =
-    wandb/sweeps/*
     wandb/vendor/*
     wandb/proto/*

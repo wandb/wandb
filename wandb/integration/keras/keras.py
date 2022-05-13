@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 keras init
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
+import shutil
 import logging
 import numpy as np
 import operator
@@ -208,14 +203,14 @@ def is_numeric_array(array):
 
 def _warn_not_logging_non_numeric(name):
     wandb.termwarn(
-        "Non-numeric values found in layer: {}, not logging this layer".format(name),
+        f"Non-numeric values found in layer: {name}, not logging this layer",
         repeat=False,
     )
 
 
 def _warn_not_logging(name):
     wandb.termwarn(
-        "Layer {} has undetermined datatype not logging this layer".format(name),
+        f"Layer {name} has undetermined datatype not logging this layer",
         repeat=False,
     )
 
@@ -230,7 +225,7 @@ patch_tf_keras()
 
 class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
-        super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
+        super().__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
         self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
@@ -243,7 +238,7 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
         pass
 
     def get_config(self):
-        return super(_CustomOptimizer, self).get_config()
+        return super().get_config()
 
 
 class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
@@ -253,7 +248,7 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
     """
 
     def set_model(self, model):
-        super(_GradAccumulatorCallback, self).set_model(model)
+        super().set_model(model)
         self.og_weights = model.get_weights()
         self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
 
@@ -413,6 +408,18 @@ class WandbCallback(tf.keras.callbacks.Callback):
         wandb.save("model-best.h5")
         self.filepath = os.path.join(wandb.run.dir, "model-best.h5")
         self.save_model = save_model
+        if save_model:
+            deprecate(
+                field_name=Deprecated.keras_callback__save_model,
+                warning_message=(
+                    "The save_model argument by default saves the model in the HDF5 format that cannot save "
+                    "custom objects like subclassed models and custom layers. This behavior will be deprecated "
+                    "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
+                    "as W&B files and the SavedModel as W&B Artifacts."
+                ),
+            )
+
+        self.save_model_as_artifact = False
         self.log_weights = log_weights
         self.log_gradients = log_gradients
         self.training_data = training_data
@@ -476,9 +483,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.monitor_op = operator.lt
                 self.best = float("inf")
         # Get the previous best metric for resumed runs
-        previous_best = wandb.run.summary.get(
-            "%s%s" % (self.log_best_prefix, self.monitor)
-        )
+        previous_best = wandb.run.summary.get(f"{self.log_best_prefix}{self.monitor}")
         if previous_best is not None:
             self.best = previous_best
 
@@ -578,9 +583,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.current and self.monitor_op(self.current, self.best):
             if self.log_best_prefix:
                 wandb.run.summary[
-                    "%s%s" % (self.log_best_prefix, self.monitor)
+                    f"{self.log_best_prefix}{self.monitor}"
                 ] = self.current
-                wandb.run.summary["%s%s" % (self.log_best_prefix, "epoch")] = epoch
+                wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
                     print(
                         "Epoch %05d: %s improved from %0.5f to %0.5f"
@@ -588,6 +593,10 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     )
             if self.save_model:
                 self._save_model(epoch)
+
+            if self.save_model_as_artifact:
+                self._save_model_as_artifact(epoch)
+
             self.best = self.current
 
     # This is what keras used pre tensorflow.keras
@@ -965,5 +974,26 @@ class WandbCallback(tf.keras.callbacks.Callback):
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
         except (ImportError, RuntimeError, TypeError) as e:
-            wandb.termerror("Can't save model, h5py returned error: %s" % e)
+            wandb.termerror(
+                "Can't save model in the h5py format. The model will be saved as "
+                "W&B Artifacts in the SavedModel format."
+            )
             self.save_model = False
+            self.save_model_as_artifact = True
+
+    def _save_model_as_artifact(self, epoch):
+        if wandb.run.disabled:
+            return
+
+        # Save the model in the SavedModel format.
+        # TODO: Replace this manual artifact creation with the `log_model` method
+        # after `log_model` is released from beta.
+        self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
+
+        # Log the model as artifact.
+        model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
+        model_artifact.add_dir(self.filepath[:-3])
+        wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
+
+        # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
+        shutil.rmtree(self.filepath[:-3])

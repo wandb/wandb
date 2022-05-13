@@ -41,7 +41,9 @@ def end_run_resume_pause(interface):
 
 
 def test_runtime_resume(
-    publish_util, test_settings, mock_server,
+    publish_util,
+    test_settings,
+    mock_server,
 ):
     mock_server.ctx["resume"] = True
     test_settings.update(resume="allow", source=Source.INIT)
@@ -54,7 +56,7 @@ def test_runtime_resume(
     "end_cb, lower_bound",
     [
         (end_run_basic, 3),
-        (end_run_pause_resume, 6),
+        (end_run_pause_resume, 5),
         (end_run_pause_pause, 3),
         (end_run_resume_resume, 9),
         (end_run_resume_pause, 6),

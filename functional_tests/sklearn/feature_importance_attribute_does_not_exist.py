@@ -2,6 +2,8 @@
 """Tests that feature importance visualization is not produced on model without feature importances
 ---
 id: 0.sklearn.feature_importance_attribute_does_not_exist
+tag:
+  shard: sklearn
 plugin:
     - wandb
 depend:
@@ -20,7 +22,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 import wandb
 
-wandb.init("my-scikit-integration")
+run = wandb.init("my-scikit-integration")
 
 wbcd = wisconsin_breast_cancer_data = datasets.load_breast_cancer()
 
@@ -33,3 +35,5 @@ model = KNeighborsClassifier()
 model.fit(X_train, y_train)
 
 wandb.sklearn.plot_feature_importances(model)
+
+run.finish()

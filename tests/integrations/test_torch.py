@@ -15,18 +15,13 @@ except ImportError:
         Module = object
 
 
-pytestmark = pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="PyTorch no longer supports py2"
-)
-
-
 def dummy_torch_tensor(size, requires_grad=True):
     return torch.ones(size, requires_grad=requires_grad)
 
 
 class DynamicModule(nn.Module):
     def __init__(self):
-        super(DynamicModule, self).__init__()
+        super().__init__()
         self.choices = nn.ModuleDict(
             {"conv": nn.Conv2d(10, 10, 3), "pool": nn.MaxPool2d(3)}
         )
@@ -47,7 +42,12 @@ class EmbModel(nn.Module):
         self.emb2 = nn.Embedding(x, y)
 
     def forward(self, x):
-        return {"key": {"emb1": self.emb1(x), "emb2": self.emb2(x),}}
+        return {
+            "key": {
+                "emb1": self.emb1(x),
+                "emb2": self.emb2(x),
+            }
+        }
 
 
 class EmbModelWrapper(nn.Module):
@@ -61,7 +61,7 @@ class EmbModelWrapper(nn.Module):
 
 class Discrete(nn.Module):
     def __init__(self):
-        super(Discrete, self).__init__()
+        super().__init__()
 
     def forward(self, x):
         return nn.functional.softmax(x, dim=0)
@@ -69,7 +69,7 @@ class Discrete(nn.Module):
 
 class DiscreteModel(nn.Module):
     def __init__(self, num_outputs=2):
-        super(DiscreteModel, self).__init__()
+        super().__init__()
         self.linear1 = nn.Linear(1, 10)
         self.linear2 = nn.Linear(10, num_outputs)
         self.dist = Discrete()
@@ -82,7 +82,7 @@ class DiscreteModel(nn.Module):
 
 class ParameterModule(nn.Module):
     def __init__(self):
-        super(ParameterModule, self).__init__()
+        super().__init__()
         self.params = nn.ParameterList(
             [nn.Parameter(torch.ones(10, 10)) for i in range(10)]
         )
@@ -97,7 +97,7 @@ class ParameterModule(nn.Module):
 
 class Sequence(nn.Module):
     def __init__(self):
-        super(Sequence, self).__init__()
+        super().__init__()
         self.lstm1 = nn.LSTMCell(1, 51)
         self.lstm2 = nn.LSTMCell(51, 51)
         self.linear = nn.Linear(51, 1)
@@ -125,7 +125,7 @@ class Sequence(nn.Module):
 
 class ConvNet(nn.Module):
     def __init__(self):
-        super(ConvNet, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.conv2_drop = nn.Dropout2d()
@@ -157,19 +157,25 @@ def conv3x3(in_channels, out_channels, **kwargs):
     return layer
 
 
-def test_all_logging(wandb_init_run):
+def test_all_logging(live_mock_server, test_settings, parse_ctx):
     # TODO(jhr): does not work with --flake-finder
+    run = wandb.init(settings=test_settings)
     net = ConvNet()
     wandb.watch(net, log="all", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((32, 1, 28, 28)))
         grads = torch.ones(32, 10)
         output.backward(grads)
-        wandb.log({"a": 2})
-        assert len(wandb.run._backend.history[0]) == 20
-        assert len(wandb.run._backend.history[0]["parameters/fc2.bias"]["bins"]) == 65
-        assert len(wandb.run._backend.history[0]["gradients/fc2.bias"]["bins"]) == 65
-    assert len(wandb.run._backend.history) == 3
+        run.log({"a": 2})
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 3
+    for i in range(3):
+        ctx_util.history[i]["_step"] == i
+        assert len(ctx_util.history[i]) == 20
+        assert len(ctx_util.history[i]["parameters/fc2.bias"]["bins"]) == 65
+        assert len(ctx_util.history[i]["gradients/fc2.bias"]["bins"]) == 65
 
 
 def test_double_log(wandb_init_run):
@@ -179,7 +185,8 @@ def test_double_log(wandb_init_run):
         wandb.watch(net, log_graph=True)
 
 
-def test_embedding_dict_watch(wandb_init_run):
+def test_embedding_dict_watch(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
     model = EmbModelWrapper()
     wandb.watch(model, log_freq=1, idx=0)
     opt = torch.optim.Adam(params=model.parameters())
@@ -189,9 +196,13 @@ def test_embedding_dict_watch(wandb_init_run):
     loss = F.mse_loss(out, inp.float())
     loss.backward()
     opt.step()
-    wandb.log({"loss": loss})
-    print(wandb.run._backend.history)
-    assert len(wandb.run._backend.history[0]["gradients/emb.emb1.weight"]["bins"]) == 65
+    run.log({"loss": loss})
+    run.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    print(ctx_util.history)
+    assert len(ctx_util.history[0]["gradients/emb.emb1.weight"]["bins"]) == 65
+    assert ctx_util.history[0]["gradients/emb.emb1.weight"]["_type"] == "histogram"
 
 
 @pytest.mark.timeout(120)
@@ -257,8 +268,8 @@ def test_nested_shape():
         (torch.Tensor([float("nan"), float("inf"), -float("inf")]), True),
     ],
 )
-def test_no_finite_values(test_input, expected, wandb_init_run):
-    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+def test_no_finite_values(test_input, expected):
+    torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch_history._no_finite_values(test_input) is expected
 
@@ -272,7 +283,7 @@ def test_no_finite_values(test_input, expected, wandb_init_run):
         (torch.Tensor([0.0, float("nan"), float("inf")]), torch.Tensor([0.0])),
     ],
 )
-def test_remove_infs_nans(test_input, expected, wandb_init_run):
-    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+def test_remove_infs_nans(test_input, expected):
+    torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch.equal(torch_history._remove_infs_nans(test_input), expected)

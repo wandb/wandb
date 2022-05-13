@@ -22,8 +22,8 @@ def _runs_eq(runs_a, runs_b):
     return all([_run_eq(run_a, run_b) for run_a, run_b in zip(runs_a, runs_b)])
 
 def test_artifact_run_lookup_apis():
-    artifact_1_name = "a1-{}".format(str(time.time()))
-    artifact_2_name = "a2-{}".format(str(time.time()))
+    artifact_1_name = f"a1-{str(time.time())}"
+    artifact_2_name = f"a2-{str(time.time())}"
 
     # Initial setup
     run_1 = wandb.init()
@@ -61,7 +61,7 @@ def test_artifact_run_lookup_apis():
     run_4.finish()
 
 def test_artifact_creation_with_diff_type():
-    artifact_name = "a1-{}".format(str(time.time()))
+    artifact_name = f"a1-{str(time.time())}"
 
     # create
     with wandb.init() as run:

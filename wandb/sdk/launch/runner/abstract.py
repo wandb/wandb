@@ -9,6 +9,8 @@ from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
+from wandb.errors import CommError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .._project_spec import LaunchProject
 
@@ -20,10 +22,12 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-State = Literal["unknown", "starting", "running", "failed", "finished", "stopping"]
+State = Literal[
+    "unknown", "starting", "running", "failed", "finished", "stopping", "stopped"
+]
 
 
-class Status(object):
+class Status:
     def __init__(self, state: "State" = "unknown", data=None):  # type: ignore
         self.state = state
         self.data = data or {}
@@ -69,7 +73,7 @@ class AbstractRun(ABC):
                     return popen.stdout.read()
             return popen
         except subprocess.CalledProcessError as e:
-            wandb.termerror("Command failed: {}".format(e))
+            wandb.termerror(f"Command failed: {e}")
             return None
 
     @abstractmethod
@@ -137,8 +141,26 @@ class AbstractRunner(ABC):
             sys.exit(1)
         return True
 
+    def ack_run_queue_item(self, launch_project: LaunchProject) -> bool:
+        if self.backend_config.get("runQueueItemId"):
+            try:
+                self._api.ack_run_queue_item(
+                    self.backend_config["runQueueItemId"], launch_project.run_id
+                )
+            except CommError:
+                wandb.termerror(
+                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
+                )
+                return False
+        return True
+
     @abstractmethod
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 
         Returns a SubmittedRun object to track the execution
