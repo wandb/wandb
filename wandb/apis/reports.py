@@ -457,7 +457,7 @@ class Video(Block):
     def to_json(self):
         return {
             "type": "video",
-            "url": "https://www.youtube.com/embed/D8gHFd1Slfo",
+            "url": self.url,
             "children": [{"text": ""}],
         }
 
