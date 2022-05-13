@@ -756,7 +756,7 @@ class Api:
         """
         try:
             entity, project, *_, _report_id = path.split("/")
-            *_, report_id = _reportId.split("--")
+            *_, report_id = _report_id.split("--")
         except ValueError as e:
             raise ValueError("path must be `entity/project/reports/reportId`") from e
         else:
