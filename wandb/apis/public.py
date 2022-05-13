@@ -646,8 +646,16 @@ class Api:
                     else:
                         parts[-1] = "--" + parts[-1]
                 name, id = parts[-1].split("--")
-                entity, project = parts[:2]
-                return self.report(f"{entity}/{project}/reports/{id}")
+                return BetaReport(
+                    self.client,
+                    {
+                        "display_name": urllib.parse.unquote(name.replace("-", " ")),
+                        "id": id,
+                        "spec": "{}",
+                    },
+                    parts[0],
+                    parts[1],
+                )
 
         raise wandb.Error(
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
