@@ -486,6 +486,7 @@ jobs:
               -t << parameters.image_name >> \
               --build-arg PYTHON_VERSION=<< parameters.python_version >> \
               --build-arg GIT_BRANCH=<< parameters.git_branch >> \
+              --build-arg UTC_DATE=$(date -u +%Y%m%d) \
               .
 #      - save-sdk-gpu-cache
       - setup_gcloud
