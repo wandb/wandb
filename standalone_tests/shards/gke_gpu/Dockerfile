@@ -11,6 +11,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PYTHON_VERSION=3.8
 ARG GIT_BRANCH=master
 ARG TOX_VERSION=3.24.0
+ARG UTC_DATE
 
 # todo: enable docker image layer caching on circleci
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -49,5 +50,6 @@ RUN git clone https://github.com/wandb/client.git /wandb/client \
 RUN PATH=/home/sdk/.local/bin:$PATH
 
 WORKDIR /wandb/client
+ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
 CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py38"]
