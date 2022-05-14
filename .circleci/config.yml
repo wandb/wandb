@@ -622,8 +622,7 @@ jobs:
                 exit 0
               elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is in an error state"
-                logs=`kubectl logs << parameters.pod_name >>`
-                echo $logs
+                kubectl logs << parameters.pod_name >>
                 exit 1
               fi
               sleep << parameters.sleep_time >>
@@ -651,8 +650,8 @@ jobs:
               sleep << parameters.sleep_time >>
             done
             
+            kubectl logs << parameters.pod_name >>
             logs=`kubectl logs << parameters.pod_name >>`
-            echo $logs
             exit_code=`echo $(echo $logs | grep -c "commands failed")`
             echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
             exit ${exit_code}
