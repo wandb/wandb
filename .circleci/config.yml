@@ -429,7 +429,7 @@ jobs:
     parameters:
       message:
         type: string
-        default: ":runner:",
+        default: ":runner:"
     docker:
       - image: 'cimg/base:stable'
     steps:
