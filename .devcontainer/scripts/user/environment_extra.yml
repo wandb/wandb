@@ -1,0 +1,29 @@
+channels:
+  - conda-forge
+  - pytorch
+  - fastai
+dependencies:
+  - pip
+  - matplotlib<3.5.2
+  - openblas
+  - moviepy
+  - imageio
+  - boto3
+  - google-cloud-storage
+  - xgboost
+  - tensorflow-cpu
+  - cpuonly
+  - pytorch=1.9.0
+  - spacy
+  - torchvision=1.10.0
+  - plotly
+  - bokeh
+  - jax
+  - pyarrow
+  - metaflow
+  - rdkit
+  - fastcore
+  - pysoundfile
+  - gym
+  - pip:
+      - stable_baselines3

@@ -1,0 +1,15 @@
+channels:
+  - conda-forge
+dependencies:
+  - pip
+  - pytest
+  - coverage
+  - pillow
+  - ipython
+  - ipykernel
+  - nbclient
+  - tqdm
+  - numpy
+  - pip:
+    - tox==3.24.0
+    - tox-conda
