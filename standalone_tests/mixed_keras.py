@@ -1,13 +1,12 @@
-import wandb
 import keras
 import numpy as np
 import tensorflow as tf
+import wandb
 from wandb.keras import WandbCallback
 
 
 def main():
-    # wandb.init(project="tf2")
-    wandb.init()
+    wandb.init(name=__file__)
 
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1)))
