@@ -677,7 +677,7 @@ workflows:
     jobs:
       - slack_notify:
           context: slack-secrets
-          message: ":runner: *Nightly run started!*",
+          message: ":runner: *Nightly run started!*"
       - test:
           name: "code-check"
           image: "python:3.6"
@@ -701,7 +701,7 @@ workflows:
     jobs:
       - slack_notify:
           context: slack-secrets
-          message: ":runner: *Nightly run started!*",
+          message: ":runner: *Nightly run started!*"
       # build docker images for yea shards
       - sdk_docker:
           description: "SDK Docker image for GPU testing"
