@@ -22,8 +22,8 @@ tensorflow>=1.15.2; python_version > '3.6' and sys_platform == 'darwin' and plat
 tensorflow-macos; python_version > '3.6' and python_version < '3.10' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch; sys_platform == 'darwin'
 torchvision; sys_platform == 'darwin'
-torch==1.9.0+cpu; python_version < '3.9' and sys_platform != 'darwin'
-torchvision==0.10.0+cpu; python_version < '3.9' and sys_platform != 'darwin'
+torch; python_version < '3.9' and sys_platform != 'darwin'
+torchvision; python_version < '3.9' and sys_platform != 'darwin'
 plotly
 bokeh
 tqdm

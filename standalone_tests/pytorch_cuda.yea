@@ -9,4 +9,6 @@ plugin:
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]:
+      cuda_available: True
   - :wandb:runs[0][exitcode]: 0

@@ -591,6 +591,9 @@ jobs:
       sleep_time:  # time in seconds to wait before re-checking pod status
         type: integer
         default: 5
+      notify_on_failure:
+        type: boolean
+        default: false
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -663,6 +666,15 @@ jobs:
           command: |
             kubectl get pods
             kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
 workflows:
   nightly:
@@ -701,7 +713,7 @@ workflows:
     jobs:
       - slack_notify:
           context: slack-secrets
-          message: ":runner: *Nightly run started!*"
+          message: ":runner: *Standalone run started!*"
       # build docker images for yea shards
       - sdk_docker:
           description: "SDK Docker image for GPU testing"
@@ -718,10 +730,12 @@ workflows:
             - sdk_docker
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_gpu"
+          notify_on_failure: true
       - slack_notify:
           context: slack-secrets
           requires:
             - test_gpu
+            - shut_down_cluster
           message: ":runner: *Standalone run successfully finished!*"
 #      - test:
 #          name: "code-check"
