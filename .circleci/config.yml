@@ -425,10 +425,11 @@ jobs:
       - save-kfp-cache
       - save-test-results
 
-  notify_nightly:
+  slack_notify:
     parameters:
-      event:
-        type: string  # must end with a regular verb in present tense :)
+      message:
+        type: string
+        default: ":runner:",
     docker:
       - image: 'cimg/base:stable'
     steps:
@@ -441,7 +442,7 @@ jobs:
                   "fields": [
                     {
                       "type": "plain_text",
-                      "text": ":runner: *Nightly run <<parameters.event>>ed!*",
+                      "text": << parameters.message >>, 
                       "emoji": true
                     }
                   ]
@@ -674,20 +675,20 @@ workflows:
             - "nightly"
             - << pipeline.schedule.name >>
     jobs:
-      - notify_nightly:
+      - slack_notify:
           context: slack-secrets
-          event: start
+          message: ":runner: *Nightly run started!*",
       - test:
           name: "code-check"
           image: "python:3.6"
           toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
           context: slack-secrets
           notify_on_failure: true
-      - notify_nightly:
+      - slack_notify:
           context: slack-secrets
           requires:
             - "code-check"
-          event: successfully finish
+          message: ":runner: *Nightly run successfully finished!*"
 
   main:
     when:
@@ -698,6 +699,9 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
+      - slack_notify:
+          context: slack-secrets
+          message: ":runner: *Nightly run started!*",
       # build docker images for yea shards
       - sdk_docker:
           description: "SDK Docker image for GPU testing"
@@ -714,6 +718,11 @@ workflows:
             - sdk_docker
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_gpu"
+      - slack_notify:
+          context: slack-secrets
+          requires:
+            - test_gpu
+          message: ":runner: *Standalone run successfully finished!*"
 #      - test:
 #          name: "code-check"
 #          image: "python:3.6"
