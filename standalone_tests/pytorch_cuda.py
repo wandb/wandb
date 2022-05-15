@@ -5,7 +5,7 @@ import wandb
 assert torch.cuda.is_available(), "CUDA not available!"
 
 
-run = wandb.init()
+run = wandb.init(name=__file__)
 x = np.random.random((32, 100)).astype("f")
 t_cpu = torch.Tensor(x)
 t_gpu = t_cpu.cuda()

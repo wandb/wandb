@@ -1,0 +1,12 @@
+id: 0.standalone.01-basic
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+    - mac
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][exitcode]: 0
