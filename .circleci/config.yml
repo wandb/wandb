@@ -712,6 +712,7 @@ workflows:
         - not: << pipeline.parameters.manual >>
     jobs:
       - slack_notify:
+          name: "slack-notify-on-start"
           context: slack-secrets
           message: ":runner: *Standalone run started!*"
       # build docker images for yea shards
@@ -730,6 +731,7 @@ workflows:
             - sdk_docker
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_gpu"
+          context: slack-secrets
           notify_on_failure: true
       - slack_notify:
           context: slack-secrets

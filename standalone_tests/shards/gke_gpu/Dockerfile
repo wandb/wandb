@@ -51,5 +51,5 @@ RUN PATH=/home/sdk/.local/bin:$PATH
 
 WORKDIR /wandb/client
 ENV DATE=$UTC_DATE
-#CMD ["tail", "-f", "/dev/null"]
-CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py38"]
+CMD ["tail", "-f", "/dev/null"]
+#CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py38"]
