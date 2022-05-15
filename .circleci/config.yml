@@ -442,7 +442,7 @@ jobs:
                   "fields": [
                     {
                       "type": "plain_text",
-                      "text": << parameters.message >>, 
+                      "text": "<< parameters.message >>", 
                       "emoji": true
                     }
                   ]
