@@ -1702,6 +1702,15 @@ class Api:
             ):
                 return True
             body = json.loads(e.response.content)
+            message = body["errors"][0]["message"]
+            if (
+                e.response.status_code == 400
+                and "Sweep" in message
+                and "is not running" in message
+            ):
+                wandb.termerror(
+                    "The sweep has finished -- all hyperparameter combinations have been exhausted."
+                )
             raise UsageError(body["errors"][0]["message"])
 
         response = self.gql(
