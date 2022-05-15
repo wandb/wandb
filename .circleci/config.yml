@@ -734,6 +734,7 @@ workflows:
           context: slack-secrets
           notify_on_failure: true
       - slack_notify:
+          name: "slack-notify-on-success"
           context: slack-secrets
           requires:
             - test_gpu

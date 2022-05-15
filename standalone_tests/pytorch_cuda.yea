@@ -1,4 +1,4 @@
-id: 0.standalone.01-basic
+id: 0.standalone.02-pytorch_cuda
 tag:
   shard: standalone-gpu
   platforms:
@@ -9,6 +9,5 @@ plugin:
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
-  - :wandb:runs[0][summary]:
-      cuda_available: True
+  - :wandb:runs[0][summary][cuda_available]: True
   - :wandb:runs[0][exitcode]: 0
