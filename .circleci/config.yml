@@ -737,6 +737,7 @@ workflows:
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_cpu"
           pod_name: "cpu-pod"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
           notify_on_failure: true
       - cloud_test:
@@ -746,6 +747,7 @@ workflows:
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_gpu"
           pod_name: "gpu-pod"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
           notify_on_failure: true
       - slack_notify:
