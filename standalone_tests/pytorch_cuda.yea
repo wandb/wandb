@@ -1,6 +1,6 @@
 id: 0.standalone.pytorch_cuda
 tag:
-  shard: standalone-gpu
+  shard: standalone-gpuz
   platforms:
     - linux
     - mac
@@ -11,3 +11,6 @@ assert:
   - :wandb:runs[0][config]: {}
   - :wandb:runs[0][summary][cuda_available]: True
   - :wandb:runs[0][exitcode]: 0
+  - :op:==:
+      - :wandb:runs[0][summary][host_tensor]
+      - :wandb:runs[0][summary][cuda_tensor]

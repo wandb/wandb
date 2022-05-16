@@ -1,6 +1,8 @@
 id: 0.standalone.basic
 tag:
-  shard: standalone-cpu
+  shards:
+    - standalone-cpu
+    - standalone-gpu
   platforms:
     - linux
     - mac
