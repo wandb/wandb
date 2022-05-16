@@ -717,6 +717,7 @@ workflows:
           message: ":runner: *Standalone run started!*"
       # build docker images for yea shards
       - sdk_docker:
+          name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
           path: "./standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
@@ -728,7 +729,7 @@ workflows:
       # run the tests
       - test_gpu:
           requires:
-            - sdk_docker
+            - "build-gpu-docker-image"
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_gpu"
           context: slack-secrets
