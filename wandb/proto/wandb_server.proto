@@ -127,6 +127,30 @@ message ServerInformTeardownRequest {
 message ServerInformTeardownResponse {
 }
 
+message ServerInformConsoleDataRequest {
+  string output_type = 1;
+  string output_data = 2;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformConsoleDataResponse {
+}
+
+message ServerInformConsoleStartRequest {
+  string run_id = 1;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformConsoleStartResponse {
+}
+
+message ServerInformConsoleStopRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformConsoleStopResponse {
+}
+
 /*
  * ServerRequest, ServerResponse: used in sock server
  */
@@ -141,6 +165,9 @@ message ServerRequest {
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
+    ServerInformConsoleDataRequest inform_console_data = 9;
+    ServerInformConsoleStartRequest inform_console_start = 10;
+    ServerInformConsoleStopRequest inform_console_stop = 11;
 
   }
 }
@@ -154,6 +181,9 @@ message ServerResponse {
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
+    ServerInformConsoleDataResponse inform_console_data_response = 9;
+    ServerInformConsoleStartResponse inform_console_start_response = 10;
+    ServerInformConsoleStopResponse inform_console_stop_response = 11;
 
   }
 }

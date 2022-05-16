@@ -668,6 +668,9 @@ class _WandbInit:
         if manager:
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
+        if manager:
+            manager._inform_console_start(run_id=self.settings.run_id)
+
         assert backend.interface
         assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)

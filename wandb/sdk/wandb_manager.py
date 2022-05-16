@@ -11,6 +11,7 @@ from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
 
+from wandb.sdk.lib import redirect
 
 if TYPE_CHECKING:
     from wandb.sdk.service import service
@@ -98,6 +99,8 @@ class _Manager:
         self._settings = settings
         self._atexit_lambda = None
         self._hooks = None
+        self._out_redir = None
+        self._err_redir = None
 
         self._service = service._Service(_use_grpc=_use_grpc)
 
@@ -114,13 +117,60 @@ class _Manager:
             assert port
             token = _ManagerToken.from_params(transport=transport, host=host, port=port)
             token.set_environment()
-            self._atexit_setup()
+            self._setup()
 
         self._token = token
 
         port = self._token.port
         svc_iface = self._get_service_interface()
         svc_iface._svc_connect(port=port)
+
+    def _setup(self) -> None:
+        self._atexit_setup()
+        self._console_setup()
+
+    def _redirect_cb(self, name: str, data: str) -> None:
+        # print(f"GO2T {name} {data}")
+        try:
+            self._inform_console_data(name, data)
+        except Exception as e:
+            print("BADBADBAD", e)
+            raise e
+
+    def _redirect_install(self):
+        out_redir = redirect.Redirect(
+            src="stdout",
+            cbs=[
+                lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                ## self._output_writer.write,  # type: ignore
+            ],
+        )
+        err_redir = redirect.Redirect(
+            src="stderr",
+            cbs=[
+                lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                ## self._output_writer.write,  # type: ignore
+            ],
+        )
+        self._out_redir = out_redir
+        self._err_redir = err_redir
+        out_redir.install()
+        err_redir.install()
+
+    def _redirect_uninstall(self):
+        self._out_redir.uninstall()
+        self._err_redir.uninstall()
+        print("uninstalled")
+        self._out_redir = None
+        self._err_redir = None
+
+    def _console_setup(self) -> None:
+        print("DEBUG: console setup")
+        self._redirect_install()
+
+    def _console_teardown(self) -> None:
+        print("DEBUG: console teardown")
+        self._redirect_uninstall()
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
@@ -135,6 +185,7 @@ class _Manager:
         self._teardown(exit_code)
 
     def _teardown(self, exit_code: int) -> None:
+        self._console_teardown()
         if self._atexit_lambda:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
@@ -173,3 +224,15 @@ class _Manager:
     def _inform_teardown(self, exit_code: int) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_teardown(exit_code)
+
+    def _inform_console_data(self, name: str, data: str) -> None:
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_console_data(name, data)
+
+    def _inform_console_start(self, run_id: str) -> None:
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_console_start(run_id=run_id)
+
+    def _inform_console_stop(self) -> None:
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_console_stop()

@@ -75,5 +75,17 @@ class ServiceInterface:
         raise NotImplementedError
 
     @abstractmethod
+    def _svc_inform_console_data(self, name: str, data: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _svc_inform_console_start(self, run_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _svc_inform_console_stop(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def _svc_connect(self, port: int) -> None:
         raise NotImplementedError

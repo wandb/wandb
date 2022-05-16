@@ -96,6 +96,9 @@ class SockClient:
         inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
         inform_teardown: spb.ServerInformTeardownRequest = None,
+        inform_console_data: spb.ServerInformConsoleDataRequest = None,
+        inform_console_start: spb.ServerInformConsoleStartRequest = None,
+        inform_console_stop: spb.ServerInformConsoleStopRequest = None,
     ) -> None:
         server_req = spb.ServerRequest()
         if inform_init:
@@ -108,6 +111,12 @@ class SockClient:
             server_req.inform_finish.CopyFrom(inform_finish)
         elif inform_teardown:
             server_req.inform_teardown.CopyFrom(inform_teardown)
+        elif inform_console_data:
+            server_req.inform_console_data.CopyFrom(inform_console_data)
+        elif inform_console_start:
+            server_req.inform_console_start.CopyFrom(inform_console_start)
+        elif inform_console_stop:
+            server_req.inform_console_stop.CopyFrom(inform_console_stop)
         else:
             raise Exception("unmatched")
         self.send_server_request(server_req)

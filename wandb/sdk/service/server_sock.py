@@ -5,6 +5,7 @@ import time
 from typing import Any, Callable, Dict, Optional
 from typing import TYPE_CHECKING
 
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 
 from .service_base import _pbmap_apply_dict
@@ -94,6 +95,7 @@ class SockServerReadThread(threading.Thread):
         self._sock_client = sock_client
         self._stopped = mux._get_stopped_event()
         self._clients = clients
+        self._console_run_ids = []
 
     def run(self) -> None:
         while not self._stopped.is_set():
@@ -140,6 +142,50 @@ class SockServerReadThread(threading.Thread):
         stream_id = request._info.stream_id
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
+
+    def server_inform_console_data(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_console_data
+        for run_id in self._console_run_ids:
+
+            name = request.output_type
+            data = request.output_data
+            if name == "stdout":
+                otype = pb.OutputRecord.OutputType.STDOUT
+            elif name == "stderr":
+                otype = pb.OutputRecord.OutputType.STDERR
+            else:
+                assert False
+
+            o = pb.OutputRecord(output_type=otype, line=data)
+            o.timestamp.GetCurrentTime()
+            
+            record = pb.Record()
+            record.output.CopyFrom(o)
+
+            stream_id = run_id
+            # print(f"SEND: {stream_id}, {record}")
+            try:
+                iface = self._mux.get_stream(stream_id).interface
+            except Exception as e:
+                # TODO this might happen at shutdown, handle this better
+                continue
+            assert iface.record_q
+            iface.record_q.put(record)
+
+
+    def server_inform_console_start(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_console_start
+        run_id = request.run_id
+        print(f"DEBUG console start {run_id}")
+        # TODO: move this datastructure to mux?
+        if run_id not in self._console_run_ids:
+            self._console_run_ids.append(run_id)
+
+    def server_inform_console_stop(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_console_start
+        stream_id = request._info.stream_id
+        print(f"DEBUG console stop {stream_id}")
+        # TODO
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach
