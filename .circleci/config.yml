@@ -572,14 +572,13 @@ jobs:
           when: always
           no_output_timeout: "10m"
 
-  test_gpu:
+  cloud_test:
     parameters:
       cluster:
         type: string
         default: << pipeline.parameters.gcp_cluster_name >>
       image_name:
         type: string
-        default: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
       path:
         type: string
       pod_config_name:
@@ -587,7 +586,6 @@ jobs:
         default: pod.yaml
       pod_name: # same as in <path>/pod.yaml
         type: string
-        default: "gpu-pod"
       sleep_time:  # time in seconds to wait before re-checking pod status
         type: integer
         default: 5
@@ -732,26 +730,30 @@ workflows:
           requires:
             - spin_up_cluster
       # run the tests
-      - test_cpu:
+      - cloud_test:
+          name: "cloud-test-cpu"
           requires:
             - "build-cpu-docker-image"
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_cpu"
+          pod_name: "cpu-pod"
           context: slack-secrets
           notify_on_failure: true
-      - test_gpu:
+      - cloud_test:
+          name: "cloud-test-gpu"
           requires:
             - "build-gpu-docker-image"
             - spin_up_cluster
           path: "./standalone_tests/shards/gke_gpu"
+          pod_name: "gpu-pod"
           context: slack-secrets
           notify_on_failure: true
       - slack_notify:
           name: "slack-notify-on-success"
           context: slack-secrets
           requires:
-            - test_cpu
-            - test_gpu
+            - "cloud-test-cpu"
+            - "cloud-test-gpu"
             - shut_down_cluster
           message: ":runner: *Standalone run successfully finished!*"
 #      - test:
