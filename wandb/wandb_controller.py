@@ -71,7 +71,7 @@ import yaml
 
 
 sweeps = get_module(
-    "wandb.sweeps",
+    "sweeps",
     required="wandb[sweeps] is required to use the local controller. "
     "Please run `pip install wandb[sweeps]`.",
 )

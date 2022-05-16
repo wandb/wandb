@@ -11,7 +11,7 @@ with open("package_readme.md") as readme_file:
 with open("requirements.txt") as requirements_file:
     requirements = requirements_file.read().splitlines()
 
-with open("requirements.sweeps.txt") as sweeps_requirements_file:
+with open("requirements_sweeps.txt") as sweeps_requirements_file:
     sweeps_requirements = sweeps_requirements_file.read().splitlines()
 
 
@@ -46,7 +46,7 @@ launch_requirements = [
 
 setup(
     name="wandb",
-    version="0.12.16.dev1",
+    version="0.12.17.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

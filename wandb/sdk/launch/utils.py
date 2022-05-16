@@ -16,6 +16,7 @@ from wandb.errors import CommError, ExecutionError, LaunchError
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
 _VALID_IP_REGEX = r"^https?://[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?"
+_VALID_PIP_PACKAGE_REGEX = r"^[a-zA-Z0-9_.-]+$"
 _VALID_WANDB_REGEX = r"^https?://(api.)?wandb"
 _WANDB_URI_REGEX = re.compile(r"|".join([_VALID_WANDB_REGEX, _VALID_IP_REGEX]))
 _WANDB_QA_URI_REGEX = re.compile(
@@ -262,6 +263,98 @@ def download_wandb_python_deps(
                 file.write(data)
         return "requirements.frozen.txt"
     return None
+
+
+def get_local_python_deps(
+    dir: str, filename: str = "requirements.local.txt"
+) -> Optional[str]:
+    try:
+        env = os.environ
+        with open(os.path.join(dir, filename), "w") as f:
+            subprocess.call(["pip", "freeze"], env=env, stdout=f)
+        return filename
+    except subprocess.CalledProcessError as e:
+        wandb.termerror(f"Command failed: {e}")
+        return None
+
+
+def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
+    """Returns a list of pip requirements that are not in req_1 but are in req_2."""
+
+    def _parse_req(req: List[str]) -> Dict[str, str]:
+        # TODO: This can be made more exhaustive, but for 99% of cases this is fine
+        # see https://pip.pypa.io/en/stable/reference/requirements-file-format/#example
+        d: Dict[str, str] = dict()
+        for line in req:
+            _name: str = None  # type: ignore
+            _version: str = None  # type: ignore
+            if line.startswith("#"):  # Ignore comments
+                continue
+            elif "git+" in line or "hg+" in line:
+                _name = line.split("#egg=")[1]
+                _version = line.split("@")[-1].split("#")[0]
+            elif "==" in line:
+                _s = line.split("==")
+                _name = _s[0].lower()
+                _version = _s[1].split("#")[0].strip()
+            elif ">=" in line:
+                _s = line.split(">=")
+                _name = _s[0].lower()
+                _version = _s[1].split("#")[0].strip()
+            elif ">" in line:
+                _s = line.split(">")
+                _name = _s[0].lower()
+                _version = _s[1].split("#")[0].strip()
+            elif re.match(_VALID_PIP_PACKAGE_REGEX, line) is not None:
+                _name = line
+            else:
+                raise ValueError(f"Unable to parse pip requirements file line: {line}")
+            if _name is not None:
+                assert re.match(
+                    _VALID_PIP_PACKAGE_REGEX, _name
+                ), f"Invalid pip package name {_name}"
+                d[_name] = _version
+        return d
+
+    # Use symmetric difference between dict representation to print errors
+    try:
+        req_1_dict: Dict[str, str] = _parse_req(req_1)
+        req_2_dict: Dict[str, str] = _parse_req(req_2)
+    except (AssertionError, ValueError, IndexError, KeyError) as e:
+        raise LaunchError(f"Failed to parse pip requirements: {e}")
+    diff: List[Tuple[str, str]] = []
+    for item in set(req_1_dict.items()) ^ set(req_2_dict.items()):
+        diff.append(item)
+    # Parse through the diff to make it pretty
+    pretty_diff: Dict[str, str] = {}
+    for name, version in diff:
+        if pretty_diff.get(name) is None:
+            pretty_diff[name] = version
+        else:
+            pretty_diff[name] = f"v{version} and v{pretty_diff[name]}"
+    return pretty_diff
+
+
+def validate_wandb_python_deps(
+    entity: str, project: str, run_name: str, api: Api, dir: str
+) -> None:
+    """Warns if local python dependencies differ from wandb requirements.txt"""
+
+    _requirements_file = download_wandb_python_deps(entity, project, run_name, api, dir)
+    if _requirements_file is not None:
+        _requirements_file = os.path.join(dir, _requirements_file)
+        with open(_requirements_file) as f:
+            wandb_python_deps: List[str] = f.read().splitlines()
+
+        _requirements_file = get_local_python_deps(dir)
+        if _requirements_file is not None:
+            _requirements_file = os.path.join(dir, _requirements_file)
+            with open(_requirements_file) as f:
+                local_python_deps: List[str] = f.read().splitlines()
+
+            diff_pip_requirements(wandb_python_deps, local_python_deps)
+            return
+    _logger.warning("Unable to validate local python dependencies")
 
 
 def fetch_project_diff(
