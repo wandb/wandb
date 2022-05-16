@@ -1687,6 +1687,7 @@ class Api:
         }
         """
         )
+        # TODO(hupo): Trace agent path
         if entity is None:
             entity = self.settings("entity")
         if project_name is None:
@@ -1746,7 +1747,7 @@ class Api:
         }
         """
         )
-
+        # TODO(hupo): Trace agent path
         if agent_id is None:
             raise ValueError("Cannot call heartbeat with an unregistered agent.")
 

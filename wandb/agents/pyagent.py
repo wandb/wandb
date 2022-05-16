@@ -83,6 +83,7 @@ class Agent:
     def __init__(
         self, sweep_id=None, project=None, entity=None, function=None, count=None
     ):
+        # TODO(hupo): Trace agent path
         self._sweep_path = sweep_id
         self._sweep_id = None
         self._project = project
@@ -338,6 +339,7 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         project (str, optional): W&B Project
         count (int, optional): the number of trials to run.
     """
+    # TODO(hupo): Trace agent path
     if not callable(function):
         raise Exception("function paramter must be callable!")
     agent = Agent(

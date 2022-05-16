@@ -1202,6 +1202,7 @@ def agent(ctx, project, entity, count, sweep_id):
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
+    #TODO: Add launch command, divert into launch agent here?
     wandb.termlog("Starting wandb agent 🕵️")
     wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 
