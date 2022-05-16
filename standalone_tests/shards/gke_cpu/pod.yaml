@@ -10,10 +10,8 @@ spec:
       env:
         - name: WANDB_API_KEY
           value: WANDB_API_KEY_PLACEHOLDER
-  #    command: ["tail", "-f", "/dev/null"]
-      # do not restart the container if it exits
+#      command: ["tail", "-f", "/dev/null"]
       resources:
         limits:
-          nvidia.com/gpu: 1 # requesting 1 GPU
-  #    ports:
-  #    - containerPort: 80
+          cpu: 2
+          nvidia.com/gpu: 1
