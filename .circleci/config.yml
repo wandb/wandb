@@ -193,18 +193,6 @@ commands:
             --num-nodes=<< parameters.num_nodes >> --machine-type=<< parameters.machine_type >> \
             --disk-size=<< parameters.disk_size >> --disk-type=<< parameters.disk_type >> \
             --accelerator=type=<< parameters.gpu_type >>,count=<< parameters.gpu_count >>
-#            list gpus available in zone:
-#            gcloud compute accelerator-types list | grep us-central1
-#            TPU support
-#           gcloud beta container clusters update cluster-name --enable-tpu
-#           gcloud container clusters get-credentials
-#            TPU support
-#            --release-channel=stable \
-#            --scopes=cloud-platform \
-#            --enable-ip-alias \
-#            --enable-tpu
-#            e2-medium
-#            --accelerator=type=nvidia-tesla-k80,count=1
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
           no_output_timeout: << parameters.no-output-timeout>>
@@ -591,6 +579,9 @@ jobs:
         default: 5
       notify_on_failure:
         type: boolean
+        default: true
+      notify_on_success:
+        type: boolean
         default: false
     docker:
       - image: 'cimg/base:stable'
@@ -664,13 +655,21 @@ jobs:
           command: |
             kubectl get pods
             kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
-      # conditionally post a notification to slack if the job failed
+      # conditionally post a notification to slack if the job failed/succeeded
       - when:
           condition: << parameters.notify_on_failure >>
           steps:
             - slack/notify:
                 event: fail
                 template: basic_fail_1
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+      - when:
+          condition: << parameters.notify_on_success >>
+          steps:
+            - slack/notify:
+                event: success
+                template: basic_success_1
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
@@ -722,6 +721,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
           notify_on_failure: true
+          notify_on_success: true
       - cloud_test:
           name: "cloud-test-gpu"
           requires:
@@ -732,6 +732,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
           notify_on_failure: true
+          notify_on_success: true
       - slack_notify:
           name: "slack-notify-on-success"
           context: slack-secrets
@@ -787,6 +788,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
           notify_on_failure: true
+          notify_on_success: true
       - cloud_test:
           name: "cloud-test-gpu"
           requires:
@@ -797,6 +799,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
           notify_on_failure: true
+          notify_on_success: true
       - slack_notify:
           name: "slack-notify-on-success"
           context: slack-secrets
