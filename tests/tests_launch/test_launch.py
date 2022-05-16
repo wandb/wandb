@@ -1344,7 +1344,7 @@ def test_launch_build_config_file(
     runner, mocked_fetchable_git_repo, test_settings, monkeypatch
 ):
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.local.LocalRunner,
+        wandb.sdk.launch.runner.local.LocalContainerRunner,
         "run",
         lambda *args, **kwargs: (args, kwargs),
     )
