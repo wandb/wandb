@@ -1,6 +1,6 @@
 id: 0.standalone.pytorch_cuda
 tag:
-  shard: standalone-gpuz
+  shard: standalone-gpu
   platforms:
     - linux
     - mac
