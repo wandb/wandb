@@ -719,13 +719,19 @@ workflows:
           description: "SDK Docker image for CPU testing"
           path: "./standalone_tests/shards/gke_cpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+          requires:
+            - "slack-notify-on-start"
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
           path: "./standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+          requires:
+            - "slack-notify-on-start"
       # manage the gke cluster
-      - spin_up_cluster
+      - spin_up_cluster:
+          requires:
+            - "slack-notify-on-start"
       - shut_down_cluster:
           requires:
             - spin_up_cluster
