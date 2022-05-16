@@ -1,4 +1,4 @@
-id: 0.standalone.02-pytorch_cuda
+id: 0.standalone.pytorch_cuda
 tag:
   shard: standalone-gpu
   platforms:

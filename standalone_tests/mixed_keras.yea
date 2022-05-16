@@ -1,4 +1,4 @@
-id: 0.standalone.03-mixed-keras
+id: 0.standalone.mixed-keras
 tag:
   shard: standalone-gpu
   platforms:

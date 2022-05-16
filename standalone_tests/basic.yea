@@ -1,6 +1,6 @@
-id: 0.standalone.01-basic
+id: 0.standalone.basic
 tag:
-  shard: standalone-gpu
+  shard: standalone-cpu
   platforms:
     - linux
     - mac
