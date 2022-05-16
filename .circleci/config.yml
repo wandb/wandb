@@ -608,7 +608,7 @@ jobs:
           command: |
             while true; do
               kubectl get pods
-              pod_state=$(kubectl get pods | grep << parameters.image_name >>)
+              pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
               if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is ready"
                 exit 0
@@ -631,7 +631,7 @@ jobs:
             
             while true; do
               kubectl get pods
-              pod_state=$(kubectl get pods | grep << parameters.image_name >>)
+              pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
               if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is running"
               elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
