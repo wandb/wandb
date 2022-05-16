@@ -1,14 +1,16 @@
-import pandas as pd
+import pathlib
+
 import numpy as np
-import wandb
+import pandas as pd
 from sklearn.metrics import confusion_matrix
+import wandb
 
 
 def main():
-    wandb.init()
+    wandb.init(name=__file__)
 
     # Get a pandas DataFrame object of all the data in the csv file:
-    df = pd.read_csv("tweets.csv")
+    df = pd.read_csv(pathlib.Path(__file__).parent.resolve() / "tweets.csv")
 
     # Get pandas Series object of the "tweet text" column:
     text = df["tweet_text"]
