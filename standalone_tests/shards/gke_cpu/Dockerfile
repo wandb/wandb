@@ -1,10 +1,4 @@
-FROM nvidia/cuda:11.3.1-runtime-ubuntu20.04
-
-# todo: rm once nvidia updates their docker images
-RUN apt-key adv --fetch-keys \
-    https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub 3
-RUN apt-key adv --fetch-keys \
-    https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
+FROM ubuntu:20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -52,4 +46,4 @@ RUN PATH=/home/sdk/.local/bin:$PATH
 WORKDIR /wandb/client
 ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
-CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py38"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-cpu-py38"]

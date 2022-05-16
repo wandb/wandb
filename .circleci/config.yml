@@ -158,7 +158,7 @@ commands:
       machine_type:
         description: "GKE cluster machine type"
         type: string
-        default: "n1-standard-2"
+        default: "n1-standard-4"
       disk_size:
         description: "GKE cluster disk size"
         type: integer
