@@ -561,6 +561,7 @@ class InterfaceBase:
     ) -> None:
         run = run or self._run
         data = history_dict_to_json(run, data, step=step)
+        logger.info("publishing history: %d", data["global_step"])
         history = pb.HistoryRecord()
         if publish_step:
             assert step is not None

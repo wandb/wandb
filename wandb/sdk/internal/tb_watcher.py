@@ -166,6 +166,7 @@ class TBWatcher:
         tbdir_watcher.start()
 
     def finish(self) -> None:
+        logger.info("shutting down TBWatcher")
         for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.shutdown()
         for tbdirwatcher in self._logdirs.values():
@@ -272,6 +273,7 @@ class TBDirWatcher:
                 time.sleep(ERROR_DELAY)
 
     def _thread_except_body(self) -> None:
+        time.sleep(0.1)
         try:
             self._thread_body()
         except Exception as e:
@@ -305,6 +307,7 @@ class TBDirWatcher:
     def shutdown(self) -> None:
         self._process_events(shutdown_call=True)
         self._shutdown.set()
+        logger.info("shutting down TBDirWatcher")
 
     def finish(self) -> None:
         self.shutdown()
@@ -365,6 +368,7 @@ class TBEventConsumer:
     def finish(self) -> None:
         self._delay = 0
         self._shutdown.set()
+        logger.info("shutting down TBEventConsumer")
         try:
             event = self._queue.get(True, 1)
         except queue.Empty:
