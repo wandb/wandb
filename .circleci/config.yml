@@ -717,6 +717,11 @@ workflows:
           message: ":runner: *Standalone run started!*"
       # build docker images for yea shards
       - sdk_docker:
+          name: "build-cpu-docker-image"
+          description: "SDK Docker image for CPU testing"
+          path: "./standalone_tests/shards/gke_cpu"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+      - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
           path: "./standalone_tests/shards/gke_gpu"
@@ -727,6 +732,13 @@ workflows:
           requires:
             - spin_up_cluster
       # run the tests
+      - test_cpu:
+          requires:
+            - "build-cpu-docker-image"
+            - spin_up_cluster
+          path: "./standalone_tests/shards/gke_cpu"
+          context: slack-secrets
+          notify_on_failure: true
       - test_gpu:
           requires:
             - "build-gpu-docker-image"
@@ -738,6 +750,7 @@ workflows:
           name: "slack-notify-on-success"
           context: slack-secrets
           requires:
+            - test_cpu
             - test_gpu
             - shut_down_cluster
           message: ":runner: *Standalone run successfully finished!*"
@@ -745,9 +758,6 @@ workflows:
 #          name: "code-check"
 #          image: "python:3.6"
 #          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
-#          # fixme: this is here for testing, remove it
-#          context: slack-secrets
-#          notify_on_failure: true
 #      - test:
 #          name: "unit-s_base-lin-py36"
 #          image: "python:3.6"
