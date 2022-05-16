@@ -608,13 +608,14 @@ jobs:
           command: |
             while true; do
               kubectl get pods
-              if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
+              pod_state=$(kubectl get pods | grep << parameters.image_name >>)
+              if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is ready"
                 exit 0
-              elif [ "$(kubectl get pods | grep -c 'Completed')" -eq "1" ]; then
+              elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> has completed"
                 exit 0
-              elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+              elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(echo "$pod_state" | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is in an error state"
                 kubectl logs << parameters.pod_name >>
                 exit 1
@@ -630,16 +631,19 @@ jobs:
             
             while true; do
               kubectl get pods
-              if [ "$(kubectl get pods | grep -c 'Running')" -eq "1" ]; then
+              pod_state=$(kubectl get pods | grep << parameters.image_name >>)
+              if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is running"
-              elif [ "$(kubectl get pods | grep -c 'Completed')" -eq "1" ]; then
+              elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> has completed"
                 break
-              elif [ "$(kubectl get pods | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+              elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                 echo "Pod for << parameters.image_name >> is in an error state"
                 kubectl logs << parameters.pod_name >>
                 exit 1
               fi
+              echo "Sleeping for << parameters.sleep_time >> seconds"
+              echo
               sleep << parameters.sleep_time >>
             done
             
@@ -687,6 +691,7 @@ workflows:
       - slack_notify:
           name: "slack-notify-on-start"
           context: slack-secrets
+          # todo? add a link to the pipeline in the message
           message: ":runner: *Nightly run started!*"
       # build docker images for yea shards
       - sdk_docker:

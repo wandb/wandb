@@ -13,4 +13,6 @@ spec:
 #      command: ["tail", "-f", "/dev/null"]
       resources:
         limits:
-          cpu: 2
+          cpu: 1.999
+        requests:
+          cpu: 1.0
