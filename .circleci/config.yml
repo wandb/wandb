@@ -672,7 +672,7 @@ jobs:
           condition: << parameters.notify_on_success >>
           steps:
             - slack/notify:
-                event: success
+                event: pass
                 template: basic_success_1
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
