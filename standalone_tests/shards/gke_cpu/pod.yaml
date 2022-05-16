@@ -10,7 +10,7 @@ spec:
       env:
         - name: WANDB_API_KEY
           value: WANDB_API_KEY_PLACEHOLDER
-      command: ["tail", "-f", "/dev/null"]
+#      command: ["tail", "-f", "/dev/null"]
       resources:
         limits:
           cpu: 1.999
