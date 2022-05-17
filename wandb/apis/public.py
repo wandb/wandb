@@ -15,6 +15,7 @@ import datetime
 from functools import partial
 import json
 import logging
+from multiprocessing.sharedctypes import Value
 import os
 import platform
 import re
@@ -2092,7 +2093,7 @@ class QueuedRun(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_queue_item_id, attrs={}):
+    def __init__(self, client, entity, project, queued_id, run_queue_item_id, attrs={}):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
@@ -2100,7 +2101,7 @@ class QueuedRun(Attrs):
         self.client = client
         self._entity = entity
         self.project = project
-        self._files = {}
+        self.queue_id = queue_id
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.run_queue_item_id = run_queue_item_id
         self.sweep = None
@@ -2109,7 +2110,6 @@ class QueuedRun(Attrs):
             os.makedirs(self.dir)
         except OSError:
             pass
-        self._summary = None
         self._state = attrs.get("state", "not found")
         self._run = None
 
@@ -2134,78 +2134,47 @@ class QueuedRun(Attrs):
     def storage_id(self):
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
-        if self._attrs.get("id"):
-            return self._attrs.get("id")
-        elif self._run is not None:
+        if self._run is not None:
             return self._run._attrs.get("id")
+        elif self._attrs.get("id"):
+            return self._attrs.get("id")
+        
         raise ValueError("Run not found")
 
     @property
     def id(self):
-        if self._attrs.get("name"):
+        if self._run is not None:
+            return self._run._attrs.get("name")
+        elif self._attrs.get("name"):
             return self._attrs.get("name")
-        elif self._run is not None:
-            
-        return self._attrs.get("name")
+        
+        raise ValueError("Run not found")
 
     @id.setter
     def id(self, new_id):
-        attrs = self._attrs
+        if self._run is None:
+            raise ValueError("Run not found")
+
+        attrs = self._run._attrs
         attrs["name"] = new_id
         return new_id
 
     @property
     def name(self):
-        return self._attrs.get("displayName")
+        if self._run is None:
+            raise ValueError("Run not found")
+        return self._run._attrs.get("displayName")
 
     @name.setter
     def name(self, new_name):
-        self._attrs["displayName"] = new_name
+        if self._run is None:
+            raise ValueError("Run not found")
+        self._run._attrs["displayName"] = new_name
         return new_name
 
-    @classmethod
-    def create(cls, api, run_id=None, project=None, entity=None):
-        """Create a run for the given project"""
-        run_id = run_id or util.generate_id()
-        project = project or api.settings.get("project") or "uncategorized"
-        mutation = gql(
-            """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name}) {
-                bucket {
-                    project {
-                        name
-                        entity { name }
-                    }
-                    id
-                    name
-                }
-                inserted
-            }
-        }
-        """
-        )
-        variables = {"entity": entity, "project": project, "name": run_id}
-        res = api.client.execute(mutation, variable_values=variables)
-        res = res["upsertBucket"]["bucket"]
-        return Run(
-            api.client,
-            res["project"]["entity"]["name"],
-            res["project"]["name"],
-            res["name"],
-            {
-                "id": res["id"],
-                "config": "{}",
-                "systemMetrics": "{}",
-                "summaryMetrics": "{}",
-                "tags": [],
-                "description": None,
-                "notes": None,
-                "state": "running",
-            },
-        )
-
     def load(self, force=False):
+        if self._run is None:
+            raise ValueError("Run not found")
         query = gql(
             """
         query Run($project: String!, $entity: String!, $name: String!) {
@@ -2219,7 +2188,7 @@ class QueuedRun(Attrs):
         """
             % RUN_FRAGMENT
         )
-        if force or not self._attrs:
+        if force or not self._run._attrs:
             response = self._exec(query)
             if (
                 response is None
@@ -2230,10 +2199,10 @@ class QueuedRun(Attrs):
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
 
-            if self.sweep_name and not self.sweep:
+            if self._run.sweep_name and not self._run.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
-                self.sweep = Sweep.get(
+                self._run.sweep = Sweep.get(
                     self.client,
                     self.entity,
                     self.project,
@@ -2241,30 +2210,30 @@ class QueuedRun(Attrs):
                     withRuns=False,
                 )
 
-        self._attrs["summaryMetrics"] = (
-            json.loads(self._attrs["summaryMetrics"])
-            if self._attrs.get("summaryMetrics")
+        self._run._attrs["summaryMetrics"] = (
+            json.loads(self._run._attrs["summaryMetrics"])
+            if self._run._attrs.get("summaryMetrics")
             else {}
         )
-        self._attrs["systemMetrics"] = (
-            json.loads(self._attrs["systemMetrics"])
-            if self._attrs.get("systemMetrics")
+        self._run._attrs["systemMetrics"] = (
+            json.loads(self._run._attrs["systemMetrics"])
+            if self._run._attrs.get("systemMetrics")
             else {}
         )
-        if self._attrs.get("user"):
-            self.user = User(self.client, self._attrs["user"])
+        if self._run._attrs.get("user"):
+            self._run.user = User(self.client, self._run._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in json.loads(self._attrs.get("config") or "{}").items():
+        for key, value in json.loads(self._run._attrs.get("config") or "{}").items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
             else:
                 config[key] = value
         config_raw.update(config_user)
-        self._attrs["config"] = config_user
-        self._attrs["rawconfig"] = config_raw
-        return self._attrs
-
+        self._run._attrs["config"] = config_user
+        self._run._attrs["rawconfig"] = config_raw
+        return self._run._attrs
+    # TODO: FIX
     @normalize_exceptions
     def wait_until_finished(self):
         query = gql(
@@ -2293,6 +2262,8 @@ class QueuedRun(Attrs):
         """
         Persists changes to the run object to the wandb backend.
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         mutation = gql(
             """
         mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
@@ -2308,69 +2279,95 @@ class QueuedRun(Attrs):
         )
         _ = self._exec(
             mutation,
-            id=self.storage_id,
-            tags=self.tags,
-            description=self.description,
-            notes=self.notes,
-            display_name=self.display_name,
-            config=self.json_config,
-            groupName=self.group,
+            id=self._run.storage_id,
+            tags=self._run.tags,
+            description=self._run.description,
+            notes=self._run.notes,
+            display_name=self._run.display_name,
+            config=self._run.json_config,
+            groupName=self._run.group,
         )
-        self.summary.update()
+        self._run.summary.update()
 
     @normalize_exceptions
     def delete(self, delete_artifacts=False):
         """
         Deletes the given run from the wandb backend.
         """
-        mutation = gql(
-            """
-            mutation DeleteRun(
-                $id: ID!,
-                %s
-            ) {
-                deleteRun(input: {
-                    id: $id,
-                    %s
-                }) {
-                    clientMutationId
+        if self._run is None:
+            mutation = gql(
+                """
+                mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!) 
+                {
+                    deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+                        success
+                        clientMutationId
+                    }
                 }
-            }
-        """
-            %
-            # Older backends might not support the 'deleteArtifacts' argument,
-            # so only supply it when it is explicitly set.
-            (
-                "$deleteArtifacts: Boolean" if delete_artifacts else "",
-                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+                """)
+            self.client.execute(
+                mutation,
+                variable_values={
+                    "queueID": self.queue_id,
+                    "runQueueItemID": self.run_queue_item_id,
+                },
             )
-        )
+        else:
+            mutation = gql(
+                """
+                mutation DeleteRun(
+                    $id: ID!,
+                    %s
+                ) {
+                    deleteRun(input: {
+                        id: $id,
+                        %s
+                    }) {
+                        clientMutationId
+                    }
+                }
+            """
+                %
+                # Older backends might not support the 'deleteArtifacts' argument,
+                # so only supply it when it is explicitly set.
+                (
+                    "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                    "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+                )
+            )
 
-        self.client.execute(
-            mutation,
-            variable_values={
-                "id": self.storage_id,
-                "deleteArtifacts": delete_artifacts,
-            },
-        )
+            self.client.execute(
+                mutation,
+                variable_values={
+                    "id": self.storage_id,
+                    "deleteArtifacts": delete_artifacts,
+                },
+            )
 
     def save(self):
-        self.update()
+        if self._run is None:
+            raise ValueError("Run not found")
+        self._run.update()
 
     @property
     def json_config(self):
+        if self._run is None:
+            raise ValueError("Run not found")
         config = {}
-        for k, v in self.config.items():
+        for k, v in self._run.config.items():
             config[k] = {"value": v, "desc": None}
         return json.dumps(config)
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
-        variables = {"entity": self.entity, "project": self.project, "name": self.id}
-        variables.update(kwargs)
+        if self._run is not None:
+            variables = {"entity": self._run.entity, "project": self._run.project, "name": self._run.id}
+            variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
 
     def _sampled_history(self, keys, x_axis="_step", samples=500):
+        if self._run is None:
+            raise ValueError("Run not found")
         spec = {"keys": [x_axis] + keys, "samples": samples}
         query = gql(
             """
@@ -2387,6 +2384,8 @@ class QueuedRun(Attrs):
         return response["project"]["run"]["sampledHistory"][0]
 
     def _full_history(self, samples=500, stream="default"):
+        if self._run is None:
+            raise ValueError("Run not found")
         node = "history" if stream == "default" else "events"
         query = gql(
             """
@@ -2412,6 +2411,8 @@ class QueuedRun(Attrs):
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         return Files(self.client, self, names, per_page)
 
     @normalize_exceptions
@@ -2423,6 +2424,8 @@ class QueuedRun(Attrs):
         Returns:
             A `File` matching the name argument.
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         return Files(self.client, self, [name])[0]
 
     @normalize_exceptions
@@ -2437,16 +2440,18 @@ class QueuedRun(Attrs):
         Returns:
             A `File` matching the name argument.
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
+            default_settings={"entity": self._run.entity, "project": self._run.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
-        api.set_current_run_id(self.id)
+        api.set_current_run_id(self._run.id)
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
         with open(os.path.join(root, name), "rb") as f:
             api.push({util.to_forward_slash_path(name): f})
-        return Files(self.client, self, [name])[0]
+        return Files(self.client, self._run, [name])[0]
 
     @normalize_exceptions
     def history(
@@ -2467,6 +2472,8 @@ class QueuedRun(Attrs):
             If pandas=True returns a `pandas.DataFrame` of history metrics.
             If pandas=False returns a list of dicts of history metrics.
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         if keys is not None and not isinstance(keys, list):
             wandb.termerror("keys must be specified in a list")
             return []
@@ -2511,6 +2518,8 @@ class QueuedRun(Attrs):
         Returns:
             An iterable collection over history records (dict).
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         if keys is not None and not isinstance(keys, list):
             wandb.termerror("keys must be specified in a list")
             return []
@@ -2529,7 +2538,7 @@ class QueuedRun(Attrs):
             max_step = last_step + 1
         if keys is None:
             return HistoryScan(
-                run=self,
+                run=self._run,
                 client=self.client,
                 page_size=page_size,
                 min_step=min_step,
@@ -2537,7 +2546,7 @@ class QueuedRun(Attrs):
             )
         else:
             return SampledHistoryScan(
-                run=self,
+                run=self._run,
                 client=self.client,
                 keys=keys,
                 page_size=page_size,
@@ -2547,11 +2556,15 @@ class QueuedRun(Attrs):
 
     @normalize_exceptions
     def logged_artifacts(self, per_page=100):
-        return RunArtifacts(self.client, self, mode="logged", per_page=per_page)
+        if self._run is None:
+            raise ValueError("Run not found")
+        return RunArtifacts(self.client, self._run, mode="logged", per_page=per_page)
 
     @normalize_exceptions
     def used_artifacts(self, per_page=100):
-        return RunArtifacts(self.client, self, mode="used", per_page=per_page)
+        if self._run is None:
+            raise ValueError("Run not found")
+        return RunArtifacts(self.client, self._run, mode="used", per_page=per_page)
 
     @normalize_exceptions
     def use_artifact(self, artifact, use_as=None):
@@ -2568,11 +2581,13 @@ class QueuedRun(Attrs):
         Returns:
             A `Artifact` object.
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
+            default_settings={"entity": self._run.entity, "project": self._run.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
-        api.set_current_run_id(self.id)
+        api.set_current_run_id(self._run.id)
 
         if isinstance(artifact, Artifact):
             api.use_artifact(artifact.id, use_as=use_as or artifact.name)
@@ -2596,8 +2611,10 @@ class QueuedRun(Attrs):
         Returns:
             A `Artifact` object.
         """
+        if self._run is None:
+            raise ValueError("Run not found")
         api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
+            default_settings={"entity": self._run.entity, "project": self._run.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
@@ -2621,27 +2638,33 @@ class QueuedRun(Attrs):
 
     @property
     def summary(self):
-        if self._summary is None:
+        if self._run is None:
+            raise ValueError("Run not found")
+        if self._run._summary is None:
             # TODO: fix the outdir issue
-            self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
+            self._run._summary = HTTPSummary(self._run, self.client, summary=self._run.summary_metrics)
         return self._summary
 
     @property
     def path(self):
+        if self._run is None:
+            raise ValueError("Run not found")
         return [
-            urllib.parse.quote_plus(str(self.entity)),
-            urllib.parse.quote_plus(str(self.project)),
-            urllib.parse.quote_plus(str(self.id)),
+            urllib.parse.quote_plus(str(self._run.entity)),
+            urllib.parse.quote_plus(str(self._run.project)),
+            urllib.parse.quote_plus(str(self._run.id)),
         ]
 
     @property
     def url(self):
-        path = self.path
+        path = self._run.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
 
     @property
     def lastHistoryStep(self):  # noqa: N802
+        if self._run is None:
+            raise ValueError("Run not found")
         query = gql(
             """
         query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {
@@ -2664,31 +2687,17 @@ class QueuedRun(Attrs):
 
     def to_html(self, height=420, hidden=False):
         """Generate HTML containing an iframe displaying this run"""
-        url = self.url + "?jupyter=true"
+        if self._run is None:
+            raise ValueError("Run not found")
+        url = self._run.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
         if hidden:
             style += "display:none;"
             prefix = ipython.toggle_button()
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
-
-    def _repr_html_(self) -> str:
-        return self.to_html()
-
-    def __repr__(self):
-        return "<Run {} ({})>".format("/".join(self.path), self.state)
-
-class QueuedRun(Run):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super().__init__(dict(attrs))
-        self.client = client
-        self._entity = entity
-        self.project = project
-        self._queue = queue
-        self._run_queue_item_id = run_queue_item_id
-        self._run_id = None
-
-    @normalize_exceptions
+    
+     @normalize_exceptions
     def wait_until_running(self):
         query = gql(
             """
@@ -2735,6 +2744,27 @@ class QueuedRun(Run):
                     except ValueError:
                         continue
             time.sleep(5)
+
+    def _repr_html_(self) -> str:
+
+        return self.to_html()
+
+    def __repr__(self):
+        if self._run is None:
+            return "<QueuedRun {} ({})".format(self.run_queue_item_id, self.queue)
+        return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+class QueuedRun(Run):
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
+        super().__init__(dict(attrs))
+        self.client = client
+        self._entity = entity
+        self.project = project
+        self._queue = queue
+        self._run_queue_item_id = run_queue_item_id
+        self._run_id = None
+
+   
 
     @property
     def run(self):
