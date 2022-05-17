@@ -20,7 +20,7 @@ version = __import__('graphql').get_version()
 
 install_requires = [
     'six>=1.10.0',
-    'promise>=2.0'
+    'promise>=2.3'
 ]
 
 tests_requires = [
