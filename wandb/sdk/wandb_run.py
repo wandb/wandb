@@ -957,7 +957,7 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name or "{}-{}".format("source", self._run_id)
+        name = name or f"source_{self._run_obj.project}_{self._settings.program}"
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -1976,11 +1976,19 @@ class Run:
         return has_repo or self._code_artifact or os.environ.get("WANDB_DOCKER")
 
     def _create_job(self) -> None:
+        artifact = None
         has_repo = self._remote_url is not None and self._last_commit is not None
         if has_repo:
-            self._create_repo_job()
+            artifact = self._create_repo_job()
         elif self._code_artifact:
-            self._create_artifact_job()
+            artifact = self._create_artifact_job()
+
+        if artifact:
+            metadata = artifact.metadata
+            if not metadata:
+                artifact.metadata["config_defaults"] = self.config.as_dict()
+                artifact.save()
+
         # elif os.environ.get("WANDB_DOCKER"):
         # self._create_contaienr_job()
 
@@ -1988,8 +1996,8 @@ class Run:
         """Create a job from a repo"""
         name = f"{self._remote_url}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
-        input_types = self.config
-        output_types = self.summary
+        input_types = config_to_types(self.config)
+        output_types = summary_to_types(self.summary)
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
         if os.path.exists(patch_path):
             job_artifact.add_file(patch_path, "diff.patch")
@@ -2019,8 +2027,9 @@ class Run:
         aname = ca.name.split(":")[0]
         name = f"{aname}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
-        input_types = self.config
-        output_types = self.summary
+        input_types = config_to_types(self.config)
+        print(input_types)
+        output_types = summary_to_types(self.summary)
         requirements_path = os.path.join(self._settings.files_dir, "requirements.txt")
         if os.path.exists(requirements_path):
             job_artifact.add_file(requirements_path)
@@ -2028,6 +2037,7 @@ class Run:
             "source_type": "artifact",
             "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}",
             "entrypoint": self._settings.program_relpath,
+            # "entrypoint2": self._settings.program,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
@@ -2038,14 +2048,17 @@ class Run:
         with job_artifact.new_file("output_types.json") as f:
             f.write(json.dumps(output_types))
 
-        self.log_artifact(job_artifact)
+        artifact = self.log_artifact(job_artifact)
+        artifact.wait()
+
+        return artifact
 
     def _create_docker_job(self) -> None:
         name = os.getenv("WANDB_DOCKER")
         entrypoint = self._settings.program
         job_artifact = wandb.Artifact(name, type="job")
-        input_types = self.config
-        output_types = self.summary
+        input_types = config_to_types(self.config)
+        output_types = summary_to_types(self.summary)
         requirements_path = os.path.join(self._settings.files_dir, "requirements.txt")
         if os.path.exists(requirements_path):
             job_artifact.add_file(requirements_path)
@@ -2056,6 +2069,7 @@ class Run:
                 "source_type": "repo",
                 "remote_url": self._remote_url,
                 "commit": self._last_commit,
+                "entrypoint": entrypoint,
             }
         elif self._code_artifact:
             ca = self._code_artifact.wait()

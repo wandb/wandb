@@ -5,6 +5,7 @@ config.
 import logging
 
 import wandb
+
 from wandb.util import (
     _is_artifact,
     _is_artifact_string,
@@ -244,6 +245,7 @@ class Config:
         if not (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
+            # or isinstance(val, Media)
         ):
             val = json_friendly_val(val)
         if not allow_val_change:

@@ -80,6 +80,7 @@ class TypeRegistry:
 
     @staticmethod
     def type_from_dtype(dtype: ConvertableToType) -> "Type":
+        print("Called type from dtype", dtype)
         # The dtype is already an instance of Type
         if isinstance(dtype, Type):
             wbtype: Type = dtype
@@ -112,10 +113,14 @@ class TypeRegistry:
                 wbtype = UnionType([TypeRegistry.type_from_dtype(dt) for dt in dtype])
 
         # The dtype is a dict, then we resolve the dict notation
+        # TODO: Im a very hot code path, don't mess with me
         elif isinstance(dtype, dict):
-            wbtype = TypedDictType(
-                {key: TypeRegistry.type_from_dtype(dtype[key]) for key in dtype}
-            )
+            if dtype.get("_type"):
+                wbtype = {"_type": dtype["_type"]}
+            else:
+                wbtype = TypedDictType(
+                    {key: TypeRegistry.type_from_dtype(dtype[key]) for key in dtype}
+                )
 
         # The dtype is a concrete instance, which we will treat as a constant
         else:
@@ -865,14 +870,17 @@ class TypedDictType(Type):
 def config_to_types(config):
     """Recursively traverses dictionary converting all values to wandb types."""
     type_dict = {}
-    # return TypeRegistry.type_of
+    return str(TypeRegistry.type_of(config._as_dict()))
     for k, v in config.items():
         if isinstance(v, dict):
+            # if v.get("_type"):
+            #     type_dict[k] = v["_type"]
+            # else:
             type_dict[k] = config_to_types(v)
         elif isinstance(v, list):
-            type_dict[k] = [TypeRegistry.type_of(x) for x in v]
+            type_dict[k] = [str(TypeRegistry.type_of(x)) for x in v]
         else:
-            type_dict[k] = TypeRegistry.type_of(v)
+            type_dict[k] = str(TypeRegistry.type_of(v))
     return type_dict
 
 
@@ -889,9 +897,9 @@ def summary_to_types(summary):
             else:
                 type_dict[k] = dict_to_types(v)
         elif isinstance(v, list):
-            type_dict[k] = [TypeRegistry.type_of(x) for x in v]
+            type_dict[k] = [str(TypeRegistry.type_of(x)) for x in v]
         else:
-            type_dict[k] = TypeRegistry.type_of(v)
+            type_dict[k] = str(TypeRegistry.type_of(v))
     return type_dict
 
 
@@ -906,9 +914,9 @@ def dict_to_types(d):
             else:
                 type_dict[k] = dict_to_types(v)
         elif isinstance(v, list):
-            type_dict[k] = [TypeRegistry.type_of(x) for x in v]
+            type_dict[k] = [str(TypeRegistry.type_of(x)) for x in v]
         else:
-            type_dict[k] = TypeRegistry.type_of(v)
+            type_dict[k] = str(TypeRegistry.type_of(v))
     return type_dict
 
 

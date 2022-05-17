@@ -34,6 +34,8 @@ from wandb.data_types import WBValue
 from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
+import wandb.sdk.data_types._dtypes as _dtypes
+from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
 from wandb_gql import Client, gql
@@ -781,6 +783,29 @@ class Api:
             )
         return artifact
 
+    @normalize_exceptions
+    def job(self, name):
+        if name is None:
+            raise ValueError("You must specify name= to fetch a job.")
+        entity, project, job_name = self._parse_artifact_path(name)
+        job_artifact = self.artifact(name, type="job")
+        fpath = job_artifact.download()
+        input_types = None
+        output_types = None
+        config_defaults = None
+        with open(os.path.join(fpath, "input_types.json"), "r") as f:
+            config = json.load(f)
+            input_types = config.get("type")
+        with open(os.path.join(fpath, "source_info.json")) as f:
+            source_info = json.load(f)
+        with open(os.path.join(fpath, "output_types.json")) as f:
+            output_types = json.load(f)
+        config_defaults = job_artifact.metadata.get("config_defaults")
+        if source_info.get("source_type") == "artifact":
+            return ArtifactJob(name, source_info, job_artifact, input_types, config_defaults, output_types)
+        # if source_info.get("source_type") == "repo":
+        #     return RepoJob(self._client, name)
+
 
 class Attrs:
     def __init__(self, attrs):
@@ -1439,70 +1464,6 @@ class Runs(Paginator):
         return f"<Runs {self.entity}/{self.project}>"
 
 
-class QueuedJob(Attrs):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super().__init__(dict(attrs))
-        self.client = client
-        self._entity = entity
-        self.project = project
-        self._queue = queue
-        self._run_queue_item_id = run_queue_item_id
-        self._run_id = None
-
-    @normalize_exceptions
-    def wait_until_running(self):
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    resultingRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        variable_values = {
-            "projectName": self.project,
-            "entityName": self._entity,
-            "runQueue": self._queue,
-        }
-
-        while True:
-            res = self.client.execute(query, variable_values)
-            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-                if (
-                    item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["resultingRunId"] is not None
-                ):
-                    # TODO: this should be changed once the ack occurs within the docker container.
-                    try:
-                        Run(
-                            self.client,
-                            self._entity,
-                            self.project,
-                            item["node"]["resultingRunId"],
-                        )
-                        self._run_id = item["node"]["resultingRunId"]
-                        return
-                    except ValueError:
-                        continue
-            time.sleep(5)
-
-    @property
-    def run(self):
-        if self._run_id is None:
-            raise LaunchError("Tried to fetch run without having run_id")
-        return Run(self.client, self._entity, self.project, self._run_id)
-
 
 class Run(Attrs):
     """
@@ -2104,6 +2065,682 @@ class Run(Attrs):
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+
+class QueuedRun(Attrs):
+    """
+    A single run associated with an entity and project.
+
+    Attributes:
+        tags ([str]): a list of tags associated with the run
+        url (str): the url of this run
+        id (str): unique identifier for the run (defaults to eight characters)
+        name (str): the name of the run
+        state (str): one of: running, finished, crashed, killed, preempting, preempted
+        config (dict): a dict of hyperparameters associated with the run
+        created_at (str): ISO timestamp when the run was started
+        system_metrics (dict): the latest system metrics recorded for the run
+        summary (dict): A mutable dict-like property that holds the current summary.
+                    Calling update will persist any changes.
+        project (str): the project associated with the run
+        entity (str): the name of the entity associated with the run
+        user (str): the name of the user who created the run
+        path (str): Unique identifier [entity]/[project]/[run_id]
+        notes (str): Notes about the run
+        read_only (boolean): Whether the run is editable
+        history_keys (str): Keys of the history metrics that have been logged
+            with `wandb.log({key: value})`
+    """
+
+    def __init__(self, client, entity, project, run_queue_item_id, attrs={}):
+        """
+        Run is always initialized by calling api.runs() where api is an instance of wandb.Api
+        """
+        super().__init__(dict(attrs))
+        self.client = client
+        self._entity = entity
+        self.project = project
+        self._files = {}
+        self._base_dir = env.get_dir(tempfile.gettempdir())
+        self.run_queue_item_id = run_queue_item_id
+        self.sweep = None
+        self.dir = os.path.join(self._base_dir, *self.path)
+        try:
+            os.makedirs(self.dir)
+        except OSError:
+            pass
+        self._summary = None
+        self._state = attrs.get("state", "not found")
+        self._run = None
+
+        self.load(force=not attrs)
+
+    @property
+    def state(self):
+        if self._run:
+            return self._run.state
+        raise ValueError("Run not found")
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def username(self):
+        wandb.termwarn("Run.username is deprecated. Please use Run.entity instead.")
+        return self._entity
+
+    @property
+    def storage_id(self):
+        # For compatibility with wandb.Run, which has storage IDs
+        # in self.storage_id and names in self.id.
+        if self._attrs.get("id"):
+            return self._attrs.get("id")
+        elif self._run is not None:
+            return self._run._attrs.get("id")
+        raise ValueError("Run not found")
+
+    @property
+    def id(self):
+        if self._attrs.get("name"):
+            return self._attrs.get("name")
+        elif self._run is not None:
+            
+        return self._attrs.get("name")
+
+    @id.setter
+    def id(self, new_id):
+        attrs = self._attrs
+        attrs["name"] = new_id
+        return new_id
+
+    @property
+    def name(self):
+        return self._attrs.get("displayName")
+
+    @name.setter
+    def name(self, new_name):
+        self._attrs["displayName"] = new_name
+        return new_name
+
+    @classmethod
+    def create(cls, api, run_id=None, project=None, entity=None):
+        """Create a run for the given project"""
+        run_id = run_id or util.generate_id()
+        project = project or api.settings.get("project") or "uncategorized"
+        mutation = gql(
+            """
+        mutation UpsertBucket($project: String, $entity: String, $name: String!) {
+            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name}) {
+                bucket {
+                    project {
+                        name
+                        entity { name }
+                    }
+                    id
+                    name
+                }
+                inserted
+            }
+        }
+        """
+        )
+        variables = {"entity": entity, "project": project, "name": run_id}
+        res = api.client.execute(mutation, variable_values=variables)
+        res = res["upsertBucket"]["bucket"]
+        return Run(
+            api.client,
+            res["project"]["entity"]["name"],
+            res["project"]["name"],
+            res["name"],
+            {
+                "id": res["id"],
+                "config": "{}",
+                "systemMetrics": "{}",
+                "summaryMetrics": "{}",
+                "tags": [],
+                "description": None,
+                "notes": None,
+                "state": "running",
+            },
+        )
+
+    def load(self, force=False):
+        query = gql(
+            """
+        query Run($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) {
+                    ...RunFragment
+                }
+            }
+        }
+        %s
+        """
+            % RUN_FRAGMENT
+        )
+        if force or not self._attrs:
+            response = self._exec(query)
+            if (
+                response is None
+                or response.get("project") is None
+                or response["project"].get("run") is None
+            ):
+                raise ValueError("Could not find run %s" % self)
+            self._attrs = response["project"]["run"]
+            self._state = self._attrs["state"]
+
+            if self.sweep_name and not self.sweep:
+                # There may be a lot of runs. Don't bother pulling them all
+                # just for the sake of this one.
+                self.sweep = Sweep.get(
+                    self.client,
+                    self.entity,
+                    self.project,
+                    self.sweep_name,
+                    withRuns=False,
+                )
+
+        self._attrs["summaryMetrics"] = (
+            json.loads(self._attrs["summaryMetrics"])
+            if self._attrs.get("summaryMetrics")
+            else {}
+        )
+        self._attrs["systemMetrics"] = (
+            json.loads(self._attrs["systemMetrics"])
+            if self._attrs.get("systemMetrics")
+            else {}
+        )
+        if self._attrs.get("user"):
+            self.user = User(self.client, self._attrs["user"])
+        config_user, config_raw = {}, {}
+        for key, value in json.loads(self._attrs.get("config") or "{}").items():
+            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
+            if isinstance(value, dict) and "value" in value:
+                config[key] = value["value"]
+            else:
+                config[key] = value
+        config_raw.update(config_user)
+        self._attrs["config"] = config_user
+        self._attrs["rawconfig"] = config_raw
+        return self._attrs
+
+    @normalize_exceptions
+    def wait_until_finished(self):
+        query = gql(
+            """
+            query RunState($project: String!, $entity: String!, $name: String!) {
+                project(name: $project, entityName: $entity) {
+                    run(name: $name) {
+                        state
+                    }
+                }
+            }
+        """
+        )
+        while True:
+            res = self._exec(query)
+            state = res["project"]["run"]["state"]
+            if state in ["finished", "crashed", "failed"]:
+                print(f"Run finished with status: {state}")
+                self._attrs["state"] = state
+                self._state = state
+                return
+            time.sleep(5)
+
+    @normalize_exceptions
+    def update(self):
+        """
+        Persists changes to the run object to the wandb backend.
+        """
+        mutation = gql(
+            """
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
+            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}) {
+                bucket {
+                    ...RunFragment
+                }
+            }
+        }
+        %s
+        """
+            % RUN_FRAGMENT
+        )
+        _ = self._exec(
+            mutation,
+            id=self.storage_id,
+            tags=self.tags,
+            description=self.description,
+            notes=self.notes,
+            display_name=self.display_name,
+            config=self.json_config,
+            groupName=self.group,
+        )
+        self.summary.update()
+
+    @normalize_exceptions
+    def delete(self, delete_artifacts=False):
+        """
+        Deletes the given run from the wandb backend.
+        """
+        mutation = gql(
+            """
+            mutation DeleteRun(
+                $id: ID!,
+                %s
+            ) {
+                deleteRun(input: {
+                    id: $id,
+                    %s
+                }) {
+                    clientMutationId
+                }
+            }
+        """
+            %
+            # Older backends might not support the 'deleteArtifacts' argument,
+            # so only supply it when it is explicitly set.
+            (
+                "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+            )
+        )
+
+        self.client.execute(
+            mutation,
+            variable_values={
+                "id": self.storage_id,
+                "deleteArtifacts": delete_artifacts,
+            },
+        )
+
+    def save(self):
+        self.update()
+
+    @property
+    def json_config(self):
+        config = {}
+        for k, v in self.config.items():
+            config[k] = {"value": v, "desc": None}
+        return json.dumps(config)
+
+    def _exec(self, query, **kwargs):
+        """Execute a query against the cloud backend"""
+        variables = {"entity": self.entity, "project": self.project, "name": self.id}
+        variables.update(kwargs)
+        return self.client.execute(query, variable_values=variables)
+
+    def _sampled_history(self, keys, x_axis="_step", samples=500):
+        spec = {"keys": [x_axis] + keys, "samples": samples}
+        query = gql(
+            """
+        query RunSampledHistory($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { sampledHistory(specs: $specs) }
+            }
+        }
+        """
+        )
+
+        response = self._exec(query, specs=[json.dumps(spec)])
+        # sampledHistory returns one list per spec, we only send one spec
+        return response["project"]["run"]["sampledHistory"][0]
+
+    def _full_history(self, samples=500, stream="default"):
+        node = "history" if stream == "default" else "events"
+        query = gql(
+            """
+        query RunFullHistory($project: String!, $entity: String!, $name: String!, $samples: Int) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { %s(samples: $samples) }
+            }
+        }
+        """
+            % node
+        )
+
+        response = self._exec(query, samples=samples)
+        return [json.loads(line) for line in response["project"]["run"][node]]
+
+    @normalize_exceptions
+    def files(self, names=[], per_page=50):
+        """
+        Arguments:
+            names (list): names of the requested files, if empty returns all files
+            per_page (int): number of results per page
+
+        Returns:
+            A `Files` object, which is an iterator over `File` objects.
+        """
+        return Files(self.client, self, names, per_page)
+
+    @normalize_exceptions
+    def file(self, name):
+        """
+        Arguments:
+            name (str): name of requested file.
+
+        Returns:
+            A `File` matching the name argument.
+        """
+        return Files(self.client, self, [name])[0]
+
+    @normalize_exceptions
+    def upload_file(self, path, root="."):
+        """
+        Arguments:
+            path (str): name of file to upload.
+            root (str): the root path to save the file relative to.  i.e.
+                If you want to have the file saved in the run as "my_dir/file.txt"
+                and you're currently in "my_dir" you would set root to "../"
+
+        Returns:
+            A `File` matching the name argument.
+        """
+        api = InternalApi(
+            default_settings={"entity": self.entity, "project": self.project},
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+        api.set_current_run_id(self.id)
+        root = os.path.abspath(root)
+        name = os.path.relpath(path, root)
+        with open(os.path.join(root, name), "rb") as f:
+            api.push({util.to_forward_slash_path(name): f})
+        return Files(self.client, self, [name])[0]
+
+    @normalize_exceptions
+    def history(
+        self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
+    ):
+        """
+        Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
+        the history records being sampled.
+
+        Arguments:
+            samples (int, optional): The number of samples to return
+            pandas (bool, optional): Return a pandas dataframe
+            keys (list, optional): Only return metrics for specific keys
+            x_axis (str, optional): Use this metric as the xAxis defaults to _step
+            stream (str, optional): "default" for metrics, "system" for machine metrics
+
+        Returns:
+            If pandas=True returns a `pandas.DataFrame` of history metrics.
+            If pandas=False returns a list of dicts of history metrics.
+        """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
+        if keys and stream != "default":
+            wandb.termerror("stream must be default when specifying keys")
+            return []
+        elif keys:
+            lines = self._sampled_history(keys=keys, x_axis=x_axis, samples=samples)
+        else:
+            lines = self._full_history(samples=samples, stream=stream)
+        if pandas:
+            pandas = util.get_module("pandas")
+            if pandas:
+                lines = pandas.DataFrame.from_records(lines)
+            else:
+                print("Unable to load pandas, call history with pandas=False")
+        return lines
+
+    @normalize_exceptions
+    def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
+        """
+        Returns an iterable collection of all history records for a run.
+
+        Example:
+            Export all the loss values for an example run
+
+            ```python
+            run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
+            history = run.scan_history(keys=["Loss"])
+            losses = [row["Loss"] for row in history]
+            ```
+
+
+        Arguments:
+            keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
+            page_size (int, optional): size of pages to fetch from the api
+
+        Returns:
+            An iterable collection over history records (dict).
+        """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
+        last_step = self.lastHistoryStep
+        # set defaults for min/max step
+        if min_step is None:
+            min_step = 0
+        if max_step is None:
+            max_step = last_step + 1
+        # if the max step is past the actual last step, clamp it down
+        if max_step > last_step:
+            max_step = last_step + 1
+        if keys is None:
+            return HistoryScan(
+                run=self,
+                client=self.client,
+                page_size=page_size,
+                min_step=min_step,
+                max_step=max_step,
+            )
+        else:
+            return SampledHistoryScan(
+                run=self,
+                client=self.client,
+                keys=keys,
+                page_size=page_size,
+                min_step=min_step,
+                max_step=max_step,
+            )
+
+    @normalize_exceptions
+    def logged_artifacts(self, per_page=100):
+        return RunArtifacts(self.client, self, mode="logged", per_page=per_page)
+
+    @normalize_exceptions
+    def used_artifacts(self, per_page=100):
+        return RunArtifacts(self.client, self, mode="used", per_page=per_page)
+
+    @normalize_exceptions
+    def use_artifact(self, artifact, use_as=None):
+        """Declare an artifact as an input to a run.
+
+        Arguments:
+            artifact (`Artifact`): An artifact returned from
+                `wandb.Api().artifact(name)`
+            use_as (string, optional): A string identifying
+                how the artifact is used in the script. Used
+                to easily differentiate artifacts used in a
+                run, when using the beta wandb launch
+                feature's artifact swapping functionality.
+        Returns:
+            A `Artifact` object.
+        """
+        api = InternalApi(
+            default_settings={"entity": self.entity, "project": self.project},
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+        api.set_current_run_id(self.id)
+
+        if isinstance(artifact, Artifact):
+            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
+            return artifact
+        elif isinstance(artifact, wandb.Artifact):
+            raise ValueError(
+                "Only existing artifacts are accepted by this api. "
+                "Manually create one with `wandb artifacts put`"
+            )
+        else:
+            raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
+
+    @normalize_exceptions
+    def log_artifact(self, artifact, aliases=None):
+        """Declare an artifact as output of a run.
+
+        Arguments:
+            artifact (`Artifact`): An artifact returned from
+                `wandb.Api().artifact(name)`
+            aliases (list, optional): Aliases to apply to this artifact
+        Returns:
+            A `Artifact` object.
+        """
+        api = InternalApi(
+            default_settings={"entity": self.entity, "project": self.project},
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+        api.set_current_run_id(self.id)
+
+        if isinstance(artifact, Artifact):
+            artifact_collection_name = artifact.name.split(":")[0]
+            api.create_artifact(
+                artifact.type,
+                artifact_collection_name,
+                artifact.digest,
+                aliases=aliases,
+            )
+            return artifact
+        elif isinstance(artifact, wandb.Artifact):
+            raise ValueError(
+                "Only existing artifacts are accepted by this api. "
+                "Manually create one with `wandb artifacts put`"
+            )
+        else:
+            raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
+
+    @property
+    def summary(self):
+        if self._summary is None:
+            # TODO: fix the outdir issue
+            self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
+        return self._summary
+
+    @property
+    def path(self):
+        return [
+            urllib.parse.quote_plus(str(self.entity)),
+            urllib.parse.quote_plus(str(self.project)),
+            urllib.parse.quote_plus(str(self.id)),
+        ]
+
+    @property
+    def url(self):
+        path = self.path
+        path.insert(2, "runs")
+        return self.client.app_url + "/".join(path)
+
+    @property
+    def lastHistoryStep(self):  # noqa: N802
+        query = gql(
+            """
+        query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) { historyKeys }
+            }
+        }
+        """
+        )
+        response = self._exec(query)
+        if (
+            response is None
+            or response.get("project") is None
+            or response["project"].get("run") is None
+            or response["project"]["run"].get("historyKeys") is None
+        ):
+            return -1
+        history_keys = response["project"]["run"]["historyKeys"]
+        return history_keys["lastStep"] if "lastStep" in history_keys else -1
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this run"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button()
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
+
+    def __repr__(self):
+        return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+class QueuedRun(Run):
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
+        super().__init__(dict(attrs))
+        self.client = client
+        self._entity = entity
+        self.project = project
+        self._queue = queue
+        self._run_queue_item_id = run_queue_item_id
+        self._run_id = None
+
+    @normalize_exceptions
+    def wait_until_running(self):
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    resultingRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self._queue,
+        }
+
+        while True:
+            res = self.client.execute(query, variable_values)
+            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+                if (
+                    item["node"]["id"] == self._run_queue_item_id
+                    and item["node"]["resultingRunId"] is not None
+                ):
+                    # TODO: this should be changed once the ack occurs within the docker container.
+                    try:
+                        Run(
+                            self.client,
+                            self._entity,
+                            self.project,
+                            item["node"]["resultingRunId"],
+                        )
+                        self._run_id = item["node"]["resultingRunId"]
+                        return
+                    except ValueError:
+                        continue
+            time.sleep(5)
+
+    @property
+    def run(self):
+        if self._run_id is None:
+            raise LaunchError("Tried to fetch run without having run_id")
+        return Run(self.client, self._entity, self.project, self._run_id)
 
 
 class Sweep(Attrs):
@@ -4407,3 +5044,185 @@ class ArtifactFiles(Paginator):
 
     def __repr__(self):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
+
+
+class Job(Media):
+    _log_type = "job"
+
+    _name: str
+    _config_type: _dtypes.Type
+    # we store the config defaults in the job itself. seems reasonable
+    # but how do we expect defaults to work using our run config system in the
+    # logging API?
+    _config_defaults: dict  # TODO: type?
+    _summary_type: _dtypes.Type
+    _entity: str
+    _project: str
+
+    # TODO(end-to-end): I don't think in its final form Job should have a backing
+    # run id. Instead we should store the info we need to run the job (requirements
+    # docker file, etc). And we should probably use the Jobs table in the database
+    _run_id: str
+
+    def __init__(
+        self,
+        client: Api,
+        name,
+    ) -> None:
+        """Init"""
+        super(Job, self).__init__()
+        self._name = name
+        self._client = client
+        self._job_artifact = client.artifact(name, type="job")
+        fpath = self._job_artifact.download()
+        with open(os.path.join(fpath, "source_info.json")) as f:
+            self._source_info = json.load(f)
+        if self._source_info.get("source_type") == "artifact":
+            return ArtifactJob(self._client, self._name)
+        if self._source_info.get("source_type") == ""
+
+            self._code_artifact = self._source_info.get("artifact")
+        self._entrypoint = self._source_info.get("entrypoint")
+
+        self._requirements_file = os.path.join(fpath, "requirements.txt")
+
+    def _call_artifact(self):
+        pass
+
+    # This forces a config key to a specific val (can be used to create
+    # closure behavior).
+    # TODO(end-to-end): weird that this is called set_default_input
+    #    instead of set_config_default or something like that. But I'd like
+    #    to thing of config and summary as input/output. We may want to switch
+    #    terms at this API-level?
+    def set_default_input(self, key, val):
+        self._config_defaults[key] = val
+
+    def get_type(self) -> "_ClassesIdType":
+        return _ClassesIdType(self)
+
+    def call(self, config):
+        run_config = self._config_defaults.copy()
+
+        # Replace the special value token "${job_artifact}" with the artifact
+        # uri this job file is inside of.
+        for key, val in run_config.items():
+            if val == "${job_artifact}":
+                run_config[key] = "wandb-artifact://%s/%s/%s" % (
+                    self._source_artifact.entity,
+                    self._source_artifact.project,
+                    self._source_artifact.name,
+                )
+
+        run_config.update(config)
+        assigned_config_type = self._config_type.assign(run_config)
+        # TODO: also be helpful and check if the user passed additional
+        #     keys that are not part of the run config. The type system
+        #     will allow this. But its probably a typo on the user's part.
+        if isinstance(assigned_config_type, _dtypes.InvalidType):
+            # TODO: Better Exception, like some kind of TypeError?
+            # TODO: This message prints all the dict keys, which can be
+            #     a lot, even though the user probably only provided a subset
+            #     since they're overriding defaults. Make the message more
+            #     specific to the subset the user provided
+            # TODO: Improve message: The message looks like a type error, but
+            #     we should say something like "Invalid arguments passed to
+            #     to job..."
+            raise Exception(self._config_type.explain(run_config))
+        # TODO check not invalid
+
+        # We return a QueuedJob object. That seems ok.
+        # you can then do:
+        #   run = qj.wait_until_running()
+        #   run.wait_until_finished()
+        # an alternative would be to put a queued state on Run itself
+        #   so the user only has to deal with one object.
+
+        # TODO(end-to-end): launch_add defaults to adding runs in the
+        #     in the project the original run was in. It should instead
+        #     add them in the current project (via api settings)
+
+        # TODO: Is this really what I have to do to get the right settings still?
+        #     This is terrible.
+        from wandb.apis import InternalApi
+
+        api = InternalApi()
+
+        # Return a simpler interface
+        # TODO: This is a bit of a hack. Figure out what we actually want
+        class LaunchJob(object):
+            def __init__(self, launch_job):
+                self._launch_job = launch_job
+
+            def get_result(self):
+                self._launch_job.wait_until_running()
+                run = self._launch_job.run
+                run.wait_until_finished()
+                run.load(force=True)
+                return run
+
+        # TODO(end-to-end)
+        # For now we construct args, I dont' know how to do this with
+        # just config, but we should be able to.
+        launch_args = []
+        for key, val in run_config.items():
+            launch_args.append("--%s=%s" % (key, val))
+
+        return LaunchJob(
+            launch_add(
+                "%s/%s/%s/runs/%s"
+                % (api.settings("base_url"), self._entity, self._project, self._run_id),
+                config={"overrides": {"args": launch_args, "run_config": config}},
+                entity=api.settings("entity"),
+                project=api.settings("project"),
+            )
+        )
+
+
+# class RepoJob(Job):
+#     def __init__(
+#         self,
+#         name: str,
+#         config_type: _dtypes.Type,
+#         config_defaults: dict,
+#         summary_type: _dtypes.Type,
+#         entity: str,
+#         project: str,
+#         source_artifact: Optional["PublicArtifact"],
+#         repo_path: str,
+#         repo_commit: str,
+#     ):
+#         self._repo_path = repo_path
+#         self._repo_commit = repo_commit
+#         self._repo_branch = repo_branch
+#         self._repo_tag = repo_tag
+
+
+class ArtifactJob:
+    def __init__(
+        self,
+        client: Api,
+        name: str,
+        source_artifact: "wandb.Artifact",
+        config_type: _dtypes.Type,
+        config_defaults: dict,
+        summary_type: _dtypes.Type,
+    ):
+        self._source_artifact = source_artifact
+        self._name = name
+        self._config_type = config_type
+        self._config_defaults = config_defaults
+        self._summary_type = summary_type
+        self._run = None
+    
+    def call(self, input, project=None, entity=None, queue="default") -> "QueuedRun":
+        # TODO: validate config structure
+        from wandb.sdk.launch import launch_add
+        config = {**input, **self._config_defaults}
+        queued_job = launch_add(job=self._name, config={"overrides": {"run_config": config}}, project=project, entity=entity, queue=queue})
+        return queued_job
+
+    def wait(self):
+        pass
+        #while True:
+            
