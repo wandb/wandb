@@ -179,6 +179,40 @@ def mock_cuda_run_info(monkeypatch):
     )
 
 
+def mock_download_url(*args, **kwargs):
+    if args[1] == "wandb-metadata.json":
+        return {"url": "urlForCodePath"}
+    elif args[1] == "code/main2.py":
+        return {"url": "main2.py"}
+    elif args[1] == "requirements.txt":
+        return {"url": "requirements"}
+
+
+def mock_file_download_request(url):
+    class MockedFileResponder:
+        def __init__(self, url):
+            self.url: str = url
+
+        def json(self):
+            if self.url == "urlForCodePath":
+                return {"codePath": "main2.py"}
+
+        def iter_content(self, chunk_size):
+            if self.url == "requirements":
+                return [b"numpy==1.19.5\n", b"wandb==0.12.15\n"]
+            elif self.url == "main2.py":
+                return [
+                    b"import numpy\n",
+                    b"import wandb\n",
+                    b"import time\n",
+                    b"print('(main2.py) starting')\n",
+                    b"time.sleep(1)\n",
+                    b"print('(main2.py) finished')\n",
+                ]
+
+    return 200, MockedFileResponder(url)
+
+
 def check_project_spec(
     project_spec,
     api,
@@ -897,44 +931,17 @@ def test_launch_no_server_info(
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(60)
-def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
+def test_launch_metadata(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    api.download_url = mock_download_url
+    api.download_file = mock_file_download_request
 
-    # for now using mocks instead of mock server
-    def mocked_download_url(*args, **kwargs):
-        if args[1] == "wandb-metadata.json":
-            return {"url": "urlForCodePath"}
-        elif args[1] == "code/main2.py":
-            return {"url": "main2.py"}
-        elif args[1] == "requirements.txt":
-            return {"url": "requirements"}
-
-    api.download_url = MagicMock(side_effect=mocked_download_url)
-
-    def mocked_file_download_request(url):
-        class MockedFileResponder:
-            def __init__(self, url):
-                self.url: str = url
-
-            def json(self):
-                if self.url == "urlForCodePath":
-                    return {"codePath": "main2.py"}
-
-            def iter_content(self, chunk_size):
-                if self.url == "requirements":
-                    return [b"numpy==1.19.5\n", b"wandb\n"]
-                elif self.url == "main2.py":
-                    return [
-                        b"import numpy\n",
-                        b"import wandb\n",
-                        b"print('ran server fetched code')\n",
-                    ]
-
-        return 200, MockedFileResponder(url)
-
-    api.download_file = MagicMock(side_effect=mocked_file_download_request)
     run = launch.run(
         "https://wandb.ai/mock_server_entity/test/runs/1",
         api,
@@ -1169,6 +1176,7 @@ def test_launch_local_cuda_command(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(320)
 def test_launch_local_cuda_config(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
@@ -1336,7 +1344,7 @@ def test_launch_build_config_file(
     runner, mocked_fetchable_git_repo, test_settings, monkeypatch
 ):
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.local.LocalRunner,
+        wandb.sdk.launch.runner.local.LocalContainerRunner,
         "run",
         lambda *args, **kwargs: (args, kwargs),
     )

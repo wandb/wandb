@@ -286,8 +286,11 @@ class Api:
         """
     )
 
-    def __init__(self, overrides={}, timeout: Optional[int] = None):
+    def __init__(
+        self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
+    ):
         self.settings = InternalApi().settings()
+        self._api_key = api_key
         if self.api_key is None:
             wandb.login()
         self.settings.update(overrides)
@@ -369,6 +372,8 @@ class Api:
 
     @property
     def api_key(self):
+        if self._api_key is not None:
+            return self._api_key
         auth = requests.utils.get_netrc_auth(self.settings["base_url"])
         key = None
         if auth:
@@ -376,6 +381,7 @@ class Api:
         # Environment should take precedence
         if os.getenv("WANDB_API_KEY"):
             key = os.environ["WANDB_API_KEY"]
+        self._api_key = key  # memoize key
         return key
 
     @property
