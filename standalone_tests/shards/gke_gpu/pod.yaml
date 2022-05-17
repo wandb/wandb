@@ -15,7 +15,7 @@ spec:
       resources:
         limits:
           cpu: 1.999
-          nvidia.com/gpu: 1
+          nvidia.com/gpu: 2
         requests:
           cpu: 1.5
   #    ports:

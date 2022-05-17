@@ -174,7 +174,7 @@ commands:
       gpu_count:
         description: "GKE cluster GPU count"
         type: integer
-        default: 1
+        default: 2
     steps:
       - setup_gcloud
       - run:
@@ -454,8 +454,8 @@ jobs:
         default: "3.8"
       git_branch:
         type: string
-        default: "nightly"
-#        default: "master"
+        default: "master"
+#        default: "nightly"
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
