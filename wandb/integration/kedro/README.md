@@ -8,14 +8,26 @@ from wandb.integration.kedro import WandbHooks
 HOOKS = (WandbHooks(),)
 ```
 
-This will set up the mechanism to initialize a W&B run from a Kedro project. In addition to this, you will need to set up your W&B parameters in your `parameters.yml` file:
+This will set up the mechanism to initialize W&B runs from a Kedro project. Each node acts as a separate W&B Run. In addition to this, you will need to set up your W&B parameters in your `parameters.yml` file:
 
 ```yaml
 wandb:
     entity: <YOUR-ENTITY-NAME>
     project: <YOUR-PROJECT-NAME>
-    mode: online # Optional, can be set to either online, offline or disabled, but is online by default
+    ...
 ```
+
+If you want to set up node specific arguments for your runs, you can do that by specifiying the node name and the parameters necessary:
+```yaml
+wandb:
+    entity: <YOUR-ENTITY-NAME>
+    project: <YOUR-PROJECT-NAME>
+    ...
+    node_name:
+        notes: <YOUR-NOTES-HERE>
+        ...
+```
+
 We will take all other parameters specified in the `parameters.yml` file and upload them to W&B as well.
 
 ## Logging Artifacts
