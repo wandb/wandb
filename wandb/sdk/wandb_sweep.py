@@ -104,6 +104,7 @@ def sweep(
     if wandb.run is None:
         wandb_login._login(_silent=True)
     api = InternalApi()
+    # TODO(hupo): Use obj_id kwarg to pass in launch run queue
     sweep_id, warnings = api.upsert_sweep(sweep)
     handle_sweep_config_violations(warnings)
     print("Create sweep with ID:", sweep_id)

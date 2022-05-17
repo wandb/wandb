@@ -870,7 +870,7 @@ def sweep(
     if queue is not None:
         wandb.termlog("Queue specified, using launch 🚀 ")
 
-    # TODO(hupo): Does the upserted sweep require knowledge of a runqueue?
+    # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
     )
@@ -1210,28 +1210,22 @@ def launch_agent(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
 @click.option(
-    "--queue",
-    "-q",
-    is_flag=False,
-    flag_value="default",
-    default=None,
-    help="Name of launch run queue to push runs into. If supplied without "
-    "an argument (`--queue`), defaults to private sweep runqueue. Else, if "
-    "name supplied, specified run queue must exist under the project and entity supplied.",
+    "--use_launch", is_flag=True, show_default=True, default=False, 
+    help="Use the launch API to launch runs instead of the agent.",
 )
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, queue, sweep_id):
+def agent(ctx, project, entity, count, use_launch, sweep_id):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    if queue is not None:
-        wandb.termlog("Queue specified, using launch 🚀 ")
+    if use_launch:
+        wandb.termlog("Using launch 🚀  to run agent")
+        # TODO(hupo): Start a LocalProcessRunner here
 
-    # TODO(hupo): Add launch command, divert into launch agent here?
     wandb.termlog("Starting wandb agent 🕵️")
     wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 

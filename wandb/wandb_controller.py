@@ -394,6 +394,7 @@ class _WandbController:
         self._create = sweeps.SweepConfig(self._create)
 
         # Create sweep
+        # TODO(hupo): Use obj_id kwarg to pass in launch run queue
         sweep_id, warnings = self._api.upsert_sweep(self._create)
         handle_sweep_config_violations(warnings)
 
