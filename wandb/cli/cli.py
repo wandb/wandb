@@ -878,6 +878,10 @@ def sweep(
     )
     util.handle_sweep_config_violations(warnings)
 
+    if queue is not None:
+        # Make run queue external (default is internal/hidden for sweeps)
+        api.modify_scope_run_queue(sweep_id, internal=False)
+
     wandb.termlog(
         "{} sweep with ID: {}".format(
             "Updated" if sweep_obj_id else "Created", click.style(sweep_id, fg="yellow")
