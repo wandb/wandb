@@ -161,7 +161,7 @@ def _run(
     else:
         raise ExecutionError(
             "Unavailable backend {}, available backends: {}".format(
-                resource, ", ".join(loader.WANDB_RUNNERS.keys())
+                resource, ", ".join(loader.WANDB_RUNNERS)
             )
         )
 

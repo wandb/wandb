@@ -1,3 +1,4 @@
+import os
 import pytest
 import time
 
@@ -26,7 +27,7 @@ def test_tpu_system_stats(monkeypatch, fake_interface):
     monkeypatch.setattr(
         wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
     )
-    stats = SystemStats(pid=1000, interface=fake_interface)
+    stats = SystemStats(pid=os.getpid(), interface=fake_interface)
     # stats.start()
     # time.sleep(1)
     # stats.shutdown()
