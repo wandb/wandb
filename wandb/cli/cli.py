@@ -868,8 +868,10 @@ def sweep(
     )
 
     if queue is not None:
-        wandb.termlog("Queue specified, using launch 🚀 ")
-
+        wandb.termlog("Using launch 🚀  queue: %s" % queue)
+        sweep_obj_id = queue
+        breakpoint()
+        
     # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
@@ -1223,11 +1225,12 @@ def agent(ctx, project, entity, count, use_launch, sweep_id):
         api = _get_cling_api(reset=True)
 
     if use_launch:
-        wandb.termlog("Using launch 🚀  to run agent")
+        wandb.termlog("Using launch 🚀 to run wandb agent 🕵️")
+        breakpoint()
         # TODO(hupo): Start a LocalProcessRunner here
-
-    wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
+    else:
+        wandb.termlog("Starting wandb agent 🕵️")
+        wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
