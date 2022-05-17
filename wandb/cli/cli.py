@@ -664,6 +664,16 @@ def sync(
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of launch run queue to push runs into. If supplied without "
+    "an argument (`--queue`), defaults to private sweep runqueue. Else, if "
+    "name supplied, specified run queue must exist under the project and entity supplied.",
+)
+@click.option(
     "--stop",
     is_flag=True,
     default=False,
@@ -699,6 +709,7 @@ def sweep(
     program,
     settings,
     update,
+    queue,
     stop,
     cancel,
     pause,
@@ -855,6 +866,11 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
+
+    if queue is not None:
+        wandb.termlog("Queue specified, using launch 🚀 ")
+
+    # TODO(hupo): Does the upserted sweep require knowledge of a runqueue?
     sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
     )
@@ -1193,16 +1209,29 @@ def launch_agent(
 @click.option(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
+@click.option(
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of launch run queue to push runs into. If supplied without "
+    "an argument (`--queue`), defaults to private sweep runqueue. Else, if "
+    "name supplied, specified run queue must exist under the project and entity supplied.",
+)
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, sweep_id):
+def agent(ctx, project, entity, count, queue, sweep_id):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    #TODO: Add launch command, divert into launch agent here?
+    if queue is not None:
+        wandb.termlog("Queue specified, using launch 🚀 ")
+
+    # TODO(hupo): Add launch command, divert into launch agent here?
     wandb.termlog("Starting wandb agent 🕵️")
     wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 

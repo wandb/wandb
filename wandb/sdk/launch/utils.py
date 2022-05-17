@@ -116,6 +116,7 @@ def construct_launch_spec(
     cuda: Optional[bool],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
+    # TODO(hupo): Could this be used to fill sweep run config?
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     if uri is not None:

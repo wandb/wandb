@@ -134,7 +134,7 @@ class Agent:
     ):
         # TODO(hupo): Trace agent path
         self._api = api
-        self._queue = queue
+        self._queue = queue # multiprocessing.Queue()
         self._run_processes = {}  # keyed by run.id (GQL run name)
         self._server_responses = []
         self._sweep_id = sweep_id
