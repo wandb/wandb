@@ -5,6 +5,7 @@ elegy
 # espnet
 # fairseq
 # fastai>=2.5
+sacremoses
 flair
 flax
 # greykite
