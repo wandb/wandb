@@ -69,7 +69,7 @@ class LocalSubmittedRun(AbstractRun):
         return Status("failed")
 
 
-class LocalRunner(AbstractRunner):
+class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(
