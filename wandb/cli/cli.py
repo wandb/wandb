@@ -907,7 +907,6 @@ def sweep(
 
     if queue is not None:
         wandb.termlog("Using launch 🚀  queue: %s" % queue)
-        breakpoint()
         launch_add(
             os.getcwd(), # URI is local path
             resource = "local-process",
@@ -917,9 +916,11 @@ def sweep(
             queue=queue,
             name = f"Agent_{sweep_id}",
         )
+        # HACK: Launch agent needs to know the project
+        # os.environ["WANDB_PROJECT"] = project
         wandb.termlog(
             "Run launch agent with: {}".format(
-                click.style(f"wandb launch-agent -q {queue}", fg="yellow")
+                click.style(f"wandb launch-agent -q {queue} -p {project}", fg="yellow")
             )
         )
     else:
@@ -1175,7 +1176,13 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.argument("project", nargs=1, required=False)
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    help="Name of the target project which the new run will be sent to. "
+    "If passed in, will override the project value passed in using a config file.",
+)
 @click.option(
     "--entity",
     "-e",
@@ -1211,6 +1218,7 @@ def launch_agent(
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues
     )
+    breakpoint()
     if agent_config.get("project") is None:
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
