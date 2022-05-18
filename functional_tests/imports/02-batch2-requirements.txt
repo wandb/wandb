@@ -13,3 +13,4 @@ flax
 huggingface_hub
 hydra-core
 # icevision
+sacremoses
