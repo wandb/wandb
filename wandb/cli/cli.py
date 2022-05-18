@@ -670,7 +670,7 @@ def sync(
     flag_value="default",
     default=None,
     help="Name of launch run queue to push runs into. If supplied without "
-    "an argument (`--queue`), defaults to private \"default\" runqueue. Else, if "
+    'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
 @click.option(
@@ -866,7 +866,7 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
-        
+
     # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
@@ -908,13 +908,13 @@ def sweep(
     if queue is not None:
         wandb.termlog("Using launch 🚀  queue: %s" % queue)
         launch_add(
-            os.getcwd(), # URI is local path
-            resource = "local-process",
-            entry_point = f"wandb agent {entity}/{project}/{sweep_id}",
+            os.getcwd(),  # URI is local path
+            resource="local-process",
+            entry_point=f"wandb agent {entity}/{project}/{sweep_id}",
             project=project,
             entity=entity,
             queue=queue,
-            name = f"Agent_{sweep_id}",
+            name=f"Agent_{sweep_id}",
         )
         # HACK: Launch agent needs to know the project
         # os.environ["WANDB_PROJECT"] = project
@@ -1236,7 +1236,7 @@ def launch_agent(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
 # @click.option(
-#     "--use_launch", is_flag=True, show_default=True, default=False, 
+#     "--use_launch", is_flag=True, show_default=True, default=False,
 #     help="Use the launch API to launch runs instead of the agent.",
 # )
 @click.argument("sweep_id")

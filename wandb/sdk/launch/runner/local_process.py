@@ -52,7 +52,9 @@ class LocalProcessRunner(AbstractRunner):
 
         # Check to make sure local python dependencies match run's requirement.txt
         try:
-            source_entity, source_project, run_name = parse_wandb_uri(launch_project.uri)
+            source_entity, source_project, run_name = parse_wandb_uri(
+                launch_project.uri
+            )
         except ValueError:
             _logger.warning(f"Could not parse URI {launch_project.uri} into run name.")
         else:
