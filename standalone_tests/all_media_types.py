@@ -3,15 +3,14 @@
 # Test logging media alone, in dicts, lists, and data frames.
 # Add to both history and summary.
 
+import matplotlib.pyplot as plt
 import numpy
 import pandas
 import PIL
 from pkg_resources import parse_version
 import plotly.graph_objs as go
-import matplotlib.pyplot as plt
 import tensorflow
 import torch
-from torchvision import models
 import wandb
 
 
@@ -29,7 +28,9 @@ def main():
     histogram_large_random = wandb.Histogram(numpy.random.randint(255, size=(1000)))
     numpy_array = numpy.random.rand(1000)
     torch_tensor = torch.rand(1000, 1000)
-    data_frame = pandas.DataFrame(data=numpy.random.rand(1000), columns=["col"])
+    data_frame = pandas.DataFrame(  # noqa: F841
+        data=numpy.random.rand(1000), columns=["col"]
+    )
     tensorflow_variable_single = tensorflow.Variable(543.01, tensorflow.float32)
     tensorflow_variable_multi = tensorflow.Variable([[2, 3], [7, 11]], tensorflow.int32)
     plot_scatter = go.Figure(  # plotly
@@ -45,7 +46,7 @@ def main():
     plt.plot([1, 2, 3, 4])
     plt.ylabel("some interesting numbers")
     image_matplotlib_plot = wandb.Image(plt)
-    matplotlib_plot = plt
+    # matplotlib_plot = plt
 
     audio_data = numpy.random.uniform(-1, 1, 44100)
     sample_rate = 44100
@@ -101,7 +102,7 @@ def main():
                 # Doesn't work, because something has happened to the MPL object (MPL may
                 # be doing magical scope stuff). If you log it right after creating it,
                 # it works fine.
-                # 'matplotlib-plot': matplotlib_plot,
+                # "matplotlib-plot": matplotlib_plot,
                 "audio1-summary": audio1,
                 "audio2-summary": audio2,
                 "audio3-summary": audio3,
@@ -113,14 +114,14 @@ def main():
                 "table-default-columns-summary": table_default_columns,
                 "table-custom-columns-summary": table_custom_columns,
                 "plot-scatter-summary": plot_scatter,
-                #'plot_figure': plot_figure,
+                # "plot_figure": plot_figure,
                 "tensorflow-variable-single-summary": tensorflow_variable_single,
                 "tensorflow-variable-multi-summary": tensorflow_variable_multi,
-                #'graph-summary': graph,
+                # "graph-summary": graph,
             }
         )
 
-        for i in range(10):
+        for _ in range(10):
             wandb.run.log(
                 {
                     "string": "string",
@@ -128,14 +129,14 @@ def main():
                     "histogram-large-random": histogram_large_random,
                     "numpy-array": numpy_array,
                     "torch-tensor": torch_tensor,
-                    #'data-frame': data_frame,  # not supported yet
+                    # "data-frame": data_frame,  # not supported yet
                     "image-cool": image_cool,
                     "image-nice": image_nice,
                     "image-random": image_random,
                     "image-pil": image_pil,
                     "image-plot": image_matplotlib_plot,
                     "image-list": [image_cool, image_nice, image_random, image_pil],
-                    # 'matplotlib-plot': matplotlib_plot,
+                    # "matplotlib-plot": matplotlib_plot,
                     "audio1": audio1,
                     "audio2": audio2,
                     "audio3": audio3,
@@ -147,10 +148,10 @@ def main():
                     "table-default-columns": table_default_columns,
                     "table-custom-columns": table_custom_columns,
                     "plot-scatter": plot_scatter,
-                    #'plot_figure': plot_figure,
+                    # "plot_figure": plot_figure,
                     "tensorflow-variable-single": tensorflow_variable_single,
                     "tensorflow-variable-multi": tensorflow_variable_multi,
-                    #'graph': graph,
+                    # "graph": graph,
                 }
             )
 
@@ -161,14 +162,14 @@ def main():
                 "numpy-array-summary": numpy_array,
                 "torch-tensor-summary": torch_tensor,
                 # bare dataframes in summary and history removed in 0.10.21
-                # 'data-frame-summary': data_frame,
+                # "data-frame-summary": data_frame,
                 "image-cool-summary": image_cool,
                 "image-nice-summary": image_nice,
                 "image-random-summary": image_random,
                 "image-pil-summary": image_pil,
                 "image-plot-summary": image_matplotlib_plot,
                 "image-list-summary": [image_cool, image_nice, image_random, image_pil],
-                # 'matplotlib-plot': matplotlib_plot,
+                # "matplotlib-plot": matplotlib_plot,
                 "audio1-summary": audio1,
                 "audio2-summary": audio2,
                 "audio3-summary": audio3,
@@ -180,10 +181,10 @@ def main():
                 "table-default-columns-summary": table_default_columns,
                 "table-custom-columns-summary": table_custom_columns,
                 "plot-scatter-summary": plot_scatter,
-                #'plot_figure': plot_figure,
+                # "plot_figure": plot_figure,
                 "tensorflow-variable-single-summary": tensorflow_variable_single,
                 "tensorflow-variable-multi-summary": tensorflow_variable_multi,
-                #'graph-summary': graph,
+                # "graph-summary": graph,
             }
         )
 
