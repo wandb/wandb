@@ -1200,6 +1200,7 @@ def test_launch_local_cuda_config(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_prev_run_cuda(
     live_mock_server,
     test_settings,
@@ -1226,6 +1227,7 @@ def test_launch_cuda_prev_run_cuda(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_false_prev_run_cuda(
     live_mock_server,
     test_settings,

@@ -10,7 +10,6 @@ exclude =
     dist/
     tests/
     codemod/
-    standalone_tests/
     *.pyc
     *.egg-info
     .cache
