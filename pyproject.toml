@@ -1,5 +1,6 @@
 [tool.black]
 line-length = 88
+include = '\.pyi?$'
 exclude = '''
   wandb/vendor/
 | wandb/old/
@@ -24,9 +25,4 @@ exclude = '''
 | tools/loop.sh
 | __pycache__
 | .pyc
-'''
-include = '''
-  wandb/
-| tests/
-| tools/
 '''
