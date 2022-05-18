@@ -28,9 +28,9 @@ def main():
     histogram_large_random = wandb.Histogram(numpy.random.randint(255, size=(1000)))
     numpy_array = numpy.random.rand(1000)
     torch_tensor = torch.rand(1000, 1000)
-    data_frame = pandas.DataFrame(
+    data_frame = pandas.DataFrame(  # noqa: F841
         data=numpy.random.rand(1000), columns=["col"]
-    )  # noqa: F841
+    )
     tensorflow_variable_single = tensorflow.Variable(543.01, tensorflow.float32)
     tensorflow_variable_multi = tensorflow.Variable([[2, 3], [7, 11]], tensorflow.int32)
     plot_scatter = go.Figure(  # plotly
