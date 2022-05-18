@@ -877,7 +877,7 @@ def sweep(
         wandb.termlog("Using launch 🚀  queue: %s" % queue)
         breakpoint()
         launch_add(
-            uri,
+            os.getcwd(), # URI is local path
             resource = "local-process",
             entry_point = f"wandb agent {entity}/{project}/{sweep_id}",
             project=project,
@@ -1223,10 +1223,10 @@ def launch_agent(
 @click.option(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
-@click.option(
-    "--use_launch", is_flag=True, show_default=True, default=False, 
-    help="Use the launch API to launch runs instead of the agent.",
-)
+# @click.option(
+#     "--use_launch", is_flag=True, show_default=True, default=False, 
+#     help="Use the launch API to launch runs instead of the agent.",
+# )
 @click.argument("sweep_id")
 @display_error
 def agent(ctx, project, entity, count, use_launch, sweep_id):
@@ -1236,13 +1236,13 @@ def agent(ctx, project, entity, count, use_launch, sweep_id):
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    if use_launch:
-        wandb.termlog("Using launch 🚀 to run wandb agent 🕵️")
-        breakpoint()
-        # TODO(hupo): Start a LocalProcessRunner here
-    else:
-        wandb.termlog("Starting wandb agent 🕵️")
-        wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
+    # if use_launch:
+    #     wandb.termlog("Using launch 🚀 to run wandb agent 🕵️")
+    #     breakpoint()
+    #     # TODO(hupo): Start a LocalProcessRunner here
+    # else:
+    wandb.termlog("Starting wandb agent 🕵️")
+    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
