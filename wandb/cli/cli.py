@@ -873,19 +873,6 @@ def sweep(
     )
     util.handle_sweep_config_violations(warnings)
 
-    if queue is not None:
-        wandb.termlog("Using launch 🚀  queue: %s" % queue)
-        breakpoint()
-        launch_add(
-            os.getcwd(), # URI is local path
-            resource = "local-process",
-            entry_point = f"wandb agent {entity}/{project}/{sweep_id}",
-            project=project,
-            entity=entity,
-            queue=queue,
-            name = f"Agent_{sweep_id}",
-        )
-
     # if queue is not None:
     #     # Make run queue external (default is internal/hidden for sweeps)
     #     api.modify_scope_run_queue(sweep_id, internal=False)
@@ -918,17 +905,35 @@ def sweep(
     if sweep_path.find(" ") >= 0:
         sweep_path = f'"{sweep_path}"'
 
-    wandb.termlog(
-        "Run sweep agent with: {}".format(
-            click.style("wandb agent %s" % sweep_path, fg="yellow")
+    if queue is not None:
+        wandb.termlog("Using launch 🚀  queue: %s" % queue)
+        breakpoint()
+        launch_add(
+            os.getcwd(), # URI is local path
+            resource = "local-process",
+            entry_point = f"wandb agent {entity}/{project}/{sweep_id}",
+            project=project,
+            entity=entity,
+            queue=queue,
+            name = f"Agent_{sweep_id}",
         )
-    )
-    if controller:
-        wandb.termlog("Starting wandb controller...")
-        from wandb import controller as wandb_controller
+        wandb.termlog(
+            "Run launch agent with: {}".format(
+                click.style(f"wandb launch-agent -q {queue}", fg="yellow")
+            )
+        )
+    else:
+        wandb.termlog(
+            "Run sweep agent with: {}".format(
+                click.style("wandb agent %s" % sweep_path, fg="yellow")
+            )
+        )
+        if controller:
+            wandb.termlog("Starting wandb controller...")
+            from wandb import controller as wandb_controller
 
-        tuner = wandb_controller(sweep_id)
-        tuner.run(verbose=verbose)
+            tuner = wandb_controller(sweep_id)
+            tuner.run(verbose=verbose)
 
 
 @cli.command(
