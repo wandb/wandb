@@ -168,7 +168,6 @@ class Agent:
             }
             commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
             # TODO(hupo): Are these commands here the run spec?
-            breakpoint()
             if commands:
                 job = Job(commands[0])
                 logger.debug(f"Job received: {job}")

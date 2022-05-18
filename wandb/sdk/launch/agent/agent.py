@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.runner.local import LocalSubmittedRun
+from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project

@@ -252,7 +252,6 @@ class Agent:
 
                 commands = self._api.agent_heartbeat(agent_id, {}, run_status)
                 # TODO(hupo): Are these commands here the run spec?
-                breakpoint()
 
                 # TODO: send _server_responses
                 self._server_responses = []

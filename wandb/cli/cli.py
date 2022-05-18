@@ -1218,7 +1218,6 @@ def launch_agent(
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues
     )
-    breakpoint()
     if agent_config.get("project") is None:
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
@@ -1242,7 +1241,7 @@ def launch_agent(
 # )
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, use_launch, sweep_id):
+def agent(ctx, project, entity, count, sweep_id):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
