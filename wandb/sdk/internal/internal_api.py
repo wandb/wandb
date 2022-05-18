@@ -1047,32 +1047,32 @@ class Api:
         )
         return response["popFromRunQueue"]
 
-    @normalize_exceptions
-    def modify_scope_run_queue(self, queue_name, internal=False, entity=None, project=None):
-        mutation = gql(
-            """
-        mutation modifyScopeRunQueue($entity: String!, $project: String!, $queueName: String!, $internal: Bool!)  {
-            modifyScopeRunQueue(input: {
-                entityName: $entity,
-                projectName: $project,
-                queueName: $queueName,
-                internal: $internal,
-            }) {
-                runQueueItemId
-            }
-        }
-        """
-        )
-        response = self.gql(
-            mutation,
-            variable_values={
-                "entity": entity,
-                "project": project,
-                "queueName": queue_name,
-                "internal": internal,
-            },
-        )
-        return response["modifyScopeRunQueue"]
+    # @normalize_exceptions
+    # def modify_scope_run_queue(self, queue_name, internal=False, entity=None, project=None):
+    #     mutation = gql(
+    #         """
+    #     mutation modifyScopeRunQueue($entity: String!, $project: String!, $queueName: String!, $internal: Bool!)  {
+    #         modifyScopeRunQueue(input: {
+    #             entityName: $entity,
+    #             projectName: $project,
+    #             queueName: $queueName,
+    #             internal: $internal,
+    #         }) {
+    #             runQueueItemId
+    #         }
+    #     }
+    #     """
+    #     )
+    #     response = self.gql(
+    #         mutation,
+    #         variable_values={
+    #             "entity": entity,
+    #             "project": project,
+    #             "queueName": queue_name,
+    #             "internal": internal,
+    #         },
+    #     )
+    #     return response["modifyScopeRunQueue"]
 
     @normalize_exceptions
     def ack_run_queue_item(self, item_id, run_id=None):

@@ -32,7 +32,7 @@ from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
-from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.launch.launch_add import _launch_add, launch_add
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
@@ -670,7 +670,7 @@ def sync(
     flag_value="default",
     default=None,
     help="Name of launch run queue to push runs into. If supplied without "
-    "an argument (`--queue`), defaults to private sweep runqueue. Else, if "
+    "an argument (`--queue`), defaults to private \"default\" runqueue. Else, if "
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
 @click.option(
@@ -866,11 +866,6 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
-
-    if queue is not None:
-        wandb.termlog("Using launch 🚀  queue: %s" % queue)
-        sweep_obj_id = queue
-        breakpoint()
         
     # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
@@ -879,8 +874,21 @@ def sweep(
     util.handle_sweep_config_violations(warnings)
 
     if queue is not None:
-        # Make run queue external (default is internal/hidden for sweeps)
-        api.modify_scope_run_queue(sweep_id, internal=False)
+        wandb.termlog("Using launch 🚀  queue: %s" % queue)
+        breakpoint()
+        launch_add(
+            uri,
+            resource = "local-process",
+            entry_point = f"wandb agent {entity}/{project}/{sweep_id}",
+            project=project,
+            entity=entity,
+            queue=queue,
+            name = f"Agent_{sweep_id}",
+        )
+
+    # if queue is not None:
+    #     # Make run queue external (default is internal/hidden for sweeps)
+    #     api.modify_scope_run_queue(sweep_id, internal=False)
 
     wandb.termlog(
         "{} sweep with ID: {}".format(
@@ -1106,7 +1114,7 @@ def launch(
     if resource is None and config.get("resource") is not None:
         resource = config.get("resource")
     elif resource is None:
-        resource = "local"
+        resource = "local-container"
 
     if (
         uri is None
