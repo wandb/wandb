@@ -21,7 +21,9 @@ def main():
     except Exception as e:
         print(e)
         print("Issue with calling wandb init in a multithreaded situation")
-        raise AssertionError("Issue with calling wandb init in a multithreaded situation")
+        raise AssertionError(
+            "Issue with calling wandb init in a multithreaded situation"
+        )
 
 
 if __name__ == "__main__":

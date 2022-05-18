@@ -1,8 +1,6 @@
 import pathlib
 
-import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix
 import wandb
 
 
@@ -29,8 +27,8 @@ def main():
     count_vect.fit(text)
     counts = count_vect.transform(text)
 
-    counts_train = counts[:6000]
-    target_train = target[:6000]
+    # counts_train = counts[:6000]
+    # target_train = target[:6000]
     counts_test = counts[6000:]
     target_test = target[6000:]
 
@@ -40,7 +38,7 @@ def main():
     nb = MultinomialNB()
     nb.fit(counts, target)
 
-    X_test = counts_test
+    X_test = counts_test  # noqa: N806
     y_test = target_test
     y_probas = nb.predict_proba(X_test)
     y_pred = nb.predict(X_test)
