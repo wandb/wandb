@@ -1,0 +1,33 @@
+id: 0.standalone.basic-plots
+tag:
+  shard: standalone-cpu
+  platforms:
+    - linux
+    - mac
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - "bar1_table"
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - "histogram1_table"
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - "line1_table"
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - "line_series1_table"
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - "line_series_no_title_no_keys_table"
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - "line_series_single_x_table"
+  - :op:contains:
+      - :wandb:runs[0][summary]
+      - "scatter1_table"
+  - :wandb:runs[0][exitcode]: 0

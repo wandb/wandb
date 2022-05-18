@@ -307,10 +307,13 @@ class WandbCallback(tf.keras.callbacks.Callback):
             for calculating gradients - this is mandatory if `log_gradients` is `True`.
         validation_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data
             for wandb to visualize.  If this is set, every epoch, wandb will
-            make a small number of predictions and save the results for later visualization.
+            make a small number of predictions and save the results for later visualization. In case
+            you are working with image data, please also set `input_type` and `output_type` in order
+            to log correctly.
         generator: (generator) a generator that returns validation data for wandb to visualize.  This
             generator should return tuples `(X,y)`.  Either `validate_data` or generator should
-            be set for wandb to visualize specific data examples.
+            be set for wandb to visualize specific data examples. In case you are working with image data,
+            please also set `input_type` and `output_type` in order to log correctly.
         validation_steps: (int) if `validation_data` is a generator, how many
             steps to run the generator for the full validation set.
         labels: (list) If you are visualizing your data with wandb this list of labels
@@ -321,9 +324,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         predictions: (int) the number of predictions to make for visualization each epoch, max
             is 100.
         input_type: (string) type of the model input to help visualization. can be one of:
-            (`image`, `images`, `segmentation_mask`).
+            (`image`, `images`, `segmentation_mask`, `auto`).
         output_type: (string) type of the model output to help visualziation. can be one of:
-            (`image`, `images`, `segmentation_mask`).
+            (`image`, `images`, `segmentation_mask`, `label`).
         log_evaluation: (boolean) if True, save a Table containing validation data and the
             model's preditions at each epoch. See `validation_indexes`,
             `validation_row_processor`, and `output_row_processor` for additional details.
