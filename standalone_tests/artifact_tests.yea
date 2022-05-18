@@ -1,0 +1,11 @@
+id: 0.standalone.04-artifact-tests
+tag:
+  shard: standalone-cpu
+  skip: True
+  platforms:
+    - linux
+    - mac
+plugin:
+  - wandb
+assert:
+  - :wandb:runs: None

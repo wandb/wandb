@@ -10,8 +10,6 @@ plugin:
 depend:
   pip_install_timeout: 1500  # 25m
   pip_install_options:
-    - -f
-    - https://download.pytorch.org/whl/cpu/torch_stable.html
     - -qq
   requirements:
     - torch
