@@ -1,21 +1,21 @@
-"""artifact load test.
+"""Artifact load test.
 
-For a single artifact named A:            
+For a single artifact named A:
 - test phase (run max T seconds)
-  - generate 100k random files of size S      
+  - generate 100k random files of size S
   - have W parallel writer processes that create new versions for A from a random subset of those files
   - have R parallel reader processes randomly pick a version from A, download it, and verify it (through cache)
-  - have a cache gc process that runs cache gc periodically      
-  - have a deleter process that wakes up periodically and deletes random versions using the API.      
-  - have a bucket gc process that runs bucket gc periodically      
+  - have a cache gc process that runs cache gc periodically
+  - have a deleter process that wakes up periodically and deletes random versions using the API.
+  - have a bucket gc process that runs bucket gc periodically
 - verification phase:
   - artifact verification
     - ensure all versions are in the committed or deleted states
   - bucket verification
     - run bucket gc one more time
     - ensure bucket state exactly matches state of all manifests
-      - ensure files are available in bucket and match md5 / etag                             
-      - ensure there are no dangling files in bucket 
+      - ensure files are available in bucket and match md5 / etag
+      - ensure there are no dangling files in bucket
 
 TODO:
   - enabling the cache gc process causes errors, but the test doesn't fail, because
@@ -27,17 +27,16 @@ TODO:
 import argparse
 from collections import defaultdict
 from datetime import datetime
-import random
 import multiprocessing
 import os
 import queue
+import random
 import string
 import sys
 import tempfile
 import time
 
 from tqdm import tqdm
-
 import wandb
 
 parser = argparse.ArgumentParser(description="artifacts load test")
@@ -217,9 +216,9 @@ def proc_version_reader(
         with wandb.init(reinit=True, project=project_name, job_type="reader") as run:
             try:
                 run.use_artifact(version)
-            except:
+            except Exception as e:
                 stats_queue.put({"read_use_error": 1})
-                print("Reader caught error on use_artifact")
+                print(f"Reader caught error on use_artifact: {e}")
                 updated_version = api.artifact(version.name)
                 if updated_version.state != "DELETED":
                     raise Exception(
@@ -229,9 +228,9 @@ def proc_version_reader(
             print("Reader downloading: ", version)
             try:
                 version.checkout("read-%s" % reader_id)
-            except:
+            except Exception as e:
                 stats_queue.put({"read_download_error": 1})
-                print("Reader caught error on version.download")
+                print(f"Reader caught error on version.download: {e}")
                 updated_version = api.artifact(version.name)
                 if updated_version.state != "DELETED":
                     raise Exception(
@@ -239,7 +238,7 @@ def proc_version_reader(
                     )
                 continue
             print("Reader verifying: ", version)
-            version.verify("read-%s" % reader_id)
+            version.verify(f"read-{reader_id}")
             print("Reader verified: ", version)
 
 
@@ -293,7 +292,7 @@ def proc_bucket_garbage_collector(stop_queue, bucket_gc_period_max):
         # TODO: implement bucket gc
 
 
-def main(argv):
+def main(argv):  # noqa: C901
     args = parser.parse_args()
     print("Load test starting")
 
@@ -396,7 +395,7 @@ def main(argv):
         procs.append(p)
 
     # deleters
-    for i in range(args.num_deleters):
+    for _ in range(args.num_deleters):
         p = multiprocessing.Process(
             target=proc_version_deleter,
             args=(
@@ -458,7 +457,7 @@ def main(argv):
 
     print("Test phase time expired")
     # stop all processes and wait til all are done
-    for i in range(len(procs)):
+    for _ in range(len(procs)):
         stop_queue.put(True)
     print("Waiting for processes to stop")
     fail = False

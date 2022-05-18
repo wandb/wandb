@@ -15,8 +15,8 @@ import time
 from typing import Any, Dict
 from typing import TYPE_CHECKING
 
-import wandb
 import grpc
+import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2 as spb  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
@@ -225,7 +225,7 @@ def main():
 
     def_id = "junk123"
     run_id = os.environ.get("WANDB_RUN_ID", def_id)
-    entity = os.environ.get("WANDB_ENTITY")
+    entity = os.environ.get("WANDB_ENTITY")  # noqa: F841
     project = os.environ.get("WANDB_PROJECT")
     group = os.environ.get("WANDB_RUN_GROUP")
     job_type = os.environ.get("WANDB_JOB_TYPE")

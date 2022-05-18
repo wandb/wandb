@@ -1,8 +1,8 @@
-import wandb
+from tensorboardX import SummaryWriter
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from tensorboardX import SummaryWriter
+import torch.nn.functional as F  # noqa: N812
+import wandb
 
 
 def main():

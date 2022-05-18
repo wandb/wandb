@@ -1,10 +1,11 @@
 import os
-from PIL import Image
-import shutil
-import numpy as np
 import pickle
-import time
 import shutil
+import time
+
+import numpy as np
+from PIL import Image
+import wandb
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -19,9 +20,6 @@ if WANDB_SILENT_ENV is None:
 else:
     WANDB_SILENT = WANDB_SILENT_ENV
 os.environ["WANDB_SILENT"] = WANDB_SILENT
-
-import wandb
-
 
 NUM_EXAMPLES = 10
 DL_URL = "https://raw.githubusercontent.com/wandb/dsviz-demo/master/bdd20_small.tgz"  # "https://storage.googleapis.com/l2kzone/bdd100k.tgz"
@@ -137,18 +135,18 @@ def mask_to_bounding(np_image):
         row_count = np.where(matches.sum(axis=1))[0]
 
         if len(col_count) > 1 and len(row_count) > 1:
-            minX = col_count[0] / np_image.shape[1]
-            maxX = col_count[-1] / np_image.shape[1]
-            minY = row_count[0] / np_image.shape[0]
-            maxY = row_count[-1] / np_image.shape[0]
+            min_x = col_count[0] / np_image.shape[1]
+            max_x = col_count[-1] / np_image.shape[1]
+            min_y = row_count[0] / np_image.shape[0]
+            max_y = row_count[-1] / np_image.shape[0]
 
             data.append(
                 {
                     "position": {
-                        "minX": minX,
-                        "maxX": maxX,
-                        "minY": minY,
-                        "maxY": maxY,
+                        "minX": min_x,
+                        "maxX": max_x,
+                        "minY": min_y,
+                        "maxY": max_y,
                     },
                     "class_id": id_num,
                 }
@@ -231,7 +229,7 @@ def score_model(model, x_data, mask_data, n_classes):
 
 def make_datasets(data_table, n_classes):
     n_samples = len(data_table.data)
-    n_classes = len(BDD_CLASSES)
+    # n_classes = len(BDD_CLASSES)
     height = data_table.data[0][1].image.height
     width = data_table.data[0][1].image.width
 

@@ -6,11 +6,11 @@
 # 3D models
 # http://app.test/nbaryd/client-standalone_tests/runs/0rb3xwke?workspace=user-nbaryd
 
+from math import cos, pi, sin
 import os
 
 import numpy as np
 import wandb
-from math import sin, cos, pi
 
 
 DIR = os.path.dirname(__file__)

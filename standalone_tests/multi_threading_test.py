@@ -1,4 +1,5 @@
 import threading
+
 import wandb
 
 
@@ -17,9 +18,10 @@ def main():
             thread.start()
         for thread in threads:
             thread.join()
-    except:
+    except Exception as e:
+        print(e)
         print("Issue with calling wandb init in a multithreaded situation")
-        assert False
+        raise AssertionError("Issue with calling wandb init in a multithreaded situation")
 
 
 if __name__ == "__main__":

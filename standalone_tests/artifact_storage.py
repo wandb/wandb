@@ -1,5 +1,5 @@
-import random
 import os
+import random
 import sys
 import tempfile
 
@@ -101,8 +101,6 @@ def main(argv):
         print("Not expected to match because of s3 ref:")
         print("downloaded dig", art.digest)
         print("computed dig", computed.digest)
-
-        import json
 
         print("downloaded manifest", art._load_manifest().to_manifest_json())
         print("computed manifest", computed.manifest.to_manifest_json())

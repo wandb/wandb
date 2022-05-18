@@ -12,10 +12,10 @@ import os
 import subprocess
 
 import keras
-from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Dropout, Dense, Flatten
-from keras.preprocessing.image import ImageDataGenerator
 from keras import optimizers
+from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
+from keras.models import Sequential
+from keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 import pandas
 import wandb
@@ -92,7 +92,7 @@ def main():
 
         class_cols = []
         class_names = []
-        for class_col, i in sorted(gen.class_indices.items(), key=lambda c_i: c_i[1]):
+        for class_col, _ in sorted(gen.class_indices.items(), key=lambda c_i: c_i[1]):
             class_cols.append(class_col)
             class_names.append(class_col.replace("_", " "))
 
@@ -123,10 +123,10 @@ def main():
 
             for i in range(base_i, base_i + len(examples)):
                 cards.append(
-                    """```Predicted:  
-    {pred_class} ({pred_prob:.2%})  
-    Actual:  
-    {true_class} ({true_prob:.2%})  
+                    """```Predicted:
+    {pred_class} ({pred_prob:.2%})
+    Actual:
+    {true_class} ({true_prob:.2%})
     ![](https://api.wandb.ai/adrianbg/simpsons/tgw7wnqj/simpsons/{idx}.jpg)
     ```""".format(
                         true_class=true_classes[i],

@@ -19,6 +19,7 @@ def main(argv):
     try:
         os.makedirs("./chdir_test")
     except Exception as e:
+        print(f"Failed to create directory: {e}")
         pass
 
     os.chdir("./chdir_test")

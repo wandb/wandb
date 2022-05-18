@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-
-import wandb
-import time
-import shutil
-import os
 import argparse
+import os
+import shutil
+import time
+
 import requests
+import wandb
 
 L = 10
 PROJECT = "standalone-sweep-check"
@@ -26,8 +26,8 @@ def train(**kwargs):
     if kwargs.get("chdir"):
         try:
             os.makedirs("./test_chdir")
-        except:
-            pass
+        except Exception as e:
+            print(e)
         os.chdir("./test_chdir")
     run = wandb.init()
     with run:
@@ -54,15 +54,13 @@ def train_and_check_chdir(**kwargs):
     if "test_chdir" not in os.getcwd():
         try:
             os.makedirs("./test_chdir")
-        except:
-            pass
+        except Exception as e:
+            print(e)
         os.chdir("./test_chdir")
     run = wandb.init()
     with run:
         c = dict(run.config)
-        root = c.get("root")
         run.name = "{}-{}-{}".format(c.get("param0"), c.get("param1"), c.get("param2"))
-        run_id = run.id
         print("SweepID", run.sweep_id)
         length = run.config.get("length", L)
         epochs = run.config.get("epochs", 27)
@@ -82,7 +80,7 @@ def train_and_check_chdir(**kwargs):
         }, print(files)
         # ensure run dir does not contain test_chdir, and no files were saved there
         assert "test_chdir" not in run.dir
-        for root, dir, files in os.walk("."):
+        for _, _, files in os.walk("."):
             assert files == [], print(files)
 
 
@@ -107,7 +105,7 @@ def check(sweep_id, num=None, result=None, stopped=None):
         val_acc = tmp if val_acc is None or tmp > val_acc else val_acc
     if stopped is not None:
         print(f"NOT CHECKING: stopped, saw: {cnt_stopped}, expecting: {stopped}")
-        # FIXME: turn on stopped run state
+        # todo: turn on stopped run state
     if result is not None:
         print(f"CHECKING: metric, saw: {val_acc}, expecting: {result}")
         assert val_acc == result
@@ -174,7 +172,7 @@ def sweep_bayes_nested(args):
     )
     sweep_id = wandb.sweep(config, project=PROJECT)
     print("sweep:", sweep_id)
-    wandb.agent(sweep_id, function=train_nested, count=9)
+    wandb.agent(sweep_id, function=train, count=9)
     check(sweep_id, num=9, result=2 + 4 * L + 1.5 * L * L)
 
 

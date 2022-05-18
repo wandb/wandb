@@ -1,15 +1,16 @@
 # Suggest running as: WANDB_BASE_URL=http://api.wandb.test python artifact_object_reference_test.py
-import shutil
-
-import os
-import binascii
 import base64
+import binascii
+from math import cos, pi, sin
+import os
+import shutil
 import time
-from math import sin, cos, pi
-import numpy as np
-from bokeh.plotting import figure
 
+from bokeh.plotting import figure
+import numpy as np
+import wandb
 from wandb.sdk.interface import artifacts
+
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -24,8 +25,6 @@ if WANDB_SILENT_ENV is None:
 else:
     WANDB_SILENT = WANDB_SILENT_ENV
 os.environ["WANDB_SILENT"] = WANDB_SILENT
-
-import wandb
 
 columns = [
     "id",
@@ -124,11 +123,11 @@ def _make_wandb_image(suffix=""):
 
 
 def _make_point_cloud():
-    # Generate a symetric pattern
-    POINT_COUNT = 20000
+    # Generate a symmetric pattern
+    point_count = 20000
 
     # Choose a random sample
-    theta_chi = pi * np.random.rand(POINT_COUNT, 2)
+    theta_chi = pi * np.random.rand(point_count, 2)
 
     def gen_point(theta, chi, i):
         p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + cos(chi) * 7 * sin(
@@ -190,13 +189,13 @@ vid4 = _make_video()
 
 
 def _make_wandb_audio(frequency, caption):
-    SAMPLE_RATE = 44100
-    DURATION_SECONDS = 1
+    sample_rate = 44100
+    duration_seconds = 1
 
     data = np.sin(
-        2 * np.pi * np.arange(SAMPLE_RATE * DURATION_SECONDS) * frequency / SAMPLE_RATE
+        2 * np.pi * np.arange(sample_rate * duration_seconds) * frequency / sample_rate
     )
-    return wandb.Audio(data, SAMPLE_RATE, caption)
+    return wandb.Audio(data, sample_rate, caption)
 
 
 aud1 = _make_wandb_audio(440, "four forty")
@@ -492,7 +491,7 @@ def test_adding_artifact_by_object():
 
     with wandb.init() as run:
         downstream_artifact = run.use_artifact("downstream_media:latest")
-        downstream_path = downstream_artifact.download()
+        downstream_path = downstream_artifact.download()  # noqa: F841
         # assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
         assert downstream_artifact.get("T2") == _make_wandb_image()
 
@@ -666,7 +665,7 @@ def assert_media_obj_referential_equality(obj):
     _cleanup()
     with wandb.init() as run:
         down_artifact_ref = run.use_artifact("down_artifact:latest")
-        down_dir = down_artifact_ref._default_root()
+        down_dir = down_artifact_ref._default_root()  # noqa: F841
         obj3 = down_artifact_ref.get("obj3")
 
     if hasattr(obj, "_eq_debug"):
@@ -769,7 +768,7 @@ def test_joined_table_add_by_path():
         got_err = False
         try:
             tables.add(jt_bad, "jt_bad")
-        except ValueError as err:
+        except ValueError:
             got_err = True
         assert got_err
 
@@ -876,7 +875,7 @@ def test_simple_partition_table():
 
 
 def test_distributed_artifact_simple():
-    table_name = "dataset"
+    # table_name = "dataset"
     artifact_name = f"simple_dist_dataset_{round(time.time())}"
     group_name = f"test_group_{np.random.rand()}"
     artifact_type = "distributed_dataset"

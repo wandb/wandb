@@ -1,10 +1,16 @@
-### rm -rf wandb && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py && rm -rf wandb && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py --online
+"""
+rm -rf wandb \
+ && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py \
+ && rm -rf wandb \
+ && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py --online
+"""
 
+import sys
+
+from click.testing import CliRunner
+import numpy as np
 import wandb
 from wandb.cli import cli
-import numpy as np
-from click.testing import CliRunner
-import sys
 
 dataset_size = 250
 pred_size = 100
@@ -39,7 +45,7 @@ def make_run():
     return wandb.init(project=project, mode=mode)
 
 
-### BASE RUN TYPES
+# BASE RUN TYPES
 
 
 def init_dataset_run():
@@ -61,7 +67,7 @@ def init_ref_dataset_run():
     return dataset
 
 
-### ALTERNATE ORDERINGS (Should execute)
+# ALTERNATE ORDERINGS (Should execute)
 
 
 def do_ref_dataset_run_grouped():
@@ -93,7 +99,7 @@ def do_ref_dataset_run_reversed():
     return dataset
 
 
-### DEP RUNS ON LOGGED
+# DEP RUNS ON LOGGED
 
 
 def do_dep_dataset_run():
@@ -142,7 +148,7 @@ def do_dep_ref_dataset_run_reversed():
     return run
 
 
-### DEP RUNS ON REF
+# DEP RUNS ON REF
 
 
 def do_r_dep_dataset_run():

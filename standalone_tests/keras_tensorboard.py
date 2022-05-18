@@ -1,9 +1,8 @@
-import wandb
-import numpy as np
 import time
+
+import numpy as np
 import tensorflow as tf
-import glob
-import os
+import wandb
 
 
 def main():

@@ -21,13 +21,13 @@ WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 && \
 WANDB_SILENT=true python artifact_table_load.py --n_rows=5000 --img_dim=200 --clear_cache
 """
 
-import os
-import wandb
-import numpy as np
 import argparse
-import time
+import os
 import shutil
+import time
 
+import numpy as np
+import wandb
 from wandb.sdk.interface import artifacts
 
 
