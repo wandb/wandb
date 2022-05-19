@@ -208,6 +208,7 @@ class TBDirWatcher:
         self._logdir = logdir
         self._hostname = socket.gethostname()
         self._force = force
+        self._process_events_lock = threading.Lock()
 
     def start(self) -> None:
         self._thread.start()
@@ -258,8 +259,9 @@ class TBDirWatcher:
 
     def _process_events(self, shutdown_call: bool = False) -> None:
         try:
-            for event in self._generator.Load():
-                self.process_event(event)
+            with self._process_events_lock:
+                for event in self._generator.Load():
+                    self.process_event(event)
         except (
             self.directory_watcher.DirectoryDeletedError,
             StopIteration,

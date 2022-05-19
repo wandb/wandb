@@ -1,13 +1,12 @@
-import wandb
+from tensorboardX import SummaryWriter
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from tensorboardX import SummaryWriter
+import torch.nn.functional as F  # noqa: N812
+import wandb
 
 
 def main():
     wandb.init(tensorboard=True)
-
 
     class ConvNet(nn.Module):
         def __init__(self):
@@ -27,7 +26,6 @@ def main():
             x = self.fc2(x)
             return F.log_softmax(x, dim=1)
 
-
     writer = SummaryWriter()
     net = ConvNet()
     wandb.watch(net, log_freq=2)
@@ -35,8 +33,8 @@ def main():
         output = net(torch.ones((64, 1, 28, 28)))
         loss = F.mse_loss(output, torch.ones((64, 10)))
         output.backward(torch.ones(64, 10))
-        writer.add_scalar("loss", loss / 64, i+1)
-        writer.add_image("example", torch.ones((1, 28, 28)), i+1)
+        writer.add_scalar("loss", loss / 64, i + 1)
+        writer.add_image("example", torch.ones((1, 28, 28)), i + 1)
     writer.close()
 
 

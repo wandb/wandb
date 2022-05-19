@@ -1,32 +1,18 @@
 [tool.black]
 line-length = 88
+include = '\.pyi?$'
 exclude = '''
   wandb/vendor/
 | wandb/old/
 | wandb/bin/
 | wandb/proto/
 | wandb/proto_check/
-| wandb/docker/wandb-entrypoint.sh
 | wandb/sdk/launch/deploys/
 | wandb/run*
 | wandb/offline-run*
-| wandb/debug.+log
 | tests/fixtures/
-| tests/wandb_tensorflow_summary.pb
 | tests/logs/
-| tests/logs/cleanup.sh
 | tests/notebooks/
-| tests/standalone/.coveragerc
-| tests/testlib/schema-wandb-testlib.json
-| tools/diff_cli_files.sh
-| tools/strip_type_annotations.sh
-| tools/setup_dev_environment.sh
-| tools/loop.sh
 | __pycache__
 | .pyc
-'''
-include = '''
-  wandb/
-| tests/
-| tools/
 '''

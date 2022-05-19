@@ -1,6 +1,7 @@
 """Integration with pytorch profiler."""
 import os
 
+from pkg_resources import parse_version
 import wandb
 from wandb.errors import Error, UsageError
 from wandb.sdk.lib import telemetry
@@ -54,11 +55,8 @@ def torch_trace_handler():
     """
     torch = wandb.util.get_module(PYTORCH_MODULE, required=True)
     torch_profiler = wandb.util.get_module(PYTORCH_PROFILER_MODULE, required=True)
-    version = tuple(
-        map(lambda x: int(x), torch.__version__.replace("+cpu", "").split("."))
-    )
 
-    if version < (1, 9, 0):
+    if parse_version(torch.__version__) < parse_version("1.9.0"):
         raise Error(
             f"torch version must be at least 1.9 in order to use the PyTorch Profiler API.\
             \nVersion of torch currently installed: {torch.__version__}"
