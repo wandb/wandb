@@ -1,4 +1,5 @@
 import json
+from multiprocessing.sharedctypes import Value
 from typing import Any, Dict, Optional, Union
 
 import wandb
@@ -17,7 +18,8 @@ def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
 
 
 def launch_add(
-    uri: str,
+    uri: Optional[str] = None,
+    job: Optional[str] = None,
     config: Optional[Union[str, Dict[str, Any]]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -29,10 +31,14 @@ def launch_add(
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
 ) -> "public.QueuedJob":
+    if uri is None and job is None:
+        raise ValueError("Must specify either uri or job")
     api = Api()
+
     return _launch_add(
         api,
         uri,
+        job,
         config,
         project,
         entity,
@@ -48,7 +54,8 @@ def launch_add(
 
 def _launch_add(
     api: Api,
-    uri: str,
+    uri: Optional[str],
+    job: Optional[str],
     config: Optional[Union[str, Dict[str, Any]]],
     project: Optional[str],
     entity: Optional[str],
@@ -61,7 +68,7 @@ def _launch_add(
     params: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
-) -> "public.QueuedJob":
+) -> "public.QueuedRun":
 
     resource = resource or "local"
     if config is not None:
@@ -78,6 +85,7 @@ def _launch_add(
 
     launch_spec = construct_launch_spec(
         uri,
+        job,
         api,
         name,
         project,
@@ -91,7 +99,7 @@ def _launch_add(
         launch_config,
         cuda,
     )
-
+    print(launch_spec)
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:

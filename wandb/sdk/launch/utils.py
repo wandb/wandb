@@ -102,6 +102,7 @@ def set_project_entity_defaults(
 
 def construct_launch_spec(
     uri: Optional[str],
+    job: Optional[str],
     api: Api,
     name: Optional[str],
     project: Optional[str],
@@ -120,6 +121,9 @@ def construct_launch_spec(
     launch_spec = launch_config if launch_config is not None else {}
     if uri is not None:
         launch_spec["uri"] = uri
+    if job is not None:
+        launch_spec["job"] = job
+        launch_spec.pop("uri", None)
     project, entity = set_project_entity_defaults(
         uri,
         api,

@@ -115,12 +115,9 @@ class TypeRegistry:
         # The dtype is a dict, then we resolve the dict notation
         # TODO: Im a very hot code path, don't mess with me
         elif isinstance(dtype, dict):
-            if dtype.get("_type"):
-                wbtype = {"_type": dtype["_type"]}
-            else:
-                wbtype = TypedDictType(
-                    {key: TypeRegistry.type_from_dtype(dtype[key]) for key in dtype}
-                )
+            wbtype = TypedDictType(
+                {key: TypeRegistry.type_from_dtype(dtype[key]) for key in dtype}
+            )
 
         # The dtype is a concrete instance, which we will treat as a constant
         else:
@@ -870,13 +867,15 @@ class TypedDictType(Type):
 def config_to_types(config):
     """Recursively traverses dictionary converting all values to wandb types."""
     type_dict = {}
-    return str(TypeRegistry.type_of(config._as_dict()))
     for k, v in config.items():
+        print("K< V", k, v)
         if isinstance(v, dict):
-            # if v.get("_type"):
-            #     type_dict[k] = v["_type"]
-            # else:
-            type_dict[k] = config_to_types(v)
+            if k.startswith("_"):
+                continue
+            if v.get("_type"):
+                type_dict[k] = {"_type": v["_type"]}
+            else:
+                type_dict[k] = dict_to_types(v)
         elif isinstance(v, list):
             type_dict[k] = [str(TypeRegistry.type_of(x)) for x in v]
         else:
@@ -887,13 +886,12 @@ def config_to_types(config):
 def summary_to_types(summary):
     """Recursively traverses dictionary converting all values to wandb types."""
     type_dict = {}
-    return TypeRegistry.type_of(summary._as_dict())
     for k, v in summary._as_dict().items():
         if k.startswith("_"):
             continue
         if isinstance(v, dict):
             if v.get("_type") is not None:
-                type_dict[k] = v.get("_type")
+                type_dict[k] = {"_type": v.get("_type")}
             else:
                 type_dict[k] = dict_to_types(v)
         elif isinstance(v, list):
@@ -907,10 +905,9 @@ def dict_to_types(d):
     """Recursively traverses dictionary converting all values to wandb types."""
     type_dict = {}
     for k, v in d.items():
-
         if isinstance(v, dict):
             if v.get("_type") is not None:
-                type_dict[k] = v.get("_type")
+                type_dict[k] = {"_type": v.get("_type")}
             else:
                 type_dict[k] = dict_to_types(v)
         elif isinstance(v, list):

@@ -22,7 +22,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Optional
+from typing import List, Optional
 import urllib
 
 from dateutil.relativedelta import relativedelta
@@ -723,7 +723,7 @@ class Api:
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
         """
         entity, project, queue, run_queue_item_id = path.split("/")
-        return QueuedJob(self.client, entity, project, queue, run_queue_item_id)
+        return QueuedRun(self.client, entity, project, queue, run_queue_item_id)
 
     @normalize_exceptions
     def sweep(self, path=""):
@@ -785,12 +785,12 @@ class Api:
         return artifact
 
     @normalize_exceptions
-    def job(self, name):
+    def job(self, name, path=None):
         if name is None:
             raise ValueError("You must specify name= to fetch a job.")
         entity, project, job_name = self._parse_artifact_path(name)
         job_artifact = self.artifact(name, type="job")
-        fpath = job_artifact.download()
+        fpath = job_artifact.download(root=path)
         input_types = None
         output_types = None
         config_defaults = None
@@ -803,9 +803,14 @@ class Api:
             output_types = json.load(f)
         config_defaults = job_artifact.metadata.get("config_defaults")
         if source_info.get("source_type") == "artifact":
-            return ArtifactJob(name, source_info, job_artifact, input_types, config_defaults, output_types)
-        # if source_info.get("source_type") == "repo":
-        #     return RepoJob(self._client, name)
+            # TODO: use job constructor
+            return ArtifactJob(
+                name,
+                job_artifact,
+                input_types,
+                config_defaults,
+                output_types,
+            )
 
 
 class Attrs:
@@ -1465,7 +1470,6 @@ class Runs(Paginator):
         return f"<Runs {self.entity}/{self.project}>"
 
 
-
 class Run(Attrs):
     """
     A single run associated with an entity and project.
@@ -2093,27 +2097,20 @@ class QueuedRun(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, queued_id, run_queue_item_id, attrs={}):
-        """
-        Run is always initialized by calling api.runs() where api is an instance of wandb.Api
-        """
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
         super().__init__(dict(attrs))
         self.client = client
         self._entity = entity
         self.project = project
-        self.queue_id = queue_id
-        self._base_dir = env.get_dir(tempfile.gettempdir())
+        self.queue = queue
         self.run_queue_item_id = run_queue_item_id
         self.sweep = None
-        self.dir = os.path.join(self._base_dir, *self.path)
-        try:
-            os.makedirs(self.dir)
-        except OSError:
-            pass
         self._state = attrs.get("state", "not found")
         self._run = None
 
-        self.load(force=not attrs)
+    @property
+    def run(self):
+        return self._run
 
     @property
     def state(self):
@@ -2138,7 +2135,7 @@ class QueuedRun(Attrs):
             return self._run._attrs.get("id")
         elif self._attrs.get("id"):
             return self._attrs.get("id")
-        
+
         raise ValueError("Run not found")
 
     @property
@@ -2147,7 +2144,7 @@ class QueuedRun(Attrs):
             return self._run._attrs.get("name")
         elif self._attrs.get("name"):
             return self._attrs.get("name")
-        
+
         raise ValueError("Run not found")
 
     @id.setter
@@ -2233,6 +2230,7 @@ class QueuedRun(Attrs):
         self._run._attrs["config"] = config_user
         self._run._attrs["rawconfig"] = config_raw
         return self._run._attrs
+
     # TODO: FIX
     @normalize_exceptions
     def wait_until_finished(self):
@@ -2304,11 +2302,12 @@ class QueuedRun(Attrs):
                         clientMutationId
                     }
                 }
-                """)
+                """
+            )
             self.client.execute(
                 mutation,
                 variable_values={
-                    "queueID": self.queue_id,
+                    "queueID": self.queue,
                     "runQueueItemID": self.run_queue_item_id,
                 },
             )
@@ -2361,7 +2360,11 @@ class QueuedRun(Attrs):
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
         if self._run is not None:
-            variables = {"entity": self._run.entity, "project": self._run.project, "name": self._run.id}
+            variables = {
+                "entity": self._run.entity,
+                "project": self._run.project,
+                "name": self._run.id,
+            }
             variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
 
@@ -2642,7 +2645,9 @@ class QueuedRun(Attrs):
             raise ValueError("Run not found")
         if self._run._summary is None:
             # TODO: fix the outdir issue
-            self._run._summary = HTTPSummary(self._run, self.client, summary=self._run.summary_metrics)
+            self._run._summary = HTTPSummary(
+                self._run, self.client, summary=self._run.summary_metrics
+            )
         return self._summary
 
     @property
@@ -2696,8 +2701,8 @@ class QueuedRun(Attrs):
             style += "display:none;"
             prefix = ipython.toggle_button()
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
-    
-     @normalize_exceptions
+
+    @normalize_exceptions
     def wait_until_running(self):
         query = gql(
             """
@@ -2754,23 +2759,22 @@ class QueuedRun(Attrs):
             return "<QueuedRun {} ({})".format(self.run_queue_item_id, self.queue)
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
-class QueuedRun(Run):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super().__init__(dict(attrs))
-        self.client = client
-        self._entity = entity
-        self.project = project
-        self._queue = queue
-        self._run_queue_item_id = run_queue_item_id
-        self._run_id = None
 
-   
+# class QueuedRun(Run):
+#     def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
+#         super().__init__(dict(attrs))
+#         self.client = client
+#         self._entity = entity
+#         self.project = project
+#         self._queue = queue
+#         self._run_queue_item_id = run_queue_item_id
+#         self._run_id = None
 
-    @property
-    def run(self):
-        if self._run_id is None:
-            raise LaunchError("Tried to fetch run without having run_id")
-        return Run(self.client, self._entity, self.project, self._run_id)
+#     @property
+#     def run(self):
+#         if self._run_id is None:
+#             raise LaunchError("Tried to fetch run without having run_id")
+#         return Run(self.client, self._entity, self.project, self._run_id)
 
 
 class Sweep(Attrs):
@@ -5080,77 +5084,69 @@ class Job(Media):
     _log_type = "job"
 
     _name: str
-    _config_type: _dtypes.Type
-    # we store the config defaults in the job itself. seems reasonable
-    # but how do we expect defaults to work using our run config system in the
-    # logging API?
-    _config_defaults: dict  # TODO: type?
-    _summary_type: _dtypes.Type
+    _input_type: _dtypes.Type
+    _output_type: _dtypes.Type
     _entity: str
     _project: str
-
-    # TODO(end-to-end): I don't think in its final form Job should have a backing
-    # run id. Instead we should store the info we need to run the job (requirements
-    # docker file, etc). And we should probably use the Jobs table in the database
-    _run_id: str
+    _entrypoint: List[str]
 
     def __init__(
         self,
         client: Api,
         name,
     ) -> None:
-        """Init"""
-        super(Job, self).__init__()
+
+        self._job_artifact = client.artifact(name, type="job")
+
+        fpath = self._job_artifact.download()
         self._name = name
         self._client = client
-        self._job_artifact = client.artifact(name, type="job")
-        fpath = self._job_artifact.download()
+        self._entity = client.default_entity
         with open(os.path.join(fpath, "source_info.json")) as f:
             self._source_info = json.load(f)
-        if self._source_info.get("source_type") == "artifact":
-            return ArtifactJob(self._client, self._name)
-        if self._source_info.get("source_type") == ""
-
-            self._code_artifact = self._source_info.get("artifact")
         self._entrypoint = self._source_info.get("entrypoint")
-
         self._requirements_file = os.path.join(fpath, "requirements.txt")
 
-    def _call_artifact(self):
+        if self._source_info.get("source_type") == "artifact":
+            self._set_configure_launch_project(self._configure_launch_project_artifact)
+        if self._source_info.get("source_type") == "repo":
+            self._set_configure_launch_project(self._configure_launch_project_repo)
+        if self._source_info.get("source_type") == "image":
+            self._set_configure_launch_project(self._configure_launch_project_image)
+
+    def _set_configure_launch_project(self, func):
+        self._configure_launch_project = func
+
+    def _configure_launch_project_artifact(self, launch_project):
         pass
 
-    # This forces a config key to a specific val (can be used to create
-    # closure behavior).
-    # TODO(end-to-end): weird that this is called set_default_input
-    #    instead of set_config_default or something like that. But I'd like
-    #    to thing of config and summary as input/output. We may want to switch
-    #    terms at this API-level?
+    def _configure_launch_project_repo(self, launch_project):
+        pass
+
+    def _configure_launch_project_image(self, launch_project):
+        pass
+
     def set_default_input(self, key, val):
-        self._config_defaults[key] = val
+        self._job_artifact.metadata["config_defaults"][key] = val
+        self._job_artifact.save()
 
-    def get_type(self) -> "_ClassesIdType":
-        return _ClassesIdType(self)
+    def _config_defaults(self):
+        return self._source_artifact.metadata["config_defaults"]
 
-    def call(self, config):
+    def set_entrypoint(self, entrypoint: List[str]):
+        self._entrypoint = entrypoint
+
+    def call(self, config, project=None, entity=None, queue=None, resource="local"):
+        from wandb.sdk.launch import launch_add
+
         run_config = self._config_defaults.copy()
 
-        # Replace the special value token "${job_artifact}" with the artifact
-        # uri this job file is inside of.
-        for key, val in run_config.items():
-            if val == "${job_artifact}":
-                run_config[key] = "wandb-artifact://%s/%s/%s" % (
-                    self._source_artifact.entity,
-                    self._source_artifact.project,
-                    self._source_artifact.name,
-                )
-
         run_config.update(config)
-        assigned_config_type = self._config_type.assign(run_config)
+        assigned_config_type = self._input_type.assign(run_config)
         # TODO: also be helpful and check if the user passed additional
         #     keys that are not part of the run config. The type system
         #     will allow this. But its probably a typo on the user's part.
         if isinstance(assigned_config_type, _dtypes.InvalidType):
-            # TODO: Better Exception, like some kind of TypeError?
             # TODO: This message prints all the dict keys, which can be
             #     a lot, even though the user probably only provided a subset
             #     since they're overriding defaults. Make the message more
@@ -5158,101 +5154,60 @@ class Job(Media):
             # TODO: Improve message: The message looks like a type error, but
             #     we should say something like "Invalid arguments passed to
             #     to job..."
-            raise Exception(self._config_type.explain(run_config))
-        # TODO check not invalid
+            raise TypeError(self._input_type.explain(run_config))
 
-        # We return a QueuedJob object. That seems ok.
-        # you can then do:
-        #   run = qj.wait_until_running()
-        #   run.wait_until_finished()
-        # an alternative would be to put a queued state on Run itself
-        #   so the user only has to deal with one object.
-
-        # TODO(end-to-end): launch_add defaults to adding runs in the
-        #     in the project the original run was in. It should instead
-        #     add them in the current project (via api settings)
-
-        # TODO: Is this really what I have to do to get the right settings still?
-        #     This is terrible.
-        from wandb.apis import InternalApi
-
-        api = InternalApi()
-
-        # Return a simpler interface
-        # TODO: This is a bit of a hack. Figure out what we actually want
-        class LaunchJob(object):
-            def __init__(self, launch_job):
-                self._launch_job = launch_job
-
-            def get_result(self):
-                self._launch_job.wait_until_running()
-                run = self._launch_job.run
-                run.wait_until_finished()
-                run.load(force=True)
-                return run
-
-        # TODO(end-to-end)
-        # For now we construct args, I dont' know how to do this with
-        # just config, but we should be able to.
-        launch_args = []
-        for key, val in run_config.items():
-            launch_args.append("--%s=%s" % (key, val))
-
-        return LaunchJob(
-            launch_add(
-                "%s/%s/%s/runs/%s"
-                % (api.settings("base_url"), self._entity, self._project, self._run_id),
-                config={"overrides": {"args": launch_args, "run_config": config}},
-                entity=api.settings("entity"),
-                project=api.settings("project"),
-            )
+        queued_job = launch_add.launch_add(
+            job=self._name,
+            config={"overrides": {"run_config": input}},
+            project=project or self._project,
+            entity=entity or self._entity,
+            queue=queue,
+            resource=resource,
         )
+        return queued_job
 
 
-# class RepoJob(Job):
+# class ArtifactJob:
 #     def __init__(
 #         self,
 #         name: str,
+#         source_artifact: "wandb.Artifact",
 #         config_type: _dtypes.Type,
-#         config_defaults: dict,
 #         summary_type: _dtypes.Type,
-#         entity: str,
-#         project: str,
-#         source_artifact: Optional["PublicArtifact"],
-#         repo_path: str,
-#         repo_commit: str,
 #     ):
-#         self._repo_path = repo_path
-#         self._repo_commit = repo_commit
-#         self._repo_branch = repo_branch
-#         self._repo_tag = repo_tag
+#         self._name = name
+#         self._client = client
+#         self._entrypoint = self._source_info.get("entrypoint")
+#         self._requirements_file = os.path.join(fpath, "requirements.txt")
+#         self._source_artifact = source_artifact
+#         self._name = name
+#         self._config_type = config_type
+#         self._summary_type = summary_type
 
+#     # TODO: other job methods like print
 
-class ArtifactJob:
-    def __init__(
-        self,
-        client: Api,
-        name: str,
-        source_artifact: "wandb.Artifact",
-        config_type: _dtypes.Type,
-        config_defaults: dict,
-        summary_type: _dtypes.Type,
-    ):
-        self._source_artifact = source_artifact
-        self._name = name
-        self._config_type = config_type
-        self._config_defaults = config_defaults
-        self._summary_type = summary_type
-        self._run = None
-    
-    def call(self, input, project=None, entity=None, queue="default") -> "QueuedRun":
-        # TODO: validate config structure
-        from wandb.sdk.launch import launch_add
-        config = {**input, **self._config_defaults}
-        queued_job = launch_add(job=self._name, config={"overrides": {"run_config": config}}, project=project, entity=entity, queue=queue})
-        return queued_job
+#     def set_default_input(self, key, val):
+#         self._source_artifact.metadata["config_defaults"][key] = val
+#         self._source_artifact.save()
 
-    def wait(self):
-        pass
-        #while True:
-            
+#     def _setup_launch_project(self, launch_project):
+#         pass
+
+#     def call(
+#         self, input=None, project=None, entity=None, queue="default", resource="local"
+#     ) -> "QueuedRun":
+#         # TODO: validate config structure
+#         from wandb.sdk.launch import launch_add
+
+#         if input is None:
+#             input = {}
+#         config = {**input, **self._config_defaults}
+#         queued_job = launch_add.launch_add(
+#             job=self._name,
+#             config={"overrides": {"run_config": config}},
+#             project=project or self.project,
+#             entity=entity,
+#             queue=queue,
+#             resource=resource,
+#         )
+#         return queued_job

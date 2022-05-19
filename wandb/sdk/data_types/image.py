@@ -351,6 +351,21 @@ class Image(BatchableMedia):
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
+    def json_encode(self) -> dict:
+        json_dict = {}
+        json_dict["_type"] = Image._log_type
+        json_dict["format"] = self.format
+
+        if self._width is not None:
+            json_dict["width"] = self._width
+        if self._height is not None:
+            json_dict["height"] = self._height
+        if self._grouping:
+            json_dict["grouping"] = self._grouping
+        if self._caption:
+            json_dict["caption"] = self._caption
+        return json_dict
+
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type

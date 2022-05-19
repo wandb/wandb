@@ -2028,8 +2028,9 @@ class Run:
         name = f"{aname}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
-        print(input_types)
+        print("inp", input_types)
         output_types = summary_to_types(self.summary)
+        print("OUT", output_types)
         requirements_path = os.path.join(self._settings.files_dir, "requirements.txt")
         if os.path.exists(requirements_path):
             job_artifact.add_file(requirements_path)
@@ -2047,7 +2048,7 @@ class Run:
 
         with job_artifact.new_file("output_types.json") as f:
             f.write(json.dumps(output_types))
-
+        print(job_artifact.name)
         artifact = self.log_artifact(job_artifact)
         artifact.wait()
 

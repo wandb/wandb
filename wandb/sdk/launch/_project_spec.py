@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.apis.public import Api as PublicApi, ArtifactJob
 import wandb.docker as docker
 from wandb.errors import Error as ExecutionError, LaunchError
 from wandb.sdk.lib.runid import generate_id
@@ -34,6 +35,7 @@ class LaunchSource(enum.IntEnum):
     GIT: int = 2
     LOCAL: int = 3
     DOCKER: int = 4
+    JOB: int = 5
 
 
 class LaunchProject:
@@ -42,6 +44,7 @@ class LaunchProject:
     def __init__(
         self,
         uri: Optional[str],
+        job: Optional[str],
         api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
@@ -58,6 +61,7 @@ class LaunchProject:
             uri = api.settings("base_url") + uri
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
+        self.job = job
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
@@ -94,11 +98,16 @@ class LaunchProject:
         ):
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
-        if self.uri is None:
-            if self.docker_image is None:
-                raise LaunchError("Run requires a URI or a docker image")
+        if self.job is None and self.uri is None and self.docker_image is None:
+            raise LaunchError(
+                "Project must have at least one of uri, job, or docker_image specified."
+            )
+        if self.docker_image is not None:
             self.source = LaunchSource.DOCKER
             self.project_dir = None
+        elif self.job is not None:
+            self.source = LaunchSource.JOB
+            self.project_dir = tempfile.mkdtemp()
         elif utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
@@ -177,6 +186,15 @@ class LaunchProject:
         if entry_point in self._entry_points:
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
+
+    def _fetch_job(self, internal_api: Api):
+        public_api = PublicApi()
+        job_dir = tempfile.mkdtemp()
+        job = public_api.job(self.job, path=job_dir)
+        if not job:
+            raise LaunchError(f"Job {self.job} not found")
+        job.download()
+        job.setup_launch_project(self)
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
@@ -417,6 +435,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         name = launch_spec["name"]
     return LaunchProject(
         launch_spec.get("uri"),
+        launch_spec.get("job"),
         api,
         launch_spec,
         launch_spec["entity"],
@@ -450,6 +469,8 @@ def fetch_and_validate_project(
         if not launch_project._entry_points:
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
             launch_project.add_entry_point("main.py")
+    elif launch_project.source == LaunchSource.JOB:
+        launch_project._fetch_job(internal_api=api)
     else:
         launch_project._fetch_project_local(internal_api=api)
 

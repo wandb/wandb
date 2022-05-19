@@ -14,6 +14,7 @@ from wandb.util import (
 )
 
 from . import wandb_helper
+from .data_types.base_types.media import Media
 from .lib import config_util
 
 
@@ -242,10 +243,11 @@ class Config:
         if _is_artifact_string(val) or _is_artifact(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
+        # TODO: support nested media/artifacts
         if not (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
-            # or isinstance(val, Media)
+            or isinstance(val, Media)
         ):
             val = json_friendly_val(val)
         if not allow_val_change:
