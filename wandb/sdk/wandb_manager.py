@@ -46,6 +46,7 @@ class _ManagerToken:
         return cls(token=token)
 
     def set_environment(self) -> None:
+        print(f"DEBUG: token = {self._token_str}")
         os.environ[env.SERVICE] = self._token_str
 
     def _parse(self) -> None:
@@ -156,6 +157,10 @@ class _Manager:
     def _inform_init(self, settings: "Settings", run_id: str) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_init(settings=settings, run_id=run_id)
+
+    def _inform_connect(self) -> None:
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_connect()
 
     def _inform_start(self, settings: "Settings", run_id: str) -> None:
         svc_iface = self._get_service_interface()

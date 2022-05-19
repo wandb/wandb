@@ -51,6 +51,10 @@ class InterfaceShared(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _publish_debug(self, debug: pb.DebugRequest) -> None:
+        rec = self._make_request(debug=debug)
+        self._publish(rec)
+
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
@@ -109,6 +113,8 @@ class InterfaceShared(InterfaceBase):
         artifact_send: pb.ArtifactSendRequest = None,
         artifact_poll: pb.ArtifactPollRequest = None,
         artifact_done: pb.ArtifactDoneRequest = None,
+        debug: pb.DebugRequest = None,
+        debug_poll: pb.DebugPollRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -147,6 +153,10 @@ class InterfaceShared(InterfaceBase):
             request.artifact_poll.CopyFrom(artifact_poll)
         elif artifact_done:
             request.artifact_done.CopyFrom(artifact_done)
+        elif debug:
+            request.debug.CopyFrom(debug)
+        elif debug_poll:
+            request.debug_poll.CopyFrom(debug_poll)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -365,6 +375,16 @@ class InterfaceShared(InterfaceBase):
             return None
         artifact_poll_resp = result.response.artifact_poll_response
         return artifact_poll_resp
+
+    def _communicate_debug_poll(
+        self, debug_poll: pb.DebugPollRequest
+    ) -> Optional[pb.DebugPollResponse]:
+        rec = self._make_request(debug_poll=debug_poll)
+        result = self._communicate(rec)
+        if result is None:
+            return None
+        debug_poll_resp = result.response.debug_poll_response
+        return debug_poll_resp
 
     def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
         rec = self._make_request(artifact_done=artifact_done)

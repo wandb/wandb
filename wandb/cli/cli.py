@@ -2042,3 +2042,35 @@ def verify(host):
         and url_success
     ):
         sys.exit(1)
+
+
+from wandb.sdk import wandb_manager
+
+@cli.command(context_settings=CONTEXT, help="Debug stuff")
+@click.option("--service", default=None, help="service id to connect to")
+@click.argument("command", nargs=-1)
+def debug(service, command):
+    settings = dict()
+    manager = wandb_manager._Manager(settings)
+
+    manager._inform_connect()
+
+    svc = manager._get_service()
+    assert svc
+    svc_iface = svc.service_interface
+
+    svc_transport = svc_iface.get_transport()
+
+    assert svc_transport == "tcp"
+    from wandb.sdk.interface.interface_sock import InterfaceSock
+
+    # svc_iface_sock = cast("ServiceSockInterface", svc_iface)
+    svc_iface_sock = svc_iface
+    sock_client = svc_iface_sock._get_sock_client()
+    sock_interface = InterfaceSock(sock_client)
+    sock_interface._stream_id = os.environ["WANDB_RUN_ID"]
+    sock_interface.publish_debug("junk")
+    data = sock_interface.communicate_debug_poll("data")
+    data_list = data.traceback.split("\n")
+    for l in data_list:
+        print(l)

@@ -141,6 +141,12 @@ class SockServerReadThread(threading.Thread):
         settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.update_stream(stream_id, settings=settings)
 
+    def server_inform_connect(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_connect
+        stream_id = request._info.stream_id
+
+        self._clients.add_client(self._sock_client)
+
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach
         stream_id = request._info.stream_id

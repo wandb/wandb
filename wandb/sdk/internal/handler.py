@@ -649,6 +649,18 @@ class HandleManager:
     def handle_telemetry(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_debug(self, record: Record) -> None:
+        debug = record.request.debug
+
+    def handle_request_debug_poll(self, record: Record) -> None:
+        debug_poll = record.request.debug_poll
+        result = proto_util._result_from_record(record)
+        result.response.debug_poll_response.done = True
+        import traceback
+        data = traceback.format_stack()
+        result.response.debug_poll_response.traceback = "\n".join(data)
+        self._respond_result(result)
+
     def handle_request_run_start(self, record: Record) -> None:
         run_start = record.request.run_start
         assert run_start

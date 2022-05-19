@@ -30,6 +30,11 @@ class ServiceSockInterface(ServiceInterface):
     def _svc_connect(self, port: int) -> None:
         self._sock_client.connect(port=port)
 
+    def _svc_inform_connect(self) -> None:
+        assert self._sock_client
+        inform_connect = spb.ServerInformConnectRequest()
+        self._sock_client.send(inform_connect=inform_connect)
+
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
         settings_dict = settings.make_static()

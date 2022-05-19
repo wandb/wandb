@@ -103,6 +103,13 @@ message ServerInformFinishRequest {
 message ServerInformFinishResponse {
 }
 
+message ServerInformConnectRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformConnectResponse {
+}
+
 message ServerInformAttachRequest {
   _RecordInfo _info = 200;
 }
@@ -141,6 +148,7 @@ message ServerRequest {
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
+    ServerInformConnectRequest inform_connect = 9;
 
   }
 }
@@ -154,6 +162,7 @@ message ServerResponse {
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
+    ServerInformConnectResponse inform_connect_response = 9;
 
   }
 }

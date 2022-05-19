@@ -473,6 +473,8 @@ message Request {
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
+    DebugRequest          debug = 67;
+    DebugPollRequest      debug_poll = 68;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -496,6 +498,7 @@ message Response {
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
+    DebugPollResponse      debug_poll_response = 68;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -784,4 +787,30 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
+}
+
+/*
+ * DebugRequest:
+ */
+message DebugRequest {
+}
+
+/*
+ * DebugResponse:
+ */
+message DebugResponse {
+}
+
+/*
+ * DebugPollRequest:
+ */
+message DebugPollRequest {
+}
+
+/*
+ * DebugPollResponse:
+ */
+message DebugPollResponse {
+  string traceback = 1;
+  bool done = 2;
 }

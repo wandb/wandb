@@ -556,6 +556,21 @@ class InterfaceBase:
     def _publish_partial_history(self, history: pb.PartialHistoryRequest) -> None:
         raise NotImplementedError
 
+    def publish_debug(self, data):
+        debug = pb.DebugRequest()
+        self._publish_debug(debug)
+
+    def communicate_debug_poll(self, data):
+        debug_poll = pb.DebugPollRequest()
+        result = self._communicate_debug_poll(debug_poll)
+        return result
+
+    @abstractmethod
+    def _communicate_debug_poll(
+        self, debug_poll: pb.DebugPollRequest
+    ) -> Optional[pb.DebugPollResponse]:
+        raise NotImplementedError
+
     def publish_history(
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
