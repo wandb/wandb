@@ -38,6 +38,7 @@ from wandb.old.summary import HTTPSummary
 import wandb.sdk.data_types._dtypes as _dtypes
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.interface import artifacts
+import wandb.sdk.launch.utils as launch_utils
 from wandb.sdk.lib import ipython, retry
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
@@ -5098,33 +5099,51 @@ class Job(Media):
 
         self._job_artifact = client.artifact(name, type="job")
 
-        fpath = self._job_artifact.download()
+        self._fpath = self._job_artifact.download()
         self._name = name
         self._client = client
         self._entity = client.default_entity
-        with open(os.path.join(fpath, "source_info.json")) as f:
+        with open(os.path.join(self._fpath, "source_info.json")) as f:
             self._source_info = json.load(f)
         self._entrypoint = self._source_info.get("entrypoint")
-        self._requirements_file = os.path.join(fpath, "requirements.txt")
+        self._requirements_file = os.path.join(self._fpath, "requirements.txt")
 
         if self._source_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
         if self._source_info.get("source_type") == "repo":
             self._set_configure_launch_project(self._configure_launch_project_repo)
         if self._source_info.get("source_type") == "image":
-            self._set_configure_launch_project(self._configure_launch_project_image)
+            self._set_configure_launch_project(self._configure_launch_project_container)
 
     def _set_configure_launch_project(self, func):
         self._configure_launch_project = func
 
     def _configure_launch_project_artifact(self, launch_project):
-        pass
+        code_artifact = self._client.artifact(self._source_info.get("artifact"))
+        if code_artifact is None:
+            raise LaunchError("No code artifact found")
+        code_artifact.download(launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        # TODO: handle args??
 
     def _configure_launch_project_repo(self, launch_project):
-        pass
+        launch_utils._fetch_git_repo(
+                    launch_project.project_dir,
+                    self._source_info["remote"],
+                    self._source_info["commit"],
+                )
+        if os.path.exists(os.path.join(self._fpath, "diff.patch")):
+            with open(os.path.join(self._fpath, "diff.patch")) as f:
+                launch_utils.apply_patch(f.read(), launch_project.project_dir)
+        launch_project.build_image = True
+        frozen_requirements_path = os.path.join(self._fpath, "requirements.txt")
+        shutil.copy(frozen_requirements_path, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        # TODO: handle args??
 
-    def _configure_launch_project_image(self, launch_project):
-        pass
+    def _configure_launch_project_container(self, launch_project):
+        launch_project.docker_image = self._source_info.get("image")
+        launch_project.add_entry_point(self._entrypoint)
 
     def set_default_input(self, key, val):
         self._job_artifact.metadata["config_defaults"][key] = val
@@ -5140,6 +5159,8 @@ class Job(Media):
         from wandb.sdk.launch import launch_add
 
         run_config = self._config_defaults.copy()
+
+
 
         run_config.update(config)
         assigned_config_type = self._input_type.assign(run_config)
@@ -5165,49 +5186,3 @@ class Job(Media):
             resource=resource,
         )
         return queued_job
-
-
-# class ArtifactJob:
-#     def __init__(
-#         self,
-#         name: str,
-#         source_artifact: "wandb.Artifact",
-#         config_type: _dtypes.Type,
-#         summary_type: _dtypes.Type,
-#     ):
-#         self._name = name
-#         self._client = client
-#         self._entrypoint = self._source_info.get("entrypoint")
-#         self._requirements_file = os.path.join(fpath, "requirements.txt")
-#         self._source_artifact = source_artifact
-#         self._name = name
-#         self._config_type = config_type
-#         self._summary_type = summary_type
-
-#     # TODO: other job methods like print
-
-#     def set_default_input(self, key, val):
-#         self._source_artifact.metadata["config_defaults"][key] = val
-#         self._source_artifact.save()
-
-#     def _setup_launch_project(self, launch_project):
-#         pass
-
-#     def call(
-#         self, input=None, project=None, entity=None, queue="default", resource="local"
-#     ) -> "QueuedRun":
-#         # TODO: validate config structure
-#         from wandb.sdk.launch import launch_add
-
-#         if input is None:
-#             input = {}
-#         config = {**input, **self._config_defaults}
-#         queued_job = launch_add.launch_add(
-#             job=self._name,
-#             config={"overrides": {"run_config": config}},
-#             project=project or self.project,
-#             entity=entity,
-#             queue=queue,
-#             resource=resource,
-#         )
-#         return queued_job
