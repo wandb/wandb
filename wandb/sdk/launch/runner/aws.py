@@ -115,7 +115,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         default_output_path = self.backend_config.get("runner", {}).get(
             "s3_output_path"
-        )
+        ) or given_sagemaker_args.get("S3Out")
 
         region = get_region(given_sagemaker_args, registry_config.get("region"))
         instance_role = False
@@ -308,8 +308,10 @@ def build_sagemaker_args(
         raise LaunchError(
             "No sagemaker args specified. Specify sagemaker args in resource_args"
         )
-    if sagemaker_args.get("OutputDataConfig") is None:
+    if given_sagemaker_args.get("OutputDataConfig") is None:
         sagemaker_args["OutputDataConfig"] = {"S3OutputPath": default_output_path}
+    else:
+        sagemaker_args["OutputDataConfig"] = given_sagemaker_args["OutputDataConfig"]
 
     if sagemaker_args.get("OutputDataConfig") is None:
         raise LaunchError(
