@@ -35,10 +35,10 @@ from wandb.data_types import WBValue
 from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
-import wandb.sdk.data_types._dtypes as _dtypes
-from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.interface import artifacts
-import wandb.sdk.launch.utils as launch_utils
+from wandb.sdk.data_types._dtypes import InvalidType, Type
+from wandb.sdk.data_types.base_types.media import Media
+from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
@@ -789,6 +789,7 @@ class Api:
     def job(self, name, path=None):
         if name is None:
             raise ValueError("You must specify name= to fetch a job.")
+        return Job(self, name, path)
         entity, project, job_name = self._parse_artifact_path(name)
         job_artifact = self.artifact(name, type="job")
         fpath = job_artifact.download(root=path)
@@ -805,7 +806,7 @@ class Api:
         config_defaults = job_artifact.metadata.get("config_defaults")
         if source_info.get("source_type") == "artifact":
             # TODO: use job constructor
-            return ArtifactJob(
+            return Job(
                 name,
                 job_artifact,
                 input_types,
@@ -5081,12 +5082,13 @@ class ArtifactFiles(Paginator):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
 
 
+
 class Job(Media):
     _log_type = "job"
 
     _name: str
-    _input_type: _dtypes.Type
-    _output_type: _dtypes.Type
+    _input_type: Type
+    _output_type: Type
     _entity: str
     _project: str
     _entrypoint: List[str]
@@ -5095,18 +5097,24 @@ class Job(Media):
         self,
         client: Api,
         name,
+        path: str = None
     ) -> None:
 
         self._job_artifact = client.artifact(name, type="job")
-
-        self._fpath = self._job_artifact.download()
+        if path:
+            self._fpath = path
+            self._job_artifact.download(root=path)
+        else:
+            self._fpath = self._job_artifact.download()
         self._name = name
         self._client = client
         self._entity = client.default_entity
         with open(os.path.join(self._fpath, "source_info.json")) as f:
             self._source_info = json.load(f)
         self._entrypoint = self._source_info.get("entrypoint")
-        self._requirements_file = os.path.join(self._fpath, "requirements.txt")
+        self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
+        with open(os.path.join(self._fpath, "input_types.json")) as f:
+            self._input_types = json.load(f)
 
         if self._source_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
@@ -5115,42 +5123,46 @@ class Job(Media):
         if self._source_info.get("source_type") == "image":
             self._set_configure_launch_project(self._configure_launch_project_container)
 
+
     def _set_configure_launch_project(self, func):
-        self._configure_launch_project = func
+        self.configure_launch_project = func
 
     def _configure_launch_project_artifact(self, launch_project):
-        code_artifact = self._client.artifact(self._source_info.get("artifact"))
+        artifact_name = self._source_info.get("artifact")[len("wandb-artiact://")+1:]
+        code_artifact = self._client.artifact(artifact_name, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
         code_artifact.download(launch_project.project_dir)
-        launch_project.add_entry_point(self._entrypoint)
+        frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
+        print(os.listdir(self._fpath))
+        shutil.copy(frozen_requirements_path, launch_project.project_dir)
+        launch_project.add_entry_point(f"python {self._entrypoint}")
         # TODO: handle args??
 
     def _configure_launch_project_repo(self, launch_project):
-        launch_utils._fetch_git_repo(
+        _fetch_git_repo(
                     launch_project.project_dir,
                     self._source_info["remote"],
                     self._source_info["commit"],
                 )
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):
             with open(os.path.join(self._fpath, "diff.patch")) as f:
-                launch_utils.apply_patch(f.read(), launch_project.project_dir)
+                apply_patch(f.read(), launch_project.project_dir)
         launch_project.build_image = True
-        frozen_requirements_path = os.path.join(self._fpath, "requirements.txt")
+        frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
         shutil.copy(frozen_requirements_path, launch_project.project_dir)
-        launch_project.add_entry_point(self._entrypoint)
+        launch_project.add_entry_point(f"python {self._entrypoint}")
         # TODO: handle args??
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("image")
-        launch_project.add_entry_point(self._entrypoint)
 
     def set_default_input(self, key, val):
         self._job_artifact.metadata["config_defaults"][key] = val
         self._job_artifact.save()
 
     def _config_defaults(self):
-        return self._source_artifact.metadata["config_defaults"]
+        return self._job_artifact.metadata["config_defaults"]
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint
@@ -5158,28 +5170,28 @@ class Job(Media):
     def call(self, config, project=None, entity=None, queue=None, resource="local"):
         from wandb.sdk.launch import launch_add
 
-        run_config = self._config_defaults.copy()
+        run_config = self._config_defaults().copy()
 
 
 
         run_config.update(config)
-        assigned_config_type = self._input_type.assign(run_config)
-        # TODO: also be helpful and check if the user passed additional
-        #     keys that are not part of the run config. The type system
-        #     will allow this. But its probably a typo on the user's part.
-        if isinstance(assigned_config_type, _dtypes.InvalidType):
-            # TODO: This message prints all the dict keys, which can be
-            #     a lot, even though the user probably only provided a subset
-            #     since they're overriding defaults. Make the message more
-            #     specific to the subset the user provided
-            # TODO: Improve message: The message looks like a type error, but
-            #     we should say something like "Invalid arguments passed to
-            #     to job..."
-            raise TypeError(self._input_type.explain(run_config))
+        # assigned_config_type = self._input_types.assign(run_config)
+        # # TODO: also be helpful and check if the user passed additional
+        # #     keys that are not part of the run config. The type system
+        # #     will allow this. But its probably a typo on the user's part.
+        # if isinstance(assigned_config_type, InvalidType):
+        #     # TODO: This message prints all the dict keys, which can be
+        #     #     a lot, even though the user probably only provided a subset
+        #     #     since they're overriding defaults. Make the message more
+        #     #     specific to the subset the user provided
+        #     # TODO: Improve message: The message looks like a type error, but
+        #     #     we should say something like "Invalid arguments passed to
+        #     #     to job..."
+        #     raise TypeError(self._input_types.explain(run_config))
 
         queued_job = launch_add.launch_add(
             job=self._name,
-            config={"overrides": {"run_config": input}},
+            config={"overrides": {"run_config": run_config}},
             project=project or self._project,
             entity=entity or self._entity,
             queue=queue,

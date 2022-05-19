@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.apis.public import Api as PublicApi, ArtifactJob
+from wandb.apis.public import Api as PublicApi
 import wandb.docker as docker
 from wandb.errors import Error as ExecutionError, LaunchError
 from wandb.sdk.lib.runid import generate_id
@@ -193,8 +193,7 @@ class LaunchProject:
         job = public_api.job(self.job, path=job_dir)
         if not job:
             raise LaunchError(f"Job {self.job} not found")
-        job.download()
-        job.setup_launch_project(self)
+        job.configure_launch_project(self)
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
@@ -473,7 +472,7 @@ def fetch_and_validate_project(
         launch_project._fetch_job(internal_api=api)
     else:
         launch_project._fetch_project_local(internal_api=api)
-
+    print(os.listdir(launch_project.project_dir))
     assert launch_project.project_dir is not None
     # this prioritizes pip, and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
@@ -482,6 +481,7 @@ def fetch_and_validate_project(
     ) or os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.frozen.txt")
     ):
+        print("DEptS YTPE is pip")
         launch_project.deps_type = "pip"
     elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
         launch_project.deps_type = "conda"

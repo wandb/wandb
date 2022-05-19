@@ -1991,10 +1991,9 @@ class Run:
                 artifact.metadata["config_defaults"] = self.config.as_dict()
                 artifact.save()
 
-        
-
     def _create_repo_job(self):
         """Create a job from a repo"""
+        import pkg_resources
         name = f"{self._remote_url}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
@@ -2002,9 +2001,12 @@ class Run:
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
         if os.path.exists(patch_path):
             job_artifact.add_file(patch_path, "diff.patch")
-        requirements_path = os.path.join(self._settings.filed_dir, "requirements.txt")
-        if os.path.exists(requirements_path):
-            job_artifact.add_file(requirements_path)
+        installed_packages = [d for d in iter(pkg_resources.working_set)]
+        installed_packages_list = sorted(
+            f"{i.key}=={i.version}" for i in installed_packages
+        )
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
         source_info = {
             "source_type": "repo",
             "repo": self._remote_url,
@@ -2024,20 +2026,25 @@ class Run:
 
     def _create_artifact_job(self) -> None:
         """Create a job from an artifact"""
+        import pkg_resources
         ca = self._code_artifact.wait()
-        aname = ca.name.split(":")[0]
+        aname, tag = ca.name.split(":")
         name = f"{aname}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
         print("inp", input_types)
         output_types = summary_to_types(self.summary)
         print("OUT", output_types)
-        requirements_path = os.path.join(self._settings.files_dir, "requirements.txt")
-        if os.path.exists(requirements_path):
-            job_artifact.add_file(requirements_path)
+        installed_packages = [d for d in iter(pkg_resources.working_set)]
+        installed_packages_list = sorted(
+            f"{i.key}=={i.version}" for i in installed_packages
+        )
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
+        print(aname)
         source_info = {
             "source_type": "artifact",
-            "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}",
+            "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}:{tag}",
             "entrypoint": self._settings.program_relpath,
         }
         with job_artifact.new_file("source_info.json") as f:
@@ -2060,7 +2067,7 @@ class Run:
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
         output_types = summary_to_types(self.summary)
-        requirements_path = os.path.join(self._settings.files_dir, "requirements.txt")
+        requirements_path = os.path.join(self._settings.files_dir, "requirements.frozen.txt")
         if os.path.exists(requirements_path):
             job_artifact.add_file(requirements_path)
 
