@@ -9,7 +9,6 @@ if False:
     import boto3  # type: ignore
 import wandb
 from wandb.apis.internal import Api
-import wandb.docker as docker
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
@@ -22,7 +21,12 @@ from .._project_spec import (
 from ..builder.build import (
     get_env_vars_dict,
 )
-from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
+from ..utils import (
+    aws_ecr_login,
+    PROJECT_DOCKER_ARGS,
+    PROJECT_SYNCHRONOUS,
+    to_camel_case,
+)
 
 
 _logger = logging.getLogger(__name__)
@@ -255,22 +259,6 @@ class AWSSagemakerRunner(AbstractRunner):
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             run.wait()
         return run
-
-
-def aws_ecr_login(region: str, registry: str) -> Optional[str]:
-    print("IM LOGGING ON")
-    pw_command = ["aws", "ecr", "get-login-password", "--region", region]
-    try:
-        pw = run_shell(pw_command)[0]
-    except subprocess.CalledProcessError:
-        raise LaunchError(
-            "Unable to get login password. Please ensure you have AWS credentials configured"
-        )
-    try:
-        docker_login_process = docker.login("AWS", pw, registry)
-    except Exception:
-        raise LaunchError(f"Failed to login to ECR {registry}")
-    return docker_login_process
 
 
 def merge_aws_tag_with_algorithm_specification(

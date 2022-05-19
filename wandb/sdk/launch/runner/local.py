@@ -7,6 +7,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
+from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -18,6 +19,7 @@ from ..builder.build import (
 from ..utils import (
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    aws_ecr_login,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
@@ -110,10 +112,15 @@ class LocalContainerRunner(AbstractRunner):
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
         else:
-            repository: Optional[str] = registry_config.get("url")
+            # repository: Optional[str] = registry_config.get("url")
+            # if registry_config["provider"] == "aws" and "dkr.ecr" in repository:
+            #     login_resp = aws_ecr_login(registry_config.get("region"), repository)
+            #     if login_resp is None or "Login Succeeded" not in login_resp:
+            #         raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
+            wandb.termwarn("Not pushing image to repository for local runner")
             image_uri = builder.build_image(
                 launch_project,
-                repository,
+                None,
                 entry_point,
                 docker_args,
             )

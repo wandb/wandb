@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
+import wandb.docker as docker
 from wandb.errors import CommError, ExecutionError, LaunchError
 
 
@@ -544,3 +545,18 @@ def resolve_build_and_registry_config(
         resolved_registry_config = registry_config
     validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
     return resolved_build_config, resolved_registry_config
+
+
+def aws_ecr_login(region: str, registry: str) -> Optional[str]:
+    pw_command = ["aws", "ecr", "get-login-password", "--region", region]
+    try:
+        pw = run_shell(pw_command)[0]
+    except subprocess.CalledProcessError:
+        raise LaunchError(
+            "Unable to get login password. Please ensure you have AWS credentials configured"
+        )
+    try:
+        docker_login_process = docker.login("AWS", pw, registry)
+    except Exception:
+        raise LaunchError(f"Failed to login to ECR {registry}")
+    return docker_login_process
