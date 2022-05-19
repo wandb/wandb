@@ -258,6 +258,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
 
 def aws_ecr_login(region: str, registry: str) -> Optional[str]:
+    print("IM LOGGING ON")
     pw_command = ["aws", "ecr", "get-login-password", "--region", region]
     try:
         pw = run_shell(pw_command)[0]
