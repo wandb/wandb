@@ -142,6 +142,22 @@ class LaunchAgent:
             launch_spec["entity"] = self._entity
             launch_spec["project"] = self._project
 
+    def _check_convert_legacy_sweep(
+        self, launch_spec: Dict[str, Any]
+    ) -> None:
+        breakpoint()
+        if launch_spec.get("uri") is not None:
+            # Nor a legacy sweep runSpec
+            return
+        _logger.info('Legacy Sweep runSpec detected. Converting to Launch RunSpec format')
+        launch_spec["uri"] = None
+        launch_spec["entity"] = self._entity
+        launch_spec["project"] = self._project
+        # For now sweep runs use local process backend
+        launch_spec["resource"] = "local-process"
+        sweep_id = self._queues[0]
+        launch_spec["entry_point"] = f"wandb agent {self._entity}/{self._project}/{sweep_id} --count 1"
+
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
         # TODO: logger
@@ -153,6 +169,11 @@ class LaunchAgent:
         # parse job
         _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
+
+        # Check if job is a legacy sweep job
+        self._check_convert_legacy_sweep(launch_spec)
+
+        # Continue parsing launch_spec
         if launch_spec.get("overrides") and isinstance(
             launch_spec["overrides"].get("args"), list
         ):
@@ -165,7 +186,7 @@ class LaunchAgent:
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, self._api)
         _logger.info("Fetching resource...")
-        resource = launch_spec.get("resource") or "local"
+        resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
