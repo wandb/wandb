@@ -51,9 +51,8 @@ RUN git clone https://github.com/wandb/client.git /wandb/client \
 RUN PATH=/home/sdk/.local/bin:$PATH
 
 WORKDIR /wandb/client
-# use full versions of torch wheels for GPU support
-RUN sed -i -e 's/torch==.*+cpu/torch/g' requirements_dev.txt
-RUN sed -i -e 's/torchvision==.*+cpu/torchvision/g' requirements_dev.txt
+# use torch wheels with CUDA 11.3 support
+RUN sed -i -e 's/whl\/cpu/whl\/cu113/g' tox.ini
 ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
 CMD ["python", "-m", "tox", "-v", "-e", "standalone-gpu-py38"]
