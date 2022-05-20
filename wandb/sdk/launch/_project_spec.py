@@ -339,7 +339,6 @@ def get_entry_point_command(
     """
     if entry_point is None:
         return []
-    print("get_entry_point_command", entry_point.compute_command(parameters))
     return entry_point.compute_command(parameters)
 
 
