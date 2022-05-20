@@ -53,6 +53,7 @@ def test_profiler():
     with wandb.init() as run:
         run.config.id = "profiler_sync_trace_files"
         with torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU],
             schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
             on_trace_ready=wandb.profiler.torch_trace_handler(),
             record_shapes=True,
