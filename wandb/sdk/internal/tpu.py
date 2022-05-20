@@ -83,7 +83,12 @@ class TPUProfiler:
             self._thread.start()
 
 
-def is_tpu_available():
+def is_tpu_available() -> bool:
+    tpu_name = os.environ.get("TPU_NAME", False)
+
+    if tpu_name is False:
+        return False
+
     try:
         from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore # noqa
         from tensorflow.python.profiler import profiler_client  # type: ignore # noqa
@@ -95,7 +100,8 @@ def is_tpu_available():
         # TODO: Saw sentry error (https://sentry.io/organizations/weights-biases/issues/2699838212/?project=5288891&query=firstRelease%3A0.12.4&statsPeriod=14d) where
         # module 'tensorflow.python.pywrap_tensorflow' has no attribute 'TFE_DEVICE_PLACEMENT_EXPLICIT'
         return False
-    return "TPU_NAME" in os.environ
+
+    return True
 
 
 # Avoid multiple TPUProfiler instances

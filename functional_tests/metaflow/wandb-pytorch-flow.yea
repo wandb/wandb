@@ -2,10 +2,13 @@ id: metaflow.pytorch.base
 plugin:
   - wandb
 depend:
+  pip_install_options:
+    - --extra-index-url
+    - https://download.pytorch.org/whl/cpu
   requirements:
     - "metaflow>=2.3.5"
-    - "torch==1.9.0+cpu"
-    - "torchvision==0.10.0+cpu"
+    - "torch"
+    - "torchvision"
 tag:
   shard: metaflow
   skips:
