@@ -602,7 +602,6 @@ def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
 
         run.log_artifact(artifact)
 
-        # check that timestamp is correctly loaded when we use the artifact
         run.finish()
 
 

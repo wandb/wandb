@@ -580,13 +580,11 @@ class Table(Media):
             for c_ndx, item in enumerate(row):
                 cell = (
                     item
-                    if c_ndx not in timestamp_column_indices
+                    if c_ndx not in timestamp_column_indices or not item
                     # convert timestamp to seconds
                     else datetime.datetime.fromtimestamp(
                         item / 1000, tz=datetime.timezone.utc
                     )
-                    if item
-                    else item
                 )
                 if c_ndx in np_deserialized_columns:
                     cell = np_deserialized_columns[c_ndx][r_ndx]
