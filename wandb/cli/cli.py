@@ -867,9 +867,32 @@ def sweep(
         or util.auto_project_name(config.get("program"))
     )
 
+    launch_queue_controller = None
+    if queue is not None:
+        from wandb.sdk.launch.utils import construct_launch_spec
+        launch_spec = construct_launch_spec(
+            os.getcwd(),  # uri,
+            api,
+            f"LaunchSweepController for {sweep_id}", # name,
+            project,
+            entity,
+            None, # docker_image,
+            "local-process", # resource,
+            f"wandb agent {entity}/{project}/{sweep_id} --queue {queue}", # entry_point,
+            None, # version,
+            None, # params,
+            None, # resource_args,
+            None, # launch_config,
+            None, # cuda,
+        )
+        launch_queue_controller = {
+            "queue" : queue,
+            "run_spec" : launch_spec,
+        }
+
     # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
-        config, project=project, entity=entity, obj_id=sweep_obj_id, launch_queue=queue
+        config, project=project, entity=entity, obj_id=sweep_obj_id, launch_queue_controller=launch_queue_controller
     )
     util.handle_sweep_config_violations(warnings)
 
@@ -907,15 +930,15 @@ def sweep(
 
     if queue is not None:
         wandb.termlog("Using launch 🚀  queue: %s" % queue)
-        launch_add(
-            os.getcwd(),  # URI is local path
-            resource="local-process",
-            entry_point=f"wandb agent {entity}/{project}/{sweep_id}",
-            project=project,
-            entity=entity,
-            queue=queue,
-            name=f"Agent_{sweep_id}",
-        )
+        # launch_add(
+        #     os.getcwd(),  # URI is local path
+        #     resource="local-process",
+        #     entry_point=f"wandb agent {entity}/{project}/{sweep_id}",
+        #     project=project,
+        #     entity=entity,
+        #     queue=queue,
+        #     name=f"Agent_{sweep_id}",
+        # )
         # HACK: Launch agent needs to know the project
         # os.environ["WANDB_PROJECT"] = project
         wandb.termlog(
@@ -1235,13 +1258,23 @@ def launch_agent(
 @click.option(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
+@click.option(
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of launch run queue to push runs into. If supplied without "
+    'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
+    "name supplied, specified run queue must exist under the project and entity supplied.",
+)
 # @click.option(
 #     "--use_launch", is_flag=True, show_default=True, default=False,
 #     help="Use the launch API to launch runs instead of the agent.",
 # )
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, sweep_id):
+def agent(ctx, project, entity, count, sweep_id, queue):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
@@ -1253,8 +1286,13 @@ def agent(ctx, project, entity, count, sweep_id):
     #     breakpoint()
     #     # TODO(hupo): Start a LocalProcessRunner here
     # else:
-    wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
+    if queue:
+        wandb.termlog("Starting a launch sweep controller 🚀 ")
+        from wandb.sdk.launch.sweeps.agent import launch_sweep_controller
+        launch_sweep_controller(sweep_id, queue, entity=entity, project=project)
+    else:
+        wandb.termlog("Starting wandb agent 🕵️")
+        wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',

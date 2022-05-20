@@ -1846,8 +1846,8 @@ class Api:
         obj_id=None,
         project=None,
         entity=None,
+        launch_sweep_controller=None,
         state=None,
-        launch_queue="",
     ):
         """Upsert a sweep object.
 
@@ -1874,7 +1874,7 @@ class Api:
             $controller: JSONString,
             $scheduler: JSONString,
             $state: String
-            $launchQueue: JSONString,
+            $launchSweepController: JSONString,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -1885,7 +1885,7 @@ class Api:
                 controller: $controller,
                 scheduler: $scheduler,
                 state: $state,
-                launchQueue: $launchQueue,
+                launchSweepController: $launchSweepController,
             }) {
                 sweep {
                     name
@@ -1941,7 +1941,7 @@ class Api:
                         "projectName": project or self.settings("project"),
                         "controller": controller,
                         "scheduler": scheduler,
-                        "launchQueue": launch_queue,
+                        "launchSweepController": launch_sweep_controller,
                     },
                     check_retry_fn=no_retry_4xx,
                 )
