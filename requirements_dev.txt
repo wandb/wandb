@@ -4,7 +4,7 @@ tox==3.24.0
 pip
 Pillow
 pandas
-matplotlib
+matplotlib!=3.5.2
 soundfile; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 git+https://github.com/bastibe/python-soundfile@0.11.0b3#egg=soundfile; sys_platform == 'darwin' and platform.machine == 'arm64'
 boto3
