@@ -142,7 +142,7 @@ class KanikoBuilder(AbstractBuilder):
             context_tgz.add(context_path, arcname=".")
         context_file.close()
 
-        if self.builder_config.get("cloud-provider") == "AWS":
+        if self.builder_config.get("cloud-provider") == "aws":
             boto3 = get_module(
                 "boto3",
                 "AWS cloud provider requires boto3, install with pip install wandb[launch]",
