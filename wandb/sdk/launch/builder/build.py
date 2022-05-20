@@ -168,8 +168,6 @@ def _run_entry_point(command: str):
 
 
 if __name__ == "__main__":
-    print("CALLED MAIN FILE")
-    print(sys.argv[:])
     cmd = ""
     if os.environ.get("WANDB_ENTRYPOINT_COMMAND"):
         cmd += os.environ.get("WANDB_ENTRYPOINT_COMMAND")
@@ -178,7 +176,6 @@ if __name__ == "__main__":
 
     if os.environ.get("WANDB_ARGS"):
         cmd += " " + os.environ.get("WANDB_ARGS")
-    print("RUNNING", cmd)
 
     sys.exit(_run_entry_point(cmd))
 """
@@ -323,15 +320,9 @@ def get_entrypoint_setup(
     entry_point: EntryPoint,
     workdir: str,
 ) -> str:
-    # if runner_type == "sagemaker":
     # this check will always pass, since this is only called in the build case where
     # the project_dir is set
     assert launch_project.project_dir is not None
-    # sagemaker automatically appends train after the entrypoint
-    # by redirecting to running a train script we can avoid issues
-    # with argparse, and hopefully if the user intends for the train
-    # argument to be present it is captured in the original jobs
-    # command arguments
     with open(os.path.join(launch_project.project_dir, DEFAULT_ENTRYPOINT), "w") as fp:
         fp.write(PYTHON_ENTRYPOINT)
     return ENTRYPOINT_TEMPLATE.format(

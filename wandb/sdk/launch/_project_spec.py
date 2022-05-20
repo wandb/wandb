@@ -408,8 +408,6 @@ def fetch_and_validate_project(
     elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
         launch_project.deps_type = "conda"
 
-    # first_entry_point = list(launch_project._entry_points.keys())[0]
-    # launch_project.get_entry_point(first_entry_point)
     return launch_project
 
 
