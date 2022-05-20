@@ -119,7 +119,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         default_output_path = self.backend_config.get("runner", {}).get(
             "s3_output_path"
-        ) or given_sagemaker_args.get("S3Out")
+        )
 
         region = get_region(given_sagemaker_args, registry_config.get("region"))
         instance_role = False
@@ -180,10 +180,13 @@ class AWSSagemakerRunner(AbstractRunner):
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
         if ecr_repo_name:
-            repository = (
-                token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
-                + f"/{ecr_repo_name}"
-            )
+            if not ecr_repo_name.startswith("arn:aws:ecr:"):
+                repository = (
+                    token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
+                    + f"/{ecr_repo_name}"
+                )
+            else:
+                repository = ecr_repo_name
         else:
             repository = registry_config.get("url")
 
