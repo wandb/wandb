@@ -869,7 +869,7 @@ def sweep(
 
     # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
-        config, project=project, entity=entity, obj_id=sweep_obj_id
+        config, project=project, entity=entity, obj_id=sweep_obj_id, launch_queue=queue
     )
     util.handle_sweep_config_violations(warnings)
 
