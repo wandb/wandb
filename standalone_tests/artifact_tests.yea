@@ -1,7 +1,7 @@
 id: 0.standalone.04-artifact-tests
 tag:
   shard: standalone-cpu
-  skip: True
+  skip: true
   platforms:
     - linux
     - mac

@@ -4,6 +4,7 @@ plugin:
 tag:
   skips:
     - platform: win
+    - platform: mac
 depend:
     requirements:
         - fastai==1.0.61
