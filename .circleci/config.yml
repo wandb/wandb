@@ -374,9 +374,9 @@ jobs:
       - run:
           name: Use py37
           command: |
-            pyenv install -s 3.7.0
+            pyenv install -s 3.7.9
             pyenv versions
-            pyenv global 3.7.0
+            pyenv global 3.7.9
       - run:
           name: Install python dependencies
           command: |
