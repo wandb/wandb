@@ -41,7 +41,7 @@ class _Requires:
         self._require_service()
 
     def _require_report_editing(self) -> None:
-        os.environ["WANDB_REQUIRE_REPORT_EDITING"] = "True"
+        os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"] = "True"
         wandb.termwarn("This is an experimental feature -- use with caution!")
 
     def require_report_editing(self) -> None:

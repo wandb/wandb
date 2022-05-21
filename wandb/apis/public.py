@@ -43,6 +43,9 @@ from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
 
+from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
+
+
 logger = logging.getLogger(__name__)
 
 # Only retry requests for 20 seconds in the public api
@@ -444,6 +447,7 @@ class Api:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
 
+    @requires("report-editing:v0")
     def create_project(self, name, entity=None):
         if entity is None:
             entity = self.default_entity
@@ -459,7 +463,7 @@ class Api:
         else:
             wandb.termlog(f"Created new project at {entity}/{name}")
 
-    # @_requires("report-editing")
+    @requires("report-editing:v0")
     def create_report(
         self,
         entity=None,
@@ -769,7 +773,7 @@ class Api:
             raise ValueError("path must be `entity/project/reports/reportId`") from e
         else:
             r = self.client.execute(
-                self.VIEW_REPORT_QUERY, variable_values={"reportId": _report_id}
+                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
             )
             attrs = r["view"]
 
@@ -1181,8 +1185,7 @@ class User(Attrs):
             A `User` object
         """
         res = api.client.execute(
-            cls.CREATE_USER_MUTATION,
-            {"email": email, "admin": admin},
+            cls.CREATE_USER_MUTATION, {"email": email, "admin": admin},
         )
         return User(api.client, res["createUser"]["user"])
 
@@ -1573,7 +1576,7 @@ class Project(Attrs):
         ]
 
 
-class Runs(Paginator):
+class Runs(Paginator, RequiresReportEditingMixin):
     """An iterable collection of runs associated with a project and optional filter.
     This is generally used indirectly via the `Api`.runs method
     """
@@ -3078,8 +3081,7 @@ class PythonMongoishQueryGenerator:
         return name
 
 
-# @_requires("report-editing")
-class RunSet:
+class RunSet(RequiresReportEditingMixin):
     def __init__(self, panel_grid, spec=None, offset=0):
         self.panel_grid = panel_grid
         self.spec = spec
@@ -3097,10 +3099,7 @@ class RunSet:
 
     def __generate_default_run_set_spec(self):
         default = {
-            "filters": {
-                "op": "OR",
-                "filters": [{"op": "AND", "filters": []}],
-            },
+            "filters": {"op": "OR", "filters": [{"op": "AND", "filters": []}],},
             "runFeed": {
                 "version": 2,
                 "columnVisible": {"run:name": False},
@@ -3320,8 +3319,7 @@ class RunSet:
         return [self.pm_query_generator.back_to_front(col) for col in cols]
 
 
-# @_requires("report-editing")
-class PanelGrid:
+class PanelGrid(RequiresReportEditingMixin):
     def __init__(self, report, spec=None, offset=0):
         self.report = report
         self.spec = spec
@@ -3331,7 +3329,7 @@ class PanelGrid:
         self.modified = False
 
     def __repr__(self):
-        return f"<PanelGrid with {len(self.run_sets)} run set(s)>"
+        return f"<PanelGrid with {len(self.run_sets)} run set(s) and {len(self.panels)} panel(s)>"
 
     def __generate_default_panel_grid_spec(self):
         default = {
@@ -3400,38 +3398,7 @@ class PanelGrid:
                     },
                 },
                 "customRunColors": {},
-                "runSets": [
-                    RunSet(self).spec
-                    # {
-                    #     "filters": {
-                    #         "op": "OR",
-                    #         "filters": [{"op": "AND", "filters": []}],
-                    #     },
-                    #     "runFeed": {
-                    #         "version": 2,
-                    #         "columnVisible": {"run:name": False},
-                    #         "columnPinned": {},
-                    #         "columnWidths": {},
-                    #         "columnOrder": [],
-                    #         "pageSize": 10,
-                    #         "onlyShowSelected": False,
-                    #     },
-                    #     "sort": {
-                    #         "keys": [
-                    #             {
-                    #                 "key": {"section": "run", "name": "createdAt"},
-                    #                 "ascending": False,
-                    #             }
-                    #         ]
-                    #     },
-                    #     "enabled": True,
-                    #     "name": "Run set",
-                    #     "search": {"query": ""},
-                    #     "grouping": [],
-                    #     "selections": {"root": 1, "bounds": [], "tree": []},
-                    #     "expandedRowAddresses": [],
-                    # }
-                ],
+                "runSets": [RunSet(self).spec],
                 "openRunSet": 0,
                 "name": "unused-name",
             },
@@ -3457,8 +3424,6 @@ class PanelGrid:
     @report_callback
     def run_set_callback(self, run_set):
         self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
-        # if run_set.open:
-        #     self.open_run_set = run_set.offset
 
     @property
     def run_sets(self):
@@ -3474,6 +3439,24 @@ class PanelGrid:
             if not isinstance(rs, RunSet):
                 raise TypeError("All objects must be of type wb.RunSet")
         self.spec["metadata"]["runSets"] = [rs.spec for rs in new_run_sets]
+
+        # TODO: If when assigning run_set, set its panel_grid to self.
+
+    @property
+    def panels(self):
+        return [
+            wandb.apis.reports.panels.Panel(self, spec)
+            for spec in self.spec["metadata"]["panelBankSectionConfig"]["panels"]
+        ]
+
+    @panels.setter
+    @report_callback
+    def panels(self, new_panels):
+        self.spec["metadata"]["panelBankSectionConfig"]["panels"] = [
+            p.spec for p in new_panels
+        ]
+
+        # TODO: If when assigning panel, set its panel_grid to self.
 
     @property
     def open_run_set(self):
@@ -3495,38 +3478,33 @@ class PanelGrid:
 class BetaReport(Attrs):
     """BetaReport is a class associated with reports created in wandb.
 
-        WARNING: this API will likely change in a future release.
+    WARNING: this API will likely change in a future release.
 
-        Examples:
+    Examples:
 
-            ```
-            api = wandb.Api()
-            report = api.report("team/username/Report-XXXXX")
-            run_set_named = report.run_sets["Run set 2"]
-            run_set_named.visible = ["XXXX", "YYYY"]
+        ```
+        api = wandb.Api()
+        report = api.report("team/username/Report-XXXXX")
+        run_set_named = report.run_sets["Run set 2"]
+        run_set_named.visible = ["XXXX", "YYYY"]
 
-            panel_grid = report.panel_grids[0]
-            panel_grid.open = False
-            run_set = panel_grid.run_sets[0]
-            run_set.runs = api.runs("vanpelt/foo", filters={"id": {"$in": [1,2,3,4]}})
-            run_set.enabled = False
-            run_set.open = True
-            report.save(draft=False, clone=False)
-            ```
+        panel_grid = report.panel_grids[0]
+        panel_grid.open = False
+        run_set = panel_grid.run_sets[0]
+        run_set.runs = api.runs("vanpelt/foo", filters={"id": {"$in": [1,2,3,4]}})
+        run_set.enabled = False
+        run_set.open = True
+        report.save(draft=False, clone=False)
+        ```
 
-        Attributes:
-    <<<<<<< HEAD
-            display_name (string): report name
-            description (string): report description
-    =======
-            name (string): report name
-            description (string): report description;
-    >>>>>>> origin/master
-            user (User): the user that created the report
-            spec (dict): the spec off the report
-            panel_grids (PanelGrid[]): The panel grid objects in a report
-            run_sets (dict): all run sets keyed by name in the report.
-            updated_at (string): timestamp of last update
+    Attributes:
+        name (string): report name
+        description (string): report description;
+        user (User): the user that created the report
+        spec (dict): the spec off the report
+        panel_grids (PanelGrid[]): The panel grid objects in a report
+        run_sets (dict): all run sets keyed by name in the report.
+        updated_at (string): timestamp of last update
     """
 
     mutation = gql(
@@ -3599,9 +3577,9 @@ class BetaReport(Attrs):
             pass  # there is nothing to callback on.
 
     def __block_to_obj(self, block):
-        import wandb.apis.reports as wb
-
-        Block = wb.BLOCK_TO_OBJ_MAPPING[block["type"]]  # noqa: N806
+        Block = wandb.apis.reports.blocks.BLOCK_TO_OBJ_MAPPING[
+            block["type"]
+        ]  # noqa: N806
         if block["type"] == "panel-grid":
             return PanelGrid.from_json(report=self, spec=block)
         else:
@@ -3614,20 +3592,20 @@ class BetaReport(Attrs):
     @blocks.setter
     @top_callback
     def blocks(self, outline):
-        import wandb.apis.reports as wb
-
         if not isinstance(outline, list):
             raise TypeError(
                 "`blocks` must be a list of wb blocks (see wandb.apis.reports)"
             )
         for block in outline:
-            if not isinstance(block, (wb.Block, PanelGrid)):
+            if not isinstance(block, (wandb.apis.reports.blocks.Block, PanelGrid)):
                 raise TypeError(f"Must be a subclass of wb.Block (got: {block})")
 
         # Treat PanelGrid as special case for now
         self.spec["blocks"] = [
             x.to_json() if not isinstance(x, PanelGrid) else x.spec for x in outline
         ]
+
+        # TODO: If when assigning panel_grid, set its report to self.
 
     @property
     def panel_grids(self):
@@ -3727,27 +3705,41 @@ class BetaReport(Attrs):
             prefix = ipython.toggle_button("report")
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
-    def save(self, name=None, draft=False, clone=True, project=None, entity=None):
+    def save(
+        self,
+        title=None,
+        description=None,
+        draft=False,
+        clone=False,
+        project=None,
+        entity=None,
+    ):
         if not self.modified:
             wandb.termwarn("Report hasn't been modified")
-        view_type = "runs"
-        if draft:
-            view_type = "runs/draft"
-        # TODO: convert into report object -- is this required?  Just return self
-        self.client.execute(
+
+        entity = entity or self.entity
+        project = project or self.project
+        description = description or self.description
+        title = title or self.display_name
+        view_type = "runs/draft" if draft else "runs"
+
+        r = self.client.execute(
             self.mutation,
             variable_values={
                 "id": None if clone else self.id,
-                "entityName": self.entity,
-                "projectName": project or self.project,
-                "description": entity or self.description,
+                "entityName": entity,
+                "projectName": project,
+                "description": description,
                 "name": self.name,
-                "displayName": name or self.display_name,
+                "displayName": title,
                 "type": view_type,
                 "spec": json.dumps(self.spec),
             },
         )
-        return self
+        # return r["upsertView"]["view"]
+        return BetaReport(
+            self.client, r["upsertView"]["view"], entity=entity, project=project
+        )
 
     def _repr_html_(self) -> str:
         return self.to_html()
@@ -4470,10 +4462,7 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(
-            Artifact.QUERY,
-            variable_values={"id": artifact_id},
-        )
+        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
 
         name = None
         if response.get("artifact") is not None:
@@ -4761,10 +4750,7 @@ class Artifact(artifacts.Artifact):
         )
         self.client.execute(
             mutation,
-            variable_values={
-                "artifactID": self.id,
-                "deleteAliases": delete_aliases,
-            },
+            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
         )
         return True
 
@@ -4895,8 +4881,7 @@ class Artifact(artifacts.Artifact):
         if log:
             delta = relativedelta(datetime.datetime.now() - start_time)
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
-                prefix=False,
+                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}", prefix=False,
             )
         return dirpath
 
@@ -5023,10 +5008,7 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {
-                        "artifactCollectionName": self._sequence_name,
-                        "alias": alias,
-                    }
+                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
                     for alias in self._aliases
                 ],
             },
@@ -5195,10 +5177,7 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
+        response = self.client.execute(query, variable_values={"id": self.id},)
         # yes, "name" is actually id
         runs = [
             Run(
@@ -5236,10 +5215,7 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
+        response = self.client.execute(query, variable_values={"id": self.id},)
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(

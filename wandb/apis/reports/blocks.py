@@ -1,35 +1,11 @@
-__all__ = [
-    "CheckedList",
-    "OrderedList",
-    "UnorderedList",
-    "H1",
-    "H2",
-    "H3",
-    "P",
-    "BlockQuote",
-    "CalloutBlock",
-    "CodeBlock",
-    "MarkdownBlock",
-    "LaTeXInline",
-    "LaTeXBlock",
-    "Gallery",
-    "Image",
-    "Weave",
-    "HorizontalRule",
-    "TableOfContents",
-    "SoundCloud",
-    "Twitter",
-    "Spotify",
-    "Video",
-]
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import re
 from typing import Union
 import urllib.parse
 
-from wandb.apis.public import PanelGrid, RunSet  # noqa:F401
+from wandb.apis.public import PanelGrid  # noqa:F401
+from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
 
 class Dispatcher(ABC):
@@ -40,7 +16,7 @@ class Dispatcher(ABC):
 
 
 @dataclass
-class Block(Dispatcher):
+class Block(Dispatcher, RequiresReportEditingMixin):
     @abstractmethod
     def to_json(self):
         pass

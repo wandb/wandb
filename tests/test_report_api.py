@@ -1,16 +1,35 @@
 import json
-from unittest.mock import MagicMock
 
 import pytest
 import wandb
-import wandb.apis.reports as WB
+import wandb.apis.reports as wb
+import os
 
 from tests.conftest import DUMMY_API_KEY
 from tests.utils.mock_server import mock_server
 
 
 @pytest.fixture
-def report():
+def require_v5_reports(report):
+    assert report.spec.get("version", -1) == 5
+    yield
+
+
+@pytest.fixture
+def require_report_editing():
+    wandb.require("report-editing")
+    yield
+    del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
+
+
+@pytest.fixture
+def api():
+    wandb.login(key=DUMMY_API_KEY)
+    yield wandb.Api()
+
+
+@pytest.fixture
+def report(api):
     MOCK_ATTRS = {
         "id": "VmlldzoxOTk3OTcx",
         "type": "runs",
@@ -242,7 +261,12 @@ def report():
             },
         },
     }
-    yield wandb.apis.public.BetaReport(client=MagicMock(), attrs=MOCK_ATTRS)
+    yield wandb.apis.public.BetaReport(
+        client=api.client,
+        attrs=MOCK_ATTRS,
+        entity=MOCK_ATTRS["project"]["entityName"],
+        project=MOCK_ATTRS["project"]["name"],
+    )
 
 
 @pytest.fixture
@@ -276,30 +300,7 @@ def report_modified(report):
     assert report.modified
 
 
-@pytest.fixture
-def require_v5_reports(report):
-    assert report.spec.get("version", -1) == 5
-    yield
-
-
-# @pytest.fixture(autouse=True)
-# def require_report_editing():
-#     # if requirement.param:
-#     wandb.require("report-editing")
-#     os.environ["WANDB_REQUIRE_REPORT_EDITING"] = "True"
-#     yield
-#     # else:
-#     #     with pytest.raises(Exception):
-#     #         yield
-
-
-@pytest.fixture
-def api():
-    wandb.login(key=DUMMY_API_KEY)
-    yield wandb.Api()
-
-
-@pytest.mark.usefixtures("require_v5_reports", "mock_server")
+@pytest.mark.usefixtures("require_report_editing", "require_v5_reports", "mock_server")
 class TestPublicAPIReportCreation:
     @pytest.mark.parametrize(
         "project,entity,result",
@@ -342,7 +343,7 @@ class TestPublicAPIReportCreation:
         assert isinstance(result, wandb.apis.public.BetaReport)
 
 
-@pytest.mark.usefixtures("require_v5_reports")
+@pytest.mark.usefixtures("require_report_editing", "require_v5_reports")
 class TestReportGetters:
     @pytest.mark.parametrize(
         "property,path",
@@ -365,22 +366,28 @@ class TestReportGetters:
         assert report.spec["blocks"] == [block.to_json() for block in report.blocks]
 
     def test_get_panel_grids(self, report):
-        assert all([isinstance(panel, WB.PanelGrid) for panel in report.panel_grids])
+        assert all([isinstance(panel, wb.PanelGrid) for panel in report.panel_grids])
 
     def test_get_run_sets(self, report):
-        all([isinstance(rs, WB.RunSet) for pg in report.run_sets for rs in pg])
+        all([isinstance(rs, wb.RunSet) for pg in report.run_sets for rs in pg])
 
 
-@pytest.mark.usefixtures("require_v5_reports", "report_modified")
+@pytest.mark.usefixtures(
+    "require_report_editing", "require_v5_reports", "report_modified"
+)
 class TestReportSetters:
     @pytest.mark.parametrize(
-        "blocks,blockspec",
+        "blocks_args_kwargs,blockspec",
         [
             (
                 [
-                    WB.TableOfContents(),
-                    WB.H1(text="An example of programmatic report editing"),
-                    WB.P("Look at what we can do!"),
+                    (wb.TableOfContents, (), {}),
+                    (
+                        wb.H1,
+                        (),
+                        {"text": "An example of programmatic report editing"},
+                    ),
+                    (wb.P, ("Look at what we can do!",), {}),
                 ],
                 [
                     {"type": "table-of-contents", "children": [{"text": ""}]},
@@ -399,13 +406,17 @@ class TestReportSetters:
             ),
             (
                 [
-                    WB.H1("Heading1"),
-                    WB.H2("Heading2"),
-                    WB.H3("Heading3"),
-                    WB.P("Paragraph"),
-                    WB.HorizontalRule(),
-                    WB.Image(
-                        "https://i.kym-cdn.com/entries/icons/original/000/006/428/637738.jpg"
+                    (wb.H1, ("Heading1",), {}),
+                    (wb.H2, ("Heading2",), {}),
+                    (wb.H3, ("Heading3",), {}),
+                    (wb.P, ("Paragraph",), {}),
+                    (wb.HorizontalRule, (), {}),
+                    (
+                        wb.Image,
+                        (
+                            "https://i.kym-cdn.com/entries/icons/original/000/006/428/637738.jpg",
+                        ),
+                        {},
                     ),
                 ],
                 [
@@ -423,13 +434,17 @@ class TestReportSetters:
             ),
             (
                 [
-                    WB.LaTeXBlock("e=mc^2"),
-                    WB.OrderedList(["one", "two", "three"]),
-                    WB.UnorderedList(["alpha", "beta", "gamma"]),
-                    WB.CheckedList(["done", "not done"], checked=[True, False]),
-                    WB.BlockQuote("Look at this amazing blockquote"),
-                    WB.CalloutBlock("This is also an amazing callout"),
-                    WB.CodeBlock("for x in range(10): pass"),
+                    (wb.LaTeXBlock, ("e=mc^2",), {}),
+                    (wb.OrderedList, (["one", "two", "three"],), {}),
+                    (wb.UnorderedList, (["alpha", "beta", "gamma"],), {}),
+                    (
+                        wb.CheckedList,
+                        (["done", "not done"],),
+                        {"checked": [True, False]},
+                    ),
+                    (wb.BlockQuote, ("Look at this amazing blockquote",), {}),
+                    (wb.CalloutBlock, ("This is also an amazing callout",), {}),
+                    (wb.CodeBlock, ("for x in range(10): pass",), {}),
                 ],
                 [
                     {
@@ -555,9 +570,17 @@ class TestReportSetters:
             ),
             (
                 [
-                    WB.Gallery(["url1", "url2", "url3"]),
-                    WB.LaTeXInline("before", "e=mc^2", "after"),
-                    WB.MarkdownBlock("This is **MARKDOWN!**"),
+                    (wb.Gallery, (["url1", "url2", "url3"],), {}),
+                    (
+                        wb.LaTeXInline,
+                        (
+                            "before",
+                            "e=mc^2",
+                            "after",
+                        ),
+                        {},
+                    ),
+                    (wb.MarkdownBlock, ("This is **MARKDOWN!**",), {}),
                 ],
                 [
                     {
@@ -586,12 +609,14 @@ class TestReportSetters:
             ),
         ],
     )
-    def test_set_blocks(self, report, blocks, blockspec):
+    def test_set_blocks(self, report, blocks_args_kwargs, blockspec):
+        blocks = [block(*args, **kwargs) for block, args, kwargs in blocks_args_kwargs]
         report.blocks = blocks
         assert report.spec["blocks"] == blockspec
 
     def test_set_blocks_with_panel_grid(self, report):
-        report.blocks = [WB.PanelGrid(report)]
+        print(os.environ)
+        report.blocks = [wb.PanelGrid(report)]
         assert report.spec["blocks"] == [
             {
                 "type": "panel-grid",
@@ -705,7 +730,7 @@ class TestReportSetters:
 
     def test_set_blocks_with_weave(self, report):
         report.blocks = [
-            WB.Weave(
+            wb.Weave(
                 {
                     "type": "weave-panel",
                     "children": [{"text": ""}],
@@ -854,6 +879,7 @@ class TestReportSetters:
         ]
 
 
+@pytest.mark.usefixtures("require_report_editing")
 class TestPanelGridGetters:
     @pytest.mark.parametrize(
         "property,path",
@@ -868,7 +894,9 @@ class TestPanelGridGetters:
         assert getattr(panel_grid, property) == value_getter(panel_grid.spec, path)
 
 
-@pytest.mark.usefixtures("panel_grid_modified", "report_modified")
+@pytest.mark.usefixtures(
+    "require_report_editing", "panel_grid_modified", "report_modified"
+)
 class TestPanelGridSetters:
     @pytest.mark.parametrize(
         "case,result",
@@ -883,8 +911,8 @@ class TestPanelGridSetters:
                 panel_grid.open_run_set = case
 
     def test_set_run_sets(self, panel_grid):
-        run_set1 = WB.RunSet(panel_grid)
-        run_set2 = WB.RunSet(panel_grid)
+        run_set1 = wb.RunSet(panel_grid)
+        run_set2 = wb.RunSet(panel_grid)
         new_run_sets = [run_set1, run_set2]
 
         panel_grid.run_sets = new_run_sets
@@ -893,6 +921,7 @@ class TestPanelGridSetters:
         ]
 
 
+@pytest.mark.usefixtures("require_report_editing")
 class TestRunSetGetters:
     @pytest.mark.parametrize(
         "property,path",
@@ -927,7 +956,12 @@ class TestRunSetGetters:
         assert run_set._cols_to_groupby(run_set.groupby) == run_set.spec["grouping"]
 
 
-@pytest.mark.usefixtures("run_set_modified", "panel_grid_modified", "report_modified")
+@pytest.mark.usefixtures(
+    "require_report_editing",
+    "run_set_modified",
+    "panel_grid_modified",
+    "report_modified",
+)
 class TestRunSetSetters:
     @pytest.mark.parametrize(
         "cols,groupbyspec",
