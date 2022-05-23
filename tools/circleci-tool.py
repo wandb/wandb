@@ -166,7 +166,7 @@ def trigger_nightly(args):
     d = r.json()
     uuid = d["id"]
     print("CircleCI workflow started:", uuid)
-    if args.wait or args.loop:
+    if args.wait:
         poll(args, pipeline_id=uuid)
 
 
@@ -287,6 +287,9 @@ def process_args():
     )
     parse_trigger_nightly.add_argument(
         "--shards", help="comma-separated shards (cpu,gpu,tpu,local)"
+    )
+    parse_trigger_nightly.add_argument(
+        "--wait", action="store_true", help="Wait for finish or error"
     )
 
     parse_status = subparsers.add_parser("status")

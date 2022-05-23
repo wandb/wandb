@@ -427,14 +427,14 @@ jobs:
       message:
         type: string
         default: ":runner:"
-      skip:
+      execute:
         type: boolean
-        default: false
+        default: true
     docker:
       - image: 'cimg/base:stable'
     steps:
-      - unless:
-          condition: << parameters.skip >>
+      - when:
+          condition: << parameters.execute >>
           steps:
             - slack/notify:
                 custom: |
@@ -1024,7 +1024,7 @@ workflows:
     when: << pipeline.parameters.manual_nightly >>
     jobs:
       - slack_notify:
-          skip: ! << pipeline.parameters.manual_nightly_slack_notify >>
+          execute: << pipeline.parameters.manual_nightly_slack_notify >>
           name: "slack-notify-on-start"
           context: slack-secrets
           # todo? add a link to the pipeline in the message
@@ -1075,9 +1075,10 @@ workflows:
 #          notify_on_failure: true
 #          notify_on_success: true
       - slack_notify:
-          skip: ! << pipeline.parameters.manual_nightly_slack_notify >>
+          execute: << pipeline.parameters.manual_nightly_slack_notify >>
           name: "slack-notify-on-finish"
           context: slack-secrets
-#          requires:
+          requires:
+            - slack-notify-on-start
 #            - shut_down_cluster
           message: ":checkered_flag: *Manual cloud run finished!*"
