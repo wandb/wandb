@@ -4,7 +4,7 @@ import queue
 import socket
 import time
 import threading
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from .daimyo import Daimyo
 import wandb
@@ -35,6 +35,21 @@ class SweepDaimyo(Daimyo):
     launch jobs it pulls from an internal sweeps RunQueue.
     """
 
+    def __init__(
+        self,
+        *args,
+        sweep_id: Optional[str] = None,
+        sweep_config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):
+        super(SweepDaimyo, self).__init__(*args, **kwargs)
+        # TODO: verify these properties, throw errors
+        # TODO: Get command from sweep config? (if no local kwarg is provided?)
+        # TODO: Look for sweep config in upserted sweep?
+        # TODO: Sweep config can also come in through init kwarg? (python usecase)
+        self._sweep_id = sweep_id
+        self._sweep_config = sweep_config
+
     def _start(self):
         # TODO: socket hostname is probably a shitty name, we can do better
         self._heartbeat_agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
@@ -44,9 +59,7 @@ class SweepDaimyo(Daimyo):
         self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         self._heartbeat_thread.daemon = True
         self._heartbeat_thread.start()
-        # TODO: Get command from sweep config? (if no local kwarg is provided?)
-        # TODO: Look for sweep config in upserted sweep?
-        # TODO: Sweep config can also come in through init kwarg? (python usecase)
+
 
 
     def _heartbeat(self):

@@ -34,7 +34,6 @@ class Daimyo(ABC):
         entity: Optional[str] = None,
         project: Optional[str] = None,
         queue: Optional[str] = None,
-        sweep: Optional[str] = None,
         **kwargs,
     ):
         # TODO: verify these properties, throw errors
@@ -42,7 +41,6 @@ class Daimyo(ABC):
         self._entity = entity
         self._project = project
         self._queue = queue
-        self._sweep = sweep
         self._state: DaimyoState = DaimyoState.PENDING
         self._jobs: Dict[str, public.QueuedJob] = {}
 
