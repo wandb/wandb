@@ -493,11 +493,9 @@ jobs:
               SHOULD_BUILD_IMAGE=true
             fi
             echo "SHOULD_BUILD_IMAGE: $SHOULD_BUILD_IMAGE"
+            echo 'export SHOULD_BUILD_IMAGE=$SHOULD_BUILD_IMAGE' >> $BASH_ENV
       - when:
-          condition:
-            equal:
-              - $SHOULD_BUILD_IMAGE
-              - true
+          condition: $SHOULD_BUILD_IMAGE
           steps:
             - gke/install
             - run:
