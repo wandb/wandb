@@ -22,15 +22,18 @@ class SweepDaimyo(Daimyo):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._sweep_agent: Optional[str] = None
-        self.start()
 
-    def start(self):
+    def _start(self):
+        # TODO: socket hostname is probably a shitty name, we can do better
         _agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
         self._sweep_agent = _agent["id"]
         self._run_status = {}
         self._queue = queue.Queue()
         self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         self._heartbeat_thread.daemon = True
+        # TODO: Get command from sweep config? (if no local kwarg is provided?)
+        # TODO: Look for sweep config in upserted sweep?
+        # TODO: Sweep config can also come in through init kwarg? (python usecase)
 
     def _heartbeat(self):
         while True:
@@ -67,23 +70,26 @@ class SweepDaimyo(Daimyo):
                 DaimyoState.CANCELLED,
             ]:
                 return
-            self._push_jobs_from_sweeps_queue_to_launch_queue()
-
-    def _push_jobs_from_sweeps_queue_to_launch_queue(self):
-        try:
-            job = self._queue.get(timeout=5)
-        except queue.Empty:
-            _msg = "No jobs in Sweeps RunQueue, waiting..."
+            try:
+                job = self._queue.get(timeout=5)
+            except queue.Empty:
+                _msg = "No jobs in Sweeps RunQueue, waiting..."
+                logger.debug(_msg)
+                wandb.termlog(_msg)
+                time.sleep(5)
+                continue
+            _msg = f"Sweep RunQueue job received: {job}"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            time.sleep(5)
-            return
-        _msg = f"Sweep RunQueue job received: {job}"
-        logger.debug(_msg)
-        wandb.termlog(_msg)
-        run_id = job.run_id
-        if self._run_status[run_id] == RunStatus.STOPPED:
-            return
+            run_id = job.run_id
+            if self._run_status[run_id] == RunStatus.STOPPED:
+                continue
+
+            # TODO  - Send job to launch agent
+
+            self._run_threads[run_id] = thread
+            thread.start()
+            self._run_status[run_id] = RunStatus.RUNNING
         
         logger.debug(f"Spawning new thread for run {run_id}.")
         thread = threading.Thread(target=self._run_job, args=(job,))
@@ -133,11 +139,21 @@ class SweepDaimyo(Daimyo):
             self._exit_flag = True
             return
 
-    def kill():
-        pass
+    def _stop_run(self, run_id):
+        logger.debug(f"Stopping run {run_id}.")
+        self._run_status[run_id] = RunStatus.STOPPED
+        thread = self._run_threads.get(run_id)
+        if thread:
+            _terminate_thread(thread)
 
-    def stop():
-        pass
+    def _stop_all_runs(self):
+        logger.debug("Stopping all runs.")
+        for run in list(self._run_threads.keys()):
+            self._stop_run(run)
+
+    def _exit(self):
+        self._stop_all_runs()
+        self._exit_flag = True
 
     def _convert_legacy_sweep_runspec(self, launch_spec: Dict[str, Any]) -> None:
         # breakpoint()

@@ -13,6 +13,7 @@ from wandb.sdk.launch.launch_add import launch_add
 logger = logging.getLogger(__name__)
 
 class DaimyoState(Enum):
+    PENDING = 0
     STARTING = 1
     RUNNING = 2
     COMPLETED = 3
@@ -37,16 +38,13 @@ class Daimyo(ABC):
         sweep: Optional[str] = None,
         **kwargs,
     ):
+        # TODO: verify these properties, throw errors
         self._api = api
         self._entity = entity
         self._project = project
         self._queue = queue
         self._sweep = sweep
-        self._state: DaimyoState = DaimyoState.STARTING
-
-        _msg = "Daimyo starting."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
+        self._state: DaimyoState = DaimyoState.PENDING
 
     @property
     def state(self) -> DaimyoState:
@@ -54,8 +52,22 @@ class Daimyo(ABC):
         return self._state
 
     @abstractmethod
+    def _start(self):
+        pass
+
+    def start(self):
+        _msg = "Daimyo starting."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
+        self._state = DaimyoState.STARTING
+        self._start()
+        # TODO: Should start call run?
+        self.run()
+
+    @abstractmethod
     def _run(self):
         pass
+    
     @abstractmethod
     def _exit(self):
         pass
@@ -76,6 +88,11 @@ class Daimyo(ABC):
             wandb.termlog(_msg)
             self._state = DaimyoState.FAILED
             raise e
+        else:
+            _msg = f"Daimyo completed."
+            logger.debug(_msg)
+            wandb.termlog(_msg)
+            self._state = DaimyoState.COMPLETED
 
     def _add_to_launch_queue(self, runspec: Dict[str, Any]) -> "public.QueuedJob":
         """ Add a launch job to the Launch RunQueue. """
@@ -93,21 +110,20 @@ class Daimyo(ABC):
             params: Optional[Dict[str, Any]] = None,
         )
 
-    def __iter__(self):
-        # returning __iter__ object
-        return self
 
-    @abstractmethod
-    def suggest() -> Dict[str, Any]:
-        """ Returns the next suggestion for the sweep. """
-        pass
+    # def __iter__(self):
+    #     # returning __iter__ object
+    #     return self
 
-    def __next__(self):
-        try:
-            return self.next_suggestion()
-        except StopIteration:
-            raise StopIteration
-        except LaunchError as e:
-            raise LaunchError(e)
+    # @abstractmethod
+    # def suggest() -> Dict[str, Any]:
+    #     """ Returns the next suggestion for the sweep. """
+    #     pass
+
+    # def __next__(self):
+    #     try:
+    #         return self.next_suggestion()
+    #     except LaunchError as e:
+    #         raise StopIteration
         
 
