@@ -12,6 +12,7 @@ from wandb.sdk.launch.launch_add import launch_add
 
 logger = logging.getLogger(__name__)
 
+
 class DaimyoState(Enum):
     PENDING = 0
     STARTING = 1
@@ -20,8 +21,9 @@ class DaimyoState(Enum):
     FAILED = 4
     CANCELLED = 5
 
+
 class Daimyo(ABC):
-    """ Daimyo 🏯  is a Lord in feudal Japan and Boba Fett's title in the Mandalorian.
+    """Daimyo 🏯  is a Lord in feudal Japan and Boba Fett's title in the Mandalorian.
 
     In this context, the Daimyo is a controller/agent that will populate a Launch RunQueue
     with jobs from a hyperparameter sweep.
@@ -70,7 +72,7 @@ class Daimyo(ABC):
     @abstractmethod
     def _run(self):
         pass
-    
+
     @abstractmethod
     def _exit(self):
         pass
@@ -104,14 +106,14 @@ class Daimyo(ABC):
             self._exit()
 
     def _add_to_launch_queue(self, launchspec: Dict[str, Any]) -> "public.QueuedJob":
-        """ Add a launch job to the Launch RunQueue. """
+        """Add a launch job to the Launch RunQueue."""
         job = launch_add(
             launchspec.get("uri", None),
             launchspec.get("config", None),
-            project = launchspec.get("project", None) or self._project,
-            entity = launchspec.get("entity", None) or self._entity,
-            queue = launchspec.get("queue", None) or self._queue,
-            resource = "local-process",
+            project=launchspec.get("project", None) or self._project,
+            entity=launchspec.get("entity", None) or self._entity,
+            queue=launchspec.get("queue", None) or self._queue,
+            resource="local-process",
             # entry_point: Optional[str] = None,
             # name: Optional[str] = None,
             # version: Optional[str] = None,
@@ -130,7 +132,6 @@ class Daimyo(ABC):
             return False
         return True
 
-
     # def __iter__(self):
     #     # returning __iter__ object
     #     return self
@@ -145,5 +146,3 @@ class Daimyo(ABC):
     #         return self.next_suggestion()
     #     except LaunchError as e:
     #         raise StopIteration
-        
-

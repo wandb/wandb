@@ -13,11 +13,12 @@ from wandb.wandb_agent import Agent as LegacySweepAgent
 
 logger = logging.getLogger(__name__)
 
-class LegacySweepRun:
-    """ Legacy Sweep Run . """
 
-    # State must match Go's RunStatus
-    # TODO: Link in code
+class LegacySweepRun:
+    """Legacy Sweep Run ."""
+
+    # State must match Go's RunState
+    # TODO: Link file in core
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     STOPPED = "STOPPED"
@@ -31,7 +32,7 @@ class LegacySweepRun:
 
 
 class SweepDaimyo(Daimyo):
-    """ A SweepDaimyo is a controller/agent that will populate a Launch RunQueue with
+    """A SweepDaimyo is a controller/agent that will populate a Launch RunQueue with
     launch jobs it pulls from an internal sweeps RunQueue.
     """
 
@@ -51,16 +52,22 @@ class SweepDaimyo(Daimyo):
         self._sweep_config = sweep_config
 
     def _start(self):
-        # TODO: socket hostname is probably a shitty name, we can do better
-        self._heartbeat_agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
-        self._heartbeat_agent = self._heartbeat_agent["id"]
+        # Status for all the sweep runs this agent has popped off the sweep runqueue
         self._heartbeat_runs_status: Dict[str, LegacySweepRun] = {}
+        # Mapping from sweep run ids to launch job ids
+        self._heartbeat_runs_to_launch_jobs: Dict[str, str] = {}
+        # TODO: socket hostname is probably a shitty name, we can do better
+        self._heartbeat_agent = self._api.register_agent(
+            socket.gethostname(), sweep_id=self._sweep_id
+        )
+        self._heartbeat_agent = self._heartbeat_agent["id"]
+        # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
+        # and put them in this internal queue, which will be used to populate
+        # the Launch RunQueue
         self._heartbeat_queue: "queue.Queue[LegacySweepRun]" = queue.Queue()
         self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         self._heartbeat_thread.daemon = True
         self._heartbeat_thread.start()
-
-
 
     def _heartbeat(self):
         while True:
@@ -110,7 +117,7 @@ class SweepDaimyo(Daimyo):
                 "uri": os.getcwd(),
                 "resource": "local-process",
                 "overrides": {
-                    "args": LegacySweepAgent._create_command_args(run.config)['args'],
+                    "args": LegacySweepAgent._create_command_args(run.config)["args"],
                     "entry_point": "",
                 },
             }
@@ -123,7 +130,6 @@ class SweepDaimyo(Daimyo):
             #       if they are queued in launch runqueue? Or only if they
             #       are running in launch runqueue?
             self._heartbeat_runs_status[run.id] = LegacySweepRun.RUNNING
-        
 
             # if self._heartbeat_runs_status[run.id] == RunStatus.RUNNING:
             #     self._heartbeat_runs_status[run.id] = RunStatus.DONE
@@ -167,7 +173,7 @@ class SweepDaimyo(Daimyo):
     def _stop_run(self, run_id):
         logger.debug(f"Stopping run {run_id}.")
         self._heartbeat_runs_status[run_id] = LegacySweepRun.STOPPED
-        # TODO: Convert run key to job key
+        # TODO: Convert run key to job key?
         _job = self._jobs.get(run_id)
         if _job is not None:
             # TODO: Can you command a launch agent to kill a job?
@@ -181,4 +187,3 @@ class SweepDaimyo(Daimyo):
     def _exit(self):
         self._stop_all_runs()
         self._heartbeat_thread.kill()
-
