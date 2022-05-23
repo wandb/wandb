@@ -457,7 +457,7 @@ jobs:
       # this is to make sure `steps` is not empty
       - run:
           name: Print message to stdout
-          command: echo < parameters.message >>
+          command: echo << parameters.message >>
 
   # Build the docker image for a yea shard of the nightly workflow.
   sdk_docker:
