@@ -870,29 +870,34 @@ def sweep(
     launch_queue_controller = None
     if queue is not None:
         from wandb.sdk.launch.utils import construct_launch_spec
+
         launch_spec = construct_launch_spec(
             os.getcwd(),  # uri,
             api,
-            f"LaunchSweepController for {sweep_id}", # name,
+            f"LaunchSweepController for {sweep_id}",  # name,
             project,
             entity,
-            None, # docker_image,
-            "local-process", # resource,
-            f"wandb agent {entity}/{project}/{sweep_id} --queue {queue}", # entry_point,
-            None, # version,
-            None, # params,
-            None, # resource_args,
-            None, # launch_config,
-            None, # cuda,
+            None,  # docker_image,
+            "local-process",  # resource,
+            f"wandb agent {entity}/{project}/{sweep_id} --queue {queue}",  # entry_point,
+            None,  # version,
+            None,  # params,
+            None,  # resource_args,
+            None,  # launch_config,
+            None,  # cuda,
         )
         launch_queue_controller = {
-            "queue" : queue,
-            "run_spec" : launch_spec,
+            "queue": queue,
+            "run_spec": launch_spec,
         }
 
     # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
-        config, project=project, entity=entity, obj_id=sweep_obj_id, launch_queue_controller=launch_queue_controller
+        config,
+        project=project,
+        entity=entity,
+        obj_id=sweep_obj_id,
+        launch_queue_controller=launch_queue_controller,
     )
     util.handle_sweep_config_violations(warnings)
 
@@ -1253,7 +1258,9 @@ def launch_agent(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B Daimyo (Experimental)")
 @click.pass_context
-@click.option("--project", "-p", default=None, help="The project of the sweep and launch queue.")
+@click.option(
+    "--project", "-p", default=None, help="The project of the sweep and launch queue."
+)
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.option(
     "--queue",
@@ -1276,8 +1283,10 @@ def daimyo(ctx, project, entity, sweep_id, queue):
 
     wandb.termlog("Starting a Launch Daimyo 🚀 🏯 ")
     from wandb.sdk.launch.sweeps import load_daimyo
+
     _daimyo = load_daimyo(sweep_id, queue, entity=entity, project=project)
     _daimyo.start()
+
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
 @click.pass_context
@@ -1315,9 +1324,9 @@ def agent(ctx, project, entity, count, sweep_id):
     #     # TODO(hupo): Start a LocalProcessRunner here
     # else:
     # if queue:
-        # wandb.termlog("Starting a launch sweep controller 🚀 ")
-        # from wandb.sdk.launch.sweeps.agent import launch_sweep_controller
-        # launch_sweep_controller(sweep_id, queue, entity=entity, project=project)
+    # wandb.termlog("Starting a launch sweep controller 🚀 ")
+    # from wandb.sdk.launch.sweeps.agent import launch_sweep_controller
+    # launch_sweep_controller(sweep_id, queue, entity=entity, project=project)
     # else:
     wandb.termlog("Starting wandb agent 🕵️")
     wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)

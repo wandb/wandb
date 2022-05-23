@@ -166,7 +166,7 @@ class LaunchAgent:
     #     #     launch_spec["overrides"]["args"].extend(legacy_args)
     #     # Remove old legacy RunSpec fields
     #     del launch_spec["args"]
-    #     del launch_spec["logs"]            
+    #     del launch_spec["logs"]
 
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""

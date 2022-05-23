@@ -8,7 +8,7 @@ _logger = logging.getLogger(__name__)
 
 
 class Daimyo(ABC):
-    """ Daimyo is a Lord in feudal Japan :japanese_castle: and Boba Fett's title in the Mandalorian.
+    """Daimyo is a Lord in feudal Japan :japanese_castle: and Boba Fett's title in the Mandalorian.
 
     In this context, the Daimyo is a controller/agent that will populate a Launch Queue with
     jobs to run for a sweep.
@@ -27,15 +27,14 @@ class Daimyo(ABC):
         pass
 
     def __iter__(self):
-        #returning __iter__ object
+        # returning __iter__ object
         return self
 
     def __next__(self):
-        #comparing present_day with end_date,
-        #if present_day greater then end_date stoping the iteration
+        # comparing present_day with end_date,
+        # if present_day greater then end_date stoping the iteration
         if self._present_day >= self.end_date:
             raise StopIteration
         today = self._present_day
         self._present_day += timedelta(days=1)
         return today
-
