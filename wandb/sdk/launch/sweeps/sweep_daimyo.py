@@ -73,20 +73,18 @@ class SweepDaimyo(Daimyo):
         try:
             job = self._queue.get(timeout=5)
         except queue.Empty:
-            if not waiting:
-                logger.debug("Paused.")
-                wandb.termlog("Sweep Agent: Waiting for job.")
-                waiting = True
+            _msg = "No jobs in Sweeps RunQueue, waiting..."
+            logger.debug(_msg)
+            wandb.termlog(_msg)
             time.sleep(5)
             return
-        if waiting:
-            logger.debug("Resumed.")
-            wandb.termlog("Job received.")
-            waiting = False
-        count += 1
+        _msg = f"Sweep RunQueue job received: {job}"
+        logger.debug(_msg)
+        wandb.termlog(_msg)
         run_id = job.run_id
         if self._run_status[run_id] == RunStatus.STOPPED:
-            continue
+            return
+        
         logger.debug(f"Spawning new thread for run {run_id}.")
         thread = threading.Thread(target=self._run_job, args=(job,))
         self._run_threads[run_id] = thread
