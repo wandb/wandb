@@ -474,9 +474,9 @@ jobs:
       git_branch:
         type: string
         default: "master"
-      # used in manual triggering to decide whether to build the image
       shard:
         type: string
+      # used in manual triggering to decide whether to build and push the image
       requested_shards:
         type: string
         default: "cpu,gpu,tpu,local"
@@ -734,6 +734,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          shard: "cpu"
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
@@ -741,6 +742,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          shard: "gpu"
       # manage the gke cluster
       - spin_up_cluster:
           requires:
