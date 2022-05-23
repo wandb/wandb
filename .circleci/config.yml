@@ -1026,8 +1026,7 @@ workflows:
     when: << pipeline.parameters.manual_nightly >>
     jobs:
       - slack_notify:
-          skip:
-            not: << pipeline.parameters.manual_nightly_slack_notify >>
+          skip: ! << pipeline.parameters.manual_nightly_slack_notify >>
           name: "slack-notify-on-start"
           context: slack-secrets
           # todo? add a link to the pipeline in the message
@@ -1078,8 +1077,7 @@ workflows:
 #          notify_on_failure: true
 #          notify_on_success: true
       - slack_notify:
-          skip:
-            not: << pipeline.parameters.manual_nightly_slack_notify >>
+          skip: ! << pipeline.parameters.manual_nightly_slack_notify >>
           name: "slack-notify-on-success"
           context: slack-secrets
           requires:
