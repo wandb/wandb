@@ -492,8 +492,12 @@ jobs:
             if echo << parameters.requested_shards >> | grep -q << parameters.shard >>; then
               SHOULD_BUILD_IMAGE=true
             fi
+            echo "SHOULD_BUILD_IMAGE: $SHOULD_BUILD_IMAGE"
       - when:
-          condition: $SHOULD_BUILD_IMAGE
+          condition:
+            equal:
+              - $SHOULD_BUILD_IMAGE
+              - true
           steps:
             - gke/install
             - run:
