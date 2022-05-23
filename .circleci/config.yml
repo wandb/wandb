@@ -753,13 +753,11 @@ workflows:
           notify_on_failure: true
           notify_on_success: true
       - slack_notify:
-          name: "slack-notify-on-success"
+          name: "slack-notify-on-finish"
           context: slack-secrets
           requires:
-            - "cloud-test-cpu"
-            - "cloud-test-gpu"
             - shut_down_cluster
-          message: ":runner: *Nightly run successfully finished!*"
+          message: ":checkered_flag: *Nightly run finished!*"
 
   main:
     when:
@@ -1078,10 +1076,8 @@ workflows:
 #          notify_on_success: true
       - slack_notify:
           skip: ! << pipeline.parameters.manual_nightly_slack_notify >>
-          name: "slack-notify-on-success"
+          name: "slack-notify-on-finish"
           context: slack-secrets
-          requires:
-            - "cloud-test-cpu"
-            - "cloud-test-gpu"
-            - shut_down_cluster
-          message: ":runner: *Manual cloud run successfully finished!*"
+#          requires:
+#            - shut_down_cluster
+          message: ":checkered_flag: *Manual cloud run finished!*"
