@@ -474,34 +474,49 @@ jobs:
       git_branch:
         type: string
         default: "master"
+      # used in manual triggering to decide whether to build the image
+      shard:
+        type: string
+      requested_shards:
+        type: string
+        default: "cpu,gpu,tpu,local"
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
       - checkout
-      - gke/install
       - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
-#      - restore-sdk-gpu-cache
-      - setup_docker_buildx:
-          docker_layer_caching: false
-      - run:
-          name: "Build << parameters.description >>"
+          name: Decide whether to build the image
+          # if << parameters.shard >> in << parameters.requested_shards >>, then build the image
           command: |
-            cd << parameters.path >>
-            docker build \
-              -t << parameters.image_name >> \
-              --build-arg PYTHON_VERSION=<< parameters.python_version >> \
-              --build-arg GIT_BRANCH=<< parameters.git_branch >> \
-              --build-arg UTC_DATE=$(date -u +%Y%m%d) \
-              .
-#      - save-sdk-gpu-cache
-      - setup_gcloud
-      - run:
-          name: "Push << parameters.description >> to container registry"
-          command: |
-            docker push << parameters.image_name >>
-      # todo: clean up old images in gcr.io
+            SHOULD_BUILD_IMAGE=false
+            if echo << parameters.requested_shards >> | grep -q << parameters.shard >>; then
+              SHOULD_BUILD_IMAGE=true
+            fi
+      - when:
+          condition: $SHOULD_BUILD_IMAGE
+          steps:
+            - gke/install
+            - run:
+                name: "Update gcloud components"
+                command: gcloud --quiet components update
+            - setup_docker_buildx:
+                docker_layer_caching: false
+            - run:
+                name: "Build << parameters.description >>"
+                command: |
+                  cd << parameters.path >>
+                  docker build \
+                    -t << parameters.image_name >> \
+                    --build-arg PYTHON_VERSION=<< parameters.python_version >> \
+                    --build-arg GIT_BRANCH=<< parameters.git_branch >> \
+                    --build-arg UTC_DATE=$(date -u +%Y%m%d) \
+                    .
+            - setup_gcloud
+            - run:
+                name: "Push << parameters.description >> to container registry"
+                command: |
+                  docker push << parameters.image_name >>
+            # todo: clean up old images in gcr.io
 
   # Nightly workflow for the SDK.
   #  - spin_up_cluster job creates a GKE cluster
@@ -1034,13 +1049,15 @@ workflows:
           # todo? add a link to the pipeline in the message
           message: ":runner: *Manual cloud run started!*"
       # build docker images for yea shards
-#      - sdk_docker:
-#          name: "build-cpu-docker-image"
-#          description: "SDK Docker image for CPU testing"
-#          path: "./standalone_tests/shards/gke_cpu"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-#          requires:
-#            - "slack-notify-on-start"
+      - sdk_docker:
+          name: "build-cpu-docker-image"
+          description: "SDK Docker image for CPU testing"
+          path: "./standalone_tests/shards/gke_cpu"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+          requires:
+            - "slack-notify-on-start"
+          shard: "cpu"
+          requested_shards: << pipeline.parameters.manual_nightly_shards >>
 #      - sdk_docker:
 #          name: "build-gpu-docker-image"
 #          description: "SDK Docker image for GPU testing"
