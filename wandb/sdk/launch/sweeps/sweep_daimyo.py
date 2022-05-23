@@ -1,9 +1,8 @@
-import logging
-from typing import Any, Dict
+from .daimyo import Daimyo
 
-from wandb.wandb_agent import Agent as WandbSweepAgent
 
-_logger = logging.getLogger(__name__)
+class SweepDaimyo(Daimyo):
+    pass
 
 
 def _detect_convert_legacy_sweep_runspec(
@@ -31,6 +30,3 @@ def _detect_convert_legacy_sweep_runspec(
     # Remove old legacy RunSpec fields
     del launch_spec["args"]
     del launch_spec["logs"]
-
-def launch_sweep_controller(sweep_id, queue, entity=None, project=None):
-    pass

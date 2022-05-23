@@ -1251,13 +1251,10 @@ def launch_agent(
     wandb_launch.create_and_run_agent(api, agent_config)
 
 
-@cli.command(context_settings=CONTEXT, help="Run the W&B agent")
+@cli.command(context_settings=CONTEXT, help="Run a W&B Daimyo (Experimental)")
 @click.pass_context
-@click.option("--project", "-p", default=None, help="The project of the sweep.")
+@click.option("--project", "-p", default=None, help="The project of the sweep and launch queue.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
-@click.option(
-    "--count", default=None, type=int, help="The max number of runs for this agent."
-)
 @click.option(
     "--queue",
     "-q",
@@ -1268,13 +1265,43 @@ def launch_agent(
     'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
+@click.argument("sweep_id")
+@display_error
+def agent(ctx, project, entity, sweep_id, queue):
+    api = _get_cling_api()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep agent feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    wandb.termlog("Starting a Launch Daimyo 🚀 🏯 ")
+    from wandb.sdk.launch.sweeps.daimyo import launch_daimyo
+    launch_daimyo(sweep_id, queue, entity=entity, project=project)
+
+@cli.command(context_settings=CONTEXT, help="Run the W&B agent")
+@click.pass_context
+@click.option("--project", "-p", default=None, help="The project of the sweep.")
+@click.option("--entity", "-e", default=None, help="The entity scope for the project.")
+@click.option(
+    "--count", default=None, type=int, help="The max number of runs for this agent."
+)
+# @click.option(
+#     "--queue",
+#     "-q",
+#     is_flag=False,
+#     flag_value="default",
+#     default=None,
+#     help="Name of launch run queue to push runs into. If supplied without "
+#     'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
+#     "name supplied, specified run queue must exist under the project and entity supplied.",
+# )
 # @click.option(
 #     "--use_launch", is_flag=True, show_default=True, default=False,
 #     help="Use the launch API to launch runs instead of the agent.",
 # )
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, sweep_id, queue):
+def agent(ctx, project, entity, count, sweep_id):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
@@ -1286,13 +1313,13 @@ def agent(ctx, project, entity, count, sweep_id, queue):
     #     breakpoint()
     #     # TODO(hupo): Start a LocalProcessRunner here
     # else:
-    if queue:
-        wandb.termlog("Starting a launch sweep controller 🚀 ")
-        from wandb.sdk.launch.sweeps.agent import launch_sweep_controller
-        launch_sweep_controller(sweep_id, queue, entity=entity, project=project)
-    else:
-        wandb.termlog("Starting wandb agent 🕵️")
-        wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
+    # if queue:
+        # wandb.termlog("Starting a launch sweep controller 🚀 ")
+        # from wandb.sdk.launch.sweeps.agent import launch_sweep_controller
+        # launch_sweep_controller(sweep_id, queue, entity=entity, project=project)
+    # else:
+    wandb.termlog("Starting wandb agent 🕵️")
+    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
