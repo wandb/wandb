@@ -19,7 +19,6 @@ class DaimyoState(Enum):
     COMPLETED = 3
     FAILED = 4
     CANCELLED = 5
-    UNKNOWN = 6
 
 class Daimyo(ABC):
     """ Daimyo 🏯  is a Lord in feudal Japan and Boba Fett's title in the Mandalorian.
@@ -45,11 +44,17 @@ class Daimyo(ABC):
         self._queue = queue
         self._sweep = sweep
         self._state: DaimyoState = DaimyoState.PENDING
+        self._jobs: Dict[str, public.QueuedJob] = {}
 
     @property
     def state(self) -> DaimyoState:
-        logger.debug(f"Daimyo state: {self._state.name}")
+        logger.debug(f"Daimyo state is {self._state.name}")
         return self._state
+
+    @state.setter
+    def state(self, value: DaimyoState) -> None:
+        logger.debug(f"Changing Daimyo state from {self.state.name} to {value.name}")
+        self._state = value
 
     @abstractmethod
     def _start(self):
@@ -73,30 +78,36 @@ class Daimyo(ABC):
         pass
 
     def run(self):
+        _msg = "Daimyo Running."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
+        self.state = DaimyoState.RUNNING
         try:
             self._run()
         except KeyboardInterrupt:
             _msg = "Daimyo received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self._state = DaimyoState.CANCELLED
+            self.state = DaimyoState.CANCELLED
             self._exit()
             return
         except Exception as e:
             _msg = f"Daimyo failed with exception {e}"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self._state = DaimyoState.FAILED
+            self.state = DaimyoState.FAILED
+            self._exit()
             raise e
         else:
             _msg = f"Daimyo completed."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self._state = DaimyoState.COMPLETED
+            self.state = DaimyoState.COMPLETED
+            self._exit()
 
     def _add_to_launch_queue(self, runspec: Dict[str, Any]) -> "public.QueuedJob":
         """ Add a launch job to the Launch RunQueue. """
-        return launch_add(
+        job = launch_add(
             uri: str,
             config: Optional[Union[str, Dict[str, Any]]] = None,
             project = self._project,
@@ -109,6 +120,17 @@ class Daimyo(ABC):
             docker_image: Optional[str] = None,
             params: Optional[Dict[str, Any]] = None,
         )
+        self._jobs[job._run_id] = job
+        return job
+
+    def is_alive(self) -> bool:
+        if self.state in [
+            DaimyoState.COMPLETED,
+            DaimyoState.FAILED,
+            DaimyoState.CANCELLED,
+        ]:
+            return False
+        return True
 
 
     # def __iter__(self):
