@@ -4,9 +4,9 @@ import queue
 import socket
 import time
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from .daimyo import Daimyo, DaimyoState
+from .daimyo import Daimyo
 import wandb
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
@@ -43,6 +43,7 @@ class SweepDaimyo(Daimyo):
         self._heartbeat_queue: "queue.Queue[LegacySweepRun]" = queue.Queue()
         self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         self._heartbeat_thread.daemon = True
+        self._heartbeat_thread.start()
         # TODO: Get command from sweep config? (if no local kwarg is provided?)
         # TODO: Look for sweep config in upserted sweep?
         # TODO: Sweep config can also come in through init kwarg? (python usecase)
@@ -77,7 +78,7 @@ class SweepDaimyo(Daimyo):
             if not self.is_alive():
                 return
             try:
-                sweep_run = self._heartbeat_queue.get(timeout=5)
+                run = self._heartbeat_queue.get(timeout=5)
             except queue.Empty:
                 _msg = "No jobs in Sweeps RunQueue, waiting..."
                 logger.debug(_msg)
@@ -87,33 +88,37 @@ class SweepDaimyo(Daimyo):
             _msg = f"Sweep RunQueue job received: {job}"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            if self._heartbeat_runs_status[sweep_run.run_id] == LegacySweepRun.STOPPED:
+            if self._heartbeat_runs_status[run.id] == LegacySweepRun.STOPPED:
                 continue
 
             breakpoint()
 
-            # TODO  - Send job to launch agent
             run_spec = {
-
+                "uri": os.getcwd(),
+                "resource": "local-process",
+                "overrides": {
+                    "args": LegacySweepAgent._create_command_args(run.config)['args'],
+                    "entry_point": "",
+                },
             }
             job = self._add_to_launch_queue(run_spec)
-            _msg = f"Pushing item from Sweep Run {sweep_run.run_id} to Launch RunQueue as {job._run_id}."
+            _msg = f"Pushing item from Sweep Run {run.id} to Launch RunQueue as {job._run_id}."
             logger.debug(_msg)
             wandb.termlog(_msg)
 
             # TODO: Should we tell sweep runqueue that items are running
             #       if they are queued in launch runqueue? Or only if they
             #       are running in launch runqueue?
-            self._heartbeat_runs_status[sweep_run.run_id] = LegacySweepRun.RUNNING
+            self._heartbeat_runs_status[run.id] = LegacySweepRun.RUNNING
         
 
-            # if self._heartbeat_runs_status[sweep_run.run_id] == RunStatus.RUNNING:
-            #     self._heartbeat_runs_status[sweep_run.run_id] = RunStatus.DONE
+            # if self._heartbeat_runs_status[run.id] == RunStatus.RUNNING:
+            #     self._heartbeat_runs_status[run.id] = RunStatus.DONE
 
-            # elif self._heartbeat_runs_status[sweep_run.run_id] == RunStatus.ERRORED:
-            #     exc = self._exceptions[sweep_run.run_id]
-            #     logger.error(f"Run {run_id} errored: {repr(exc)}")
-            #     wandb.termerror(f"Run {run_id} errored: {repr(exc)}")
+            # elif self._heartbeat_runs_status[run.id] == RunStatus.ERRORED:
+            #     exc = self._exceptions[run.id]
+            #     logger.error(f"Run {run.id} errored: {repr(exc)}")
+            #     wandb.termerror(f"Run {run.id} errored: {repr(exc)}")
 
             #     if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             #         self._exit_flag = True
@@ -162,27 +167,5 @@ class SweepDaimyo(Daimyo):
 
     def _exit(self):
         self._stop_all_runs()
+        self._heartbeat_thread.kill()
 
-    def _convert_legacy_sweep_runspec(self, launch_spec: Dict[str, Any]) -> None:
-        # breakpoint()
-        if launch_spec.get("uri") is not None:
-            # Not a legacy sweep RunSpec
-            return
-        logger.info("Legacy Sweep runSpec detected. Converting to Launch RunSpec format")
-        launch_spec["uri"] = os.getcwd()  # TODO: This seems hacky...
-        launch_spec["entity"] = self._entity
-        launch_spec["project"] = self._project
-        # For now sweep runs use local process backend
-        launch_spec["resource"] = "local-process"
-        sweep_id = self._queues[0]
-        launch_spec["overrides"] = {
-            "args": ["--count", "1"],
-            "entry_point": f"wandb agent {self._entity}/{self._project}/{sweep_id}",
-            # "resource_args" : {}
-        }
-        # legacy_args = LegacySweepAgent._create_command_args(launch_spec)['args']
-        # if legacy_args:
-        #     launch_spec["overrides"]["args"].extend(legacy_args)
-        # Remove old legacy RunSpec fields
-        del launch_spec["args"]
-        del launch_spec["logs"]

@@ -105,20 +105,20 @@ class Daimyo(ABC):
             self.state = DaimyoState.COMPLETED
             self._exit()
 
-    def _add_to_launch_queue(self, runspec: Dict[str, Any]) -> "public.QueuedJob":
+    def _add_to_launch_queue(self, launchspec: Dict[str, Any]) -> "public.QueuedJob":
         """ Add a launch job to the Launch RunQueue. """
         job = launch_add(
-            uri: str,
-            config: Optional[Union[str, Dict[str, Any]]] = None,
-            project = self._project,
-            entity = self._entity,
-            queue = self._queue,
+            launchspec.get("uri", None),
+            launchspec.get("config", None),
+            project = launchspec.get("project", None) or self._project,
+            entity = launchspec.get("entity", None) or self._entity,
+            queue = launchspec.get("queue", None) or self._queue,
             resource = "local-process",
-            entry_point: Optional[str] = None,
-            name: Optional[str] = None,
-            version: Optional[str] = None,
-            docker_image: Optional[str] = None,
-            params: Optional[Dict[str, Any]] = None,
+            # entry_point: Optional[str] = None,
+            # name: Optional[str] = None,
+            # version: Optional[str] = None,
+            # docker_image: Optional[str] = None,
+            # params: Optional[Dict[str, Any]] = None,
         )
         self._jobs[job._run_id] = job
         return job
