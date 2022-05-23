@@ -879,7 +879,7 @@ def sweep(
             entity,
             None,  # docker_image,
             "local-process",  # resource,
-            f"wandb agent {entity}/{project}/{sweep_id} --queue {queue}",  # entry_point,
+            f"wandb daimyo {sweep_id} -e {entity} -p {project} -q {queue}",  # entry_point,
             None,  # version,
             None,  # params,
             None,  # resource_args,
@@ -1284,7 +1284,7 @@ def daimyo(ctx, project, entity, sweep_id, queue):
     wandb.termlog("Starting a Launch Daimyo 🚀 🏯 ")
     from wandb.sdk.launch.sweeps import load_daimyo
 
-    _daimyo = load_daimyo(sweep_id, queue, entity=entity, project=project)
+    _daimyo = load_daimyo(api, entity, project, queue, sweep_id)
     _daimyo.start()
 
 
