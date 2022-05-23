@@ -433,25 +433,27 @@ jobs:
     docker:
       - image: 'cimg/base:stable'
     steps:
-      - slack/notify:
-          unless: << parameters.skip >>
-          custom: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "plain_text",
-                      "text": "<< parameters.message >>",
-                      "emoji": true
-                    }
-                  ]
-                }
-              ]
-            }
-          event: always
-          channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+      - unless:
+          condition: << parameters.skip >>
+          steps:
+            - slack/notify:
+                custom: |
+                  {
+                    "blocks": [
+                      {
+                        "type": "section",
+                        "fields": [
+                          {
+                            "type": "plain_text",
+                            "text": "<< parameters.message >>",
+                            "emoji": true
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                event: always
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   # Build the docker image for a yea shard of the nightly workflow.
   sdk_docker:
