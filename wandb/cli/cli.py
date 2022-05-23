@@ -1267,7 +1267,7 @@ def launch_agent(
 )
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, sweep_id, queue):
+def daimyo(ctx, project, entity, sweep_id, queue):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
@@ -1275,8 +1275,9 @@ def agent(ctx, project, entity, sweep_id, queue):
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting a Launch Daimyo 🚀 🏯 ")
-    from wandb.sdk.launch.sweeps.daimyo import launch_daimyo
-    launch_daimyo(sweep_id, queue, entity=entity, project=project)
+    from wandb.sdk.launch.sweeps import load_daimyo
+    _daimyo = load_daimyo(sweep_id, queue, entity=entity, project=project)
+    _daimyo.start()
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
 @click.pass_context

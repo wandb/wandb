@@ -26,5 +26,16 @@ class Daimyo(ABC):
     def stop():
         pass
 
-def launch_daimyo(sweep_id, queue, entity=None, project=None):
-    pass
+    def __iter__(self):
+        #returning __iter__ object
+        return self
+
+    def __next__(self):
+        #comparing present_day with end_date,
+        #if present_day greater then end_date stoping the iteration
+        if self._present_day >= self.end_date:
+            raise StopIteration
+        today = self._present_day
+        self._present_day += timedelta(days=1)
+        return today
+
