@@ -55,6 +55,15 @@ parameters:
   gcp_cluster_name:
     type: string
     default: "gke-yea"
+  manual_nightly:
+    type: boolean
+    default: false
+  manual_nightly_slack_notify:
+    type: boolean
+    default: false
+  manual_nightly_shards:
+    type: string
+    default: "cpu,gpu,tpu,local"
 
 commands:
   save-tox-cache:
@@ -430,7 +439,7 @@ jobs:
                   "fields": [
                     {
                       "type": "plain_text",
-                      "text": "<< parameters.message >>", 
+                      "text": "<< parameters.message >>",
                       "emoji": true
                     }
                   ]
@@ -627,7 +636,7 @@ jobs:
           name: "Wait for tests to finish, get pod logs, and parse exit code"
           command: |
             sleep 30
-            
+
             while true; do
               kubectl get pods
               pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
@@ -645,7 +654,7 @@ jobs:
               echo
               sleep << parameters.sleep_time >>
             done
-            
+
             kubectl logs << parameters.pod_name >>
             logs=`kubectl logs << parameters.pod_name >>`
             exit_code=`echo $(echo $logs | grep -c "commands failed")`
@@ -681,11 +690,11 @@ workflows:
     when:
       and:
         - equal:
-            - scheduled_pipeline
             - << pipeline.trigger_source >>
+            - scheduled_pipeline
         - equal:
-            - "nightly"
             - << pipeline.schedule.name >>
+            - "nightly"
     jobs:
       - slack_notify:
           name: "slack-notify-on-start"
@@ -1006,3 +1015,67 @@ workflows:
           toxenv: << pipeline.parameters.manual_mac_toxenv >>
           parallelism: << pipeline.parameters.manual_parallelism >>
           xdist: << pipeline.parameters.manual_xdist >>
+
+  manual_nightly:
+    when: << pipeline.parameters.manual_nightly >>
+    jobs:
+      - slack_notify:
+          when: << pipeline.parameters.manual_nightly_slack_notify >>
+          name: "slack-notify-on-start"
+          context: slack-secrets
+          # todo? add a link to the pipeline in the message
+          message: ":runner: *Manual cloud run started!*"
+      # build docker images for yea shards
+#      - sdk_docker:
+#          name: "build-cpu-docker-image"
+#          description: "SDK Docker image for CPU testing"
+#          path: "./standalone_tests/shards/gke_cpu"
+#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+#          requires:
+#            - "slack-notify-on-start"
+#      - sdk_docker:
+#          name: "build-gpu-docker-image"
+#          description: "SDK Docker image for GPU testing"
+#          path: "./standalone_tests/shards/gke_gpu"
+#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+#          requires:
+#            - "slack-notify-on-start"
+#      # manage the gke cluster
+#      - spin_up_cluster:
+#          requires:
+#            - "slack-notify-on-start"
+#      - shut_down_cluster:
+#          requires:
+#            - spin_up_cluster
+#      # run the tests
+#      - cloud_test:
+#          name: "cloud-test-cpu"
+#          requires:
+#            - "build-cpu-docker-image"
+#            - spin_up_cluster
+#          path: "./standalone_tests/shards/gke_cpu"
+#          pod_name: "cpu-pod"
+#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+#          context: slack-secrets
+#          notify_on_failure: true
+#          notify_on_success: true
+#      - cloud_test:
+#          name: "cloud-test-gpu"
+#          requires:
+#            - "build-gpu-docker-image"
+#            - spin_up_cluster
+#          path: "./standalone_tests/shards/gke_gpu"
+#          pod_name: "gpu-pod"
+#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+#          context: slack-secrets
+#          notify_on_failure: true
+#          notify_on_success: true
+      - slack_notify:
+          when: << pipeline.parameters.manual_nightly_slack_notify >>
+          name: "slack-notify-on-success"
+          context: slack-secrets
+          requires:
+            - "cloud-test-cpu"
+            - "cloud-test-gpu"
+            - shut_down_cluster
+          message: ":runner: *Manual cloud run successfully finished!*"

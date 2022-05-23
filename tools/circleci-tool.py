@@ -42,14 +42,12 @@ CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
 platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
 py_name_dict = dict(
-    py27="py27",
     py36="py36",
     py37="py37",
     py38="py38",
     py39="py39",
 )
 py_image_dict = dict(
-    py27="python:2.7",
     py36="python:3.6",
     py37="python:3.7",
     py38="python:3.8",
@@ -140,7 +138,31 @@ def trigger(args):
     if args.dryrun:
         return
     r = requests.post(url, json=payload, auth=(args.api_token, ""))
-    assert r.status_code == 201, "Error making api requeest"
+    assert r.status_code == 201, "Error making api request"
+    d = r.json()
+    uuid = d["id"]
+    print("CircleCI workflow started:", uuid)
+    if args.wait or args.loop:
+        poll(args, pipeline_id=uuid)
+
+
+def trigger_nightly(args):
+    url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
+    payload = {
+        "branch": args.branch,
+        "parameters": {
+            "manual": True,
+            "manual_nightly": True,
+            "manual_nightly_slack_notify": args.slack_notify or False,
+            "manual_nightly_shards": args.shards or "cpu,gpu,tpu,local",
+        },
+    }
+
+    print("Sending to CircleCI:", payload)
+    if args.dryrun:
+        return
+    r = requests.post(url, json=payload, auth=(args.api_token, ""))
+    assert r.status_code == 201, "Error making api request"
     d = r.json()
     uuid = d["id"]
     print("CircleCI workflow started:", uuid)
@@ -242,15 +264,13 @@ def process_args():
     )
     parser.add_argument("--api_token", help=argparse.SUPPRESS)
     parser.add_argument("--branch", help="git branch (autodetected)")
-    parser.add_argument("--dryrun", action="store_true", help="Dont do anything")
+    parser.add_argument("--dryrun", action="store_true", help="Don't do anything")
 
     parse_trigger = subparsers.add_parser("trigger")
     parse_trigger.add_argument(
-        "--platform", help="comma separated platform (linux,mac,win)"
+        "--platform", help="comma-separated platform (linux,mac,win)"
     )
-    parse_trigger.add_argument(
-        "--toxenv", help="single toxenv (py27,py36,py37,py38,py39)"
-    )
+    parse_trigger.add_argument("--toxenv", help="single toxenv (py36,py37,py38,py39)")
     parse_trigger.add_argument("--test-file", help="test file (ex: tests/test.py)")
     parse_trigger.add_argument("--test-name", help="test name (ex: test_dummy)")
     parse_trigger.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
@@ -259,6 +279,14 @@ def process_args():
     parse_trigger.add_argument("--loop", type=int, help="Outer loop (implies wait)")
     parse_trigger.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"
+    )
+
+    parse_trigger_nightly = subparsers.add_parser("trigger-nightly")
+    parse_trigger_nightly.add_argument(
+        "--slack-notify", action="store_true", help="post notifications to slack"
+    )
+    parse_trigger_nightly.add_argument(
+        "--shards", help="comma-separated shards (cpu,gpu,tpu,local)"
     )
 
     parse_status = subparsers.add_parser("status")
@@ -299,6 +327,8 @@ def main():
             if args.loop:
                 print(f"Loop: {i + 1} of {args.loop}")
             trigger(args)
+    elif args.action == "trigger-nightly":
+        trigger_nightly(args)
     elif args.action == "status":
         # find my workflow report status, wait on it (if specified)
         status(args)
