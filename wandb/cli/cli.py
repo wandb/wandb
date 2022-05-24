@@ -933,13 +933,14 @@ def sweep(
             "run_spec": json.dumps(launch_spec),
         }
         breakpoint()
-        sweep_id, warnings = api.upsert_sweep(
+        _, warnings = api.upsert_sweep(
             config,
             project=project,
             entity=entity,
             obj_id=sweep_id,
             daimyo=json.dumps(daimyo_spec),
         )
+        breakpoint()
         util.handle_sweep_config_violations(warnings)
 
         # launch_add(

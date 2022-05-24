@@ -83,6 +83,10 @@ class Daimyo(ABC):
         wandb.termlog(_msg)
         self.state = DaimyoState.RUNNING
         try:
+
+            # check status of jobs (runs) through graphql
+            # change status of jobs (runs) through graphql
+
             self._run()
         except KeyboardInterrupt:
             _msg = "Daimyo received KeyboardInterrupt. Exiting."
