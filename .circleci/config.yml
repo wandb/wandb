@@ -61,9 +61,19 @@ parameters:
   manual_nightly_slack_notify:
     type: boolean
     default: false
-  manual_nightly_shards:
-    type: string
-    default: "cpu,gpu,tpu,local"
+  manual_nightly_execute_shard_cpu:
+    type: boolean
+    default: true
+  manual_nightly_execute_shard_gpu:
+    type: boolean
+    default: true
+  manual_nightly_execute_shard_tpu:
+    type: boolean
+    default: false
+  manual_nightly_execute_shard_local:
+    type: boolean
+    default: false
+
 
 commands:
   save-tox-cache:
@@ -1045,7 +1055,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
-          execute: << pipeline.parameters.manual_nightly_shards.cpu >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
 #      - sdk_docker:
 #          name: "build-gpu-docker-image"
 #          description: "SDK Docker image for GPU testing"

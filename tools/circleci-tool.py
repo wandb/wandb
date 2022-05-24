@@ -149,7 +149,6 @@ def trigger(args):
 def trigger_nightly(args):
     url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
     default_shards = "cpu,gpu,tpu,local"
-    shards = {shard: False for shard in default_shards.split(",")}
 
     default_shards_set = set(default_shards.split(","))
     requested_shards_set = (
@@ -163,16 +162,19 @@ def trigger_nightly(args):
             f"Valid shards are: {default_shards_set}"
         )
     # flip the requested shards to True
-    for shard in requested_shards_set:
-        shards[shard] = True
+    shards = {
+        f"manual_nightly_execute_shard_{shard}": True for shard in requested_shards_set
+    }
 
     payload = {
         "branch": args.branch,
         "parameters": {
-            "manual": True,
-            "manual_nightly": True,
-            "manual_nightly_slack_notify": args.slack_notify or False,
-            "manual_nightly_shards": shards,
+            **{
+                "manual": True,
+                "manual_nightly": True,
+                "manual_nightly_slack_notify": args.slack_notify or False,
+            },
+            **shards,
         },
     }
 
