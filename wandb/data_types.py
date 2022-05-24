@@ -556,7 +556,7 @@ class Table(Media):
                             )
 
                 elif isinstance(col_type, _dtypes.TimestampType):
-                    timestamp_column_indices.append(json_obj["columns"].index(col_name))
+                    timestamp_column_indices.add(json_obj["columns"].index(col_name))
 
                 if (
                     ndarray_type is not None
