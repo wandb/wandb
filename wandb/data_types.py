@@ -580,7 +580,7 @@ class Table(Media):
             for c_ndx, item in enumerate(row):
                 cell = (
                     item
-                    if c_ndx not in timestamp_column_indices or not item
+                    if c_ndx not in timestamp_column_indices or item is not None
                     # convert timestamp to seconds
                     else datetime.datetime.fromtimestamp(
                         item / 1000, tz=datetime.timezone.utc
