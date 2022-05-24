@@ -127,6 +127,7 @@ class AWSSagemakerRunner(AbstractRunner):
             client = boto3.client("sts")
             instance_role = True
             caller_id = client.get_caller_identity()
+            wandb.termlog(f"{caller_id}")
 
         except botocore.exceptions.NoCredentialsError as e:
             print("I FAILED TO GET THE THING :(", e)
@@ -182,7 +183,9 @@ class AWSSagemakerRunner(AbstractRunner):
         if ecr_repo_name:
             if not ecr_repo_name.startswith("arn:aws:ecr:"):
                 repository = (
-                    token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
+                    token["authorizationData"][0]["proxyEndpoint"].replace(
+                        "https://", ""
+                    )
                     + f"/{ecr_repo_name}"
                 )
             else:
