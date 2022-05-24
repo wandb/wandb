@@ -536,7 +536,7 @@ class Table(Media):
         data = []
         column_types = None
         np_deserialized_columns = {}
-        timestamp_column_indices = {}
+        timestamp_column_indices = set()
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
