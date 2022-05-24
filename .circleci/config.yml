@@ -63,10 +63,10 @@ parameters:
     default: false
   manual_nightly_execute_shard_cpu:
     type: boolean
-    default: true
+    default: false
   manual_nightly_execute_shard_gpu:
     type: boolean
-    default: true
+    default: false
   manual_nightly_execute_shard_tpu:
     type: boolean
     default: false
