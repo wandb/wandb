@@ -578,20 +578,18 @@ class Table(Media):
         for r_ndx, row in enumerate(json_obj["data"]):
             row_data = []
             for c_ndx, item in enumerate(row):
-                cell = (
-                    item
-                    if c_ndx not in timestamp_column_indices or item is None
-                    # convert timestamp to seconds
-                    else datetime.datetime.fromtimestamp(
+                if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
+                    cell = datetime.datetime.fromtimestamp(
                         item / 1000, tz=datetime.timezone.utc
                     )
-                )
-                if c_ndx in np_deserialized_columns:
+                elif c_ndx in np_deserialized_columns:
                     cell = np_deserialized_columns[c_ndx][r_ndx]
                 elif isinstance(item, dict) and "_type" in item:
                     obj = WBValue.init_from_json(item, source_artifact)
                     if obj is not None:
                         cell = obj
+                else:
+                    cell = item
                 row_data.append(cell)
             data.append(row_data)
 
