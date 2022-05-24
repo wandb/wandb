@@ -1842,11 +1842,11 @@ class Api:
         self,
         config,
         controller=None,
+        daimyo=None,
         scheduler=None,
         obj_id=None,
         project=None,
         entity=None,
-        daimyo_spec=None,
         state=None,
     ):
         """Upsert a sweep object.
@@ -1872,7 +1872,7 @@ class Api:
             $entityName: String,
             $projectName: String,
             $controller: JSONString,
-            $daimyoSpec: JSONString,
+            $daimyo: JSONString,
             $scheduler: JSONString,
             $state: String
         ) {
@@ -1883,7 +1883,7 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
-                daimyoSpec: $daimyoSpec,
+                daimyo: $daimyo,
                 scheduler: $scheduler,
                 state: $state,
             }) {
@@ -1940,8 +1940,8 @@ class Api:
                         "entityName": entity or self.settings("entity"),
                         "projectName": project or self.settings("project"),
                         "controller": controller,
+                        "daimyo": daimyo,
                         "scheduler": scheduler,
-                        "daimyoSpec": daimyo_spec,
                     },
                     check_retry_fn=no_retry_4xx,
                 )

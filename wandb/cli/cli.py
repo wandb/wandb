@@ -33,6 +33,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add, launch_add
+from wandb.sdk.launch.utils import construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
@@ -867,37 +868,12 @@ def sweep(
         or util.auto_project_name(config.get("program"))
     )
 
-    launch_queue_controller = None
-    if queue is not None:
-        from wandb.sdk.launch.utils import construct_launch_spec
-
-        launch_spec = construct_launch_spec(
-            os.getcwd(),  # uri,
-            api,
-            f"LaunchSweepController for {sweep_id}",  # name,
-            project,
-            entity,
-            None,  # docker_image,
-            "local-process",  # resource,
-            f"wandb daimyo {sweep_id} -e {entity} -p {project} -q {queue}",  # entry_point,
-            None,  # version,
-            None,  # params,
-            None,  # resource_args,
-            None,  # launch_config,
-            None,  # cuda,
-        )
-        daimyo_spec = {
-            "queue": queue,
-            "run_spec": launch_spec,
-        }
-
     # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
     sweep_id, warnings = api.upsert_sweep(
         config,
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
-        daimyo_spec=daimyo_spec,
     )
     util.handle_sweep_config_violations(warnings)
 
@@ -935,6 +911,37 @@ def sweep(
 
     if queue is not None:
         wandb.termlog("Using launch 🚀  queue: %s" % queue)
+
+        # Update the sweep in the backend with a Daimyo spec
+        launch_spec = construct_launch_spec(
+            os.getcwd(),  # uri,
+            api,
+            f"Daimyo for {sweep_id}",  # name,
+            project,
+            entity,
+            None,  # docker_image,
+            "local-process",  # resource,
+            f"wandb daimyo {sweep_id} -e {entity} -p {project} -q {queue}",  # entry_point,
+            None,  # version,
+            None,  # params,
+            None,  # resource_args,
+            None,  # launch_config,
+            None,  # cuda,
+        )
+        daimyo_spec = {
+            "queue": queue,
+            "run_spec": json.dumps(launch_spec),
+        }
+        breakpoint()
+        sweep_id, warnings = api.upsert_sweep(
+            config,
+            project=project,
+            entity=entity,
+            obj_id=sweep_obj_id,
+            daimyo=json.dumps(daimyo_spec),
+        )
+        util.handle_sweep_config_violations(warnings)
+
         # launch_add(
         #     os.getcwd(),  # URI is local path
         #     resource="local-process",
@@ -944,8 +951,7 @@ def sweep(
         #     queue=queue,
         #     name=f"Agent_{sweep_id}",
         # )
-        # HACK: Launch agent needs to know the project
-        # os.environ["WANDB_PROJECT"] = project
+
         wandb.termlog(
             "Run launch agent with: {}".format(
                 click.style(f"wandb launch-agent -q {queue} -p {project}", fg="yellow")
@@ -1281,10 +1287,10 @@ def daimyo(ctx, project, entity, sweep_id, queue):
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    wandb.termlog("Starting a Launch Daimyo 🚀 🏯 ")
+    wandb.termlog("Starting a Launch 🚀  Daimyo 🏯 ")
     from wandb.sdk.launch.sweeps import load_daimyo
 
-    _daimyo = load_daimyo(api, entity, project, queue, sweep_id)
+    _daimyo = load_daimyo("sweep", api, entity=entity, project=project, queue=queue, sweep_id=sweep_id)
     _daimyo.start()
 
 
