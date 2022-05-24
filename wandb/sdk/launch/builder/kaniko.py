@@ -141,7 +141,9 @@ class KanikoBuilder(AbstractBuilder):
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
         context_file.close()
-
+        repo_pro = self.builder_config.get("cloud-provider", "")
+        blah = self.builder_config.get("cloud-provider", "").lower() == "aws"
+        wandb.termlog(f"{repo_pro}, {blah}")
         if self.builder_config.get("cloud-provider", "").lower() == "aws":
             boto3 = get_module(
                 "boto3",
