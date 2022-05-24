@@ -16,7 +16,8 @@ spec:
       serviceAccountName: wandb-launch-serviceaccount
       containers:
       - name: launch-agent
-        image: wandb/launch-agent-dev:latest
+        imagePullPolicy: Always
+        image: wandb/launch-agent-dev:test-aws-instance-roles
         resources:
           limits:
             memory: "2Gi"
