@@ -551,7 +551,7 @@ class Table(Media):
                         if isinstance(t, _dtypes.NDArrayType):
                             ndarray_type = t
                         elif isinstance(t, _dtypes.TimestampType):
-                            timestamp_column_indices.append(
+                            timestamp_column_indices.add(
                                 json_obj["columns"].index(col_name)
                             )
 
