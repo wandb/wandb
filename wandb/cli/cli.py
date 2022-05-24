@@ -886,7 +886,7 @@ def sweep(
             None,  # launch_config,
             None,  # cuda,
         )
-        launch_queue_controller = {
+        daimyo_spec = {
             "queue": queue,
             "run_spec": launch_spec,
         }
@@ -897,7 +897,7 @@ def sweep(
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
-        launch_queue_controller=launch_queue_controller,
+        daimyo_spec=daimyo_spec,
     )
     util.handle_sweep_config_violations(warnings)
 

@@ -1846,7 +1846,7 @@ class Api:
         obj_id=None,
         project=None,
         entity=None,
-        launch_sweep_controller=None,
+        daimyo_spec=None,
         state=None,
     ):
         """Upsert a sweep object.
@@ -1872,9 +1872,9 @@ class Api:
             $entityName: String,
             $projectName: String,
             $controller: JSONString,
+            $daimyoSpec: JSONString,
             $scheduler: JSONString,
             $state: String
-            $launchSweepController: JSONString,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -1883,9 +1883,9 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
+                daimyoSpec: $daimyoSpec,
                 scheduler: $scheduler,
                 state: $state,
-                launchSweepController: $launchSweepController,
             }) {
                 sweep {
                     name
@@ -1941,7 +1941,7 @@ class Api:
                         "projectName": project or self.settings("project"),
                         "controller": controller,
                         "scheduler": scheduler,
-                        "launchSweepController": launch_sweep_controller,
+                        "daimyoSpec": daimyo_spec,
                     },
                     check_retry_fn=no_retry_4xx,
                 )
