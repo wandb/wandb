@@ -142,7 +142,7 @@ class KanikoBuilder(AbstractBuilder):
             context_tgz.add(context_path, arcname=".")
         context_file.close()
         repo_pro = self.builder_config.get("cloud-provider", "")
-        blah = self.builder_config.get("cloud-provider", "").lower() == "aws"
+        blah = self.builder_config.get("cloud-provider", "").lower().strip() == "aws"
         wandb.termlog(f"{repo_pro}, {blah}")
         if self.builder_config.get("cloud-provider", "").lower() == "aws":
             boto3 = get_module(
