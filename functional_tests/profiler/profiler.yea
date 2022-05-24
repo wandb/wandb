@@ -5,6 +5,16 @@ tag:
   skips:
     - platform: win
       reason: profiler not supported by torch in windows
+depend:
+  pip_install_timeout: 300  # 5m
+  pip_install_options:
+    - --extra-index-url
+    - https://download.pytorch.org/whl/cpu
+  requirements:
+    # there is a bug in 1.11.0 causing a segfault,
+    # see https://github.com/pytorch/pytorch/issues/69443
+    - torch==1.10.2
+    - torchvision==0.11.3
 var:
   - run0:
       :fn:find:

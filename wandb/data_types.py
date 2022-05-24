@@ -536,7 +536,7 @@ class Table(Media):
         data = []
         column_types = None
         np_deserialized_columns = {}
-        timestamp_column_indices = []
+        timestamp_column_indices = {}
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
@@ -551,12 +551,12 @@ class Table(Media):
                         if isinstance(t, _dtypes.NDArrayType):
                             ndarray_type = t
                         elif isinstance(t, _dtypes.TimestampType):
-                            timestamp_column_indices.append(
+                            timestamp_column_indices.add(
                                 json_obj["columns"].index(col_name)
                             )
 
                 elif isinstance(col_type, _dtypes.TimestampType):
-                    timestamp_column_indices.append(json_obj["columns"].index(col_name))
+                    timestamp_column_indices.add(json_obj["columns"].index(col_name))
 
                 if (
                     ndarray_type is not None
