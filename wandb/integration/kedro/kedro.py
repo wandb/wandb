@@ -3,8 +3,6 @@ from pathlib import Path
 from typing import Optional, Dict, Union, Any
 import pickle
 
-from icecream import ic
-
 try:
     from kedro.io import AbstractDataSet
     from kedro.io import DataCatalog
@@ -192,8 +190,10 @@ def _deserialize(filepath: Path) -> Any:
         return _deserialize_numpy(filepath)
     elif filepath.suffix in [".csv", ".json", ".parquet", ".xlsx", ".xls", ".xml", ".sql"]:
         return _deserialize_pandas(filepath)
-    elif filepath.suffix == ".pt":
+    elif filepath.suffix in [".pt", ".pth"]:
         return _deserialize_torch(filepath)
+    elif filepath.suffix in ['.h5', '.hdf5']:
+        return _deserialize_tensorflow(filepath)
     else:
         return _deserialize_pickle(filepath)
  
@@ -231,7 +231,7 @@ class WandbArtifact(AbstractDataSet):
             "alias": self.alias,
         }
  
-    def _load(self) -> Any:  # TODO Load
+    def _load(self) -> Any:
         artifact = self.run.use_artifact(f"{self.artifact_name}:{self.alias}")
  
         if artifact is None:
@@ -246,9 +246,9 @@ class WandbArtifact(AbstractDataSet):
             if self.filepath.is_file():
                 self.filepath.unlink()
  
-        artifact.download(self.filepath.parent) # TODO If filepath does not contain a directory, specify '.'
+        artifact.download(self.filepath.parent)
  
-        return _deserialize(self.filepath)  # TODO Deserialize and return object
+        return _deserialize(self.filepath) 
  
     def _save(self, data: Any) -> None:
         artifact = wandb.Artifact(
