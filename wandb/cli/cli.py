@@ -910,7 +910,7 @@ def sweep(
         sweep_path = f'"{sweep_path}"'
 
     if queue is not None:
-        wandb.termlog("Using launch 🚀  queue: %s" % queue)
+        wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
         # Update the sweep in the backend with a Daimyo spec
         launch_spec = construct_launch_spec(
@@ -937,7 +937,7 @@ def sweep(
             config,
             project=project,
             entity=entity,
-            obj_id=sweep_obj_id,
+            obj_id=sweep_id,
             daimyo=json.dumps(daimyo_spec),
         )
         util.handle_sweep_config_violations(warnings)
@@ -1290,7 +1290,9 @@ def daimyo(ctx, project, entity, sweep_id, queue):
     wandb.termlog("Starting a Launch 🚀  Daimyo 🏯 ")
     from wandb.sdk.launch.sweeps import load_daimyo
 
-    _daimyo = load_daimyo("sweep", api, entity=entity, project=project, queue=queue, sweep_id=sweep_id)
+    _daimyo = load_daimyo(
+        "sweep", api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
+    )
     _daimyo.start()
 
 
