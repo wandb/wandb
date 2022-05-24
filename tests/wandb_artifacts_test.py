@@ -632,17 +632,44 @@ def test_artifact_table_deserialize_timestamp_column():
                 1230800400000.0,
             ],
             [
+                None,
+            ],
+        ],
+    }
+
+    artifact_json_non_null = {
+        "_type": "table",
+        "column_types": {
+            "params": {
+                "type_map": {
+                    "Date Time": {"wb_type": "timestamp"},
+                }
+            },
+            "wb_type": "typedDict",
+        },
+        "columns": [
+            "Date Time",
+        ],
+        "data": [
+            [
+                1230800400000.0,
+            ],
+            [
                 1230807600000.0,
             ],
         ],
     }
-    artifact = wandb.Artifact(name="test", type="test")
-    timestamp_idx = artifact_json["columns"].index("Date Time")
-    table = wandb.Table.from_json(artifact_json, artifact)
-    assert [row[timestamp_idx] for row in table.data] == [
-        datetime.fromtimestamp(row[timestamp_idx] / 1000.0, tz=timezone.utc)
-        for row in artifact_json["data"]
-    ]
+
+    for art in (artifact_json, artifact_json_non_null):
+        artifact = wandb.Artifact(name="test", type="test")
+        timestamp_idx = art["columns"].index("Date Time")
+        table = wandb.Table.from_json(art, artifact)
+        assert [row[timestamp_idx] for row in table.data] == [
+            datetime.fromtimestamp(row[timestamp_idx] / 1000.0, tz=timezone.utc)
+            if row is not None
+            else row
+            for row in art["data"]
+        ]
 
 
 @pytest.mark.timeout(120)
