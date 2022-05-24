@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Optional, Dict, Union, Any
 import pickle
 
+from icecream import ic
+
 try:
     from kedro.io import AbstractDataSet
     from kedro.io import DataCatalog
@@ -31,35 +33,33 @@ class WandbHooks:
     @hook_impl
     def before_node_run(self, node: Node):
         init_parameters = {
-            'entity': self.wandb_params.get('entity', None),
-            'project' : self.wandb_params.get('project', None),
-            'mode' : self.wandb_params.get('mode', None),
-            'job_type': self.wandb_params.get('job_type', None),
-            'dir' : self.wandb_params.get('dir', None),
-            'config' : self.wandb_params.get('config', None),
-            'reinit' : self.wandb_params.get('reinit', None),
-            'tags' : self.wandb_params.get('tags', None),
-            'group' : self.wandb_params.get('group', None),
-            'name' : self.wandb_params.get('name', None),
-            'notes' : self.wandb_params.get('notes', None),
-            'magic' : self.wandb_params.get('magic', None),
-            'config_exclude_keys' : self.wandb_params.get('config_exclude_keys', None),
-            'config_include_keys' : self.wandb_params.get('config_include_keys', None),
-            'anonymous' : self.wandb_params.get('anonymous', None),
-            'allow_val_change' : self.wandb_params.get('allow_val_change', None),
-            'resume' : self.wandb_params.get('resume', None),
-            'force' : self.wandb_params.get('force', None),
-            'tensorboard' : self.wandb_params.get('tensorboard', None),
-            'monitor_gym' : self.wandb_params.get('monitor_gym', None),
-            'save_code' : self.wandb_params.get('save_code', None),
-            'id' : self.wandb_params.get('id', None),
-            'settings' : self.wandb_params.get('settings', None)
+            'entity': self.wandb_params.get('entity'),
+            'project' : self.wandb_params.get('project'),
+            'mode' : self.wandb_params.get('mode'),
+            'job_type': self.wandb_params.get('job_type'),
+            'dir' : self.wandb_params.get('dir'),
+            'config' : self.wandb_params.get('config'),
+            'reinit' : self.wandb_params.get('reinit'),
+            'tags' : self.wandb_params.get('tags'),
+            'group' : self.wandb_params.get('group'),
+            'name' : self.wandb_params.get('name'),
+            'notes' : self.wandb_params.get('notes'),
+            'magic' : self.wandb_params.get('magic'),
+            'config_exclude_keys' : self.wandb_params.get('config_exclude_keys'),
+            'config_include_keys' : self.wandb_params.get('config_include_keys'),
+            'anonymous' : self.wandb_params.get('anonymous'),
+            'allow_val_change' : self.wandb_params.get('allow_val_change'),
+            'resume' : self.wandb_params.get('resume'),
+            'force' : self.wandb_params.get('force'),
+            'tensorboard' : self.wandb_params.get('tensorboard'),
+            'monitor_gym' : self.wandb_params.get('monitor_gym'),
+            'save_code' : self.wandb_params.get('save_code'),
+            'id' : self.wandb_params.get('id'),
+            'settings' : self.wandb_params.get('settings')
         }
 
         if node.name in self.wandb_params.keys():
             # Overwrite the settings in init_parameters with node specific settings
-            # for key in self.wandb_params[node.name]:
-            #     init_parameters[key] = self.wandb_params[node.name][key]
             init_parameters.update(self.wandb_params[node.name])
 
         if isinstance(self.run, wandb.sdk.wandb_run.Run):
@@ -68,9 +68,11 @@ class WandbHooks:
 
         self.run = wandb.init(**init_parameters)
 
-        for parameter in self.catalog.list("parameters"):
-            if not parameter.startswith("wandb"):  # FIXME parameters starting with wandb are also saved
-                self.run.config[parameter] = self.catalog.load(parameter)
+        parameters = self.catalog.load("parameters")
+
+        for parameter in parameters:
+            if not parameter.startswith("wandb"): 
+                self.run.config[parameter] = parameters[parameter]
 
         for dataset in self.catalog._data_sets.values():
             # Iterating through every dataset object in the catalog to pass in wandb properties
@@ -78,12 +80,6 @@ class WandbHooks:
                 dataset.run = self.run
                 dataset.entity = self.run.entity
                 dataset.project = self.run.project
-
-    @hook_impl
-    def after_node_run(self):
-        # self.run.finish()
-        # self.run = None
-        pass
 
     @hook_impl
     def after_pipeline_run(self) -> None:
