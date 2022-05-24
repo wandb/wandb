@@ -474,28 +474,15 @@ jobs:
       git_branch:
         type: string
         default: "master"
-      shard:
-        type: string
-      # used in manual triggering to decide whether to build and push the image
-      requested_shards:
-        type: string
-        default: "cpu,gpu,tpu,local"
+      execute:
+        type: boolean
+        default: true
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
       - checkout
-      - run:
-          name: Decide whether to build the image
-          # if << parameters.shard >> in << parameters.requested_shards >>, then build the image
-          command: |
-            SHOULD_BUILD_IMAGE=false
-            if echo << parameters.requested_shards >> | grep -q << parameters.shard >>; then
-              SHOULD_BUILD_IMAGE=true
-            fi
-            echo "SHOULD_BUILD_IMAGE: $SHOULD_BUILD_IMAGE"
-            echo 'export SHOULD_BUILD_IMAGE=$SHOULD_BUILD_IMAGE' >> $BASH_ENV
       - when:
-          condition: $SHOULD_BUILD_IMAGE
+          condition: << parameters.execute >>
           steps:
             - gke/install
             - run:
@@ -736,7 +723,6 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
-          shard: "cpu"
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
@@ -744,7 +730,6 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
-          shard: "gpu"
       # manage the gke cluster
       - spin_up_cluster:
           requires:
@@ -1047,11 +1032,11 @@ workflows:
     when: << pipeline.parameters.manual_nightly >>
     jobs:
       - slack_notify:
-          execute: << pipeline.parameters.manual_nightly_slack_notify >>
           name: "slack-notify-on-start"
           context: slack-secrets
           # todo? add a link to the pipeline in the message
           message: ":runner: *Manual cloud run started!*"
+          execute: << pipeline.parameters.manual_nightly_slack_notify >>
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
@@ -1060,8 +1045,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
-          shard: "cpu"
-          requested_shards: << pipeline.parameters.manual_nightly_shards >>
+          execute: << pipeline.parameters.manual_nightly_shards.cpu >>
 #      - sdk_docker:
 #          name: "build-gpu-docker-image"
 #          description: "SDK Docker image for GPU testing"
