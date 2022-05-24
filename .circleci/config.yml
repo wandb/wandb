@@ -55,6 +55,25 @@ parameters:
   gcp_cluster_name:
     type: string
     default: "gke-yea"
+  manual_nightly:
+    type: boolean
+    default: false
+  manual_nightly_slack_notify:
+    type: boolean
+    default: false
+  manual_nightly_execute_shard_cpu:
+    type: boolean
+    default: false
+  manual_nightly_execute_shard_gpu:
+    type: boolean
+    default: false
+  manual_nightly_execute_shard_tpu:
+    type: boolean
+    default: false
+  manual_nightly_execute_shard_local:
+    type: boolean
+    default: false
+
 
 commands:
   save-tox-cache:
@@ -418,27 +437,37 @@ jobs:
       message:
         type: string
         default: ":runner:"
+      execute:
+        type: boolean
+        default: true
     docker:
       - image: 'cimg/base:stable'
     steps:
-      - slack/notify:
-          custom: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "plain_text",
-                      "text": "<< parameters.message >>", 
-                      "emoji": true
-                    }
-                  ]
-                }
-              ]
-            }
-          event: always
-          channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+      - when:
+          condition: << parameters.execute >>
+          steps:
+            - slack/notify:
+                custom: |
+                  {
+                    "blocks": [
+                      {
+                        "type": "section",
+                        "fields": [
+                          {
+                            "type": "plain_text",
+                            "text": "<< parameters.message >>",
+                            "emoji": true
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                event: always
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+      # this is to make sure `steps` is not empty
+      - run:
+          name: Print message to stdout
+          command: echo << parameters.message >>
 
   # Build the docker image for a yea shard of the nightly workflow.
   sdk_docker:
@@ -455,34 +484,38 @@ jobs:
       git_branch:
         type: string
         default: "master"
+      execute:
+        type: boolean
+        default: true
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
       - checkout
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
-#      - restore-sdk-gpu-cache
-      - setup_docker_buildx:
-          docker_layer_caching: false
-      - run:
-          name: "Build << parameters.description >>"
-          command: |
-            cd << parameters.path >>
-            docker build \
-              -t << parameters.image_name >> \
-              --build-arg PYTHON_VERSION=<< parameters.python_version >> \
-              --build-arg GIT_BRANCH=<< parameters.git_branch >> \
-              --build-arg UTC_DATE=$(date -u +%Y%m%d) \
-              .
-#      - save-sdk-gpu-cache
-      - setup_gcloud
-      - run:
-          name: "Push << parameters.description >> to container registry"
-          command: |
-            docker push << parameters.image_name >>
-      # todo: clean up old images in gcr.io
+      - when:
+          condition: << parameters.execute >>
+          steps:
+            - gke/install
+            - run:
+                name: "Update gcloud components"
+                command: gcloud --quiet components update
+            - setup_docker_buildx:
+                docker_layer_caching: false
+            - run:
+                name: "Build << parameters.description >>"
+                command: |
+                  cd << parameters.path >>
+                  docker build \
+                    -t << parameters.image_name >> \
+                    --build-arg PYTHON_VERSION=<< parameters.python_version >> \
+                    --build-arg GIT_BRANCH=<< parameters.git_branch >> \
+                    --build-arg UTC_DATE=$(date -u +%Y%m%d) \
+                    .
+            - setup_gcloud
+            - run:
+                name: "Push << parameters.description >> to container registry"
+                command: |
+                  docker push << parameters.image_name >>
+            # todo: clean up old images in gcr.io
 
   # Nightly workflow for the SDK.
   #  - spin_up_cluster job creates a GKE cluster
@@ -582,110 +615,116 @@ jobs:
       notify_on_success:
         type: boolean
         default: false
+      execute:
+        type: boolean
+        default: true
     docker:
       - image: 'cimg/base:stable'
     steps:
       - checkout
-      - go/install
-      - gke/install
-      - run:
-          name: "Update gcloud components"
-          command: gcloud --quiet components update
-      - setup_gcloud
-      - get_gke_cluster_credentials:
-          cluster: << parameters.cluster >>
-      - run:
-          name: "Propagate the WANDB_API_KEY environment variable to pod.yaml"
-          command: |
-            sed -i -e 's/WANDB_API_KEY_PLACEHOLDER/'"$WANDB_API_KEY"'/g' << parameters.path >>/<< parameters.pod_config_name >>
-      - run:
-          name: "Spin up pod"
-          command: |
-            kubectl apply -f << parameters.path >>/<< parameters.pod_config_name >>
-      - run:
-          name: "Wait for pod to be up and running"
-          command: |
-            while true; do
-              kubectl get pods
-              pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
-              if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> is ready"
-                exit 0
-              elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> has completed"
-                exit 0
-              elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(echo "$pod_state" | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> is in an error state"
-                kubectl logs << parameters.pod_name >>
-                exit 1
-              fi
-              sleep << parameters.sleep_time >>
-            done
-          no_output_timeout: "5m"
-      - run:
-          # todo: make getting the exit_code more robust: add check for "commands succeeded"
-          name: "Wait for tests to finish, get pod logs, and parse exit code"
-          command: |
-            sleep 30
-            
-            while true; do
-              kubectl get pods
-              pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
-              if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> is running"
-              elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> has completed"
-                break
-              elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
-                echo "Pod for << parameters.image_name >> is in an error state"
-                kubectl logs << parameters.pod_name >>
-                exit 1
-              fi
-              echo "Sleeping for << parameters.sleep_time >> seconds"
-              echo
-              sleep << parameters.sleep_time >>
-            done
-            
-            kubectl logs << parameters.pod_name >>
-            logs=`kubectl logs << parameters.pod_name >>`
-            exit_code=`echo $(echo $logs | grep -c "commands failed")`
-            echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
-            exit ${exit_code}
-          no_output_timeout: "20m"
-      - run:
-          name: "Delete the pod"
-          when: always
-          command: |
-            kubectl get pods
-            kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
-      # conditionally post a notification to slack if the job failed/succeeded
       - when:
-          condition: << parameters.notify_on_failure >>
+          condition: << parameters.execute >>
           steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-      - when:
-          condition: << parameters.notify_on_success >>
-          steps:
-            - slack/notify:
-                event: pass
-                template: basic_success_1
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+            - go/install
+            - gke/install
+            - run:
+                name: "Update gcloud components"
+                command: gcloud --quiet components update
+            - setup_gcloud
+            - get_gke_cluster_credentials:
+                cluster: << parameters.cluster >>
+            - run:
+                name: "Propagate the WANDB_API_KEY environment variable to pod.yaml"
+                command: |
+                  sed -i -e 's/WANDB_API_KEY_PLACEHOLDER/'"$WANDB_API_KEY"'/g' << parameters.path >>/<< parameters.pod_config_name >>
+            - run:
+                name: "Spin up pod"
+                command: |
+                  kubectl apply -f << parameters.path >>/<< parameters.pod_config_name >>
+            - run:
+                name: "Wait for pod to be up and running"
+                command: |
+                  while true; do
+                    kubectl get pods
+                    pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
+                    if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
+                      echo "Pod for << parameters.image_name >> is ready"
+                      exit 0
+                    elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
+                      echo "Pod for << parameters.image_name >> has completed"
+                      exit 0
+                    elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(echo "$pod_state" | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+                      echo "Pod for << parameters.image_name >> is in an error state"
+                      kubectl logs << parameters.pod_name >>
+                      exit 1
+                    fi
+                    sleep << parameters.sleep_time >>
+                  done
+                no_output_timeout: "5m"
+            - run:
+                # todo: make getting the exit_code more robust: add check for "commands succeeded"
+                name: "Wait for tests to finish, get pod logs, and parse exit code"
+                command: |
+                  sleep 30
+
+                  while true; do
+                    kubectl get pods
+                    pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
+                    if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
+                      echo "Pod for << parameters.image_name >> is running"
+                    elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
+                      echo "Pod for << parameters.image_name >> has completed"
+                      break
+                    elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+                      echo "Pod for << parameters.image_name >> is in an error state"
+                      kubectl logs << parameters.pod_name >>
+                      exit 1
+                    fi
+                    echo "Sleeping for << parameters.sleep_time >> seconds"
+                    echo
+                    sleep << parameters.sleep_time >>
+                  done
+
+                  kubectl logs << parameters.pod_name >>
+                  logs=`kubectl logs << parameters.pod_name >>`
+                  exit_code=`echo $(echo $logs | grep -c "commands failed")`
+                  echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
+                  exit ${exit_code}
+                no_output_timeout: "20m"
+            - run:
+                name: "Delete the pod"
+                when: always
+                command: |
+                  kubectl get pods
+                  kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+            # conditionally post a notification to slack if the job failed/succeeded
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      # taken from slack-secrets context
+                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+            - when:
+                condition: << parameters.notify_on_success >>
+                steps:
+                  - slack/notify:
+                      event: pass
+                      template: basic_success_1
+                      # taken from slack-secrets context
+                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
 workflows:
   nightly:
     when:
       and:
         - equal:
-            - scheduled_pipeline
             - << pipeline.trigger_source >>
+            - scheduled_pipeline
         - equal:
-            - "nightly"
             - << pipeline.schedule.name >>
+            - "nightly"
     jobs:
       - slack_notify:
           name: "slack-notify-on-start"
@@ -738,13 +777,11 @@ workflows:
           notify_on_failure: true
           notify_on_success: true
       - slack_notify:
-          name: "slack-notify-on-success"
+          name: "slack-notify-on-finish"
           context: slack-secrets
           requires:
-            - "cloud-test-cpu"
-            - "cloud-test-gpu"
             - shut_down_cluster
-          message: ":runner: *Nightly run successfully finished!*"
+          message: ":checkered_flag: *Nightly run finished!*"
 
   main:
     when:
@@ -755,63 +792,6 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-#      - slack_notify:
-#          name: "slack-notify-on-start"
-#          context: slack-secrets
-#          message: ":runner: *Standalone run started!*"
-#      # build docker images for yea shards
-#      - sdk_docker:
-#          name: "build-cpu-docker-image"
-#          description: "SDK Docker image for CPU testing"
-#          path: "./standalone_tests/shards/gke_cpu"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-#          requires:
-#            - "slack-notify-on-start"
-#      - sdk_docker:
-#          name: "build-gpu-docker-image"
-#          description: "SDK Docker image for GPU testing"
-#          path: "./standalone_tests/shards/gke_gpu"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-#          requires:
-#            - "slack-notify-on-start"
-#      # manage the gke cluster
-#      - spin_up_cluster:
-#          requires:
-#            - "slack-notify-on-start"
-#      - shut_down_cluster:
-#          requires:
-#            - spin_up_cluster
-#      # run the tests
-#      - cloud_test:
-#          name: "cloud-test-cpu"
-#          requires:
-#            - "build-cpu-docker-image"
-#            - spin_up_cluster
-#          path: "./standalone_tests/shards/gke_cpu"
-#          pod_name: "cpu-pod"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-#          context: slack-secrets
-#          notify_on_failure: true
-#          notify_on_success: true
-#      - cloud_test:
-#          name: "cloud-test-gpu"
-#          requires:
-#            - "build-gpu-docker-image"
-#            - spin_up_cluster
-#          path: "./standalone_tests/shards/gke_gpu"
-#          pod_name: "gpu-pod"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-#          context: slack-secrets
-#          notify_on_failure: true
-#          notify_on_success: true
-#      - slack_notify:
-#          name: "slack-notify-on-success"
-#          context: slack-secrets
-#          requires:
-#            - "cloud-test-cpu"
-#            - "cloud-test-gpu"
-#            - shut_down_cluster
-#          message: ":runner: *Standalone run successfully finished!*"
       - test:
           name: "code-check"
           image: "python:3.6"
@@ -1006,3 +986,69 @@ workflows:
           toxenv: << pipeline.parameters.manual_mac_toxenv >>
           parallelism: << pipeline.parameters.manual_parallelism >>
           xdist: << pipeline.parameters.manual_xdist >>
+
+  manual_nightly:
+    when: << pipeline.parameters.manual_nightly >>
+    jobs:
+      - slack_notify:
+          name: "slack-notify-on-start"
+          context: slack-secrets
+          # todo? add a link to the pipeline in the message
+          message: ":runner: *Manual cloud run started!*"
+          execute: << pipeline.parameters.manual_nightly_slack_notify >>
+      # build docker images for yea shards
+      - sdk_docker:
+          name: "build-cpu-docker-image"
+          description: "SDK Docker image for CPU testing"
+          path: "./standalone_tests/shards/gke_cpu"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+          requires:
+            - "slack-notify-on-start"
+          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
+      - sdk_docker:
+          name: "build-gpu-docker-image"
+          description: "SDK Docker image for GPU testing"
+          path: "./standalone_tests/shards/gke_gpu"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+          requires:
+            - "slack-notify-on-start"
+          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
+      # manage the gke cluster
+      - spin_up_cluster:
+          requires:
+            - "slack-notify-on-start"
+      - shut_down_cluster:
+          requires:
+            - spin_up_cluster
+      # run the tests
+      - cloud_test:
+          name: "cloud-test-cpu"
+          requires:
+            - "build-cpu-docker-image"
+            - spin_up_cluster
+          path: "./standalone_tests/shards/gke_cpu"
+          pod_name: "cpu-pod"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
+      - cloud_test:
+          name: "cloud-test-gpu"
+          requires:
+            - "build-gpu-docker-image"
+            - spin_up_cluster
+          path: "./standalone_tests/shards/gke_gpu"
+          pod_name: "gpu-pod"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
+      - slack_notify:
+          execute: << pipeline.parameters.manual_nightly_slack_notify >>
+          name: "slack-notify-on-finish"
+          context: slack-secrets
+          requires:
+            - shut_down_cluster
+          message: ":checkered_flag: *Manual cloud run finished!*"
