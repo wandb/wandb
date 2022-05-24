@@ -144,7 +144,23 @@ except ImportError:
     wandb.termwarn(
         "Warning: `pandas` is not installed. Logging dataframes as Artifacts may not work."
     )
+
+# Tensorflow Models
+try:
+    import tensorflow as tf
  
+    @typedispatch
+    def _serialize(filepath: Path, obj: tf.keras.Model) -> None:
+        obj.save(filepath)
+ 
+    def _deserialize_tensorflow(filepath: Path) -> tf.keras.Model:
+        return tf.keras.models.load_model(filepath)
+
+except ImportError:
+    wandb.termwarn(
+        "Warning: `tensorflow` is not installed. Logging Tensorflow models as Artifacts may not work."
+    )
+
 # PyTorch Tensors and Models
 try:
     import torch
@@ -155,8 +171,6 @@ try:
 
     def _deserialize_torch(filepath: Path) -> Union[torch.Tensor, torch.nn.Module]:
         return torch.load(filepath)
- 
-    # TODO Read from file function
  
 except ImportError:
     wandb.termwarn(
@@ -174,7 +188,7 @@ def _deserialize_pickle(filepath: Path) -> Any:
         return pickle.load(f)
 
 def _deserialize(filepath: Path) -> Any:
-    if filepath.suffix == ".npy":
+    if filepath.suffix in [".npy", ".npz"]:
         return _deserialize_numpy(filepath)
     elif filepath.suffix in [".csv", ".json", ".parquet", ".xlsx", ".xls", ".xml", ".sql"]:
         return _deserialize_pandas(filepath)
