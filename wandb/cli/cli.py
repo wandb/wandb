@@ -868,12 +868,41 @@ def sweep(
         or util.auto_project_name(config.get("program"))
     )
 
-    # TODO(hupo): sweep_obj_id is the name of the sweep and runqueue
+    daimyo_launch_spec = None
+    if queue is not None:
+        wandb.termlog("Using launch 🚀 queue: %s" % queue)
+
+        # Because the launch job spec below is the daimyo, it
+        # will need to know the name of the sweep, which it wont
+        # know until it is created,so we use this placeholder
+        # and replace in UpsertSweep in the backend.
+        _sweep_id_placeholder = "WANDB_SWEEP_ID"
+
+        # Launch job spec for the daimyo
+        daimyo_launch_spec = json.dumps({
+            "queue": queue,
+            "run_spec": json.dumps(construct_launch_spec(
+            os.getcwd(),  # uri,
+            api,
+            f"Daimyo.{_sweep_id_placeholder}",  # name,
+            project,
+            entity,
+            None,  # docker_image,
+            "local-process",  # resource,
+            f"wandb daimyo {_sweep_id_placeholder} -e {entity} -p {project} -q {queue}",  # entry_point,
+            None,  # version,
+            None,  # params,
+            None,  # resource_args,
+            None,  # launch_config,
+            None,  # cuda,
+        ))})
+
     sweep_id, warnings = api.upsert_sweep(
         config,
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
+        daimyo=daimyo_launch_spec,
     )
     util.handle_sweep_config_violations(warnings)
 
@@ -910,38 +939,6 @@ def sweep(
         sweep_path = f'"{sweep_path}"'
 
     if queue is not None:
-        wandb.termlog("Using launch 🚀 queue: %s" % queue)
-
-        # Update the sweep in the backend with a Daimyo spec
-        launch_spec = construct_launch_spec(
-            os.getcwd(),  # uri,
-            api,
-            f"Daimyo for {sweep_id}",  # name,
-            project,
-            entity,
-            None,  # docker_image,
-            "local-process",  # resource,
-            f"wandb daimyo {sweep_id} -e {entity} -p {project} -q {queue}",  # entry_point,
-            None,  # version,
-            None,  # params,
-            None,  # resource_args,
-            None,  # launch_config,
-            None,  # cuda,
-        )
-        daimyo_spec = {
-            "queue": queue,
-            "run_spec": json.dumps(launch_spec),
-        }
-        breakpoint()
-        _, warnings = api.upsert_sweep(
-            config,
-            project=project,
-            entity=entity,
-            obj_id=sweep_id,
-            daimyo=json.dumps(daimyo_spec),
-        )
-        breakpoint()
-        util.handle_sweep_config_violations(warnings)
 
         # launch_add(
         #     os.getcwd(),  # URI is local path

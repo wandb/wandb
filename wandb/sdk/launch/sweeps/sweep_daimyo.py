@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class LegacySweepCommand:
     """ Legacy Sweep Command. """
 
-    # State must match Go's RunState
+    # State must match Go's Sweep State
     # TODO: Link file in core
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
