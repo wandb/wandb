@@ -6,19 +6,14 @@ import urllib.parse
 
 from wandb.apis.public import PanelGrid  # noqa:F401
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
-
-
-class Dispatcher(ABC):
-    @classmethod
-    @abstractmethod
-    def from_json(cls, spec):
-        pass
+from .helpers import Dispatcher
 
 
 @dataclass
 class Block(Dispatcher, RequiresReportEditingMixin):
+    @property
     @abstractmethod
-    def to_json(self):
+    def spec(self):
         pass
 
 
@@ -66,7 +61,8 @@ class CheckedList(Block, List):
     items: list
     checked: list
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "list",
             "children": [
@@ -84,7 +80,8 @@ class CheckedList(Block, List):
 class OrderedList(Block, List):
     items: list
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "list",
             "ordered": True,
@@ -103,7 +100,8 @@ class OrderedList(Block, List):
 class UnorderedList(Block, List):
     items: list
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "list",
             "children": [
@@ -120,7 +118,8 @@ class UnorderedList(Block, List):
 class H1(Block, List):
     text: str
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "heading",
             "children": [{"text": self.text}],
@@ -132,7 +131,8 @@ class H1(Block, List):
 class H2(Block, List):
     text: str
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "heading",
             "children": [{"text": self.text}],
@@ -144,7 +144,8 @@ class H2(Block, List):
 class H3(Block, List):
     text: str
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "heading",
             "children": [{"text": self.text}],
@@ -165,7 +166,8 @@ class P(Block):
         text = spec["children"][0]["text"]
         return cls(text)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "paragraph",
             "children": [{"text": self.text}],
@@ -181,7 +183,8 @@ class BlockQuote(Block):
         text = spec["children"][0]["text"]
         return cls(text)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {"type": "block-quote", "children": [{"text": self.text}]}
 
 
@@ -198,7 +201,8 @@ class CalloutBlock(Block):
         text = [child["children"][0]["text"] for child in spec["children"]]
         return cls(text)
 
-    def to_json(self):
+    @property
+    def spec(self):
 
         return {
             "type": "callout-block",
@@ -224,7 +228,8 @@ class CodeBlock(Block):
         language = spec.get("language", "python")
         return cls(code, language)
 
-    def to_json(self):
+    @property
+    def spec(self):
         language = self.language.lower()
         return {
             "type": "code-block",
@@ -253,7 +258,8 @@ class MarkdownBlock(Block):
         text = spec["content"]
         return cls(text)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "markdown-block",
             "children": [{"text": ""}],
@@ -282,7 +288,8 @@ class LaTeXInline(Block):
         after = spec["children"][2]["text"]
         return cls(before, latex, after)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "paragraph",
             "children": [
@@ -306,7 +313,8 @@ class LaTeXBlock(Block):
         text = spec["content"]
         return cls(text)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "latex",
             "children": [{"text": ""}],
@@ -329,7 +337,8 @@ class Gallery(Block):
         ids = [url.split("--")[-1] for url in urls]
         return cls(ids)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {"type": "gallery", "children": [{"text": ""}], "ids": self.ids}
 
 
@@ -344,7 +353,8 @@ class Image(Block):
         caption = spec["children"][0]["text"] if spec.get("hasCaption") else None
         return cls(url, caption)
 
-    def to_json(self):
+    @property
+    def spec(self):
         if self.caption:
             return {
                 "type": "image",
@@ -358,14 +368,15 @@ class Image(Block):
 
 @dataclass
 class Weave(Block):
-    spec: dict
+    _spec: dict
 
     @classmethod
     def from_json(cls, spec):
         return cls(spec)
 
-    def to_json(self):
-        return self.spec
+    @property
+    def spec(self):
+        return self._spec
 
 
 @dataclass
@@ -374,7 +385,8 @@ class HorizontalRule(Block):
     def from_json(cls, spec):
         return cls()
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {"type": "horizontal-rule", "children": [{"text": ""}]}
 
 
@@ -384,7 +396,8 @@ class TableOfContents(Block):
     def from_json(cls, spec):
         return cls()
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {"type": "table-of-contents", "children": [{"text": ""}]}
 
 
@@ -398,7 +411,8 @@ class SoundCloud(Block):
         url = urllib.parse.unquote(quoted_url)
         return cls(url)
 
-    def to_json(self):
+    @property
+    def spec(self):
         quoted_url = urllib.parse.quote(self.url)
         return {
             "type": "soundcloud",
@@ -421,7 +435,8 @@ class Twitter(Block):
         embed_html = spec["html"]
         return cls(embed_html)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {"type": "twitter", "html": self.embed_html, "children": [{"text": ""}]}
 
 
@@ -438,7 +453,8 @@ class Spotify(Block):
         spotify_id = url.split("/")[-1].split("?")[0]
         return cls(spotify_id)
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "spotify",
             "spotifyType": "track",
@@ -455,7 +471,8 @@ class Video(Block):
     def from_json(cls, spec):
         return cls(spec["url"])
 
-    def to_json(self):
+    @property
+    def spec(self):
         return {
             "type": "video",
             "url": self.url,
@@ -463,7 +480,7 @@ class Video(Block):
         }
 
 
-BLOCK_TO_OBJ_MAPPING = {
+block_mapping = {
     "block-quote": BlockQuote,
     "callout-block": CalloutBlock,
     "code-block": CodeBlock,

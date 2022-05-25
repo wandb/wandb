@@ -1,4 +1,4 @@
-import inspect
+from abc import ABC, abstractmethod
 
 
 # from fastai
@@ -25,3 +25,22 @@ def delegates(to=None, keep=False):
         return f
 
     return _f
+
+
+class Dispatcher(ABC):
+    @classmethod
+    @abstractmethod
+    def from_json(cls, spec):
+        pass
+
+
+def generate_name(length=12):
+    # This implementation roughly based this snippet in core
+    # https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
+
+    import numpy as np
+
+    rand = np.random.random()
+    rand = int(str(rand)[2:])
+    rand36 = np.base_repr(rand, 36)
+    return rand36.lower()[:length]

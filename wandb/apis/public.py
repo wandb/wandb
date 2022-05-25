@@ -1185,7 +1185,8 @@ class User(Attrs):
             A `User` object
         """
         res = api.client.execute(
-            cls.CREATE_USER_MUTATION, {"email": email, "admin": admin},
+            cls.CREATE_USER_MUTATION,
+            {"email": email, "admin": admin},
         )
         return User(api.client, res["createUser"]["user"])
 
@@ -3099,7 +3100,10 @@ class RunSet(RequiresReportEditingMixin):
 
     def __generate_default_run_set_spec(self):
         default = {
-            "filters": {"op": "OR", "filters": [{"op": "AND", "filters": []}],},
+            "filters": {
+                "op": "OR",
+                "filters": [{"op": "AND", "filters": []}],
+            },
             "runFeed": {
                 "version": 2,
                 "columnVisible": {"run:name": False},
@@ -3409,9 +3413,6 @@ class PanelGrid(RequiresReportEditingMixin):
     def from_json(cls, report, spec):
         return cls(report, spec)
 
-    def to_json(self):
-        return self.spec
-
     def report_callback(setter):  # noqa: N805
         @wraps(setter)
         def wrapper(self, *args, **kwargs):
@@ -3442,19 +3443,27 @@ class PanelGrid(RequiresReportEditingMixin):
 
         # TODO: If when assigning run_set, set its panel_grid to self.
 
+    def __spec_to_obj(self, spec):
+        Panel = wandb.apis.reports.panels.panel_mapping[spec["viewType"]]  # noqa: N806
+        return Panel.from_json(spec)
+
     @property
     def panels(self):
-        return [
-            wandb.apis.reports.panels.Panel(self, spec)
-            for spec in self.spec["metadata"]["panelBankSectionConfig"]["panels"]
-        ]
+        panel_specs = self.spec["metadata"]["panelBankSectionConfig"]["panels"]
+        return [self.__spec_to_obj(spec) for spec in panel_specs]
 
     @panels.setter
     @report_callback
     def panels(self, new_panels):
-        self.spec["metadata"]["panelBankSectionConfig"]["panels"] = [
-            p.spec for p in new_panels
-        ]
+        new_panel_specs = []
+        for p in new_panels:
+            p.panel_grid = self
+            new_panel_specs.append(p.spec)
+        self.spec["metadata"]["panelBankSectionConfig"]["panels"] = new_panel_specs
+
+        # self.spec["metadata"]["panelBankSectionConfig"]["panels"] = [
+        #     p.spec for p in new_panels
+        # ]
 
         # TODO: If when assigning panel, set its panel_grid to self.
 
@@ -3576,10 +3585,8 @@ class BetaReport(Attrs):
         except IndexError:  # if you instantiate a new panel grid but have not assigned the report
             pass  # there is nothing to callback on.
 
-    def __block_to_obj(self, block):
-        Block = wandb.apis.reports.blocks.BLOCK_TO_OBJ_MAPPING[
-            block["type"]
-        ]  # noqa: N806
+    def __spec_to_obj(self, block):
+        Block = wandb.apis.reports.blocks.block_mapping[block["type"]]  # noqa: N806
         if block["type"] == "panel-grid":
             return PanelGrid.from_json(report=self, spec=block)
         else:
@@ -3587,7 +3594,10 @@ class BetaReport(Attrs):
 
     @property
     def blocks(self):
-        return [self.__block_to_obj(block) for block in self.spec["blocks"]]
+        _blocks = [self.__spec_to_obj(block) for block in self.spec["blocks"]]
+
+        # ignore the starting and ending padding P blocks
+        return _blocks[1:-1]
 
     @blocks.setter
     @top_callback
@@ -3600,10 +3610,15 @@ class BetaReport(Attrs):
             if not isinstance(block, (wandb.apis.reports.blocks.Block, PanelGrid)):
                 raise TypeError(f"Must be a subclass of wb.Block (got: {block})")
 
+        # add starting and ending padding P blocks
+        _blocks = [wandb.apis.reports.P("")] + outline + [wandb.apis.reports.P("")]
+
         # Treat PanelGrid as special case for now
-        self.spec["blocks"] = [
-            x.to_json() if not isinstance(x, PanelGrid) else x.spec for x in outline
-        ]
+        # self.spec["blocks"] = [
+        #     x.to_json() if not isinstance(x, PanelGrid) else x.spec for x in _blocks
+        # ]
+
+        self.spec["blocks"] = [x.spec for x in _blocks]
 
         # TODO: If when assigning panel_grid, set its report to self.
 
@@ -4462,7 +4477,10 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
+        response = client.execute(
+            Artifact.QUERY,
+            variable_values={"id": artifact_id},
+        )
 
         name = None
         if response.get("artifact") is not None:
@@ -4750,7 +4768,10 @@ class Artifact(artifacts.Artifact):
         )
         self.client.execute(
             mutation,
-            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
+            variable_values={
+                "artifactID": self.id,
+                "deleteAliases": delete_aliases,
+            },
         )
         return True
 
@@ -4881,7 +4902,8 @@ class Artifact(artifacts.Artifact):
         if log:
             delta = relativedelta(datetime.datetime.now() - start_time)
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}", prefix=False,
+                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
+                prefix=False,
             )
         return dirpath
 
@@ -5008,7 +5030,10 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
+                    {
+                        "artifactCollectionName": self._sequence_name,
+                        "alias": alias,
+                    }
                     for alias in self._aliases
                 ],
             },
@@ -5177,7 +5202,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         # yes, "name" is actually id
         runs = [
             Run(
@@ -5215,7 +5243,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(
