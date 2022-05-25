@@ -26,7 +26,7 @@ def resolve_agent_config(
     api: Api,
     entity: Optional[str],
     project: Optional[str],
-    max_jobs: Optional[float],
+    max_jobs: Optional[int],
     queues: Optional[List[str]],
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
@@ -65,7 +65,7 @@ def resolve_agent_config(
     if entity is not None:
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
-        resolved_config.update({"max_jobs": max_jobs})
+        resolved_config.update({"max_jobs": int(max_jobs)})
 
     if queues is not None:
         resolved_config.update({"queues": queues})

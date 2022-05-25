@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from .daimyo import Daimyo
 import wandb
+from wandb import wandb_lib
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
 
@@ -110,19 +111,43 @@ class SweepDaimyo(Daimyo):
             wandb.termlog(_msg)
             if self._heartbeat_runs_status[run.id] == LegacySweepCommand.STOPPED:
                 continue
+            # This will cause Anaconda2 to populate the Sweeps RunQueue
+            if self._heartbeat_runs_status[run.id] == LegacySweepCommand.RUNNING:
+                self._heartbeat_runs_status[run.id] = LegacySweepCommand.DONE
 
-            entry_point = [
-                "python",
-                run.command["program"],
-            ]
+            # HACK: This is actually what populates the wandb config
+            #       since it is used in wandb.init()
+            sweep_param_path = os.path.join(
+                    os.environ.get(wandb.env.DIR, os.getcwd()),
+                    "wandb",
+                    f"sweep-{self._sweep_id}",
+                    f"config-{run.command['run_id']}.yaml"
+                )
+            wandb.termlog(f"Saving params to {sweep_param_path}")
+            wandb_lib.config_util.save_config_file_from_dict(
+                sweep_param_path, run.command["args"]
+            )
             
-            command_args = LegacySweepAgent._create_command_args(run.command)
-            entry_point += command_args["args"]
+            # entry_point = [
+            #     "python",
+            #     run.command["program"],
+            # ]
+
+            # command_args = LegacySweepAgent._create_command_args(run.command)
+            # entry_point += command_args["args"]
+
+            # # TODO: Entrypoint is now an object right?
+            # entry_point_str = ""
+            # for c in entry_point:
+            #     if " " in c:
+            #         entry_point_str += '"%s" ' % c
+            #     else:
+            #         entry_point_str += c + " "
 
             job = self._add_to_launch_queue({
                 "uri": os.getcwd(),
                 "resource" : "local-process",
-                "entry_point" : entry_point,
+                "entry_point" : f"python {run.command['program']}",
             })
             _msg = f"Pushing item from Sweep Run {run.id} to Launch RunQueue as {job._run_id}."
             logger.debug(_msg)
@@ -131,7 +156,7 @@ class SweepDaimyo(Daimyo):
             # TODO: Should we tell sweep runqueue that items are running
             #       if they are queued in launch runqueue? Or only if they
             #       are running in launch runqueue?
-            self._heartbeat_runs_status[run.id] = LegacySweepCommand.RUNNING
+            # self._heartbeat_runs_status[run.id] = LegacySweepCommand.RUNNING
 
             # if self._heartbeat_runs_status[run.id] == RunStatus.RUNNING:
             #     self._heartbeat_runs_status[run.id] = RunStatus.DONE

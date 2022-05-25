@@ -365,8 +365,9 @@ class EntryPoint:
     def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> str:
         """Converts user parameter dictionary to a string."""
         params, extra_params = self.compute_parameters(user_parameters)
-        command_with_params = self.command.format(**params)
-        command_arr = [command_with_params]
+        # command_with_params = self.command.format(**params)
+        # command_arr = [command_with_params]
+        command_arr = [self.command]
         command_arr.extend(
             [
                 f"--{key} {value}" if value is not None else f"--{key}"
