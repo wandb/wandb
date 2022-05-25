@@ -15,7 +15,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
-def mock_boto(artifact, path=False):
+def mock_boto(artifact, path=False, content_type=None):
     class S3Object:
         def __init__(self, name="my_object.pb", metadata=None, version_id=None):
             self.metadata = metadata or {"md5": "1234567890abcde"}
@@ -24,7 +24,7 @@ def mock_boto(artifact, path=False):
             self.name = name
             self.key = name
             self.content_length = 10
-            self.content_type = "application/pb; charset=UTF-8"
+            self.content_type = "application/pb; charset=UTF-8" if content_type is None else content_type
 
         def load(self):
             if path:
@@ -406,6 +406,27 @@ def test_add_s3_reference_path(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         mock_boto(artifact, path=True)
+        artifact.add_reference("s3://my-bucket/")
+
+        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
+        _, err = capsys.readouterr()
+        assert "Generating checksum" in err
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
+)
+def test_add_s3_reference_path_with_content_type(runner, mocker, capsys):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact, path=False, content_type="application/x-directory")
         artifact.add_reference("s3://my-bucket/")
 
         assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
