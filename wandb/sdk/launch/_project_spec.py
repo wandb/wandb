@@ -61,7 +61,7 @@ class LaunchProject:
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
-        self.target_project = target_project
+        self.target_project = target_project.lower()
         self.name = name
         self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
@@ -87,7 +87,7 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if "entry_point" in overrides and overrides["entry_point"]:
+        if overrides.get("entry_point") is not None:
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
         if self.uri is None:
@@ -138,7 +138,7 @@ class LaunchProject:
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return f"{self.target_project.lower()}_launch"
+        return f"{self.target_project}_launch"
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the override run config values if a matching key exists in the override arguments."""
