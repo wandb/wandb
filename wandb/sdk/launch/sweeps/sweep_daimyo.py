@@ -1,5 +1,6 @@
 import os
 import logging
+import pprint
 import queue
 import socket
 import time
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class LegacySweepCommand:
     """ Legacy Sweep Command. """
 
-    # State must match Go's Sweep State
+    # State must match Go's RunState
     # TODO: Link file in core
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
@@ -104,22 +105,25 @@ class SweepDaimyo(Daimyo):
                 wandb.termlog(_msg)
                 time.sleep(5)
                 continue
-            _msg = f"Sweep RunQueue received: {run}"
+            _msg = f"Sweep RunQueue AgentHeartbeat received: \n{pprint.pformat(run.command)}\n"
             logger.debug(_msg)
             wandb.termlog(_msg)
             if self._heartbeat_runs_status[run.id] == LegacySweepCommand.STOPPED:
                 continue
 
-            run_spec = {
-                "uri": os.getcwd(),
-                "resource": "local-process",
-                "overrides": {
-                    "args": LegacySweepAgent._create_command_args(run.command)["args"],
-                    "entry_point": "",
-                },
-            }
+            entry_point = [
+                "python",
+                run.command["program"],
+            ]
             
-            job = self._add_to_launch_queue(run_spec)
+            command_args = LegacySweepAgent._create_command_args(run.command)
+            entry_point += command_args["args"]
+
+            job = self._add_to_launch_queue({
+                "uri": os.getcwd(),
+                "resource" : "local-process",
+                "entry_point" : entry_point,
+            })
             _msg = f"Pushing item from Sweep Run {run.id} to Launch RunQueue as {job._run_id}."
             logger.debug(_msg)
             wandb.termlog(_msg)
@@ -168,21 +172,22 @@ class SweepDaimyo(Daimyo):
             #         self._exit_flag = True
             #         return
 
-    def _stop_run(self, run_id):
-        logger.debug(f"Stopping run {run_id}.")
-        self._heartbeat_runs_status[run_id] = LegacySweepCommand.STOPPED
-        # TODO: Convert run key to job key?
-        _job = self._jobs.get(run_id)
-        if _job is not None:
-            # TODO: Can you command a launch agent to kill a job?
-            _job.kill()
+    # def _stop_run(self, run_id):
+    #     logger.debug(f"Stopping run {run_id}.")
+    #     self._heartbeat_runs_status[run_id] = LegacySweepCommand.STOPPED
+    #     # TODO: Convert run key to job key?
+    #     _job = self._jobs.get(run_id)
+    #     if _job is not None:
+    #         # TODO: Can you command a launch agent to kill a job?
+    #         _job.kill()
 
-    def _stop_all_runs(self):
-        logger.debug("Stopping all runs.")
-        for run in list(self._jobs.keys()):
-            self._stop_run(run)
+    # def _stop_all_runs(self):
+    #     logger.debug("Stopping all runs.")
+    #     for run in list(self._jobs.keys()):
+    #         self._stop_run(run)
         
-        # send mutation to kill the sweep
+    #     # send mutation to kill the sweep
 
     def _exit(self):
-        self._stop_all_runs()
+        pass
+    #     self._stop_all_runs()

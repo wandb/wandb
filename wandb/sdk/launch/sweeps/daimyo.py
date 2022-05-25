@@ -42,7 +42,7 @@ class Daimyo(ABC):
         # TODO: verify these properties, throw errors
         self._api = api
         self._queue = queue
-        
+
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -134,8 +134,8 @@ class Daimyo(ABC):
             project=launchspec.get("project", None) or self._project,
             entity=launchspec.get("entity", None) or self._entity,
             queue=launchspec.get("queue", None) or self._queue,
-            resource="local-process",
-            # entry_point: Optional[str] = None,
+            resource=launchspec.get("resource", None),
+            entry_point=launchspec.get("entry_point", None),
             # name: Optional[str] = None,
             # version: Optional[str] = None,
             # docker_image: Optional[str] = None,
