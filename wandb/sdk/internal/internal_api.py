@@ -1774,7 +1774,6 @@ class Api:
         }
         """
         )
-        breakpoint()
         # TODO(hupo): Trace agent path
         if agent_id is None:
             raise ValueError("Cannot call heartbeat with an unregistered agent.")
@@ -1795,7 +1794,6 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            breakpoint()
             return json.loads(response["agentHeartbeat"]["commands"])
 
     @staticmethod

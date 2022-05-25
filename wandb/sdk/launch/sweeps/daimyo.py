@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 from enum import Enum
 import logging
@@ -40,9 +41,25 @@ class Daimyo(ABC):
     ):
         # TODO: verify these properties, throw errors
         self._api = api
-        self._entity = entity
-        self._project = project
         self._queue = queue
+        
+        self._entity = (
+            entity
+            or os.environ.get("WANDB_ENTITY")
+            or api.settings("entity")
+            or api.default_entity
+        )
+        if self._entity is None:
+            raise LaunchError('Sweep Daimyo could not resolve entity.')
+        self._project = (
+            project
+            or os.environ.get("WANDB_PROJECT")
+            or api.settings("project")
+        )
+        if self._project is None:
+            raise LaunchError('Sweep Daimyo could not resolve project.')
+        
+        
         self._state: DaimyoState = DaimyoState.PENDING
         self._jobs: Dict[str, public.QueuedJob] = {}
 

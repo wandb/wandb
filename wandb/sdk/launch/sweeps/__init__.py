@@ -35,12 +35,12 @@ def load_daimyo(daimyo_name: str, *args, **kwargs) -> Daimyo:
     if daimyo_name not in _WANDB_DAIMYOS:
         raise ValueError(
             f"The `daimyo_name` argument must be one of "
-            f"{list(_WANDB_DAIMYOS)}. "
-            f"Got: {daimyo_name}"
+            f"{list(_WANDB_DAIMYOS.keys())}, got: {daimyo_name}"
         )
 
     log.warn(f"Loading dependencies for Daimyo of type: {daimyo_name}")
-    return _WANDB_DAIMYOS[daimyo_name](*args, **kwargs)
+    import_func = _WANDB_DAIMYOS[daimyo_name]
+    return import_func()(*args, **kwargs)
 
 
 __all__ = [

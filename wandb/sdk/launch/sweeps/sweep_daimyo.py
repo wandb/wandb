@@ -26,9 +26,9 @@ class LegacySweepCommand:
     DONE = "DONE"
 
     def __init__(self, command: Dict[str, Any]):
+        self.command = command
         self.type = command.get("type")
         self.id = command.get("run_id")
-        self.config = command.get("args", {})
 
 
 class SweepDaimyo(Daimyo):
@@ -79,7 +79,6 @@ class SweepDaimyo(Daimyo):
                 if status in (LegacySweepCommand.QUEUED, LegacySweepCommand.RUNNING)
             }
             commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, run_status)
-            breakpoint()
             if commands:
                 run = LegacySweepCommand(commands[0])
                 if run.type in ["run", "resume"]:
@@ -105,22 +104,21 @@ class SweepDaimyo(Daimyo):
                 wandb.termlog(_msg)
                 time.sleep(5)
                 continue
-            _msg = f"Sweep RunQueue job received: {job}"
+            _msg = f"Sweep RunQueue received: {run}"
             logger.debug(_msg)
             wandb.termlog(_msg)
             if self._heartbeat_runs_status[run.id] == LegacySweepCommand.STOPPED:
                 continue
 
-            breakpoint()
-
             run_spec = {
                 "uri": os.getcwd(),
                 "resource": "local-process",
                 "overrides": {
-                    "args": LegacySweepAgent._create_command_args(run.config)["args"],
+                    "args": LegacySweepAgent._create_command_args(run.command)["args"],
                     "entry_point": "",
                 },
             }
+            
             job = self._add_to_launch_queue(run_spec)
             _msg = f"Pushing item from Sweep Run {run.id} to Launch RunQueue as {job._run_id}."
             logger.debug(_msg)
@@ -188,4 +186,3 @@ class SweepDaimyo(Daimyo):
 
     def _exit(self):
         self._stop_all_runs()
-        self._heartbeat_thread.kill()

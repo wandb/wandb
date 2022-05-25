@@ -859,6 +859,7 @@ def sweep(
         or env.get("WANDB_ENTITY")
         or config.get("entity")
         or api.settings("entity")
+        or api.default_entity
     )
     project = (
         project
@@ -889,7 +890,7 @@ def sweep(
             entity,
             None,  # docker_image,
             "local-process",  # resource,
-            f"wandb daimyo {_sweep_id_placeholder} -e {entity} -p {project} -q {queue}",  # entry_point,
+            f"wandb daimyo {_sweep_id_placeholder} -p {project} -q {queue}",  # entry_point,
             None,  # version,
             None,  # params,
             None,  # resource_args,
