@@ -24,7 +24,11 @@ def mock_boto(artifact, path=False, content_type=None):
             self.name = name
             self.key = name
             self.content_length = 10
-            self.content_type = "application/pb; charset=UTF-8" if content_type is None else content_type
+            self.content_type = (
+                "application/pb; charset=UTF-8"
+                if content_type is None
+                else content_type
+            )
 
         def load(self):
             if path:
