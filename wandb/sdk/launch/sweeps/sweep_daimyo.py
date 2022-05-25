@@ -80,6 +80,9 @@ class SweepDaimyo(Daimyo):
                 for run, status in self._heartbeat_runs_status.items()
                 if status in (LegacySweepCommand.QUEUED, LegacySweepCommand.RUNNING)
             }
+            _msg = f"Sending AgentHeartbeat {run_status}"
+            logger.debug(_msg)
+            wandb.termlog(_msg)
             commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, run_status)
             if commands:
                 run = LegacySweepCommand(commands[0])
@@ -106,14 +109,18 @@ class SweepDaimyo(Daimyo):
                 wandb.termlog(_msg)
                 time.sleep(5)
                 continue
+            finally:
+                print(f"Current heartbeat runs {self._heartbeat_runs_status}")
+                for run_id in self._heartbeat_runs_status:
+                    # This will cause Anaconda2 to populate the Sweeps RunQueue
+                    if self._heartbeat_runs_status[run_id] == LegacySweepCommand.RUNNING:
+                        self._heartbeat_runs_status[run_id] = LegacySweepCommand.DONE
+
             _msg = f"Sweep RunQueue AgentHeartbeat received: \n{pprint.pformat(run.command)}\n"
             logger.debug(_msg)
             wandb.termlog(_msg)
             if self._heartbeat_runs_status[run.id] == LegacySweepCommand.STOPPED:
                 continue
-            # This will cause Anaconda2 to populate the Sweeps RunQueue
-            if self._heartbeat_runs_status[run.id] == LegacySweepCommand.RUNNING:
-                self._heartbeat_runs_status[run.id] = LegacySweepCommand.DONE
 
             # HACK: This is actually what populates the wandb config
             #       since it is used in wandb.init()
@@ -128,35 +135,31 @@ class SweepDaimyo(Daimyo):
                 sweep_param_path, run.command["args"]
             )
             
-            # entry_point = [
-            #     "python",
-            #     run.command["program"],
-            # ]
+            entry_point = [
+                "python",
+                run.command["program"],
+            ]
 
-            # command_args = LegacySweepAgent._create_command_args(run.command)
-            # entry_point += command_args["args"]
+            command_args = LegacySweepAgent._create_command_args(run.command)
+            entry_point += command_args["args"]
 
-            # # TODO: Entrypoint is now an object right?
-            # entry_point_str = ""
-            # for c in entry_point:
-            #     if " " in c:
-            #         entry_point_str += '"%s" ' % c
-            #     else:
-            #         entry_point_str += c + " "
+            # TODO: Entrypoint is now an object right?
+            entry_point_str = ""
+            for c in entry_point:
+                if " " in c:
+                    entry_point_str += '"%s" ' % c
+                else:
+                    entry_point_str += c + " "
 
             job = self._add_to_launch_queue({
                 "uri": os.getcwd(),
                 "resource" : "local-process",
-                "entry_point" : f"python {run.command['program']}",
+                "entry_point" : entry_point_str,
             })
             _msg = f"Pushing item from Sweep Run {run.id} to Launch RunQueue as {job._run_id}."
             logger.debug(_msg)
             wandb.termlog(_msg)
-
-            # TODO: Should we tell sweep runqueue that items are running
-            #       if they are queued in launch runqueue? Or only if they
-            #       are running in launch runqueue?
-            # self._heartbeat_runs_status[run.id] = LegacySweepCommand.RUNNING
+            self._heartbeat_runs_status[run.id] = LegacySweepCommand.RUNNING
 
             # if self._heartbeat_runs_status[run.id] == RunStatus.RUNNING:
             #     self._heartbeat_runs_status[run.id] = RunStatus.DONE
