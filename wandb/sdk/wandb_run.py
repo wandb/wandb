@@ -2878,6 +2878,12 @@ class Run:
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
         )
+        Run._footer_server_messages_info(
+            poll_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
 
     @staticmethod
     def _footer_exit_status_info(
@@ -3184,6 +3190,28 @@ class Run:
                     f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
                     status="warn",
                 )
+
+    @staticmethod
+    def _footer_server_messages_info(
+        poll_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+        
+        # if settings.opt_out_nudge:
+        #     return
+
+        if not poll_exit_response or not poll_exit_response.server_messages:
+            return
+
+        for message in poll_exit_response.server_messages.item:
+            if message.text:
+                printer.display(message.text)
 
     @staticmethod
     def _footer_version_check_info(

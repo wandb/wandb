@@ -609,6 +609,16 @@ message PollExitResponse {
   FileCounts      file_counts = 3;
   FilePusherStats pusher_stats = 4;
   LocalInfo local_info = 5;
+  ServerMessages server_messages = 6;
+}
+
+message ServerMessages{
+  repeated ServerMessage item = 1;
+}
+
+message ServerMessage{
+  string text = 1;
+  string plain_text =2;
 }
 
 message FileCounts {

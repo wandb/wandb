@@ -125,6 +125,7 @@ class Api:
             None,
         )
         self._max_cli_version = None
+        self._server_settings_type = None
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -319,6 +320,29 @@ class Api:
                 for field in res.get("ServerInfoType", {}).get("fields", [{}])
             ]
         return (self.query_types, self.server_info_types)
+
+    @normalize_exceptions
+    def server_settings_introspection(self):
+        query_string = """
+           query ProbeServerSettings {
+               ServerSettingsType: __type(name: "ServerSettings") {
+                   ...fieldData
+                }
+            }
+
+            fragment fieldData on __Type {
+                fields {
+                    name
+                }
+            }
+        """
+        if self._server_settings_type is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            self._server_settings_type = [
+                field.get("name", "")
+                for field in res.get("ServerSettingsType", {}).get("fields", [{}])
+            ]
 
     def server_use_artifact_input_introspection(self):
         query_string = """
@@ -1220,8 +1244,8 @@ class Api:
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
         """
-        mutation = gql(
-            """
+
+        query_string = """
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -1281,10 +1305,26 @@ class Api:
                     }
                 }
                 inserted
+                _Server_Settings_
             }
         }
         """
+        self.server_settings_introspection()
+
+        server_settings_string = (
+            """
+        serverSDKSettings {
+                sdkMessages{
+                    text
+                }
+         }
+        """
+            if self._server_settings_type
+            else ""
         )
+
+        query_string = query_string.replace("_Server_Settings_", server_settings_string)
+        mutation = gql(query_string)
         if config is not None:
             config = json.dumps(config)
         if not description or description.isspace():
@@ -1326,7 +1366,14 @@ class Api:
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
+        server_message = None
+        if self._server_settings_type:
+            server_message = response["upsertBucket"]["serverSDKSettings"]["sdkMessages"]
+        return (
+            response["upsertBucket"]["bucket"],
+            response["upsertBucket"]["inserted"],
+            server_message,
+        )
 
     @normalize_exceptions
     def get_run_info(self, entity, project, name):

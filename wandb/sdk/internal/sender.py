@@ -116,6 +116,7 @@ class SendManager:
     _resume_state: ResumeState
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
+    _server_messages: Optional[List[Dict[str, Any]]]
 
     def __init__(
         self,
@@ -153,6 +154,7 @@ class SendManager:
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
+        self._server_messages = None
 
         # State updated by resuming
         self._resume_state = ResumeState()
@@ -475,6 +477,9 @@ class SendManager:
                 self.get_local_info()
             )
             result.response.poll_exit_response.done = True
+            for message in self._server_messages:
+                message_record = wandb_internal_pb2.ServerMessage(text=message.get("text", ""), plain_text=message.get("plain_text", ""))
+                result.response.poll_exit_response.server_messages.item.append(message_record)
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -716,7 +721,7 @@ class SendManager:
         start_time = run.start_time.ToSeconds() - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
-        server_run, inserted = self._api.upsert_run(
+        server_run, _, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
@@ -732,6 +737,7 @@ class SendManager:
             repo=run.git.remote_url or None,
             commit=run.git.last_commit or None,
         )
+        self._server_messages = server_messages
         self._run = run
         if self._resume_state.resumed:
             self._run.resumed = True
