@@ -627,7 +627,75 @@ def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
         artifact.add(wb_table_timestamp, "wb_table_timestamp")
 
         run.log_artifact(artifact)
+
         run.finish()
+
+
+def test_artifact_table_deserialize_timestamp_column():
+    artifact_json = {
+        "_type": "table",
+        "column_types": {
+            "params": {
+                "type_map": {
+                    "Date Time": {
+                        "params": {
+                            "allowed_types": [
+                                {"wb_type": "none"},
+                                {"wb_type": "timestamp"},
+                            ]
+                        },
+                        "wb_type": "union",
+                    },
+                }
+            },
+            "wb_type": "typedDict",
+        },
+        "columns": [
+            "Date Time",
+        ],
+        "data": [
+            [
+                1230800400000.0,
+            ],
+            [
+                None,
+            ],
+        ],
+    }
+
+    artifact_json_non_null = {
+        "_type": "table",
+        "column_types": {
+            "params": {
+                "type_map": {
+                    "Date Time": {"wb_type": "timestamp"},
+                }
+            },
+            "wb_type": "typedDict",
+        },
+        "columns": [
+            "Date Time",
+        ],
+        "data": [
+            [
+                1230800400000.0,
+            ],
+            [
+                1230807600000.0,
+            ],
+        ],
+    }
+
+    for art in (artifact_json, artifact_json_non_null):
+        artifact = wandb.Artifact(name="test", type="test")
+        timestamp_idx = art["columns"].index("Date Time")
+        table = wandb.Table.from_json(art, artifact)
+        assert [row[timestamp_idx] for row in table.data] == [
+            datetime.fromtimestamp(row[timestamp_idx] / 1000.0, tz=timezone.utc)
+            if row[timestamp_idx] is not None
+            else None
+            for row in art["data"]
+        ]
 
 
 @pytest.mark.timeout(120)
