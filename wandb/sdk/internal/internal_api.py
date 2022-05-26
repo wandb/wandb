@@ -339,10 +339,11 @@ class Api:
         if self._server_settings_type is None:
             query = gql(query_string)
             res = self.gql(query)
-            self._server_settings_type = [
-                field.get("name", "")
-                for field in res.get("ServerSettingsType", {}).get("fields", [{}])
-            ]
+            if res:
+                self._server_settings_type = [
+                    field.get("name", "")
+                    for field in res.get("ServerSettingsType", {}).get("fields", [{}])
+                ]
 
     def server_use_artifact_input_introspection(self):
         query_string = """
