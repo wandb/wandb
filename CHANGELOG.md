@@ -1,7 +1,7 @@
 ## 0.12.17 (May 26, 2022)
 
 #### :bug: Bug Fix
-* Update requirements to fix incompatibilty with protobuf >= 4 by @dmitryduev in https://github.com/wandb/client/pull/3709
+* Update requirements to fix incompatibility with protobuf >= 4 by @dmitryduev in https://github.com/wandb/client/pull/3709
 
 ## 0.12.16 (May 3, 2022)
 
