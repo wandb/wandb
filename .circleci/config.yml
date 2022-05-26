@@ -719,9 +719,6 @@ jobs:
     parameters:
       python_version:
         type: string
-      branch:
-        type: string
-        default: $CIRCLE_BRANCH
       notify_on_failure:
         type: boolean
         default: true
@@ -732,32 +729,38 @@ jobs:
       - image: "python:<< parameters.python_version >>"
     steps:
       - run:
-          name: "Check that pip install wandb succeeds"
+          name: "Install stable version of wandb with stable versions of dependencies"
           command: |
-            pip freeze > deps_clean.txt
-            cat deps_clean.txt
-            echo "Install stable version of wandb with stable versions of dependencies:"
             pip install wandb
             python -c "import wandb"
             pip freeze > deps_wandb.txt
             pip uninstall -y -r deps_wandb.txt
-            echo "Install pre-release version of wandb with stable versions of dependencies:"
+          when: always
+      - run:
+          name: "Install pre-release version of wandb with stable versions of dependencies"
+          command: |
             pip install --pre wandb
             python -c "import wandb"
             pip freeze > deps_wandb_pre.txt
             pip uninstall -y -r deps_wandb_pre.txt
-            echo "Install stable version of wandb with pre-release versions of dependencies:"
-            wget https://raw.githubusercontent.com/wandb/client/<<parameters.branch>>/requirements.txt
+          when: always
+      - run:
+          name: "Install stable version of wandb with pre-release versions of dependencies"
+          command: |
+            wget https://raw.githubusercontent.com/wandb/client/$CIRCLE_BRANCH/requirements.txt
             for r in `cat requirements.txt`; do pip install --upgrade --pre $r; done
             pip install wandb
             python -c "import wandb"
             pip freeze > deps_wandb_deps_pre.txt
             pip uninstall -y -r deps_wandb_deps_pre.txt
-            echo "Install pre-release version of wandb with pre-release versions of dependencies:"
-            wget https://raw.githubusercontent.com/wandb/client/<<parameters.branch>>/requirements.txt
+          when: always
+      - run:
+          name: "Install pre-release version of wandb with pre-release versions of dependencies"
+          command: |
             for r in `cat requirements.txt`; do pip install --upgrade --pre $r; done
             pip install --pre wandb
             python -c "import wandb"
+          when: always
 
       # conditionally post a notification to slack if the job failed/succeeded
       - when:
