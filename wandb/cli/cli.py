@@ -1403,7 +1403,7 @@ def docker(
 
 
 @cli.command(
-    context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)"
+    context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)", hidden=True
 )
 @click.pass_context
 @click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
@@ -1417,10 +1417,37 @@ def docker(
     "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version"
 )
 @click.option(
-    "--edge", is_flag=True, default=False, help="Run the bleading edge", hidden=True
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
 )
 @display_error
-def local(ctx, port, env, daemon, upgrade, edge):
+def local(*args, **kwargs):
+    wandb.termwarn(
+        "`wandb local` has been replaced with `wandb server`."
+    )
+    wandb.termlog(
+        "Please use `wandb server` instead."
+    )
+
+
+@cli.command(
+    context_settings=RUN_CONTEXT, help="Launch W&B server (Experimental)"
+)
+@click.pass_context
+@click.option("--port", "-p", default="8080", help="The host port to bind W&B server on")
+@click.option(
+    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+)
+@click.option(
+    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+)
+@click.option(
+    "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version"
+)
+@click.option(
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+)
+@display_error
+def server(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
     if not find_executable("docker"):
         raise ClickException("Docker not installed, install it from https://docker.com")
@@ -1433,7 +1460,7 @@ def local(ctx, port, env, daemon, upgrade, edge):
             subprocess.call(["docker", "pull", "wandb/local"])
         else:
             wandb.termlog(
-                "A new version of W&B local is available, upgrade by calling `wandb local --upgrade`"
+                "A new version of W&B local is available, upgrade by calling `wandb server --upgrade`"
             )
     running = subprocess.check_output(
         ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
