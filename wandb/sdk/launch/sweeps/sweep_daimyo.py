@@ -16,8 +16,8 @@ from wandb.wandb_agent import Agent as LegacySweepAgent
 logger = logging.getLogger(__name__)
 
 
-class LegacySweepCommand:
-    """ Legacy Sweep Command. """
+class LegacySweepRun:
+    """ Legacy Sweep Run. """
 
     # State must match Go's RunState
     # TODO: Link file in core
@@ -55,7 +55,7 @@ class SweepDaimyo(Daimyo):
 
     def _start(self):
         # Status for all the sweep runs this agent has popped off the sweep runqueue
-        self._heartbeat_runs_status: Dict[str, LegacySweepCommand] = {}
+        self._heartbeat_runs_status: Dict[str, LegacySweepRun] = {}
         # Mapping from sweep run ids to launch job ids
         self._heartbeat_runs_to_launch_jobs: Dict[str, str] = {}
         # TODO: socket hostname is probably a shitty name, we can do better
@@ -66,7 +66,7 @@ class SweepDaimyo(Daimyo):
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue
-        self._heartbeat_queue: "queue.Queue[LegacySweepCommand]" = queue.Queue()
+        self._heartbeat_queue: "queue.Queue[LegacySweepRun]" = queue.Queue()
         self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         self._heartbeat_thread.daemon = True
         self._heartbeat_thread.start()
@@ -78,17 +78,17 @@ class SweepDaimyo(Daimyo):
             run_status = {
                 run: True
                 for run, status in self._heartbeat_runs_status.items()
-                if status in (LegacySweepCommand.QUEUED, LegacySweepCommand.RUNNING)
+                if status in (LegacySweepRun.QUEUED, LegacySweepRun.RUNNING)
             }
             _msg = f"Sending AgentHeartbeat {run_status}"
             logger.debug(_msg)
             wandb.termlog(_msg)
             commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, run_status)
             if commands:
-                run = LegacySweepCommand(commands[0])
+                run = LegacySweepRun(commands[0])
                 if run.type in ["run", "resume"]:
                     self._heartbeat_queue.put(run)
-                    self._heartbeat_runs_status[run.id] = LegacySweepCommand.QUEUED
+                    self._heartbeat_runs_status[run.id] = LegacySweepRun.QUEUED
                 elif run.type == "stop":
                     self._stop_run(run.id)
                     continue
@@ -113,13 +113,13 @@ class SweepDaimyo(Daimyo):
                 print(f"Current heartbeat runs {self._heartbeat_runs_status}")
                 for run_id in self._heartbeat_runs_status:
                     # This will cause Anaconda2 to populate the Sweeps RunQueue
-                    if self._heartbeat_runs_status[run_id] == LegacySweepCommand.RUNNING:
-                        self._heartbeat_runs_status[run_id] = LegacySweepCommand.DONE
+                    if self._heartbeat_runs_status[run_id] == LegacySweepRun.RUNNING:
+                        self._heartbeat_runs_status[run_id] = LegacySweepRun.DONE
 
             _msg = f"Sweep RunQueue AgentHeartbeat received: \n{pprint.pformat(run.command)}\n"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            if self._heartbeat_runs_status[run.id] == LegacySweepCommand.STOPPED:
+            if self._heartbeat_runs_status[run.id] == LegacySweepRun.STOPPED:
                 continue
 
             # HACK: This is actually what populates the wandb config
@@ -159,7 +159,7 @@ class SweepDaimyo(Daimyo):
             _msg = f"Pushing item from Sweep Run {run.id} to Launch RunQueue as {job._run_id}."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self._heartbeat_runs_status[run.id] = LegacySweepCommand.RUNNING
+            self._heartbeat_runs_status[run.id] = LegacySweepRun.RUNNING
 
             # if self._heartbeat_runs_status[run.id] == RunStatus.RUNNING:
             #     self._heartbeat_runs_status[run.id] = RunStatus.DONE
@@ -202,7 +202,7 @@ class SweepDaimyo(Daimyo):
 
     # def _stop_run(self, run_id):
     #     logger.debug(f"Stopping run {run_id}.")
-    #     self._heartbeat_runs_status[run_id] = LegacySweepCommand.STOPPED
+    #     self._heartbeat_runs_status[run_id] = LegacySweepRun.STOPPED
     #     # TODO: Convert run key to job key?
     #     _job = self._jobs.get(run_id)
     #     if _job is not None:
