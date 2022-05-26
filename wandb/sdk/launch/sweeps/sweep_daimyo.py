@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 class LegacySweepRun:
     """Legacy Sweep Run."""
 
-    # State must match Go's RunState
-    # TODO: Link file in core
+    # Based on client/wandb/agents/pyagent.py : RunStatus
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     STOPPED = "STOPPED"
@@ -72,7 +71,7 @@ class SweepDaimyo(Daimyo):
         self._heartbeat_runs_status: Dict[str, LegacySweepRun] = {}
         # Mapping from sweep run ids to launch job ids
         self._heartbeat_runs_to_launch_jobs: Dict[str, str] = {}
-        # TODO: socket hostname is probably a shitty name, we can do better
+        # TODO(hupo): socket hostname is probably a shitty name, we can do better
         self._heartbeat_agent = self._api.register_agent(
             socket.gethostname(), sweep_id=self._sweep_id
         )
@@ -147,8 +146,16 @@ class SweepDaimyo(Daimyo):
             logger.debug(_msg)
             wandb.termlog(_msg)
 
-            # HACK: This is actually what populates the wandb config
-            #       since it is used in wandb.init()
+            # TODO(hupo): Command replacement logic
+            # sweep_command = self._sweep_command or [
+            #     "${env}",
+            #     "${interpreter}",
+            #     "${program}",
+            #     "${args}",
+            # ]
+   
+            # This is actually what populates the wandb config
+            # since it is used in wandb.init()
             sweep_param_path = os.path.join(
                 os.environ.get(wandb.env.DIR, os.getcwd()),
                 "wandb",
@@ -170,19 +177,16 @@ class SweepDaimyo(Daimyo):
 
             # TODO: Entrypoint is now an object right?
             entry_point_str = " ".join(entry_point)
-            job = self._add_to_launch_queue(
+            _ = self._add_to_launch_queue(
                 {
                     "uri": os.getcwd(),
                     "resource": "local-process",
                     "entry_point": entry_point_str,
                 }
             )
-
             self._heartbeat_runs_status[run.id] = LegacySweepRun.RUNNING
 
-            # if self._heartbeat_runs_status[run.id] == RunStatus.RUNNING:
-            #     self._heartbeat_runs_status[run.id] = RunStatus.DONE
-
+            # TODO(hupo): Flapping logic
             # elif self._heartbeat_runs_status[run.id] == RunStatus.ERRORED:
             #     exc = self._exceptions[run.id]
             #     logger.error(f"Run {run.id} errored: {repr(exc)}")
