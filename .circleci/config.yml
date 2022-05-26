@@ -767,6 +767,42 @@ workflows:
           context: slack-secrets
           # todo? add a link to the pipeline in the message
           message: ":runner: *Nightly run started!*"
+      # check that `pip install wandb` is successful
+      - check_pip_install_wandb:
+          name: "pip-install-wandb-3.6"
+          image: "python:3.6"
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
+      - check_pip_install_wandb:
+          name: "pip-install-wandb-3.7"
+          image: "python:3.7"
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
+      - check_pip_install_wandb:
+          name: "pip-install-wandb-3.8"
+          image: "python:3.8"
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
+      - check_pip_install_wandb:
+          name: "pip-install-wandb-3.9"
+          image: "python:3.9"
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
+      - check_pip_install_wandb:
+          name: "pip-install-wandb-3.10"
+          image: "python:3.10"
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
@@ -1068,59 +1104,59 @@ workflows:
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:
             - "slack-notify-on-start"
-#      # build docker images for yea shards
-#      - sdk_docker:
-#          name: "build-cpu-docker-image"
-#          description: "SDK Docker image for CPU testing"
-#          path: "./standalone_tests/shards/gke_cpu"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-#          requires:
-#            - "slack-notify-on-start"
-#          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
-#      - sdk_docker:
-#          name: "build-gpu-docker-image"
-#          description: "SDK Docker image for GPU testing"
-#          path: "./standalone_tests/shards/gke_gpu"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-#          requires:
-#            - "slack-notify-on-start"
-#          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
-#      # manage the gke cluster
-#      - spin_up_cluster:
-#          requires:
-#            - "slack-notify-on-start"
-#      - shut_down_cluster:
-#          requires:
-#            - spin_up_cluster
-#      # run the tests
-#      - cloud_test:
-#          name: "cloud-test-cpu"
-#          requires:
-#            - "build-cpu-docker-image"
-#            - spin_up_cluster
-#          path: "./standalone_tests/shards/gke_cpu"
-#          pod_name: "cpu-pod"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-#          context: slack-secrets
-#          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-#          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
-#          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
-#      - cloud_test:
-#          name: "cloud-test-gpu"
-#          requires:
-#            - "build-gpu-docker-image"
-#            - spin_up_cluster
-#          path: "./standalone_tests/shards/gke_gpu"
-#          pod_name: "gpu-pod"
-#          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-#          context: slack-secrets
-#          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-#          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
-#          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
-#      - slack_notify:
-#          execute: << pipeline.parameters.manual_nightly_slack_notify >>
-#          name: "slack-notify-on-finish"
-#          context: slack-secrets
-#          requires:
-#            - shut_down_cluster
-#          message: ":checkered_flag: *Manual cloud run finished!*"
+      # build docker images for yea shards
+      - sdk_docker:
+          name: "build-cpu-docker-image"
+          description: "SDK Docker image for CPU testing"
+          path: "./standalone_tests/shards/gke_cpu"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+          requires:
+            - "slack-notify-on-start"
+          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
+      - sdk_docker:
+          name: "build-gpu-docker-image"
+          description: "SDK Docker image for GPU testing"
+          path: "./standalone_tests/shards/gke_gpu"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+          requires:
+            - "slack-notify-on-start"
+          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
+      # manage the gke cluster
+      - spin_up_cluster:
+          requires:
+            - "slack-notify-on-start"
+      - shut_down_cluster:
+          requires:
+            - spin_up_cluster
+      # run the tests
+      - cloud_test:
+          name: "cloud-test-cpu"
+          requires:
+            - "build-cpu-docker-image"
+            - spin_up_cluster
+          path: "./standalone_tests/shards/gke_cpu"
+          pod_name: "cpu-pod"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
+      - cloud_test:
+          name: "cloud-test-gpu"
+          requires:
+            - "build-gpu-docker-image"
+            - spin_up_cluster
+          path: "./standalone_tests/shards/gke_gpu"
+          pod_name: "gpu-pod"
+          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
+      - slack_notify:
+          execute: << pipeline.parameters.manual_nightly_slack_notify >>
+          name: "slack-notify-on-finish"
+          context: slack-secrets
+          requires:
+            - shut_down_cluster
+          message: ":checkered_flag: *Manual cloud run finished!*"
