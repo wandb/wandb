@@ -724,7 +724,9 @@ jobs:
     steps:
       - run:
           name: "Check that pip install wandb succeeds"
-          command: pip install wandb
+          command: |
+            pip install wandb
+            python -c "import wandb"
 
 workflows:
   nightly:
