@@ -719,6 +719,9 @@ jobs:
     parameters:
       python_version:
         type: string
+      branch:
+        type: string
+        default: $CIRCLE_BRANCH
       notify_on_failure:
         type: boolean
         default: true
@@ -731,8 +734,31 @@ jobs:
       - run:
           name: "Check that pip install wandb succeeds"
           command: |
+            pip freeze > deps_clean.txt
+            cat deps_clean.txt
+            echo "Install stable version of wandb with stable versions of dependencies:"
             pip install wandb
             python -c "import wandb"
+            pip freeze > deps_wandb.txt
+            pip uninstall -r deps_wandb.txt
+            echo "Install pre-release version of wandb with stable versions of dependencies:"
+            pip install --pre wandb
+            python -c "import wandb"
+            pip freeze > deps_wandb_pre.txt
+            pip uninstall -r deps_wandb_pre.txt
+            echo "Install stable version of wandb with pre-release versions of dependencies:"
+            wget https://raw.githubusercontent.com/wandb/client/<<parameters.branch>>/requirements.txt
+            for r in `cat requirements.txt`; do pip install --upgrade --pre $r; done
+            pip install wandb
+            python -c "import wandb"
+            pip freeze > deps_wandb_deps_pre.txt
+            pip uninstall -r deps_wandb_deps_pre.txt
+            echo "Install pre-release version of wandb with pre-release versions of dependencies:"
+            wget https://raw.githubusercontent.com/wandb/client/<<parameters.branch>>/requirements.txt
+            for r in `cat requirements.txt`; do pip install --upgrade --pre $r; done
+            pip install --pre wandb
+            python -c "import wandb"
+
       # conditionally post a notification to slack if the job failed/succeeded
       - when:
           condition: << parameters.notify_on_failure >>
