@@ -1038,27 +1038,36 @@ workflows:
           image: "python:3.6"
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
       - check_pip_install_wandb:
           name: "pip-install-wandb-3.7"
           image: "python:3.7"
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
       - check_pip_install_wandb:
           name: "pip-install-wandb-3.8"
           image: "python:3.8"
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
       - check_pip_install_wandb:
           name: "pip-install-wandb-3.9"
           image: "python:3.9"
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
       - check_pip_install_wandb:
           name: "pip-install-wandb-3.10"
           image: "python:3.10"
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
 #      # build docker images for yea shards
 #      - sdk_docker:
 #          name: "build-cpu-docker-image"
