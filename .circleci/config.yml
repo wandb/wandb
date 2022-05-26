@@ -740,19 +740,19 @@ jobs:
             pip install wandb
             python -c "import wandb"
             pip freeze > deps_wandb.txt
-            pip uninstall -r deps_wandb.txt
+            pip uninstall -y -r deps_wandb.txt
             echo "Install pre-release version of wandb with stable versions of dependencies:"
             pip install --pre wandb
             python -c "import wandb"
             pip freeze > deps_wandb_pre.txt
-            pip uninstall -r deps_wandb_pre.txt
+            pip uninstall -y -r deps_wandb_pre.txt
             echo "Install stable version of wandb with pre-release versions of dependencies:"
             wget https://raw.githubusercontent.com/wandb/client/<<parameters.branch>>/requirements.txt
             for r in `cat requirements.txt`; do pip install --upgrade --pre $r; done
             pip install wandb
             python -c "import wandb"
             pip freeze > deps_wandb_deps_pre.txt
-            pip uninstall -r deps_wandb_deps_pre.txt
+            pip uninstall -y -r deps_wandb_deps_pre.txt
             echo "Install pre-release version of wandb with pre-release versions of dependencies:"
             wget https://raw.githubusercontent.com/wandb/client/<<parameters.branch>>/requirements.txt
             for r in `cat requirements.txt`; do pip install --upgrade --pre $r; done
