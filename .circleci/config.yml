@@ -85,15 +85,15 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.31-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
 
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
           keys:
-            - v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-            - v0.30-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+            - v0.31-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+            - v0.31-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
 
   save-kfp-cache:
     description: "Save kfp environment to cache"
@@ -102,15 +102,15 @@ commands:
           paths:
             - /opt/circleci/.pyenv/
             - ./.tox
-          key: v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+          key: v0.31-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
 
   restore-kfp-cache:
     description: "Restore kfp environment from cache"
     steps:
       - restore_cache:
           keys:
-            - v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-            - v0.30-kfpenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+            - v0.31-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+            - v0.31-kfpenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
 
   save-test-results:
     description: "Save test results"
@@ -275,6 +275,7 @@ jobs:
             - slack/notify:
                 event: fail
                 template: basic_fail_1
+                mentions: "@channel"
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
@@ -704,6 +705,7 @@ jobs:
                   - slack/notify:
                       event: fail
                       template: basic_fail_1
+                      mentions: "@channel"
                       # taken from slack-secrets context
                       channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
             - when:
@@ -712,8 +714,76 @@ jobs:
                   - slack/notify:
                       event: pass
                       template: basic_success_1
+                      mentions: "@channel"
                       # taken from slack-secrets context
                       channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
+  pip_install_wandb:
+    parameters:
+      python_version:
+        type: string
+      notify_on_failure:
+        type: boolean
+        default: true
+      notify_on_success:
+        type: boolean
+        default: false
+    docker:
+      - image: "python:<< parameters.python_version >>"
+    steps:
+      - run:
+          name: "Install stable version of wandb with stable versions of dependencies"
+          command: |
+            pip install wandb
+            python -c "import wandb"
+            pip freeze > deps_wandb.txt
+            pip uninstall -y -r deps_wandb.txt
+          when: always
+      - run:
+          name: "Install pre-release version of wandb with stable versions of dependencies"
+          command: |
+            pip install --pre wandb
+            python -c "import wandb"
+            pip freeze > deps_wandb_pre.txt
+            pip uninstall -y -r deps_wandb_pre.txt
+          when: always
+      - run:
+          name: "Install stable version of wandb with pre-release versions of dependencies"
+          command: |
+            wget https://raw.githubusercontent.com/wandb/client/$CIRCLE_BRANCH/requirements.txt
+            for r in `grep -o '^[^#]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
+            pip install wandb
+            python -c "import wandb"
+            pip freeze > deps_wandb_deps_pre.txt
+            pip uninstall -y -r deps_wandb_deps_pre.txt
+          when: always
+      - run:
+          name: "Install pre-release version of wandb with pre-release versions of dependencies"
+          command: |
+            for r in `grep -o '^[^#]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
+            pip install --pre wandb
+            python -c "import wandb"
+          when: always
+
+      # conditionally post a notification to slack if the job failed/succeeded
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+      - when:
+          condition: << parameters.notify_on_success >>
+          steps:
+            - slack/notify:
+                event: pass
+                template: basic_success_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
 workflows:
   nightly:
@@ -731,6 +801,15 @@ workflows:
           context: slack-secrets
           # todo? add a link to the pipeline in the message
           message: ":runner: *Nightly run started!*"
+      # check that `pip install wandb` is successful
+      - pip_install_wandb:
+          matrix:
+            parameters:
+              python_version: [ "3.6", "3.7", "3.8", "3.9", "3.10" ]
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
@@ -996,6 +1075,15 @@ workflows:
           # todo? add a link to the pipeline in the message
           message: ":runner: *Manual cloud run started!*"
           execute: << pipeline.parameters.manual_nightly_slack_notify >>
+      # check that `pip install wandb` is successful
+      - pip_install_wandb:
+          matrix:
+            parameters:
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          requires:
+            - "slack-notify-on-start"
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
