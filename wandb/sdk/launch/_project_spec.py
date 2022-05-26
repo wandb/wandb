@@ -78,7 +78,7 @@ class LaunchProject:
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
-        self.override_entrypoint = overrides.get("entry_point")
+        self.override_entrypoint: Optional[EntryPoint] = None
         self.resource = resource
         self.resource_args = resource_args
         self.deps_type: Optional[str] = None
@@ -88,9 +88,11 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if self.override_entrypoint is not None:
+        if overrides.get("entry_point") is not None:
             _logger.info("Adding override entry point")
-            self.add_entry_point(self.override_entrypoint)
+            self.override_entrypoint = self.add_entry_point(
+                overrides.get("entry_point")
+            )
         if self.uri is None:
             if self.docker_image is None:
                 raise LaunchError("Run requires a URI or a docker image")
@@ -289,7 +291,6 @@ class LaunchProject:
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
             )
-
             if not self._entry_points:
                 wandb.termlog(
                     "Entry point for repo not specified, defaulting to python main.py"
@@ -307,7 +308,8 @@ class EntryPoint:
 
     def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        command_arr = self.command
+        command_arr = []
+        command_arr += self.command
         extras = compute_command_args(user_parameters)
         command_arr += extras
         return command_arr

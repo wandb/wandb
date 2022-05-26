@@ -145,7 +145,6 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_secret_access_key=secret_key,
         )
         token = ecr_client.get_authorization_token()
-
         ecr_repo_name = given_sagemaker_args.get(
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
@@ -219,7 +218,6 @@ class AWSSagemakerRunner(AbstractRunner):
             wandb.termlog(
                 "Launching run on sagemaker with user-provided entrypoint in image"
             )
-
         sagemaker_args = build_sagemaker_args(
             launch_project, entry_point, self._api, account_id, image
         )

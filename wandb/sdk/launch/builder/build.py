@@ -227,8 +227,11 @@ def get_env_vars_dict(
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
     #  check if the user provided an override entrypoint, otherwise use the default
-    if launch_project.override_entrypoint is not None and entry_point:
-        env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(entry_point.command)
+
+    if launch_project.override_entrypoint is not None:
+        env_vars["WANDB_ENTRYPOINT_COMMAND"] = join(
+            launch_project.override_entrypoint.command
+        )
     if launch_project.override_args:
         env_vars["WANDB_ARGS"] = " ".join(
             compute_command_args(launch_project.override_args)
