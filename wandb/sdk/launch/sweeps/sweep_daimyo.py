@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from .daimyo import Daimyo
 import wandb
 from wandb import wandb_lib
+from wandb.errors import SweepError
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class LegacySweepRun:
-    """ Legacy Sweep Run. """
+    """Legacy Sweep Run."""
 
     # State must match Go's RunState
     # TODO: Link file in core
@@ -35,7 +36,7 @@ class LegacySweepRun:
 
 class SweepDaimyo(Daimyo):
     """A SweepDaimyo is a controller/agent that will populate a Launch RunQueue with
-    launch jobs it pulls from an internal sweeps RunQueue.
+    launch jobs it creates from run suggestions it pulls from an internal sweeps RunQueue.
     """
 
     def __init__(
@@ -43,15 +44,28 @@ class SweepDaimyo(Daimyo):
         *args,
         sweep_id: Optional[str] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
+        heartbeat_thread_sleep: int = 2,
+        heartbeat_queue_timeout: int = 5,
+        main_thread_sleep: int = 2,
         **kwargs,
     ):
         super(SweepDaimyo, self).__init__(*args, **kwargs)
-        # TODO: verify these properties, throw errors
-        # TODO: Get command from sweep config? (if no local kwarg is provided?)
-        # TODO: Look for sweep config in upserted sweep?
-        # TODO: Sweep config can also come in through init kwarg? (python usecase)
+        # Make sure the provided sweep_id corresponds to a valid sweep
+        found = self._api.sweep(
+            sweep_id, "{}", entity=self._entity, project=self._project
+        )
+        if not found:
+            raise SweepError(
+                f"Could not find sweep {self._entity}/{self._project}/{sweep_id}"
+            )
         self._sweep_id = sweep_id
+        # TODO(hupo): Sweep config can also come in through init kwarg? (python usecase)
+        # TODO(hupo): Get command from sweep config? (if no local kwarg is provided?)
+        # TODO(hupo): Look for sweep config in upserted sweep?
         self._sweep_config = sweep_config
+        self._heartbeat_thread_sleep = heartbeat_thread_sleep
+        self._heartbeat_queue_timeout = heartbeat_queue_timeout
+        self._main_thread_sleep = main_thread_sleep
 
     def _start(self):
         # Status for all the sweep runs this agent has popped off the sweep runqueue
@@ -75,16 +89,20 @@ class SweepDaimyo(Daimyo):
         while True:
             if not self.is_alive():
                 return
+            # AgentHeartbeat wants dict of runs which are running or queued
             run_status = {
                 run: True
                 for run, status in self._heartbeat_runs_status.items()
                 if status in (LegacySweepRun.QUEUED, LegacySweepRun.RUNNING)
             }
-            _msg = f"Sending AgentHeartbeat {run_status}"
+            _msg = f"AgentHeartbeat sending: \n{pprint.pformat(run_status)}\n"
             logger.debug(_msg)
             wandb.termlog(_msg)
             commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, run_status)
             if commands:
+                _msg = f"AgentHeartbeat received: \n{pprint.pformat(commands)}\n"
+                logger.debug(_msg)
+                wandb.termlog(_msg)
                 run = LegacySweepRun(commands[0])
                 if run.type in ["run", "resume"]:
                     self._heartbeat_queue.put(run)
@@ -95,46 +113,53 @@ class SweepDaimyo(Daimyo):
                 elif run.type == "exit":
                     self._exit()
                     continue
-            time.sleep(5)
+            time.sleep(self._heartbeat_thread_sleep)
 
     def _run(self):
         while True:
             if not self.is_alive():
                 return
             try:
-                run = self._heartbeat_queue.get(timeout=5)
+                run = self._heartbeat_queue.get(timeout=self._heartbeat_queue_timeout)
             except queue.Empty:
                 _msg = "No jobs in Sweeps RunQueue, waiting..."
                 logger.debug(_msg)
                 wandb.termlog(_msg)
-                time.sleep(5)
+                time.sleep(self._main_thread_sleep)
                 continue
+            else:
+                # If run is already stopped just ignore the request
+                if self._heartbeat_runs_status[run.id] == LegacySweepRun.STOPPED:
+                    continue
             finally:
-                print(f"Current heartbeat runs {self._heartbeat_runs_status}")
-                for run_id in self._heartbeat_runs_status:
-                    # This will cause Anaconda2 to populate the Sweeps RunQueue
+                # This will cause Anaconda2 to populate the Sweeps RunQueue
+                for run_id, status in self._heartbeat_runs_status:
+                    _msg = f"Current run {run_id} is {status}"
+                    logger.debug(_msg)
+                    wandb.termlog(_msg)
                     if self._heartbeat_runs_status[run_id] == LegacySweepRun.RUNNING:
                         self._heartbeat_runs_status[run_id] = LegacySweepRun.DONE
+                        _msg = f"Marking run {run_id} as {status}"
+                        logger.debug(_msg)
+                        wandb.termlog(_msg)
 
-            _msg = f"Sweep RunQueue AgentHeartbeat received: \n{pprint.pformat(run.command)}\n"
+            _msg = f"Converting Sweep RunQueue Item to Launch Job: \n{pprint.pformat(run.command)}\n"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            if self._heartbeat_runs_status[run.id] == LegacySweepRun.STOPPED:
-                continue
 
             # HACK: This is actually what populates the wandb config
             #       since it is used in wandb.init()
             sweep_param_path = os.path.join(
-                    os.environ.get(wandb.env.DIR, os.getcwd()),
-                    "wandb",
-                    f"sweep-{self._sweep_id}",
-                    f"config-{run.command['run_id']}.yaml"
-                )
+                os.environ.get(wandb.env.DIR, os.getcwd()),
+                "wandb",
+                f"sweep-{self._sweep_id}",
+                f"config-{run.command['run_id']}.yaml",
+            )
             wandb.termlog(f"Saving params to {sweep_param_path}")
             wandb_lib.config_util.save_config_file_from_dict(
                 sweep_param_path, run.command["args"]
             )
-            
+
             entry_point = [
                 "python",
                 run.command["program"],
@@ -144,21 +169,15 @@ class SweepDaimyo(Daimyo):
             entry_point += command_args["args"]
 
             # TODO: Entrypoint is now an object right?
-            entry_point_str = ""
-            for c in entry_point:
-                if " " in c:
-                    entry_point_str += '"%s" ' % c
-                else:
-                    entry_point_str += c + " "
+            entry_point_str = " ".join(entry_point)
+            job = self._add_to_launch_queue(
+                {
+                    "uri": os.getcwd(),
+                    "resource": "local-process",
+                    "entry_point": entry_point_str,
+                }
+            )
 
-            job = self._add_to_launch_queue({
-                "uri": os.getcwd(),
-                "resource" : "local-process",
-                "entry_point" : entry_point_str,
-            })
-            _msg = f"Pushing item from Sweep Run {run.id} to Launch RunQueue as {job._run_id}."
-            logger.debug(_msg)
-            wandb.termlog(_msg)
             self._heartbeat_runs_status[run.id] = LegacySweepRun.RUNNING
 
             # if self._heartbeat_runs_status[run.id] == RunStatus.RUNNING:
@@ -200,22 +219,20 @@ class SweepDaimyo(Daimyo):
             #         self._exit_flag = True
             #         return
 
-    # def _stop_run(self, run_id):
-    #     logger.debug(f"Stopping run {run_id}.")
-    #     self._heartbeat_runs_status[run_id] = LegacySweepRun.STOPPED
-    #     # TODO: Convert run key to job key?
-    #     _job = self._jobs.get(run_id)
-    #     if _job is not None:
-    #         # TODO: Can you command a launch agent to kill a job?
-    #         _job.kill()
+    def _stop_run(self, run_id):
+        _msg = f"Stopping run {run_id}."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
+        self._heartbeat_runs_status[run_id] = LegacySweepRun.STOPPED
+        # TODO(hupo): Can you command the launch agent to kill the associated job?
 
-    # def _stop_all_runs(self):
-    #     logger.debug("Stopping all runs.")
-    #     for run in list(self._jobs.keys()):
-    #         self._stop_run(run)
-        
-    #     # send mutation to kill the sweep
+    def _stop_all_runs(self):
+        _msg = "Stopping all runs."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
+        for run_id in self._heartbeat_runs_status.keys():
+            self._stop_run(run_id)
 
     def _exit(self):
-        pass
-    #     self._stop_all_runs()
+        self._stop_all_runs()
+        # TODO(hupo): Send mutation to kill the sweep?

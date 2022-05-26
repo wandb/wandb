@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
-from wandb.errors import LaunchError
+from wandb.errors import SweepError
 from wandb.sdk.launch.launch_add import launch_add
 
 
@@ -39,10 +39,10 @@ class Daimyo(ABC):
         queue: Optional[str] = None,
         **kwargs,
     ):
-        # TODO: verify these properties, throw errors
         self._api = api
+        # TODO(hupo): Verify that the launch queue exists or create it?
         self._queue = queue
-
+    
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -50,16 +50,16 @@ class Daimyo(ABC):
             or api.default_entity
         )
         if self._entity is None:
-            raise LaunchError('Sweep Daimyo could not resolve entity.')
+            raise SweepError("Sweep Daimyo could not resolve entity.")
+
         self._project = (
             project
             or os.environ.get("WANDB_PROJECT")
             or api.settings("project")
         )
         if self._project is None:
-            raise LaunchError('Sweep Daimyo could not resolve project.')
-        
-        
+            raise SweepError("Sweep Daimyo could not resolve project.")
+
         self._state: DaimyoState = DaimyoState.PENDING
         self._jobs: Dict[str, public.QueuedJob] = {}
 
@@ -83,7 +83,7 @@ class Daimyo(ABC):
         wandb.termlog(_msg)
         self._state = DaimyoState.STARTING
         self._start()
-        # TODO: Should start call run?
+        # TODO(hupo): Should start call run?
         self.run()
 
     @abstractmethod
@@ -100,10 +100,7 @@ class Daimyo(ABC):
         wandb.termlog(_msg)
         self.state = DaimyoState.RUNNING
         try:
-
-            # check status of jobs (runs) through graphql
-            # change status of jobs (runs) through graphql
-
+            # TODO(hupo): check/change status of launch jobs by looking at runs through graphql
             self._run()
         except KeyboardInterrupt:
             _msg = "Daimyo received KeyboardInterrupt. Exiting."
@@ -142,6 +139,9 @@ class Daimyo(ABC):
             # params: Optional[Dict[str, Any]] = None,
         )
         self._jobs[job._run_id] = job
+        _msg = f"Added job to Launch RunQueue: {job._run_id}."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
         return job
 
     def is_alive(self) -> bool:

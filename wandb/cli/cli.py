@@ -880,23 +880,28 @@ def sweep(
         _sweep_id_placeholder = "WANDB_SWEEP_ID"
 
         # Launch job spec for the daimyo
-        daimyo_launch_spec = json.dumps({
-            "queue": queue,
-            "run_spec": json.dumps(construct_launch_spec(
-            os.getcwd(),  # uri,
-            api,
-            f"Daimyo.{_sweep_id_placeholder}",  # name,
-            project,
-            entity,
-            None,  # docker_image,
-            "local-process",  # resource,
-            f"wandb daimyo {_sweep_id_placeholder} -p {project} -q {queue}",  # entry_point,
-            None,  # version,
-            None,  # params,
-            None,  # resource_args,
-            None,  # launch_config,
-            None,  # cuda,
-        ))})
+        daimyo_launch_spec = json.dumps(
+            {
+                "queue": queue,
+                "run_spec": json.dumps(
+                    construct_launch_spec(
+                        os.getcwd(),  # uri,
+                        api,
+                        f"Daimyo.{_sweep_id_placeholder}",  # name,
+                        project,
+                        entity,
+                        None,  # docker_image,
+                        "local-process",  # resource,
+                        f"wandb daimyo {_sweep_id_placeholder} -p {project} -q {queue}",  # entry_point,
+                        None,  # version,
+                        None,  # params,
+                        None,  # resource_args,
+                        None,  # launch_config,
+                        None,  # cuda,
+                    )
+                ),
+            }
+        )
 
     sweep_id, warnings = api.upsert_sweep(
         config,
