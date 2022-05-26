@@ -20,10 +20,8 @@ scikit-learn
 tensorflow>=1.15.2; python_version < '3.9' and sys_platform != 'darwin'
 tensorflow>=1.15.2; python_version > '3.6' and sys_platform == 'darwin' and platform.machine != 'arm64'
 tensorflow-macos; python_version > '3.6' and python_version < '3.10' and sys_platform == 'darwin' and platform.machine == 'arm64'
-torch; sys_platform == 'darwin'
-torchvision; sys_platform == 'darwin'
-torch==1.9.0+cpu; python_version < '3.9' and sys_platform != 'darwin'
-torchvision==0.10.0+cpu; python_version < '3.9' and sys_platform != 'darwin'
+torch; python_version < '3.10'
+torchvision; python_version < '3.10'
 plotly
 bokeh
 tqdm
