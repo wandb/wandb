@@ -2049,7 +2049,7 @@ from wandb.sdk import wandb_manager
 @cli.command(context_settings=CONTEXT, help="Debug stuff")
 @click.option("--service", default=None, help="service id to connect to")
 @click.argument("command", nargs=-1)
-def debug(service, command):
+def debug2(service, command):
     settings = dict()
     manager = wandb_manager._Manager(settings)
 
@@ -2074,3 +2074,12 @@ def debug(service, command):
     data_list = data.traceback.split("\n")
     for l in data_list:
         print(l)
+
+
+@cli.group(context_settings=CONTEXT, help="Debug stuff")
+def debug():
+    pass
+
+
+from . import debug_cli
+debug_cli.install_subcommands(debug)
