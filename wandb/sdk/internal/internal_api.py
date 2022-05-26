@@ -1400,6 +1400,37 @@ class Api:
         return res["project"]["run"]["runInfo"]
 
     @normalize_exceptions
+    def get_run_state(self, entity, project, name):
+        query = gql(
+            """
+        query RunState($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) {
+                    runState {
+                        state
+                    }
+                }
+            }
+        }
+        """
+        )
+        variable_values = {"project": project, "entity": entity, "name": name}
+        res = self.gql(query, variable_values)
+        if res.get("project") is None:
+            raise CommError(
+                "Error fetching run state for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
+                    entity, project, name
+                )
+            )
+        elif res["project"].get("run") is None:
+            raise CommError(
+                "Error fetching run state for {}/{}/{}. Check that this run id exists".format(
+                    entity, project, name
+                )
+            )
+        return res["project"]["run"]["state"]
+
+    @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
         """Generate temporary resumable upload urls
 

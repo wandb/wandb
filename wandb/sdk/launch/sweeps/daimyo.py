@@ -39,6 +39,7 @@ class Daimyo(ABC):
         queue: Optional[str] = None,
         **kwargs,
     ):
+        # This is internal API
         self._api = api
         # TODO(hupo): Verify that the launch queue exists or create it?
         self._queue = queue
@@ -100,6 +101,10 @@ class Daimyo(ABC):
         wandb.termlog(_msg)
         self.state = DaimyoState.RUNNING
         try:
+            for job_id, job in self._jobs.items():
+                # Job ID is the Run Name
+                _state = self._api.get_run_state(self._entity, self._project, job_id)
+                
             # TODO(hupo): check/change status of launch jobs by looking at runs through graphql
             self._run()
         except KeyboardInterrupt:
