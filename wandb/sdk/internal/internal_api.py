@@ -1316,7 +1316,9 @@ class Api:
             """
         serverSDKSettings {
                 sdkMessages{
-                    text
+                    utfText
+                    plainText
+                    htmlText
                 }
          }
         """
