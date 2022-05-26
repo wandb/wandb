@@ -3202,7 +3202,7 @@ class Run:
 
         if (quiet or settings.quiet) or settings.silent:
             return
-        
+
         # if settings.opt_out_nudge:
         #     return
 

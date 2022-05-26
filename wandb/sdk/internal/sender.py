@@ -479,8 +479,13 @@ class SendManager:
             result.response.poll_exit_response.done = True
             if self._server_messages:
                 for message in self._server_messages:
-                    message_record = wandb_internal_pb2.ServerMessage(text=message.get("text", ""), plain_text=message.get("plain_text", ""))
-                    result.response.poll_exit_response.server_messages.item.append(message_record)
+                    message_record = wandb_internal_pb2.ServerMessage(
+                        text=message.get("text", ""),
+                        plain_text=message.get("plain_text", ""),
+                    )
+                    result.response.poll_exit_response.server_messages.item.append(
+                        message_record
+                    )
         self._respond_result(result)
 
     def _maybe_setup_resume(
