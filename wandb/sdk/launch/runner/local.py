@@ -125,16 +125,14 @@ class LocalContainerRunner(AbstractRunner):
                 entry_point,
                 docker_args,
             )
-            command_str = sanitize_wandb_api_key(
-                " ".join(
-                    get_docker_command(image_uri, env_vars, [""], docker_args)
-                ).strip()
-            )
+            command_str = " ".join(
+                get_docker_command(image_uri, env_vars, [""], docker_args)
+            ).strip()
 
         if not self.ack_run_queue_item(launch_project):
             return None
-
-        wandb.termlog(f"Launching run in docker with command: {command_str}")
+        sanitized_cmd_str = sanitize_wandb_api_key(command_str)
+        wandb.termlog(f"Launching run in docker with command: {sanitized_cmd_str}")
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()

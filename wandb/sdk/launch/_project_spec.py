@@ -78,6 +78,7 @@ class LaunchProject:
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
+        self.override_entrypoint = overrides.get("entry_point")
         self.resource = resource
         self.resource_args = resource_args
         self.deps_type: Optional[str] = None
@@ -87,9 +88,9 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if overrides.get("entry_point") is not None:
+        if self.override_entrypoint is not None:
             _logger.info("Adding override entry point")
-            self.add_entry_point(overrides["entry_point"])
+            self.add_entry_point(self.override_entrypoint)
         if self.uri is None:
             if self.docker_image is None:
                 raise LaunchError("Run requires a URI or a docker image")
