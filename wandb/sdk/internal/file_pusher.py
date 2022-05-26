@@ -1,34 +1,15 @@
-#
-import os
 import logging
-import tempfile as builtin_tempfile
+import os
+import queue
+import tempfile
 import time
-from six.moves import queue
-import warnings
 
 import wandb
 import wandb.util
-from wandb.compat import tempfile
 
 from wandb.filesync import stats
 from wandb.filesync import step_checksum
 from wandb.filesync import step_upload
-
-
-def resolve_path(path):
-    try:
-        from pathlib import Path
-
-        return str(Path(path).resolve())
-    except:
-        # Pathlib isn't present for python versions earlier than 3.3
-        return os.path.realpath(path)
-
-
-# Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings(
-    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-)
 
 
 # Temporary directory for copies we make of some file types to
@@ -40,7 +21,7 @@ TMP_DIR = tempfile.TemporaryDirectory("wandb")
 logger = logging.getLogger(__name__)
 
 
-class FilePusher(object):
+class FilePusher:
     """Parallel file upload class.
     This manages uploading multiple files in parallel. It will restart a given file's
     upload job if it receives a notification that that file has been modified.
@@ -50,7 +31,7 @@ class FilePusher(object):
 
     MAX_UPLOAD_JOBS = 64
 
-    def __init__(self, api, silent=False):
+    def __init__(self, api, file_stream, silent=False):
         self._api = api
 
         self._tempdir = tempfile.TemporaryDirectory("wandb")
@@ -74,14 +55,10 @@ class FilePusher(object):
             self._stats,
             self._event_queue,
             self.MAX_UPLOAD_JOBS,
+            file_stream=file_stream,
             silent=silent,
         )
         self._step_upload.start()
-
-        # Holds refs to tempfiles if users need to make a temporary file that
-        # stays around long enough for file pusher to sync
-        # TODO(artifacts): maybe don't do this
-        self._temp_file_refs = []
 
     def get_status(self):
         running = self.is_alive()
@@ -96,7 +73,7 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self._stats.summary()
-            line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
+            line = " {:.2f}MB of {:.2f}MB uploaded ({:.2f}MB deduped)\r".format(
                 summary["uploaded_bytes"] / 1048576.0,
                 summary["total_bytes"] / 1048576.0,
                 summary["deduped_bytes"] / 1048576.0,
@@ -156,14 +133,6 @@ class FilePusher(object):
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
 
-    def named_temp_file(self, mode="w+b"):
-        # get a named temp file that the file pusher with hold a reference to so it
-        # doesn't get gc'd. Obviously, we shouldn't do this very much :). It's currently
-        # used for artifact metadata.
-        f = builtin_tempfile.NamedTemporaryFile(mode=mode, delete=False)
-        self._temp_file_refs.append(f)
-        return f
-
     def commit_artifact(
         self, artifact_id, finalize=True, before_commit=None, on_commit=None
     ):
@@ -172,9 +141,9 @@ class FilePusher(object):
         )
         self._incoming_queue.put(event)
 
-    def finish(self):
+    def finish(self, callback=None):
         logger.info("shutting down file pusher")
-        self._incoming_queue.put(step_checksum.RequestFinish())
+        self._incoming_queue.put(step_checksum.RequestFinish(callback))
 
     def join(self):
         # NOTE: must have called finish before join

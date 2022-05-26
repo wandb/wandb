@@ -18,7 +18,7 @@ try:
 except ImportError:
     wandb.termwarn("ipython is not supported in python 2.7, upgrade to 3.x")
 
-    class Magics(object):
+    class Magics:
         pass
 
     def magics_class(*args, **kwargs):
@@ -36,46 +36,143 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+__IFrame = None
 
-class Run(object):
-    def __init__(self, run=None):
-        self.run = run or wandb.run
+
+def maybe_display():
+    """Display a run if the user added cell magic and we have run"""
+    if __IFrame is not None:
+        return __IFrame.maybe_display()
+    return False
+
+
+def quiet():
+    if __IFrame is not None:
+        return __IFrame.opts.get("quiet")
+    return False
+
+
+class IFrame:
+    def __init__(self, path=None, opts=None):
+        self.path = path
+        self.api = wandb.Api()
+        self.opts = opts or {}
+        self.displayed = False
+        self.height = self.opts.get("height", 420)
+
+    def maybe_display(self) -> bool:
+        if not self.displayed and (self.path or wandb.run):
+            display(self)
+        return self.displayed
 
     def _repr_html_(self):
         try:
-            url = self.run._get_run_url() + "?jupyter=true"
-            return (
-                """<iframe src="%s" style="border:none;width:100%%;height:420px">
-                </iframe>"""
-                % url
-            )
+            self.displayed = True
+            if self.opts.get("workspace", False):
+                if self.path is None and wandb.run:
+                    self.path = wandb.run.path
+            if isinstance(self.path, str):
+                object = self.api.from_path(self.path)
+            else:
+                object = wandb.run
+            if object is None:
+                if wandb.Api().api_key is None:
+                    return "You must be logged in to render wandb in jupyter, run `wandb.login()`"
+                else:
+                    object = self.api.project(
+                        "/".join(
+                            [
+                                wandb.Api().default_entity,
+                                wandb.util.auto_project_name(None),
+                            ]
+                        )
+                    )
+            return object.to_html(self.height, hidden=False)
         except wandb.Error as e:
-            return "Can't display wandb interface<br/>{}".format(e)
+            return f"Can't display wandb interface<br/>{e}"
 
 
 @magics_class
 class WandBMagics(Magics):
     def __init__(self, shell, require_interaction=False):
-        super(WandBMagics, self).__init__(shell)
+        super().__init__(shell)
         self.options = {}
 
     @magic_arguments()
     @argument(
-        "-d",
-        "--display",
-        default=True,
-        help="Display the wandb interface automatically",
+        "path",
+        default=None,
+        nargs="?",
+        help="A path to a resource you want to display, defaults to wandb.run.path",
+    )
+    @argument(
+        "-w",
+        "--workspace",
+        default=False,
+        action="store_true",
+        help="Display the entire run project workspace",
+    )
+    @argument(
+        "-q",
+        "--quiet",
+        default=False,
+        action="store_true",
+        help="Display the minimal amount of output",
+    )
+    @argument(
+        "-h",
+        "--height",
+        default=420,
+        type=int,
+        help="The height of the iframe in pixels",
     )
     @line_cell_magic
     def wandb(self, line, cell=None):
+        """Display wandb resources in jupyter.  This can be used as cell or line magic.
+
+        %wandb USERNAME/PROJECT/runs/RUN_ID
+        ---
+        %%wandb -h 1024
+        with wandb.init() as run:
+            run.log({"loss": 1})
+        """
         # Record options
         args = parse_argstring(self.wandb, line)
-        self.options["body"] = ""
-        self.options["wandb_display"] = args.display
-        # Register events
-        display(Run())
+        self.options["height"] = args.height
+        self.options["workspace"] = args.workspace
+        self.options["quiet"] = args.quiet
+        iframe = IFrame(args.path, opts=self.options)
+        displayed = iframe.maybe_display()
         if cell is not None:
+            if not displayed:
+                # Store the IFrame globally and attempt to display if we have a run
+                cell = (
+                    f"wandb.jupyter.__IFrame = wandb.jupyter.IFrame(opts={self.options})\n"
+                    + cell
+                    + "\nwandb.jupyter.__IFrame = None"
+                )
             get_ipython().run_cell(cell)
+
+
+def notebook_metadata_from_jupyter_servers_and_kernel_id():
+    servers, kernel_id = jupyter_servers_and_kernel_id()
+    for s in servers:
+        if s.get("password"):
+            raise ValueError("Can't query password protected kernel")
+        res = requests.get(
+            urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
+        ).json()
+        for nn in res:
+            # TODO: wandb/client#400 found a case where res returned an array of
+            # strings...
+            if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
+                if nn["kernel"]["id"] == kernel_id:
+                    return {
+                        "root": s.get("root_dir", s.get("notebook_dir", os.getcwd())),
+                        "path": nn["notebook"]["path"],
+                        "name": nn["notebook"]["name"],
+                    }
+    return None
 
 
 def notebook_metadata(silent):
@@ -97,11 +194,24 @@ def notebook_metadata(silent):
         # In colab we can request the most recent contents
         ipynb = attempt_colab_load_ipynb()
         if ipynb:
-            return {
+            nb_name = ipynb["metadata"]["colab"]["name"]
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
+            ret = {
                 "root": "/content",
-                "path": ipynb["metadata"]["colab"]["name"],
-                "name": ipynb["metadata"]["colab"]["name"],
+                "path": nb_name,
+                "name": nb_name,
             }
+
+            try:
+                jupyter_metadata = (
+                    notebook_metadata_from_jupyter_servers_and_kernel_id()
+                )
+            except RuntimeError:
+                pass
+            else:
+                ret["path"] = jupyter_metadata["path"]
+            return ret
 
         if wandb.util._is_kaggle():
             # In kaggle we can request the most recent contents
@@ -113,26 +223,9 @@ def notebook_metadata(silent):
                     "name": ipynb["metadata"]["name"],
                 }
 
-        servers, kernel_id = jupyter_servers_and_kernel_id()
-        for s in servers:
-            if s.get("password"):
-                raise ValueError("Can't query password protected kernel")
-            res = requests.get(
-                urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
-            ).json()
-            for nn in res:
-                # TODO: wandb/client#400 found a case where res returned an array of
-                # strings...
-                if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
-                    if nn["kernel"]["id"] == kernel_id:
-                        return {
-                            "root": s.get(
-                                "root_dir", s.get("notebook_dir", os.getcwd())
-                            ),
-                            "path": nn["notebook"]["path"],
-                            "name": nn["notebook"]["name"],
-                        }
-
+        jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
+        if jupyter_metadata:
+            return jupyter_metadata
         if not silent:
             logger.error(error_message)
         return {}
@@ -236,7 +329,7 @@ def attempt_colab_login(app_url):
         return None
 
 
-class Notebook(object):
+class Notebook:
     def __init__(self, settings):
         self.outputs = {}
         self.settings = settings
@@ -265,7 +358,7 @@ class Notebook(object):
         relpath = self.settings._jupyter_path
         if relpath:
             if os.path.exists(relpath):
-                with open(relpath, "r") as json_file:
+                with open(relpath) as json_file:
                     data = json.load(json_file)
                     return data
 
@@ -298,10 +391,13 @@ class Notebook(object):
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
+            nb_name = colab_ipynb["metadata"]["colab"]["name"]
+            if ".ipynb" not in nb_name:
+                nb_name += ".ipynb"
             with open(
                 os.path.join(
                     self.settings._tmp_code_dir,
-                    colab_ipynb["metadata"]["colab"]["name"],
+                    nb_name,
                 ),
                 "w",
                 encoding="utf-8",

@@ -1,3 +1,400 @@
+## 0.12.16 (May 3, 2022)
+
+#### :nail_care: Enhancement
+* Improve W&B footer by aligning summary/history in notebook env by @kptkin in https://github.com/wandb/client/pull/3479
+* Enable experimental history step logging in artifacts by @raubitsj in https://github.com/wandb/client/pull/3502
+* Add `args_no_boolean_flags` macro to sweep configuration by @hu-po in https://github.com/wandb/client/pull/3489
+* Add logging support for `jax.bfloat.bfloat16` by @dmitryduev in https://github.com/wandb/client/pull/3528
+* Raise exception when Table size exceeds limit by @dannygoldstein in https://github.com/wandb/client/pull/3511
+* Add kaniko k8s builder for wandb launch by @KyleGoyette in https://github.com/wandb/client/pull/3492
+* Add wandb.init() timeout setting by @kptkin in https://github.com/wandb/client/pull/3579
+* Do not assume executable for given entrypoints with wandb launch by @KyleGoyette in https://github.com/wandb/client/pull/3461
+* Jupyter environments no longer collect command arguments by @KyleGoyette in https://github.com/wandb/client/pull/3456
+* Add support for TensorFlow/Keras SavedModel format by @ayulockin in https://github.com/wandb/client/pull/3276
+
+#### :bug: Bug Fix
+* Support version IDs in artifact refs, fix s3/gcs references in Windows by @annirudh in https://github.com/wandb/client/pull/3529
+* Fix support for multiple finish for single run using wandb-service by @kptkin in https://github.com/wandb/client/pull/3560
+* Fix duplicate backtrace when using wandb-service by @kptkin in https://github.com/wandb/client/pull/3575
+* Fix wrong entity displayed in login message by @kptkin in https://github.com/wandb/client/pull/3490
+* Fix hang when `wandb.init` is interrupted mid setup using wandb-service by @kptkin in https://github.com/wandb/client/pull/3569
+* Fix handling keyboard interrupt to avoid hangs with wandb-service enabled by @kptkin in https://github.com/wandb/client/pull/3566
+* Fix console logging with very long print out when using wandb-service by @kptkin in https://github.com/wandb/client/pull/3574
+* Fix broken artifact string in launch init config by @KyleGoyette in https://github.com/wandb/client/pull/3582
+
+#### :broom: Cleanup
+* Fix typo in wandb.log() docstring by @RobRomijnders in https://github.com/wandb/client/pull/3520
+* Cleanup custom chart code and add type annotations to plot functions by @kptkin in https://github.com/wandb/client/pull/3407
+* Improve `wandb.init(settings=)` to handle `Settings` object similarly to `dict` parameter by @dmitryduev in https://github.com/wandb/client/pull/3510
+* Add documentation note about api.viewer in api.user() and api.users() by @ramit-wandb in https://github.com/wandb/client/pull/3552
+* Be explicit about us being py3+ only in setup.py by @dmitryduev in https://github.com/wandb/client/pull/3549
+* Add type annotations to DirWatcher by @speezepearson in https://github.com/wandb/client/pull/3557
+* Improve wandb.log() docstring to use the correct argument name by @idaho777 in https://github.com/wandb/client/pull/3585
+
+## New Contributors
+* @RobRomijnders made their first contribution in https://github.com/wandb/client/pull/3520
+* @ramit-wandb made their first contribution in https://github.com/wandb/client/pull/3552
+* @idaho777 made their first contribution in https://github.com/wandb/client/pull/3585
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.15...v0.12.16
+
+## 0.12.15 (April 21, 2022)
+
+#### :nail_care: Enhancement
+* Optimize wandb.Image logging when linked to an artifact by @tssweeney in https://github.com/wandb/client/pull/3418
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.14...v0.12.15
+
+## 0.12.14 (April 8, 2022)
+
+#### :bug: Bug Fix
+* Fix regression: disable saving history step in artifacts by @vwrj in https://github.com/wandb/client/pull/3495
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.13...v0.12.14
+
+## 0.12.13 (April 7, 2022)
+
+#### :bug: Bug Fix
+* Revert strictened api_key validation by @dmitryduev in https://github.com/wandb/client/pull/3485
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.12...v0.12.13
+
+## 0.12.12 (April 5, 2022)
+
+#### :nail_care: Enhancement
+* Allow run objects to be passed to other processes when using wandb-service by @kptkin in https://github.com/wandb/client/pull/3308
+* Add create user to public api by @vanpelt in https://github.com/wandb/client/pull/3438
+* Support logging from multiple processes with wandb-service by @kptkin in https://github.com/wandb/client/pull/3285
+* Add gpus flag for local launch runner with cuda by @KyleGoyette in https://github.com/wandb/client/pull/3417
+* Improve Launch deployable agent by @KyleGoyette in https://github.com/wandb/client/pull/3388
+* Add Launch kubernetes integration by @KyleGoyette in https://github.com/wandb/client/pull/3393
+* KFP: Add wandb visualization helper by @andrewtruong in https://github.com/wandb/client/pull/3439
+* KFP: Link back to Kubeflow UI by @andrewtruong in https://github.com/wandb/client/pull/3427
+* Add boolean flag arg macro by @hugo.ponte in https://github.com/wandb/client/pull/3489
+
+#### :bug: Bug Fix
+* Improve host / WANDB_BASE_URL validation by @dmitryduev in https://github.com/wandb/client/pull/3314
+* Fix/insecure tempfile by @dmitryduev in https://github.com/wandb/client/pull/3360
+* Fix excess warning span if requested WANDB_DIR/root_dir is not writable by @dmitryduev in https://github.com/wandb/client/pull/3304
+* Fix line_series to plot array of strings by @kptkin in https://github.com/wandb/client/pull/3385
+* Properly handle command line args with service by @kptkin in https://github.com/wandb/client/pull/3371
+* Improve api_key validation by @dmitryduev in https://github.com/wandb/client/pull/3384
+* Fix multiple performance issues caused by not using defaultdict by @dmitryduev in https://github.com/wandb/client/pull/3406
+* Enable inf max jobs on launch agent by @stephchen in https://github.com/wandb/client/pull/3412
+* fix colab command to work with launch by @stephchen in https://github.com/wandb/client/pull/3422
+* fix typo in Config docstring by @hu-po in https://github.com/wandb/client/pull/3416
+* Make code saving not a policy, keep previous custom logic by @dmitryduev in https://github.com/wandb/client/pull/3395
+* Fix logging sequence images with service by @kptkin in https://github.com/wandb/client/pull/3339
+* Add username to debug-cli log file to prevent conflicts of multiple users by @zythosec in https://github.com/wandb/client/pull/3301
+* Fix python sweep agent for users of wandb service / pytorch-lightning by @raubitsj in https://github.com/wandb/client/pull/3465
+* Remove unnecessary launch reqs checks by @KyleGoyette in https://github.com/wandb/client/pull/3457
+* Workaround for MoviePy's Unclosed Writer by @tssweeney in https://github.com/wandb/client/pull/3471
+* Improve handling of Run objects when service is not enabled by @kptkin in https://github.com/wandb/client/pull/3362
+
+## New Contributors
+* @hu-po made their first contribution in https://github.com/wandb/client/pull/3416
+* @zythosec made their first contribution in https://github.com/wandb/client/pull/3301
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.11...v0.12.12
+
+## 0.12.11 (March 1, 2022)
+
+#### :nail_care: Enhancement
+* Add captions to Molecules by @dmitryduev in https://github.com/wandb/client/pull/3173
+* Add CatBoost Integration by @ayulockin in https://github.com/wandb/client/pull/2975
+* Launch: AWS Sagemaker integration by @KyleGoyette in https://github.com/wandb/client/pull/3007
+* Launch: Remove repo2docker and add gpu support by @stephchen in https://github.com/wandb/client/pull/3161
+* Adds Timestamp inference from Python for Weave by @tssweeney in https://github.com/wandb/client/pull/3212
+* Launch GCP vertex integration by @stephchen in https://github.com/wandb/client/pull/3040
+* Use Artifacts when put into run config. Accept a string to represent an artifact in the run config by @KyleGoyette in https://github.com/wandb/client/pull/3203
+* Improve xgboost `wandb_callback` (#2929) by @ayulockin in https://github.com/wandb/client/pull/3025
+* Add initial kubeflow pipeline support by @andrewtruong in https://github.com/wandb/client/pull/3206
+
+#### :bug: Bug Fix
+* Fix logging of images with special characters in the key by @speezepearson in https://github.com/wandb/client/pull/3187
+* Fix azure blob upload retry logic by @vanpelt in https://github.com/wandb/client/pull/3218
+* Fix program field for scripts run as a python module by @dmitryduev in https://github.com/wandb/client/pull/3228
+* Fix issue where `sync_tensorboard` could die on large histograms by @KyleGoyette in https://github.com/wandb/client/pull/3019
+* Fix wandb service performance issue during run shutdown by @raubitsj in https://github.com/wandb/client/pull/3262
+* Fix vendoring of gql and graphql by @raubitsj in https://github.com/wandb/client/pull/3266
+* Flush log data without finish with service by @kptkin in https://github.com/wandb/client/pull/3137
+* Fix wandb service hang when the service crashes by @raubitsj in https://github.com/wandb/client/pull/3280
+* Fix issue logging images with "/" on Windows by @KyleGoyette in https://github.com/wandb/client/pull/3146
+* Add image filenames to images/separated media by @KyleGoyette in https://github.com/wandb/client/pull/3041
+* Add setproctitle to requirements.txt by @raubitsj in https://github.com/wandb/client/pull/3289
+* Fix issue where sagemaker run ids break run queues by @KyleGoyette in https://github.com/wandb/client/pull/3290
+* Fix encoding exception when using %%capture magic by @raubitsj in https://github.com/wandb/client/pull/3310
+
+## New Contributors
+* @speezepearson made their first contribution in https://github.com/wandb/client/pull/3188
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.10...v0.12.11
+
+## 0.12.10 (February 1, 2022)
+
+#### :nail_care: Enhancement
+* Improve validation when creating Tables with invalid columns from dataframes by @tssweeney in https://github.com/wandb/client/pull/3113
+* Enable digest deduplication for `use_artifact()` calls by @annirudh in https://github.com/wandb/client/pull/3109
+* Initial prototype of azure blob upload support by @vanpelt in https://github.com/wandb/client/pull/3089
+
+#### :bug: Bug Fix
+* Fix wandb launch using python dev versions by @stephchen in https://github.com/wandb/client/pull/3036
+* Fix loading table saved with mixed types by @vwrj in https://github.com/wandb/client/pull/3120
+* Fix ResourceWarning when calling wandb.log by @vwrj in https://github.com/wandb/client/pull/3130
+* Fix missing cursor in ProjectArtifactCollections by @KyleGoyette in https://github.com/wandb/client/pull/3108
+* Fix windows table logging classes issue by @vwrj in https://github.com/wandb/client/pull/3145
+* Gracefully handle string labels in wandb.sklearn.plot.classifier.calibration_curve by @acrellin in https://github.com/wandb/client/pull/3159
+* Do not display login warning when calling wandb.sweep() by @acrellin in https://github.com/wandb/client/pull/3162
+
+#### :broom: Cleanup
+* Drop python2 backport deps (enum34, subprocess32, configparser) by @jbylund in https://github.com/wandb/client/pull/3004
+* Settings refactor by @dmitryduev in https://github.com/wandb/client/pull/3083
+
+## New Contributors
+* @jbylund made their first contribution in https://github.com/wandb/client/pull/3004
+* @acrellin made their first contribution in https://github.com/wandb/client/pull/3159
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.9...v0.12.10
+
+## 0.12.9 (December 16, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression in `upload_file()` exception handler by @raubitsj in https://github.com/wandb/client/pull/3059
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.8...v0.12.9
+
+## 0.12.8 (December 16, 2021)
+
+#### :nail_care: Enhancement
+
+- Update contributing guide and dev env setup tool by @dmitryduev in https://github.com/wandb/client/pull/2968
+- Improve `wandb_callback` for LightGBM (#2945) by @ayulockin in https://github.com/wandb/client/pull/3024
+
+#### :bug: Bug Fix
+
+- Reduce GPU memory usage when generating histogram of model weights by @TOsborn in https://github.com/wandb/client/pull/2927
+- Support mixed classes in bounding box and image mask annotation layers by @tssweeney in https://github.com/wandb/client/pull/2914
+- Add max-jobs and launch async args by @stephchen in https://github.com/wandb/client/pull/2925
+- Support lists of Summary objects encoded as strings to wandb.tensorboard.log by @dmitryduev in https://github.com/wandb/client/pull/2934
+- Fix handling of 0 dim np arrays by @rpitonak in https://github.com/wandb/client/pull/2954
+- Fix handling of empty default config file by @vwrj in https://github.com/wandb/client/pull/2957
+- Add service backend using sockets (support fork) by @raubitsj in https://github.com/wandb/client/pull/2892
+- Send git port along with url when sending git repo by @KyleGoyette in https://github.com/wandb/client/pull/2959
+- Add support raw ip addresses for launch by @KyleGoyette in https://github.com/wandb/client/pull/2950
+- Tables no longer serialize and hide 1d NDArrays by @tssweeney in https://github.com/wandb/client/pull/2976
+- Fix artifact file uploads to S3 stores by @annirudh in https://github.com/wandb/client/pull/2999
+- Send uploaded file list on file stream heartbeats by @annirudh in https://github.com/wandb/client/pull/2978
+- Add support for keras experimental layers by @KyleGoyette in https://github.com/wandb/client/pull/2776
+- Fix `from wandb import magic` to not require tensorflow by @raubitsj in https://github.com/wandb/client/pull/3021
+- Fix launch permission error by @KyleGoyette in https://github.com/wandb/client/pull/3038
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.7...v0.12.8
+
+## 0.12.7 (November 18, 2021)
+
+#### :bug: Bug Fix
+
+- Fix issue where console log streaming was causing excessive network traffic by @vwrj in https://github.com/wandb/client/pull/2786
+- Metaflow: Make optional dependencies actually optional by @andrewtruong in https://github.com/wandb/client/pull/2842
+- Fix docstrings for wandb.watch and ValidationDataLogger by @charlesfrye in https://github.com/wandb/client/pull/2849
+- Prevent launch agent from sending runs to a different project or entity by @KyleGoyette in https://github.com/wandb/client/pull/2872
+- Fix logging pr_curves through tensorboard by @KyleGoyette in https://github.com/wandb/client/pull/2876
+- Prevent TPU monitoring from reporting invalid metrics when not available by @kptkin in https://github.com/wandb/client/pull/2753
+- Make import order dependencies for WandbCallback more robust by @kptkin in https://github.com/wandb/client/pull/2807
+- Fix a bug in feature importance plotting to handle matrices of different shapes by @dannygoldstein in https://github.com/wandb/client/pull/2811
+- Fix base url handling to allow trailing / by @kptkin in https://github.com/wandb/client/pull/2910
+- Prevent wandb.agent() from sending too many heartbeats impacting rate limits by @dannygoldstein in https://github.com/wandb/client/pull/2923
+- Redact sensitive information from debug logs by @raubitsj in https://github.com/wandb/client/pull/2931
+
+#### :nail_care: Enhancement
+
+- Add wandb.Molecule support for rdkit supported formats by @dmitryduev in https://github.com/wandb/client/pull/2902
+- Add module-level docstrings for reference doc modules. by @charlesfrye in https://github.com/wandb/client/pull/2847
+- Store launch metadata in file by @KyleGoyette in https://github.com/wandb/client/pull/2582
+- Add Project.sweeps() public API call to view all sweeps in a project by @stephchen in https://github.com/wandb/client/pull/2729
+- Ensures API key prompt remains captive when user enters nothing by @dannygoldstein in https://github.com/wandb/client/pull/2721
+- Refactors wandb.sklearn into submodules by @charlesfrye in https://github.com/wandb/client/pull/2869
+- Support code artifacts in wandb launch by @KyleGoyette in https://github.com/wandb/client/pull/2860
+- Improve launch agent (async, stop, heartbeat updates) by @stephchen in https://github.com/wandb/client/pull/2871
+- Improve usage and error messages for anonymous mode by @kimjyhello in https://github.com/wandb/client/pull/2823
+- Add example on how to find runs with wandb.Api().runs(...) matching a regex by @dmitryduev in https://github.com/wandb/client/pull/2926
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.6...v0.12.7
+
+## 0.12.6 (October 27, 2021)
+
+#### :bug: Bug Fix
+
+- Fix sklearn `plot_calibration_curve()` issue breaking the provided model by @vwrj in https://github.com/wandb/client/pull/2791
+- Fix CondaEnvExportError by redirecting stderr by @charlesfrye in https://github.com/wandb/client/pull/2814
+- Fix `use_artifact()` when specifying an artifact from a different project by @KyleGoyette in https://github.com/wandb/client/pull/2832
+
+#### :nail_care: Enhancement
+
+- Add metric names to pr curve charts in tensorboard by @vanpelt in https://github.com/wandb/client/pull/2822
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.5...v0.12.6
+
+## 0.12.5 (October 19, 2021)
+
+#### :bug: Bug Fix
+
+- Report errors for invalid characters in logged media keys on windows
+- Handle errors when probing for TPUs in unsupported environments
+- Fixed bug where `%%wandb` followed by wandb.init() does not display run links
+- Fixed api.runs() to correctly return all runs for the current entity/project
+
+#### :nail_care: Enhancement
+
+- Add `wandb.require(experiment="service")` to improve multiprocessing support
+- Add support for swappable artifacts in launch context
+- Add `wandb.login(timeout=)` support for jupyter environments
+- Add ability to disable git ref saving with `WANDB_DISABLE_GIT`
+- Support newer versions of pytest-mock and PyYAML
+- Add ability to delete artifacts with aliases: `artifact.delete(delete_aliases=True)`
+- Add `unwatch()` method to the Run object
+
+## 0.12.4 (October 5, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression introduced in 0.12.2 causing network access when `WANDB_MODE=offline`
+
+## 0.12.3 (September 30, 2021)
+
+#### :bug: Bug Fix
+
+- Fixes the grid search stopping condition in the local controller
+
+#### :nail_care: Enhancement
+
+- New jupyter magic for displaying runs, sweeps, and projects `%wandb path/to/run -h 1024`
+- We no longer display run iframe by default in jupyter, add `%%wandb` to a cell to display a run
+- Makes api key prompting retry indefinitely on malformed input
+- Invite users to teams via the api `api.team("team_name").invite("username_or_email")`
+- Remove users from a team via the api `api.team("team_name").members[0].delete()`
+- Create service accounts via the api `api.team("team_name").create_service_account("Description")`
+- Manage api keys via the api `api.user("username_or_email").generate_api_key()`
+- Add pytorch profiling trace support with `wandb.profiler.torch_trace_handler()`
+
+## 0.12.2 (September 15, 2021)
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync to handle ephemeral Sagemaker tfevents files
+- Fix Reports query from the public api (broken pagination and report path)
+- Fix `wandb.login()` when relogin is specified (only force login once)
+
+#### :nail_care: Enhancement
+
+- Clean up footer output of summary and history metrics
+- Clean up error message from `wandb sweep --update`
+- Add warning for `wandb local` users to update their docker
+- Add optional argument log_learning_curve to wandb.sklearn.plot_classifier()
+- Restore frozen pip package versions when using `wandb launch`
+- Add support for jupyter notebooks in launch
+- Add `wandb.login()` timeout option
+
+## 0.12.1 (August 26, 2021)
+
+#### :bug: Bug Fix
+
+- Fix tensorflow/keras 2.6 not logging validation examples
+- Fix metrics logged through tensorboard not supporting time on x-axis
+- Fix `WANDB_IGNORE_GLOBS` environment variable handling
+- Fix handling when sys.stdout is configured to a custom logger
+- Fix sklearn feature importance plots not matching feature names properly
+- Fix an issue where colab urls were not being captured
+- Save program commandline if run executable was outside cwd
+
+#### :nail_care: Enhancement
+
+- Add Prodigy integration to upload annotated datasets to W&B Tables
+- Add initial Metaflow support
+- Add experimental wandb launch support
+- Add warnings that public API requests are timing out and allow override
+- Improve error handling in local controller sweeps engine
+
+## 0.12.0 (August 10, 2021)
+
+#### :hourglass: No Longer Supported
+
+- Remove Python 3.5 support
+
+#### :bug: Bug Fix
+
+- Fix issue that could cause artifact uploads to fail if artifact files are being modified
+- Fix issue where `wandb.restore()` wouldn't work with runs from a sweep
+
+#### :nail_care: Enhancement
+
+- Improve run execution time calculation
+
+## 0.11.2 (August 2, 2021)
+
+#### :bug: Bug Fix
+
+- Restore vendored graphql-core library because of network regression
+
+## 0.11.1 (July 29, 2021)
+
+#### :hourglass: Deprecated
+
+- Python 3.5 will not be supported as of `wandb==0.12.0`
+
+#### :bug: Bug Fix
+
+- Reduce Memory Footprint of Images In Tables
+- Added a dependency on graphql-core>=2.3.0
+- Removed urllib3 pin to avoid conflicts, if you see urllib3 related errors run `pip install --upgrade urllib3`
+- Improved Public API HTTP error messages
+- Set run.dir to the generated directory name in disabled mode
+
+#### :nail_care: Enhancement
+
+- Adds support for native Jax array logging
+- Tables now support Molecule data type
+- Improve Stable-Baselines3 API by auto log model's name and always upload models at the end of training
+- Implements the sweep local controller using wandb/sweeps
+
+## 0.11.0 (July 15, 2021)
+
+#### :hourglass: No Longer Supported
+
+- Remove Python 2.7 support
+
+#### :bug: Bug Fix
+
+- Fix issue where `wandb.watch()` broke model saving in pytorch
+- Fix issue where uniform sweep parameters were parsed as int_uniform
+- Fix issue where file_stream thread was killed on 4xx errors
+
+#### :nail_care: Enhancement
+
+- Improve performance of artifact logging by making it non-blocking
+- Add wandb integration for Stable-Baselines3
+- Improve keras callback validation logging inference logic
+- Expose sweep state via the public API
+- Improve performance of sweep run fetches via the API
+
+## 0.10.33 (June 28, 2021)
+
+#### :bug: Bug Fix
+
+- Fix issue where wandb restore 404ed if the run did not have a diff.patch file
+- Fix issue where wandb.log raised an Exception after trying to log a pandas dataframe
+- Fix issue where runs could be marked finished before files were finished uploading
+
+#### :nail_care: Enhancement
+
+- Disable reloading of run metadata (such as command) in resumed runs
+- Allow logging of pandas dataframes by automatically converting them to W&B tables
+- Fix up `log_code()` exclude fn to handle .wandb dir
+- Improve handling of PyTorch model topology
+- Increase config debounce interval to 30s to reduce load on WB/backend
+- Improve reliability of CLI in generating sweeps with names, programs, and settings
+
 ## 0.10.32 (June 10, 2021)
 
 #### :bug: Bug Fix

@@ -1,18 +1,29 @@
 #!/usr/bin/env python
-"""WIP wandb grpc test client."""
+"""WIP wandb grpc test client.
 
-from __future__ import print_function
+This is a very internal test client, it is only for testing to verify base functionality is preserved.
 
+"""
+
+
+import datetime
+import enum
 import json
 import logging
 import os
 import time
+from typing import Any, Dict
+from typing import TYPE_CHECKING
 
 import grpc
-import six
+import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.proto import wandb_server_pb2  # type: ignore
+from wandb.proto import wandb_server_pb2 as spb  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
+
+
+if TYPE_CHECKING:
+    from google.protobuf.internal.containers import MessageMap
 
 
 def make_exit_data(data):
@@ -32,11 +43,39 @@ def make_log_data(data):
 
 def make_config(config_dict, obj=None):
     config = obj or wandb_internal_pb2.ConfigRecord()
-    for k, v in six.iteritems(config_dict):
+    for k, v in config_dict.items():
         update = config.update.add()
         update.key = k
         update.value_json = json.dumps(v)
     return config
+
+
+def _pbmap_apply_dict(
+    m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
+) -> None:
+    for k, v in d.items():
+        if isinstance(v, datetime.datetime):
+            continue
+        if isinstance(v, enum.Enum):
+            continue
+        sv = spb.SettingsValue()
+        if v is None:
+            sv.null_value = True
+        elif isinstance(v, int):
+            sv.int_value = v
+        elif isinstance(v, float):
+            sv.float_value = v
+        elif isinstance(v, str):
+            sv.string_value = v
+        elif isinstance(v, bool):
+            sv.bool_value = v
+        elif isinstance(v, tuple):
+            sv.tuple_value.string_values.extend(v)
+        m[k].CopyFrom(sv)
+
+
+def make_settings(settings_dict, obj):
+    _pbmap_apply_dict(obj, settings_dict)
 
 
 def make_run_data(data):
@@ -65,7 +104,7 @@ def make_run_data(data):
 
 def make_summary(summary_dict, obj=None):
     summary = obj or wandb_internal_pb2.SummaryRecord()
-    for k, v in six.iteritems(summary_dict):
+    for k, v in summary_dict.items():
         update = summary.update.add()
         update.key = k
         update.value_json = json.dumps(v)
@@ -85,10 +124,11 @@ def make_output(name, data):
     return outdata
 
 
-class WandbInternalClient(object):
+class WandbInternalClient:
     def __init__(self):
         self._channel = None
         self._stub = None
+        self._stream_id = None
 
     def connect(self):
         channel = grpc.insecure_channel("localhost:50051")
@@ -96,37 +136,73 @@ class WandbInternalClient(object):
         self._channel = channel
         self._stub = stub
 
+    def _apply_stream(self, obj):
+        assert self._stream_id
+        obj._info.stream_id = self._stream_id
+
+    def _inform_init(self, settings):
+        # only do this once
+        if self._stream_id:
+            return
+        run_id = settings.run_id
+        assert run_id
+        self._stream_id = run_id
+
+        settings_dict = dict(settings)
+        settings_dict["_log_level"] = logging.DEBUG
+
+        req = spb.ServerInformInitRequest()
+        make_settings(settings_dict, req._settings_map)
+        self._apply_stream(req)
+        _ = self._stub.ServerInformInit(req)
+
+    def run_start(self, run_id):
+        settings = wandb.Settings()
+        settings._set_run_start_time()
+        settings.update(run_id=run_id)
+        files_dir = settings.files_dir
+        os.makedirs(files_dir)
+        log_user = settings.log_user
+        os.makedirs(log_user)
+        self._inform_init(settings)
+
     def run_update(self, data):
         req = make_run_data(data)
+        self._apply_stream(req)
         run = self._stub.RunUpdate(req)
         return run
 
     def log(self, data):
         req = make_log_data(data)
+        self._apply_stream(req)
         _ = self._stub.Log(req)
 
     def config(self, data):
         req = make_config(data)
+        self._apply_stream(req)
         _ = self._stub.Config(req)
 
     def summary(self, data):
         req = make_summary(data)
+        self._apply_stream(req)
         _ = self._stub.Summary(req)
 
     def output(self, outtype, data):
         req = make_output(outtype, data)
+        self._apply_stream(req)
         _ = self._stub.Output(req)
 
     def exit(self, data):
         req = make_exit_data(data)
+        self._apply_stream(req)
         _ = self._stub.RunExit(req)
 
     def server_status(self):
-        req = wandb_server_pb2.ServerStatusRequest()
+        req = spb.ServerStatusRequest()
         _ = self._stub.ServerStatus(req)
 
     def server_shutdown(self):
-        req = wandb_server_pb2.ServerShutdownRequest()
+        req = spb.ServerShutdownRequest()
         _ = self._stub.ServerShutdown(req)
 
     # def run_get(self, run_id):
@@ -147,12 +223,22 @@ def main():
     wic = WandbInternalClient()
     wic.connect()
 
-    run_id = os.environ.get("WANDB_RUN_ID")
-    entity = os.environ.get("WANDB_ENTITY")
+    def_id = "junk123"
+    run_id = os.environ.get("WANDB_RUN_ID", def_id)
+    entity = os.environ.get("WANDB_ENTITY")  # noqa: F841
     project = os.environ.get("WANDB_PROJECT")
     group = os.environ.get("WANDB_RUN_GROUP")
     job_type = os.environ.get("WANDB_JOB_TYPE")
-    run_result = wic.run_update(dict(run_id=run_id, project=project, group=group, job_type=job_type, config=dict(parm1=2, param2=3)))
+
+    run_data = dict(
+        run_id=run_id,
+        project=project,
+        group=group,
+        job_type=job_type,
+        config=dict(parm1=2, param2=3),
+    )
+    wic.run_start(run_id)
+    run_result = wic.run_update(run_data)
     run = run_result.run
     base_url = "https://app.wandb.ai"
     print(

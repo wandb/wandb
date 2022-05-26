@@ -1,0 +1,20 @@
+id: 0.keras.tf25
+tag:
+    shard: tf25
+plugin:
+    - wandb
+command:
+    program: test_keras.py
+depend:
+    requirements:
+        - pillow
+        - tensorflow==2.5.0
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+        - :wandb:runs[0][summary]
+        - examples
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 8  # keras
+    - :wandb:runs[0][exitcode]: 0

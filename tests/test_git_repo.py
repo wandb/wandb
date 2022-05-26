@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 test_git_repo
@@ -7,8 +6,6 @@ test_git_repo
 
 Tests for the `wandb.GitRepo` module.
 """
-import platform
-import pytest
 
 import wandb
 
@@ -47,4 +44,10 @@ class TestGitRepo:
         assert (
             git_repo_with_remote_and_empty_pass.remote_url
             == "https://foo:@github.com/FooTest/Foo.git"
+        )
+
+    def test_remote_with_port(self, git_repo_with_remote_and_port):
+        assert (
+            git_repo_with_remote_and_port.remote_url
+            == "https://foo:@github.com:8080/FooTest/Foo.git"
         )

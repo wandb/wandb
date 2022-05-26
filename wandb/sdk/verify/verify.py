@@ -1,49 +1,35 @@
-#
-# -*- coding: utf-8 -*-
 """
 Utilities for wandb verify
 """
-from __future__ import print_function
-
 from functools import partial
 import getpass
 import os
-import sys
 import time
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import click
-from gql import gql  # type: ignore
-from pkg_resources import parse_version  # type: ignore
+from pkg_resources import parse_version
 import requests
 import wandb
+from wandb_gql import gql  # type: ignore
 
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import (
-        Any,
-        Callable,
-        Dict,
-        List,
-        Optional,
-        Tuple,
-        Union,
-    )
-
-    from ..wandb_artifacts import Artifact
-    from ...apis.public import Artifact as ArtifactAPI
-    from ...apis.internal import Api
+from ..wandb_artifacts import Artifact
+from ...apis.internal import Api
+from ...apis.public import Artifact as ArtifactAPI
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
 MIN_RETRYS = 3
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    CHECKMARK = u"\u2705"
-    RED_X = u"\u274C"
-
-else:
-    CHECKMARK = u"\u2705".encode("utf8")
-    RED_X = u"\u274C".encode("utf8")
+CHECKMARK = "\u2705"
+RED_X = "\u274C"
 
 
 def print_results(
@@ -76,19 +62,22 @@ def check_host(host: str) -> bool:
 
 def check_logged_in(api: Api, host: str) -> bool:
     print("Checking if logged in".ljust(72, "."), end="")
-    login_doc_url = "https://docs.wandb.ai/ref/login"
+    login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
-        fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
-            click.style(login_doc_url, underline=True, fg="blue")
+        fail_string = (
+            "Not logged in. Please log in using `wandb login`. See the docs: {}".format(
+                click.style(login_doc_url, underline=True, fg="blue")
+            )
         )
     # check that api key is correct
     # TODO: Better check for api key is correct
     else:
         res = api.api.viewer()
         if not res:
-            fail_string = "Could not get viewer with default API key. Please relogin using WANDB_BASE_URL={} wandb login --relogin and try again".format(
-                host
+            fail_string = (
+                "Could not get viewer with default API key. "
+                f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
             )
 
     print_results(fail_string, False)
@@ -101,6 +90,22 @@ def check_secure_requests(url: str, test_url_string: str, failure_output: str) -
     fail_string = None
     if not url.startswith("https"):
         fail_string = failure_output
+    print_results(fail_string, True)
+
+
+def check_cors_configuration(url: str, origin: str) -> None:
+    print("Checking CORs configuration of the bucket".ljust(72, "."), end="")
+    fail_string = None
+    res_get = requests.options(
+        url, headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
+    )
+
+    if res_get.headers.get("Access-Control-Allow-Origin") is None:
+        fail_string = (
+            "Your object store does not have a valid CORs configuration, "
+            f"you must allow GET and PUT to Origin: {origin}"
+        )
+
     print_results(fail_string, True)
 
 
@@ -151,7 +156,8 @@ def check_run(api: Api) -> bool:
 
         wandb.save(filepath)
     public_api = wandb.Api()
-    prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+    prev_run = public_api.run(f"{entity}/{PROJECT_NAME}/{run_id}")
+    # raise Exception(prev_run.__dict__)
     if prev_run is None:
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
@@ -183,22 +189,11 @@ def check_run(api: Api) -> bool:
         read_file = retry_fn(partial(prev_run.file, filepath))
         read_file = read_file.download(replace=True)
     except Exception:
-        with wandb.init(
-            reinit=True, project=PROJECT_NAME, config={"test": "test direct saving"}
-        ) as run:
-            saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
-            if saved:
-                failed_test_strings.append(
-                    "Unable to download file. Check SQS configuration, topic configuration and bucket permissions."
-                )
-            else:
-                failed_test_strings.append(
-                    "Unable to save file with status code: {}. Check SQS configuration and bucket permissions.".format(
-                        status_code
-                    )
-                )
+        failed_test_strings.append(
+            "Unable to download file. Check SQS configuration, topic configuration and bucket permissions."
+        )
 
-            print_results(failed_test_strings, False)
+        print_results(failed_test_strings, False)
         return False
     contents = read_file.read()
     if contents != "test":
@@ -207,32 +202,6 @@ def check_run(api: Api) -> bool:
         )
     print_results(failed_test_strings, False)
     return len(failed_test_strings) == 0
-
-
-def try_manual_save(
-    api: Api, filepath: str, run_id: str, entity: str
-) -> Tuple[bool, int, Optional[str]]:
-
-    run_id, upload_headers, result = api.api.upload_urls(
-        PROJECT_NAME, [filepath], run_id, entity
-    )
-    extra_headers = {}
-    for upload_header in upload_headers:
-        key, val = upload_header.split(":", 1)
-        extra_headers[key] = val
-
-    for _, file_info in result.items():
-        file_url = file_info["url"]
-        # If the upload URL is relative, fill it in with the base URL,
-        # since its a proxied file store like the on-prem VM.
-        if file_url.startswith("/"):
-            file_url = "{}{}".format(api.api.api_url, file_url)
-        response = requests.put(file_url, open(filepath, "rb"), headers=extra_headers)
-        break
-    if response.status_code != 200:
-        return False, response.status_code, response.request.url
-    else:
-        return True, response.status_code, response.request.url
 
 
 def verify_manifest(
@@ -278,7 +247,7 @@ def artifact_with_path_or_paths(
         f.write("test 2")
     if not os.path.exists(verify_dir):
         os.makedirs(verify_dir)
-    with open("{}/verify_1.txt".format(verify_dir), "w") as f:
+    with open(f"{verify_dir}/verify_1.txt", "w") as f:
         f.write("1")
     art.add_dir(verify_dir)
     with open("verify_3.txt", "w") as f:
@@ -311,16 +280,17 @@ def log_use_download_artifact(
         try:
             log_art_run.log_artifact(artifact, aliases=alias)
         except Exception as e:
-            failed_test_strings.append("Unable to log artifact. {}".format(e))
+            failed_test_strings.append(f"Unable to log artifact. {e}")
             return False, None, failed_test_strings
 
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME,
+        config={"test": "artifact use"},
     ) as use_art_run:
         try:
-            used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
+            used_art = use_art_run.use_artifact(f"{name}:{alias}")
         except Exception as e:
-            failed_test_strings.append("Unable to use artifact. {}".format(e))
+            failed_test_strings.append(f"Unable to use artifact. {e}")
             return False, None, failed_test_strings
         try:
             used_art.download(root=download_dir)
@@ -366,15 +336,13 @@ def check_artifacts() -> bool:
     if not cont_test or download_artifact is None:
         print_results(failed_test_strings, False)
         return False
-    if set(os.listdir(multi_art_dir)) != set(
-        [
-            "verify_a.txt",
-            "verify_2.txt",
-            "verify_1.txt",
-            "verify_3.txt",
-            "verify_int_test.txt",
-        ]
-    ):
+    if set(os.listdir(multi_art_dir)) != {
+        "verify_a.txt",
+        "verify_2.txt",
+        "verify_1.txt",
+        "verify_3.txt",
+        "verify_int_test.txt",
+    }:
         failed_test_strings.append(
             "Artifact directory is missing files. Contact W&B for support."
         )
@@ -404,19 +372,9 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     with wandb.init(
         reinit=True, project=PROJECT_NAME, config={"test": "put to graphql"}
     ) as run:
-        saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
-        if not saved:
-            print_results(
-                "Server failed to accept a graphql put request with response {}. Check bucket permissions.".format(
-                    status_code
-                ),
-                False,
-            )
-
-            # next test will also fail if this one failed. So terminate this test here.
-            return False, None
+        wandb.save(gql_fp)
     public_api = wandb.Api()
-    prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
+    prev_run = public_api.run(f"{run.entity}/{PROJECT_NAME}/{run.id}")
     if prev_run is None:
         failed_test_strings.append(
             "Unable to access previous run through public API. Contact W&B for support."
@@ -426,6 +384,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     # TODO: (kdg) refactor this so it doesn't rely on an exception handler
     try:
         read_file = retry_fn(partial(prev_run.file, gql_fp))
+        url = read_file.url
         read_file = read_file.download(replace=True)
     except Exception:
         failed_test_strings.append(
@@ -449,7 +408,7 @@ def check_large_post() -> bool:
     print(
         "Checking ability to send large payloads through proxy".ljust(72, "."), end=""
     )
-    descy = "a" * int(10 ** 7)
+    descy = "a" * int(10**7)
 
     username = getpass.getuser()
     failed_test_strings = []
@@ -486,7 +445,7 @@ def check_large_post() -> bool:
             )
         else:
             failed_test_strings.append(
-                "Failed to send a large payload with error: {}.".format(e)
+                f"Failed to send a large payload with error: {e}."
             )
     print_results(failed_test_strings, False)
     return len(failed_test_strings) == 0
@@ -498,7 +457,9 @@ def check_wandb_version(api: Api) -> None:
     fail_string = None
     warning = False
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
-    min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
+    min_cli_version = server_info.get("cliVersionInfo", {}).get(
+        "min_cli_version", "0.0.1"
+    )
     if parse_version(wandb.__version__) < parse_version(min_cli_version):
         fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
             max_cli_version
@@ -506,15 +467,15 @@ def check_wandb_version(api: Api) -> None:
     elif parse_version(wandb.__version__) > parse_version(max_cli_version):
         fail_string = (
             "wandb version is not supported by your local installation. This could "
-            "cause some issues. If you're having problems try: please run pip "
-            "install --upgrade wandb=={}".format(max_cli_version)
+            "cause some issues. If you're having problems try: please run `pip "
+            f"install --upgrade wandb=={max_cli_version}`"
         )
         warning = True
 
     print_results(fail_string, warning)
 
 
-def retry_fn(fn: Callable):
+def retry_fn(fn: Callable) -> Any:
     ini_time = time.time()
     res = None
     i = 0

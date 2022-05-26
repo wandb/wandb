@@ -1,25 +1,24 @@
-#
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
-import datetime
+from wandb_gql import Client, gql  # type: ignore
+from wandb_gql.client import RetryError  # type: ignore
+from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
+
 import ast
-import os
+import base64
+from copy import deepcopy
+import datetime
+from io import BytesIO
 import json
-import yaml
+import os
+from pkg_resources import parse_version
 import re
-import click
-import logging
 import requests
+import logging
+import socket
 import sys
 
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
+import click
+import yaml
 
-import six
-from six import BytesIO
 import wandb
 from wandb import __version__
 from wandb import env
@@ -29,7 +28,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from ..lib import retry
-from ..lib.filenames import DIFF_FNAME
+from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 
 from .progress import Progress
@@ -37,18 +36,18 @@ from .progress import Progress
 logger = logging.getLogger(__name__)
 
 
-class Api(object):
+class Api:
     """W&B Internal Api wrapper
 
     Note:
         Settings are automatically overridden by looking for
-        a `wandb/settings` file in the current working directory or it's parent
-        directory.  If none can be found, we look in the current users home
+        a `wandb/settings` file in the current working directory or its parent
+        directory. If none can be found, we look in the current user's home
         directory.
 
     Arguments:
         default_settings(dict, optional): If you aren't using a settings
-        file or you wish to override the section to use in the settings file
+        file, or you wish to override the section to use in the settings file
         Override the settings here.
     """
 
@@ -94,7 +93,7 @@ class Api(object):
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key or ""),
-                url="%s/graphql" % self.settings("base_url"),
+                url=f"{self.settings('base_url')}/graphql",
             )
         )
         self.retry_callback = retry_callback
@@ -112,6 +111,20 @@ class Api(object):
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
+        self._client_id_mapping = {}
+        # Large file uploads to azure can optionally use their SDK
+        self._azure_blob_module = util.get_module("azure.storage.blob")
+
+        (
+            self.query_types,
+            self.server_info_types,
+            self.server_use_artifact_input_info,
+        ) = (
+            None,
+            None,
+            None,
+        )
+        self._max_cli_version = None
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -130,7 +143,7 @@ class Api(object):
             logger.error("%s response executing GraphQL." % res.status_code)
             logger.error(res.text)
             self.display_gorilla_error_if_found(res)
-            six.reraise(*sys.exc_info())
+            raise
 
     def display_gorilla_error_if_found(self, res):
         try:
@@ -141,7 +154,7 @@ class Api(object):
         if "errors" in data and isinstance(data["errors"], list):
             for err in data["errors"]:
                 # Our tests and potentially some api endpoints return a string error?
-                if isinstance(err, six.string_types):
+                if isinstance(err, str):
                     err = {"message": err}
                 if not err.get("message"):
                     continue
@@ -183,6 +196,10 @@ class Api(object):
     @property
     def app_url(self):
         return wandb.util.app_url(self.api_url)
+
+    @property
+    def default_entity(self):
+        return self.viewer().get("entity")
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
@@ -272,6 +289,76 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
+    def server_info_introspection(self):
+        query_string = """
+           query ProbeServerCapabilities {
+               QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+               ServerInfoType: __type(name: "ServerInfo") {
+                   ...fieldData
+                }
+            }
+
+            fragment fieldData on __Type {
+                fields {
+                    name
+                }
+            }
+        """
+        if self.query_types is None or self.server_info_types is None:
+            query = gql(query_string)
+            res = self.gql(query)
+
+            self.query_types = [
+                field.get("name", "")
+                for field in res.get("QueryType", {}).get("fields", [{}])
+            ]
+            self.server_info_types = [
+                field.get("name", "")
+                for field in res.get("ServerInfoType", {}).get("fields", [{}])
+            ]
+        return (self.query_types, self.server_info_types)
+
+    def server_use_artifact_input_introspection(self):
+        query_string = """
+           query ProbeServerUseArtifactInput {
+               UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+        """
+
+        if self.server_use_artifact_input_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            self.server_use_artifact_input_info = [
+                field.get("name", "")
+                for field in res.get("UseArtifactInputInfoType", {}).get(
+                    "inputFields", [{}]
+                )
+            ]
+        return self.server_use_artifact_input_info
+
+    @normalize_exceptions
+    def launch_agent_introspection(self):
+        query = gql(
+            """
+            query LaunchAgentIntrospection {
+                LaunchAgentType: __type(name: "LaunchAgent") {
+                    name
+                }
+            }
+        """
+        )
+
+        res = self.gql(query)
+        return res.get("LaunchAgentType") or None
+
+    @normalize_exceptions
     def viewer(self):
         query = gql(
             """
@@ -295,17 +382,44 @@ class Api(object):
         return res.get("viewer") or {}
 
     @normalize_exceptions
+    def max_cli_version(self):
+
+        if self._max_cli_version is not None:
+            return self._max_cli_version
+
+        query_types, server_info_types = self.server_info_introspection()
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+        if not cli_version_exists:
+            return None
+
+        _, server_info = self.viewer_server_info()
+        self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version"
+        )
+        return self._max_cli_version
+
+    @normalize_exceptions
     def viewer_server_info(self):
+        local_query = """
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                }
+        """
         cli_query = """
             serverInfo {
                 cliVersionInfo
+                _LOCAL_QUERY_
             }
         """
-        query_str = """
+        query_template = """
         query Viewer{
             viewer {
                 id
                 entity
+                username
                 email
                 flags
                 teams {
@@ -319,22 +433,25 @@ class Api(object):
             _CLI_QUERY_
         }
         """
-        query_new = gql(query_str.replace("_CLI_QUERY_", cli_query))
-        query_old = gql(query_str.replace("_CLI_QUERY_", ""))
+        query_types, server_info_types = self.server_info_introspection()
 
-        for query in query_new, query_old:
-            try:
-                res = self.gql(query)
-            except UsageError as e:
-                raise (e)
-            except Exception as e:
-                # graphql schema exception is generic
-                err = e
-                continue
-            err = None
-            break
-        if err:
-            raise (err)
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+
+        local_version_exists = (
+            "serverInfo" in query_types
+            and "latestLocalVersionInfo" in server_info_types
+        )
+
+        cli_query_string = "" if not cli_version_exists else cli_query
+        local_query_string = "" if not local_version_exists else local_query
+
+        query_string = query_template.replace("_CLI_QUERY_", cli_query_string).replace(
+            "_LOCAL_QUERY_", local_query_string
+        )
+        query = gql(query_string)
+        res = self.gql(query)
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
@@ -349,7 +466,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Models($entity: String!) {
+        query EntityProjects($entity: String) {
             models(first: 10, entityName: $entity) {
                 edges {
                     node {
@@ -370,7 +487,7 @@ class Api(object):
 
     @normalize_exceptions
     def project(self, project, entity=None):
-        """Retrive project
+        """Retrieve project
 
         Arguments:
             project (str): The project to get details for
@@ -381,7 +498,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Models($entity: String, $project: String!) {
+        query ProjectDetails($entity: String, $project: String) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -411,7 +528,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Sweep($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
+        query SweepWithRuns($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
                     id
@@ -461,7 +578,7 @@ class Api(object):
             },
         )
         if response["project"] is None or response["project"]["sweep"] is None:
-            raise ValueError("Sweep {}/{}/{} not found".format(entity, project, sweep))
+            raise ValueError(f"Sweep {entity}/{project}/{sweep} not found")
         data = response["project"]["sweep"]
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
@@ -476,11 +593,11 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to public models
 
         Returns:
-                [{"id",name","description"}]
+                [{"id","name","description"}]
         """
         query = gql(
             """
-        query Buckets($model: String!, $entity: String!) {
+        query ProjectRuns($model: String!, $entity: String) {
             model(name: $model, entityName: $entity) {
                 buckets(first: 10) {
                     edges {
@@ -571,12 +688,22 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $entity: String!, $run: String!) {
+        query RunConfigs(
+            $name: String!,
+            $entity: String,
+            $run: String!,
+            $pattern: String!,
+            $includeConfig: Boolean!,
+        ) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
-                    config
-                    commit
-                    files(names: ["wandb-metadata.json", "diff.patch"]) {
+                    config @include(if: $includeConfig)
+                    commit @include(if: $includeConfig)
+                    files(pattern: $pattern) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
                         edges {
                             node {
                                 name
@@ -590,26 +717,49 @@ class Api(object):
         """
         )
 
-        response = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity}
-        )
-        if response["model"] == None:
-            raise CommError("Run {}/{}/{} not found".format(entity, project, run))
-        run = response["model"]["bucket"]
-        commit = run["commit"]
-        config = json.loads(run["config"] or "{}")
+        variable_values = {
+            "name": project,
+            "run": run,
+            "entity": entity,
+            "includeConfig": True,
+        }
+
+        commit = ""
+        config = {}
         patch = None
         metadata = {}
-        if len(run["files"]["edges"]) > 0:
-            for file_edge in run["files"]["edges"]:
-                name = file_edge["node"]["name"]
-                url = file_edge["node"]["directUrl"]
-                res = requests.get(url)
-                res.raise_for_status()
-                if name == "wandb-metadata.json":
-                    metadata = res.json()
-                elif name == "diff.patch":
-                    patch = res.text
+
+        # If we use the `names` parameter on the `files` node, then the server
+        # will helpfully give us and 'open' file handle to the files that don't
+        # exist. This is so that we can upload data to it. However, in this
+        # case, we just want to download that file and not upload to it, so
+        # let's instead query for the files that do exist using `pattern`
+        # (with no wildcards).
+        #
+        # Unfortunately we're unable to construct a single pattern that matches
+        # our 2 files, we would need something like regex for that.
+        for filename in [DIFF_FNAME, METADATA_FNAME]:
+            variable_values["pattern"] = filename
+            response = self.gql(query, variable_values=variable_values)
+            if response["model"] == None:
+                raise CommError(f"Run {entity}/{project}/{run} not found")
+            run = response["model"]["bucket"]
+            # we only need to fetch this config once
+            if variable_values["includeConfig"]:
+                commit = run["commit"]
+                config = json.loads(run["config"] or "{}")
+                variable_values["includeConfig"] = False
+            if run["files"] is not None:
+                for file_edge in run["files"]["edges"]:
+                    name = file_edge["node"]["name"]
+                    url = file_edge["node"]["directUrl"]
+                    res = requests.get(url)
+                    res.raise_for_status()
+                    if name == METADATA_FNAME:
+                        metadata = res.json()
+                    elif name == DIFF_FNAME:
+                        patch = res.text
+
         return (commit, config, patch, metadata)
 
     @normalize_exceptions
@@ -623,7 +773,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($project: String!, $entity: String, $name: String!) {
+        query RunResumeStatus($project: String, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -651,7 +801,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -668,7 +822,7 @@ class Api(object):
     def check_stop_requested(self, project_name, entity_name, run_id):
         query = gql(
             """
-        query Model($projectName: String, $entityName: String, $runId: String!) {
+        query RunStoppedStatus($projectName: String, $entityName: String, $runId: String!) {
             project(name:$projectName, entityName:$entityName) {
                 run(name:$runId) {
                     stopped
@@ -734,11 +888,148 @@ class Api(object):
         return response["upsertModel"]["model"]
 
     @normalize_exceptions
-    def pop_from_run_queue(self, entity=None, project=None):
+    def get_project_run_queues(self, entity, project):
+        query = gql(
+            """
+        query ProjectRunQueues($entity: String!, $projectName: String!){
+            project(entityName: $entity, name: $projectName) {
+                runQueues {
+                    id
+                    name
+                    createdBy
+                    access
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "projectName": project,
+            "entity": entity,
+        }
+
+        res = self.gql(query, variable_values)
+        if res.get("project") is None:
+            raise Exception(
+                "Error fetching run queues for {}/{} check that you have access to this entity and project".format(
+                    entity, project
+                )
+            )
+
+        return res["project"]["runQueues"]
+
+    @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access
+                }
+            ) {
+                success
+                queueID
+            }
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
+    def push_to_run_queue(self, queue_name, launch_spec):
+        # TODO(kdg): add pushToRunQueueByName to avoid this extra query
+        entity = launch_spec["entity"]
+        project = launch_spec["project"]
+        queues_found = self.get_project_run_queues(entity, project)
+        matching_queues = [
+            q
+            for q in queues_found
+            if q["name"] == queue_name
+            # ensure user has access to queue
+            and (q["access"] == "PROJECT" or q["createdBy"] == self.default_entity)
+        ]
+        if not matching_queues:
+            # in the case of a missing default queue. create it
+            if queue_name == "default":
+                wandb.termlog(
+                    "No default queue existing for {}/{} creating one.".format(
+                        entity, project
+                    )
+                )
+                res = self.create_run_queue(
+                    launch_spec["entity"],
+                    launch_spec["project"],
+                    queue_name,
+                    access="PROJECT",
+                )
+
+                if res is None or res.get("queueID") is None:
+                    wandb.termerror(
+                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
+                            entity, project
+                        )
+                    )
+                    return
+                queue_id = res["queueID"]
+
+            else:
+                wandb.termwarn(
+                    "Unable to push to run queue {}. Queue not found.".format(
+                        queue_name
+                    )
+                )
+                return None
+        elif len(matching_queues) > 1:
+            wandb.termerror(
+                "Unable to push to run queue {}. More than one queue found with this name.".format(
+                    queue_name
+                )
+            )
+            return None
+        else:
+            queue_id = matching_queues[0]["id"]
+
         mutation = gql(
             """
-        mutation popFromRunQueue($entity: String!, $project: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project }) {
+        mutation pushToRunQueue($queueID: ID!, $runSpec: JSONString!) {
+            pushToRunQueue(
+                input: {
+                    queueID: $queueID,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+        spec_json = json.dumps(launch_spec)
+        response = self.gql(
+            mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
+        )
+        return response["pushToRunQueue"]
+
+    @normalize_exceptions
+    def pop_from_run_queue(self, queue_name, entity=None, project=None, agent_id=None):
+        mutation = gql(
+            """
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
+            popFromRunQueue(input: {
+                entityName: $entity,
+                projectName: $project,
+                queueName: $queueName,
+                launchAgentId: $launchAgentId
+            }) {
                 runQueueItemId
                 runSpec
             }
@@ -746,9 +1037,148 @@ class Api(object):
         """
         )
         response = self.gql(
-            mutation, variable_values={"entity": entity, "project": project}
+            mutation,
+            variable_values={
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+                "launchAgentId": agent_id,
+            },
         )
         return response["popFromRunQueue"]
+
+    @normalize_exceptions
+    def ack_run_queue_item(self, item_id, run_id=None):
+        mutation = gql(
+            """
+        mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
+            ackRunQueueItem(input: { runQueueItemId: $itemId, runName: $runId }) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
+        )
+        if not response["ackRunQueueItem"]["success"]:
+            raise CommError(
+                "Error acking run queue item. Item may have already been acknowledged by another process"
+            )
+        return response["ackRunQueueItem"]["success"]
+
+    @normalize_exceptions
+    def create_launch_agent(self, entity, project, queues, gorilla_agent_support):
+        project_queues = self.get_project_run_queues(entity, project)
+        if not project_queues:
+            # create default queue if it doesn't already exist
+            default = self.create_run_queue(
+                entity, project, "default", access="PROJECT"
+            )
+            if default is None or default.get("queueID") is None:
+                raise CommError(
+                    "Unable to create default queue for {}/{}. No queues for agent to poll".format(
+                        entity, project
+                    )
+                )
+            project_queues = [{"id": default["queueID"], "name": "default"}]
+        polling_queue_ids = [
+            q["id"] for q in project_queues if q["name"] in queues
+        ]  # filter to poll specified queues
+        if len(polling_queue_ids) != len(queues):
+            raise CommError(
+                "Could not start launch agent: Not all of requested queues ({}) found. Available queues for this project: {}".format(
+                    ", ".join(queues), ",".join([q["name"] for q in project_queues])
+                )
+            )
+
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, return a client-generated id
+            return {
+                "success": True,
+                "launchAgentId": None,
+            }
+
+        hostname = socket.gethostname()
+        mutation = gql(
+            """
+            mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
+                createLaunchAgent(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        runQueues: $queues,
+                        hostname: $hostname
+                    }
+                ) {
+                    launchAgentId
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queues": polling_queue_ids,
+            "hostname": hostname,
+        }
+        return self.gql(mutation, variable_values)["createLaunchAgent"]
+
+    @normalize_exceptions
+    def update_launch_agent_status(self, agent_id, status, gorilla_agent_support):
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, this is a no-op
+            return {
+                "success": True,
+            }
+
+        mutation = gql(
+            """
+            mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
+                updateLaunchAgent(
+                    input: {
+                        launchAgentId: $agentId
+                        agentStatus: $agentStatus
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+            "agentStatus": status,
+        }
+        return self.gql(mutation, variable_values)["updateLaunchAgent"]
+
+    @normalize_exceptions
+    def get_launch_agent(self, agent_id, gorilla_agent_support):
+        if not gorilla_agent_support:
+            return {
+                "id": None,
+                "name": "",
+                "stopPolling": False,
+            }
+        query = gql(
+            """
+            query LaunchAgent($agentId: ID!) {
+                launchAgent(id: $agentId) {
+                    id
+                    name
+                    runQueues
+                    hostname
+                    agentStatus
+                    stopPolling
+                    heartbeatAt
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+        }
+        return self.gql(query, variable_values)["launchAgent"]
 
     @normalize_exceptions
     def upsert_run(
@@ -899,8 +1329,52 @@ class Api(object):
         return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
 
     @normalize_exceptions
+    def get_run_info(self, entity, project, name):
+        query = gql(
+            """
+        query RunInfo($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) {
+                    runInfo {
+                        program
+                        args
+                        os
+                        python
+                        colab
+                        executable
+                        codeSaved
+                        cpuCount
+                        gpuCount
+                        gpu
+                        git {
+                            remote
+                            commit
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+        variable_values = {"project": project, "entity": entity, "name": name}
+        res = self.gql(query, variable_values)
+        if res.get("project") is None:
+            raise CommError(
+                "Error fetching run info for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
+                    entity, project, name
+                )
+            )
+        elif res["project"].get("run") is None:
+            raise CommError(
+                "Error fetching run info for {}/{}/{}. Check that this run id exists".format(
+                    entity, project, name
+                )
+            )
+        return res["project"]["run"]["runInfo"]
+
+    @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
-        """Generate temporary resumeable upload urls
+        """Generate temporary resumable upload urls
 
         Arguments:
             project (str): The project to download
@@ -919,7 +1393,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
@@ -957,9 +1431,7 @@ class Api(object):
             result = {file["name"]: file for file in self._flatten_edges(run["files"])}
             return run["id"], run["files"]["uploadHeaders"], result
         else:
-            raise CommError(
-                "Run does not exist {}/{}/{}.".format(entity, project, run_id)
-            )
+            raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
 
     @normalize_exceptions
     def download_urls(self, project, run=None, entity=None):
@@ -980,7 +1452,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrls($name: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files {
@@ -1002,10 +1474,15 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
-            raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
+            raise CommError(f"Run does not exist {entity}/{project}/{run}.")
         files = self._flatten_edges(query_result["model"]["bucket"]["files"])
         return {file["name"]: file for file in files if file}
 
@@ -1027,7 +1504,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrl($name: String!, $fileName: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files(names: [$fileName]) {
@@ -1072,7 +1549,7 @@ class Api(object):
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, stream=True)
+        response = requests.get(url, auth=("user", self.api_key), stream=True)
         response.raise_for_status()
         return (int(response.headers.get("content-length", 0)), response)
 
@@ -1084,7 +1561,8 @@ class Api(object):
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
 
         Returns:
-            A tuple of the file's local path and the streaming response. The streaming response is None if the file already existed and was up to date.
+            A tuple of the file's local path and the streaming response. The streaming response is None if the file
+            already existed and was up-to-date.
         """
         fileName = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
@@ -1099,6 +1577,39 @@ class Api(object):
 
         return path, response
 
+    def upload_file_azure(self, url, file, extra_headers):
+        from azure.core.exceptions import AzureError
+
+        # Configure the client without retries so our existing logic can handle them
+        client = self._azure_blob_module.BlobClient.from_blob_url(
+            url, retry_policy=self._azure_blob_module.LinearRetry(retry_total=0)
+        )
+        try:
+            if extra_headers.get("Content-MD5") is not None:
+                md5 = base64.b64decode(extra_headers["Content-MD5"])
+            else:
+                md5 = None
+            content_settings = self._azure_blob_module.ContentSettings(
+                content_md5=md5,
+                content_type=extra_headers.get("Content-Type"),
+            )
+            client.upload_blob(
+                file,
+                max_concurrency=4,
+                length=len(file),
+                overwrite=True,
+                content_settings=content_settings,
+            )
+        except AzureError as e:
+            if hasattr(e, "response"):
+                response = requests.model.Response()
+                response.status_code = e.response.status_code
+                response.headers = e.response.headers
+                response.raw = e.response.internal_response
+                raise requests.exceptions.RequestException(e.message, response=response)
+            else:
+                raise requests.exceptions.ConnectionError(e.message)
+
     def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
 
@@ -1109,24 +1620,37 @@ class Api(object):
             bytes uploaded since the last time it was called, used to report progress
 
         Returns:
-            The requests library response object
+            The `requests` library response object
         """
         extra_headers = extra_headers.copy()
         response = None
         progress = Progress(file, callback=callback)
         try:
-            response = requests.put(url, data=progress, headers=extra_headers)
-            response.raise_for_status()
+            if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
+                response = self.upload_file_azure(url, progress, extra_headers)
+            else:
+                if "x-ms-blob-type" in extra_headers:
+                    wandb.termwarn(
+                        "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
+                        repeat=False,
+                    )
+                response = requests.put(url, data=progress, headers=extra_headers)
+                response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error("upload_file exception {} {}".format(url, e))
-            status_code = e.response.status_code if e.response != None else 0
+            logger.error(f"upload_file exception {url}: {e}")
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error(f"upload_file request headers: {request_headers}")
+            response_content = e.response.content if e.response is not None else ""
+            logger.error(f"upload_file response body: {response_content}")
+            status_code = e.response.status_code if e.response is not None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
             if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
-                util.sentry_reraise(retry.TransientException(exc=e))
+                e = retry.TransientError(exc=e)
+                raise e.with_traceback(sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
 
@@ -1138,7 +1662,7 @@ class Api(object):
 
         Arguments:
             host (str): hostname
-            persistent (bool): long running or oneoff
+            persistent (bool): long-running or one-off
             sweep (str): sweep id
             project_name: (str): model that contains sweep
         """
@@ -1146,8 +1670,8 @@ class Api(object):
             """
         mutation CreateAgent(
             $host: String!
-            $projectName: String!,
-            $entityName: String!,
+            $projectName: String,
+            $entityName: String,
             $sweep: String!
         ) {
             createAgent(input: {
@@ -1222,6 +1746,10 @@ class Api(object):
         }
         """
         )
+
+        if agent_id is None:
+            raise ValueError("Cannot call heartbeat with an unregistered agent.")
+
         try:
             response = self.gql(
                 mutation,
@@ -1240,6 +1768,45 @@ class Api(object):
         else:
             return json.loads(response["agentHeartbeat"]["commands"])
 
+    @staticmethod
+    def _validate_config_and_fill_distribution(config):
+        # verify that parameters are well specified.
+        # TODO(dag): deprecate this in favor of jsonschema validation once
+        # apiVersion 2 is released and local controller is integrated with
+        # wandb/client.
+
+        # avoid modifying the original config dict in
+        # case it is reused outside the calling func
+        config = deepcopy(config)
+
+        # explicitly cast to dict in case config was passed as a sweepconfig
+        # sweepconfig does not serialize cleanly to yaml and breaks graphql,
+        # but it is a subclass of dict, so this conversion is clean
+        config = dict(config)
+
+        if "parameters" not in config:
+            raise ValueError("sweep config must have a parameters section")
+
+        for parameter_name in config["parameters"]:
+            parameter = config["parameters"][parameter_name]
+            if "min" in parameter and "max" in parameter:
+                if "distribution" not in parameter:
+                    if isinstance(parameter["min"], int) and isinstance(
+                        parameter["max"], int
+                    ):
+                        parameter["distribution"] = "int_uniform"
+                    elif isinstance(parameter["min"], float) and isinstance(
+                        parameter["max"], float
+                    ):
+                        parameter["distribution"] = "uniform"
+                    else:
+                        raise ValueError(
+                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
+                            % parameter_name
+                        )
+        return config
+
     @normalize_exceptions
     def upsert_sweep(
         self,
@@ -1254,7 +1821,7 @@ class Api(object):
         """Upsert a sweep object.
 
         Arguments:
-            config (str): sweep config (will be converted to yaml)
+            config (dict): sweep config (will be converted to yaml)
         """
         project_query = """
                     project {
@@ -1327,6 +1894,8 @@ class Api(object):
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_3, mutation_2, mutation_1]
 
+        config = self._validate_config_and_fill_distribution(config)
+
         for mutation in mutations:
             try:
                 response = self.gql(
@@ -1396,7 +1965,7 @@ class Api(object):
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
 
         Returns:
-            The requests library response object
+            The `requests` library response object
         """
         project, run = self.parse_slug(project, run=run)
         urls = self.download_urls(project, run, entity)
@@ -1435,7 +2004,7 @@ class Api(object):
                 total_bytes) as argument else if True, renders a progress bar to stream.
 
         Returns:
-            The requests library response object
+            The `requests` library response object
         """
         if project is None:
             project = self.get_project()
@@ -1459,9 +2028,9 @@ class Api(object):
             file_url = file_info["url"]
 
             # If the upload URL is relative, fill it in with the base URL,
-            # since its a proxied file store like the on-prem VM.
+            # since it's a proxied file store like the on-prem VM.
             if file_url.startswith("/"):
-                file_url = "{}{}".format(self.api_url, file_url)
+                file_url = f"{self.api_url}{file_url}"
 
             try:
                 # To handle Windows paths
@@ -1472,8 +2041,8 @@ class Api(object):
                     if isinstance(files, dict)
                     else open(normal_name, "rb")
                 )
-            except IOError:
-                print("%s does not exist" % file_name)
+            except OSError:
+                print(f"{file_name} does not exist")
                 continue
             if progress:
                 if hasattr(progress, "__call__"):
@@ -1507,22 +2076,78 @@ class Api(object):
             open_file.close()
         return responses
 
-    def use_artifact(
-        self, artifact_id, entity_name=None, project_name=None, run_name=None
+    def link_artifact(
+        self, client_id, server_id, portfolio_name, entity, project, aliases
     ):
-        query = gql(
+        template = """
+                mutation LinkArtifact(
+                    $artifactPortfolioName: String!,
+                    $entityName: String!,
+                    $projectName: String!,
+                    $aliases: [ArtifactAliasInput!],
+                    ID_TYPE
+                    ) {
+                        linkArtifact(input: {
+                            artifactPortfolioName: $artifactPortfolioName,
+                            entityName: $entityName,
+                            projectName: $projectName,
+                            aliases: $aliases,
+                            ID_VALUE
+                        }) {
+                            versionIndex
+                        }
+                    }
             """
+
+        def replace(a, b):
+            nonlocal template
+            template = template.replace(a, b)
+
+        if server_id:
+            replace("ID_TYPE", "$artifactID: ID")
+            replace("ID_VALUE", "artifactID: $artifactID")
+        elif client_id:
+            replace("ID_TYPE", "$clientID: ID")
+            replace("ID_VALUE", "clientID: $clientID")
+
+        variable_values = {
+            "clientID": client_id,
+            "artifactID": server_id,
+            "artifactPortfolioName": portfolio_name,
+            "entityName": entity,
+            "projectName": project,
+            "aliases": [
+                {"alias": alias, "artifactCollectionName": portfolio_name}
+                for alias in aliases
+            ],
+        }
+
+        mutation = gql(template)
+        response = self.gql(mutation, variable_values=variable_values)
+        return response["linkArtifact"]
+
+    def use_artifact(
+        self,
+        artifact_id,
+        entity_name=None,
+        project_name=None,
+        run_name=None,
+        use_as=None,
+    ):
+        query_template = """
         mutation UseArtifact(
             $entityName: String!,
             $projectName: String!,
             $runName: String!,
-            $artifactID: ID!
+            $artifactID: ID!,
+            _USED_AS_TYPE_
         ) {
             useArtifact(input: {
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                artifactID: $artifactID
+                artifactID: $artifactID,
+                _USED_AS_VALUE_
             }) {
                 artifact {
                     id
@@ -1536,7 +2161,19 @@ class Api(object):
             }
         }
         """
-        )
+
+        artifact_types = self.server_use_artifact_input_introspection()
+        if "usedAs" in artifact_types:
+            query_template = query_template.replace(
+                "_USED_AS_TYPE_", "$usedAs: String"
+            ).replace("_USED_AS_VALUE_", "usedAs: $usedAs")
+        else:
+            query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
+                "_USED_AS_VALUE_", ""
+            )
+
+        query = gql(query_template)
+
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
@@ -1548,6 +2185,7 @@ class Api(object):
                 "projectName": project_name,
                 "runName": run_name,
                 "artifactID": artifact_id,
+                "usedAs": use_as,
             },
         )
 
@@ -1597,6 +2235,8 @@ class Api(object):
         artifact_type_name,
         artifact_collection_name,
         digest,
+        client_id=None,
+        sequence_client_id=None,
         entity_name=None,
         project_name=None,
         run_name=None,
@@ -1606,7 +2246,23 @@ class Api(object):
         aliases=None,
         distributed_id=None,
         is_user_created=False,
+        enable_digest_deduplication=False,
+        history_step=None,
     ):
+        _, server_info = self.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        can_handle_client_id = max_cli_version is None or parse_version(
+            "0.11.0"
+        ) <= parse_version(max_cli_version)
+        can_handle_dedupe = max_cli_version is None or parse_version(
+            "0.12.10"
+        ) <= parse_version(max_cli_version)
+        can_handle_history = max_cli_version is None or parse_version(
+            "0.12.12"
+        ) <= parse_version(max_cli_version)
+
         mutation = gql(
             """
         mutation CreateArtifact(
@@ -1621,6 +2277,10 @@ class Api(object):
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
             %s
+            %s
+            %s
+            %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -1634,6 +2294,10 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
+                %s
+                %s
+                %s
                 %s
             }) {
                 artifact {
@@ -1657,10 +2321,25 @@ class Api(object):
         """
             %
             # For backwards compatibility with older backends that don't support
-            # distributed writers.
+            # distributed writers or digest deduplication.
             (
-                "$distributedID: String" if distributed_id else "",
-                "distributedID: $distributedID" if distributed_id else "",
+                "$historyStep: Int64!,"
+                if can_handle_history and history_step not in [0, None]
+                else "",
+                "$distributedID: String," if distributed_id else "",
+                "$clientID: ID!," if can_handle_client_id else "",
+                "$sequenceClientID: ID!," if can_handle_client_id else "",
+                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
+                # line sep
+                "historyStep: $historyStep,"
+                if can_handle_history and history_step not in [0, None]
+                else "",
+                "distributedID: $distributedID," if distributed_id else "",
+                "clientID: $clientID," if can_handle_client_id else "",
+                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
+                "enableDigestDeduplication: $enableDigestDeduplication,"
+                if can_handle_dedupe
+                else "",
             )
         )
 
@@ -1668,9 +2347,9 @@ class Api(object):
         project_name = project_name or self.settings("project")
         if not is_user_created:
             run_name = run_name or self.current_run_id
-
         if aliases is None:
             aliases = []
+
         response = self.gql(
             mutation,
             variable_values={
@@ -1679,6 +2358,8 @@ class Api(object):
                 "runName": run_name,
                 "artifactTypeName": artifact_type_name,
                 "artifactCollectionNames": [artifact_collection_name],
+                "clientID": client_id,
+                "sequenceClientID": sequence_client_id,
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
@@ -1689,6 +2370,8 @@ class Api(object):
                 if metadata
                 else None,
                 "distributedID": distributed_id,
+                "enableDigestDeduplication": enable_digest_deduplication,
+                "historyStep": history_step,
             },
         )
         av = response["createArtifact"]["artifact"]
@@ -1854,6 +2537,38 @@ class Api(object):
             response["updateArtifactManifest"]["artifactManifest"]["id"],
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
+
+    def _resolve_client_id(
+        self,
+        client_id,
+    ):
+
+        if client_id in self._client_id_mapping:
+            return self._client_id_mapping[client_id]
+
+        query = gql(
+            """
+            query ClientIDMapping($clientID: ID!) {
+                clientIDMapping(clientID: $clientID) {
+                    serverID
+                }
+            }
+        """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
+        server_id = None
+        if response is not None:
+            client_id_mapping = response.get("clientIDMapping")
+            if client_id_mapping is not None:
+                server_id = client_id_mapping.get("serverID")
+                if server_id is not None:
+                    self._client_id_mapping[client_id] = server_id
+        return server_id
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):

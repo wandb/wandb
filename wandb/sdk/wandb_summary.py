@@ -1,13 +1,7 @@
-#
 import abc
-
-import six
-import wandb
+import typing as t
 
 from .interface.summary_record import SummaryItem, SummaryRecord
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    import typing as t
 
 
 def _get_dict(d):
@@ -17,10 +11,9 @@ def _get_dict(d):
     return vars(d)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class SummaryDict(object):
-    """dict-like which wraps all nested dictionraries in a SummarySubDict,
-     and triggers self._root._callback on property changes."""
+class SummaryDict(metaclass=abc.ABCMeta):
+    """dict-like which wraps all nested dictionaries in a SummarySubDict,
+    and triggers self._root._callback on property changes."""
 
     @abc.abstractmethod
     def _as_dict(self):
@@ -70,7 +63,7 @@ class SummaryDict(object):
     def update(self, d: t.Dict):
         # import ipdb; ipdb.set_trace()
         record = SummaryRecord()
-        for key, value in six.iteritems(d):
+        for key, value in d.items():
             item = SummaryItem()
             item.key = (key,)
             item.value = value
@@ -117,7 +110,7 @@ class Summary(SummaryDict):
     _get_current_summary_callback: t.Callable
 
     def __init__(self, get_current_summary_callback: t.Callable):
-        super(Summary, self).__init__()
+        super().__init__()
         object.__setattr__(self, "_update_callback", None)
         object.__setattr__(
             self, "_get_current_summary_callback", get_current_summary_callback

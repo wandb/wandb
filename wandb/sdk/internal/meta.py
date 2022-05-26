@@ -1,16 +1,17 @@
-#
-# -*- coding: utf-8 -*-
 """
 meta.
 """
 
 from datetime import datetime
+import glob
 import json
 import logging
 import multiprocessing
 import os
 from shutil import copyfile
+import subprocess
 import sys
+from urllib.parse import unquote
 
 from wandb import util
 from wandb.vendor.pynvml import pynvml
@@ -23,16 +24,11 @@ from ..lib.filenames import (
 )
 from ..lib.git import GitRepo
 
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore[import]
-else:
-    import subprocess  # type: ignore[no-redef]
-
 
 logger = logging.getLogger(__name__)
 
 
-class Meta(object):
+class Meta:
     """Used to store metadata during and after a run."""
 
     def __init__(self, settings=None, interface=None):
@@ -60,7 +56,7 @@ class Meta(object):
 
             installed_packages = [d for d in iter(pkg_resources.working_set)]
             installed_packages_list = sorted(
-                ["%s==%s" % (i.key, i.version) for i in installed_packages]
+                f"{i.key}=={i.version}" for i in installed_packages
             )
             with open(
                 os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w"
@@ -80,7 +76,9 @@ class Meta(object):
             with open(
                 os.path.join(self._settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
             ) as f:
-                subprocess.call(["conda", "env", "export"], stdout=f)
+                subprocess.call(
+                    ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
+                )
         except Exception:
             logger.exception("Error saving conda packages")
         logger.debug("save conda done")
@@ -146,7 +144,7 @@ class Meta(object):
             if upstream_commit and upstream_commit != self._git.repo.head.commit:
                 sha = upstream_commit.hexsha
                 upstream_patch_path = os.path.join(
-                    self._settings.files_dir, "upstream_diff_{}.patch".format(sha)
+                    self._settings.files_dir, f"upstream_diff_{sha}.patch"
                 )
                 with open(upstream_patch_path, "wb") as upstream_patch:
                     subprocess.check_call(
@@ -196,15 +194,16 @@ class Meta(object):
         self.data["state"] = "running"
 
     def _setup_git(self):
-        if self._git.enabled:
-            logger.debug("setup git")
-            self.data["git"] = {
-                "remote": self._git.remote_url,
-                "commit": self._git.last_commit,
-            }
-            self.data["email"] = self._git.email
-            self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
-            logger.debug("setup git done")
+        if self._settings.disable_git or not self._git.enabled:
+            return
+        logger.debug("setup git")
+        self.data["git"] = {
+            "remote": self._git.remote_url,
+            "commit": self._git.last_commit,
+        }
+        self.data["email"] = self._git.email
+        self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
+        logger.debug("setup git done")
 
     def probe(self):
         logger.debug("probe")
@@ -214,24 +213,20 @@ class Meta(object):
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
-            else:
-                self.data["program"] = "<python with no main file>"
-                if self._settings._jupyter:
-                    if self._settings.notebook_name:
-                        self.data["program"] = self._settings.notebook_name
+            elif self._settings._jupyter:
+                if self._settings.notebook_name:
+                    self.data["program"] = self._settings.notebook_name
+                elif self._settings._jupyter_path:
+                    if self._settings._jupyter_path.startswith("fileId="):
+                        unescaped = unquote(self._settings._jupyter_path)
+                        self.data["colab"] = (
+                            "https://colab.research.google.com/notebook#"
+                            + unescaped  # noqa
+                        )
+                        self.data["program"] = self._settings._jupyter_name
                     else:
-                        if self._settings._jupyter_path:
-                            if "fileId=" in self._settings._jupyter_path:
-                                self.data["colab"] = (
-                                    "https://colab.research.google.com/drive/"
-                                    + self._settings._jupyter_path.split(  # noqa
-                                        "fileId="
-                                    )[1]
-                                )
-                                self.data["program"] = self._settings._jupyter_name
-                            else:
-                                self.data["program"] = self._settings._jupyter_path
-                                self.data["root"] = self._settings._jupyter_root
+                        self.data["program"] = self._settings._jupyter_path
+                        self.data["root"] = self._settings._jupyter_root
             self._setup_git()
 
         if self._settings.anonymous != "true":
@@ -261,8 +256,8 @@ class Meta(object):
 
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)
-            files["files"].append((saved_program, "now"))
+            files["files"].append((glob.escape(saved_program), "now"))
         for patch in self._saved_patches:
-            files["files"].append((patch, "now"))
+            files["files"].append((glob.escape(patch), "now"))
 
         self._interface.publish_files(files)

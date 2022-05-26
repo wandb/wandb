@@ -1,22 +1,17 @@
-#
-# -*- coding: utf-8 -*-
 """
 metric.
 """
 
 import logging
+from typing import Callable, Optional, Sequence, Tuple
 
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 
-
-if wandb.TYPE_CHECKING:
-    from typing import Callable, Optional, Sequence, Tuple
 
 logger = logging.getLogger("wandb")
 
 
-class Metric(object):
+class Metric:
     """
     Metric object
     """

@@ -1,18 +1,14 @@
-from __future__ import absolute_import
-
-import sys
-import six
 import argparse
 import copy
 import json
 import os
-import yaml
-import importlib
 import re
+import sys
 
 import wandb
 from wandb import trigger
-from wandb.util import add_import_hook
+from wandb.util import add_import_hook, get_optional_module
+import yaml
 
 
 _import_hook = None
@@ -113,7 +109,11 @@ _magic_defaults = {
         #       'loss': None,
         #    },
     },
-    "args": {"absl": None, "argparse": None, "sys": None,},
+    "args": {
+        "absl": None,
+        "argparse": None,
+        "sys": None,
+    },
 }
 
 
@@ -132,9 +132,9 @@ def _parse_magic(val):
         return _merge_dicts(val, conf), val
     if os.path.isfile(val):
         try:
-            with open(val, "r") as stream:
+            with open(val) as stream:
                 val = yaml.safe_load(stream)
-        except IOError as e:
+        except OSError as e:
             wandb.termwarn("Unable to read magic config file", repeat=False)
             return _magic_defaults, not_set
         except yaml.YAMLError as e:
@@ -269,7 +269,7 @@ def _fit_wrapper(self, fn, generator=None, *args, **kwargs):
     return fn(*args, **kwargs)
 
 
-# NOTE(jhr): need to spell out all useable args so that users who inspect can see args
+# NOTE(jhr): need to spell out all usable args so that users who inspect can see args
 def _magic_fit(
     self,
     x=None,
@@ -336,6 +336,7 @@ def _magic_fit_generator(
 
 
 def _monkey_tfkeras():
+    from wandb.integration.keras import WandbCallback  # add keras import hooks first
     from tensorflow import keras as tfkeras
 
     models = getattr(tfkeras, "models", None)
@@ -367,7 +368,7 @@ def _monkey_absl():
         if not _flags_module:
             return
         flags_dict = {}
-        for f, v in six.iteritems(_flags_as_dict()):
+        for f, v in _flags_as_dict().items():
             m = _flags_module(f)
             if not m or m.startswith("absl."):
                 continue
@@ -419,17 +420,15 @@ def _monkey_argparse():
     class MonitoredArgumentParser(argparse._ArgumentParser):
         def __init__(self, *args, **kwargs):
             _uninstall()
-            super(MonitoredArgumentParser, self).__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
             _install()
 
         def parse_args(self, *args, **kwargs):
-            args = super(MonitoredArgumentParser, self).parse_args(*args, **kwargs)
+            args = super().parse_args(*args, **kwargs)
             return args
 
         def parse_known_args(self, *args, **kwargs):
-            args, unknown = super(MonitoredArgumentParser, self).parse_known_args(
-                *args, **kwargs
-            )
+            args, unknown = super().parse_known_args(*args, **kwargs)
             if self._callback:
                 self._callback(args, unknown=unknown)
             return args, unknown
@@ -439,11 +438,13 @@ def _monkey_argparse():
 
 
 def _magic_update_config():
-    # if we already have config set, dont add anymore
+    # if we already have config set, don't add anymore
     if wandb.run and wandb.run.config:
         c = wandb.run.config
         user_config = dict(c.items())
-        if user_config:
+        # ignore keys set by magic integration when checking
+        # if user added any keys
+        if set(user_config).difference({"magic"}):
             return
     if _magic_get_config("args.absl", None) is False:
         global _args_absl
@@ -487,7 +488,6 @@ def magic_install(init_args=None):
 
     global _magic_config
     global _import_hook
-    from wandb.integration.keras import WandbCallback  # add keras import hooks first
 
     # parse config early, before we have wandb.config overrides
     _magic_config, magic_set = _parse_magic(wandb.env.get_magic())
@@ -504,7 +504,7 @@ def magic_install(init_args=None):
     # process system args
     _process_system_args()
     # install argparse wrapper
-    in_jupyter_or_ipython = wandb.wandb_sdk.lib.ipython._get_python_type != "python"
+    in_jupyter_or_ipython = wandb.wandb_sdk.lib.ipython._get_python_type() != "python"
     if not in_jupyter_or_ipython:
         _monkey_argparse()
 
@@ -537,8 +537,9 @@ def magic_install(init_args=None):
         wandb.config.persist()
 
     # Monkey patch tf.keras
-    if "tensorflow.python.keras" in sys.modules or "keras" in sys.modules:
-        _monkey_tfkeras()
+    if get_optional_module("tensorflow"):
+        if "tensorflow.python.keras" in sys.modules or "keras" in sys.modules:
+            _monkey_tfkeras()
 
     # Always setup import hooks looking for keras or tf.keras
     add_import_hook(fullname="keras", on_import=_monkey_tfkeras)

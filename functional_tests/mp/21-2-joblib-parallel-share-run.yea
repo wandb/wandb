@@ -1,0 +1,35 @@
+id: 0.mp.21-2-joblib-parallel-share-run
+tag:
+  shard: service
+  skip: true
+
+plugin:
+  - wandb
+
+depend:
+  requirements:
+    - joblib
+
+var:
+    - history_len:
+        :fn:len: :wandb:runs[0][history]
+
+
+assert:
+  - :wandb:runs_len: 1
+  - :history_len: 12
+  
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 23  # service
+
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # import init
+    - 53  # joblib
+
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 7  # define_metric
+
+
+  - :wandb:runs[0][exitcode]: 0

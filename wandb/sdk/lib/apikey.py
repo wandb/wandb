@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """
 apikey util.
 """
@@ -9,6 +7,7 @@ import os
 import stat
 import sys
 import textwrap
+from urllib.parse import urlparse
 
 import requests
 import wandb
@@ -65,9 +64,9 @@ def prompt_api_key(  # noqa: C901
     if anon_mode == "never":
         # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
         choices.remove(LOGIN_CHOICE_ANON)
-    if jupyter or no_offline:
+    if (jupyter and not settings.login_timeout) or no_offline:
         choices.remove(LOGIN_CHOICE_DRYRUN)
-    if jupyter or no_create:
+    if (jupyter and not settings.login_timeout) or no_create:
         choices.remove(LOGIN_CHOICE_NEW)
 
     if jupyter and "google.colab" in sys.modules:
@@ -89,9 +88,14 @@ def prompt_api_key(  # noqa: C901
     elif len(choices) == 1:
         result = choices[0]
     else:
-        result = prompt_choices(choices)
+        result = prompt_choices(
+            choices, input_timeout=settings.login_timeout, jupyter=jupyter
+        )
 
-    api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string
+    api_ask = (
+        f"{log_string}: Paste an API key from your profile and hit enter, "
+        "or press ctrl+c to quit: "
+    )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
@@ -101,9 +105,7 @@ def prompt_api_key(  # noqa: C901
         key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
-            wandb.termlog(
-                "Create an account here: {}/authorize?signup=true".format(app_url)
-            )
+            wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true")
             key = input_callback(api_ask).strip()
 
         write_key(settings, key, api=api)
@@ -113,9 +115,7 @@ def prompt_api_key(  # noqa: C901
 
         if not key:
             wandb.termlog(
-                "You can find your API key in your browser here: {}/authorize".format(
-                    app_url
-                )
+                f"You can find your API key in your browser here: {app_url}/authorize"
             )
             key = input_callback(api_ask).strip()
         write_key(settings, key, api=api)
@@ -123,6 +123,8 @@ def prompt_api_key(  # noqa: C901
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
+    elif result == LOGIN_CHOICE_DRYRUN:
+        return None
     else:
         # Jupyter environments don't have a tty, but we can still try logging in using
         # the browser callback if one is supplied.
@@ -145,22 +147,24 @@ def write_netrc(host, entity, key):
         )
         return None
     try:
-        normalized_host = host.rstrip("/").split("/")[-1].split(":")[0]
+        normalized_host = urlparse(host).netloc.split(":")[0]
         if normalized_host != "localhost" and "." not in normalized_host:
-            wandb.termerror("Host must be a url in the form https://some.address.com")
+            wandb.termerror(
+                f"Host must be a url in the form https://some.address.com, received {host}"
+            )
             return None
         wandb.termlog(
             "Appending key for {} to your netrc file: {}".format(
                 normalized_host, os.path.expanduser("~/.netrc")
             )
         )
-        machine_line = "machine %s" % normalized_host
+        machine_line = f"machine {normalized_host}"
         path = os.path.expanduser("~/.netrc")
         orig_lines = None
         try:
             with open(path) as f:
                 orig_lines = f.read().strip().split("\n")
-        except IOError:
+        except OSError:
             pass
         with open(path, "w") as f:
             if orig_lines:
@@ -186,19 +190,19 @@ def write_netrc(host, entity, key):
             )
         os.chmod(os.path.expanduser("~/.netrc"), stat.S_IRUSR | stat.S_IWUSR)
         return True
-    except IOError:
+    except OSError:
         wandb.termerror("Unable to read ~/.netrc")
         return None
 
 
 def write_key(settings, key, api=None, anonymous=False):
     if not key:
-        return
+        raise ValueError("No API key specified.")
 
-    # TODO(jhr): api shouldn't be optional or it shouldnt be passed, clean up callers
+    # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
     api = api or InternalApi()
 
-    # Normal API keys are 40-character hex strings. Onprem API keys have a
+    # Normal API keys are 40-character hex strings. On-prem API keys have a
     # variable-length prefix, a dash, then the 40-char string.
     prefix, suffix = key.split("-", 1) if "-" in key else ("", key)
 

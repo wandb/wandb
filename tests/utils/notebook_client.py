@@ -1,14 +1,11 @@
-try:
-    from nbclient import NotebookClient
-    from nbclient.client import CellExecutionError
-except ImportError:  # TODO: no fancy notebook fun in python2
-    NotebookClient = object
+from nbclient import NotebookClient
+from nbclient.client import CellExecutionError
 
 
 class WandbNotebookClient(NotebookClient):
     def execute_cells(self, cell_index=0, execution_count=None, store_history=True):
-        """ Execute a specific cell.  Since we always execute setup.py in the first
-            cell we increment the index offset here
+        """Execute a specific cell.  Since we always execute setup.py in the first
+        cell we increment the index offset here
         """
         if not isinstance(cell_index, list):
             cell_index = [cell_index]
@@ -65,6 +62,10 @@ class WandbNotebookClient(NotebookClient):
         for i in range(len(self.nb["cells"]) - 1):
             text += self.cell_output_text(i)
         return text
+
+    @property
+    def cells(self):
+        return iter(self.nb["cells"][1:])
 
     def cell_output(self, cell_index):
         """Return a cells outputs

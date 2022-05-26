@@ -1,0 +1,23 @@
+id: 0.torch.01-sparse-tensors
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :op:>:
+    - :wandb:runs[0][summary][batch_loss]
+    - 0
+  - :wandb:runs[0][summary][gradients/embeddings.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/linear1.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/linear1.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/linear2.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/linear2.weight][_type]: histogram
+  - :wandb:runs[0][summary][parameters/embeddings.weight][_type]: histogram
+  - :wandb:runs[0][summary][parameters/linear1.bias][_type]: histogram
+  - :wandb:runs[0][summary][parameters/linear1.weight][_type]: histogram
+  - :wandb:runs[0][summary][parameters/linear2.bias][_type]: histogram
+  - :wandb:runs[0][summary][parameters/linear2.weight][_type]: histogram
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 1  # watch

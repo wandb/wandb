@@ -18,19 +18,19 @@ def make_printer(msg):
     return printer
 
 
-class TransientException(Exception):
+class TransientError(Exception):
     """Exception type designated for errors that may only be temporary
 
     Can have its own message and/or wrap another exception.
     """
 
     def __init__(self, msg=None, exc=None):
-        super(TransientException, self).__init__(msg)
+        super().__init__(msg)
         self.message = msg
         self.exception = exc
 
 
-class Retry(object):
+class Retry:
     """Creates a retryable version of a function.
 
     Calling this will call the passed function, retrying if any exceptions in
@@ -57,7 +57,7 @@ class Retry(object):
         self._num_retries = num_retries
         self._retryable_exceptions = retryable_exceptions
         if self._retryable_exceptions is None:
-            self._retryable_exceptions = (TransientException,)
+            self._retryable_exceptions = (TransientError,)
         self._index = 0
         self.retry_callback = retry_callback
 
@@ -88,7 +88,7 @@ class Retry(object):
 
         sleep_base = kwargs.pop("retry_sleep_base", 1)
 
-        # an extra function to allow performing more logic on the filtered exceptiosn
+        # an extra function to allow performing more logic on the filtered exception
         check_retry_fn = kwargs.pop("check_retry_fn", self._check_retry_fn)
 
         sleep = sleep_base

@@ -1,5 +1,5 @@
 libcst
-grpcio==1.27.2
-grpcio-tools==1.27.2
+grpcio==1.40.0
+grpcio-tools==1.40.0
 bumpversion
 twine

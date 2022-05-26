@@ -21,6 +21,7 @@ SWEEP_PARAM_PATH = "WANDB_SWEEP_PARAM_PATH"
 SHOW_RUN = "WANDB_SHOW_RUN"
 DEBUG = "WANDB_DEBUG"
 SILENT = "WANDB_SILENT"
+QUIET = "WANDB_QUIET"
 INITED = "WANDB_INITED"
 DIR = "WANDB_DIR"
 # Deprecate DESCRIPTION in a future release
@@ -33,6 +34,7 @@ USER_EMAIL = "WANDB_USER_EMAIL"
 PROJECT = "WANDB_PROJECT"
 ENTITY = "WANDB_ENTITY"
 BASE_URL = "WANDB_BASE_URL"
+APP_URL = "WANDB_APP_URL"
 PROGRAM = "WANDB_PROGRAM"
 ARGS = "WANDB_ARGS"
 MODE = "WANDB_MODE"
@@ -47,6 +49,7 @@ HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
+DISABLE_GIT = "WANDB_DISABLE_GIT"
 SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
@@ -63,6 +66,10 @@ ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
+DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
+SERVICE = "WANDB_SERVICE"
+SENTRY_DSN = "WANDB_SENTRY_DSN"
+INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -78,6 +85,7 @@ def immutable_keys():
         API_KEY,
         IGNORE,
         DISABLE_CODE,
+        DISABLE_GIT,
         DOCKER,
         MODE,
         BASE_URL,
@@ -99,10 +107,11 @@ def immutable_keys():
         HOST,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
+        DISABLE_SSL,
     ]
 
 
-def _env_as_bool(var, default=None, env=None):
+def _env_as_bool(var: str, default: str = None, env=None) -> bool:
     if env is None:
         env = os.environ
     val = env.get(var, default)
@@ -117,8 +126,12 @@ def is_debug(default=None, env=None):
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
-def error_reporting_enabled():
+def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default=True)
+
+
+def ssl_disabled():
+    return _env_as_bool(DISABLE_SSL, default=False)
 
 
 def get_error_reporting(default=True, env=None):
@@ -165,10 +178,10 @@ def get_ignore(default=None, env=None):
     if env is None:
         env = os.environ
 
-    if env.get(IGNORE, default):
-        return env.get(IGNORE, default).split(",")
+    if env.get(IGNORE):
+        return env.get(IGNORE).split(",")
     else:
-        return []
+        return default
 
 
 def get_project(default=None, env=None):
@@ -203,7 +216,14 @@ def get_base_url(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(BASE_URL, default)
+    return env.get(BASE_URL, default).rstrip("/")
+
+
+def get_app_url(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(APP_URL, default)
 
 
 def get_show_run(default=None, env=None):
@@ -320,5 +340,13 @@ def set_project(value, env=None):
 def should_save_code():
     save_code = _env_as_bool(SAVE_CODE, default=False)
     code_disabled = _env_as_bool(DISABLE_CODE, default=False)
-    # SAVE_CODE takes precedence over DISABLE_CODE
     return save_code and not code_disabled
+
+
+def disable_git(env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(DISABLE_GIT, default=False)
+    if type(val) is str:
+        val = False if val.lower() == "false" else True
+    return val

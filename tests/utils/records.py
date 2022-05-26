@@ -33,5 +33,17 @@ class RecordsUtil:
         return list(self._get_all("history"))
 
     @property
+    def files(self):
+        return list(self._get_all("files"))
+
+    @property
     def metric(self):
         return list(self._get_all("metric"))
+
+    @property
+    def partial_history(self):
+        return [
+            request.partial_history
+            for request in self._get_all("request")
+            if request.WhichOneof("request_type") == "partial_history"
+        ]

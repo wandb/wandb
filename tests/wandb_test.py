@@ -2,30 +2,36 @@
 See wandb_integration_test.py for tests that launch a real backend against
 a live backend server.
 """
-import wandb
-from wandb.viz import create_custom_chart
-import pytest
-import tempfile
 import glob
+import tempfile
 import os
-import sys
+from unittest import mock
+
+import pytest
+import wandb
+from wandb.viz import custom_chart
 
 
-def test_log_step(wandb_init_run):
-    wandb.log({"acc": 1}, step=5, commit=True)
-    assert wandb.run._backend.history[0]["_step"] == 5
+def test_log_step(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
+    run.log({"acc": 1}, step=5, commit=True)
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert ctx_util.history[0]["_step"] == 5
 
 
-def test_log_custom_chart(wandb_init_run):
-    custom_chart = create_custom_chart(
-        "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
-    )
-    wandb.log({"my_custom_chart": custom_chart})
-    assert wandb.run._backend.history[0].get("my_custom_chart_table")
+def test_log_custom_chart(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        my_custom_chart = custom_chart(
+            "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
+        )
+        run.log({"my_custom_chart": my_custom_chart})
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert ctx_util.history[0].get("my_custom_chart_table")
 
 
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})
-@pytest.mark.skip(reason="We haven't implemented wandb silent yet")
 def test_log_silent(wandb_init_run, capsys):
     wandb.log({"acc": 1})
     _, err = capsys.readouterr()
@@ -44,41 +50,68 @@ def test_log_not_dict(wandb_init_run):
         wandb.log(10)
 
 
-def test_log_step_uncommited(wandb_init_run):
-    wandb.log(dict(cool=2), step=2)
-    wandb.log(dict(cool=2), step=4)
-    assert len(wandb.run._backend.history) == 1
+def test_log_multiple_cases_example(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(n=1))
+        run.log(dict(n=11), commit=False)
+        run.log(dict(n=2), step=100)
+        run.log(dict(n=3), step=100)
+        run.log(dict(n=8), step=101)
+        run.log(dict(n=5), step=102)
+        run.log(dict(cool=2), step=2)
+        run.log(dict(cool=2), step=4)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert [(h["n"], h["_step"]) for h in ctx_util.history] == [
+        (1, 0),
+        (11, 1),
+        (3, 100),
+        (8, 101),
+        (5, 102),
+    ]
 
 
-def test_log_step_committed(wandb_init_run):
-    wandb.log(dict(cool=2), step=2)
-    wandb.log(dict(cool=2), step=4, commit=True)
-    assert len(wandb.run._backend.history) == 2
+def test_log_step_uncommited(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
+    run.log(dict(cool=2), step=2, commit=False)
+    run.log(dict(cool=2), step=4)
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
 
 
-def test_log_step_committed_same(wandb_init_run):
-    wandb.log(dict(cool=2), step=1)
-    wandb.log(dict(cool=2), step=4)
-    wandb.log(dict(bad=3), step=4, commit=True)
-    assert len(wandb.run._backend.history) == 2
-    assert (
-        len([x for x in wandb.run._backend.history[-1].keys() if not x.startswith("_")])
-        == 2
-    )
-    assert wandb.run._backend.history[-1]["cool"] == 2
-    assert wandb.run._backend.history[-1]["bad"] == 3
+def test_log_step_committed(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(cool=2), step=2)
+        run.log(dict(cool=2), step=4, commit=True)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
 
 
-def test_log_step_committed_same_dropped(wandb_init_run):
-    wandb.log(dict(cool=2), step=1)
-    wandb.log(dict(cool=2), step=4, commit=True)
-    wandb.log(dict(bad=3), step=4, commit=True)
-    assert len(wandb.run._backend.history) == 2
-    assert (
-        len([x for x in wandb.run._backend.history[-1].keys() if not x.startswith("_")])
-        == 1
-    )
-    assert wandb.run._backend.history[-1]["cool"] == 2
+def test_log_step_committed_same(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(cool=2), step=1)
+        run.log(dict(cool=2), step=4)
+        run.log(dict(bad=3), step=4, commit=True)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
+    assert len([x for x in ctx_util.history[-1].keys() if not x.startswith("_")]) == 2
+    assert ctx_util.history[-1]["cool"] == 2
+    assert ctx_util.history[-1]["bad"] == 3
+
+
+def test_log_step_committed_same_dropped(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(cool=2), step=1)
+        run.log(dict(cool=2), step=4, commit=True)
+        run.log(dict(bad=3), step=4, commit=True)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
+    assert len([x for x in ctx_util.history[-1].keys() if not x.startswith("_")]) == 1
+    assert ctx_util.history[-1]["cool"] == 2
 
 
 def test_nice_log_error():
@@ -115,11 +148,8 @@ def test_k8s_failure(wandb_init_run):
 
 
 @pytest.mark.wandb_args(sagemaker=True)
-@pytest.mark.skipif(
-    sys.version_info < (3, 0), reason="py27 patch doesn't work with builtins"
-)
-def test_sagemaker(wandb_init_run):
-    assert wandb.config.fuckin == "A"
+def test_sagemaker(wandb_init_run, git_repo):
+    assert wandb.config.foo == "bar"
     assert wandb.run.id == "sage-maker"
     # TODO: add test for secret, but for now there is no env or setting for it
     #  so its not added. Similarly add test for group
@@ -177,14 +207,55 @@ def test_bad_json_tfjob(wandb_init_run):
     assert wandb.run.group is None
 
 
-@pytest.mark.wandb_args(wandb_init={"dir": "/tmp"})
+@pytest.mark.wandb_args(wandb_init={"dir": tempfile.gettempdir()})
 def test_custom_dir(wandb_init_run):
-    assert len(glob.glob("/tmp/wandb/offline-*")) > 0
+    assert len(glob.glob(os.path.join(tempfile.gettempdir(), "wandb", "offline-*"))) > 0
 
 
-@pytest.mark.wandb_args(env={"WANDB_DIR": "/tmp"})
+@pytest.mark.wandb_args(env={"WANDB_DIR": tempfile.gettempdir()})
 def test_custom_dir_env(wandb_init_run):
-    assert len(glob.glob("/tmp/wandb/offline-*")) > 0
+    assert len(glob.glob(os.path.join(tempfile.gettempdir(), "wandb", "offline-*"))) > 0
+
+
+def test_anonymous_mode(live_mock_server, test_settings, capsys, monkeypatch):
+    copied_env = os.environ.copy()
+    copied_env.pop("WANDB_API_KEY")
+    copied_env.pop("WANDB_USERNAME")
+    test_settings.update(
+        {"anonymous": "must", "api_key": None},
+        source=wandb.sdk.wandb_settings.Source.INIT,
+    )
+    with mock.patch.dict("os.environ", copied_env, clear=True):
+        run = wandb.init(settings=test_settings, anonymous="must")
+        run.log({"something": 1})
+        _, err = capsys.readouterr()
+        assert (
+            "Do NOT share these links with anyone. They can be used to claim your runs."
+            in err
+        )
+        run.finish()
+
+
+def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys, monkeypatch):
+    copied_env = os.environ.copy()
+    copied_env.pop("WANDB_API_KEY")
+    copied_env.pop("WANDB_USERNAME")
+    test_settings.update(
+        {"anonymous": "must", "api_key": None},
+        source=wandb.sdk.wandb_settings.Source.INIT,
+    )
+    with mock.patch.dict("os.environ", copied_env, clear=True):
+
+        run = wandb.init(settings=test_settings, anonymous="must")
+        artifact = wandb.Artifact("my-arti", type="dataset")
+        run.log_artifact(artifact)
+        _, err = capsys.readouterr()
+
+        assert (
+            "Artifacts logged anonymously cannot be claimed and expire after 7 days."
+            in err
+        )
+        run.finish()
 
 
 def test_login_key(capsys):
@@ -206,20 +277,18 @@ def test_sagemaker_key(runner):
         assert wandb.api.api_key == "S" * 40
 
 
-@pytest.mark.skip(reason="We dont validate keys in wandb.login() right now")
-def test_login_invalid_key():
-    os.environ["WANDB_API_KEY"] = "B" * 40
-    wandb.ensure_configured()
-    with pytest.raises(wandb.UsageError):
-        wandb.login()
-    del os.environ["WANDB_API_KEY"]
+@pytest.mark.skip(reason="We dont validate keys in `wandb.login()` right now")
+def test_login_invalid_key(live_mock_server):
+    with mock.patch.dict("os.environ", WANDB_API_KEY="B" * 40):
+        wandb.ensure_configured()
+        with pytest.raises(wandb.UsageError):
+            wandb.login()
 
 
-@pytest.mark.skip(reason="This doesn't work for some reason")
-def test_login_anonymous(mock_server, local_netrc):
-    os.environ["WANDB_API_KEY"] = "B" * 40
-    wandb.login(anonymous="must")
-    assert wandb.api.api_key == "ANONYMOOSE" * 4
+def test_login_anonymous(live_mock_server, local_netrc):
+    with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
+        wandb.login(anonymous="must")
+        assert wandb.api.api_key == "ANONYMOOSE" * 4
 
 
 def test_login_sets_api_base_url(mock_server):
@@ -233,49 +302,67 @@ def test_login_sets_api_base_url(mock_server):
     assert api.settings["base_url"] == base_url
 
 
-def test_save_policy_symlink(wandb_init_run):
-    with open("test.rad", "w") as f:
-        f.write("something")
-    wandb.save("test.rad")
-    assert os.path.exists(os.path.join(wandb_init_run.dir, "test.rad"))
-    assert wandb.run._backend.files["test.rad"] == 2
+def test_save_policy_symlink(runner, user_test):
+    with runner.isolated_filesystem():
+        run = user_test.get_run()
+        with open("test.rad", "w") as f:
+            f.write("something")
+        run.save("test.rad")
+        assert os.path.exists(os.path.join(run.dir, "test.rad"))
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == "test.rad"
+        assert file_record.policy == 2
 
 
-def test_save_policy_glob_symlink(wandb_init_run, capsys):
-    with open("test.rad", "w") as f:
-        f.write("something")
-    with open("foo.rad", "w") as f:
-        f.write("something")
-    wandb.save("*.rad")
-    _, err = capsys.readouterr()
-    assert "Symlinked 2 files" in err
-    assert os.path.exists(os.path.join(wandb_init_run.dir, "test.rad"))
-    assert os.path.exists(os.path.join(wandb_init_run.dir, "foo.rad"))
-    assert wandb.run._backend.files["*.rad"] == 2
+def test_save_policy_glob_symlink(runner, user_test, capsys):
+    with runner.isolated_filesystem():
+        run = user_test.get_run()
+        with open("test.rad", "w") as f:
+            f.write("something")
+        with open("foo.rad", "w") as f:
+            f.write("something")
+        run.save("*.rad")
+        _, err = capsys.readouterr()
+        assert "Symlinked 2 files" in err
+        assert os.path.exists(os.path.join(run.dir, "test.rad"))
+        assert os.path.exists(os.path.join(run.dir, "foo.rad"))
+
+        # test_save_policy_glob_symlink
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == "*.rad"
+        assert file_record.policy == 2
 
 
-def test_save_absolute_path(wandb_init_run, capsys):
+def test_save_absolute_path(runner, user_test, capsys):
+    run = user_test.get_run()
     root = tempfile.gettempdir()
     test_path = os.path.join(root, "test.txt")
     with open(test_path, "w") as f:
         f.write("something")
-    wandb.save(test_path)
-    _, err = capsys.readouterr()
-    assert "Saving files without folders" in err
-    assert os.path.exists(os.path.join(wandb_init_run.dir, "test.txt"))
-    assert wandb.run._backend.files["test.txt"] == 2
+    with runner.isolated_filesystem():
+        run.save(test_path)
+        _, err = capsys.readouterr()
+        assert "Saving files without folders" in err
+        assert os.path.exists(os.path.join(run.dir, "test.txt"))
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == "test.txt"
+        assert file_record.policy == 2
 
 
-def test_save_relative_path(wandb_init_run):
+def test_save_relative_path(runner, user_test):
+    run = user_test.get_run()
     root = tempfile.gettempdir()
     test_path = os.path.join(root, "tmp", "test.txt")
     print("DAMN", os.path.dirname(test_path))
     wandb.util.mkdir_exists_ok(os.path.dirname(test_path))
     with open(test_path, "w") as f:
         f.write("something")
-    wandb.save(test_path, base_path=root, policy="now")
-    assert os.path.exists(os.path.join(wandb_init_run.dir, test_path))
-    assert wandb.run._backend.files[os.path.relpath(test_path, root)] == 0
+    with runner.isolated_filesystem():
+        run.save(test_path, base_path=root, policy="now")
+        assert os.path.exists(os.path.join(run.dir, test_path))
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == os.path.relpath(test_path, root)
+        assert file_record.policy == 0
 
 
 def test_save_invalid_path(wandb_init_run):
@@ -359,6 +446,7 @@ def test_run_offline(wandb_init_run):
 @pytest.mark.wandb_args(env={"WANDB_ENTITY": "ent1"})
 def test_run_entity(wandb_init_run):
     assert wandb.run.entity == "ent1"
+    wandb.finish()
 
 
 @pytest.mark.wandb_args(env={"WANDB_PROJECT": "proj1"})
@@ -367,7 +455,7 @@ def test_run_project(wandb_init_run):
 
 
 @pytest.mark.wandb_args(env={"WANDB_PROJECT": "proj1"})
-def test_run_project(wandb_init_run):
+def test_run_project_name(wandb_init_run):
     assert wandb.run.project_name() == "proj1"
 
 
@@ -421,22 +509,20 @@ def test_run_url(wandb_init_run):
     assert url is None
 
 
-# NOTE: not allowed in 0.10.x:
-# run.api
-# run.entity="junk"
-# run.upload_debug()
-# run.host
-# run.auto_project_name()
-# run.set_environment()
-# run.close_files()
-# run.has_history()
-# run.has_summary()
-# run.has_events()
-# run.events
+def test_attach_usage_errors(wandb_init_run):
 
-# NOTE: deprecated and removed:
-# run.description
-# run.description_path()
+    if not os.environ.get("WANDB_REQUIRE_SERVICE"):
+        with pytest.raises(wandb.UsageError) as e:
+            wandb._attach(run=wandb_init_run)
+        assert (
+            "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
+            in str(e.value)
+        )
+
+    with pytest.raises(wandb.UsageError) as e:
+        wandb._attach()
+    assert "Either (`attach_id` or `run_id`) or `run` must be specified" in str(e.value)
+
 
 # TODO: test these or make sure they are tested somewhere
 # run.save()  # odd

@@ -1,9 +1,12 @@
 __pycache__/
 htmlcov/
 .coverage
+coverage.xml
 .tox/
 .mypy_cache/
 .pytest_cache/
+.circle_cache/
+.yea_cache/
 build/
 dist/
 *.pyc
@@ -19,4 +22,8 @@ pip-wheel-metadata
 xcuserdata/
 test-results/
 mypy-results/
+cover-results/
 wandb/proto_check/
+.idea/
+.yea-requirements.txt
+.yeadoc/

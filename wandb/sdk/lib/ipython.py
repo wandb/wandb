@@ -1,16 +1,23 @@
-#
 import logging
 import sys
+from typing import Optional
 
 import wandb
+
 
 logger = logging.getLogger(__name__)
 
 
-STYLED_TABLE_HTML = """<style>
-    table.wandb td:nth-child(1) { padding: 0 10px; text-align: right }
-    </style><table class="wandb">
+TABLE_STYLES = """<style>
+    table.wandb td:nth-child(1) { padding: 0 10px; text-align: left ; width: auto;} td:nth-child(2) {text-align: left ; width: 100%}
+    .wandb-row { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; width: 100% }
+    .wandb-col { display: flex; flex-direction: column; flex-basis: 100%; flex: 1; padding: 10px; }
+    </style>
 """
+
+
+def toggle_button(what="run"):
+    return f"<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">Display W&B {what}</button>"
 
 
 def _get_python_type():
@@ -28,9 +35,13 @@ def _get_python_type():
         return "jupyter"
 
 
-def display_html(html):
+def in_jupyter() -> bool:
+    return _get_python_type() == "jupyter"
+
+
+def display_html(html: str):  # type: ignore
     """Displays HTML in notebooks, is a noop outside of a jupyter context"""
-    if wandb.run and wandb.run._settings._silent:
+    if wandb.run and wandb.run._settings.silent:
         return
     try:
         from IPython.core.display import display, HTML  # type: ignore
@@ -42,7 +53,7 @@ def display_html(html):
 
 def display_widget(widget):
     """Displays ipywidgets in notebooks, is a noop outside of a jupyter context"""
-    if wandb.run and wandb.run._settings._silent:
+    if wandb.run and wandb.run._settings.silent:
         return
     try:
         from IPython.core.display import display
@@ -54,7 +65,7 @@ def display_widget(widget):
     return display(widget)
 
 
-class ProgressWidget(object):
+class ProgressWidget:
     """A simple wrapper to render a nice progress bar with a label"""
 
     def __init__(self, widgets, min, max):
@@ -65,7 +76,7 @@ class ProgressWidget(object):
         self._displayed = False
         self._disabled = False
 
-    def update(self, value, label):
+    def update(self, value: float, label: str) -> None:
         if self._disabled:
             return
         try:
@@ -81,13 +92,13 @@ class ProgressWidget(object):
                 "Unable to render progress bar, see the user log for details"
             )
 
-    def close(self):
+    def close(self) -> None:
         if self._disabled or not self._displayed:
             return
         self._widget.close()
 
 
-def jupyter_progress_bar(min=0, max=1.0):
+def jupyter_progress_bar(min: float = 0, max: float = 1.0) -> Optional[ProgressWidget]:
     """Returns an ipywidget progress bar or None if we can't import it"""
     widgets = wandb.util.get_module("ipywidgets")
     try:

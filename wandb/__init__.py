@@ -1,43 +1,29 @@
-# -*- coding: utf-8 -*-
-"""
-Wandb is a library to help track machine learning experiments.
-
-For more information on wandb see https://docs.wandb.com.
+"""Use wandb to track machine learning work.
 
 The most commonly used functions/objects are:
-- wandb.init — initialize a new run at the top of your training script
-- wandb.config — track hyperparameters
-- wandb.log — log metrics over time within your training loop
-- wandb.save — save files in association with your run, like model weights
-- wandb.restore — restore the state of your code when you ran a given run
+  - wandb.init — initialize a new run at the top of your training script
+  - wandb.config — track hyperparameters and metadata
+  - wandb.log — log metrics and media over time within your training loop
 
-For examples usage, see github.com/wandb/examples
+For guides and examples, see https://docs.wandb.com/guides.
+
+For scripts and interactive notebooks, see https://github.com/wandb/examples.
+
+For reference documentation, see https://docs.wandb.com/ref/python.
 """
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-__version__ = "0.10.33.dev1"
+__version__ = "0.12.18.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
 
-import sys
+from typing import Optional
 
 from wandb.errors import Error
 
 # This needs to be early as other modules call it.
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-TYPE_CHECKING = False  # type: bool
-if PY3:
-    TYPE_CHECKING = True
-    from wandb import sdk as wandb_sdk
-else:
-    from wandb import sdk_py27 as wandb_sdk
+from wandb import sdk as wandb_sdk
 
 import wandb
 
@@ -45,6 +31,8 @@ wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
+_attach = wandb_sdk._attach
+_teardown = wandb_sdk.teardown
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
@@ -53,6 +41,9 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
+sweep = wandb_sdk.sweep
+controller = wandb_sdk.controller
+require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
@@ -61,10 +52,13 @@ Config = wandb_sdk.Config
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError
 
-_preinit = wandb_lib.preinit
-_lazyloader = wandb_lib.lazyloader
+_preinit = wandb.wandb_lib.preinit
+_lazyloader = wandb.wandb_lib.lazyloader
+
+# Call import module hook to setup any needed require hooks
+wandb.sdk.wandb_require._import_module_hook()
+
 from wandb import wandb_torch
-from wandb import util
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.data_types import Graph
@@ -83,15 +77,13 @@ from wandb.data_types import Classes
 from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
-from wandb.wandb_controller import sweep, controller
-
-from wandb import superagent
 
 # from wandb.core import *
 from wandb.viz import visualize
 from wandb import plot
 from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
+from wandb.sdk.internal import profiler
 
 
 # Used to make sure we don't use some code in the incorrect process context
@@ -130,13 +122,9 @@ def _assert_is_user_process():
 # globals
 Api = PublicApi
 api = InternalApi()
-run = None
-config = _preinit.PreInitCallable(
-    _preinit.PreInitObject("wandb.config"), wandb_sdk.wandb_config.Config
-)
-summary = _preinit.PreInitCallable(
-    _preinit.PreInitObject("wandb.summary"), wandb_sdk.wandb_summary.Summary
-)
+run: Optional["wandb.sdk.wandb_run.Run"] = None
+config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
+summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
 restore = wandb_sdk.wandb_run.restore
@@ -170,6 +158,9 @@ tensorflow = _lazyloader.LazyLoader(
 xgboost = _lazyloader.LazyLoader(
     "wandb.xgboost", globals(), "wandb.integration.xgboost"
 )
+catboost = _lazyloader.LazyLoader(
+    "wandb.catboost", globals(), "wandb.integration.catboost"
+)
 tensorboard = _lazyloader.LazyLoader(
     "wandb.tensorboard", globals(), "wandb.integration.tensorboard"
 )
@@ -194,12 +185,22 @@ def set_trace():
     pdb.set_trace()  # TODO: pass the parent stack...
 
 
+def load_ipython_extension(ipython):
+    ipython.register_magics(wandb.jupyter.WandBMagics)
+
+
+if wandb_sdk.lib.ipython.in_jupyter():
+    from IPython import get_ipython
+
+    load_ipython_extension(get_ipython())
+
 __all__ = [
     "__version__",
     "init",
     "setup",
     "save",
     "sweep",
+    "controller",
     "agent",
     "config",
     "log",

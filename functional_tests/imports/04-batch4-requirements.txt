@@ -1,0 +1,12 @@
+# paddle
+# parlai
+# prophet
+pycaret
+pytorch-ignite
+pytorchvideo
+pytorch-lightning
+ray[tune]
+scikit-learn
+simpletransformers
+skorch
+spacy>=3.1

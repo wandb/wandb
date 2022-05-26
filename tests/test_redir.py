@@ -1,18 +1,19 @@
 """redirect tests"""
 
-
-from __future__ import print_function
-
-from wandb.cli import cli
-
-import pytest
-import sys
 import os
-import wandb
-import numpy as np
 import re
+import sys
 import time
+from unittest import mock
+
+import numpy as np
+import pytest
 import tqdm
+
+import wandb
+from wandb.cli import cli
+import wandb.sdk.lib.redirect
+import wandb.util
 
 
 impls = [wandb.wandb_sdk.lib.redirect.StreamWrapper]
@@ -37,14 +38,7 @@ class CapList(list):
         for sep in [b"\r\n", b"\n"]:
             if x.endswith(sep):
                 x = x[: -len(sep)]
-        super(CapList, self).append(x)
-
-
-@pytest.fixture
-def console_settings(test_settings, request):
-    s = wandb.Settings(console=request.param)
-    test_settings._apply_settings(s)
-    return test_settings
+        super().append(x)
 
 
 @pytest.mark.parametrize("cls", impls)
@@ -195,7 +189,7 @@ def test_numpy(cls, capfd):
 
 
 @pytest.mark.skipif(
-    sys.version_info >= (3, 9) or sys.version_info < (3, 5),
+    sys.version_info >= (3, 9),
     reason="Torch not available.",
 )
 @pytest.mark.parametrize("cls", impls)
@@ -223,10 +217,13 @@ def test_print_torch_model(cls, capfd):
         r.uninstall()
 
 
-@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
-def test_run_with_console_redirect(console_settings, capfd):
+@pytest.mark.parametrize("console", console_modes)
+def test_run_with_console_redirect(test_settings, capfd, console):
     with capfd.disabled():
-        run = wandb.init(settings=console_settings)
+        test_settings.update(
+            console=console, source=wandb.sdk.wandb_settings.Source.INIT
+        )
+        run = wandb.init(settings=test_settings)
 
         print(np.random.randint(64, size=(40, 40, 40, 40)))
 
@@ -235,18 +232,22 @@ def test_run_with_console_redirect(console_settings, capfd):
 
         print("\n" * 1000)
         print("---------------")
+        time.sleep(1)
         run.finish()
 
 
-@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
-def test_offline_compression(console_settings, capfd, runner):
+@pytest.mark.parametrize("console", console_modes)
+def test_offline_compression(test_settings, capfd, runner, console):
     with capfd.disabled():
-        s = wandb.Settings(mode="offline")
-        console_settings._apply_settings(s)
+        test_settings.update(
+            mode="offline",
+            console=console,
+        )
 
-        run = wandb.init(settings=console_settings)
+        run = wandb.init(settings=test_settings)
+        run_dir, run_id = run.dir, run.id
 
-        for i in tqdm.tqdm(range(100), ncols=139, ascii=" 123456789#"):
+        for _ in tqdm.tqdm(range(100), ncols=139, ascii=" 123456789#"):
             time.sleep(0.05)
 
         print("\n" * 1000)
@@ -257,11 +258,11 @@ def test_offline_compression(console_settings, capfd, runner):
 
         print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")
 
-        time.sleep(1)
-
+        time.sleep(2)
         run.finish()
+
         binary_log_file = (
-            os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+            os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
         )
         binary_log = runner.invoke(
             cli.sync, ["--view", "--verbose", binary_log_file]
@@ -273,46 +274,60 @@ def test_offline_compression(console_settings, capfd, runner):
         # Only final state of progress bar is logged
         assert binary_log.count("#") == 100, binary_log.count
 
-        # Intermediete states are not logged
+        # Intermediate states are not logged
         assert "QWERT" not in binary_log
         assert "YUIOP" not in binary_log
         assert "12345" not in binary_log
         assert "UIOP" in binary_log
 
 
-@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+@pytest.mark.parametrize("console", console_modes)
 @pytest.mark.parametrize("numpy", [True, False])
-@pytest.mark.timeout(120)
-def test_very_long_output(console_settings, capfd, runner, numpy):
+@pytest.mark.timeout(300)
+def test_very_long_output(test_settings, capfd, runner, console, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
+    test_settings.update(
+        mode="offline",
+        console=console,
+        run_id=wandb.util.generate_id(),
+    )
+
     with capfd.disabled():
-        if not numpy:
-            wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
-        try:
-            run = wandb.init(settings=console_settings)
+        with mock.patch.object(
+            wandb.wandb_sdk.lib.redirect,
+            "np",
+            wandb.sdk.lib.redirect._Numpy() if not numpy else np,
+        ):
+            run = wandb.init(settings=test_settings)
+            run_dir, run_id = run.dir, run.id
             print("LOG" * 1000000)
             print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
             print("===finish===")
+            time.sleep(5)
             run.finish()
+
             binary_log_file = (
-                os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+                os.path.join(os.path.dirname(run_dir), "run-" + run_id) + ".wandb"
             )
             binary_log = runner.invoke(
                 cli.sync, ["--view", "--verbose", binary_log_file]
             ).stdout
+
             assert "\\033[31m\\033[40m\\033[1mHello" in binary_log
             assert binary_log.count("LOG") == 1000000
             assert "===finish===" in binary_log
-        finally:
-            wandb.wandb_sdk.lib.redirect.np = np
 
 
-@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
-def test_no_numpy(console_settings, capfd, runner):
+@pytest.mark.parametrize("console", console_modes)
+def test_no_numpy(test_settings, capfd, runner, console):
+    test_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
-        wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
-        try:
-            run = wandb.init(settings=console_settings)
+        with mock.patch.object(
+            wandb.wandb_sdk.lib.redirect,
+            "np",
+            wandb.sdk.lib.redirect._Numpy(),
+        ):
+            run = wandb.init(settings=test_settings)
             print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
             run.finish()
             binary_log_file = (
@@ -321,14 +336,13 @@ def test_no_numpy(console_settings, capfd, runner):
             binary_log = runner.invoke(
                 cli.sync, ["--view", "--verbose", binary_log_file]
             ).stdout
-        finally:
-            wandb.wandb_sdk.lib.redirect.np = np
 
 
-@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
-def test_memory_leak2(console_settings, capfd, runner):
+@pytest.mark.parametrize("console", console_modes)
+def test_memory_leak2(test_settings, capfd, runner, console):
+    test_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
-        run = wandb.init(settings=console_settings)
+        run = wandb.init(settings=test_settings)
         for i in range(1000):
             print("ABCDEFGH")
         time.sleep(3)

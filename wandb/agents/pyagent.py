@@ -1,20 +1,18 @@
-# -*- coding: utf-8 -*-
 """Agent - Agent object.
 
 Manage wandb agent.
 
 """
 
-from __future__ import print_function
 
 import ctypes
 import logging
 import os
+import queue
 import socket
 import threading
 import time
 
-from six.moves import queue
 import wandb
 from wandb import util
 from wandb import wandb_sdk
@@ -38,7 +36,7 @@ def _terminate_thread(thread):
     if tid is None:
         # This should never happen
         return
-    logger.debug("Terminating thread: {}".format(tid))
+    logger.debug(f"Terminating thread: {tid}")
     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
         ctypes.c_long(tid), ctypes.py_object(Exception)
     )
@@ -47,11 +45,11 @@ def _terminate_thread(thread):
         return
     elif res != 1:
         # Revert
-        logger.debug("Termination failed for thread {}".format(tid))
+        logger.debug(f"Termination failed for thread {tid}")
         ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
 
 
-class Job(object):
+class Job:
     def __init__(self, command):
         self.command = command
         job_type = command.get("type")
@@ -61,9 +59,9 @@ class Job(object):
 
     def __repr__(self):
         if self.type == "run":
-            return "Job({},{})".format(self.run_id, self.config)
+            return f"Job({self.run_id},{self.config})"
         elif self.type == "stop":
-            return "stop({})".format(self.run_id)
+            return f"stop({self.run_id})"
         else:
             return "exit"
 
@@ -76,7 +74,7 @@ class RunStatus:
     DONE = "DONE"
 
 
-class Agent(object):
+class Agent:
 
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
@@ -116,7 +114,7 @@ class Agent(object):
         logger.debug("Agent._register()")
         agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
         self._agent_id = agent["id"]
-        logger.debug("agent_id = {}".format(self._agent_id))
+        logger.debug(f"agent_id = {self._agent_id}")
 
     def _setup(self):
         logger.debug("Agent._setup()")
@@ -140,7 +138,7 @@ class Agent(object):
         self._register()
 
     def _stop_run(self, run_id):
-        logger.debug("Stopping run {}.".format(run_id))
+        logger.debug(f"Stopping run {run_id}.")
         self._run_status[run_id] = RunStatus.STOPPED
         thread = self._run_threads.get(run_id)
         if thread:
@@ -168,18 +166,17 @@ class Agent(object):
                 if status in (RunStatus.QUEUED, RunStatus.RUNNING)
             }
             commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
-            if not commands:
-                continue
-            job = Job(commands[0])
-            logger.debug("Job received: {}".format(job))
-            if job.type in ["run", "resume"]:
-                self._queue.put(job)
-                self._run_status[job.run_id] = RunStatus.QUEUED
-            elif job.type == "stop":
-                self._stop_run(job.run_id)
-            elif job.type == "exit":
-                self._exit()
-                return
+            if commands:
+                job = Job(commands[0])
+                logger.debug(f"Job received: {job}")
+                if job.type in ["run", "resume"]:
+                    self._queue.put(job)
+                    self._run_status[job.run_id] = RunStatus.QUEUED
+                elif job.type == "stop":
+                    self._stop_run(job.run_id)
+                elif job.type == "exit":
+                    self._exit()
+                    return
             time.sleep(5)
 
     def _run_jobs_from_queue(self):  # noqa:C901
@@ -217,19 +214,19 @@ class Agent(object):
                     run_id = job.run_id
                     if self._run_status[run_id] == RunStatus.STOPPED:
                         continue
-                    logger.debug("Spawning new thread for run {}.".format(run_id))
+                    logger.debug(f"Spawning new thread for run {run_id}.")
                     thread = threading.Thread(target=self._run_job, args=(job,))
                     self._run_threads[run_id] = thread
                     thread.start()
                     self._run_status[run_id] = RunStatus.RUNNING
                     thread.join()
-                    logger.debug("Thread joined for run {}.".format(run_id))
+                    logger.debug(f"Thread joined for run {run_id}.")
                     if self._run_status[run_id] == RunStatus.RUNNING:
                         self._run_status[run_id] = RunStatus.DONE
                     elif self._run_status[run_id] == RunStatus.ERRORED:
                         exc = self._exceptions[run_id]
-                        logger.error("Run {} errored: {}".format(run_id, repr(exc)))
-                        wandb.termerror("Run {} errored: {}".format(run_id, repr(exc)))
+                        logger.error(f"Run {run_id} errored: {repr(exc)}")
+                        wandb.termerror(f"Run {run_id} errored: {repr(exc)}")
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
                             self._exit_flag = True
                             return
@@ -296,7 +293,7 @@ class Agent(object):
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb_sdk.wandb_setup._setup(_reset=True)
 
-            wandb.termlog("Agent Starting Run: {} with config:".format(run_id))
+            wandb.termlog(f"Agent Starting Run: {run_id} with config:")
             for k, v in job.config.items():
                 wandb.termlog("\t{}: {}".format(k, v["value"]))
 
@@ -344,7 +341,11 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
     if not callable(function):
         raise Exception("function paramter must be callable!")
     agent = Agent(
-        sweep_id, function=function, entity=entity, project=project, count=count,
+        sweep_id,
+        function=function,
+        entity=entity,
+        project=project,
+        count=count,
     )
     agent.run()
 

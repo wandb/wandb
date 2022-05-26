@@ -4,13 +4,10 @@ Library public tests.
 *NOTE*: If you need to add a symbol, make sure this has been discussed and the name of the object or method is agreed upon.
 
 TODO:
-    - clean up / hide symbols which shouldnt be public
+    - clean up / hide symbols, which shouldn't be public
     - deprecate ones that were public but we want to remove
 
 """
-
-import pytest
-
 import wandb
 
 SYMBOLS_ROOT_DATATYPES = {
@@ -47,6 +44,9 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
+    "load_ipython_extension",
+    "require",
+    "profiler",
 }
 
 # Look into these and see what we can remove / hide
@@ -58,18 +58,17 @@ SYMBOLS_ROOT_OTHER = {
     "Config",
     "Error",
     "InternalApi",
-    "PY3",
     "PublicApi",
     "START_TIME",
     "Settings",
-    "TYPE_CHECKING",
     "UsageError",
     "absolute_import",
     "agents",
     "alert",
     "api",
     "apis",
-    "compat",
+    "beta",
+    "catboost",
     "data_types",
     "division",
     "docker",
@@ -101,7 +100,7 @@ SYMBOLS_ROOT_OTHER = {
     "set_trace",
     "setup",
     "sklearn",
-    "superagent",
+    "sync",
     "sys",
     "tensorboard",
     "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
@@ -122,11 +121,27 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_lib",
     "wandb_sdk",
     "wandb_torch",
+    "workflows",
     "xgboost",
-    "sync",
-    "sweeps",
     "cli",
 }
+
+SYMBOLS_TYPING = {
+    "Any",
+    "AnyStr",
+    "Callable",
+    "ClassVar",
+    "Dict",
+    "List",
+    "Optional",
+    "Set",
+    "Tuple",
+    "Type",
+    "TypeVar",
+    "Union",
+}
+
+SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
 
 
 def test_library_root():
@@ -138,6 +153,8 @@ def test_library_root():
         - SYMBOLS_ROOT_DATATYPES
         - SYMBOLS_ROOT_SDK
         - SYMBOLS_ROOT_OTHER
+        - SYMBOLS_TYPING
+        - SYMBOLS_SERVICE
     )
     assert symbol_unknown == set()
 
@@ -153,11 +170,12 @@ SYMBOLS_RUN = {
     "join",  # deprecate in favor of finish()
     "finish",
     "watch",
-    # "unwatch",  # this is missing, probably should have it or remove the root one
+    "unwatch",
     "config",
     "config_static",
     "log",
     "log_artifact",
+    "link_artifact",
     "upsert_artifact",
     "finish_artifact",
     "use_artifact",
@@ -174,6 +192,9 @@ SYMBOLS_RUN = {
     "notes",
     "tags",
     "mark_preempting",
+    "to_html",
+    "display",
+    "settings",
 }
 
 # symbols having to do with resuming, we should clean this up
@@ -204,7 +225,12 @@ def test_library_run():
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
     print("symbols", symbol_public_set)
     symbol_unknown = (
-        symbol_public_set - SYMBOLS_RUN - SYMBOLS_RUN_RESUME - SYMBOLS_RUN_OTHER
+        symbol_public_set
+        - SYMBOLS_RUN
+        - SYMBOLS_RUN_RESUME
+        - SYMBOLS_RUN_OTHER
+        - SYMBOLS_TYPING
+        - SYMBOLS_SERVICE
     )
     assert symbol_unknown == set()
 
@@ -230,5 +256,7 @@ def test_library_config():
     symbol_list = dir(Config)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
     print("symbols", symbol_public_set)
-    symbol_unknown = symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER
+    symbol_unknown = (
+        symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER - SYMBOLS_TYPING
+    )
     assert symbol_unknown == set()

@@ -1,16 +1,17 @@
 # Adapted from https://pytorch.org/tutorials/beginner/nlp/word_embeddings_tutorial.html
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as F  # noqa: N812
 import torch.optim as optim
-
 import wandb
+
+CONTEXT_SIZE = 2
+EMBEDDING_DIM = 10
+
 
 def main():
     wandb.init()
 
-    CONTEXT_SIZE = 2
-    EMBEDDING_DIM = 10
     # We will use Shakespeare Sonnet 2
     test_sentence = """When forty winters shall besiege thy brow,
     And dig deep trenches in thy beauty's field,
@@ -28,17 +29,17 @@ def main():
     And see thy blood warm when thou feel'st it cold.""".split()
     # we should tokenize the input, but we will ignore that for now
     # build a list of tuples.  Each tuple is ([ word_i-2, word_i-1 ], target word)
-    trigrams = [([test_sentence[i], test_sentence[i + 1]], test_sentence[i + 2])
-                for i in range(len(test_sentence) - 2)]
+    trigrams = [
+        ([test_sentence[i], test_sentence[i + 1]], test_sentence[i + 2])
+        for i in range(len(test_sentence) - 2)
+    ]
 
     vocab = set(test_sentence)
     word_to_ix = {word: i for i, word in enumerate(vocab)}
 
-
     class NGramLanguageModeler(nn.Module):
-
         def __init__(self, vocab_size, embedding_dim, context_size):
-            super(NGramLanguageModeler, self).__init__()
+            super().__init__()
             self.embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
             self.linear1 = nn.Linear(context_size * embedding_dim, 128)
             self.linear2 = nn.Linear(128, vocab_size)
@@ -50,7 +51,6 @@ def main():
             log_probs = F.log_softmax(out, dim=1)
             return log_probs
 
-
     has_cuda = torch.cuda.is_available()
 
     losses = []
@@ -61,13 +61,15 @@ def main():
 
     wandb.watch(model, log="all", log_freq=100)
 
-    for epoch in range(100):
+    for _ in range(100):
         total_loss = 0
         for context, target in trigrams:
 
             # Step 1. Prepare the inputs to be passed to the model (i.e, turn the words
             # into integer indices and wrap them in tensors)
-            context_idxs = torch.tensor([word_to_ix[w] for w in context], dtype=torch.long)
+            context_idxs = torch.tensor(
+                [word_to_ix[w] for w in context], dtype=torch.long
+            )
             context_idxs = context_idxs.cuda() if has_cuda else context_idxs
 
             # Step 2. Recall that torch *accumulates* gradients. Before passing in a
@@ -95,5 +97,6 @@ def main():
         losses.append(total_loss)
     print(losses)  # The loss decreased every iteration over the training data!
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

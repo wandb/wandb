@@ -19,7 +19,6 @@ coverage: ## check code coverage quickly with the default Python
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
-
 release-test: dist ## package and upload test release
 	twine upload --repository testpypi dist/*
 
@@ -52,16 +51,13 @@ test-clean:
 	rm -rf .pytest_cache/
 
 test:
-	tox -e "codemod,black,mypy,flake8"
+	tox -e "pyupgrade,black,mypy,flake8,docstrings"
 
 test-full:
 	tox
 
 test-short:
-	tox -e "codemod,black,mypy,flake8,py36"
-
-test-sweeps:
-	tox -e "py36" -- wandb/sweeps/
+	tox -e "pyupgrade,black,mypy,flake8,docstrings,py36"
 
 format:
 	tox -e format

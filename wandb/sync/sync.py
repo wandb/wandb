@@ -2,37 +2,24 @@
 sync.
 """
 
-from __future__ import print_function
-
 import datetime
 import fnmatch
 import os
+import queue
 import sys
+import tempfile
 import threading
 import time
+from urllib.parse import quote as url_quote
 
-from six.moves import queue
-from six.moves.urllib.parse import quote as url_quote
 import wandb
-from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import datastore
+from wandb.sdk.internal import handler
+from wandb.sdk.internal import sender
+from wandb.sdk.internal import tb_watcher
 from wandb.util import check_and_warn_old, mkdir_exists_ok
-
-
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.internal import datastore
-    from wandb.sdk.internal import handler
-    from wandb.sdk.internal import sender
-    from wandb.sdk.internal import tb_watcher
-    from wandb.sdk.interface import interface
-else:
-    from wandb.sdk_py27.internal import datastore
-    from wandb.sdk_py27.internal import handler
-    from wandb.sdk_py27.internal import sender
-    from wandb.sdk_py27.internal import tb_watcher
-    from wandb.sdk_py27.interface import interface
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
@@ -40,7 +27,7 @@ TFEVENT_SUBSTRING = ".tfevents."
 TMPDIR = tempfile.TemporaryDirectory()
 
 
-class _LocalRun(object):
+class _LocalRun:
     def __init__(self, path, synced=None):
         self.path = path
         self.synced = synced
@@ -137,7 +124,7 @@ class SyncThread(threading.Thread):
             if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
                 wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
             else:
-                print("Found {} tfevent files in {}".format(tb_event_files, tb_root))
+                print(f"Found {tb_event_files} tfevent files in {tb_root}")
                 if len(tb_logdirs) > 3:
                     wandb.termwarn(
                         "Found {} directories containing tfevent files. "
@@ -169,7 +156,7 @@ class SyncThread(threading.Thread):
         # file types (like images)... but we need to remake the send_manager
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
-        new_interface = interface.BackendSender(record_q)
+        new_interface = InterfaceQueue(record_q)
         send_manager = sender.SendManager(
             send_manager._settings, sender_record_q, queue.Queue(), new_interface
         )
@@ -241,7 +228,7 @@ class SyncThread(threading.Thread):
                 if tb_root is None and (
                     check_and_warn_old(files) or len(filtered_files) != 1
                 ):
-                    print("Skipping directory: {}".format(sync_item))
+                    print(f"Skipping directory: {sync_item}")
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
@@ -259,7 +246,7 @@ class SyncThread(threading.Thread):
             try:
                 ds.open_for_scan(sync_item)
             except AssertionError as e:
-                print(".wandb file is empty ({}), skipping: {}".format(e, sync_item))
+                print(f".wandb file is empty ({e}), skipping: {sync_item}")
                 continue
 
             # save exit for final send
@@ -299,7 +286,7 @@ class SyncThread(threading.Thread):
             sm.finish()
             # Only mark synced if the run actually finished
             if self._mark_synced and not self._view and finished:
-                synced_file = "{}{}".format(sync_item, SYNCED_SUFFIX)
+                synced_file = f"{sync_item}{SYNCED_SUFFIX}"
                 with open(synced_file, "w"):
                     pass
             print("done.")
@@ -374,11 +361,12 @@ def get_runs(
     all_dirs = os.listdir(base)
     dirs = []
     if include_offline:
-        dirs += filter(lambda d: d.startswith("offline-run-"), all_dirs)
+        dirs += filter(lambda _d: _d.startswith("offline-run-"), all_dirs)
     if include_online:
-        dirs += filter(lambda d: d.startswith("run-"), all_dirs)
+        dirs += filter(lambda _d: _d.startswith("run-"), all_dirs)
     # find run file in each dir
     fnames = []
+    dirs.sort()
     for d in dirs:
         paths = os.listdir(os.path.join(base, d))
         if exclude_globs:
@@ -398,9 +386,9 @@ def get_runs(
     for f in fnames:
         dname = os.path.dirname(f)
         # TODO(frz): online runs are assumed to be synced, verify from binary log.
-        if os.path.exists("{}{}".format(f, SYNCED_SUFFIX)) or os.path.basename(
-            dname
-        ).startswith("run-"):
+        if os.path.exists(f"{f}{SYNCED_SUFFIX}") or os.path.basename(dname).startswith(
+            "run-"
+        ):
             if include_synced:
                 filtered.append(_LocalRun(dname, True))
         else:

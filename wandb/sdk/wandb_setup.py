@@ -11,16 +11,23 @@ run_id can be resolved.
 
 """
 
-import copy
 import logging
 import os
 import sys
 import threading
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Union,
+)
 
 import wandb
 
+from . import wandb_manager
 from . import wandb_settings
-from .lib import config_util, server
+from .lib import config_util, server, tracelog
 
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
@@ -33,7 +40,7 @@ def _set_logger(log_object):
     logger = log_object
 
 
-class _EarlyLogger(object):
+class _EarlyLogger:
     """Early logger which captures logs in memory until logging can be configured."""
 
     def __init__(self):
@@ -71,17 +78,25 @@ class _EarlyLogger(object):
             logger.exception(msg, *args, **kwargs)
 
 
-class _WandbSetup__WandbSetup(object):  # noqa: N801
+class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
-    def __init__(self, settings=None, environ=None):
-        self._settings = None
+    _manager: Optional[wandb_manager._Manager]
+
+    def __init__(
+        self,
+        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
+        environ: Optional[Dict[str, Any]] = None,
+        pid: Optional[int] = None,
+    ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
         self._config = None
         self._server = None
+        self._manager = None
+        self._pid = pid
 
-        # keep track of multiple runs so we can unwind with join()s
+        # keep track of multiple runs, so we can unwind with join()s
         self._global_run_stack = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
@@ -89,53 +104,62 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._early_logger = _EarlyLogger()
         _set_logger(self._early_logger)
 
-        self._settings_setup(settings, self._early_logger)
-        self._settings.freeze()
+        self._settings = self._settings_setup(settings, self._early_logger)
+        # self._settings.freeze()
 
         wandb.termsetup(self._settings, logger)
 
         self._check()
         self._setup()
 
-    def _settings_setup(self, settings=None, early_logger=None):
-        # TODO: Do a more formal merge of user settings from the backend.
+        tracelog_mode = self._settings._tracelog
+        if tracelog_mode:
+            tracelog.enable(tracelog_mode)
+
+    def _settings_setup(
+        self,
+        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
+        early_logger: Optional[_EarlyLogger] = None,
+    ):
         s = wandb_settings.Settings()
-        s._apply_configfiles(_logger=early_logger)
-        s._apply_environ(self._environ, _logger=early_logger)
+        s._apply_config_files(_logger=early_logger)
+        s._apply_env_vars(self._environ, _logger=early_logger)
 
-        # NOTE: Do not update user settings until wandb.init() time
-        # if not s._offline:
-        #    user_settings = self._load_user_settings(settings=settings)
-        #    s._apply_user(user_settings, _logger=early_logger)
-
-        if settings:
+        if isinstance(settings, wandb_settings.Settings):
             s._apply_settings(settings, _logger=early_logger)
+        elif isinstance(settings, dict):
+            # if passed settings arg is a mapping, update the settings with it
+            s._apply_setup(settings, _logger=early_logger)
 
-        # setup defaults
-        s.setdefaults()
-        s._infer_settings_from_env()
+        s._infer_settings_from_environment()
         if not s._cli_only_mode:
-            s._infer_run_settings_from_env(_logger=early_logger)
+            s._infer_run_settings_from_environment(_logger=early_logger)
 
-        # move freeze to later
-        # TODO(jhr): is this ok?
-        # s.freeze()
-        self._settings = s
+        return s
 
-    def _update(self, settings=None):
-        if settings:
-            s = self._clone_settings()
-            s._apply_settings(settings=settings)
-            self._settings = s.freeze()
+    def _update(
+        self, settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None
+    ) -> None:
+        if settings is None:
+            return
+        # self._settings.unfreeze()
+        if isinstance(settings, wandb_settings.Settings):
+            # todo: check the logic here. this _only_ comes up in tests?
+            self._settings._apply_settings(settings)
+        elif isinstance(settings, dict):
+            # if it is a mapping, update the settings with it
+            self._settings.update(settings, source=wandb_settings.Source.SETUP)
+        # self._settings.freeze()
 
     def _update_user_settings(self, settings=None):
         settings = settings or self._settings
-        s = self._clone_settings()
         # Get rid of cached results to force a refresh.
         self._server = None
         user_settings = self._load_user_settings(settings=settings)
-        s._apply_user(user_settings)
-        self._settings = s.freeze()
+        if user_settings is not None:
+            # self._settings.unfreeze()
+            self._settings._apply_user(user_settings)
+            # self._settings.freeze()
 
     def _early_logger_flush(self, new_logger):
         if not self._early_logger:
@@ -151,12 +175,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def settings(self):
         return self._settings
 
-    def _clone_settings(self, __d=None, **kwargs):
-        s = copy.copy(self._settings)
-        s.update(__d, **kwargs)
-        return s
-
-    def _get_entity(self):
+    def _get_entity(self) -> Optional[str]:
         if self._settings and self._settings._offline:
             return None
         if self._server is None:
@@ -164,19 +183,41 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         entity = self._server._viewer.get("entity")
         return entity
 
-    def _load_viewer(self, settings=None):
+    def _get_username(self) -> Optional[str]:
+        if self._settings and self._settings._offline:
+            return None
+        if self._server is None:
+            self._load_viewer()
+        username = self._server._viewer.get("username")
+        return username
+
+    def _get_teams(self) -> List[str]:
+        if self._settings and self._settings._offline:
+            return None
+        if self._server is None:
+            self._load_viewer()
+        teams = self._server._viewer.get("teams")
+        if teams:
+            teams = [team["node"]["name"] for team in teams["edges"]]
+        return teams or []
+
+    def _load_viewer(self, settings=None) -> None:
         if self._settings and self._settings._offline:
             return
         s = server.Server(settings=settings)
         s.query_with_timeout()
         self._server = s
 
-    def _load_user_settings(self, settings=None):
+    def _load_user_settings(self, settings=None) -> Optional[Dict[str, Any]]:
         if self._server is None:
-            self._load_viewer()
+            self._load_viewer(settings=settings)
+
+        # offline?
+        if self._server is None:
+            return None
 
         flags = self._server._flags
-        user_settings = {}
+        user_settings = dict()
         if "code_saving_enabled" in flags:
             user_settings["save_code"] = flags["code_saving_enabled"]
 
@@ -190,15 +231,14 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         if hasattr(threading, "main_thread"):
             if threading.current_thread() is not threading.main_thread():
                 pass
-                # print("bad thread")
         elif threading.current_thread().name != "MainThread":
             print("bad thread2", threading.current_thread().name)
         if getattr(sys, "frozen", False):
             print("frozen, could be trouble")
-        # print("t2", multiprocessing.get_start_method(allow_none=True))
-        # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
+        self._setup_manager()
+
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
             self._sweep_config = config_util.dict_from_config_file(
@@ -218,31 +258,69 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
                 else:
                     self._config = config_dict
 
+    def _teardown(self, exit_code: int = None):
+        exit_code = exit_code or 0
+        self._teardown_manager(exit_code=exit_code)
 
-class _WandbSetup(object):
-    """Wandb singleton class."""
+    def _setup_manager(self) -> None:
+        if not self._settings._require_service:
+            return
+        # Temporary setting to allow use of grpc so that we can keep
+        # that code from rotting during the transition
+        use_grpc = self._settings._service_transport == "grpc"
+        self._manager = wandb_manager._Manager(
+            _use_grpc=use_grpc, settings=self._settings
+        )
+
+    def _teardown_manager(self, exit_code: int) -> None:
+        if not self._manager:
+            return
+        self._manager._teardown(exit_code)
+        self._manager = None
+
+    def _get_manager(self) -> Optional[wandb_manager._Manager]:
+        return self._manager
+
+
+class _WandbSetup:
+    """Wandb singleton class.
+
+    Note: This is a process local singleton.
+    (Forked processes will get a new copy of the object)
+    """
 
     _instance = None
 
-    def __init__(self, settings=None):
-        if _WandbSetup._instance is not None:
+    def __init__(self, settings=None) -> None:
+        pid = os.getpid()
+        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
-        else:
-            _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
+            return
+        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
 
 
-def _setup(settings=None, _reset=None):
+def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
     """Setup library context."""
     if _reset:
+        setup_instance = _WandbSetup._instance
+        if setup_instance:
+            setup_instance._teardown()
         _WandbSetup._instance = None
         return
     wl = _WandbSetup(settings=settings)
     return wl
 
 
-def setup(settings=None):
+def setup(settings=None) -> Optional["_WandbSetup"]:
     ret = _setup(settings=settings)
     return ret
+
+
+def teardown(exit_code=None):
+    setup_instance = _WandbSetup._instance
+    if setup_instance:
+        setup_instance._teardown(exit_code=exit_code)
+    _WandbSetup._instance = None

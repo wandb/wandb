@@ -1,19 +1,21 @@
-import logging
+from collections.abc import Sequence, Iterable
+
 import wandb
 from wandb import util
-
-from six.moves.collections_abc import Sequence, Iterable
-
-
-def deprecation_notice():
-    # At Jeff's request, we're not deprecating these yet. Its better to get a release out
-    # with the new APIs first. Also we shouldn't use logging.warning for this (possibly
-    # losing the messages in the user's logger).
-    # logging.warning("wandb.plots.* functions are deprecated. Please use wandb.plot.* instead")
-    pass
+from wandb.sdk.lib import deprecate
 
 
-# Test Asummptions for plotting parameters and datasets
+def deprecation_notice() -> None:
+    deprecate.deprecate(
+        field_name=deprecate.Deprecated.plots,
+        warning_message=(
+            "wandb.plots.* functions are deprecated and will be removed in a future release. "
+            "Please use wandb.plot.* instead."
+        ),
+    )
+
+
+# Test assumptions for plotting parameters and datasets
 def test_missing(**kwargs):
     np = util.get_module("numpy", required="Logging plots requires numpy")
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")

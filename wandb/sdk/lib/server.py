@@ -1,4 +1,3 @@
-#
 """
 module server
 """
@@ -13,7 +12,7 @@ class ServerError(Exception):
     pass
 
 
-class Server(object):
+class Server:
     def __init__(self, api=None, settings=None):
         self._api = api or InternalApi(default_settings=settings)
         self._error_network = None

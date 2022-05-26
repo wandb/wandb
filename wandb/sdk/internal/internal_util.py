@@ -1,36 +1,32 @@
-#
-# -*- coding: utf-8 -*-
 """Internal utility routines.
 
 Collection of classes to support the internal process.
 
 """
 
-from __future__ import print_function
 
 import logging
+import queue
 import sys
 import threading
 import time
-
-from six.moves import queue
-import wandb
+from typing import TYPE_CHECKING
 
 
-if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
+from ..lib import tracelog
 
-    if TYPE_CHECKING:
-        from typing import Tuple, Type, Optional, Union
-        from six.moves.queue import Queue
-        from wandb.proto.wandb_internal_pb2 import Record, Result
-        from threading import Event
-        from types import TracebackType
 
-        ExceptionType = Union[
-            Tuple[Type[BaseException], BaseException, TracebackType],
-            Tuple[None, None, None],
-        ]
+if TYPE_CHECKING:
+    from typing import Tuple, Type, Optional, Union
+    from queue import Queue
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+    from threading import Event
+    from types import TracebackType
+
+    ExceptionType = Union[
+        Tuple[Type[BaseException], BaseException, TracebackType],
+        Tuple[None, None, None],
+    ]
 
 
 logger = logging.getLogger(__name__)
@@ -102,5 +98,6 @@ class RecordLoopThread(ExceptionThread):
                 record = self._input_record_q.get(timeout=1)
             except queue.Empty:
                 continue
+            tracelog.log_message_dequeue(record, self._input_record_q)
             self._process(record)
         self._finish()

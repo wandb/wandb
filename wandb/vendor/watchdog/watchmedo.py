@@ -85,7 +85,7 @@ def load_config(tricks_file_pathname):
     f = open(tricks_file_pathname, 'rb')
     content = f.read()
     f.close()
-    config = yaml.load(content)
+    config = yaml.safe_load(content)
     return config
 
 

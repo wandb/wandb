@@ -1,22 +1,14 @@
 import os
 import pytest
 import platform
-import sys
+import queue
 import subprocess
-import threading
+import wandb
 
-from six.moves import queue
 
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.internal.meta import Meta
-    from wandb.sdk.internal.sender import SendManager
-    from wandb.sdk.interface.interface import BackendSender
-else:
-    from wandb.sdk_py27.internal.meta import Meta
-    from wandb.sdk_py27.internal.sender import SendManager
-    from wandb.sdk_py27.interface.interface import BackendSender
+from wandb.sdk.internal.meta import Meta
+from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 
 @pytest.fixture()
@@ -31,7 +23,7 @@ def result_q():
 
 @pytest.fixture()
 def interface(record_q):
-    return BackendSender(record_q=record_q)
+    return InterfaceQueue(record_q=record_q)
 
 
 @pytest.fixture()
@@ -51,7 +43,7 @@ def sm(
     mocked_run,
     interface,
 ):
-    test_settings.save_code = True
+    test_settings.update(save_code=True, source=wandb.sdk.wandb_settings.Source.INIT)
     sm = SendManager(
         settings=test_settings,
         record_q=record_q,
@@ -87,10 +79,60 @@ def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     print(mock_server.ctx)
     assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1
     assert len(mock_server.ctx["storage?file=requirements.txt"]) == 1
-    # py27 doesn't like my patching for conda-environment, just skipping
-    if sys.version_info > (3, 0):
-        assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
+    assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
     assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
 
 
+def test_executable_outside_cwd(mock_server, meta):
+    meta._settings.update(
+        program="asdf.py", source=wandb.sdk.wandb_settings.Source.INIT
+    )
+    meta.probe()
+    assert meta.data.get("codePath") is None
+    assert meta.data["program"] == "asdf.py"
+
+
+def test_jupyter_name(meta, mocked_ipython):
+    meta._settings.update(
+        notebook_name="test_nb", source=wandb.sdk.wandb_settings.Source.INIT
+    )
+    meta.probe()
+    assert meta.data["program"] == "test_nb"
+
+
+def test_jupyter_path(meta, mocked_ipython):
+    # not actually how jupyter setup works but just to test the meta paths
+    meta._settings.update(
+        _jupyter_path="dummy/path", source=wandb.sdk.wandb_settings.Source.INIT
+    )
+    meta.probe()
+    assert meta.data["program"] == "dummy/path"
+    assert meta.data.get("root") is not None
+
+
 # TODO: test actual code saving
+# fixme:
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="backend sometimes crashes on Windows in CI",
+)
+def test_commmit_hash_sent_correctly(test_settings, git_repo):
+    # disable_git is False is by default
+    # so run object should have git info
+    run = wandb.init(settings=test_settings)
+    assert run._last_commit is not None
+    assert run._last_commit == git_repo.last_commit
+    assert run._remote_url is None
+    run.finish()
+
+
+# fixme:
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="backend sometimes crashes on Windows in CI",
+)
+def test_commit_hash_not_sent_when_disable(test_settings, git_repo, disable_git_save):
+    run = wandb.init(settings=test_settings)
+    assert git_repo.last_commit
+    assert run._last_commit is None
+    run.finish()

@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """
 progress.
 """
@@ -9,7 +7,7 @@ import os
 from wandb.errors import CommError
 
 
-class Progress(object):
+class Progress:
     """A helper class for displaying progress"""
 
     ITER_BYTES = 1024 * 1024
@@ -49,6 +47,13 @@ class Progress(object):
         self.bytes_read = 0
         self.file.seek(0)
 
+    def __getattr__(self, name):
+        """Fallback to the file object for attrs not defined here"""
+        if hasattr(self.file, name):
+            return getattr(self.file, name)
+        else:
+            raise AttributeError
+
     def __iter__(self):
         return self
 
@@ -57,5 +62,8 @@ class Progress(object):
         if len(bites) == 0:
             raise StopIteration
         return bites
+
+    def __len__(self):
+        return self.len
 
     next = __next__

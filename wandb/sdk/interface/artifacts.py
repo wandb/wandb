@@ -5,27 +5,25 @@ import contextlib
 import hashlib
 import os
 import random
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 
 import wandb
 from wandb import env
 from wandb import util
 from wandb.data_types import WBValue
 
-if wandb.TYPE_CHECKING:  # type: ignore
 
-    from typing import (
-        List,
-        Optional,
-        Union,
-        Dict,
-        Callable,
-        TYPE_CHECKING,
-        Sequence,
-        Tuple,
-    )
-
-    if TYPE_CHECKING:
-        import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
+if TYPE_CHECKING:
+    import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 
 def md5_string(string: str) -> str:
@@ -46,8 +44,24 @@ def md5_hash_file(path):
     return hash_md5
 
 
+def md5_hash_files(paths: List[str]):
+    hash_md5 = hashlib.md5()
+    # Create a mutable copy to sort
+    paths = [path for path in paths]
+    paths.sort()
+    for path in paths:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(64 * 1024), b""):
+                hash_md5.update(chunk)
+    return hash_md5
+
+
 def md5_file_b64(path: str) -> str:
     return base64.b64encode(md5_hash_file(path).digest()).decode("ascii")
+
+
+def md5_files_b64(paths: List[str]) -> str:
+    return base64.b64encode(md5_hash_files(paths).digest()).decode("ascii")
 
 
 def md5_file_hex(path: str) -> str:
@@ -59,18 +73,19 @@ def bytes_to_hex(bytestr):
     return codecs.getencoder("hex")(bytestr)[0]
 
 
-class ArtifactManifest(object):
+class ArtifactManifest:
     entries: Dict[str, "ArtifactEntry"]
 
     @classmethod
     # TODO: we don't need artifact here.
-    def from_manifest_json(cls, artifact, manifest_json):
+    def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
         version = manifest_json["version"]
         for sub in cls.__subclasses__():
             if sub.version() == version:
                 return sub.from_manifest_json(artifact, manifest_json)
+        raise ValueError("Invalid manifest version.")
 
     @classmethod
     def version(cls):
@@ -108,7 +123,7 @@ class ArtifactManifest(object):
         ]
 
 
-class ArtifactEntry(object):
+class ArtifactEntry:
     path: str
     ref: Optional[str]
     digest: str
@@ -168,7 +183,7 @@ class ArtifactEntry(object):
         raise NotImplementedError
 
 
-class Artifact(object):
+class Artifact:
     @property
     def id(self) -> Optional[str]:
         """
@@ -336,13 +351,14 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def new_file(self, name: str, mode: str = "w"):
+    def new_file(self, name: str, mode: str = "w", encoding: Optional[str] = None):
         """
         Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
             name: (str) The name of the new file being added to the artifact.
             mode: (str, optional) The mode in which to open the new file.
+            encoding: (str, optional) The encoding in which to open the new file.
 
         Examples:
             ```
@@ -647,6 +663,21 @@ class Artifact(object):
         """
         raise NotImplementedError
 
+    def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
+        """
+        Links this artifact to a portfolio (a promoted collection of artifacts), with aliases.
+
+        Arguments:
+            target_path: (str) The path to the portfolio. It must take the form
+                {portfolio}, {project}/{portfolio} or {entity}/{project}/{portfolio}.
+            aliases: (Optional[List[str]]) A list of strings which uniquely
+                identifies the artifact inside the specified portfolio.
+
+        Returns:
+            None
+        """
+        raise NotImplementedError
+
     def delete(self) -> None:
         """
         Deletes this artifact, cleaning up all files associated with it.
@@ -728,12 +759,12 @@ class Artifact(object):
         raise NotImplementedError
 
 
-class StorageLayout(object):
+class StorageLayout:
     V1 = "V1"
     V2 = "V2"
 
 
-class StoragePolicy(object):
+class StoragePolicy:
     @classmethod
     def lookup_by_name(cls, name):
         for sub in cls.__subclasses__():
@@ -782,7 +813,7 @@ class StoragePolicy(object):
         raise NotImplementedError
 
 
-class StorageHandler(object):
+class StorageHandler:
     @property
     def scheme(self) -> str:
         """
@@ -792,7 +823,10 @@ class StorageHandler(object):
         pass
 
     def load_path(
-        self, artifact: Artifact, manifest_entry: ArtifactEntry, local: bool = False,
+        self,
+        artifact: Artifact,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
     ) -> str:
         """
         Loads the file or directory within the specified artifact given its
@@ -821,7 +855,7 @@ class StorageHandler(object):
         pass
 
 
-class ArtifactsCache(object):
+class ArtifactsCache:
 
     _TMP_PREFIX = "tmp"
 
@@ -833,6 +867,7 @@ class ArtifactsCache(object):
         self._artifacts_by_id = {}
         self._random = random.Random()
         self._random.seed()
+        self._artifacts_by_client_id = {}
 
     def check_md5_obj_path(self, b64_md5: str, size: int) -> Tuple[str, bool, Callable]:
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
@@ -856,6 +891,12 @@ class ArtifactsCache(object):
 
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
+
+    def get_client_artifact(self, client_id):
+        return self._artifacts_by_client_id.get(client_id)
+
+    def store_client_artifact(self, artifact):
+        self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
         bytes_reclaimed: int = 0

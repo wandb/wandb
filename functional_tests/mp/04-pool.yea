@@ -1,0 +1,45 @@
+id: 0.mp.04-pool
+plugin:
+  - wandb
+tag:
+  shard: service
+parametrize:
+  permute:
+    - :yea:start_method:
+      - spawn
+      - forkserver
+var:
+  - run0:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 0
+  - run1:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 1
+  - run2:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 2
+  - run3:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 3
+assert:
+  - :wandb:runs_len: 4
+  - :run0[config]: {id: 0}
+  - :run0[summary]: {s: 0}
+  - :run0[exitcode]: 0
+  - :run1[config]: {id: 1}
+  - :run1[summary]: {s: 1}
+  - :run1[exitcode]: 0
+  - :run2[config]: {id: 2}
+  - :run2[summary]: {s: 2}
+  - :run2[exitcode]: 0
+  - :run3[config]: {id: 3}
+  - :run3[summary]: {s: 3}
+  - :run3[exitcode]: 0

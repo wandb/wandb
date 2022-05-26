@@ -1,11 +1,9 @@
-#
-from __future__ import absolute_import
-
 import json
 import platform
 import subprocess
 import threading
 import time
+from typing import Dict, List, Optional, Union
 
 import psutil
 import wandb
@@ -13,16 +11,13 @@ from wandb import util
 from wandb.vendor.pynvml import pynvml
 
 from . import tpu
+from ..interface.interface_queue import InterfaceQueue
 from ..lib import telemetry
 
 
-if wandb.TYPE_CHECKING:
-    from typing import Dict, List, Optional, Union
-    from ..interface.interface import BackendSender
-
-    GPUHandle = object
-    SamplerDict = Dict[str, List[float]]
-    StatsDict = Dict[str, Union[float, Dict[str, float]]]
+GPUHandle = object
+SamplerDict = Dict[str, List[float]]
+StatsDict = Dict[str, Union[float, Dict[str, float]]]
 
 
 # TODO: hard coded max watts as 16.5, found this number in the SMC list.
@@ -45,36 +40,32 @@ def gpu_in_use_by_this_process(gpu_handle: GPUHandle) -> bool:
     our_processes = base_process.children(recursive=True)
     our_processes.append(base_process)
 
-    our_pids = set([process.pid for process in our_processes])
+    our_pids = {process.pid for process in our_processes}
 
-    compute_pids = set(
-        [
-            process.pid
-            for process in pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
-        ]
-    )
-    graphics_pids = set(
-        [
-            process.pid
-            for process in pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
-        ]
-    )
+    compute_pids = {
+        process.pid
+        for process in pynvml.nvmlDeviceGetComputeRunningProcesses(gpu_handle)
+    }
+    graphics_pids = {
+        process.pid
+        for process in pynvml.nvmlDeviceGetGraphicsRunningProcesses(gpu_handle)
+    }
 
     pids_using_device = compute_pids | graphics_pids
 
     return len(pids_using_device & our_pids) > 0
 
 
-class SystemStats(object):
+class SystemStats:
 
     _pid: int
-    _interface: BackendSender
+    _interface: InterfaceQueue
     sampler: SamplerDict
     samples: int
     _thread: Optional[threading.Thread]
     gpu_count: int
 
-    def __init__(self, pid: int, interface: BackendSender) -> None:
+    def __init__(self, pid: int, interface: InterfaceQueue) -> None:
         try:
             pynvml.nvmlInit()
             self.gpu_count = pynvml.nvmlDeviceGetCount()
@@ -107,6 +98,7 @@ class SystemStats(object):
         if self._thread is None:
             self._shutdown = False
             self._thread = threading.Thread(target=self._thread_body)
+            self._thread.name = "StatsThr"
             self._thread.daemon = True
         if not self._thread.is_alive():
             self._thread.start()
@@ -247,10 +239,10 @@ class SystemStats(object):
 
                 if self._interface and not self._telem.env.m1_gpu:
                     self._telem.env.m1_gpu = True
-                    self._interface.publish_telemetry(self._telem)
+                    self._interface._publish_telemetry(self._telem)
 
             except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
-                wandb.termwarn("GPU stats error {}".format(e))
+                wandb.termwarn(f"GPU stats error {e}")
                 pass
 
         if psutil:
@@ -272,5 +264,7 @@ class SystemStats(object):
             except psutil.NoSuchProcess:
                 pass
         if self._tpu_profiler:
-            stats["tpu"] = self._tpu_profiler.get_tpu_utilization()
+            tpu_utilization = self._tpu_profiler.get_tpu_utilization()
+            if tpu_utilization is not None:
+                stats["tpu"] = tpu_utilization
         return stats

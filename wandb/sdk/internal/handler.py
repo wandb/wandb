@@ -1,78 +1,87 @@
-#
-# -*- coding: utf-8 -*-
 """Handle Manager."""
 
-from __future__ import print_function
-
+from collections import defaultdict
 import json
 import logging
 import math
 import numbers
 import os
+from queue import Queue
+from threading import Event
+import time
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+)
 
-import six
-import wandb
-from wandb.proto import wandb_internal_pb2
+from wandb.proto.wandb_internal_pb2 import (
+    HistoryRecord,
+    MetricRecord,
+    Record,
+    Result,
+    SampledHistoryItem,
+    SummaryItem,
+    SummaryRecord,
+)
 
-from . import meta, sample, stats
-from . import tb_watcher
-from ..lib import handler_util, proto_util
+from . import meta, sample, stats, tb_watcher
+from .settings_static import SettingsStatic
+from ..interface.interface_queue import InterfaceQueue
+from ..lib import handler_util, proto_util, tracelog
 
-
-if wandb.TYPE_CHECKING:
-    from typing import (
-        TYPE_CHECKING,
-        Any,
-        Callable,
-        Dict,
-        List,
-        Tuple,
-        Sequence,
-        Iterable,
-        Optional,
-        cast,
+if TYPE_CHECKING:
+    from wandb.proto.wandb_internal_pb2 import (
+        ArtifactDoneRequest,
+        MetricSummary,
     )
-    from .settings_static import SettingsStatic
-    from six.moves.queue import Queue
-    from threading import Event
-    from ..interface.interface import BackendSender
-    from wandb.proto.wandb_internal_pb2 import Record, Result
 
-    SummaryDict = Dict[str, Any]
 
+SummaryDict = Dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
 
 def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) -> None:
     # recurse down the dictionary structure:
+
     for k in key_list[:-1]:
         target.setdefault(k, {})
         new_target = target.get(k)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             new_target = cast(Dict[str, Any], new_target)
         target = new_target
     # use the last element of the key to write the leaf:
     target[key_list[-1]] = v
 
 
-class HandleManager(object):
-
+class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
+    _partial_history: Dict[str, Any]
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _stopped: Event
     _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
-    _interface: BackendSender
+    _interface: InterfaceQueue
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
-    _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
-    _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
+    _metric_defines: Dict[str, MetricRecord]
+    _metric_globs: Dict[str, MetricRecord]
     _metric_track: Dict[Tuple[str, ...], float]
     _metric_copy: Dict[Tuple[str, ...], Any]
+    _track_time: Optional[float]
+    _accumulate_time: float
+    _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
 
     def __init__(
         self,
@@ -82,7 +91,7 @@ class HandleManager(object):
         stopped: Event,
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
-        interface: BackendSender,
+        interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -96,13 +105,21 @@ class HandleManager(object):
         self._system_stats = None
         self._step = 0
 
+        self._track_time = None
+        self._accumulate_time = 0
+        self._run_start_time = 0
+
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
-        self._sampled_history = dict()
-        self._metric_defines = dict()
-        self._metric_globs = dict()
+        self._sampled_history = defaultdict(sample.UniformSampleAccumulator)
+        self._partial_history = dict()
+        self._metric_defines = defaultdict(MetricRecord)
+        self._metric_globs = defaultdict(MetricRecord)
         self._metric_track = dict()
         self._metric_copy = dict()
+
+        # TODO: implement release protocol to clean this up
+        self._artifact_xid_done = dict()
 
     def __len__(self) -> int:
         return self._record_q.qsize()
@@ -112,7 +129,7 @@ class HandleManager(object):
         assert record_type
         handler_str = "handle_" + record_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
-        assert handler, "unknown handle: {}".format(handler_str)
+        assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
     def handle_request(self, record: Record) -> None:
@@ -121,15 +138,21 @@ class HandleManager(object):
         handler_str = "handle_request_" + request_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)
         if request_type != "network_status":
-            logger.debug("handle_request: {}".format(request_type))
-        assert handler, "unknown handle: {}".format(handler_str)
+            logger.debug(f"handle_request: {request_type}")
+        assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
+            tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
         if not record.control.local and self._writer_q:
+            tracelog.log_message_queue(record, self._writer_q)
             self._writer_q.put(record)
+
+    def _respond_result(self, result: Result) -> None:
+        tracelog.log_message_queue(result, self._result_q)
+        self._result_q.put(result)
 
     def debounce(self) -> None:
         pass
@@ -138,7 +161,7 @@ class HandleManager(object):
         defer = record.request.defer
         state = defer.state
 
-        logger.info("handle defer: {}".format(state))
+        logger.info(f"handle defer: {state}")
         # only handle flush tb (sender handles the rest)
         if state == defer.FLUSH_STATS:
             if self._system_stats:
@@ -150,6 +173,8 @@ class HandleManager(object):
                 # shutdown tensorboard workers so we get all metrics flushed
                 self._tb_watcher.finish()
                 self._tb_watcher = None
+        elif state == defer.FLUSH_PARTIAL_HISTORY:
+            self._flush_partial_history()
         elif state == defer.FLUSH_SUM:
             self._save_summary(self._consolidated_summary, flush=True)
 
@@ -174,6 +199,9 @@ class HandleManager(object):
     def handle_files(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_link_artifact(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
@@ -181,29 +209,32 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def _save_summary(self, summary_dict: SummaryDict, flush: bool = False) -> None:
-        summary = wandb_internal_pb2.SummaryRecord()
-        for k, v in six.iteritems(summary_dict):
+        summary = SummaryRecord()
+        for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
-        record = wandb_internal_pb2.Record(summary=summary)
+        record = Record(summary=summary)
         if flush:
             self._dispatch_record(record)
         elif not self._settings._offline:
+            tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
-    def _save_history(self, record: Record) -> None:
-        for item in record.history.item:
+    def _save_history(
+        self,
+        history: HistoryRecord,
+    ) -> None:
+        for item in history.item:
             # TODO(jhr) save nested keys?
             k = item.key
             v = json.loads(item.value_json)
             if isinstance(v, numbers.Real):
-                self._sampled_history.setdefault(k, sample.UniformSampleAccumulator())
                 self._sampled_history[k].add(v)
 
     def _update_summary_metrics(
         self,
-        s: wandb_internal_pb2.MetricSummary,
+        s: "MetricSummary",
         kl: List[str],
         v: "numbers.Real",
         float_v: float,
@@ -268,7 +299,7 @@ class HandleManager(object):
         self,
         kl: List[str],
         v: Any,
-        d: Optional[wandb_internal_pb2.MetricRecord] = None,
+        d: Optional[MetricRecord] = None,
     ) -> bool:
         has_summary = d and d.HasField("summary")
         if len(kl) == 1:
@@ -302,37 +333,61 @@ class HandleManager(object):
         self,
         kl: List[str],
         v: Any,
-        d: Optional[wandb_internal_pb2.MetricRecord] = None,
+        d: Optional[MetricRecord] = None,
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
         # if the dict has _type key, its a wandb table object
         if isinstance(v, dict) and not handler_util.metric_is_wandb_dict(v):
             updated = False
-            for nk, nv in six.iteritems(v):
+            for nk, nv in v.items():
                 if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):
                     updated = True
             return updated
+        # If the dict is a media object, update the pointer to the latest alias
+        elif isinstance(v, dict) and handler_util.metric_is_wandb_dict(v):
+            if "_latest_artifact_path" in v and "artifact_path" in v:
+                # TODO: Make non-destructive?
+                v["artifact_path"] = v["_latest_artifact_path"]
         updated = self._update_summary_leaf(kl=kl, v=v, d=d)
         return updated
+
+    def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
+        # For now, non recursive - just top level
+        for nk, nv in v.items():
+            if (
+                isinstance(nv, dict)
+                and handler_util.metric_is_wandb_dict(nv)
+                and "_latest_artifact_path" in nv
+                and "artifact_path" in nv
+            ):
+                # TODO: Make non-destructive?
+                nv["artifact_path"] = nv["_latest_artifact_path"]
+                v[nk] = nv
+        return v
 
     def _update_summary(self, history_dict: Dict[str, Any]) -> bool:
         # keep old behavior fast path if no define metrics have been used
         if not self._metric_defines:
+            history_dict = self._update_summary_media_objects(history_dict)
             self._consolidated_summary.update(history_dict)
             return True
         updated = False
-        for k, v in six.iteritems(history_dict):
+        for k, v in history_dict.items():
             if self._update_summary_list(kl=[k], v=v):
                 updated = True
         return updated
 
-    def _history_assign_step(self, record: Record, history_dict: Dict) -> None:
-        has_step = record.history.HasField("step")
-        item = record.history.item.add()
+    def _history_assign_step(
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
+    ) -> None:
+        has_step = history.HasField("step")
+        item = history.item.add()
         item.key = "_step"
         if has_step:
-            step = record.history.step.num
+            step = history.step.num
             history_dict["_step"] = step
             item.value_json = json.dumps(step)
             self._step = step + 1
@@ -341,17 +396,15 @@ class HandleManager(object):
             item.value_json = json.dumps(self._step)
             self._step += 1
 
-    def _history_define_metric(
-        self, hkey: str
-    ) -> Optional[wandb_internal_pb2.MetricRecord]:
+    def _history_define_metric(self, hkey: str) -> Optional[MetricRecord]:
         """check for hkey match in glob metrics, return defined metric."""
         # Dont define metric for internal metrics
         if hkey.startswith("_"):
             return None
-        for k, mglob in six.iteritems(self._metric_globs):
+        for k, mglob in self._metric_globs.items():
             if k.endswith("*"):
                 if hkey.startswith(k[:-1]):
-                    m = wandb_internal_pb2.MetricRecord()
+                    m = MetricRecord()
                     m.CopyFrom(mglob)
                     m.ClearField("glob_name")
                     m.options.defined = False
@@ -360,7 +413,11 @@ class HandleManager(object):
         return None
 
     def _history_update_leaf(
-        self, kl: List[str], v: Any, history_dict: Dict, update_history: Dict[str, Any]
+        self,
+        kl: List[str],
+        v: Any,
+        history_dict: Dict[str, Any],
+        update_history: Dict[str, Any],
     ) -> None:
         hkey = ".".join([k.replace(".", "\\.") for k in kl])
         m = self._metric_defines.get(hkey)
@@ -368,7 +425,7 @@ class HandleManager(object):
             m = self._history_define_metric(hkey)
             if not m:
                 return
-            mr = wandb_internal_pb2.Record()
+            mr = Record()
             mr.metric.CopyFrom(m)
             mr.control.local = True  # Dont store this, just send it
             self._handle_defined_metric(mr)
@@ -381,10 +438,14 @@ class HandleManager(object):
                     update_history[m.step_metric] = step
 
     def _history_update_list(
-        self, kl: List[str], v: Any, history_dict: Dict, update_history: Dict[str, Any]
+        self,
+        kl: List[str],
+        v: Any,
+        history_dict: Dict[str, Any],
+        update_history: Dict[str, Any],
     ) -> None:
         if isinstance(v, dict):
-            for nk, nv in six.iteritems(v):
+            for nk, nv in v.items():
                 self._history_update_list(
                     kl=kl[:] + [nk],
                     v=nv,
@@ -396,37 +457,90 @@ class HandleManager(object):
             kl=kl, v=v, history_dict=history_dict, update_history=update_history
         )
 
-    def _history_update(self, record: Record, history_dict: Dict) -> None:
-        # if syncing an old run, we can skip this logic
+    def _history_update(
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
+    ) -> None:
+
+        #  if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
-            self._history_assign_step(record, history_dict)
+            self._history_assign_step(history, history_dict)
 
         update_history: Dict[str, Any] = {}
         # Look for metric matches
         if self._metric_defines or self._metric_globs:
-            for hkey, hval in six.iteritems(history_dict):
+            for hkey, hval in history_dict.items():
                 self._history_update_list([hkey], hval, history_dict, update_history)
 
         if update_history:
             history_dict.update(update_history)
-            for k, v in six.iteritems(update_history):
-                item = record.history.item.add()
+            for k, v in update_history.items():
+                item = history.item.add()
                 item.key = k
                 item.value_json = json.dumps(v)
 
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
-        self._history_update(record, history_dict)
-        self._dispatch_record(record)
-        self._save_history(record)
 
+        # Inject _runtime if it is not present
+        if history_dict is not None:
+            if "_runtime" not in history_dict:
+                self._history_assign_runtime(record.history, history_dict)
+
+        self._history_update(record.history, history_dict)
+        self._dispatch_record(record)
+        self._save_history(record.history)
         updated = self._update_summary(history_dict)
         if updated:
             self._save_summary(self._consolidated_summary)
 
+    def _flush_partial_history(
+        self,
+        step: Optional[int] = None,
+    ) -> None:
+        if self._partial_history:
+            history = HistoryRecord()
+            for k, v in self._partial_history.items():
+                item = history.item.add()
+                item.key = k
+                item.value_json = json.dumps(v)
+            if step is not None:
+                history.step.num = step
+            self.handle_history(Record(history=history))
+            self._partial_history = {}
+
+    def handle_request_partial_history(self, record: Record) -> None:
+        partial_history = record.request.partial_history
+
+        flush = None
+        if partial_history.HasField("action"):
+            flush = partial_history.action.flush
+
+        step = None
+        if partial_history.HasField("step"):
+            step = partial_history.step.num
+
+        history_dict = proto_util.dict_from_proto_list(partial_history.item)
+        if step is not None:
+            if step < self._step:
+                logger.warning(
+                    f"Step {step} < {self._step}. Dropping entry: {history_dict}."
+                )
+                return
+            elif step > self._step:
+                self._flush_partial_history()
+                self._step = step
+        elif flush is None:
+            flush = True
+
+        self._partial_history.update(history_dict)
+
+        if flush:
+            self._flush_partial_history(self._step)
+
     def handle_summary(self, record: Record) -> None:
         summary = record.summary
-
         for item in summary.update:
             if len(item.nested_key) > 0:
                 # we use either key or nested_key -- not both
@@ -468,6 +582,9 @@ class HandleManager(object):
         self._save_summary(self._consolidated_summary)
 
     def handle_exit(self, record: Record) -> None:
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
+        record.exit.runtime = int(self._accumulate_time)
         self._dispatch_record(record, always_send=True)
 
     def handle_final(self, record: Record) -> None:
@@ -485,8 +602,49 @@ class HandleManager(object):
     def handle_request_check_version(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_attach(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
+
+    def handle_request_artifact_send(self, record: Record) -> None:
+        assert record.control.req_resp
+        result = proto_util._result_from_record(record)
+
+        self._dispatch_record(record)
+
+        # send response immediately, the request will be polled for result
+        xid = record.uuid
+        result.response.artifact_send_response.xid = xid
+        self._respond_result(result)
+
+    def handle_request_artifact_poll(self, record: Record) -> None:
+        assert record.control.req_resp
+        xid = record.request.artifact_poll.xid
+        assert xid
+
+        result = proto_util._result_from_record(record)
+        done_req = self._artifact_xid_done.get(xid)
+        if done_req:
+            result.response.artifact_poll_response.artifact_id = done_req.artifact_id
+            result.response.artifact_poll_response.error_message = (
+                done_req.error_message
+            )
+            result.response.artifact_poll_response.ready = True
+        self._respond_result(result)
+
+    def handle_request_artifact_done(self, record: Record) -> None:
+        assert not record.control.req_resp
+        done_req = record.request.artifact_done
+        xid = done_req.xid
+        assert xid
+
+        self._artifact_xid_done[xid] = done_req
+
+    # def handle_request_artifact_release(self, record: Record) -> None:
+    #     assert record.control.req_resp
+    #     # TODO: implement release protocol to clean up _artifact_xid_done dict
 
     def handle_telemetry(self, record: Record) -> None:
         self._dispatch_record(record)
@@ -496,12 +654,20 @@ class HandleManager(object):
         assert run_start
         assert run_start.run
 
+        self._run_start_time = run_start.run.start_time.ToSeconds()
+
+        self._track_time = time.time()
+        if run_start.run.resumed and run_start.run.runtime:
+            self._accumulate_time = run_start.run.runtime
+        else:
+            self._accumulate_time = 0
+
         if not self._settings._disable_stats:
             pid = os.getpid()
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
             self._system_stats.start()
 
-        if not self._settings._disable_meta:
+        if not self._settings._disable_meta and not run_start.run.resumed:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface)
             run_meta.probe()
             run_meta.write()
@@ -512,18 +678,25 @@ class HandleManager(object):
 
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        self._result_q.put(result)
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
 
     def handle_request_resume(self, record: Record) -> None:
         if self._system_stats is not None:
             logger.info("starting system metrics thread")
             self._system_stats.start()
 
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
+        self._track_time = time.time()
+
     def handle_request_pause(self, record: Record) -> None:
         if self._system_stats is not None:
             logger.info("stopping system metrics thread")
             self._system_stats.shutdown()
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
+            self._track_time = None
 
     def handle_request_poll_exit(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
@@ -534,14 +707,17 @@ class HandleManager(object):
     def handle_request_network_status(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_status(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
     def handle_request_get_summary(self, record: Record) -> None:
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        for key, value in six.iteritems(self._consolidated_summary):
-            item = wandb_internal_pb2.SummaryItem()
+        result = proto_util._result_from_record(record)
+        for key, value in self._consolidated_summary.items():
+            item = SummaryItem()
             item.key = key
             item.value_json = json.dumps(value)
             result.response.get_summary_response.item.append(item)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_tbrecord(self, record: Record) -> None:
         logger.info("handling tbrecord: %s", record)
@@ -550,40 +726,32 @@ class HandleManager(object):
             self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
         self._dispatch_record(record)
 
-    def _handle_defined_metric(self, record: wandb_internal_pb2.Record) -> None:
+    def _handle_defined_metric(self, record: Record) -> None:
         metric = record.metric
         if metric._control.overwrite:
-            self._metric_defines.setdefault(
-                metric.name, wandb_internal_pb2.MetricRecord()
-            ).CopyFrom(metric)
+            self._metric_defines[metric.name].CopyFrom(metric)
         else:
-            self._metric_defines.setdefault(
-                metric.name, wandb_internal_pb2.MetricRecord()
-            ).MergeFrom(metric)
+            self._metric_defines[metric.name].MergeFrom(metric)
 
         # before dispatching, make sure step_metric is defined, if not define it and
         # dispatch it locally first
         metric = self._metric_defines[metric.name]
         if metric.step_metric and metric.step_metric not in self._metric_defines:
-            m = wandb_internal_pb2.MetricRecord(name=metric.step_metric)
+            m = MetricRecord(name=metric.step_metric)
             self._metric_defines[metric.step_metric] = m
-            mr = wandb_internal_pb2.Record()
+            mr = Record()
             mr.metric.CopyFrom(m)
             mr.control.local = True  # Dont store this, just send it
             self._dispatch_record(mr)
 
         self._dispatch_record(record)
 
-    def _handle_glob_metric(self, record: wandb_internal_pb2.Record) -> None:
+    def _handle_glob_metric(self, record: Record) -> None:
         metric = record.metric
         if metric._control.overwrite:
-            self._metric_globs.setdefault(
-                metric.glob_name, wandb_internal_pb2.MetricRecord()
-            ).CopyFrom(metric)
+            self._metric_globs[metric.glob_name].CopyFrom(metric)
         else:
-            self._metric_globs.setdefault(
-                metric.glob_name, wandb_internal_pb2.MetricRecord()
-            ).MergeFrom(metric)
+            self._metric_globs[metric.glob_name].MergeFrom(metric)
         self._dispatch_record(record)
 
     def handle_metric(self, record: Record) -> None:
@@ -616,9 +784,9 @@ class HandleManager(object):
             self._handle_glob_metric(record)
 
     def handle_request_sampled_history(self, record: Record) -> None:
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        for key, sampled in six.iteritems(self._sampled_history):
-            item = wandb_internal_pb2.SampledHistoryItem()
+        result = proto_util._result_from_record(record)
+        for key, sampled in self._sampled_history.items():
+            item = SampledHistoryItem()
             item.key = key
             values: Iterable[Any] = sampled.get()
             if all(isinstance(i, numbers.Integral) for i in values):
@@ -626,12 +794,12 @@ class HandleManager(object):
             elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        self._result_q.put(result)
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
         self._stopped.set()
 
     def finish(self) -> None:
@@ -643,3 +811,22 @@ class HandleManager(object):
         return self._record_q.get(block=True)
 
     next = __next__
+
+    def _history_assign_runtime(
+        self,
+        history: HistoryRecord,
+        history_dict: Dict[str, Any],
+    ) -> None:
+        # _runtime calculation is meaningless if there is no _timestamp
+        if "_timestamp" not in history_dict:
+            return
+        # if it is offline sync, self._run_start_time is 0
+        # in that case set it to the first tfevent timestamp
+        if self._run_start_time == 0:
+            self._run_start_time = history_dict["_timestamp"]
+        history_dict["_runtime"] = int(
+            history_dict["_timestamp"] - self._run_start_time
+        )
+        item = history.item.add()
+        item.key = "_runtime"
+        item.value_json = json.dumps(history_dict[item.key])

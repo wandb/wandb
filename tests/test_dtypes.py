@@ -1,16 +1,12 @@
 import wandb
 from wandb import data_types
 import numpy as np
-import pandas as pd
 import pytest
 import os
 import sys
+import datetime
 
-_PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if _PY3:
-    from wandb.sdk.interface._dtypes import *
-else:
-    from wandb.sdk_py27.interface._dtypes import *
+from wandb.sdk.data_types._dtypes import *
 
 class_labels = {1: "tree", 2: "car", 3: "road"}
 test_folder = os.path.dirname(os.path.realpath(__file__))
@@ -35,6 +31,30 @@ def test_number_type():
     assert TypeRegistry.type_of(1.2).assign(1) == NumberType()
     assert TypeRegistry.type_of(1.2).assign(None) == InvalidType()
     assert TypeRegistry.type_of(1.2).assign("hi") == InvalidType()
+
+
+def make_datetime():
+    return datetime.datetime(2000, 12, 1)
+
+
+def make_date():
+    return datetime.date(2000, 12, 1)
+
+
+def make_datetime64():
+    return np.datetime64("2000-12-01")
+
+
+def test_timestamp_type():
+    assert TypeRegistry.type_of(make_datetime()) == TimestampType()
+    assert (
+        TypeRegistry.type_of(make_datetime())
+        .assign(make_date())
+        .assign(make_datetime64())
+        == TimestampType()
+    )
+    assert TypeRegistry.type_of(make_datetime()).assign(None) == InvalidType()
+    assert TypeRegistry.type_of(make_datetime()).assign(1) == InvalidType()
 
 
 def test_boolean_type():
@@ -100,13 +120,13 @@ def test_set_const_type():
     wb_type = ConstType(set())
     assert wb_type.assign(set()) == wb_type
     assert wb_type.assign(None) == InvalidType()
-    assert wb_type.assign(set([1])) == InvalidType()
+    assert wb_type.assign({1}) == InvalidType()
     assert wb_type.assign([]) == InvalidType()
 
-    wb_type = ConstType(set([1, 2, 3]))
+    wb_type = ConstType({1, 2, 3})
     assert wb_type.assign(set()) == InvalidType()
     assert wb_type.assign(None) == InvalidType()
-    assert wb_type.assign(set([1, 2, 3])) == wb_type
+    assert wb_type.assign({1, 2, 3}) == wb_type
     assert wb_type.assign([1, 2, 3]) == InvalidType()
 
 
@@ -123,8 +143,18 @@ def test_list_type():
 
 
 def test_dict_type():
-    spec = {"number": float, "nested": {"list_str": [str],}}
-    exact = {"number": 1, "nested": {"list_str": ["hello", "world"],}}
+    spec = {
+        "number": float,
+        "nested": {
+            "list_str": [str],
+        },
+    }
+    exact = {
+        "number": 1,
+        "nested": {
+            "list_str": ["hello", "world"],
+        },
+    }
     subset = {"nested": {"list_str": ["hi"]}}
     narrow = {"number": 1, "string": "hi"}
 
@@ -143,7 +173,10 @@ def test_dict_type():
     assert wb_type.assign({"optional_number": 1}) == wb_type
     assert wb_type.assign({"optional_number": "1"}) == InvalidType()
     assert wb_type.assign({"optional_unknown": "hi"}) == TypedDictType(
-        {"optional_number": OptionalType(float), "optional_unknown": OptionalType(str),}
+        {
+            "optional_number": OptionalType(float),
+            "optional_unknown": OptionalType(str),
+        }
     )
     assert wb_type.assign({"optional_unknown": None}) == TypedDictType(
         {
@@ -155,7 +188,9 @@ def test_dict_type():
     wb_type = TypedDictType({"unknown": UnknownType()})
     assert wb_type.assign({}) == InvalidType()
     assert wb_type.assign({"unknown": None}) == InvalidType()
-    assert wb_type.assign({"unknown": 1}) == TypedDictType({"unknown": float},)
+    assert wb_type.assign({"unknown": 1}) == TypedDictType(
+        {"unknown": float},
+    )
 
 
 def test_nested_dict():
@@ -316,8 +351,21 @@ def test_image_type():
 
     assert wb_type.assign(image_simple) == wb_type_simple
     assert wb_type.assign(image_annotated) == wb_type_annotated
-    assert wb_type_annotated.assign(image_simple) == InvalidType()
-    assert wb_type_annotated.assign(image_annotated_differently) == InvalidType()
+    # OK to assign Images with disjoint class set
+    assert wb_type_annotated.assign(image_simple) == wb_type_annotated
+    # Merge when disjoint
+    assert wb_type_annotated.assign(
+        image_annotated_differently
+    ) == data_types._ImageFileType(
+        box_layers={"box_predictions": {1, 2, 3}, "box_ground_truth": {1, 2, 3}},
+        box_score_keys={"loss", "acc"},
+        mask_layers={
+            "mask_ground_truth_2": set(),
+            "mask_ground_truth": set(),
+            "mask_predictions": {1, 2, 3},
+        },
+        class_map={"1": "tree", "2": "car", "3": "road"},
+    )
 
 
 def test_classes_type():
@@ -329,7 +377,11 @@ def test_classes_type():
         ]
     )
 
-    wb_class_type = wandb.wandb_sdk.data_types._ClassesIdType.from_obj(wb_classes)
+    wb_class_type = (
+        wandb.wandb_sdk.data_types.helper_types.classes._ClassesIdType.from_obj(
+            wb_classes
+        )
+    )
     assert wb_class_type.assign(1) == wb_class_type
     assert wb_class_type.assign(0) == InvalidType()
 
@@ -434,7 +486,22 @@ def test_tables_with_dicts():
                 ]
             }
         ],
-        [{"a": [{"b": 1, "c": [[{"d": 1,}]]}]}],
+        [
+            {
+                "a": [
+                    {
+                        "b": 1,
+                        "c": [
+                            [
+                                {
+                                    "d": 1,
+                                }
+                            ]
+                        ],
+                    }
+                ]
+            }
+        ],
     ]
 
     table = wandb.Table(columns=["A"], data=good_data, allow_mixed_types=True)
@@ -493,7 +560,12 @@ box_annotation = {
     "box_predictions": {
         "box_data": [
             {
-                "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4,},
+                "position": {
+                    "minX": 0.1,
+                    "maxX": 0.2,
+                    "minY": 0.3,
+                    "maxY": 0.4,
+                },
                 "class_id": 1,
                 "box_caption": "minMax(pixel)",
                 "scores": {"acc": 0.1, "loss": 1.2},
@@ -504,7 +576,12 @@ box_annotation = {
     "box_ground_truth": {
         "box_data": [
             {
-                "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4,},
+                "position": {
+                    "minX": 0.1,
+                    "maxX": 0.2,
+                    "minY": 0.3,
+                    "maxY": 0.4,
+                },
                 "class_id": 1,
                 "box_caption": "minMax(pixel)",
                 "scores": {"acc": 0.1, "loss": 1.2},
@@ -534,7 +611,9 @@ def test_table_specials():
     # Infers specific types from first valid row
     table.add_data(
         data_types.Image(
-            np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+            np.random.rand(10, 10),
+            boxes=box_annotation,
+            masks=mask_annotation,
         ),
         data_types.Table(data=[[1, True, None]]),
     )
@@ -542,7 +621,7 @@ def test_table_specials():
     # Denies conflict
     with pytest.raises(TypeError):
         table.add_data(
-            data_types.Image(np.random.rand(10, 10),),
+            "hello",
             data_types.Table(data=[[1, True, None]]),
         )
 
@@ -550,7 +629,9 @@ def test_table_specials():
     with pytest.raises(TypeError):
         table.add_data(
             data_types.Image(
-                np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+                np.random.rand(10, 10),
+                boxes=box_annotation,
+                masks=mask_annotation,
             ),
             data_types.Table(data=[[1, "True", None]]),
         )
@@ -558,7 +639,9 @@ def test_table_specials():
     # allows further refinement
     table.add_data(
         data_types.Image(
-            np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+            np.random.rand(10, 10),
+            boxes=box_annotation,
+            masks=mask_annotation,
         ),
         data_types.Table(data=[[1, True, 1]]),
     )
@@ -566,13 +649,18 @@ def test_table_specials():
     # allows addition
     table.add_data(
         data_types.Image(
-            np.random.rand(10, 10), boxes=box_annotation, masks=mask_annotation,
+            np.random.rand(10, 10),
+            boxes=box_annotation,
+            masks=mask_annotation,
         ),
         data_types.Table(data=[[1, True, 1]]),
     )
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_nan_non_float():
+    import pandas as pd
+
     wandb.Table(dataframe=pd.DataFrame(data=[["A"], [np.nan]], columns=["a"]))
 
 
@@ -675,7 +763,10 @@ def test_table_typing_numpy():
     table.add_data(np.array([[[[1, 2, 3]]]]))
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_table_typing_pandas():
+    import pandas as pd
+
     # TODO: Pandas https://pandas.pydata.org/pandas-docs/stable/user_guide/basics.html#basics-dtypes
 
     # Numerics
@@ -770,6 +861,5 @@ def test_table_typing_pandas():
 
     table = wandb.Table(dataframe=pd.DataFrame([["42"], ["42"]]).astype("string"))
     table.add_data("42")
-    if _PY3:
-        table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
-        table.add_data(True)
+    table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
+    table.add_data(True)

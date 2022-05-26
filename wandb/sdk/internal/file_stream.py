@@ -1,31 +1,31 @@
 import base64
-import binascii
 import collections
 import itertools
 import logging
 import os
 import sys
+import queue
 import random
 import requests
 import threading
 import time
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb import util
 from wandb import env
 
-import six
-from six.moves import queue
-
 from ..lib import file_stream_utils
-
 
 logger = logging.getLogger(__name__)
 
 Chunk = collections.namedtuple("Chunk", ("filename", "data"))
 
+if TYPE_CHECKING:
+    from typing import Any, List, Dict
 
-class DefaultFilePolicy(object):
+
+class DefaultFilePolicy:
     def __init__(self, start_chunk_id=0):
         self._chunk_id = start_chunk_id
 
@@ -42,9 +42,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
         self._chunk_id += len(chunks)
         chunk_data = []
         for chunk in chunks:
-            if len(chunk.data) > util.MAX_LINE_SIZE:
+            if len(chunk.data) > util.MAX_LINE_BYTES:
                 msg = "Metric data exceeds maximum size of {} ({})".format(
-                    util.to_human_size(util.MAX_LINE_SIZE),
+                    util.to_human_size(util.MAX_LINE_BYTES),
                     util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
@@ -61,14 +61,35 @@ class JsonlFilePolicy(DefaultFilePolicy):
 class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = chunks[-1].data
-        if len(data) > util.MAX_LINE_SIZE:
+        if len(data) > util.MAX_LINE_BYTES:
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
-                util.to_human_size(util.MAX_LINE_SIZE)
+                util.to_human_size(util.MAX_LINE_BYTES)
             )
             wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)
             return False
         return {"offset": 0, "content": [data]}
+
+
+class StreamCRState:
+    """There are two streams: stdout and stderr.
+    We create two instances for each stream.
+    An instance holds state about:
+        found_cr:       if a carriage return has been found in this stream.
+        cr:             most recent offset (line number) where we found \r.
+                        We update this offset with every progress bar update.
+        last_normal:    most recent offset without a \r in this stream.
+                        i.e the most recent "normal" line.
+    """
+
+    found_cr: bool
+    cr: Optional[int]
+    last_normal: Optional[int]
+
+    def __init__(self):
+        self.found_cr = False
+        self.cr = None
+        self.last_normal = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
@@ -78,59 +99,140 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     This is what a terminal does. We use it for console output to reduce the
     amount of data we need to send over the network (eg. for progress bars),
     while preserving the output's appearance in the web app.
+
+    CR stands for "carriage return", for the character \r. It tells the terminal
+    to move the cursor back to the start of the current line. Progress bars
+    (like tqdm) use \r repeatedly to overwrite a line with newer updates.
+    This gives the illusion of the progress bar filling up in real-time.
     """
 
     def __init__(self, start_chunk_id=0):
-        super(CRDedupeFilePolicy, self).__init__(start_chunk_id=start_chunk_id)
+        super().__init__(start_chunk_id=start_chunk_id)
         self._prev_chunk = None
 
-    def process_chunks(self, chunks):
-        ret = []
-        flag = bool(self._prev_chunk)
-        chunk_id = self._chunk_id
-        for c in chunks:
-            # Line has two possible formats:
-            # 1) "2020-08-25T20:38:36.895321 this is my line of text"
-            # 2) "ERROR 2020-08-25T20:38:36.895321 this is my line of text"
-            prefix = ""
-            token, rest = c.data.split(" ", 1)
-            is_err = False
-            if token == "ERROR":
-                is_err = True
-                prefix += token + " "
-                token, rest = rest.split(" ", 1)
-            prefix += token + " "
+        self.global_offset = 0
+        # cr refers to carriage return \r
+        self.stderr = StreamCRState()
+        self.stdout = StreamCRState()
 
-            lines = rest.split(os.linesep)
-            for line in lines:
+    def get_consecutive_offsets(self, console: Dict) -> List[Any]:
+        """
+        Args:
+            console: Dict[int, str] which maps offsets (line numbers) to lines of text.
+            It represents a mini version of our console dashboard on the UI.
+
+        Returns:
+            A list of intervals (we compress consecutive line numbers into an interval).
+
+        Example:
+            >>> console = {2: "", 3: "", 4: "", 5: "", 10: "", 11: "", 20: ""}
+            >>> get_consecutive_offsets(console)
+            [(2, 5), (10, 11), (20, 20)]
+        """
+        offsets = sorted(list(console.keys()))
+        intervals: List = []
+        for i, num in enumerate(offsets):
+            if i == 0:
+                intervals.append([num, num])
+                continue
+            largest = intervals[-1][1]
+            if num == largest + 1:
+                intervals[-1][1] = num
+            else:
+                intervals.append([num, num])
+        return intervals
+
+    def split_chunk(self, chunk: Chunk) -> Tuple[str, str]:
+        """
+        Args:
+            chunk: object with two fields: filename (str) & data (str)
+            `chunk.data` is a str containing the lines we want. It usually contains \n or \r or both.
+            `chunk.data` has two possible formats (for the two streams - stdout and stderr):
+                - "2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n"
+                - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n"
+
+                Here's another example with a carriage return \r.
+                - "ERROR 2020-08-25T20:38:36.895321 \r progress bar\n"
+
+        Returns:
+            A 2-tuple of strings.
+            First str is prefix, either "ERROR {timestamp} " or "{timestamp} ".
+            Second str is the rest of the string.
+
+        Example:
+            >>> chunk = Chunk(filename="output.log", data="ERROR 2020-08-25T20:38 this is my line of text\n")
+            >>> split_chunk(chunk)
+            ("ERROR 2020-08-25T20:38 ", "this is my line of text\n")
+        """
+        prefix = ""
+        token, rest = chunk.data.split(" ", 1)
+        if token == "ERROR":
+            prefix += token + " "
+            token, rest = rest.split(" ", 1)
+        prefix += token + " "
+        return prefix, rest
+
+    def process_chunks(self, chunks: List) -> List[Dict]:
+        """
+        Args:
+            chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
+
+        Returns:
+            List[Dict]. Each dict in the list contains two keys: an `offset` which holds the line number
+            and `content` which maps to a list of consecutive lines starting from that offset.
+            `offset` here means global line number in our console on the UI.
+
+        Example:
+            >>> chunks = [
+                Chunk("output.log", "ERROR 2020-08-25T20:38 this is my line of text\nboom\n"),
+                Chunk("output.log", "2020-08-25T20:38 this is test\n"),
+            ]
+            >>> process_chunks(chunks)
+            [
+                {"offset": 0, "content": [
+                    "ERROR 2020-08-25T20:38 this is my line of text\n",
+                    "ERROR 2020-08-25T20:38 boom\n",
+                    "2020-08-25T20:38 this is test\n"
+                    ]
+                }
+            ]
+        """
+        # Dict[int->str], each offset (line number) mapped to a line.
+        # Represents a mini-version of our console pane on the UI.
+        console = {}
+        sep = os.linesep
+
+        for c in chunks:
+            prefix, logs_str = self.split_chunk(c)
+            logs = logs_str.split(sep)
+
+            for line in logs:
+                stream = self.stderr if prefix.startswith("ERROR ") else self.stdout
                 if line.startswith("\r"):
-                    found = False
-                    for i in range(len(ret) - 1, -1, -1):
-                        if ret[i].startswith("ERROR ") == is_err:
-                            ret[i] = prefix + line[1:] + "\n"
-                            found = True
-                            break
-                    if not found:
-                        if flag:
-                            flag = False
-                            prev_ret = self._prev_chunk["content"]
-                            for i in range(len(prev_ret) - 1, -1, -1):
-                                if prev_ret[i].startswith("ERROR ") == is_err:
-                                    prev_ret[i] = prefix + line[1:] + "\n"
-                                    found = True
-                                    break
-                            if found:
-                                chunk_id = self._prev_chunk["offset"]
-                                ret = prev_ret + ret
-                            else:
-                                ret.append(prefix + line[1:] + "\n")
-                        else:
-                            ret.append(prefix + line[1:] + "\n")
+                    # line starting with \r will always overwrite a previous offset.
+                    offset = stream.cr if stream.found_cr else stream.last_normal or 0
+                    stream.cr = offset
+                    stream.found_cr = True
+                    console[offset] = prefix + line[1:] + "\n"
+
+                    # Usually logs_str = "\r progress bar\n" for progress bar updates.
+                    # If instead logs_str = "\r progress bar\n text\n text\n",
+                    # treat this as the end of a progress bar and reset accordingly.
+                    if (
+                        logs_str.count(sep) > 1
+                        and logs_str.replace(sep, "").count("\r") == 1
+                    ):
+                        stream.found_cr = False
+
                 elif line:
-                    ret.append(prefix + line + "\n")
-        self._chunk_id = chunk_id + len(ret)
-        ret = {"offset": chunk_id, "content": ret}
-        self._prev_chunk = ret
+                    console[self.global_offset] = prefix + line + "\n"
+                    stream.last_normal = self.global_offset
+                    self.global_offset += 1
+
+        intervals = self.get_consecutive_offsets(console)
+        ret = []
+        for (a, b) in intervals:
+            ret.append({"offset": a, "content": [console[i] for i in range(a, b + 1)]})
         return ret
 
 
@@ -138,12 +240,11 @@ class BinaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = b"".join([c.data for c in chunks])
         enc = base64.b64encode(data).decode("ascii")
-        offset = self._offset
         self._offset += len(data)
         return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
 
-class FileStreamApi(object):
+class FileStreamApi:
     """Pushes chunks of files to our streaming endpoint.
 
     This class is used as a singleton. It has a thread that serializes access to
@@ -154,6 +255,7 @@ class FileStreamApi(object):
 
     Finish = collections.namedtuple("Finish", ("exitcode"))
     Preempting = collections.namedtuple("Preempting", ())
+    PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
@@ -178,6 +280,7 @@ class FileStreamApi(object):
             }
         )
         self._file_policies = {}
+        self._dropped_chunks = 0
         self._queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
@@ -201,8 +304,7 @@ class FileStreamApi(object):
         self._thread.start()
 
     def set_default_file_policy(self, filename, file_policy):
-        """Set an upload policy for a file unless one has already been set.
-        """
+        """Set an upload policy for a file unless one has already been set."""
         if filename not in self._file_policies:
             self._file_policies[filename] = file_policy
 
@@ -241,6 +343,7 @@ class FileStreamApi(object):
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
+        uploaded = set()
         finished = None
         while finished is None:
             items = self._read_queue()
@@ -251,8 +354,16 @@ class FileStreamApi(object):
                     request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False, "preempting": True},
+                        json={
+                            "complete": False,
+                            "preempting": True,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
                     )
+                    uploaded = set()
+                elif isinstance(item, self.PushSuccess):
+                    uploaded.add(item.save_name)
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
@@ -264,23 +375,45 @@ class FileStreamApi(object):
             ):
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
-                self._send(ready_chunks)
+                success = self._send(ready_chunks, uploaded=uploaded)
                 ready_chunks = []
+                if success:
+                    uploaded = set()
 
+            # If there aren't ready chunks or uploaded files, we still want to
+            # send regular heartbeats so the backend doesn't erroneously mark this
+            # run as crashed.
             if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
-                self._handle_response(
+
+                # If we encountered an error trying to publish the
+                # list of uploaded files, don't reset the `uploaded`
+                # list. Retry publishing the list on the next attempt.
+                if not isinstance(
                     request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False, "failed": False},
-                    )
-                )
+                        json={
+                            "complete": False,
+                            "failed": False,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
+                    ),
+                    Exception,
+                ):
+                    uploaded = set()
+
         # post the final close message. (item is self.Finish instance now)
         request_with_retry(
             self._client.post,
             self._endpoint,
-            json={"complete": True, "exitcode": int(finished.exitcode)},
+            json={
+                "complete": True,
+                "exitcode": int(finished.exitcode),
+                "dropped": self._dropped_chunks,
+                "uploaded": list(uploaded),
+            },
         )
 
     def _thread_except_body(self):
@@ -297,9 +430,11 @@ class FileStreamApi(object):
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
-            wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
-            logging.error("dropped chunk %s" % response)
-            raise response
+            wandb.termerror(
+                "Dropped streaming file chunk (see wandb/debug-internal.log)"
+            )
+            logging.exception("dropped chunk %s" % response)
+            self._dropped_chunks += 1
         else:
             parsed: dict = None
             try:
@@ -311,7 +446,8 @@ class FileStreamApi(object):
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
-    def _send(self, chunks):
+    def _send(self, chunks, uploaded=None):
+        uploaded = list(uploaded or [])
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
@@ -325,15 +461,32 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        for fs in file_stream_utils.split_files(files, max_mb=10):
+        for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
             self._handle_response(
                 request_with_retry(
                     self._client.post,
                     self._endpoint,
-                    json={"files": fs},
+                    json={"files": fs, "dropped": self._dropped_chunks},
                     retry_callback=self._api.retry_callback,
                 )
             )
+
+        if uploaded:
+            if isinstance(
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "failed": False,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": uploaded,
+                    },
+                ),
+                Exception,
+            ):
+                return False
+        return True
 
     def stream_file(self, path):
         name = path.split("/")[-1]
@@ -353,6 +506,15 @@ class FileStreamApi(object):
         """
         self._queue.put(Chunk(filename, data))
 
+    def push_success(self, artifact_id, save_name):
+        """Notification that a file upload has been successfully completed
+
+        Arguments:
+            artifact_id: ID of artifact
+            save_name: saved name of the uploaded file
+        """
+        self._queue.put(self.PushSuccess(artifact_id, save_name))
+
     def finish(self, exitcode):
         """Cleans up.
 
@@ -366,8 +528,8 @@ class FileStreamApi(object):
         self._thread.join()
         if self._exc_info:
             logger.error("FileStream exception", exc_info=self._exc_info)
-            # reraising the original exception, will get recaught in internal.py for the sender thread
-            six.reraise(*self._exc_info)
+            # re-raising the original exception, will get re-caught in internal.py for the sender thread
+            raise self._exc_info[1].with_traceback(self._exc_info[2])
 
 
 MAX_SLEEP_SECONDS = 60 * 5
@@ -418,8 +580,10 @@ def request_with_retry(func, *args, **kwargs):
             if isinstance(e, requests.exceptions.HTTPError) and (
                 e.response is not None and e.response.status_code == 429
             ):
-                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
-                    delay
+                err_str = (
+                    "Filestream rate limit exceeded, retrying in {} seconds".format(
+                        delay
+                    )
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)
@@ -443,7 +607,7 @@ def request_with_retry(func, *args, **kwargs):
                 error_message = response.json()["error"]  # XXX clean this up
             except Exception:
                 pass
-            logger.error("requests_with_retry error: {}".format(error_message))
+            logger.error(f"requests_with_retry error: {error_message}")
             logger.exception(
                 "requests_with_retry encountered unretryable exception: %s", e
             )

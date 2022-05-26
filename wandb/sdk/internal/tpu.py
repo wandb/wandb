@@ -1,6 +1,3 @@
-#
-from __future__ import absolute_import
-
 import logging
 import os
 import threading
@@ -10,7 +7,7 @@ import time
 logger = logging.getLogger(__name__)
 
 
-class TPUProfiler(object):
+class TPUProfiler:
     def __init__(
         self,
         service_addr=None,
@@ -51,7 +48,7 @@ class TPUProfiler(object):
         service_addr = service_addr.replace("grpc://", "").replace(":8470", ":8466")
         self.service_addr = service_addr
         self.duration_ms = duration_ms
-        self._tpu_utilization = 0.0
+        self._tpu_utilization = None
         self._stop = True
         self._profiler_client = profiler_client
         self.start()
@@ -86,13 +83,25 @@ class TPUProfiler(object):
             self._thread.start()
 
 
-def is_tpu_available():
-    try:
-        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore  # noqa
-        from tensorflow.python.profiler import profiler_client  # type: ignore  # noqa
-    except (ImportError, TypeError):  # Saw type error when iterating paths on colab...
+def is_tpu_available() -> bool:
+    tpu_name = os.environ.get("TPU_NAME", False)
+
+    if tpu_name is False:
         return False
-    return "TPU_NAME" in os.environ
+
+    try:
+        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore # noqa
+        from tensorflow.python.profiler import profiler_client  # type: ignore # noqa
+    except (
+        ImportError,
+        TypeError,
+        AttributeError,
+    ):  # Saw type error when iterating paths on colab...
+        # TODO: Saw sentry error (https://sentry.io/organizations/weights-biases/issues/2699838212/?project=5288891&query=firstRelease%3A0.12.4&statsPeriod=14d) where
+        # module 'tensorflow.python.pywrap_tensorflow' has no attribute 'TFE_DEVICE_PLACEMENT_EXPLICIT'
+        return False
+
+    return True
 
 
 # Avoid multiple TPUProfiler instances

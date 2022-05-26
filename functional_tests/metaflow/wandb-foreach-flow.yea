@@ -1,0 +1,42 @@
+id: metaflow.foreach.base
+plugin:
+  - wandb
+depend:
+  requirements:
+    - "metaflow>=2.3.5"
+    - pandas
+    - scikit-learn
+tag:
+  shard: metaflow
+  skips:
+    - platform: win
+command:
+    args:
+        - --no-pylint
+        - run
+assert:
+    - :wandb:runs_len: 6
+    - :wandb:runs[0][config]: {"seed": 1337, "test_size": 0.2, "raw_data": https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv}
+    - :wandb:runs[1][config]: {"seed": 1337, "test_size": 0.2, "raw_data": https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv}
+    - :wandb:runs[2][config]: {"seed": 1337, "test_size": 0.2, "raw_data": https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv}
+    - :wandb:runs[3][config]: {"seed": 1337, "test_size": 0.2, "raw_data": https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv}
+    - :wandb:runs[4][config]: {"seed": 1337, "test_size": 0.2, "raw_data": https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv}
+    - :wandb:runs[5][config]: {"seed": 1337, "test_size": 0.2, "raw_data": https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv}
+    - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[1][exitcode]: 0
+    - :wandb:runs[2][exitcode]: 0
+    - :wandb:runs[3][exitcode]: 0
+    - :wandb:runs[4][exitcode]: 0
+    - :wandb:runs[5][exitcode]: 0
+    - :op:contains: [":wandb:runs[0][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[1][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[2][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[3][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[4][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[5][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[0][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[1][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[2][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[3][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[4][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[5][telemetry][3]", 11]  # feature metaflow

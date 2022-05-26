@@ -1,10 +1,9 @@
 #
-# -*- coding: utf-8 -*-
 """Internal process.
 
 This module implements the entrypoint for the internal process. The internal process
 is responsible for handling "record" requests, and responding with "results". Data is
-passed to thee process over multiprocessing queues.
+passed to the process over multiprocessing queues.
 
 Threads:
     HandlerThread -- read from record queue and call handlers
@@ -13,50 +12,49 @@ Threads:
 
 """
 
-from __future__ import print_function
 
 import atexit
 from datetime import datetime
 import logging
 import os
+import queue
 import sys
 import threading
 import time
 import traceback
+from typing import TYPE_CHECKING
 
 import psutil
-from six.moves import queue
 import wandb
-from wandb.util import sentry_exc
+from wandb.util import sentry_exc, sentry_set_scope
 
 from . import handler
 from . import internal_util
 from . import sender
 from . import settings_static
 from . import writer
-from ..interface import interface
+from ..interface.interface_queue import InterfaceQueue
+from ..lib import tracelog
 
 
-if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from ..interface.interface import BackendSender
-        from .settings_static import SettingsStatic
-        from typing import Any, Dict, List, Optional, Union
-        from six.moves.queue import Queue
-        from .internal_util import RecordLoopThread
-        from wandb.proto.wandb_internal_pb2 import Record, Result
-        from threading import Event
+if TYPE_CHECKING:
+    from .settings_static import SettingsDict, SettingsStatic
+    from typing import Any, List, Optional
+    from queue import Queue
+    from .internal_util import RecordLoopThread
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+    from threading import Event
 
 
 logger = logging.getLogger(__name__)
 
 
 def wandb_internal(
-    settings: "Dict[str, Union[str, float]]",
+    settings: "SettingsDict",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
+    port: int = None,
+    user_pid: int = None,
 ) -> None:
     """Internal process function entrypoint.
 
@@ -70,19 +68,23 @@ def wandb_internal(
     """
     # mark this process as internal
     wandb._set_internal_process()
+    _setup_tracelog()
     started = time.time()
+
+    # any sentry events in the internal process will be tagged as such
+    sentry_set_scope(process_context="internal")
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register
     def handle_exit(*args: "Any") -> None:
         logger.info("Internal process exited")
 
-    # Lets make sure we dont modify settings so use a static object
+    # Let's make sure we don't modify settings so use a static object
     _settings = settings_static.SettingsStatic(settings)
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 
-    parent_pid = os.getppid()
+    user_pid = user_pid or os.getppid()
     pid = os.getpid()
 
     logger.info(
@@ -91,23 +93,27 @@ def wandb_internal(
         datetime.fromtimestamp(started),
     )
 
-    publish_interface = interface.BackendSender(record_q=record_q)
+    tracelog.annotate_queue(record_q, "record_q")
+    tracelog.annotate_queue(result_q, "result_q")
+    publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
     threads: "List[RecordLoopThread]" = []
 
     send_record_q: "Queue[Record]" = queue.Queue()
+    tracelog.annotate_queue(send_record_q, "send_q")
     record_sender_thread = SenderThread(
         settings=_settings,
         record_q=send_record_q,
         result_q=result_q,
         stopped=stopped,
         interface=publish_interface,
-        debounce_interval_ms=1000,
+        debounce_interval_ms=30000,
     )
     threads.append(record_sender_thread)
 
     write_record_q: "Queue[Record]" = queue.Queue()
+    tracelog.annotate_queue(write_record_q, "write_q")
     record_writer_thread = WriterThread(
         settings=_settings,
         record_q=write_record_q,
@@ -128,7 +134,7 @@ def wandb_internal(
     )
     threads.append(record_handler_thread)
 
-    process_check = ProcessCheck(settings=_settings, pid=parent_pid)
+    process_check = ProcessCheck(settings=_settings, user_pid=user_pid)
 
     for thread in threads:
         thread.start()
@@ -144,7 +150,7 @@ def wandb_internal(
                     stopped.set()
         except KeyboardInterrupt:
             interrupt_count += 1
-            logger.warning("Internal process interrupt: {}".format(interrupt_count))
+            logger.warning(f"Internal process interrupt: {interrupt_count}")
         finally:
             if interrupt_count >= 2:
                 logger.error("Internal process interrupted.")
@@ -156,12 +162,24 @@ def wandb_internal(
     for thread in threads:
         exc_info = thread.get_exception()
         if exc_info:
-            logger.error("Thread {}:".format(thread.name), exc_info=exc_info)
-            print("Thread {}:".format(thread.name), file=sys.stderr)
+            logger.error(f"Thread {thread.name}:", exc_info=exc_info)
+            print(f"Thread {thread.name}:", file=sys.stderr)
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
             wandb.termerror("Internal wandb error: file data was not synced")
+            if settings.get("_require_service"):
+                # TODO: We can make this more graceful by returning an error to streams.py
+                # and potentially just fail the one stream.
+                os._exit(-1)
             sys.exit(-1)
+
+
+def _setup_tracelog() -> None:
+    # TODO: remove this temporary hack, need to find a better way to pass settings
+    # to the server.  for now lets just look at the environment variable we need
+    tracelog_mode = os.environ.get("WANDB_TRACELOG")
+    if tracelog_mode:
+        tracelog.enable(tracelog_mode)
 
 
 def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:
@@ -214,10 +232,10 @@ class HandlerThread(internal_util.RecordLoopThread):
         stopped: "Event",
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
-        super(HandlerThread, self).__init__(
+        super().__init__(
             input_record_q=record_q,
             result_q=result_q,
             stopped=stopped,
@@ -265,10 +283,10 @@ class SenderThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 5000,
     ) -> None:
-        super(SenderThread, self).__init__(
+        super().__init__(
             input_record_q=record_q,
             result_q=result_q,
             stopped=stopped,
@@ -313,7 +331,7 @@ class WriterThread(internal_util.RecordLoopThread):
         writer_q: "Queue[Record]",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
-        super(WriterThread, self).__init__(
+        super().__init__(
             input_record_q=writer_q,
             result_q=result_q,
             stopped=stopped,
@@ -326,7 +344,9 @@ class WriterThread(internal_util.RecordLoopThread):
 
     def _setup(self) -> None:
         self._wm = writer.WriteManager(
-            settings=self._settings, record_q=self._record_q, result_q=self._result_q,
+            settings=self._settings,
+            record_q=self._record_q,
+            result_q=self._result_q,
         )
 
     def _process(self, record: "Record") -> None:
@@ -339,19 +359,19 @@ class WriterThread(internal_util.RecordLoopThread):
         self._wm.debounce()
 
 
-class ProcessCheck(object):
+class ProcessCheck:
     """Class to help watch a process id to detect when it is dead."""
 
     check_process_last: "Optional[float]"
 
-    def __init__(self, settings: "SettingsStatic", pid: int) -> None:
+    def __init__(self, settings: "SettingsStatic", user_pid: "Optional[int]") -> None:
         self.settings = settings
-        self.pid = pid
+        self.pid = user_pid
         self.check_process_last = None
         self.check_process_interval = settings._internal_check_process
 
     def is_dead(self) -> bool:
-        if not self.check_process_interval:
+        if not self.check_process_interval or not self.pid:
             return False
         time_now = time.time()
         if (
@@ -361,10 +381,11 @@ class ProcessCheck(object):
             return False
         self.check_process_last = time_now
 
+        # TODO(jhr): check for os.getppid on unix being 1?
         exists = psutil.pid_exists(self.pid)
         if not exists:
             logger.warning(
-                "Internal process exiting, parent pid {} disappeared".format(self.pid)
+                f"Internal process exiting, parent pid {self.pid} disappeared"
             )
             return True
         return False

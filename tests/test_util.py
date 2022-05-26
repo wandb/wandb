@@ -1,17 +1,24 @@
-import itertools
-import sys
 import os
-import pytest
-import numpy
 import platform
 import random
+import sys
+import tarfile
+import tempfile
+import time
+from unittest import mock
+
+import pytest
+
+import wandb
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
-import tensorflow
+import tensorflow as tf
 
-import plotly
 import matplotlib.pyplot as plt
+import numpy
+import plotly
+import requests
 
 from . import utils
 from wandb import util
@@ -51,119 +58,116 @@ def json_friendly_test(orig_data, obj):
 
 
 def tensorflow_json_friendly_test(orig_data):
-    json_friendly_test(orig_data, tensorflow.convert_to_tensor(orig_data))
-    v = tensorflow.Variable(tensorflow.convert_to_tensor(orig_data))
+    json_friendly_test(orig_data, tf.convert_to_tensor(orig_data))
+    v = tf.Variable(tf.convert_to_tensor(orig_data))
     json_friendly_test(orig_data, v)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_0d():
     a = nested_list()
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_1d_1x1():
     a = nested_list(1)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_1d():
     a = nested_list(3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_1d_large():
     a = nested_list(300)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_2d():
     a = nested_list(3, 3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_2d_large():
     a = nested_list(300, 300)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_3d():
     a = nested_list(3, 3, 3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_4d():
     a = nested_list(1, 1, 1, 1)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_nd():
     a = nested_list(1, 1, 1, 1, 1, 1, 1, 1)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_nd_large():
     a = nested_list(3, 3, 3, 3, 3, 3, 3, 3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_0d():
     tensorflow_json_friendly_test(nested_list())
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_1d_1x1():
     tensorflow_json_friendly_test(nested_list(1))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_1d():
     tensorflow_json_friendly_test(nested_list(3))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_1d_large():
     tensorflow_json_friendly_test(nested_list(300))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_2d():
     tensorflow_json_friendly_test(nested_list(3, 3))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_2d_large():
     tensorflow_json_friendly_test(nested_list(300, 300))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_nd():
     tensorflow_json_friendly_test(nested_list(1, 1, 1, 1, 1, 1, 1, 1))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(nested_list(3, 3, 3, 3, 3, 3, 3, 3))
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+@pytest.mark.parametrize(
+    "array_shape", [(), (1,), (3,), (300,), (300, 300), (1,) * 8, (3,) * 8]
+)
+def test_jax_json(array_shape):
+    from jax import numpy as jnp
+
+    orig_data = nested_list(*array_shape)
+    jax_array = jnp.asarray(orig_data)
+    json_friendly_test(orig_data, jax_array)
+    assert util.is_jax_tensor_typename(util.get_full_typename(jax_array))
 
 
 def test_image_from_docker_args_simple():
@@ -199,6 +203,16 @@ def test_image_from_docker_args_sha():
     )
     image = util.image_from_docker_args([dsha])
     assert image == dsha
+
+
+def test_app_url():
+    os.environ["WANDB_APP_URL"] = "https://foo.com/bar/"
+    assert util.app_url("https://api.foo.com") == "https://foo.com/bar"
+    del os.environ["WANDB_APP_URL"]
+    assert util.app_url("http://api.wandb.test") == "http://app.wandb.test"
+    assert util.app_url("https://api.wandb.ai") == "https://wandb.ai"
+    assert util.app_url("https://api.foo/bar") == "https://app.foo/bar"
+    assert util.app_url("https://wandb.foo") == "https://wandb.foo"
 
 
 def test_safe_for_json():
@@ -290,3 +304,223 @@ def test_matplotlib_to_plotly():
     fig = utils.matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(plt)) == plotly.graph_objs._figure.Figure
     plt.close()
+
+
+def test_apple_gpu_stats_binary():
+    assert util.apple_gpu_stats_binary().endswith(
+        os.path.join("bin", "apple_gpu_stats")
+    )
+
+
+def test_is_uri():
+    assert util.is_uri("http://foo.com")
+    assert util.is_uri("https://foo.com")
+    assert util.is_uri("file:///foo.com")
+    assert util.is_uri("s3://foo.com")
+    assert util.is_uri("gs://foo.com")
+    assert util.is_uri("foo://foo.com")
+    assert not util.is_uri("foo.com")
+    assert not util.is_uri("foo")
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="fixme: make this work on windows"
+)
+def test_local_file_uri_to_path():
+    assert util.local_file_uri_to_path("file:///foo.com") == "/foo.com"
+    assert util.local_file_uri_to_path("file://foo.com") == ""
+    assert util.local_file_uri_to_path("file:///foo") == "/foo"
+    assert util.local_file_uri_to_path("file://foo") == ""
+    assert util.local_file_uri_to_path("file:///") == "/"
+    assert util.local_file_uri_to_path("file://") == ""
+    assert util.get_local_path_or_none("https://foo.com") is None
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="fixme: make this work on windows"
+)
+def test_get_local_path_or_none():
+    assert util.get_local_path_or_none("file:///foo.com") == "/foo.com"
+    assert util.get_local_path_or_none("file://foo.com") is None
+    assert util.get_local_path_or_none("file:///foo") == "/foo"
+    assert util.get_local_path_or_none("file://foo") is None
+    assert util.get_local_path_or_none("file:///") == "/"
+    assert util.get_local_path_or_none("file://") == ""
+    assert util.get_local_path_or_none("/foo.com") == "/foo.com"
+    assert util.get_local_path_or_none("foo.com") == "foo.com"
+    assert util.get_local_path_or_none("/foo") == "/foo"
+    assert util.get_local_path_or_none("foo") == "foo"
+    assert util.get_local_path_or_none("/") == "/"
+    assert util.get_local_path_or_none("") == ""
+
+
+def test_make_tarfile():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpfile = os.path.join(tmpdir, "foo.tar.gz")
+        util.make_tarfile(
+            output_filename=tmpfile,
+            source_dir=tmpdir,
+            archive_name="lol",
+        )
+        assert os.path.exists(tmpfile)
+        assert tarfile.is_tarfile(tmpfile)
+
+
+def test_is_tf_tensor():
+    assert util.is_tf_tensor(tf.constant(1))
+    assert not util.is_tf_tensor(tf.Variable(1))
+    assert not util.is_tf_tensor(1)
+    assert not util.is_tf_tensor(None)
+
+
+def test_is_pytorch_tensor():
+    assert util.is_pytorch_tensor(torch.tensor(1))
+    assert not util.is_pytorch_tensor(1)
+    assert not util.is_pytorch_tensor(None)
+
+
+def test_convert_plots():
+    fig = utils.matplotlib_without_image()
+    obj = util.convert_plots(fig)
+    assert obj.get("plot")
+    assert obj.get("_type") == "plotly"
+
+
+def test_launch_browser():
+    with mock.patch("sys.platform", "linux"):
+        with mock.patch.dict("sys.modules", {"webbrowser": mock.MagicMock()}):
+            import webbrowser
+
+            webbrowser.get().name = mock.MagicMock(return_value="lynx")
+            assert not util.launch_browser()
+            webbrowser.get().name = mock.MagicMock(side_effect=webbrowser.Error)
+            assert not util.launch_browser()
+
+
+def test_parse_tfjob_config():
+    with mock.patch.dict(
+        "os.environ", {"TF_CONFIG": '{"cluster": {"master": ["foo"]}}'}
+    ):
+        assert util.parse_tfjob_config() == {"cluster": {"master": ["foo"]}}
+    with mock.patch.dict("os.environ", {"TF_CONFIG": "LOL"}):
+        assert util.parse_tfjob_config() is False
+    assert util.parse_tfjob_config() is False
+
+
+def test_make_json_if_not_number():
+    assert util.make_json_if_not_number(1) == 1
+    assert util.make_json_if_not_number(1.0) == 1.0
+    assert util.make_json_if_not_number("1") == '"1"'
+    assert util.make_json_if_not_number("1.0") == '"1.0"'
+    assert util.make_json_if_not_number({"a": 1}) == '{"a": 1}'
+    assert util.make_json_if_not_number({"a": 1.0}) == '{"a": 1.0}'
+    assert util.make_json_if_not_number({"a": "1"}) == '{"a": "1"}'
+    assert util.make_json_if_not_number({"a": "1.0"}) == '{"a": "1.0"}'
+
+
+def test_no_retry_auth():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+    for status_code in (400, 409):
+        e.response.status_code = status_code
+        assert not util.no_retry_auth(e)
+    e.response.status_code = 401
+    with pytest.raises(wandb.CommError):
+        util.no_retry_auth(e)
+    e.response.status_code = 403
+    with mock.patch("wandb.run", mock.MagicMock()):
+        with pytest.raises(wandb.CommError):
+            util.no_retry_auth(e)
+    e.response.status_code = 404
+    with pytest.raises(wandb.CommError):
+        util.no_retry_auth(e)
+
+    e.response = None
+    assert util.no_retry_auth(e)
+    e = ValueError("foo")
+    assert util.no_retry_auth(e)
+
+
+def test_downsample():
+    with pytest.raises(wandb.UsageError):
+        util.downsample([1, 2, 3], 1)
+    assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
+
+
+def test_get_log_file_path(live_mock_server, test_settings):
+    assert util.get_log_file_path() == os.path.join("wandb", "debug-internal.log")
+    run = wandb.init(settings=test_settings)
+    assert util.get_log_file_path() == wandb.run._settings.log_internal
+    run.finish()
+
+
+def test_stopwatch_now():
+    t_1 = util.stopwatch_now()
+    time.sleep(0.1)
+    t_2 = util.stopwatch_now()
+    assert t_2 > t_1
+
+
+def test_class_colors():
+    assert util.class_colors(3) == [[0, 0, 0], (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)]
+
+
+def test_check_and_warn_old():
+    assert util.check_and_warn_old(["wandb-metadata.json"])
+
+
+def test_is_databricks():
+    assert not util._is_databricks()
+    with mock.patch.dict("sys.modules", {"dbutils": mock.MagicMock()}):
+        dbutils = sys.modules["dbutils"]
+        dbutils.shell = mock.MagicMock()
+        dbutils.shell.sc = mock.MagicMock()
+        dbutils.shell.sc.appName = "Databricks Shell"
+        assert util._is_databricks()
+
+
+def test_parse_entity_project_item():
+    def f(*args, **kwargs):
+        return util._parse_entity_project_item(*args, **kwargs)
+
+    with pytest.raises(ValueError):
+        f("boom/a/b/c")
+
+    item, project, entity = f("myproj/mymodel:latest")
+    assert item == "mymodel:latest"
+    assert project == "myproj"
+    assert entity == ""
+
+    item, project, entity = f("boom")
+    assert item == "boom"
+    assert project == ""
+    assert entity == ""
+
+
+def test_resolve_aliases():
+    with pytest.raises(ValueError):
+        util._resolve_aliases(5)
+
+    aliases = util._resolve_aliases(["best", "dev"])
+    assert aliases == ["best", "dev", "latest"]
+
+    aliases = util._resolve_aliases("boom")
+    assert aliases == ["boom", "latest"]
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+def test_bfloat16_to_float():
+    import jax.numpy as jnp
+
+    array = jnp.array(1.0, dtype=jnp.bfloat16)
+    # array to scalar bfloat16
+    array_cast = util.json_friendly(array)
+    assert array_cast[1] is True
+    assert array_cast[0].__class__.__name__ == "bfloat16"
+    # scalar bfloat16 to float
+    array_cast = util.json_friendly(array_cast[0])
+    assert array_cast[0] == 1.0
+    assert array_cast[1] is True
+    assert isinstance(array_cast[0], float)

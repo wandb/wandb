@@ -1,4 +1,3 @@
-#
 """leveldb log datastore.
 
 Format is described at:
@@ -16,19 +15,15 @@ header :=
   magic: uint16
   version: uint8
 """
-from __future__ import print_function
 
 import logging
 import os
 import struct
-import sys
 import zlib
 
 import wandb
 
 logger = logging.getLogger(__name__)
-
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 5
 
 LEVELDBLOG_HEADER_LEN = 7
 LEVELDBLOG_BLOCK_LEN = 32768
@@ -60,7 +55,7 @@ except Exception:
     # bytestostr = str
 
 
-class DataStore(object):
+class DataStore:
     def __init__(self):
         self._opened_for_scan = False
         self._fp = None
@@ -79,10 +74,6 @@ class DataStore(object):
         self._fname = fname
         logger.info("open: %s", fname)
         open_flags = "xb"
-        if not PY3:
-            open_flags = "wb"
-            if os.path.exists(fname):
-                raise IOError("File exists: {}".format(fname))
         self._fp = open(fname, open_flags)
         self._write_header()
 
@@ -104,7 +95,7 @@ class DataStore(object):
 
     def in_last_block(self):
         """When reading, we want to know if we're in the last block to
-           handle in progress writes"""
+        handle in progress writes"""
         return self._index > self._size_bytes - LEVELDBLOG_DATA_LEN
 
     def scan_record(self):
@@ -140,7 +131,7 @@ class DataStore(object):
             pad_check = strtobytes("\x00" * space_left)
             pad = self._fp.read(space_left)
             # verify they are zero
-            assert pad == pad_check, "invald padding"
+            assert pad == pad_check, "invalid padding"
             self._index += space_left
 
         record = self.scan_record()
@@ -152,7 +143,7 @@ class DataStore(object):
 
         assert (
             dtype == LEVELDBLOG_FIRST
-        ), "expected record to be type {} but found {}".format(LEVELDBLOG_FIRST, dtype)
+        ), f"expected record to be type {LEVELDBLOG_FIRST} but found {dtype}"
         while True:
             offset = self._index % LEVELDBLOG_BLOCK_LEN
             record = self.scan_record()

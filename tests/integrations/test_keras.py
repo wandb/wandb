@@ -3,6 +3,7 @@ import sys
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
+
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (
@@ -20,16 +21,10 @@ import json
 import os
 from wandb.keras import WandbCallback
 
-if wandb.TYPE_CHECKING:
-    from wandb.sdk.integration_utils.data_logging import (
-        ValidationDataLogger,
-        CAN_INFER_IMAGE_AND_VIDEO,
-    )
-else:
-    from wandb.sdk_py27.integration_utils.data_logging import (
-        ValidationDataLogger,
-        CAN_INFER_IMAGE_AND_VIDEO,
-    )
+from wandb.sdk.integration_utils.data_logging import (
+    ValidationDataLogger,
+    CAN_INFER_IMAGE_AND_VIDEO,
+)
 import glob
 import numpy as np
 
@@ -40,10 +35,8 @@ def dummy_model(request):
     multi = request.node.get_closest_marker("multiclass")
     image_output = request.node.get_closest_marker("image_output")
     if multi:
-        nodes = 10
         loss = "categorical_crossentropy"
     else:
-        nodes = 1
         loss = "binary_crossentropy"
     nodes = 1 if not multi else 10
     if image_output:
@@ -69,13 +62,14 @@ def dummy_data(request):
     labels = np.random.randint(2, size=(100, cats))
     if image_output:
         labels = data
-    return (data, labels)
+    return data, labels
 
 
-def graph_json(run):
-    print(run._backend.summary["graph"])
-    graph_path = run._backend.summary["graph"]["path"]
-    return json.load(open(os.path.join(run.dir, graph_path)))
+def graph_json(run_dir, summary):
+    print(summary["graph"])
+    path = os.path.join(run_dir, summary["graph"]["path"])
+    with open(path) as fh:
+        return json.load(fh)
 
 
 def test_no_init():
@@ -83,18 +77,21 @@ def test_no_init():
         WandbCallback()
 
 
-def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
+def test_basic_keras(
+    dummy_model, dummy_data, live_mock_server, test_settings, parse_ctx
+):
+    run = wandb.init(settings=test_settings)
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, callbacks=[WandbCallback()])
+    run_dir = run.dir
+    wandb.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
     # wandb.run.summary.load()
-    assert wandb.run._backend.history[0]["epoch"] == 0
+    assert ctx_util.history[0]["epoch"] == 0
     # NOTE: backend mock doesnt copy history into summary (happens in internal process)
     # assert wandb.run._backend.summary["loss"] > 0
-    assert len(graph_json(wandb.run)["nodes"]) == 3
+    assert len(graph_json(run_dir, ctx_util.summary)["nodes"]) == 3
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
-)
 def test_keras_telemetry(
     dummy_model, dummy_data, live_mock_server, test_settings, parse_ctx
 ):
@@ -107,9 +104,18 @@ def test_keras_telemetry(
     assert telemetry and 8 in telemetry.get("3", [])
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
-)
+def test_keras_telemetry_deprecated(live_mock_server, test_settings, parse_ctx):
+    wandb.init(settings=test_settings)
+    # use deprecated argument data_type
+    WandbCallback(data_type="image")
+    wandb.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    # TelemetryRecord field 10 is Deprecated,
+    # whose filed 1 is keras_callback_data_type
+    assert telemetry and 8 in telemetry.get("3", []) and 1 in telemetry.get("10", [])
+
+
 def test_keras_resume_best_metric(
     dummy_model, dummy_data, live_mock_server, test_settings
 ):
@@ -120,13 +126,13 @@ def test_keras_resume_best_metric(
     print("Summary", dict(wandb.run.summary))
     print("Config", dict(wandb.run.config))
     assert WandbCallback().best == 0.5
+    wandb.finish()
 
 
-def test_keras_image_bad_data(dummy_model, dummy_data, wandb_init_run):
-    error = False
-    data, labels = dummy_data
+def test_keras_image_bad_data(dummy_model, dummy_data):
 
-    try:
+    with pytest.raises(ValueError):
+        data, labels = dummy_data
         dummy_model.fit(
             *dummy_data,
             epochs=2,
@@ -134,74 +140,92 @@ def test_keras_image_bad_data(dummy_model, dummy_data, wandb_init_run):
             validation_data=(data.reshape(10), labels),
             callbacks=[WandbCallback(data_type="image")]
         )
-    except ValueError:
-        error = True
-    assert error
 
 
-def test_keras_image_binary(dummy_model, dummy_data, wandb_init_run):
-    dummy_model.fit(
-        *dummy_data,
-        epochs=2,
-        batch_size=36,
-        validation_data=dummy_data,
-        callbacks=[WandbCallback(data_type="image")]
-    )
-    assert len(wandb.run._backend.history[0]["examples"]["captions"]) == 36
+def test_keras_image_binary(
+    dummy_model, dummy_data, test_settings, parse_ctx, live_mock_server
+):
+    with wandb.init(settings=test_settings):
+        dummy_model.fit(
+            *dummy_data,
+            epochs=2,
+            batch_size=36,
+            validation_data=dummy_data,
+            callbacks=[WandbCallback(data_type="image")]
+        )
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history[0]["examples"]["captions"]) == 36
 
 
-def test_keras_image_binary_captions(dummy_model, dummy_data, wandb_init_run):
-    dummy_model.fit(
-        *dummy_data,
-        epochs=2,
-        batch_size=36,
-        validation_data=dummy_data,
-        callbacks=[
-            WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice"])
-        ]
-    )
-    assert wandb.run._backend.history[0]["examples"]["captions"][0] in ["Rad", "Nice"]
+def test_keras_image_binary_captions(
+    dummy_model, dummy_data, test_settings, parse_ctx, live_mock_server
+):
 
+    with wandb.init(settings=test_settings):
+        dummy_model.fit(
+            *dummy_data,
+            epochs=2,
+            batch_size=36,
+            validation_data=dummy_data,
+            callbacks=[
+                WandbCallback(data_type="image", predictions=10, labels=["Rad", "Nice"])
+            ]
+        )
 
-@pytest.mark.multiclass
-def test_keras_image_multiclass(dummy_model, dummy_data, wandb_init_run):
-    dummy_model.fit(
-        *dummy_data,
-        epochs=2,
-        batch_size=36,
-        validation_data=dummy_data,
-        callbacks=[WandbCallback(data_type="image", predictions=10)]
-    )
-    assert len(wandb.run._backend.history[0]["examples"]["captions"]) == 10
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert ctx_util.history[0]["examples"]["captions"][0] in ["Rad", "Nice"]
 
 
 @pytest.mark.multiclass
-def test_keras_image_multiclass_captions(dummy_model, dummy_data, wandb_init_run):
-    dummy_model.fit(
-        *dummy_data,
-        epochs=2,
-        batch_size=36,
-        validation_data=dummy_data,
-        callbacks=[
-            WandbCallback(
-                data_type="image",
-                predictions=10,
-                labels=[
-                    "Rad",
-                    "Nice",
-                    "Fun",
-                    "Rad",
-                    "Nice",
-                    "Fun",
-                    "Rad",
-                    "Nice",
-                    "Fun",
-                    "Rad",
-                ],
-            )
-        ]
-    )
-    assert wandb.run._backend.history[0]["examples"]["captions"][0] in [
+def test_keras_image_multiclass(
+    dummy_model, dummy_data, test_settings, parse_ctx, live_mock_server
+):
+    with wandb.init(settings=test_settings):
+        dummy_model.fit(
+            *dummy_data,
+            epochs=2,
+            batch_size=36,
+            validation_data=dummy_data,
+            callbacks=[WandbCallback(data_type="image", predictions=10)]
+        )
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history[0]["examples"]["captions"]) == 10
+
+
+@pytest.mark.multiclass
+def test_keras_image_multiclass_captions(
+    dummy_model, dummy_data, test_settings, parse_ctx, live_mock_server
+):
+    with wandb.init(settings=test_settings):
+        dummy_model.fit(
+            *dummy_data,
+            epochs=2,
+            batch_size=36,
+            validation_data=dummy_data,
+            callbacks=[
+                WandbCallback(
+                    data_type="image",
+                    predictions=10,
+                    labels=[
+                        "Rad",
+                        "Nice",
+                        "Fun",
+                        "Rad",
+                        "Nice",
+                        "Fun",
+                        "Rad",
+                        "Nice",
+                        "Fun",
+                        "Rad",
+                    ],
+                )
+            ]
+        )
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert ctx_util.history[0]["examples"]["captions"][0] in [
         "Rad",
         "Nice",
         "Fun",
@@ -209,43 +233,87 @@ def test_keras_image_multiclass_captions(dummy_model, dummy_data, wandb_init_run
 
 
 @pytest.mark.image_output
-def test_keras_image_output(dummy_model, dummy_data, wandb_init_run):
-    dummy_model.fit(
-        *dummy_data,
-        epochs=2,
-        batch_size=36,
-        validation_data=dummy_data,
-        callbacks=[WandbCallback(data_type="image", predictions=10)]
-    )
-    print(wandb.run._backend.history[0])
-    assert wandb.run._backend.history[0]["examples"]["count"] == 30
-    assert wandb.run._backend.history[0]["examples"]["height"] == 10
+def test_keras_image_output(
+    dummy_model, dummy_data, test_settings, parse_ctx, live_mock_server
+):
+    with wandb.init(settings=test_settings):
+        dummy_model.fit(
+            *dummy_data,
+            epochs=2,
+            batch_size=36,
+            validation_data=dummy_data,
+            callbacks=[WandbCallback(data_type="image", predictions=10)]
+        )
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    print(ctx_util.history[0])
+    assert ctx_util.history[0]["examples"]["count"] == 30
+    assert ctx_util.history[0]["examples"]["height"] == 10
 
 
-def test_dataset_functional(wandb_init_run):
-    data = tf.data.Dataset.range(5).map(lambda x: (x, 1)).batch(1)
-    inputs = tf.keras.Input(shape=(1,))
-    outputs = tf.keras.layers.Dense(1)(inputs)
-    wandb_callback = WandbCallback(save_model=False)
+def test_dataset_functional(live_mock_server, test_settings, parse_ctx):
 
-    model = tf.keras.Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer=tf.keras.optimizers.Adam(), loss="mse")
-    model.fit(data, callbacks=[wandb_callback])
-    assert graph_json(wandb.run)["nodes"][0]["class_name"] == "InputLayer"
+    with wandb.init(settings=test_settings) as run:
 
+        data = tf.data.Dataset.range(5).map(lambda x: (x, 1)).batch(1)
+        inputs = tf.keras.Input(shape=(1,))
+        outputs = tf.keras.layers.Dense(1)(inputs)
 
-def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
-    dummy_model.fit(
-        *dummy_data,
-        epochs=2,
-        batch_size=36,
-        validation_data=dummy_data,
-        callbacks=[WandbCallback(data_type="image", log_weights=True)]
-    )
+        wandb_callback = WandbCallback(save_model=False)
+
+        model = tf.keras.Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer=tf.keras.optimizers.Adam(), loss="mse")
+        model.fit(data, callbacks=[wandb_callback])
+
+        run_dir = run.dir
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
     assert (
-        wandb.run._backend.history[0]["parameters/dense.weights"]["_type"]
-        == "histogram"
+        graph_json(run_dir, ctx_util.summary)["nodes"][0]["class_name"] == "InputLayer"
     )
+
+
+def test_keras_log_weights(
+    dummy_model, dummy_data, live_mock_server, test_settings, parse_ctx
+):
+    with wandb.init(settings=test_settings):
+        dummy_model.fit(
+            *dummy_data,
+            epochs=2,
+            batch_size=36,
+            validation_data=dummy_data,
+            callbacks=[WandbCallback(data_type="image", log_weights=True)]
+        )
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert ctx_util.history[0]["parameters/dense.weights"]["_type"] == "histogram"
+
+
+# this is flaky on all platforms
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="flaky test")
+def test_keras_log_gradients(
+    dummy_model, dummy_data, test_settings, parse_ctx, live_mock_server
+):
+    with wandb.init(settings=test_settings):
+        dummy_model.fit(
+            *dummy_data,
+            epochs=2,
+            batch_size=36,
+            validation_data=dummy_data,
+            callbacks=[
+                WandbCallback(
+                    data_type="image", log_gradients=True, training_data=dummy_data
+                )
+            ]
+        )
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    print(ctx_util.history)
+    assert (
+        ctx_util.history[0]["gradients/dense/kernel.gradient"]["_type"] == "histogram"
+    )
+    assert ctx_util.history[0]["gradients/dense/bias.gradient"]["_type"] == "histogram"
 
 
 #  @pytest.mark.skip(reason="Coverage insanity error: sqlite3.OperationalError: unable to open database file")
@@ -355,7 +423,7 @@ def test_keras_convert_model_non_sequential():
     ]
 
 
-def test_data_logger_val_data_lists(test_settings, live_mock_server):
+def test_data_logger_val_data_lists(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
@@ -380,12 +448,11 @@ def test_data_logger_val_data_lists(test_settings, live_mock_server):
                 for i in range(10)
             ]
         )
-        assert (
-            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
-        )
+        assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
+        run.finish()
 
 
-def test_data_logger_val_data_dicts(test_settings, live_mock_server):
+def test_data_logger_val_data_dicts(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs={
@@ -420,12 +487,11 @@ def test_data_logger_val_data_dicts(test_settings, live_mock_server):
             ]
         )
 
-        assert (
-            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
-        )
+        assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
+        run.finish()
 
 
-def test_data_logger_val_indexes(test_settings, live_mock_server):
+def test_data_logger_val_indexes(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         table = wandb.Table(columns=["label"], data=[["cat"]])
         vd = ValidationDataLogger(
@@ -440,9 +506,10 @@ def test_data_logger_val_indexes(test_settings, live_mock_server):
             class_labels=None,
             infer_missing_processors=False,
         )
+        run.finish()
 
 
-def test_data_logger_val_invalid(test_settings, live_mock_server):
+def test_data_logger_val_invalid(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         with pytest.raises(AssertionError):
             vd = ValidationDataLogger(
@@ -457,9 +524,10 @@ def test_data_logger_val_invalid(test_settings, live_mock_server):
                 class_labels=None,
                 infer_missing_processors=False,
             )
+        run.finish()
 
 
-def test_data_logger_val_user_proc(test_settings, live_mock_server):
+def test_data_logger_val_user_proc(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
@@ -501,12 +569,11 @@ def test_data_logger_val_user_proc(test_settings, live_mock_server):
                 for i in range(10)
             ]
         )
-        assert (
-            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
-        )
+        assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
+        run.finish()
 
 
-def test_data_logger_val_inferred_proc(test_settings, live_mock_server):
+def test_data_logger_val_inferred_proc(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         np.random.seed(42)
         vd = ValidationDataLogger(
@@ -514,7 +581,8 @@ def test_data_logger_val_inferred_proc(test_settings, live_mock_server):
             targets={
                 "simple": np.random.randint(5, size=(10)),
                 "wrapped": np.random.randint(5, size=(10, 1)),
-                "logits": np.random.randint(5, size=(10, 5)),
+                "logits": np.random.randint(5, size=(10, 5))
+                + 2,  # +2 avoids only having 0s and 1s
                 "nodes": np.random.randint(5, size=(10, 10)),
                 "2dimages": np.random.randint(255, size=(10, 5, 5)),
                 "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -588,16 +656,18 @@ def test_data_logger_val_inferred_proc(test_settings, live_mock_server):
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        run.finish()
 
 
-def test_data_logger_val_inferred_proc_no_class(test_settings, live_mock_server):
+def test_data_logger_val_inferred_proc_no_class(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
             targets={
                 "simple": np.random.randint(5, size=(10)),
                 "wrapped": np.random.randint(5, size=(10, 1)),
-                "logits": np.random.randint(5, size=(10, 5)),
+                "logits": np.random.randint(5, size=(10, 5))
+                + 2,  # +2 avoids only having 0s and 1s
                 "nodes": np.random.randint(5, size=(10, 10)),
                 "2dimages": np.random.randint(255, size=(10, 5, 5)),
                 "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -670,9 +740,10 @@ def test_data_logger_val_inferred_proc_no_class(test_settings, live_mock_server)
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        run.finish()
 
 
-def test_data_logger_pred(test_settings, live_mock_server):
+def test_data_logger_pred(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
@@ -689,10 +760,11 @@ def test_data_logger_pred(test_settings, live_mock_server):
 
         assert set(tcols) == set(cols)
         assert np.all([t.data[i] == [i, i] for i in range(10)])
-        assert t._get_artifact_reference_entry() is not None
+        assert t._get_artifact_entry_ref_url() is not None
+        run.finish()
 
 
-def test_data_logger_pred_user_proc(test_settings, live_mock_server):
+def test_data_logger_pred_user_proc(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
@@ -709,10 +781,11 @@ def test_data_logger_pred_user_proc(test_settings, live_mock_server):
 
         assert set(tcols) == set(cols)
         assert np.all([t.data[i] == [i, i, i + 1] for i in range(10)])
-        assert t._get_artifact_reference_entry() is not None
+        assert t._get_artifact_entry_ref_url() is not None
+        run.finish()
 
 
-def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
+def test_data_logger_pred_inferred_proc(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
@@ -728,7 +801,8 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
                 lambda inputs: {
                     "simple": np.random.randint(5, size=(10)),
                     "wrapped": np.random.randint(5, size=(10, 1)),
-                    "logits": np.random.randint(5, size=(10, 5)),
+                    "logits": np.random.randint(5, size=(10, 5))
+                    + 2,  # +2 avoids only having 0s and 1s
                     "nodes": np.random.randint(5, size=(10, 10)),
                     "2dimages": np.random.randint(255, size=(10, 5, 5)),
                     "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -791,9 +865,10 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        run.finish()
 
 
-def test_data_logger_pred_inferred_proc_no_classes(test_settings, live_mock_server):
+def test_data_logger_pred_inferred_proc_no_classes(live_mock_server, test_settings):
     with wandb.init(settings=test_settings) as run:
         vd = ValidationDataLogger(
             inputs=np.array([[i, i, i] for i in range(10)]),
@@ -810,7 +885,8 @@ def test_data_logger_pred_inferred_proc_no_classes(test_settings, live_mock_serv
                 lambda inputs: {
                     "simple": np.random.randint(5, size=(10)),
                     "wrapped": np.random.randint(5, size=(10, 1)),
-                    "logits": np.random.randint(5, size=(10, 5)),
+                    "logits": np.random.randint(5, size=(10, 5))
+                    + 2,  # +2 avoids only having 0s and 1s
                     "nodes": np.random.randint(5, size=(10, 10)),
                     "2dimages": np.random.randint(255, size=(10, 5, 5)),
                     "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -872,16 +948,20 @@ def test_data_logger_pred_inferred_proc_no_classes(test_settings, live_mock_serv
                 row[tcols.index("3dimages:image")], wandb.data_types.Image
             )
             assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        run.finish()
 
 
+@pytest.mark.timeout(300)
 def test_keras_dsviz(dummy_model, dummy_data, runner, live_mock_server, test_settings):
-    with wandb.init(settings=test_settings) as run:
-        dummy_model.fit(
-            *dummy_data,
-            epochs=2,
-            batch_size=36,
-            validation_data=dummy_data,
-            callbacks=[WandbCallback(log_evaluation=True)]
-        )
-        assert wandb.run.summary["validation_predictions"] is not None
-        assert wandb.run.summary["validation_predictions"]["artifact_path"] is not None
+    run = wandb.init(settings=test_settings)
+    dummy_model.fit(
+        *dummy_data,
+        epochs=2,
+        batch_size=36,
+        validation_data=dummy_data,
+        callbacks=[WandbCallback(log_evaluation=True)]
+    )
+    assert wandb.run.summary["validation_predictions"] is not None
+    assert wandb.run.summary["validation_predictions"]["artifact_path"] is not None
+    assert wandb.run.summary["validation_predictions"]["_type"] == "table-file"
+    run.finish()

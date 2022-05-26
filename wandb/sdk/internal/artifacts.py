@@ -1,21 +1,20 @@
-#
 import json
 import os
 import tempfile
 import threading
+from typing import Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import wandb
+from wandb import util
 import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactManifest
 
-if wandb.TYPE_CHECKING:
-    from typing import List, Optional, Dict, TYPE_CHECKING
 
-    if TYPE_CHECKING:
-        from wandb.sdk.internal.internal_api import Api as InternalApi
-        from .file_pusher import FilePusher
-        from wandb.proto import wandb_internal_pb2
+if TYPE_CHECKING:
+    from wandb.sdk.internal.internal_api import Api as InternalApi
+    from .file_pusher import FilePusher
+    from wandb.proto import wandb_internal_pb2
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
@@ -36,9 +35,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
             for content in manifest.contents
         }
     else:
-        raise Exception(
-            "unknown artifact manifest version: {}".format(manifest.version)
-        )
+        raise Exception(f"unknown artifact manifest version: {manifest.version}")
 
     return {
         "version": manifest.version,
@@ -51,7 +48,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
     }
 
 
-class ArtifactSaver(object):
+class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
     def __init__(
@@ -73,14 +70,17 @@ class ArtifactSaver(object):
         self,
         type: str,
         name: str,
+        client_id: str,
+        sequence_client_id: str,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         metadata: Optional[Dict] = None,
         description: Optional[str] = None,
-        aliases: Optional[List[str]] = None,
+        aliases: Optional[Sequence[str]] = None,
         labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
+        history_step: Optional[int] = None,
     ) -> Optional[Dict]:
         aliases = aliases or []
         alias_specs = []
@@ -96,7 +96,10 @@ class ArtifactSaver(object):
                 artifact_collection_name = name
                 tag = alias
             alias_specs.append(
-                {"artifactCollectionName": artifact_collection_name, "alias": tag,}
+                {
+                    "artifactCollectionName": artifact_collection_name,
+                    "alias": tag,
+                }
             )
 
         """Returns the server artifact."""
@@ -110,6 +113,10 @@ class ArtifactSaver(object):
             description=description,
             is_user_created=self._is_user_created,
             distributed_id=distributed_id,
+            client_id=client_id,
+            sequence_client_id=sequence_client_id,
+            enable_digest_deduplication=use_after_commit,  # Reuse logical duplicates in the `use_artifact` flow
+            history_step=history_step,
         )
 
         # TODO(artifacts):
@@ -173,6 +180,7 @@ class ArtifactSaver(object):
         commit_event = threading.Event()
 
         def before_commit() -> None:
+            self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
@@ -181,7 +189,8 @@ class ArtifactSaver(object):
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
                 _, resp = self._api.update_artifact_manifest(
-                    artifact_manifest_id, digest=digest,
+                    artifact_manifest_id,
+                    digest=digest,
                 )
             else:
                 # In the regular flow, we can recreate the full manifest with the
@@ -226,3 +235,17 @@ class ArtifactSaver(object):
             commit_event.wait()
 
         return self._server_artifact
+
+    def _resolve_client_id_manifest_references(self) -> None:
+        for entry_path in self._manifest.entries:
+            entry = self._manifest.entries[entry_path]
+            if entry.ref is not None:
+                if entry.ref.startswith("wandb-client-artifact:"):
+                    client_id = util.host_from_path(entry.ref)
+                    artifact_file_path = util.uri_from_path(entry.ref)
+                    artifact_id = self._api._resolve_client_id(client_id)
+                    if artifact_id is None:
+                        raise RuntimeError(f"Could not resolve client id {client_id}")
+                    entry.ref = "wandb-artifact://{}/{}".format(
+                        util.b64_to_hex_id(artifact_id), artifact_file_path
+                    )
