@@ -29,7 +29,6 @@ class SweepRunState(Enum):
 @dataclass
 class SweepRun:
     command: Dict[str, Any]
-    type: str
     id: str
     state: str = SweepRunState.QUEUED
 
@@ -44,9 +43,9 @@ class SweepDaimyo(Daimyo):
         *args,
         sweep_id: Optional[str] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
-        heartbeat_thread_sleep: int = 2,
+        heartbeat_thread_sleep: int = 5,
         heartbeat_queue_timeout: int = 5,
-        main_thread_sleep: int = 2,
+        main_thread_sleep: int = 5,
         **kwargs,
     ):
         super(SweepDaimyo, self).__init__(*args, **kwargs)
@@ -87,144 +86,147 @@ class SweepDaimyo(Daimyo):
 
     def _heartbeat(self):
         while True:
+            # Make sure Daimyo is alive
             if not self.is_alive():
                 return
             # AgentHeartbeat wants dict of runs which are running or queued
-            _runs_status = {}
+            _run_states = {}
             for run_id, run in self._heartbeat_runs.items():
                 if run.state in [SweepRunState.RUNNING, SweepRunState.QUEUED]:
-                    _runs_status[run_id] = True
-            _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_runs_status)}\n"
+                    _run_states[run_id] = True
+            _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, _runs_status)
+            commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, _run_states)
             if commands:
-                _msg = f"AgentHeartbeat received: \n{pprint.pformat(commands)}\n"
+                _msg = f"AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
                 logger.debug(_msg)
                 wandb.termlog(_msg)
-                run = SweepRun(
-                    command = commands[0],
-                    type = commands[0].get("type"),
-                    id = commands[0].get("run_id"),
-                )
-                if run.type in ["run", "resume"]:
-                    self._heartbeat_queue.put(run)
-                elif run.type == "stop":
-                    self._stop_run(run.id)
-                    continue
-                elif run.type == "exit":
-                    self._exit()
-                    continue
+                for command in commands:
+                    _type = command.get("type")
+                    _run_id = command.get("run_id")
+                    _run = SweepRun(
+                        command = command,
+                        id = _run_id,
+                    )
+                    # TODO(hupo): Should a thread be putting dicts into a dict?
+                    self._heartbeat_runs[_run_id] = _run
+                    if _type in ["run", "resume"]:
+                        self._heartbeat_queue.put(_run)
+                    elif _type == "stop":
+                        self._stop_run(_run_id)
+                        continue
+                    elif _type == "exit":
+                        self._exit()
+                        continue
             time.sleep(self._heartbeat_thread_sleep)
 
     def _run(self):
-        while True:
-            if not self.is_alive():
-                return
-            try:
-                run = self._heartbeat_queue.get(timeout=self._heartbeat_queue_timeout)
-            except queue.Empty:
-                _msg = "No jobs in Sweeps RunQueue, waiting..."
-                logger.debug(_msg)
-                wandb.termlog(_msg)
-                time.sleep(self._main_thread_sleep)
-                continue
-            else:
-                # If run is already stopped just ignore the request
-                if self._heartbeat_runs[run.id].state == SweepRunState.STOPPED:
-                    continue
-            finally:
-                # This will cause Anaconda2 to populate the Sweeps RunQueue
-                for run_id, run in self._heartbeat_runs.items():
-                    _msg = f"Current run {run_id} is {run.state}"
-                    logger.debug(_msg)
-                    wandb.termlog(_msg)
-                    if self._heartbeat_runs[run_id] == SweepRunState.RUNNING:
-                        self._heartbeat_runs[run_id] = SweepRunState.DONE
-                        _msg = f"Marking run {run_id} as {run.state}"
-                        logger.debug(_msg)
-                        wandb.termlog(_msg)
-
-            _msg = f"Converting Sweep RunQueue Item to Launch Job: \n{pprint.pformat(run.command)}\n"
+        try:
+            run: SweepRun = self._heartbeat_queue.get(timeout=self._heartbeat_queue_timeout)
+        except queue.Empty:
+            _msg = "No jobs in Sweeps RunQueue, waiting..."
             logger.debug(_msg)
             wandb.termlog(_msg)
+            time.sleep(self._main_thread_sleep)
+            return
 
-            # TODO(hupo): Command replacement logic
-            # sweep_command = self._sweep_command or [
-            #     "${env}",
-            #     "${interpreter}",
-            #     "${program}",
-            #     "${args}",
-            # ]
-   
-            # This is actually what populates the wandb config
-            # since it is used in wandb.init()
-            sweep_param_path = os.path.join(
-                os.environ.get(wandb.env.DIR, os.getcwd()),
-                "wandb",
-                f"sweep-{self._sweep_id}",
-                f"config-{run.command['run_id']}.yaml",
-            )
-            wandb.termlog(f"Saving params to {sweep_param_path}")
-            wandb_lib.config_util.save_config_file_from_dict(
-                sweep_param_path, run.command["args"]
-            )
+        # If run is already stopped just ignore the request
+        if run.state == SweepRunState.STOPPED:
+            return
 
-            entry_point = [
-                "python",
-                run.command["program"],
-            ]
+        # This will cause Anaconda2 to populate the Sweeps RunQueue
+        for run_id, run in self._heartbeat_runs.items():
+            _msg = f"Current run {run_id} is {run.state}"
+            logger.debug(_msg)
+            wandb.termlog(_msg)
+            if run.state == SweepRunState.RUNNING:
+                run.state = SweepRunState.DONE
+                _msg = f"Marking run {run_id} as {run.state}"
+                logger.debug(_msg)
+                wandb.termlog(_msg)
 
-            command_args = LegacySweepAgent._create_command_args(run.command)
-            entry_point += command_args["args"]
+        _msg = f"Converting Sweep RunQueue Item to Launch Job: \n{pprint.pformat(run.command)}\n"
+        logger.debug(_msg)
+        wandb.termlog(_msg)
 
-            # TODO: Entrypoint is now an object right?
-            entry_point_str = " ".join(entry_point)
-            _ = self._add_to_launch_queue(
-                {
-                    "uri": os.getcwd(),
-                    "resource": "local-process",
-                    "entry_point": entry_point_str,
-                }
-            )
-            self._heartbeat_runs[run.id] = SweepRunState.RUNNING
+        # TODO(hupo): Command replacement logic
+        # sweep_command = self._sweep_command or [
+        #     "${env}",
+        #     "${interpreter}",
+        #     "${program}",
+        #     "${args}",
+        # ]
 
-            # TODO(hupo): Flapping logic
-            # elif self._heartbeat_runs_status[run.id] == RunStatus.ERRORED:
-            #     exc = self._exceptions[run.id]
-            #     logger.error(f"Run {run.id} errored: {repr(exc)}")
-            #     wandb.termerror(f"Run {run.id} errored: {repr(exc)}")
+        # This is actually what populates the wandb config
+        # since it is used in wandb.init()
+        sweep_param_path = os.path.join(
+            os.environ.get(wandb.env.DIR, os.getcwd()),
+            "wandb",
+            f"sweep-{self._sweep_id}",
+            f"config-{run.command['run_id']}.yaml",
+        )
+        wandb.termlog(f"Saving params to {sweep_param_path}")
+        wandb_lib.config_util.save_config_file_from_dict(
+            sweep_param_path, run.command["args"]
+        )
 
-            #     if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
-            #         self._exit_flag = True
-            #         return
-            #     elif (
-            #         time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
-            #     ) and (len(self._exceptions) >= self.FLAPPING_MAX_FAILURES):
-            #         msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
-            #             self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
-            #         )
-            #         logger.error(msg)
-            #         wandb.termerror(msg)
-            #         wandb.termlog(
-            #             "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
-            #         )
-            #         self._exit_flag = True
-            #         return
-            #     if (
-            #         self._max_initial_failures < len(self._exceptions)
-            #         and len(self._exceptions) >= count
-            #     ):
-            #         msg = "Detected {} failed runs in a row at start, killing sweep.".format(
-            #             self._max_initial_failures
-            #         )
-            #         logger.error(msg)
-            #         wandb.termerror(msg)
-            #         wandb.termlog(
-            #             "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
-            #         )
-            #         self._exit_flag = True
-            #         return
+        entry_point = [
+            "python",
+            run.command["program"],
+        ]
+
+        command_args = LegacySweepAgent._create_command_args(run.command)
+        entry_point += command_args["args"]
+
+        # TODO: Entrypoint is now an object right?
+        entry_point_str = " ".join(entry_point)
+        job = self._add_to_launch_queue(
+            {
+                "uri": os.getcwd(),
+                "resource": "local-process",
+                "entry_point": entry_point_str,
+                "run_id": run.id,
+            }
+        )
+        run.state = SweepRunState.RUNNING
+
+        # TODO(hupo): Flapping logic
+        # elif self._heartbeat_runs_status[run.id] == RunStatus.ERRORED:
+        #     exc = self._exceptions[run.id]
+        #     logger.error(f"Run {run.id} errored: {repr(exc)}")
+        #     wandb.termerror(f"Run {run.id} errored: {repr(exc)}")
+
+        #     if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
+        #         self._exit_flag = True
+        #         return
+        #     elif (
+        #         time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
+        #     ) and (len(self._exceptions) >= self.FLAPPING_MAX_FAILURES):
+        #         msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
+        #             self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
+        #         )
+        #         logger.error(msg)
+        #         wandb.termerror(msg)
+        #         wandb.termlog(
+        #             "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
+        #         )
+        #         self._exit_flag = True
+        #         return
+        #     if (
+        #         self._max_initial_failures < len(self._exceptions)
+        #         and len(self._exceptions) >= count
+        #     ):
+        #         msg = "Detected {} failed runs in a row at start, killing sweep.".format(
+        #             self._max_initial_failures
+        #         )
+        #         logger.error(msg)
+        #         wandb.termerror(msg)
+        #         wandb.termlog(
+        #             "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
+        #         )
+        #         self._exit_flag = True
+        #         return
 
     def _stop_run(self, run_id):
         _msg = f"Stopping run {run_id}."

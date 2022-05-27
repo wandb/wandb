@@ -4,12 +4,14 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import logging
 from typing import Any, Dict, Optional
+import threading
 
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
 from wandb.errors import SweepError
 from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.lib.runid import generate_id
 
 
 logger = logging.getLogger(__name__)
@@ -32,8 +34,8 @@ class LaunchJobState(Enum):
 
 @dataclass
 class LaunchJob:
-    id : str
     job : public.QueuedJob
+    thread: threading.Thread
     state : str = LaunchJobState.QUEUED
 
 
@@ -109,15 +111,25 @@ class Daimyo(ABC):
     def _exit(self):
         pass
 
+    def is_alive(self) -> bool:
+        if self.state in [
+            DaimyoState.COMPLETED,
+            DaimyoState.FAILED,
+            DaimyoState.CANCELLED,
+        ]:
+            return False
+        return True
+
     def run(self):
         _msg = "Daimyo Running."
         logger.debug(_msg)
         wandb.termlog(_msg)
         self.state = DaimyoState.RUNNING
         try:
- 
-            # TODO(hupo): check/change status of launch jobs by looking at runs through graphql
-            self._run()
+            while True:
+                if not self.is_alive():
+                    break
+                self._run()
         except KeyboardInterrupt:
             _msg = "Daimyo received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
@@ -139,43 +151,60 @@ class Daimyo(ABC):
             self.state = DaimyoState.COMPLETED
             self._exit()
 
-    def _add_to_launch_queue(self, launchspec: Dict[str, Any]) -> "public.QueuedJob":
+    def _add_to_launch_queue(self, launch_spec: Dict[str, Any]) -> "public.QueuedJob":
         """Add a launch job to the Launch RunQueue."""
+        run_id: str = launch_spec.get('run_id', generate_id()) 
         job = launch_add(
-            launchspec.get("uri", None),
-            launchspec.get("config", None),
-            project=launchspec.get("project", None) or self._project,
-            entity=launchspec.get("entity", None) or self._entity,
-            queue=launchspec.get("queue", None) or self._launch_queue,
-            resource=launchspec.get("resource", None),
-            entry_point=launchspec.get("entry_point", None),
+            launch_spec.get("uri", None),
+            launch_spec.get("config", None),
+            project=launch_spec.get("project", None) or self._project,
+            entity=launch_spec.get("entity", None) or self._entity,
+            queue=launch_spec.get("queue", None) or self._launch_queue,
+            resource=launch_spec.get("resource", None),
+            entry_point=launch_spec.get("entry_point", None),
+            run_id=run_id,
             # name: Optional[str] = None,
             # version: Optional[str] = None,
             # docker_image: Optional[str] = None,
             # params: Optional[Dict[str, Any]] = None,
         )
-        self._launch_jobs[job._run_id] = LaunchJob(job._run_id, job)
-        _msg = f"Added job to Launch RunQueue: {job._run_id}."
+        _msg = f"Added job to Launch RunQueue (RunID:{run_id})."
         logger.debug(_msg)
         wandb.termlog(_msg)
+        # Start a daemon thread that will wait for the job to start and
+        # update the LaunchJobState accordingly.
+        thread = threading.Thread(target=self._poll_launch_job, args=(job,))
+        thread.daemon = True
+        thread.start()
+        # Job is initially queued in the Launch RunQueue
+        # until it is started it will not have a run_id.
+        self._launch_jobs[run_id] = LaunchJob(job, thread)
         return job
 
-    def is_alive(self) -> bool:
-        if self.state in [
-            DaimyoState.COMPLETED,
-            DaimyoState.FAILED,
-            DaimyoState.CANCELLED,
-        ]:
-            return False
-        return True
-
-    def check_jobs(self):
-        """Check the status of the launch jobs."""
-        for job_id, job in self._launch_jobs.items():
-            # Job ID is the Run Name
-            _state = self._api.get_run_state(self._entity, self._project, job_id)
+    def _poll_launch_job(self, job: public.QueuedJob):
+        try:
+            breakpoint()
+            job.wait_until_running()
+            _msg = f"Launch Job is now running (RunQueueItemID:{job._run_queue_item_id}) (RunID: {job._run_id})."
+            logger.debug(_msg)
+            wandb.termlog(_msg)
+            _state = self._api.get_run_state(self._entity, self._project, job._run_id)
+            breakpoint()
             if _state == "finished":
-                
+                pass
+            elif _state == "error":
+                pass
+            elif _state == "running":
+                pass
+        except KeyboardInterrupt as e:
+            raise e
+        except Exception as e:
+            if self._launch_jobs[job._run_queue_item_id].state == LaunchJobState.RUNNING:
+                self._launch_jobs[job._run_queue_item_id].state = LaunchJobState.ERRORED
+            _msg = f"Exception in Launch Job (RunQueueItemID:{job._run_queue_item_id}) {e}."
+            logger.debug(_msg)
+            wandb.termlog(_msg)
+
     # def __iter__(self):
     #     # returning __iter__ object
     #     return self
