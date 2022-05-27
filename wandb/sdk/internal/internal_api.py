@@ -1711,7 +1711,7 @@ class Api:
                 wandb.termerror(
                     "The sweep has finished -- all hyperparameter combinations have been exhausted."
                 )
-            raise UsageError(body["errors"][0]["message"])
+            raise UsageError(message)
 
         response = self.gql(
             mutation,
