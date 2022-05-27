@@ -172,9 +172,7 @@ class Daimyo(ABC):
             # docker_image: Optional[str] = None,
             # params: Optional[Dict[str, Any]] = None,
         )
-        _run = self._runs.get(run_id, None)
-        if _run is not None:
-            _run.launch_job = job
+        self._runs[run_id].launch_job = job
         _msg = f"Added job to Launch RunQueue (RunID:{run_id})."
         logger.debug(_msg)
         wandb.termlog(_msg)

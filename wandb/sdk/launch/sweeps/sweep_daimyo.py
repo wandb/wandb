@@ -28,9 +28,9 @@ class SweepDaimyo(Daimyo):
         *args,
         sweep_id: Optional[str] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
-        heartbeat_thread_sleep: int = 5,
-        heartbeat_queue_timeout: int = 5,
-        main_thread_sleep: int = 5,
+        heartbeat_thread_sleep: int = 3,
+        heartbeat_queue_timeout: int = 3,
+        main_thread_sleep: int = 3,
         **kwargs,
     ):
         super(SweepDaimyo, self).__init__(*args, **kwargs)
@@ -86,7 +86,7 @@ class SweepDaimyo(Daimyo):
                 for command in commands:
                     _type = command.get("type")
                     run = SweepRun(
-                        id=command.get("id"),
+                        id=command.get("run_id"),
                         args=command.get("args"),
                         logs=command.get("logs"),
                         program=command.get("program"),
@@ -124,7 +124,7 @@ class SweepDaimyo(Daimyo):
         ]:
             return
 
-        _msg = f"Converting Sweep RunQueue Item to Launch Job: \n{pprint.pformat(run.command)}\n"
+        _msg = f"Converting Sweep Run (RunID:{run.id}) to Launch Job"
         logger.debug(_msg)
         wandb.termlog(_msg)
 

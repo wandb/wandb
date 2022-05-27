@@ -45,7 +45,7 @@ def launch_add(
         version,
         docker_image,
         params,
-        run_id,
+        run_id=run_id,
     )
 
 
