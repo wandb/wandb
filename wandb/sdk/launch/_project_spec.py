@@ -91,7 +91,7 @@ class LaunchProject:
         if overrides.get("entry_point") is not None:
             _logger.info("Adding override entry point")
             self.override_entrypoint = self.add_entry_point(
-                overrides.get("entry_point")
+                overrides.get("entry_point")  # type: ignore
             )
         if self.uri is None:
             if self.docker_image is None:
