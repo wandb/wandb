@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import logging
 from typing import Any, Dict, List, Optional
-import threading
 
 import wandb
 from wandb.apis.internal import Api
@@ -12,7 +11,6 @@ import wandb.apis.public as public
 from wandb.errors import SweepError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
-from wandb.util import sweep_config_err_text_from_jsonschema_violations
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +24,7 @@ class DaimyoState(Enum):
     FAILED = 4
     CANCELLED = 5
 
+
 class RunState(Enum):
     QUEUED = 0
     RUNNING = 1
@@ -34,12 +33,14 @@ class RunState(Enum):
     DONE = 4
     UNKNOWN = 5
 
+
 @dataclass
 class SweepRun:
-    state : str = RunState.QUEUED
-    launch_job : public.QueuedJob = None
+    id: str
+    state: str = RunState.QUEUED
+    launch_job: public.QueuedJob = None
     args: Dict[str, Any] = None
-    logs: List[str] = []
+    logs: List[str] = None
     program: str = None
 
 
@@ -63,7 +64,7 @@ class Daimyo(ABC):
         self._api = api
         # TODO(hupo): Verify that the launch queue exists or create it?
         self._launch_queue = queue
-    
+
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -74,25 +75,13 @@ class Daimyo(ABC):
             raise SweepError("Sweep Daimyo could not resolve entity.")
 
         self._project = (
-            project
-            or os.environ.get("WANDB_PROJECT")
-            or api.settings("project")
+            project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
         if self._project is None:
             raise SweepError("Sweep Daimyo could not resolve project.")
 
         self._state: DaimyoState = DaimyoState.PENDING
-        self._launch_jobs: Dict[str, SweepRun] = {}
-
-    @property
-    def state(self) -> DaimyoState:
-        logger.debug(f"Daimyo state is {self._state.name}")
-        return self._state
-
-    @state.setter
-    def state(self, value: DaimyoState) -> None:
-        logger.debug(f"Changing Daimyo state from {self.state.name} to {value.name}")
-        self._state = value
+        self._runs: Dict[str, SweepRun] = {}
 
     @abstractmethod
     def _start(self):
@@ -105,6 +94,16 @@ class Daimyo(ABC):
     @abstractmethod
     def _exit(self):
         pass
+
+    @property
+    def state(self) -> DaimyoState:
+        logger.debug(f"Daimyo state is {self._state.name}")
+        return self._state
+
+    @state.setter
+    def state(self, value: DaimyoState) -> None:
+        logger.debug(f"Changing Daimyo state from {self.state.name} to {value.name}")
+        self._state = value
 
     def start(self):
         _msg = "Daimyo starting."
@@ -133,32 +132,32 @@ class Daimyo(ABC):
             while True:
                 if not self.is_alive():
                     break
-                self.update_launch_jobs()
+                self.update_run_states()
                 self._run()
         except KeyboardInterrupt:
             _msg = "Daimyo received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = DaimyoState.CANCELLED
-            self._exit()
+            self.exit()
             return
         except Exception as e:
             _msg = f"Daimyo failed with exception {e}"
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = DaimyoState.FAILED
-            self._exit()
+            self.exit()
             raise e
         else:
             _msg = f"Daimyo completed."
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = DaimyoState.COMPLETED
-            self._exit()
+            self.exit()
 
     def _add_to_launch_queue(self, launch_spec: Dict[str, Any]):
         """Add a launch job to the Launch RunQueue."""
-        run_id: str = launch_spec.get('run_id', generate_id()) 
+        run_id: str = launch_spec.get("run_id", generate_id())
         job = launch_add(
             launch_spec.get("uri", None),
             launch_spec.get("config", None),
@@ -173,47 +172,41 @@ class Daimyo(ABC):
             # docker_image: Optional[str] = None,
             # params: Optional[Dict[str, Any]] = None,
         )
-        _run = self._launch_jobs.get(run_id, None)
+        _run = self._runs.get(run_id, None)
         if _run is not None:
             _run.launch_job = job
         _msg = f"Added job to Launch RunQueue (RunID:{run_id})."
         logger.debug(_msg)
         wandb.termlog(_msg)
 
-    def update_launch_jobs(self):
-        for job_id, job in self._launch_jobs.items():
+    def update_run_states(self):
+        for run_id, run in self._runs.items():
             try:
-                _state = self._api.get_run_state(self._entity, self._project, job_id)
+                _state = self._api.get_run_state(self._entity, self._project, run_id)
             except Exception as e:
                 breakpoint()
                 pass
             if _state == "running":
-                job.state = RunState.RUNNING
+                run.state = RunState.RUNNING
             elif _state == "error":
-                job.state = RunState.ERRORED
+                run.state = RunState.ERRORED
             elif _state == "done":
-                job.state = RunState.DONE
+                run.state = RunState.DONE
             else:
-                job.state = RunState.UNKNOWN
+                run.state = RunState.UNKNOWN
 
     def _stop_run(self, run_id):
         _msg = f"Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        _run = self._launch_jobs.get(run_id, None)
-        if _run is not None:
-            _run.state = RunState.STOPPED
-        # TODO(hupo): Can you command the launch agent to kill the associated job?
-
-    def _stop_all_runs(self):
-        _msg = "Stopping all runs."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
-        for run_id in self._launch_jobs.keys():
-            self._stop_run(run_id)
+        run = self._runs.get(run_id, None)
+        if run is not None:
+            # TODO(hupo): Can you upsert a run state?
+            run.state = RunState.STOPPED
 
     def exit(self):
-        self._stop_all_runs()
+        for run_id in self._runs.keys():
+            self._stop_run(run_id)
         self._exit()
 
     # def __iter__(self):
