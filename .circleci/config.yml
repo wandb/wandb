@@ -714,7 +714,6 @@ jobs:
                   - slack/notify:
                       event: pass
                       template: basic_success_1
-                      mentions: "@channel"
                       # taken from slack-secrets context
                       channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
@@ -781,7 +780,6 @@ jobs:
             - slack/notify:
                 event: pass
                 template: basic_success_1
-                mentions: "@channel"
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
