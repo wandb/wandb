@@ -1443,23 +1443,24 @@ class S3Handler(StorageHandler):
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 multi = True
-                start_time = time.time()
-                termlog(
-                    'Generating checksum for up to %i objects with prefix "%s"... '
-                    % (max_objects, key),
-                    newline=False,
-                )
-                objs = (
-                    self._s3.Bucket(bucket)
-                    .objects.filter(Prefix=key)
-                    .limit(max_objects)
-                )
             else:
                 raise CommError(
                     "Unable to connect to S3 (%s): %s"
                     % (e.response["Error"]["Code"], e.response["Error"]["Message"])
                 )
-
+        # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
+        # trigger a recursive upload.
+        # we should check the object's metadata says it is a directory and do a multi file upload if it is
+        if "x-directory" in objs[0].content_type:
+            multi = True
+        if multi:
+            start_time = time.time()
+            termlog(
+                'Generating checksum for up to %i objects with prefix "%s"... '
+                % (max_objects, key),
+                newline=False,
+            )
+            objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
         entries = [
