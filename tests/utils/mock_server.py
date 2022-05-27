@@ -937,8 +937,8 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-         if "query ProbeServerCapabilities(" in body["query"]:
-            return json.dumps({})
+        if "query ProbeServerSettings" in body["query"]:
+            return json.dumps({"data": {}})
 
         if "mutation UpsertBucket(" in body["query"]:
             run_id_default = "abc123"
