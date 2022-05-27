@@ -9,7 +9,7 @@ import time
 import threading
 from typing import Any, Dict, Optional
 
-from .daimyo import Daimyo
+from .daimyo import Daimyo, Run, RunState
 import wandb
 from wandb import wandb_lib
 from wandb.errors import SweepError
@@ -17,22 +17,6 @@ from wandb.wandb_agent import Agent as LegacySweepAgent
 
 
 logger = logging.getLogger(__name__)
-
-
-class SweepRunState(Enum):
-    QUEUED = 0
-    RUNNING = 1
-    STOPPED = 2
-    ERRORED = 3
-    DONE = 4
-    UNKNOWN = 5
-
-@dataclass
-class SweepRun:
-    command: Dict[str, Any]
-    id: str
-    state: str = SweepRunState.QUEUED
-
 
 class SweepDaimyo(Daimyo):
     """A SweepDaimyo is a controller/agent that will populate a Launch RunQueue with
@@ -68,10 +52,6 @@ class SweepDaimyo(Daimyo):
         self._main_thread_sleep = main_thread_sleep
 
     def _start(self):
-        # Status for all the sweep runs this agent has popped off the sweep runqueue
-        self._heartbeat_runs: Dict[str, SweepRun] = {}
-        # Mapping from sweep run ids to launch job ids
-        self._heartbeat_runs_to_launch_jobs: Dict[str, str] = {}
         # TODO(hupo): socket hostname is probably a shitty name, we can do better
         self._heartbeat_agent = self._api.register_agent(
             socket.gethostname(), sweep_id=self._sweep_id
@@ -80,7 +60,7 @@ class SweepDaimyo(Daimyo):
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue
-        self._heartbeat_queue: "queue.Queue[SweepRun]" = queue.Queue()
+        self._heartbeat_queue: "queue.Queue[Run]" = queue.Queue()
         self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         self._heartbeat_thread.daemon = True
         self._heartbeat_thread.start()
@@ -92,8 +72,8 @@ class SweepDaimyo(Daimyo):
                 return
             # AgentHeartbeat wants dict of runs which are running or queued
             _run_states = {}
-            for run_id, run in self._heartbeat_runs.items():
-                if run.state in [SweepRunState.RUNNING, SweepRunState.QUEUED]:
+            for run_id, run in self._launch_jobs.items():
+                if run.state in [RunState.RUNNING, RunState.QUEUED]:
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
@@ -106,12 +86,12 @@ class SweepDaimyo(Daimyo):
                 for command in commands:
                     _type = command.get("type")
                     _run_id = command.get("run_id")
-                    _run = SweepRun(
-                        command = command,
+                    _run = Run(
                         id = _run_id,
+                        sweep_config = command,
                     )
                     # TODO(hupo): Should a thread be putting dicts into a dict?
-                    self._heartbeat_runs[_run_id] = _run
+                    self._launch_jobs[_run_id] = _run
                     if _type in ["run", "resume"]:
                         self._heartbeat_queue.put(_run)
                     elif _type == "stop":
@@ -133,19 +113,8 @@ class SweepDaimyo(Daimyo):
             return
 
         # If run is already stopped just ignore the request
-        if run.state == SweepRunState.STOPPED:
+        if run.state == RunState.STOPPED:
             return
-
-        # This will cause Anaconda2 to populate the Sweeps RunQueue
-        for run_id, run in self._heartbeat_runs.items():
-            _msg = f"Current run {run_id} is {run.state}"
-            logger.debug(_msg)
-            wandb.termlog(_msg)
-            if run.state == SweepRunState.RUNNING:
-                run.state = SweepRunState.DONE
-                _msg = f"Marking run {run_id} as {run.state}"
-                logger.debug(_msg)
-                wandb.termlog(_msg)
 
         _msg = f"Converting Sweep RunQueue Item to Launch Job: \n{pprint.pformat(run.command)}\n"
         logger.debug(_msg)
@@ -182,15 +151,12 @@ class SweepDaimyo(Daimyo):
 
         # TODO: Entrypoint is now an object right?
         entry_point_str = " ".join(entry_point)
-        job = self._add_to_launch_queue(
-            {
+        self._add_to_launch_queue({
                 "uri": os.getcwd(),
                 "resource": "local-process",
                 "entry_point": entry_point_str,
                 "run_id": run.id,
-            }
-        )
-        run.state = SweepRunState.RUNNING
+        })
 
         # TODO(hupo): Flapping logic
         # elif self._heartbeat_runs_status[run.id] == RunStatus.ERRORED:
@@ -229,20 +195,6 @@ class SweepDaimyo(Daimyo):
         #         self._exit_flag = True
         #         return
 
-    def _stop_run(self, run_id):
-        _msg = f"Stopping run {run_id}."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
-        self._heartbeat_runs[run_id].state = SweepRunState.STOPPED
-        # TODO(hupo): Can you command the launch agent to kill the associated job?
-
-    def _stop_all_runs(self):
-        _msg = "Stopping all runs."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
-        for run_id in self._heartbeat_runs.keys():
-            self._stop_run(run_id)
-
     def _exit(self):
-        self._stop_all_runs()
+        pass
         # TODO(hupo): Send mutation to kill the sweep?

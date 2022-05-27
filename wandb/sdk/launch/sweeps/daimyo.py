@@ -3,7 +3,7 @@ import os
 from abc import ABC, abstractmethod
 from enum import Enum
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import threading
 
 import wandb
@@ -12,6 +12,7 @@ import wandb.apis.public as public
 from wandb.errors import SweepError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
+from wandb.util import sweep_config_err_text_from_jsonschema_violations
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class DaimyoState(Enum):
     FAILED = 4
     CANCELLED = 5
 
-class LaunchJobState(Enum):
+class RunState(Enum):
     QUEUED = 0
     RUNNING = 1
     STOPPED = 2
@@ -34,9 +35,12 @@ class LaunchJobState(Enum):
     UNKNOWN = 5
 
 @dataclass
-class LaunchJob:
-    job : public.QueuedJob
-    state : str = LaunchJobState.QUEUED
+class SweepRun:
+    state : str = RunState.QUEUED
+    launch_job : public.QueuedJob = None
+    args: Dict[str, Any] = None
+    logs: List[str] = []
+    program: str = None
 
 
 class Daimyo(ABC):
@@ -78,7 +82,7 @@ class Daimyo(ABC):
             raise SweepError("Sweep Daimyo could not resolve project.")
 
         self._state: DaimyoState = DaimyoState.PENDING
-        self._launch_jobs: Dict[str, LaunchJob] = {}
+        self._launch_jobs: Dict[str, SweepRun] = {}
 
     @property
     def state(self) -> DaimyoState:
@@ -94,6 +98,14 @@ class Daimyo(ABC):
     def _start(self):
         pass
 
+    @abstractmethod
+    def _run(self):
+        pass
+
+    @abstractmethod
+    def _exit(self):
+        pass
+
     def start(self):
         _msg = "Daimyo starting."
         logger.debug(_msg)
@@ -102,14 +114,6 @@ class Daimyo(ABC):
         self._start()
         # TODO(hupo): Should start call run?
         self.run()
-
-    @abstractmethod
-    def _run(self):
-        pass
-
-    @abstractmethod
-    def _exit(self):
-        pass
 
     def is_alive(self) -> bool:
         if self.state in [
@@ -152,7 +156,7 @@ class Daimyo(ABC):
             self.state = DaimyoState.COMPLETED
             self._exit()
 
-    def _add_to_launch_queue(self, launch_spec: Dict[str, Any]) -> "public.QueuedJob":
+    def _add_to_launch_queue(self, launch_spec: Dict[str, Any]):
         """Add a launch job to the Launch RunQueue."""
         run_id: str = launch_spec.get('run_id', generate_id()) 
         job = launch_add(
@@ -169,11 +173,12 @@ class Daimyo(ABC):
             # docker_image: Optional[str] = None,
             # params: Optional[Dict[str, Any]] = None,
         )
+        _run = self._launch_jobs.get(run_id, None)
+        if _run is not None:
+            _run.launch_job = job
         _msg = f"Added job to Launch RunQueue (RunID:{run_id})."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        self._launch_jobs[run_id] = LaunchJob(job)
-        return job
 
     def update_launch_jobs(self):
         for job_id, job in self._launch_jobs.items():
@@ -183,14 +188,33 @@ class Daimyo(ABC):
                 breakpoint()
                 pass
             if _state == "running":
-                job.state = LaunchJobState.RUNNING
+                job.state = RunState.RUNNING
             elif _state == "error":
-                job.state = LaunchJobState.ERRORED
+                job.state = RunState.ERRORED
             elif _state == "done":
-                job.state = LaunchJobState.DONE
+                job.state = RunState.DONE
             else:
-                job.state = LaunchJobState.UNKNOWN
+                job.state = RunState.UNKNOWN
 
+    def _stop_run(self, run_id):
+        _msg = f"Stopping run {run_id}."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
+        _run = self._launch_jobs.get(run_id, None)
+        if _run is not None:
+            _run.state = RunState.STOPPED
+        # TODO(hupo): Can you command the launch agent to kill the associated job?
+
+    def _stop_all_runs(self):
+        _msg = "Stopping all runs."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
+        for run_id in self._launch_jobs.keys():
+            self._stop_run(run_id)
+
+    def exit(self):
+        self._stop_all_runs()
+        self._exit()
 
     # def __iter__(self):
     #     # returning __iter__ object
