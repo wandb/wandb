@@ -23,6 +23,7 @@ def list_services():
 
 
 def get_manager(service=None):
+    service = service or os.environ.get("WANDB_SERVICE")
     if not service:
         services = list_services()
         if not services:
@@ -37,6 +38,7 @@ def get_manager(service=None):
     manager._inform_connect()
     return manager
 
+
 def list_runs(service=None):
     manager = get_manager()
     if not manager:
@@ -45,11 +47,12 @@ def list_runs(service=None):
     return got
 
 
-@click.command()
-def service():
-    print("service")
-    services = list_services()
-
+# @click.command()
+@click.group(help="Debug stuff")
+@click.pass_context
+def service_subcommand(ctx):
+    service_id = ctx.info_name
+    os.environ["WANDB_SERVICE"] = service_id
 
 @click.command()
 def run():
@@ -86,9 +89,16 @@ def run_subcommand(ctx):
         print(l)
 
 
+class CliServices(click.MultiCommand):
+    def list_commands(self, ctx):
+        services = list_services()
+        return services
+
+    def get_command(self, ctx, name):
+        return service_subcommand
+
 
 class CliRuns(click.MultiCommand):
-
     def list_commands(self, ctx):
         runs = list_runs()
         return runs
@@ -98,7 +108,8 @@ class CliRuns(click.MultiCommand):
 
 
 def install_subcommands(base):
-    base.add_command(service)
-    run = CliRuns(name="run", help='This tool\'s subcommands are loaded from a '
-            'plugin folder dynamically.')
-    base.add_command(run)
+    service_cmd = CliServices(name="service", help="Debug services")
+    run_cmd = CliRuns(name="run", help="Debug runs")
+    base.add_command(service_cmd)
+    base.add_command(run_cmd)
+    service_subcommand.add_command(run_cmd)
