@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 import os
+from enum import Enum
 import logging
 import pprint
 import queue
@@ -17,20 +19,19 @@ from wandb.wandb_agent import Agent as LegacySweepAgent
 logger = logging.getLogger(__name__)
 
 
-class LegacySweepRun:
-    """Legacy Sweep Run."""
+class SweepRunState(Enum):
+    QUEUED = 0
+    RUNNING = 1
+    STOPPED = 2
+    ERRORED = 3
+    DONE = 4
 
-    # Based on client/wandb/agents/pyagent.py : RunStatus
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    STOPPED = "STOPPED"
-    ERRORED = "ERRORED"
-    DONE = "DONE"
-
-    def __init__(self, command: Dict[str, Any]):
-        self.command = command
-        self.type = command.get("type")
-        self.id = command.get("run_id")
+@dataclass
+class SweepRun:
+    command: Dict[str, Any]
+    type: str
+    id: str
+    state: str = SweepRunState.QUEUED
 
 
 class SweepDaimyo(Daimyo):
@@ -68,7 +69,7 @@ class SweepDaimyo(Daimyo):
 
     def _start(self):
         # Status for all the sweep runs this agent has popped off the sweep runqueue
-        self._heartbeat_runs_status: Dict[str, LegacySweepRun] = {}
+        self._heartbeat_runs: Dict[str, SweepRun] = {}
         # Mapping from sweep run ids to launch job ids
         self._heartbeat_runs_to_launch_jobs: Dict[str, str] = {}
         # TODO(hupo): socket hostname is probably a shitty name, we can do better
@@ -79,7 +80,7 @@ class SweepDaimyo(Daimyo):
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue
-        self._heartbeat_queue: "queue.Queue[LegacySweepRun]" = queue.Queue()
+        self._heartbeat_queue: "queue.Queue[SweepRun]" = queue.Queue()
         self._heartbeat_thread = threading.Thread(target=self._heartbeat)
         self._heartbeat_thread.daemon = True
         self._heartbeat_thread.start()
@@ -89,23 +90,25 @@ class SweepDaimyo(Daimyo):
             if not self.is_alive():
                 return
             # AgentHeartbeat wants dict of runs which are running or queued
-            run_status = {
-                run: True
-                for run, status in self._heartbeat_runs_status.items()
-                if status in (LegacySweepRun.QUEUED, LegacySweepRun.RUNNING)
-            }
-            _msg = f"AgentHeartbeat sending: \n{pprint.pformat(run_status)}\n"
+            _runs_status = {}
+            for run_id, run in self._heartbeat_runs.items():
+                if run.state in [SweepRunState.RUNNING, SweepRunState.QUEUED]:
+                    _runs_status[run_id] = True
+            _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_runs_status)}\n"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, run_status)
+            commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, _runs_status)
             if commands:
                 _msg = f"AgentHeartbeat received: \n{pprint.pformat(commands)}\n"
                 logger.debug(_msg)
                 wandb.termlog(_msg)
-                run = LegacySweepRun(commands[0])
+                run = SweepRun(
+                    command = commands[0],
+                    type = commands[0].get("type"),
+                    id = commands[0].get("run_id"),
+                )
                 if run.type in ["run", "resume"]:
                     self._heartbeat_queue.put(run)
-                    self._heartbeat_runs_status[run.id] = LegacySweepRun.QUEUED
                 elif run.type == "stop":
                     self._stop_run(run.id)
                     continue
@@ -128,17 +131,17 @@ class SweepDaimyo(Daimyo):
                 continue
             else:
                 # If run is already stopped just ignore the request
-                if self._heartbeat_runs_status[run.id] == LegacySweepRun.STOPPED:
+                if self._heartbeat_runs[run.id].state == SweepRunState.STOPPED:
                     continue
             finally:
                 # This will cause Anaconda2 to populate the Sweeps RunQueue
-                for run_id, status in self._heartbeat_runs_status:
-                    _msg = f"Current run {run_id} is {status}"
+                for run_id, run in self._heartbeat_runs.items():
+                    _msg = f"Current run {run_id} is {run.state}"
                     logger.debug(_msg)
                     wandb.termlog(_msg)
-                    if self._heartbeat_runs_status[run_id] == LegacySweepRun.RUNNING:
-                        self._heartbeat_runs_status[run_id] = LegacySweepRun.DONE
-                        _msg = f"Marking run {run_id} as {status}"
+                    if self._heartbeat_runs[run_id] == SweepRunState.RUNNING:
+                        self._heartbeat_runs[run_id] = SweepRunState.DONE
+                        _msg = f"Marking run {run_id} as {run.state}"
                         logger.debug(_msg)
                         wandb.termlog(_msg)
 
@@ -184,7 +187,7 @@ class SweepDaimyo(Daimyo):
                     "entry_point": entry_point_str,
                 }
             )
-            self._heartbeat_runs_status[run.id] = LegacySweepRun.RUNNING
+            self._heartbeat_runs[run.id] = SweepRunState.RUNNING
 
             # TODO(hupo): Flapping logic
             # elif self._heartbeat_runs_status[run.id] == RunStatus.ERRORED:
@@ -227,14 +230,14 @@ class SweepDaimyo(Daimyo):
         _msg = f"Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        self._heartbeat_runs_status[run_id] = LegacySweepRun.STOPPED
+        self._heartbeat_runs[run_id].state = SweepRunState.STOPPED
         # TODO(hupo): Can you command the launch agent to kill the associated job?
 
     def _stop_all_runs(self):
         _msg = "Stopping all runs."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        for run_id in self._heartbeat_runs_status.keys():
+        for run_id in self._heartbeat_runs.keys():
             self._stop_run(run_id)
 
     def _exit(self):

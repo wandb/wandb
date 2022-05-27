@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -22,6 +23,19 @@ class DaimyoState(Enum):
     FAILED = 4
     CANCELLED = 5
 
+class LaunchJobState(Enum):
+    QUEUED = 0
+    RUNNING = 1
+    STOPPED = 2
+    ERRORED = 3
+    DONE = 4
+
+@dataclass
+class LaunchJob:
+    id : str
+    job : public.QueuedJob
+    state : str = LaunchJobState.QUEUED
+
 
 class Daimyo(ABC):
     """Daimyo 🏯  is a Lord in feudal Japan and Boba Fett's title in the Mandalorian.
@@ -42,7 +56,7 @@ class Daimyo(ABC):
         # This is internal API
         self._api = api
         # TODO(hupo): Verify that the launch queue exists or create it?
-        self._queue = queue
+        self._launch_queue = queue
     
         self._entity = (
             entity
@@ -62,7 +76,7 @@ class Daimyo(ABC):
             raise SweepError("Sweep Daimyo could not resolve project.")
 
         self._state: DaimyoState = DaimyoState.PENDING
-        self._jobs: Dict[str, public.QueuedJob] = {}
+        self._launch_jobs: Dict[str, LaunchJob] = {}
 
     @property
     def state(self) -> DaimyoState:
@@ -101,10 +115,7 @@ class Daimyo(ABC):
         wandb.termlog(_msg)
         self.state = DaimyoState.RUNNING
         try:
-            for job_id, job in self._jobs.items():
-                # Job ID is the Run Name
-                _state = self._api.get_run_state(self._entity, self._project, job_id)
-                
+ 
             # TODO(hupo): check/change status of launch jobs by looking at runs through graphql
             self._run()
         except KeyboardInterrupt:
@@ -135,7 +146,7 @@ class Daimyo(ABC):
             launchspec.get("config", None),
             project=launchspec.get("project", None) or self._project,
             entity=launchspec.get("entity", None) or self._entity,
-            queue=launchspec.get("queue", None) or self._queue,
+            queue=launchspec.get("queue", None) or self._launch_queue,
             resource=launchspec.get("resource", None),
             entry_point=launchspec.get("entry_point", None),
             # name: Optional[str] = None,
@@ -143,7 +154,7 @@ class Daimyo(ABC):
             # docker_image: Optional[str] = None,
             # params: Optional[Dict[str, Any]] = None,
         )
-        self._jobs[job._run_id] = job
+        self._launch_jobs[job._run_id] = LaunchJob(job._run_id, job)
         _msg = f"Added job to Launch RunQueue: {job._run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
@@ -158,6 +169,13 @@ class Daimyo(ABC):
             return False
         return True
 
+    def check_jobs(self):
+        """Check the status of the launch jobs."""
+        for job_id, job in self._launch_jobs.items():
+            # Job ID is the Run Name
+            _state = self._api.get_run_state(self._entity, self._project, job_id)
+            if _state == "finished":
+                
     # def __iter__(self):
     #     # returning __iter__ object
     #     return self
