@@ -110,6 +110,14 @@ message ServerInformConnectRequest {
 message ServerInformConnectResponse {
 }
 
+message ServerInformListRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformListResponse {
+  repeated string streams = 1;
+}
+
 message ServerInformAttachRequest {
   _RecordInfo _info = 200;
 }
@@ -149,6 +157,7 @@ message ServerRequest {
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
     ServerInformConnectRequest inform_connect = 9;
+    ServerInformListRequest inform_list = 10;
 
   }
 }
@@ -163,6 +172,7 @@ message ServerResponse {
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
     ServerInformConnectResponse inform_connect_response = 9;
+    ServerInformListResponse inform_list_response = 10;
 
   }
 }

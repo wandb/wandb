@@ -186,6 +186,12 @@ class StreamMux:
             stream = self._streams[stream_id]
             return stream
 
+    def get_list(self) -> List[str]:
+        ret = []
+        with self._streams_lock:
+            ret = list(self._streams)
+        return ret
+
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord(action._data)
         # run_id = action.stream_id  # will want to fix if a streamid != runid

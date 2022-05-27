@@ -3,7 +3,7 @@
 Implement ServiceInterface for socket transport.
 """
 
-from typing import TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
@@ -66,6 +66,12 @@ class ServiceSockInterface(ServiceInterface):
         assert self._sock_client
         response = self._sock_client.send_and_recv(inform_attach=inform_attach)
         return response.inform_attach_response
+
+    def _svc_inform_list(self) -> spb.ServerInformListResponse:
+        inform_list = spb.ServerInformListRequest()
+        assert self._sock_client
+        response = self._sock_client.send_and_recv(inform_list=inform_list)
+        return response.inform_list_response
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)

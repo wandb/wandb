@@ -72,6 +72,7 @@ class SockClient:
         inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
         inform_teardown: spb.ServerInformTeardownRequest = None,
+        inform_list: spb.ServerInformListRequest = None,
     ) -> spb.ServerResponse:
         self.send(
             inform_init=inform_init,
@@ -79,6 +80,7 @@ class SockClient:
             inform_attach=inform_attach,
             inform_finish=inform_finish,
             inform_teardown=inform_teardown,
+            inform_list=inform_list,
         )
         # TODO: this solution is fragile, but for checking attach
         # it should be relatively stable.
@@ -97,6 +99,7 @@ class SockClient:
         inform_finish: spb.ServerInformFinishRequest = None,
         inform_teardown: spb.ServerInformTeardownRequest = None,
         inform_connect: spb.ServerInformConnectRequest = None,
+        inform_list: spb.ServerInformListRequest = None,
     ) -> None:
         server_req = spb.ServerRequest()
         if inform_init:
@@ -111,6 +114,8 @@ class SockClient:
             server_req.inform_teardown.CopyFrom(inform_teardown)
         elif inform_connect:
             server_req.inform_connect.CopyFrom(inform_connect)
+        elif inform_list:
+            server_req.inform_list.CopyFrom(inform_list)
         else:
             raise Exception("unmatched")
         self.send_server_request(server_req)
