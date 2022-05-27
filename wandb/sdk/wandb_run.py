@@ -3203,15 +3203,16 @@ class Run:
         if (quiet or settings.quiet) or settings.silent:
             return
 
-        # if settings.opt_out_nudge:
-        #     return
+        if settings.disable_hints:
+            return
 
         if not poll_exit_response or not poll_exit_response.server_messages:
             return
 
         for message in poll_exit_response.server_messages.item:
-            if message.text:
-                printer.display(message.text)
+            text = message.html_text if printer._html else message.utf_text
+            default_text = message.plain_text
+            printer.display(text, default_text=default_text)
 
     @staticmethod
     def _footer_version_check_info(

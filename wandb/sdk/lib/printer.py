@@ -30,9 +30,11 @@ class _Printer:
         *,
         status: Optional[str] = None,
         off: Optional[bool] = None,
+        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
     ) -> None:
-        if not off:
-            self._display(text, status=status)
+        if off:
+            return
+        self._display(text, status=status, default_text=default_text)
 
     @abstractmethod
     def _display(
@@ -40,6 +42,7 @@ class _Printer:
         text: Union[str, List[str], Tuple[str]],
         *,
         status: Optional[str] = None,
+        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
     ) -> None:
         raise NotImplementedError
 
@@ -83,7 +86,11 @@ class PrinterTerm(_Printer):
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
     def _display(
-        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
+        self,
+        text: Union[str, List[str], Tuple[str]],
+        *,
+        status: Optional[str] = None,
+        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
     ) -> None:
         text = "\n".join(text) if isinstance(text, (list, tuple)) else text
         if status == "info" or status is None:
@@ -143,7 +150,11 @@ class PrinterJupyter(_Printer):
         self._progress = ipython.jupyter_progress_bar()
 
     def _display(
-        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
+        self,
+        text: Union[str, List[str], Tuple[str]],
+        *,
+        status: Optional[str] = None,
+        default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
     ) -> None:
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
         if status == "info" or status is None:

@@ -11,8 +11,17 @@ import os
 import queue
 from queue import Queue
 import time
-from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
-from typing import cast, TYPE_CHECKING
+from typing import (
+    Any,
+    cast,
+    Dict,
+    Generator,
+    List,
+    NewType,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+)
 
 from pkg_resources import parse_version
 import requests
@@ -480,8 +489,9 @@ class SendManager:
             if self._server_messages:
                 for message in self._server_messages:
                     message_record = wandb_internal_pb2.ServerMessage(
-                        text=message.get("text", ""),
-                        plain_text=message.get("plain_text", ""),
+                        utf_text=message.get("utfText", ""),
+                        plain_text=message.get("plainText", ""),
+                        html_text=message.get("htmlText", ""),
                     )
                     result.response.poll_exit_response.server_messages.item.append(
                         message_record

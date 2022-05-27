@@ -1369,15 +1369,15 @@ class Api:
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        server_message = None
+        server_messages = None
         if self._server_settings_type:
-            server_message = response["upsertBucket"]["serverSDKSettings"][
+            server_messages = response["upsertBucket"]["serverSDKSettings"][
                 "sdkMessages"
             ]
         return (
             response["upsertBucket"]["bucket"],
             response["upsertBucket"]["inserted"],
-            server_message,
+            server_messages,
         )
 
     @normalize_exceptions

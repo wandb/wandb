@@ -617,8 +617,9 @@ message ServerMessages{
 }
 
 message ServerMessage{
-  string text = 1;
-  string plain_text =2;
+  string plain_text = 1;
+  string utf_text = 2;
+  string html_text = 3;
 }
 
 message FileCounts {
