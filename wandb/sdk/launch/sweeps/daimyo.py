@@ -31,11 +31,11 @@ class LaunchJobState(Enum):
     STOPPED = 2
     ERRORED = 3
     DONE = 4
+    UNKNOWN = 5
 
 @dataclass
 class LaunchJob:
     job : public.QueuedJob
-    thread: threading.Thread
     state : str = LaunchJobState.QUEUED
 
 
@@ -129,6 +129,7 @@ class Daimyo(ABC):
             while True:
                 if not self.is_alive():
                     break
+                self.update_launch_jobs()
                 self._run()
         except KeyboardInterrupt:
             _msg = "Daimyo received KeyboardInterrupt. Exiting."
@@ -171,39 +172,25 @@ class Daimyo(ABC):
         _msg = f"Added job to Launch RunQueue (RunID:{run_id})."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        # Start a daemon thread that will wait for the job to start and
-        # update the LaunchJobState accordingly.
-        thread = threading.Thread(target=self._poll_launch_job, args=(job,))
-        thread.daemon = True
-        thread.start()
-        # Job is initially queued in the Launch RunQueue
-        # until it is started it will not have a run_id.
-        self._launch_jobs[run_id] = LaunchJob(job, thread)
+        self._launch_jobs[run_id] = LaunchJob(job)
         return job
 
-    def _poll_launch_job(self, job: public.QueuedJob):
-        try:
-            breakpoint()
-            job.wait_until_running()
-            _msg = f"Launch Job is now running (RunQueueItemID:{job._run_queue_item_id}) (RunID: {job._run_id})."
-            logger.debug(_msg)
-            wandb.termlog(_msg)
-            _state = self._api.get_run_state(self._entity, self._project, job._run_id)
-            breakpoint()
-            if _state == "finished":
+    def update_launch_jobs(self):
+        for job_id, job in self._launch_jobs.items():
+            try:
+                _state = self._api.get_run_state(self._entity, self._project, job_id)
+            except Exception as e:
+                breakpoint()
                 pass
+            if _state == "running":
+                job.state = LaunchJobState.RUNNING
             elif _state == "error":
-                pass
-            elif _state == "running":
-                pass
-        except KeyboardInterrupt as e:
-            raise e
-        except Exception as e:
-            if self._launch_jobs[job._run_queue_item_id].state == LaunchJobState.RUNNING:
-                self._launch_jobs[job._run_queue_item_id].state = LaunchJobState.ERRORED
-            _msg = f"Exception in Launch Job (RunQueueItemID:{job._run_queue_item_id}) {e}."
-            logger.debug(_msg)
-            wandb.termlog(_msg)
+                job.state = LaunchJobState.ERRORED
+            elif _state == "done":
+                job.state = LaunchJobState.DONE
+            else:
+                job.state = LaunchJobState.UNKNOWN
+
 
     # def __iter__(self):
     #     # returning __iter__ object

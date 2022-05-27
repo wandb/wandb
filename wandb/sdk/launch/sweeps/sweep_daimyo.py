@@ -25,6 +25,7 @@ class SweepRunState(Enum):
     STOPPED = 2
     ERRORED = 3
     DONE = 4
+    UNKNOWN = 5
 
 @dataclass
 class SweepRun:

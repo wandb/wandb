@@ -1406,9 +1406,7 @@ class Api:
         query RunState($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
-                    runState {
-                        state
-                    }
+                    state
                 }
             }
         }
