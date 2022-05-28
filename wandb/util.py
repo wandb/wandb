@@ -100,17 +100,29 @@ def get_platform_name() -> str:
 
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
 # side effect of loading a module.
+sentry_client: Optional["sentry_sdk.client.Client"] = None
+sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
 if error_reporting_enabled():
     default_dsn = (
-        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+        # "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"  # production
+        "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.sentry.io/6438430"  # junk
     )
     sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
-    sentry_sdk.init(
+    # sentry_sdk.init(
+    #     dsn=sentry_dsn,
+    #     release=wandb.__version__,
+    #     default_integrations=False,
+    #     environment=SENTRY_ENV,
+    # )
+    sentry_client = sentry_sdk.Client(
         dsn=sentry_dsn,
-        release=wandb.__version__,
+        # integrations=[ExcepthookIntegration(always_run=True)],
         default_integrations=False,
         environment=SENTRY_ENV,
+        release=wandb.__version__,
     )
+
+    sentry_hub = sentry_sdk.Hub(sentry_client)
 
 POW_10_BYTES = [
     ("B", 10**0),
@@ -135,7 +147,7 @@ POW_2_BYTES = [
 
 def sentry_message(message: str) -> None:
     if error_reporting_enabled():
-        capture_message(message)
+        sentry_hub.capture_message(message)
 
 
 def sentry_exc(
@@ -153,9 +165,9 @@ def sentry_exc(
 ) -> None:
     if error_reporting_enabled():
         if isinstance(exc, str):
-            capture_exception(Exception(exc))
+            sentry_hub.capture_exception(Exception(exc))
         else:
-            capture_exception(exc)
+            sentry_hub.capture_exception(exc)
         if delay:
             time.sleep(2)
 
@@ -206,7 +218,8 @@ def sentry_set_scope(
     def get(key: str) -> Any:
         return getattr(s, key, None)
 
-    with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
+    # with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
+    with sentry_hub.configure_scope() as scope:
         scope.set_tag("platform", get_platform_name())
 
         # apply settings tags
