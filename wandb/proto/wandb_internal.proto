@@ -808,9 +808,52 @@ message DebugPollRequest {
 }
 
 /*
+ * DebugDataLocals:
+ */
+message DebugDataLocal {
+  string var = 1;
+  string repr = 2;
+  string type = 3;
+}
+
+/*
+ * DebugDataFrame:
+ */
+message DebugDataFrame {
+  string filename = 1;
+  string lineno = 2;
+  string name = 3;
+  string line = 4;
+  repeated DebugDataLocal locals = 5;
+}
+
+/*
+ * DebugDataStack:
+ */
+message DebugDataStack {
+  repeated DebugDataFrame frames = 1;
+}
+
+/*
+ * DebugDataThread:
+ */
+message DebugDataThread {
+  repeated DebugDataStack stacks = 1;
+  string name = 2;
+}
+
+/*
+ * DebugData:
+ */
+message DebugData {
+  repeated DebugDataThread threads = 1;
+}
+
+/*
  * DebugPollResponse:
  */
 message DebugPollResponse {
   string traceback = 1;
   bool done = 2;
+  DebugData data = 3;
 }
