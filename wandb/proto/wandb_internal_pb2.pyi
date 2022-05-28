@@ -2165,9 +2165,23 @@ global___ArtifactDoneRequest = ArtifactDoneRequest
 
 class DebugRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    THREADS_FIELD_NUMBER: builtins.int
+    STACKS_FIELD_NUMBER: builtins.int
+    LINES_FIELD_NUMBER: builtins.int
+    LOCALS_FIELD_NUMBER: builtins.int
+    threads: builtins.bool = ...
+    stacks: builtins.bool = ...
+    lines: builtins.bool = ...
+    locals: builtins.bool = ...
 
     def __init__(self,
+        *,
+        threads : builtins.bool = ...,
+        stacks : builtins.bool = ...,
+        lines : builtins.bool = ...,
+        locals : builtins.bool = ...,
         ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"lines",b"lines",u"locals",b"locals",u"stacks",b"stacks",u"threads",b"threads"]) -> None: ...
 global___DebugRequest = DebugRequest
 
 class DebugResponse(google.protobuf.message.Message):

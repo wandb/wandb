@@ -793,6 +793,10 @@ message ArtifactDoneRequest {
  * DebugRequest:
  */
 message DebugRequest {
+  bool threads = 16;
+  bool stacks = 17;
+  bool lines = 18;
+  bool locals = 19;
 }
 
 /*
