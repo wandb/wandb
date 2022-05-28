@@ -111,9 +111,20 @@ def dbg_run_stacks(ctx):
     sock_interface.publish_debug("junk")
     data = sock_interface.communicate_debug_poll("data")
     # print("GOT", data)
-    data_list = data.traceback.split("\n")
-    for l in data_list:
-        print(l)
+    if not data:
+        return
+    for thread in data.data.threads:
+        print(f"{thread.name}")
+        for frame in thread.stack:
+            print(f"\t{frame.filename} {frame.lineno}")
+            print(f"\t\t{frame.line}")
+            for var in frame.locals:
+                print(f"\t\t\t{var.var}")
+                print(f"\t\t\t\t{var.type}")
+                print(f"\t\t\t\t{var.repr}")
+    # data_list = data.traceback.split("\n")
+    # for l in data_list:
+    #     print(l)
 
 
 @click.group()

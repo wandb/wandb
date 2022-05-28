@@ -691,9 +691,14 @@ class HandleManager:
                 stack_line = stack.line
                 if stack_line:
                     output.append(f"    Line: {stack_line}")
+                    debug_frame.line = stack.line
                 stack_locals = stack.locals or {}
                 for k, v in stack_locals.items():
+                    debug_local = debug_frame.locals.add()
                     output.append(f"      {k}: {v}")
+                    debug_local.var = k
+                    debug_local.repr = str(v)
+                    debug_local.type = str(type(v))
         result.response.debug_poll_response.traceback = "\n".join(output)
         self._respond_result(result)
 
