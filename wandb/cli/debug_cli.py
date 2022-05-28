@@ -1,3 +1,20 @@
+"""Debug subcommands
+
+Commands:
+    wandb debug
+    wandb debug service
+    wandb debug service SERVICE-ID info
+    wandb debug service SERVICE-ID run RUN-ID info
+    wandb debug service SERVICE-ID run RUN-ID user PID info
+    wandb debug service SERVICE-ID run RUN-ID user PID show stacks
+    wandb debug service SERVICE-ID run RUN-ID user PID thread THREAD-ID
+    wandb debug service SERVICE-ID run RUN-ID user PID thread THREAD-ID info
+    wandb debug service SERVICE-ID run RUN-ID internal info
+    wandb debug service SERVICE-ID run RUN-ID internal show stacks
+    wandb debug service SERVICE-ID run RUN-ID internal thread THREAD-ID show stack
+
+"""
+
 import os
 import click
 import psutil
@@ -48,22 +65,31 @@ def list_runs(service=None):
 
 
 # @click.command()
-@click.group(help="Debug stuff")
+@click.group(help="Debug service")
 @click.pass_context
 def service_subcommand(ctx):
     service_id = ctx.info_name
     os.environ["WANDB_SERVICE"] = service_id
 
-@click.command()
-def run():
+
+@click.group(help="Debug run")
+def dbg_run():
     pass
+
+
+@click.group()
+@click.pass_context
+def dbg_run_node(ctx):
+    run_id = ctx.info_name
+    # print("GOT RUN", run_id)
+    os.environ["WANDB_RUN_ID"] = run_id
 
 
 @click.command()
 @click.pass_context
-def run_subcommand(ctx):
+def dbg_run_stacks(ctx):
     # print("junk", vars(ctx))
-    run_id = ctx.info_name
+    run_id = os.environ["WANDB_RUN_ID"]
     manager = get_manager()
     if not manager:
         return
@@ -89,6 +115,16 @@ def run_subcommand(ctx):
         print(l)
 
 
+@click.group()
+def dbg_run_internal():
+    pass
+
+
+@click.group()
+def dbg_run_internal_show():
+    pass
+
+
 class CliServices(click.MultiCommand):
     def list_commands(self, ctx):
         services = list_services()
@@ -104,7 +140,7 @@ class CliRuns(click.MultiCommand):
         return runs
 
     def get_command(self, ctx, name):
-        return run_subcommand
+        return dbg_run_node
 
 
 def install_subcommands(base):
@@ -113,3 +149,7 @@ def install_subcommands(base):
     base.add_command(service_cmd)
     base.add_command(run_cmd)
     service_subcommand.add_command(run_cmd)
+
+    dbg_run_node.add_command(dbg_run_internal, name="internal")
+    dbg_run_internal.add_command(dbg_run_internal_show, name="show")
+    dbg_run_internal_show.add_command(dbg_run_stacks, name="stacks")
