@@ -2210,7 +2210,7 @@ class DebugDataFrame(google.protobuf.message.Message):
     LINE_FIELD_NUMBER: builtins.int
     LOCALS_FIELD_NUMBER: builtins.int
     filename: typing.Text = ...
-    lineno: typing.Text = ...
+    lineno: builtins.int = ...
     name: typing.Text = ...
     line: typing.Text = ...
 
@@ -2220,7 +2220,7 @@ class DebugDataFrame(google.protobuf.message.Message):
     def __init__(self,
         *,
         filename : typing.Text = ...,
-        lineno : typing.Text = ...,
+        lineno : builtins.int = ...,
         name : typing.Text = ...,
         line : typing.Text = ...,
         locals : typing.Optional[typing.Iterable[global___DebugDataLocal]] = ...,
@@ -2228,35 +2228,24 @@ class DebugDataFrame(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal[u"filename",b"filename",u"line",b"line",u"lineno",b"lineno",u"locals",b"locals",u"name",b"name"]) -> None: ...
 global___DebugDataFrame = DebugDataFrame
 
-class DebugDataStack(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    FRAMES_FIELD_NUMBER: builtins.int
-
-    @property
-    def frames(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___DebugDataFrame]: ...
-
-    def __init__(self,
-        *,
-        frames : typing.Optional[typing.Iterable[global___DebugDataFrame]] = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"frames",b"frames"]) -> None: ...
-global___DebugDataStack = DebugDataStack
-
 class DebugDataThread(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    STACKS_FIELD_NUMBER: builtins.int
+    STACK_FIELD_NUMBER: builtins.int
     NAME_FIELD_NUMBER: builtins.int
+    THREAD_ID_FIELD_NUMBER: builtins.int
     name: typing.Text = ...
+    thread_id: typing.Text = ...
 
     @property
-    def stacks(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___DebugDataStack]: ...
+    def stack(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___DebugDataFrame]: ...
 
     def __init__(self,
         *,
-        stacks : typing.Optional[typing.Iterable[global___DebugDataStack]] = ...,
+        stack : typing.Optional[typing.Iterable[global___DebugDataFrame]] = ...,
         name : typing.Text = ...,
+        thread_id : typing.Text = ...,
         ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"name",b"name",u"stacks",b"stacks"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"name",b"name",u"stack",b"stack",u"thread_id",b"thread_id"]) -> None: ...
 global___DebugDataThread = DebugDataThread
 
 class DebugData(google.protobuf.message.Message):

@@ -2049,5 +2049,5 @@ def debug():
     pass
 
 
-from . import debug_cli
+from . import debug as debug_cli
 debug_cli.install_subcommands(debug)

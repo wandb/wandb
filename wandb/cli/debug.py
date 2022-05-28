@@ -110,6 +110,7 @@ def dbg_run_stacks(ctx):
     sock_interface._stream_id = run_id
     sock_interface.publish_debug("junk")
     data = sock_interface.communicate_debug_poll("data")
+    # print("GOT", data)
     data_list = data.traceback.split("\n")
     for l in data_list:
         print(l)

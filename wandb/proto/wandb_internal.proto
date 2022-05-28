@@ -821,25 +821,19 @@ message DebugDataLocal {
  */
 message DebugDataFrame {
   string filename = 1;
-  string lineno = 2;
+  int32 lineno = 2;
   string name = 3;
   string line = 4;
   repeated DebugDataLocal locals = 5;
 }
 
 /*
- * DebugDataStack:
- */
-message DebugDataStack {
-  repeated DebugDataFrame frames = 1;
-}
-
-/*
  * DebugDataThread:
  */
 message DebugDataThread {
-  repeated DebugDataStack stacks = 1;
+  repeated DebugDataFrame stack = 1;
   string name = 2;
+  string thread_id = 3;
 }
 
 /*
