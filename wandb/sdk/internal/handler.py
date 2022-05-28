@@ -656,9 +656,35 @@ class HandleManager:
         debug_poll = record.request.debug_poll
         result = proto_util._result_from_record(record)
         result.response.debug_poll_response.done = True
+
+        import sys
         import traceback
-        data = traceback.format_stack()
-        result.response.debug_poll_response.traceback = "\n".join(data)
+        import threading
+
+        thread_map = {t.ident: t.name for t in threading.enumerate()}
+
+        output = []
+        for thread_id, frame in sys._current_frames().items():
+            output.append(
+                f"--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
+            )
+            summary = traceback.StackSummary.extract(
+                traceback.walk_stack(frame),
+                capture_locals=True,
+            )
+            # for filename, lineno, name, line in traceback.extract_stack(frame):
+            #     output.append(f'  File: "{filename}", line {lineno}, in {name}')
+            #     if line:
+            #         output.append(f"  Line: {line}")
+            for stack in summary:
+                output.append(f'  File: "{stack.filename}", line {stack.lineno}, in {stack.name}')
+                stack_line = stack.line
+                if stack_line:
+                    output.append(f"    Line: {stack_line}")
+                stack_locals = stack.locals or {}
+                for k, v in stack_locals.items():
+                    output.append(f"      {k}: {v}")
+        result.response.debug_poll_response.traceback = "\n".join(output)
         self._respond_result(result)
 
     def handle_request_run_start(self, record: Record) -> None:
