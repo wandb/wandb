@@ -228,9 +228,10 @@ class InterfaceBase:
     ) -> Optional[pb.RunUpdateResult]:
         raise NotImplementedError
 
-    def communicate_run_start(self, run_pb: pb.RunRecord) -> bool:
+    def communicate_run_start(self, run_pb: pb.RunRecord, user_pid: int) -> bool:
         run_start = pb.RunStartRequest()
         run_start.run.CopyFrom(run_pb)
+        run_start.user_pid = user_pid
         result = self._communicate_run_start(run_start)
         return result is not None
 
