@@ -100,6 +100,7 @@ class HandleManager:
         self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
+        self._debug = None
 
         self._tb_watcher = None
         self._system_stats = None
@@ -651,9 +652,12 @@ class HandleManager:
 
     def handle_request_debug(self, record: Record) -> None:
         debug = record.request.debug
+        # TODO: might have multiple debug requests
+        self._debug = debug
 
     def handle_request_debug_poll(self, record: Record) -> None:
         debug_poll = record.request.debug_poll
+
         result = proto_util._result_from_record(record)
         result.response.debug_poll_response.done = True
         debug_data = result.response.debug_poll_response.data
@@ -664,42 +668,38 @@ class HandleManager:
 
         thread_map = {t.ident: t.name for t in threading.enumerate()}
 
-        output = []
+        if not self._debug.threads:
+            return
+
         for thread_id, frame in sys._current_frames().items():
             debug_thread = debug_data.threads.add()
-            output.append(
-                f"--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
-            )
             thread_name = thread_map.get(thread_id)
             debug_thread.thread_id = str(thread_id)
             if thread_name:
                 debug_thread.name = thread_name
+            if not self._debug.stacks:
+                continue
+            lookup_lines = self._debug.lines
+            capture_locals = self._debug.locals
             summary = traceback.StackSummary.extract(
                 traceback.walk_stack(frame),
-                capture_locals=True,
+                lookup_lines=lookup_lines,
+                capture_locals=capture_locals,
             )
-            # for filename, lineno, name, line in traceback.extract_stack(frame):
-            #     output.append(f'  File: "{filename}", line {lineno}, in {name}')
-            #     if line:
-            #         output.append(f"  Line: {line}")
             for stack in summary:
                 debug_frame = debug_thread.stack.add()
                 debug_frame.filename = stack.filename
                 debug_frame.lineno = stack.lineno
                 debug_frame.name = stack.name
-                output.append(f'  File: "{stack.filename}", line {stack.lineno}, in {stack.name}')
                 stack_line = stack.line
                 if stack_line:
-                    output.append(f"    Line: {stack_line}")
                     debug_frame.line = stack.line
                 stack_locals = stack.locals or {}
                 for k, v in stack_locals.items():
                     debug_local = debug_frame.locals.add()
-                    output.append(f"      {k}: {v}")
                     debug_local.var = k
                     debug_local.repr = str(v)
                     debug_local.type = str(type(v))
-        result.response.debug_poll_response.traceback = "\n".join(output)
         self._respond_result(result)
 
     def handle_request_run_start(self, record: Record) -> None:

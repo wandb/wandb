@@ -851,7 +851,6 @@ message DebugData {
  * DebugPollResponse:
  */
 message DebugPollResponse {
-  string traceback = 1;
   bool done = 2;
   DebugData data = 3;
 }

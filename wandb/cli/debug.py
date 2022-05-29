@@ -108,7 +108,7 @@ def dbg_run_stacks(ctx):
     sock_client = svc_iface_sock._get_sock_client()
     sock_interface = InterfaceSock(sock_client)
     sock_interface._stream_id = run_id
-    sock_interface.publish_debug("junk")
+    sock_interface.publish_debug()
     data = sock_interface.communicate_debug_poll("data")
     # print("GOT", data)
     if not data:
@@ -122,9 +122,6 @@ def dbg_run_stacks(ctx):
                 print(f"\t\t\t{var.var}")
                 print(f"\t\t\t\t{var.type}")
                 print(f"\t\t\t\t{var.repr}")
-    # data_list = data.traceback.split("\n")
-    # for l in data_list:
-    #     print(l)
 
 
 @click.group()
