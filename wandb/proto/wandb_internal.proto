@@ -123,6 +123,9 @@ message RunRecord {
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
   GitRepoRecord             git = 21;
+  int64                     user_pid = 22;
+
+
   _RecordInfo               _info = 200;
 }
 
@@ -653,6 +656,7 @@ message AttachRequest {
 message AttachResponse {
   RunRecord run = 1;
   ErrorInfo error = 2;
+  int64 user_pid = 3;
 }
 
 /*
