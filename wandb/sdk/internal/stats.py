@@ -25,17 +25,11 @@ StatsDict = Dict[str, Union[float, Dict[str, float]]]
 M1_MAX_POWER_WATTS = 16.5
 
 
-def gpu_in_use_by_this_process(gpu_handle: GPUHandle) -> bool:
+def gpu_in_use_by_this_process(gpu_handle: GPUHandle, pid: int) -> bool:
     if not psutil:
         return False
 
-    # NOTE: this optimizes for the case where wandb was initialized from
-    # iniside the user script (i.e. `wandb.init()`). If we ran using
-    # `wandb run` on the command line, the shell will be detected as the
-    # parent, possible resulting in sibling processes being incorrectly
-    # indentified as part of this process -- still better than not
-    # detecting in-use gpus at all.
-    base_process = psutil.Process().parent() or psutil.Process()
+    base_process = psutil.Process(pid=pid)
 
     our_processes = base_process.children(recursive=True)
     our_processes.append(base_process)
@@ -176,7 +170,7 @@ class SystemStats:
                 temp = pynvml.nvmlDeviceGetTemperature(
                     handle, pynvml.NVML_TEMPERATURE_GPU
                 )
-                in_use_by_us = gpu_in_use_by_this_process(handle)
+                in_use_by_us = gpu_in_use_by_this_process(handle, pid=self._pid)
 
                 stats["gpu.{}.{}".format(i, "gpu")] = utilz.gpu
                 stats["gpu.{}.{}".format(i, "memory")] = utilz.memory
