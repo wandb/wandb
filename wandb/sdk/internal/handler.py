@@ -5,7 +5,6 @@ import json
 import logging
 import math
 import numbers
-import os
 from queue import Queue
 from threading import Event
 import time
