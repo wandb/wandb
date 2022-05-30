@@ -239,6 +239,9 @@ jobs:
         type: string
       toxenv:
         type: string
+      shard:
+        type: string
+        default: "base"
       parallelism:
         type: integer
         default: 1
@@ -275,6 +278,7 @@ jobs:
             - slack/notify:
                 event: fail
                 template: basic_fail_1
+                mentions: "@channel"
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
@@ -704,6 +708,7 @@ jobs:
                   - slack/notify:
                       event: fail
                       template: basic_fail_1
+                      mentions: "@channel"
                       # taken from slack-secrets context
                       channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
             - when:
@@ -715,9 +720,9 @@ jobs:
                       # taken from slack-secrets context
                       channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  check_pip_install_wandb:
+  pip_install_wandb:
     parameters:
-      image:
+      python_version:
         type: string
       notify_on_failure:
         type: boolean
@@ -726,13 +731,42 @@ jobs:
         type: boolean
         default: false
     docker:
-      - image: << parameters.image >>
+      - image: "python:<< parameters.python_version >>"
     steps:
       - run:
-          name: "Check that pip install wandb succeeds"
+          name: "Install stable version of wandb with stable versions of dependencies"
           command: |
             pip install wandb
             python -c "import wandb"
+            pip freeze > deps_wandb.txt
+            pip uninstall -y -r deps_wandb.txt
+          when: always
+      - run:
+          name: "Install pre-release version of wandb with stable versions of dependencies"
+          command: |
+            pip install --pre wandb
+            python -c "import wandb"
+            pip freeze > deps_wandb_pre.txt
+            pip uninstall -y -r deps_wandb_pre.txt
+          when: always
+      - run:
+          name: "Install stable version of wandb with pre-release versions of dependencies"
+          command: |
+            wget https://raw.githubusercontent.com/wandb/client/$CIRCLE_BRANCH/requirements.txt
+            for r in `grep -o '^[^#]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
+            pip install wandb
+            python -c "import wandb"
+            pip freeze > deps_wandb_deps_pre.txt
+            pip uninstall -y -r deps_wandb_deps_pre.txt
+          when: always
+      - run:
+          name: "Install pre-release version of wandb with pre-release versions of dependencies"
+          command: |
+            for r in `grep -o '^[^#]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
+            pip install --pre wandb
+            python -c "import wandb"
+          when: always
+
       # conditionally post a notification to slack if the job failed/succeeded
       - when:
           condition: << parameters.notify_on_failure >>
@@ -740,6 +774,7 @@ jobs:
             - slack/notify:
                 event: fail
                 template: basic_fail_1
+                mentions: "@channel"
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
       - when:
@@ -768,37 +803,10 @@ workflows:
           # todo? add a link to the pipeline in the message
           message: ":runner: *Nightly run started!*"
       # check that `pip install wandb` is successful
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.6"
-          image: "python:3.6"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.7"
-          image: "python:3.7"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.8"
-          image: "python:3.8"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.9"
-          image: "python:3.9"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.10"
-          image: "python:3.10"
+      - pip_install_wandb:
+          matrix:
+            parameters:
+              python_version: [ "3.6", "3.7", "3.8", "3.9", "3.10" ]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:
@@ -893,81 +901,42 @@ workflows:
       # functional linux tests
       #
       - test:
-          name: "func-s_base-lin-py37"
+          matrix:
+            parameters:
+              shard:
+                - "base"
+                - "sklearn"
+                - "metaflow"
+                - "tf115"
+                - "tf21"
+                - "tf25"
+                - "tf26"
+                - "service"
+                - "noml"
+                - "grpc"
+                - "docs"
+          name: "func-s_<<matrix.shard>>-lin-py37"
           image: "python:3.7"
-          toxenv: "func-s_base-py37,func-covercircle"
-      - test:
-          name: "func-s_sklearn-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_sklearn-py37,func-covercircle"
-      - test:
-          name: "func-s_metaflow-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_metaflow-py37,func-covercircle"
-      - test:
-          name: "func-s_tf115-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_tf115-py37,func-covercircle"
-      - test:
-          name: "func-s_tf21-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_tf21-py37,func-covercircle"
-      - test:
-          name: "func-s_tf25-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_tf25-py37,func-covercircle"
-      - test:
-          name: "func-s_tf26-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_tf26-py37,func-covercircle"
-      - test:
-          name: "func-s_service-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_service-py37,func-covercircle"
-      - test:
-          name: "func-s_noml-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_noml-py37,func-covercircle"
-      - test:
-          name: "func-s_grpc-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_grpc-py37,func-covercircle"
+          toxenv: "func-s_<<matrix.shard>>-py37,func-covercircle"
       - test:
           name: "func-s_py310-lin-py310"
           image: "python:3.10"
           toxenv: "func-s_py310-py310,func-covercircle"
+      # import tests
       - test:
-          name: "func-s_docs-lin-py37"
+          matrix:
+            parameters:
+              shard:
+                - "imports1"
+                - "imports2"
+                - "imports3"
+                - "imports4"
+                - "imports5"
+                - "imports6"
+                - "imports7"
+          name: "func-s_<<matrix.shard>>-lin-py37"
           image: "python:3.7"
-          toxenv: "func-s_docs-py37,func-covercircle"
-      - test:
-          name: "func-s_imports1-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_imports1-py37"
-      - test:
-          name: "func-s_imports2-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_imports2-py37"
-      - test:
-          name: "func-s_imports3-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_imports3-py37"
-      - test:
-          name: "func-s_imports4-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_imports4-py37"
-      - test:
-          name: "func-s_imports5-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_imports5-py37"
-      - test:
-          name: "func-s_imports6-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_imports6-py37"
-      - test:
-          name: "func-s_imports7-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_imports7-py37"
+          toxenv: "func-s_<<matrix.shard>>-py37"
       #
       # functional win tests
       #
@@ -1069,37 +1038,10 @@ workflows:
           message: ":runner: *Manual cloud run started!*"
           execute: << pipeline.parameters.manual_nightly_slack_notify >>
       # check that `pip install wandb` is successful
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.6"
-          image: "python:3.6"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.7"
-          image: "python:3.7"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.8"
-          image: "python:3.8"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.9"
-          image: "python:3.9"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
-      - check_pip_install_wandb:
-          name: "pip-install-wandb-3.10"
-          image: "python:3.10"
+      - pip_install_wandb:
+          matrix:
+            parameters:
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           requires:
