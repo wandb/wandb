@@ -664,7 +664,9 @@ class HandleManager:
 
         if not self._settings._disable_stats:
             user_pid = run_start.user_pid
-            self._system_stats = stats.SystemStats(pid=user_pid, interface=self._interface)
+            self._system_stats = stats.SystemStats(
+                pid=user_pid, interface=self._interface
+            )
             self._system_stats.start()
 
         if not self._settings._disable_meta and not run_start.run.resumed:
