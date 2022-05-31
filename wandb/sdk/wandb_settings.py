@@ -388,9 +388,12 @@ class Settings:
     _service_transport: str
     _start_datetime: datetime
     _start_time: float
+    _stats_sample_rate_seconds: float
+    _stats_samples_to_average: int
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
+    _user_pid: int
     _windows: bool
     allow_val_change: bool
     anonymous: str
