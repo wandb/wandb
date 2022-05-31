@@ -892,11 +892,10 @@ workflows:
           name: "unit-s_base-lin-py39"
           image: "python:3.9"
           toxenv: "py39"
-# Enable when circle offers python 3.10 image
-#      - test:
-#         name: "unit-s_base-lin-py310"
-#         image: "python:3.10"
-#         toxenv: "py310"
+      - test:
+          name: "unit-s_base-lin-py310"
+          image: "python:3.10"
+          toxenv: "py310"
       #
       # functional linux tests
       #
