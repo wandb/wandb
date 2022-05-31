@@ -1200,6 +1200,7 @@ def test_launch_local_cuda_config(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_prev_run_cuda(
     live_mock_server,
     test_settings,
@@ -1226,6 +1227,7 @@ def test_launch_cuda_prev_run_cuda(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_false_prev_run_cuda(
     live_mock_server,
     test_settings,
@@ -1344,7 +1346,7 @@ def test_launch_build_config_file(
     runner, mocked_fetchable_git_repo, test_settings, monkeypatch
 ):
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.local.LocalRunner,
+        wandb.sdk.launch.runner.local.LocalContainerRunner,
         "run",
         lambda *args, **kwargs: (args, kwargs),
     )

@@ -4,7 +4,7 @@ tox==3.24.0
 pip
 Pillow
 pandas
-matplotlib
+matplotlib!=3.5.2
 soundfile; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 git+https://github.com/bastibe/python-soundfile@0.11.0b3#egg=soundfile; sys_platform == 'darwin' and platform.machine == 'arm64'
 boto3
@@ -20,10 +20,8 @@ scikit-learn
 tensorflow>=1.15.2; python_version < '3.9' and sys_platform != 'darwin'
 tensorflow>=1.15.2; python_version > '3.6' and sys_platform == 'darwin' and platform.machine != 'arm64'
 tensorflow-macos; python_version > '3.6' and python_version < '3.10' and sys_platform == 'darwin' and platform.machine == 'arm64'
-torch; sys_platform == 'darwin'
-torchvision; sys_platform == 'darwin'
-torch==1.9.0+cpu; python_version < '3.9' and sys_platform != 'darwin'
-torchvision==0.10.0+cpu; python_version < '3.9' and sys_platform != 'darwin'
+torch; python_version < '3.10'
+torchvision; python_version < '3.10'
 plotly
 bokeh
 tqdm
