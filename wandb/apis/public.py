@@ -44,7 +44,6 @@ from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
 
 from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
-from wandb.apis.reports.util import generate_name
 
 
 logger = logging.getLogger(__name__)
@@ -442,6 +441,18 @@ class Api:
         )
         self._client = RetryingClient(self._base_client)
 
+    @staticmethod
+    def _generate_name(length=12):
+        # This implementation roughly based this snippet in core
+        # https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
+
+        import numpy as np
+
+        rand = np.random.random()
+        rand = int(str(rand)[2:])
+        rand36 = np.base_repr(rand, 36)
+        return rand36.lower()[:length]
+
     def create_run(self, **kwargs):
         """Create a new run"""
         if kwargs.get("entity") is None:
@@ -506,7 +517,7 @@ class Api:
                 "entityName": entity,
                 "projectName": project,
                 "description": description,
-                "name": generate_name(),
+                "name": self._generate_name(),
                 "displayName": title,
                 "type": "runs",
                 "spec": json.dumps(minimal_spec),
@@ -3748,7 +3759,7 @@ class BetaReport(Attrs):
                 "entityName": entity,
                 "projectName": project,
                 "description": description,
-                "name": generate_name() if clone else self.name,
+                "name": self._generate_name() if clone else self.name,
                 "displayName": title,
                 "type": view_type,
                 "spec": json.dumps(self.spec),
