@@ -7,7 +7,8 @@ import wandb
 
 
 pytestmark = pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="@wandb.beta.monitor requires Python 3.x",
+    sys.version_info < (3, 5),
+    reason="@wandb.beta.monitor requires Python 3.x",
 )
 
 
@@ -38,7 +39,7 @@ def test_monitor_class_manual_init(test_settings, live_mock_server):
     with wandb.init(settings=test_settings):
 
         @wandb.beta.monitor(settings=test_settings)
-        class Foo(object):
+        class Foo:
             def predict(self, stuff):
                 return [random.random(), random.random()]
 
@@ -56,7 +57,7 @@ def test_monitor_class_manual_init(test_settings, live_mock_server):
 
 
 def test_monitor_function_on_class(test_settings, live_mock_server):
-    class Foo(object):
+    class Foo:
         @wandb.beta.monitor(settings=test_settings)
         def predict(self, stuff):
             return [random.random(), random.random()]

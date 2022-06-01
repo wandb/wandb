@@ -6,7 +6,7 @@ labels = ["foo", "bar", "baz"]
 
 
 @wandb.beta.monitor(flush_interval=10, settings={"project": "test_monitor"})
-class Model(object):
+class Model:
     def predict(self, input, id=None):
         return np.random.random((3,))
 
@@ -17,7 +17,7 @@ class Model(object):
             rows += 1
             best_idx = np.argmax(call.results[0])
             table.add_data(wandb.Image(call.args[0]), call.results[0][best_idx], labels[best_idx], call.kwargs["id"])
-        print("Flushed {} rows".format(rows))
+        print(f"Flushed {rows} rows")
         return table
 
 
@@ -26,7 +26,7 @@ for i in range(100):
     res = model.predict(np.random.random((28,28,1)), id=i)
     if i % 10 == 0:
         if i != 0:
-            print("Predicted {} images, most recent {}".format(i, res))
+            print(f"Predicted {i} images, most recent {res}")
         if i == 20:
             print("Disabled monitoring")
             model.wandb_monitor.disable()

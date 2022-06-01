@@ -698,7 +698,6 @@ def test_artifact_table_deserialize_timestamp_column():
         ]
 
 
-# For reasons unclear this can take longer than 60 seconds
 @pytest.mark.timeout(120)
 def test_artifact_log_with_network_error(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():

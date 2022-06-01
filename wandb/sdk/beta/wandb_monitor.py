@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """
 Monitor inference with Weights & Biases
 """
@@ -48,7 +47,7 @@ class ArgType(NamedTuple):
     pass
 
 
-class Prediction(object):
+class Prediction:
     """
     A Prediction represents a call to your predict function.  You will be passed a
     sampled list of `Prediction` objects to the `to_table` function you define.
@@ -90,7 +89,7 @@ class Prediction(object):
             return None
 
 
-class Monitor(object):
+class Monitor:
     """
     Monitor is a helper class that keeps track of statistics and periodically
     flushes them to W&B.  It's generally used via the @wandb.beta.monitor decorator
@@ -256,7 +255,7 @@ class Monitor(object):
         self._sampled_preds = sample.UniformSampleAccumulator(self._max_samples)
         for arg in self._schema["inputs"]:
             if arg.data_type in ["df", "np"]:
-                metric_name = "input_{}".format(arg.key)
+                metric_name = f"input_{arg.key}"
                 # TODO: should we average? np.average(vals, axis=0)
                 # TODO: should we try to set max bins inteligently?
                 metrics[metric_name] = wandb.Histogram(
@@ -285,7 +284,7 @@ class Monitor(object):
                 self._artifact = wandb.Artifact(name, typ, metadata=meta)
             else:
                 wandb.termwarn(
-                    "to_table returned an incompatible object: {}".format(table)
+                    f"to_table returned an incompatible object: {table}"
                 )
 
         self._flush_count += 1
