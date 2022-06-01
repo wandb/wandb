@@ -73,7 +73,7 @@ def bytes_to_hex(bytestr):
     return codecs.getencoder("hex")(bytestr)[0]
 
 
-class ArtifactManifest(object):
+class ArtifactManifest:
     entries: Dict[str, "ArtifactEntry"]
 
     @classmethod
@@ -123,7 +123,7 @@ class ArtifactManifest(object):
         ]
 
 
-class ArtifactEntry(object):
+class ArtifactEntry:
     path: str
     ref: Optional[str]
     digest: str
@@ -183,7 +183,7 @@ class ArtifactEntry(object):
         raise NotImplementedError
 
 
-class Artifact(object):
+class Artifact:
     @property
     def id(self) -> Optional[str]:
         """
@@ -351,13 +351,14 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def new_file(self, name: str, mode: str = "w"):
+    def new_file(self, name: str, mode: str = "w", encoding: Optional[str] = None):
         """
         Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
             name: (str) The name of the new file being added to the artifact.
             mode: (str, optional) The mode in which to open the new file.
+            encoding: (str, optional) The encoding in which to open the new file.
 
         Examples:
             ```
@@ -758,12 +759,12 @@ class Artifact(object):
         raise NotImplementedError
 
 
-class StorageLayout(object):
+class StorageLayout:
     V1 = "V1"
     V2 = "V2"
 
 
-class StoragePolicy(object):
+class StoragePolicy:
     @classmethod
     def lookup_by_name(cls, name):
         for sub in cls.__subclasses__():
@@ -812,7 +813,7 @@ class StoragePolicy(object):
         raise NotImplementedError
 
 
-class StorageHandler(object):
+class StorageHandler:
     @property
     def scheme(self) -> str:
         """
@@ -822,7 +823,10 @@ class StorageHandler(object):
         pass
 
     def load_path(
-        self, artifact: Artifact, manifest_entry: ArtifactEntry, local: bool = False,
+        self,
+        artifact: Artifact,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
     ) -> str:
         """
         Loads the file or directory within the specified artifact given its
@@ -851,7 +855,7 @@ class StorageHandler(object):
         pass
 
 
-class ArtifactsCache(object):
+class ArtifactsCache:
 
     _TMP_PREFIX = "tmp"
 

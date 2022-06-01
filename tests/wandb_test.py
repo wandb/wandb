@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.viz import create_custom_chart
+from wandb.viz import custom_chart
 
 
 def test_log_step(live_mock_server, test_settings, parse_ctx):
@@ -22,10 +22,10 @@ def test_log_step(live_mock_server, test_settings, parse_ctx):
 
 def test_log_custom_chart(live_mock_server, test_settings, parse_ctx):
     with wandb.init(settings=test_settings) as run:
-        custom_chart = create_custom_chart(
+        my_custom_chart = custom_chart(
             "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
         )
-        run.log({"my_custom_chart": custom_chart})
+        run.log({"my_custom_chart": my_custom_chart})
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     assert ctx_util.history[0].get("my_custom_chart_table")
@@ -302,43 +302,55 @@ def test_login_sets_api_base_url(mock_server):
     assert api.settings["base_url"] == base_url
 
 
-def test_save_policy_symlink(runner, wandb_init_run):
+def test_save_policy_symlink(runner, user_test):
     with runner.isolated_filesystem():
+        run = user_test.get_run()
         with open("test.rad", "w") as f:
             f.write("something")
-        wandb.save("test.rad")
-        assert os.path.exists(os.path.join(wandb_init_run.dir, "test.rad"))
-        assert wandb.run._backend.files["test.rad"] == 2
+        run.save("test.rad")
+        assert os.path.exists(os.path.join(run.dir, "test.rad"))
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == "test.rad"
+        assert file_record.policy == 2
 
 
-def test_save_policy_glob_symlink(runner, wandb_init_run, capsys):
+def test_save_policy_glob_symlink(runner, user_test, capsys):
     with runner.isolated_filesystem():
+        run = user_test.get_run()
         with open("test.rad", "w") as f:
             f.write("something")
         with open("foo.rad", "w") as f:
             f.write("something")
-        wandb.save("*.rad")
+        run.save("*.rad")
         _, err = capsys.readouterr()
         assert "Symlinked 2 files" in err
-        assert os.path.exists(os.path.join(wandb_init_run.dir, "test.rad"))
-        assert os.path.exists(os.path.join(wandb_init_run.dir, "foo.rad"))
-        assert wandb.run._backend.files["*.rad"] == 2
+        assert os.path.exists(os.path.join(run.dir, "test.rad"))
+        assert os.path.exists(os.path.join(run.dir, "foo.rad"))
+
+        # test_save_policy_glob_symlink
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == "*.rad"
+        assert file_record.policy == 2
 
 
-def test_save_absolute_path(runner, wandb_init_run, capsys):
+def test_save_absolute_path(runner, user_test, capsys):
+    run = user_test.get_run()
     root = tempfile.gettempdir()
     test_path = os.path.join(root, "test.txt")
     with open(test_path, "w") as f:
         f.write("something")
     with runner.isolated_filesystem():
-        wandb.save(test_path)
+        run.save(test_path)
         _, err = capsys.readouterr()
         assert "Saving files without folders" in err
-        assert os.path.exists(os.path.join(wandb_init_run.dir, "test.txt"))
-        assert wandb.run._backend.files["test.txt"] == 2
+        assert os.path.exists(os.path.join(run.dir, "test.txt"))
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == "test.txt"
+        assert file_record.policy == 2
 
 
-def test_save_relative_path(runner, wandb_init_run):
+def test_save_relative_path(runner, user_test):
+    run = user_test.get_run()
     root = tempfile.gettempdir()
     test_path = os.path.join(root, "tmp", "test.txt")
     print("DAMN", os.path.dirname(test_path))
@@ -346,9 +358,11 @@ def test_save_relative_path(runner, wandb_init_run):
     with open(test_path, "w") as f:
         f.write("something")
     with runner.isolated_filesystem():
-        wandb.save(test_path, base_path=root, policy="now")
-        assert os.path.exists(os.path.join(wandb_init_run.dir, test_path))
-        assert wandb.run._backend.files[os.path.relpath(test_path, root)] == 0
+        run.save(test_path, base_path=root, policy="now")
+        assert os.path.exists(os.path.join(run.dir, test_path))
+        file_record = user_test.get_records().files[0].files[0]
+        assert file_record.path == os.path.relpath(test_path, root)
+        assert file_record.policy == 0
 
 
 def test_save_invalid_path(wandb_init_run):
@@ -441,7 +455,7 @@ def test_run_project(wandb_init_run):
 
 
 @pytest.mark.wandb_args(env={"WANDB_PROJECT": "proj1"})
-def test_run_project(wandb_init_run):
+def test_run_project_name(wandb_init_run):
     assert wandb.run.project_name() == "proj1"
 
 
@@ -497,12 +511,13 @@ def test_run_url(wandb_init_run):
 
 def test_attach_usage_errors(wandb_init_run):
 
-    with pytest.raises(wandb.UsageError) as e:
-        wandb._attach(run=wandb_init_run)
-    assert (
-        "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
-        in str(e.value)
-    )
+    if not os.environ.get("WANDB_REQUIRE_SERVICE"):
+        with pytest.raises(wandb.UsageError) as e:
+            wandb._attach(run=wandb_init_run)
+        assert (
+            "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
+            in str(e.value)
+        )
 
     with pytest.raises(wandb.UsageError) as e:
         wandb._attach()

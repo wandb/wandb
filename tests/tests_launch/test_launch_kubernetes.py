@@ -1,15 +1,16 @@
 import json
-import os
-import subprocess
-from unittest.mock import MagicMock
-
+import boto3
+import base64
 import kubernetes
 import wandb
 from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
-from wandb.sdk.launch.runner.kubernetes import KubernetesRunner, MAX_KUBERNETES_RETRIES
+from wandb.sdk.launch.runner.kubernetes import (
+    MAX_KUBERNETES_RETRIES,
+    maybe_create_imagepull_secret,
+)
+from unittest.mock import MagicMock
 import pytest
-from tests import utils
 
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
@@ -21,7 +22,7 @@ class MockDict(dict):
     __delattr__ = dict.__delitem__
 
 
-class MockPodList(object):
+class MockPodList:
     def __init__(self, pods):
         self.pods = pods
 
@@ -30,7 +31,7 @@ class MockPodList(object):
         return self.pods
 
 
-class MockBatchV1Api(object):
+class MockBatchV1Api:
     def __init__(self, mock_api_client, jobs):
         self.context = mock_api_client["context_name"]
         self.jobs = jobs
@@ -50,7 +51,7 @@ class MockBatchV1Api(object):
         del self.jobs[name]
 
 
-class MockCoreV1Api(object):
+class MockCoreV1Api:
     def __init__(self, mock_api_client, pods):
         self.context = mock_api_client["context_name"]
         self.pods = pods
@@ -68,6 +69,9 @@ class MockCoreV1Api(object):
         for pod in self.pods.items:
             if pod.metadata.name == name:
                 return pod.log
+
+    def delete_namespaced_secret(self, namespace, name):
+        pass
 
 
 def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
@@ -108,9 +112,17 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         for i, cont in enumerate(pod_spec.containers):
             pod_spec.containers[i] = MockDict(cont)
 
-        job_spec.template = MockDict({"spec": pod_spec,})
+        job_spec.template = MockDict(
+            {
+                "spec": pod_spec,
+            }
+        )
         mock_job = MockDict(
-            {"status": mock_status, "spec": job_spec, "metadata": MockDict(metadata),}
+            {
+                "status": mock_status,
+                "spec": job_spec,
+                "metadata": MockDict(metadata),
+            }
         )
         jobs_dict[name] = mock_job
         return [[mock_job]]
@@ -151,7 +163,8 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
     )
 
     monkeypatch.setattr(
-        "wandb.docker.push", lambda repo, tag: None,
+        "wandb.docker.push",
+        lambda repo, tag: None,
     )
 
 
@@ -160,7 +173,11 @@ def pods(job_name):
         [
             MockDict(
                 {
-                    "metadata": MockDict({"name": "pod1",}),
+                    "metadata": MockDict(
+                        {
+                            "name": "pod1",
+                        }
+                    ),
                     "job_name": job_name,
                     "log": "test log string",
                 }
@@ -174,19 +191,34 @@ def test_launch_kube(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("test-job"), status)
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    monkeypatch.setattr(wandb.docker, "push", lambda repo, tag: "")
 
     multi_spec = {
         "spec": {
             "template": {
                 "spec": {
-                    "containers": [{"name": "container1",}, {"name": "container2",},]
+                    "containers": [
+                        {
+                            "name": "container1",
+                        },
+                        {
+                            "name": "container2",
+                        },
+                    ]
                 }
             }
         }
@@ -203,7 +235,7 @@ def test_launch_kube(
             "kubernetes": {
                 "job_spec": json.dumps(multi_spec),
                 "config_file": "dummy.yaml",
-                "registry": "test.registry",
+                "registry": "test.registry/repo_name",
                 "job_name": "test-job",
                 "job_labels": {"test-label": "test-val"},
                 "backoff_limit": 3,
@@ -242,7 +274,7 @@ def test_launch_kube(
         == args["node_selectors"]["test-selector"]
     )
     container = job.spec.template.spec.containers[0]
-    assert "test.registry/" in container.image
+    assert "test.registry/repo_name" in container.image
     out, err = capsys.readouterr()
     assert "Job test-job created on pod(s) pod1" in err
 
@@ -252,7 +284,14 @@ def test_launch_kube_suspend_cancel(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     jobs = {}
-    status = MockDict({"succeeded": 0, "failed": 0, "active": 1, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 0,
+            "failed": 0,
+            "active": 1,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -268,7 +307,10 @@ def test_launch_kube_suspend_cancel(
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
-            "kubernetes": {"config_file": "dummy.yaml", "suspend": False,},
+            "kubernetes": {
+                "config_file": "dummy.yaml",
+                "suspend": False,
+            },
         },
         "synchronous": False,
     }
@@ -292,7 +334,14 @@ def test_launch_kube_failed(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 0, "failed": 1, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 0,
+            "failed": 1,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -318,37 +367,19 @@ def test_launch_kube_failed(
     assert "Note: no resource args specified" in err
 
 
-def test_set_context(live_mock_server, test_settings, monkeypatch):
-    setup_mock_kubernetes_client(monkeypatch, {}, pods("test"), MockDict({}))
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    runner = KubernetesRunner(api, {})
-
-    resource_args = {}
-    context = runner._set_context(kubernetes, None, resource_args)
-    assert context["name"] == "active-context"
-
-    resource_args = {
-        "context": "inactive-context",
-    }
-    context = runner._set_context(kubernetes, None, resource_args)
-    assert context["name"] == "inactive-context"
-
-    resource_args = {
-        "context": "context-not-found",
-    }
-    with pytest.raises(LaunchError) as e:
-        runner._set_context(kubernetes, None, resource_args)
-        assert "Specified context context-not-found was not found" in str(e.value)
-
-
 @pytest.mark.timeout(320)
 def test_kube_user_container(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -361,8 +392,12 @@ def test_kube_user_container(
             "template": {
                 "spec": {
                     "containers": [
-                        {"image": "container1:tag",},
-                        {"image": "container2:tag",},
+                        {
+                            "image": "container1:tag",
+                        },
+                        {
+                            "image": "container2:tag",
+                        },
                     ]
                 }
             }
@@ -399,7 +434,14 @@ def test_kube_multi_container(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     jobs = {}
-    status = MockDict({"succeeded": 1, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -413,8 +455,12 @@ def test_kube_multi_container(
             "template": {
                 "spec": {
                     "containers": [
-                        {"image": "container1:tag",},
-                        {"image": "container2:tag",},
+                        {
+                            "image": "container1:tag",
+                        },
+                        {
+                            "image": "container2:tag",
+                        },
                     ]
                 }
             }
@@ -473,7 +519,14 @@ def test_get_status_failed(
         raise Exception("test read_namespaced_pod_log_error")
 
     jobs = {}
-    status = MockDict({"succeeded": 0, "failed": 0, "active": 0, "conditions": None,})
+    status = MockDict(
+        {
+            "succeeded": 0,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods("launch-asdfasdf"), status)
 
@@ -497,7 +550,8 @@ def test_get_status_failed(
     }
 
     run = launch.run(**kwargs)
-    run.get_status()  # fail count => 1
+    run.get_status()  # fail count => 0
+    run.get_status()  # fail count =>
     out, err = capsys.readouterr()
     assert "Failed to get pod status for job" in err
 
@@ -505,3 +559,69 @@ def test_get_status_failed(
     with pytest.raises(LaunchError) as e:
         status = run.get_status()
         assert "Failed to start job" in str(e.value)
+
+
+def test_maybe_create_imagepull_secret_none():
+    secret = maybe_create_imagepull_secret(MagicMock(), {}, "12345678", "wandb")
+    assert secret is None
+
+
+def test_maybe_create_imagepull_secret_given_creds(runner, monkeypatch):
+    mock_client = MagicMock()
+    mock_client().get_authorization_token.return_value = {
+        "authorizationData": [
+            {"authorizationToken": base64.b64encode(b"AWS:faketesttoken").decode()}
+        ]
+    }
+    monkeypatch.setattr(boto3, "client", mock_client)
+    creds = {"secret-name": "aws-secret", "secret-mount-path": "./test"}
+    url = "12345678.dkr.ecr.us-east-1.amazonaws.com:test-repo"
+    secret = maybe_create_imagepull_secret(
+        MagicMock(),
+        {
+            "ecr-provider": "AWS",
+            "url": url,
+            "credentials": creds,
+        },
+        "12345678",
+        "wandb",
+    )
+    # assert secret is None
+    assert (
+        base64.b64decode(secret.data[".dockerconfigjson"])
+        == json.dumps(
+            {
+                "auths": {
+                    url: {
+                        "username": "AWS",
+                        "password": "faketesttoken",
+                        "email": "deprecated@wandblaunch.com",
+                        "auth": base64.b64encode(b"AWS:faketesttoken").decode(),
+                    }
+                }
+            }
+        ).encode()
+    )
+
+
+def test_maybe_create_imagepull_secret_invalid_provider(runner, monkeypatch):
+    mock_client = MagicMock()
+    mock_client().get_authorization_token.return_value = {
+        "authorizationData": [
+            {"authorizationToken": base64.b64encode(b"AWS:faketesttoken").decode()}
+        ]
+    }
+    monkeypatch.setattr(boto3, "client", mock_client)
+    creds = {"secret-name": "aws-secret", "secret-mount-path": "./test"}
+    url = "12345678.dkr.ecr.us-east-1.amazonaws.com:test-repo"
+    with pytest.raises(LaunchError):
+        maybe_create_imagepull_secret(
+            MagicMock(),
+            {
+                "ecr-provider": "GCP",
+                "url": url,
+                "credentials": creds,
+            },
+            "12345678",
+            "wandb",
+        )

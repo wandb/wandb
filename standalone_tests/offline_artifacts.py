@@ -1,31 +1,42 @@
-### rm -rf wandb && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py && rm -rf wandb && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py --online
+"""
+rm -rf wandb \
+ && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py \
+ && rm -rf wandb \
+ && WANDB_BASE_URL=http://api.wandb.test python offline_artifacts.py --online
+"""
 
+import sys
+
+from click.testing import CliRunner
+import numpy as np
 import wandb
 from wandb.cli import cli
-import numpy as np
-from click.testing import CliRunner
-# import traceback
-import sys
 
 dataset_size = 250
 pred_size = 100
 mode = "offline" if len(sys.argv) <= 1 or sys.argv[1] != "--online" else "online"
-project = "offline_artifacts_2_{}".format(mode)
+project = f"offline_artifacts_2_{mode}"
 
 
 def random_image():
-    return wandb.Image(np.random.randint(255, size=(32,32)))
+    return wandb.Image(np.random.randint(255, size=(32, 32)))
 
 
 def make_dataset():
-    return wandb.Table(data=[
-        [str(i), random_image()]
-        for i in range(dataset_size)
-    ], columns=["id", "input_image"])
+    return wandb.Table(
+        data=[[str(i), random_image()] for i in range(dataset_size)],
+        columns=["id", "input_image"],
+    )
 
 
 def make_linked_table(dataset):
-    tab = wandb.Table(data=[[str(np.random.choice(range(dataset_size)).tolist()), i, random_image()] for i in range(pred_size)], columns=["fk_id", "tab_id", "pred_img"])
+    tab = wandb.Table(
+        data=[
+            [str(np.random.choice(range(dataset_size)).tolist()), i, random_image()]
+            for i in range(pred_size)
+        ],
+        columns=["fk_id", "tab_id", "pred_img"],
+    )
     tab.set_fk("fk_id", dataset, "id")
     return tab
 
@@ -34,7 +45,7 @@ def make_run():
     return wandb.init(project=project, mode=mode)
 
 
-### BASE RUN TYPES
+# BASE RUN TYPES
 
 
 def init_dataset_run():
@@ -56,7 +67,7 @@ def init_ref_dataset_run():
     return dataset
 
 
-### ALTERNATE ORDERINGS (Should execute)
+# ALTERNATE ORDERINGS (Should execute)
 
 
 def do_ref_dataset_run_grouped():
@@ -88,7 +99,7 @@ def do_ref_dataset_run_reversed():
     return dataset
 
 
-### DEP RUNS ON LOGGED
+# DEP RUNS ON LOGGED
 
 
 def do_dep_dataset_run():
@@ -137,7 +148,7 @@ def do_dep_ref_dataset_run_reversed():
     return run
 
 
-### DEP RUNS ON REF
+# DEP RUNS ON REF
 
 
 def do_r_dep_dataset_run():

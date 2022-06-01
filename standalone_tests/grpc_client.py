@@ -5,7 +5,6 @@ This is a very internal test client, it is only for testing to verify base funct
 
 """
 
-from __future__ import print_function
 
 import datetime
 import enum
@@ -16,9 +15,8 @@ import time
 from typing import Any, Dict
 from typing import TYPE_CHECKING
 
-import wandb
 import grpc
-import six
+import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2 as spb  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
@@ -45,7 +43,7 @@ def make_log_data(data):
 
 def make_config(config_dict, obj=None):
     config = obj or wandb_internal_pb2.ConfigRecord()
-    for k, v in six.iteritems(config_dict):
+    for k, v in config_dict.items():
         update = config.update.add()
         update.key = k
         update.value_json = json.dumps(v)
@@ -106,7 +104,7 @@ def make_run_data(data):
 
 def make_summary(summary_dict, obj=None):
     summary = obj or wandb_internal_pb2.SummaryRecord()
-    for k, v in six.iteritems(summary_dict):
+    for k, v in summary_dict.items():
         update = summary.update.add()
         update.key = k
         update.value_json = json.dumps(v)
@@ -126,7 +124,7 @@ def make_output(name, data):
     return outdata
 
 
-class WandbInternalClient(object):
+class WandbInternalClient:
     def __init__(self):
         self._channel = None
         self._stub = None
@@ -160,7 +158,7 @@ class WandbInternalClient(object):
 
     def run_start(self, run_id):
         settings = wandb.Settings()
-        settings._start_run()
+        settings._set_run_start_time()
         settings.update(run_id=run_id)
         files_dir = settings.files_dir
         os.makedirs(files_dir)
@@ -227,12 +225,18 @@ def main():
 
     def_id = "junk123"
     run_id = os.environ.get("WANDB_RUN_ID", def_id)
-    entity = os.environ.get("WANDB_ENTITY")
+    entity = os.environ.get("WANDB_ENTITY")  # noqa: F841
     project = os.environ.get("WANDB_PROJECT")
     group = os.environ.get("WANDB_RUN_GROUP")
     job_type = os.environ.get("WANDB_JOB_TYPE")
 
-    run_data = dict(run_id=run_id, project=project, group=group, job_type=job_type, config=dict(parm1=2, param2=3))
+    run_data = dict(
+        run_id=run_id,
+        project=project,
+        group=group,
+        job_type=job_type,
+        config=dict(parm1=2, param2=3),
+    )
     wic.run_start(run_id)
     run_result = wic.run_update(run_data)
     run = run_result.run

@@ -1,3 +1,4 @@
+import io
 import wandb
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
@@ -5,7 +6,6 @@ import numpy as np
 import pytest
 import PIL
 import os
-import six
 import sys
 import glob
 import platform
@@ -408,7 +408,6 @@ def test_create_bokeh_plot(mocked_run):
     bp.bind_to_run(mocked_run, "bokeh", 0)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_gif(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
     vid = wandb.Video(video, format="gif")
@@ -416,7 +415,6 @@ def test_video_numpy_gif(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_mp4(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
     vid = wandb.Video(video, format="mp4")
@@ -424,7 +422,6 @@ def test_video_numpy_mp4(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".mp4")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_multi(mocked_run):
     video = np.random.random(size=(2, 10, 3, 28, 28))
     vid = wandb.Video(video)
@@ -432,7 +429,6 @@ def test_video_numpy_multi(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_invalid():
     video = np.random.random(size=(3, 28, 28))
     with pytest.raises(ValueError):
@@ -469,7 +465,7 @@ def test_molecule(mocked_run):
 def test_molecule_file(mocked_run):
     with open("test.pdb", "w") as f:
         f.write("00000")
-    mol = wandb.Molecule(open("test.pdb", "r"))
+    mol = wandb.Molecule(open("test.pdb"))
     mol.bind_to_run(mocked_run, "rad", "summary")
     wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
@@ -526,10 +522,12 @@ def test_molecule_from_rdkit_invalid_input(mocked_run):
 
 
 def test_html_str(mocked_run):
-    html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
+    html_str = "<html><body><h1>Hello</h1></body></html>"
+    html = wandb.Html(html_str)
     html.bind_to_run(mocked_run, "rad", "summary")
     wandb.Html.seq_to_json([html], mocked_run, "rad", "summary")
     assert os.path.exists(html._path)
+    assert html == wandb.Html(html_str)
     wandb.finish()
 
 
@@ -582,6 +580,32 @@ def test_table_default():
         "data": [["Some awesome text", "Positive", "Negative"]],
         "columns": ["Input", "Output", "Expected"],
     }
+
+
+def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
+    test_settings.update({"table_raise_on_max_row_limit_exceeded": True})
+    run = wandb.init(settings=test_settings)
+
+    # make this smaller just for this one test to make the runtime shorter
+    with mock.patch("wandb.Table.MAX_ARTIFACT_ROWS", 10):
+        table = wandb.Table(
+            data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(),
+            columns=["col1"],
+        )
+
+        with pytest.raises(ValueError):
+            run.log({"table": table})
+
+        with mock.patch(
+            "wandb.Table.MAX_ARTIFACT_ROWS", wandb.Table.MAX_ARTIFACT_ROWS + 1
+        ):
+            try:
+                # should no longer raise
+                run.log({"table": table})
+            except Exception as e:
+                assert (
+                    False
+                ), f"Logging a big table with an overridden limit raised with {e}"
 
 
 def test_table_eq_debug():
@@ -669,7 +693,11 @@ def test_object3d_numpy(mocked_run):
 
 
 def test_object3d_dict(mocked_run):
-    obj = wandb.Object3D({"type": "lidar/beta",})
+    obj = wandb.Object3D(
+        {
+            "type": "lidar/beta",
+        }
+    )
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
     wandb.finish()
@@ -677,7 +705,11 @@ def test_object3d_dict(mocked_run):
 
 def test_object3d_dict_invalid(mocked_run):
     with pytest.raises(ValueError):
-        obj = wandb.Object3D({"type": "INVALID",})
+        obj = wandb.Object3D(
+            {
+                "type": "INVALID",
+            }
+        )
     wandb.finish()
 
 
@@ -705,7 +737,7 @@ def test_object3d_io(mocked_run):
     f = utils.fixture_open("Box.gltf")
     body = f.read()
 
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
     obj = wandb.Object3D(ioObj, file_type="obj")
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
@@ -727,7 +759,7 @@ def test_object3d_unsupported_numpy():
 
     f = utils.fixture_open("Box.gltf")
     body = f.read()
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
 
     with pytest.raises(ValueError):
         wandb.Object3D(ioObj)
@@ -853,9 +885,41 @@ def test_graph():
 def test_numpy_arrays_to_list():
     conv = _numpy_arrays_to_lists
     assert conv(np.array(1)) == [1]
-    assert conv(np.array((1, 2,))) == [1, 2]
-    assert conv([np.array((1, 2,))]) == [[1, 2]]
-    assert conv(np.array(({"a": [np.array((1, 2,))]}, 3,))) == [{"a": [[1, 2]]}, 3]
+    assert conv(
+        np.array(
+            (
+                1,
+                2,
+            )
+        )
+    ) == [1, 2]
+    assert conv(
+        [
+            np.array(
+                (
+                    1,
+                    2,
+                )
+            )
+        ]
+    ) == [[1, 2]]
+    assert conv(
+        np.array(
+            (
+                {
+                    "a": [
+                        np.array(
+                            (
+                                1,
+                                2,
+                            )
+                        )
+                    ]
+                },
+                3,
+            )
+        )
+    ) == [{"a": [[1, 2]]}, 3]
 
 
 def test_partitioned_table_from_json(runner, mock_server, api):
@@ -1000,7 +1064,8 @@ def test_table_logging(
     run.log(
         {
             "logged_table": wandb.Table(
-                columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+                columns=["a"],
+                data=[[wandb.Image(np.ones(shape=(32, 32)))]],
             )
         }
     )
@@ -1014,7 +1079,10 @@ def test_reference_table_logging(
 ):
     live_mock_server.set_ctx({"max_cli_version": max_cli_version})
     run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
     run.log({"logged_table": t})
     run.log({"logged_table": t})
     run.finish()
@@ -1026,7 +1094,10 @@ def test_reference_table_artifacts(
 ):
     live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
 
     art = wandb.Artifact("A", "dataset")
     art.add(t, "table")
@@ -1067,10 +1138,12 @@ def test_joined_table_logging(
     run = wandb.init(settings=test_settings)
     art = wandb.Artifact("A", "dataset")
     t1 = wandb.Table(
-        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+        columns=["id", "a"],
+        data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
     )
     t2 = wandb.Table(
-        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+        columns=["id", "a"],
+        data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
     )
     art.add(t1, "t1")
     art.add(t2, "t2")
@@ -1107,9 +1180,9 @@ def test_log_with_back_slash_windows(live_mock_server, test_settings):
     # windows doesnt allow a backslash in media keys right now
     if platform.system() == "Windows":
         with pytest.raises(ValueError):
-            run.log({"train\image": wb_image})
+            run.log({r"train\image": wb_image})
     else:
-        run.log({"train\image": wb_image})
+        run.log({r"train\image": wb_image})
 
     run.finish()
     assert True

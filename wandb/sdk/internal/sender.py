@@ -1,24 +1,21 @@
-#
-# -*- coding: utf-8 -*-
 """
 sender.
 """
 
-from __future__ import print_function
 
 from collections import defaultdict
 from datetime import datetime
 import json
 import logging
 import os
+import queue
+from queue import Queue
 import time
 from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 from typing import cast, TYPE_CHECKING
 
 from pkg_resources import parse_version
 import requests
-from six.moves import queue
-from six.moves.queue import Queue
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
@@ -181,10 +178,11 @@ class SendManager:
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
-        """This is a helper class method to setup a standalone SendManager.
-        Currently we're using this primarily for `sync.py`.
+        """This is a helper class method to set up a standalone SendManager.
+        Currently, we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
+        # TODO(settings) replace with wandb.Settings
         sd: SettingsDict = dict(
             files_dir=files_dir,
             root_dir=root_dir,
@@ -204,6 +202,8 @@ class SendManager:
             save_code=None,
             email=None,
             silent=None,
+            _live_policy_rate_limit=None,
+            _live_policy_wait_time=None,
         )
         settings = SettingsStatic(sd)
         record_q: "Queue[Record]" = queue.Queue()
@@ -232,8 +232,8 @@ class SendManager:
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
         if record_type not in {"output", "request"}:
-            logger.debug("send: {}".format(record_type))
-        assert send_handler, "unknown send handler: {}".format(handler_str)
+            logger.debug(f"send: {record_type}")
+        assert send_handler, f"unknown send handler: {handler_str}"
         send_handler(record)
 
     def send_preempting(self, record: "Record") -> None:
@@ -246,8 +246,8 @@ class SendManager:
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
         if request_type != "network_status":
-            logger.debug("send_request: {}".format(request_type))
-        assert send_handler, "unknown handle: {}".format(handler_str)
+            logger.debug(f"send_request: {request_type}")
+        assert send_handler, f"unknown handle: {handler_str}"
         send_handler(record)
 
     def _respond_result(self, result: "Result") -> None:
@@ -345,7 +345,7 @@ class SendManager:
             except queue.Empty:
                 break
             except Exception as e:
-                logger.warning("Error emptying retry queue: {}".format(e))
+                logger.warning(f"Error emptying retry queue: {e}")
         self._respond_result(result)
 
     def send_request_login(self, record: "Record") -> None:
@@ -357,7 +357,7 @@ class SendManager:
         # self._login_flags = json.loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
         if server_info:
-            logger.info("Login server info: {}".format(server_info))
+            logger.info(f"Login server info: {server_info}")
         self._entity = viewer.get("entity")
         if record.control.req_resp:
             result = proto_util._result_from_record(record)
@@ -385,11 +385,11 @@ class SendManager:
     def send_request_defer(self, record: "Record") -> None:
         defer = record.request.defer
         state = defer.state
-        logger.info("handle sender defer: {}".format(state))
+        logger.info(f"handle sender defer: {state}")
 
         def transition_state() -> None:
             state = defer.state + 1
-            logger.info("send defer: {}".format(state))
+            logger.info(f"send defer: {state}")
             self._interface.publish_defer(state)
 
         done = False
@@ -803,12 +803,12 @@ class SendManager:
         # so that fields like entity or project are available to be attached to Sentry events.
         run_settings = message_to_dict(self._run)
         self._settings = SettingsStatic({**dict(self._settings), **run_settings})
-        util.sentry_set_scope(settings_dict=self._settings,)
+        util.sentry_set_scope(
+            settings_dict=self._settings,
+        )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(
-            self._settings, self._api, self._pusher, file_dir
-        )
+        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
@@ -841,7 +841,7 @@ class SendManager:
         summary_path = os.path.join(self._settings.files_dir, filenames.SUMMARY_FNAME)
         with open(summary_path, "w") as f:
             f.write(json_summary)
-        self._save_file(filenames.SUMMARY_FNAME)
+        self._save_file(interface.GlobStr(filenames.SUMMARY_FNAME))
 
     def send_stats(self, record: "Record") -> None:
         stats = record.stats
@@ -887,7 +887,7 @@ class SendManager:
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
-            line = "{}{}{}{}".format(prepend, timestamp, prev_str, line)
+            line = f"{prepend}{timestamp}{prev_str}{line}"
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
@@ -902,7 +902,7 @@ class SendManager:
     def send_metric(self, record: "Record") -> None:
         metric = record.metric
         if metric.glob_name:
-            logger.warning("Seen metric with glob (shouldnt happen)")
+            logger.warning("Seen metric with glob (shouldn't happen)")
             return
 
         # merge or overwrite
@@ -943,7 +943,9 @@ class SendManager:
         self._telemetry_obj.MergeFrom(telem)
         self._update_config()
 
-    def _save_file(self, fname: str, policy: str = "end") -> None:
+    def _save_file(
+        self, fname: interface.GlobStr, policy: "interface.PolicyName" = "end"
+    ) -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)
@@ -952,7 +954,9 @@ class SendManager:
         files = record.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
-            self._save_file(k.path, interface.file_enum_to_policy(k.policy))
+            self._save_file(
+                interface.GlobStr(k.path), interface.file_enum_to_policy(k.policy)
+            )
 
     def send_header(self, record: "Record") -> None:
         pass
@@ -999,10 +1003,12 @@ class SendManager:
             res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
-            logger.info("logged artifact {} - {}".format(artifact.name, res))
+            logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
-            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
+            result.response.log_artifact_response.error_message = (
+                'error logging artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
             )
 
         self._respond_result(result)
@@ -1010,7 +1016,7 @@ class SendManager:
     def send_request_artifact_send(self, record: "Record") -> None:
         # TODO: combine and eventually remove send_request_log_artifact()
 
-        # for now we are using req/resp uuid for transaction id
+        # for now, we are using req/resp uuid for transaction id
         # in the future this should be part of the message to handle idempotency
         xid = record.uuid
 
@@ -1020,7 +1026,7 @@ class SendManager:
             res = self._send_artifact(artifact)
             assert res, "Unable to send artifact"
             done_msg.artifact_id = res["id"]
-            logger.info("logged artifact {} - {}".format(artifact.name, res))
+            logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
@@ -1033,7 +1039,7 @@ class SendManager:
         artifact = record.artifact
         try:
             res = self._send_artifact(artifact)
-            logger.info("sent artifact {} - {}".format(artifact.name, res))
+            logger.info(f"sent artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
@@ -1099,9 +1105,7 @@ class SendManager:
                     wait_duration=alert.wait_duration,
                 )
             except Exception as e:
-                logger.error(
-                    'send_alert: failed for alert "{}": {}'.format(alert.title, e)
-                )
+                logger.error(f'send_alert: failed for alert "{alert.title}": {e}')
 
     def finish(self) -> None:
         logger.info("shutting down sender")
@@ -1144,7 +1148,7 @@ class SendManager:
 
     def get_local_info(self) -> "LocalInfo":
         """
-        This is a helper function that queries the server to get the the local version information.
+        This is a helper function that queries the server to get the local version information.
         First, we perform an introspection, if it returns empty we deduce that the docker image is
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
@@ -1156,7 +1160,7 @@ class SendManager:
 
         latest_local_version = "latest"
 
-        # Assuming the query is succesful if the result is empty it indicates that
+        # Assuming the query is successful if the result is empty it indicates that
         # the backend is out of date since it doesn't have the desired field
         server_info = self.get_server_info()
         latest_local_version_info = server_info.get("latestLocalVersionInfo", {})

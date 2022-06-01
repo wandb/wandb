@@ -26,7 +26,7 @@ def outlier_candidates(regressor, X, y):
 
     # Compute Cook's distance
     residuals_studentized = residuals / np.sqrt(mse) / np.sqrt(1 - leverage)
-    distance_ = residuals_studentized ** 2 / X.shape[1]
+    distance_ = residuals_studentized**2 / X.shape[1]
     distance_ *= leverage / (1 - leverage)
 
     # Compute the influence threshold rule of thumb
@@ -38,7 +38,11 @@ def outlier_candidates(regressor, X, y):
     for d in distance_:
         distance_dict.append(d)
         count += 1
-        if utils.check_against_limit(count, "outlier_candidates", utils.chart_limit,):
+        if utils.check_against_limit(
+            count,
+            "outlier_candidates",
+            utils.chart_limit,
+        ):
             break
 
     table = make_table(distance_dict, outlier_percentage_, influence_threshold_)

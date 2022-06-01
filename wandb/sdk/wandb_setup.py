@@ -18,6 +18,7 @@ import threading
 from typing import (
     Any,
     Dict,
+    List,
     Optional,
     Union,
 )
@@ -181,6 +182,24 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             self._load_viewer()
         entity = self._server._viewer.get("entity")
         return entity
+
+    def _get_username(self) -> Optional[str]:
+        if self._settings and self._settings._offline:
+            return None
+        if self._server is None:
+            self._load_viewer()
+        username = self._server._viewer.get("username")
+        return username
+
+    def _get_teams(self) -> List[str]:
+        if self._settings and self._settings._offline:
+            return None
+        if self._server is None:
+            self._load_viewer()
+        teams = self._server._viewer.get("teams")
+        if teams:
+            teams = [team["node"]["name"] for team in teams["edges"]]
+        return teams or []
 
     def _load_viewer(self, settings=None) -> None:
         if self._settings and self._settings._offline:

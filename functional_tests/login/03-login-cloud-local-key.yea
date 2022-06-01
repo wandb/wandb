@@ -1,6 +1,8 @@
 id: 0.login.03-login-cloud-local-key
 plugin:
   - wandb
+tag:
+  skip: true
 depend:
   requirements:
     - pytest

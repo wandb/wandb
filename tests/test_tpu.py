@@ -1,3 +1,4 @@
+import os
 import pytest
 import time
 
@@ -6,7 +7,7 @@ from wandb.sdk.internal.stats import SystemStats
 from wandb.sdk.internal.tpu import TPUProfiler
 
 
-class MockTPUProfiler(object):
+class MockTPUProfiler:
     def __init__(self):
         self.utilization = 22.1
 
@@ -26,7 +27,7 @@ def test_tpu_system_stats(monkeypatch, fake_interface):
     monkeypatch.setattr(
         wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
     )
-    stats = SystemStats(pid=1000, interface=fake_interface)
+    stats = SystemStats(pid=os.getpid(), interface=fake_interface)
     # stats.start()
     # time.sleep(1)
     # stats.shutdown()
@@ -47,7 +48,7 @@ def is_tf_pkg_installed():
     return True
 
 
-class MockProfilerClient(object):
+class MockProfilerClient:
     def __init__(self, tpu_utilization: int = 10.1) -> None:
         self.tpu_utilization = tpu_utilization
 

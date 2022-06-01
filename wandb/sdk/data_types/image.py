@@ -40,6 +40,14 @@ def _server_accepts_image_filenames() -> bool:
     return parse_version("0.12.10") <= parse_version(max_cli_version)
 
 
+def _server_accepts_artifact_path() -> bool:
+    target_version = "0.12.14"
+    max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
+    return max_cli_version is not None and parse_version(
+        target_version
+    ) <= parse_version(max_cli_version)
+
+
 class Image(BatchableMedia):
     """Format images for logging to W&B.
 
@@ -50,6 +58,8 @@ class Image(BatchableMedia):
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
         caption: (string) Label for display of image.
+
+    Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
 
     Examples:
         ### Create a wandb.Image from a numpy array
@@ -112,7 +122,7 @@ class Image(BatchableMedia):
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
     ) -> None:
-        super(Image, self).__init__()
+        super().__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
@@ -230,7 +240,11 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
+    def _initialize_from_data(
+        self,
+        data: "ImageDataType",
+        mode: str = None,
+    ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -311,23 +325,36 @@ class Image(BatchableMedia):
         id_: Optional[Union[int, str]] = None,
         ignore_copy_err: Optional[bool] = None,
     ) -> None:
-        super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
+        # For Images, we are going to avoid copying the image file to the run.
+        # We should make this common functionality for all media types, but that
+        # requires a broader UI refactor. This model can easily be moved to the
+        # higher level Media class, but that will require every UI surface area
+        # that depends on the `path` to be able to instead consume
+        # `artifact_path`. I (Tim) think the media panel makes up most of this
+        # space, but there are also custom charts, and maybe others. Let's
+        # commit to getting all that fixed up before moving this to  the top
+        # level Media class.
+        if (
+            not _server_accepts_artifact_path()
+            or self._get_artifact_entry_ref_url() is None
+        ):
+            super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
-                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                id_ = f"{id_}{i}" if id_ is not None else None
                 self._boxes[k].bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
-                id_ = "{}{}".format(id_, i) if id_ is not None else None
+                id_ = f"{id_}{i}" if id_ is not None else None
                 self._masks[k].bind_to_run(
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(Image, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
 
@@ -353,7 +380,11 @@ class Image(BatchableMedia):
                 class_id = hashlib.md5(
                     str(self._classes._class_set).encode("utf-8")
                 ).hexdigest()
-                class_name = os.path.join("media", "classes", class_id + "_cls",)
+                class_name = os.path.join(
+                    "media",
+                    "classes",
+                    class_id + "_cls",
+                )
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
@@ -434,7 +465,7 @@ class Image(BatchableMedia):
 
         for obj in jsons:
             expected = util.to_forward_slash_path(media_dir)
-            if not obj["path"].startswith(expected):
+            if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
                         cls.get_media_subdir(), obj["path"]
@@ -463,7 +494,9 @@ class Image(BatchableMedia):
             "count": num_images_to_log,
         }
         if _server_accepts_image_filenames():
-            meta["filenames"] = [obj["path"] for obj in jsons]
+            meta["filenames"] = [
+                obj.get("path", obj.get("artifact_path")) for obj in jsons
+            ]
         else:
             wandb.termwarn(
                 "Unable to log image array filenames. In some cases, this can prevent images from being"

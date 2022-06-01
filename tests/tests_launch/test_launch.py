@@ -4,16 +4,20 @@ import platform
 from unittest import mock
 from unittest.mock import MagicMock
 import sys
+import yaml
 
 import pytest
 import wandb
 from wandb.apis import PublicApi
+from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.docker import pull_docker_image
+from wandb.sdk.launch.builder.build import pull_docker_image
 import wandb.sdk.launch.launch as launch
+from wandb.sdk.launch.builder.docker import DockerBuilder
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.utils import (
+    LAUNCH_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -70,7 +74,7 @@ def mocked_fetchable_git_repo_ipython():
 
     def populate_dst_dir(dst_dir):
         with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
-            f.write(open(notebook_path("one_cell.ipynb"), "r").read())
+            f.write(open(notebook_path("one_cell.ipynb")).read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
@@ -90,6 +94,28 @@ def mocked_fetchable_git_repo_nodeps():
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return mock.Mock()
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
+
+
+@pytest.fixture
+def mocked_fetchable_git_repo_shell():
+    m = mock.Mock()
+
+    def populate_dst_dir(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        with open(os.path.join(dst_dir, "test.sh"), "w") as f:
+            f.write("python train.py")
+        with open(os.path.join(dst_dir, "unknown.unk"), "w") as f:
             f.write("test")
         return mock.Mock()
 
@@ -153,6 +179,40 @@ def mock_cuda_run_info(monkeypatch):
     )
 
 
+def mock_download_url(*args, **kwargs):
+    if args[1] == "wandb-metadata.json":
+        return {"url": "urlForCodePath"}
+    elif args[1] == "code/main2.py":
+        return {"url": "main2.py"}
+    elif args[1] == "requirements.txt":
+        return {"url": "requirements"}
+
+
+def mock_file_download_request(url):
+    class MockedFileResponder:
+        def __init__(self, url):
+            self.url: str = url
+
+        def json(self):
+            if self.url == "urlForCodePath":
+                return {"codePath": "main2.py"}
+
+        def iter_content(self, chunk_size):
+            if self.url == "requirements":
+                return [b"numpy==1.19.5\n", b"wandb==0.12.15\n"]
+            elif self.url == "main2.py":
+                return [
+                    b"import numpy\n",
+                    b"import wandb\n",
+                    b"import time\n",
+                    b"print('(main2.py) starting')\n",
+                    b"time.sleep(1)\n",
+                    b"print('(main2.py) finished')\n",
+                ]
+
+    return 200, MockedFileResponder(url)
+
+
 def check_project_spec(
     project_spec,
     api,
@@ -180,11 +240,11 @@ def check_project_spec(
         )
     assert project_spec.resource == resource
     if resource_args:
-        assert set([(k, v) for k, v in resource_args.items()]) == set(
-            [(k, v) for k, v in project_spec.resource_args.items()]
-        )
+        assert {(k, v) for k, v in resource_args.items()} == {
+            (k, v) for k, v in project_spec.resource_args.items()
+        }
     if project_spec.source == _project_spec.LaunchSource.WANDB:
-        with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
+        with open(os.path.join(project_spec.project_dir, "patch.txt")) as fp:
             contents = fp.read()
             assert contents == "testing"
 
@@ -233,7 +293,9 @@ def test_launch_base_case(
         _project_spec.create_metadata_file(*args, **kwargs)
 
     monkeypatch.setattr(
-        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
+        wandb.sdk.launch._project_spec,
+        "create_metadata_file",
+        mock_create_metadata_file,
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
@@ -280,7 +342,10 @@ def test_launch_add_base(live_mock_server):
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -464,7 +529,8 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.update(
-            launch=True, source=wandb.sdk.wandb_settings.Source.INIT,
+            launch=True,
+            source=wandb.sdk.wandb_settings.Source.INIT,
         )
         test_settings.update(
             launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
@@ -670,22 +736,27 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
     assert "Unable to push to run queue not-found. Queue not found" in err
 
 
-# this test includes building a docker container which can take some time.
+# this test includes building a docker container which can take some time,
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.flaky
-@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        wandb.sdk.launch.agent.LaunchAgent,
+        "pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    launch.create_and_run_agent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert ctx["num_acked"] == 1
@@ -696,7 +767,12 @@ def test_launch_agent_instance(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+    }
+    agent = LaunchAgent(api, config)
     ctx = live_mock_server.get_ctx()
     assert len(ctx["launch_agents"]) == 1
     assert agent._id == int(list(ctx["launch_agents"].keys())[0])
@@ -706,7 +782,7 @@ def test_launch_agent_instance(test_settings, live_mock_server):
 
 
 @pytest.mark.flaky
-@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 def test_launch_agent_different_project_in_spec(
     test_settings,
     live_mock_server,
@@ -717,13 +793,18 @@ def test_launch_agent_different_project_in_spec(
 ):
     live_mock_server.set_ctx({"invalid_launch_spec_project": True})
     monkeypatch.setattr(
-        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        wandb.sdk.launch.agent.LaunchAgent,
+        "pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+    }
+    launch.create_and_run_agent(api, config)
     _, err = capsys.readouterr()
 
     assert (
@@ -736,10 +817,13 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["nonexistent_queue"],
+    }
     try:
-        launch.create_and_run_agent(
-            api, "mock_server_entity", "test_project", ["nonexistent_queue"],
-        )
+        launch.create_and_run_agent(api, config)
     except Exception as e:
         assert (
             "Could not start launch agent: Not all of requested queues (nonexistent_queue) found"
@@ -752,7 +836,12 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+    }
+    agent = LaunchAgent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0
@@ -770,17 +859,24 @@ def test_agent_no_introspection(test_settings, live_mock_server):
 
 
 def test_agent_inf_jobs(test_settings, live_mock_server):
-    agent = LaunchAgent("mock_server_entity", "test_project", ["default"], max_jobs=-1)
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+        "max_jobs": -1,
+    }
+    agent = LaunchAgent(api, config)
     assert agent._max_jobs == float("inf")
 
 
-# @pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython, monkeypatch
 ):
-    live_mock_server.set_ctx({"return_jupyter_in_run_info": True})
+    live_mock_server.set_ctx({"run_script_type": "notebook"})
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -824,7 +920,9 @@ def test_launch_no_server_info(
     )
     try:
         launch.run(
-            "https://wandb.ai/mock_server_entity/test/runs/1", api, project="new-test",
+            "https://wandb.ai/mock_server_entity/test/runs/1",
+            api,
+            project="new-test",
         )
     except wandb.errors.LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)
@@ -833,43 +931,17 @@ def test_launch_no_server_info(
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(60)
-def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
+def test_launch_metadata(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    # for now using mocks instead of mock server
-    def mocked_download_url(*args, **kwargs):
-        if args[1] == "wandb-metadata.json":
-            return {"url": "urlForCodePath"}
-        elif args[1] == "code/main2.py":
-            return {"url": "main2.py"}
-        elif args[1] == "requirements.txt":
-            return {"url": "requirements"}
+    api.download_url = mock_download_url
+    api.download_file = mock_file_download_request
 
-    api.download_url = MagicMock(side_effect=mocked_download_url)
-
-    def mocked_file_download_request(url):
-        class MockedFileResponder:
-            def __init__(self, url):
-                self.url: str = url
-
-            def json(self):
-                if self.url == "urlForCodePath":
-                    return {"codePath": "main2.py"}
-
-            def iter_content(self, chunk_size):
-                if self.url == "requirements":
-                    return [b"numpy==1.19.5\n"]
-                elif self.url == "main2.py":
-                    return [
-                        b"import wandb\n",
-                        b"import numpy\n",
-                        b"print('ran server fetched code')\n",
-                    ]
-
-        return 200, MockedFileResponder(url)
-
-    api.download_file = MagicMock(side_effect=mocked_file_download_request)
     run = launch.run(
         "https://wandb.ai/mock_server_entity/test/runs/1",
         api,
@@ -938,7 +1010,9 @@ def test_launch_project_spec_docker_image(
 
 
 def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
-    monkeypatch.setattr("wandb.sdk.launch.docker.docker_image_exists", lambda x: True)
+    monkeypatch.setattr(
+        "wandb.sdk.launch.builder.build.docker_image_exists", lambda x: True
+    )
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local._run_entry_point",
         lambda cmd, project_dir: (cmd, project_dir),
@@ -1018,10 +1092,40 @@ def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
         "_type": "artifactVersion",
         "id": "QXJ0aWZhY3Q6NTI1MDk4",
     }
-    artifacts_env_var = json.dumps({"old_name:v0": arti})
+    # artifacts_env_var = json.dumps({"old_name:v0": arti})
+    config_env_var = json.dumps(
+        {"epochs": 10, "art": "wandb-artifact://mock_server_entity/test/old_name:v0"}
+    )
+    with runner.isolated_filesystem():
+        monkeypatch.setenv("WANDB_ARTIFACTS", {})
+        monkeypatch.setenv("WANDB_CONFIG", config_env_var)
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        # arti_inst = run.use_artifact("old_name:v0")
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+        run.finish()
+        assert run.config.art.name == "old_name:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "art"
+
+
+def test_run_in_launch_context_with_artifact_no_used_as_env_var(
+    runner, live_mock_server, test_settings, monkeypatch
+):
+    live_mock_server.set_ctx({"swappable_artifacts": True})
+    arti = {
+        "name": "test:v0",
+        "project": "test",
+        "entity": "test",
+        "_version": "v0",
+        "_type": "artifactVersion",
+        "id": "QXJ0aWZhY3Q6NTI1MDk4",
+    }
+    # artifacts_env_var = json.dumps({"old_name:v0": arti})
     config_env_var = json.dumps({"epochs": 10})
     with runner.isolated_filesystem():
-        monkeypatch.setenv("WANDB_ARTIFACTS", artifacts_env_var)
+        monkeypatch.setenv("WANDB_ARTIFACTS", {"old_name:v0": arti})
         monkeypatch.setenv("WANDB_CONFIG", config_env_var)
         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
@@ -1029,7 +1133,7 @@ def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
-        assert arti_inst.name == "test:v0"
+        assert arti_inst.name == "old_name:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "old_name:v0"
 
@@ -1053,7 +1157,8 @@ def test_launch_local_cuda_command(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1071,11 +1176,13 @@ def test_launch_local_cuda_command(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(320)
 def test_launch_local_cuda_config(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1093,6 +1200,7 @@ def test_launch_local_cuda_config(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_prev_run_cuda(
     live_mock_server,
     test_settings,
@@ -1101,7 +1209,8 @@ def test_launch_cuda_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1118,6 +1227,7 @@ def test_launch_cuda_prev_run_cuda(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_false_prev_run_cuda(
     live_mock_server,
     test_settings,
@@ -1126,7 +1236,8 @@ def test_launch_cuda_false_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1152,7 +1263,8 @@ def test_launch_cuda_config_false_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point", lambda cmd, _: cmd,
+        "wandb.sdk.launch.runner.local._run_entry_point",
+        lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1168,3 +1280,131 @@ def test_launch_cuda_config_false_prev_run_cuda(
 
     returned_command = launch.run(**kwargs)
     assert "--gpus all" not in returned_command
+
+
+def test_launch_entrypoint(test_settings):
+    entry_point = ["python", "main.py"]
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    launch_project = _project_spec.LaunchProject(
+        "https://wandb.ai/mock_server_entity/test/runs/1",
+        api,
+        {},
+        "live_mock_server_entity",
+        "Test_project",
+        None,
+        {},
+        {},
+        {},
+        "local",
+        {},
+        None,
+    )
+    launch_project.add_entry_point(entry_point)
+    calced_ep = launch_project.get_single_entry_point().compute_command({"blah": 2})
+    assert calced_ep == ["python", "main.py", "--blah", "2"]
+
+
+@pytest.mark.timeout(320)
+def test_launch_shell_script(
+    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
+):
+    live_mock_server.set_ctx({"run_script_type": "shell"})
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    run = launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/shell1",
+        api,
+        project="new-test",
+    )
+    assert str(run.get_status()) == "finished"
+
+
+def test_launch_unknown_entrypoint(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo_shell,
+):
+    live_mock_server.set_ctx({"run_script_type": "unknown"})
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    with pytest.raises(LaunchError) as e_info:
+        launch.run(
+            "https://wandb.ai/mock_server_entity/test/runs/shell1",
+            api,
+            project="new-test",
+        )
+    assert "Unsupported entrypoint:" in str(e_info.value)
+
+
+def test_launch_build_config_file(
+    runner, mocked_fetchable_git_repo, test_settings, monkeypatch
+):
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.local.LocalContainerRunner,
+        "run",
+        lambda *args, **kwargs: (args, kwargs),
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.launch,
+        "LAUNCH_CONFIG_FILE",
+        "./config/wandb/launch-config.yaml",
+    )
+    launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    with runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+            json.dump(launch_config, f)
+
+        kwargs = {
+            "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+            "api": api,
+            "entity": "mock_server_entity",
+            "project": "test",
+            "synchronous": False,
+            "config": {"cuda": False},
+        }
+        args, _ = launch.run(**kwargs)
+        _, _, builder, registry_config = args
+        assert builder.builder_config == {"type": "docker"}
+        assert isinstance(builder, DockerBuilder)
+        assert registry_config == {"url": "test"}
+
+
+def test_resolve_agent_config(test_settings, monkeypatch, runner):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
+        "./config/wandb/launch-config.yaml",
+    )
+    monkeypatch.setenv("WANDB_ENTITY", "diffentity")
+    with runner.isolated_filesystem():
+        os.makedirs("./config/wandb")
+        with open("./config/wandb/launch-config.yaml", "w") as f:
+            yaml.dump(
+                {
+                    "entity": "different-entity",
+                    "max_jobs": 2,
+                    "registry": {"url": "test"},
+                },
+                f,
+            )
+        config, returned_api = launch.resolve_agent_config(
+            api, None, None, -1, ["diff-queue"]
+        )
+        returned_api.default_entity == "diffentity"
+        assert config["registry"] == {"url": "test"}
+        assert config["entity"] == "diffentity"
+        assert config["max_jobs"] == -1
+        assert config.get("project") is None

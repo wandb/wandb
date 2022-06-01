@@ -48,6 +48,9 @@ def test_run_log_mp_warn(fake_run, capsys):
     run._init_pid = _init_pid
 
 
+@pytest.mark.skipif(
+    os.environ.get("WANDB_REQUIRE_SERVICE"), reason="different behavior with service"
+)
 def test_run_log_mp_error(test_settings):
     test_settings.update({"strict": True})
     run = wandb.init(settings=test_settings)
@@ -71,7 +74,8 @@ def test_run_sweep():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
+    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run._populate_sweep_or_launch_config(sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=4, param3=9)
 
 
@@ -79,7 +83,8 @@ def test_run_sweep_overlap():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param2=8, param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
+    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run._populate_sweep_or_launch_config(sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=8, param3=9)
 
 
@@ -110,7 +115,12 @@ def test_run_pub_history(fake_run, record_q, records_util):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="numpy.float128 does not exist on windows"
+    platform.system() == "Windows",
+    reason="numpy.float128 does not exist on windows",
+)
+@pytest.mark.skipif(
+    platform.system() == "Darwin" and platform.machine() == "arm64",
+    reason="numpy.float128 does not exist on Macs with the Apple M1 chip",
 )
 def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util):
     # CLI: GH2255
@@ -153,7 +163,8 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         # simulate user turning on code saving in UI
         live_mock_server.set_ctx({"code_saving_enabled": True})
         test_settings.update(
-            save_code=None, source=wandb.sdk.wandb_settings.Source.BASE,
+            save_code=None,
+            source=wandb.sdk.wandb_settings.Source.BASE,
         )
         test_settings.update(
             code_dir=".", source=wandb.sdk.wandb_settings.Source.SETTINGS
@@ -316,15 +327,21 @@ def test_use_artifact_offline(live_mock_server, test_settings):
     run.finish()
 
 
-def test_run_urls(test_settings):
+@pytest.mark.skip(
+    reason=(
+        "mock server enforces entity=mock_server_entity and project=test,"
+        "this should only work on a live server, or mock_server would need customization."
+    )
+)
+def test_run_urls(live_mock_server, test_settings):
     base_url = "https://my.cool.site.com"
     entity = "me"
-    project = "test"
-    test_settings.update(dict(base_url=base_url, entity=entity, project=project))
+    project = "lol"
+    test_settings.update(base_url=base_url, entity=entity, project=project)
     run = wandb.init(settings=test_settings)
     assert run.get_project_url() == f"{base_url}/{entity}/{project}"
     assert run.get_url() == f"{base_url}/{entity}/{project}/runs/{run.id}"
-    run.finish
+    run.finish()
 
 
 def test_use_artifact(live_mock_server, test_settings):
@@ -646,7 +663,10 @@ def test_wandb_artifact_config_update(
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
-    run = wandb.init(settings=test_settings)
+    run = wandb.init(
+        config_include_keys=("lol",),
+        settings=test_settings,
+    )
     # use deprecated features
     deprecated_features = [
         run.mode,
@@ -657,13 +677,14 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
     telemetry = ctx_util.telemetry
     # TelemetryRecord field 10 is Deprecated,
     # whose fields 2-4 correspond to deprecated wandb.run features
+    # fields 7 & 8 are deprecated wandb.init kwargs
     telemetry_deprecated = telemetry.get("10", [])
     assert (
         (2 in telemetry_deprecated)
         and (3 in telemetry_deprecated)
         and (4 in telemetry_deprecated)
+        and (7 in telemetry_deprecated)
     )
-    run.finish()
 
 
 # test that information about validation errors in wandb.Settings is included in telemetry
@@ -726,3 +747,16 @@ def test_attach_same_process(test_settings):
             new_run = pickle.loads(pickle.dumps(run))
             new_run.log({"a": 2})
     assert "attach in the same process is not supported" in str(excinfo.value)
+
+
+def test_init_with_settings(live_mock_server, test_settings):
+    # test that when calling `wandb.init(settings=wandb.Settings(...))`,
+    # the settings are passed with Source.INIT as the source
+    test_settings.update(_disable_stats=True)
+    run = wandb.init(settings=test_settings)
+    assert run.settings._disable_stats
+    assert (
+        run.settings.__dict__["_disable_stats"].source
+        == wandb_sdk.wandb_settings.Source.INIT
+    )
+    run.finish()

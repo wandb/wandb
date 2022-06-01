@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """wandb setup."""
 
 from setuptools import setup
@@ -11,7 +10,7 @@ with open("package_readme.md") as readme_file:
 with open("requirements.txt") as requirements_file:
     requirements = requirements_file.read().splitlines()
 
-with open("requirements.sweeps.txt") as sweeps_requirements_file:
+with open("requirements_sweeps.txt") as sweeps_requirements_file:
     sweeps_requirements = sweeps_requirements_file.read().splitlines()
 
 
@@ -34,15 +33,19 @@ media_requirements = [
 ]
 launch_requirements = [
     "nbconvert",
+    "nbformat",
     "chardet",
     "iso8601",
     "typing_extensions",
+    "boto3",
+    "google-cloud-storage",
+    "kubernetes",
 ]
 
 
 setup(
     name="wandb",
-    version="0.12.12.dev1",
+    version="0.12.18.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -70,7 +73,7 @@ setup(
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",

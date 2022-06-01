@@ -7,7 +7,7 @@ import atexit
 import os
 from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 
-from wandb import env
+from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
 
@@ -60,6 +60,9 @@ class _ManagerToken:
         self._transport = transport
         self._host = host
         self._port = int(port_str)
+
+    def reset_environment(self) -> None:
+        os.environ.pop(env.SERVICE, None)
 
     @property
     def token(self) -> str:
@@ -127,6 +130,7 @@ class _Manager:
         atexit.register(self._atexit_lambda)
 
     def _atexit_teardown(self) -> None:
+        trigger.call("on_finished")
         exit_code = self._hooks.exit_code if self._hooks else 0
         self._teardown(exit_code)
 
@@ -138,6 +142,7 @@ class _Manager:
         result = self._service.join()
         if result and not self._settings._jupyter:
             os._exit(result)
+        self._token.reset_environment()
 
     def _get_service(self) -> "service._Service":
         return self._service

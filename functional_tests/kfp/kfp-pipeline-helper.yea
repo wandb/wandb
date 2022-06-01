@@ -1,0 +1,13 @@
+id: kfp.pipeline.helper
+tag:
+    shard: kfp
+plugin:
+  - wandb
+depend:
+  requirements:
+    - kfp==1.8.11
+assert:
+    - :wandb:runs_len: 3
+    - :wandb:runs[0][summary]: {}
+    - :wandb:runs[1][summary]: {}
+    - :wandb:runs[2][summary]: {}

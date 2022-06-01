@@ -5,6 +5,7 @@
 
 import wandb
 
+
 def main():
     run = wandb.init(config=dict(this=2, that=4))
 
@@ -20,7 +21,7 @@ def main():
     print(run.mode)
     print(run.offline)
     # future
-    #print(run.disabled)
+    # print(run.disabled)
 
     print(run.id)
     print(run.entity)
@@ -36,8 +37,8 @@ def main():
     print("PATH", run.path)
     run.save()  # odd
     # tested elsewhere
-    #run.use_artifact()
-    #run.log_artifact()
+    # run.use_artifact()
+    # run.log_artifact()
     run.project_name()
     print(run.get_project_url())
     print(run.get_sweep_url())
@@ -46,13 +47,14 @@ def main():
     print(run.notes)
     run.name = "dummy"
     # deprecated
-    #print(run.description)
-    #run.description = "dummy"
+    # print(run.description)
+    # run.description = "dummy"
     # Not supported
-    #print(run.host)
+    # print(run.host)
     print(run.dir)
     # Not supported
-    #print(run.wandb_dir)
+    # print(run.wandb_dir)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

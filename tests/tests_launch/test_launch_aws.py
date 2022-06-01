@@ -2,21 +2,17 @@ import configparser
 import json
 import os
 from unittest.mock import MagicMock
+import sys
 
-
+import boto3
+import wandb
+import wandb.sdk.launch.launch as launch
+import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.runner.aws import (
     SagemakerSubmittedRun,
     get_aws_credentials,
     get_region,
 )
-
-import sys
-
-import boto3
-import wandb
-import wandb.util as util
-import wandb.sdk.launch.launch as launch
-import wandb.sdk.launch._project_spec as _project_spec
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 from ..utils import fixture_open
@@ -82,7 +78,9 @@ def test_launch_aws_sagemaker(
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
     monkeypatch.setattr(
-        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
+        wandb.sdk.launch._project_spec,
+        "create_metadata_file",
+        mock_create_metadata_file,
     )
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
@@ -109,7 +107,10 @@ def test_launch_aws_sagemaker(
 
 @pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_launch_fail(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     def mock_client_launch_fail(*args, **kwargs):
         if args[0] == "sagemaker":
@@ -165,7 +166,10 @@ def test_launch_aws_sagemaker_launch_fail(
 
 @pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_push_image_fail_none(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
@@ -190,7 +194,10 @@ def test_launch_aws_sagemaker_push_image_fail_none(
 
 
 def test_launch_aws_sagemaker_push_image_fail_err_msg(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    monkeypatch,
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
