@@ -44,10 +44,10 @@ class Attr:
         self.fget = fget
         self.fset = fset
         self.fdel = fdel
-        self.doc = doc
         if not isinstance(validators, list):
             validators = [validators]
         self.validators = validators  # + [type_validate]
+        self.__doc__ = doc
 
     def __get__(self, instance, owner):
         if not instance:

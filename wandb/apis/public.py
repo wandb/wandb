@@ -44,6 +44,7 @@ from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
 
 from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
+from wandb.apis.reports.util import generate_name
 
 
 logger = logging.getLogger(__name__)
@@ -478,17 +479,6 @@ class Api:
             raise ValueError(
                 f"Must provide entity and project that you have write access to! (got entity={entity}, project={project})"
             )
-
-        def generate_name(length=12):
-            # This implementation roughly based this snippet in core
-            # https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
-
-            import numpy as np
-
-            rand = np.random.random()
-            rand = int(str(rand)[2:])
-            rand36 = np.base_repr(rand, 36)
-            return rand36.lower()[:length]
 
         # create project if not exists
         r = self.client.execute(
@@ -3758,7 +3748,7 @@ class BetaReport(Attrs):
                 "entityName": entity,
                 "projectName": project,
                 "description": description,
-                "name": self.name,
+                "name": generate_name() if clone else self.name,
                 "displayName": title,
                 "type": view_type,
                 "spec": json.dumps(self.spec),

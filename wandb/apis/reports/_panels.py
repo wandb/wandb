@@ -106,7 +106,7 @@ class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
 
     def _generate_default_panel_spec(self):
         return {
-            # "__id__": generate_name(),
+            "__id__": generate_name(),
             "viewType": self.view_type,
             "config": {},
             # "ref": None,
