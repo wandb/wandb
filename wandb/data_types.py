@@ -1761,7 +1761,12 @@ class _ImageFileType(_dtypes.Type):
     types = [Image]
 
     def __init__(
-        self, box_layers=None, box_score_keys=None, mask_layers=None, class_map=None, **kwargs
+        self,
+        box_layers=None,
+        box_score_keys=None,
+        mask_layers=None,
+        class_map=None,
+        **kwargs,
     ):
         box_layers = box_layers or {}
         box_score_keys = box_score_keys or []
