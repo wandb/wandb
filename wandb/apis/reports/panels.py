@@ -24,14 +24,14 @@ from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 from functools import wraps
 
 
-# def panel_grid_callback(setter):
-#     @wraps(setter)
-#     def wrapper(self, *args, **kwargs):
-#         self.modified = True
-#         self.panel_grid.panel_callback(self)
-#         setter(self, *args, **kwargs)
+def panel_grid_callback(f):
+    @wraps(f)
+    def wrapper(attr, panel, *args, **kwargs):
+        panel.modified = True
+        panel.panel_grid.panel_callback(panel)
+        f(attr, panel, *args, **kwargs)
 
-#     return wrapper
+    return wrapper
 
 
 def default_fget(attr, panel):
@@ -45,15 +45,11 @@ def default_fget(attr, panel):
         )
 
 
-# @panel_grid_callback
+@panel_grid_callback
 def default_fset(attr, panel, value):
     if isinstance(attr.json_keys, str):
-        panel.modified = True
-        panel.panel_grid.panel_callback(panel)
         panel.config[attr.json_keys] = value
     elif isinstance(attr.json_keys, (list, tuple)):
-        panel.modified = True
-        panel.panel_grid.panel_callback(panel)
         for k, v in zip(attr.json_keys, value):
             panel.config[k] = v
     else:
@@ -62,15 +58,11 @@ def default_fset(attr, panel, value):
         )
 
 
-# @panel_grid_callback
+@panel_grid_callback
 def default_fdel(attr, panel):
     if isinstance(attr.json_keys, str):
-        panel.modified = True
-        panel.panel_grid.panel_callback(panel)
         del panel.config[attr.json_keys]
     elif isinstance(attr.json_keys, (list, tuple)):
-        panel.modified = True
-        panel.panel_grid.panel_callback(panel)
         for k in attr.json_keys:
             del panel.config[k]
     else:
