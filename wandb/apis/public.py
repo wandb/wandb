@@ -3601,7 +3601,7 @@ class BetaReport(Attrs):
             pass  # there is nothing to callback on.
 
     def __spec_to_obj(self, block):
-        Block = wandb.apis.reports.blocks.block_mapping[block["type"]]  # noqa: N806
+        Block = wandb.apis.reports._blocks.block_mapping[block["type"]]  # noqa: N806
         if block["type"] == "panel-grid":
             return PanelGrid.from_json(report=self, spec=block)
         else:
@@ -3622,7 +3622,7 @@ class BetaReport(Attrs):
                 "`blocks` must be a list of wb blocks (see wandb.apis.reports)"
             )
         for block in outline:
-            if not isinstance(block, (wandb.apis.reports.blocks.Block, PanelGrid)):
+            if not isinstance(block, (wandb.apis.reports._blocks.Block, PanelGrid)):
                 raise TypeError(
                     f"Must be a subclass of wandb.apis.reports.blocks.Block (got: {type(block)!r})"
                 )
