@@ -19,7 +19,6 @@ from ..builder.build import (
 from ..utils import (
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
-    aws_ecr_login,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
@@ -111,34 +110,30 @@ class LocalContainerRunner(AbstractRunner):
             image_uri = launch_project.docker_image
             pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
+            # if they've given an override to the entrypoint
+            entry_cmd = get_entry_point_command(
+                entry_point, launch_project.override_args
+            )
+            command_str = " ".join(
+                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+            ).strip()
         else:
-            # repository: Optional[str] = registry_config.get("url")
-            # if registry_config["provider"] == "aws" and "dkr.ecr" in repository:
-            #     login_resp = aws_ecr_login(registry_config.get("region"), repository)
-            #     if login_resp is None or "Login Succeeded" not in login_resp:
-            #         raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
-            wandb.termwarn("Not pushing image to repository for local runner")
+            assert entry_point is not None
+            repository: Optional[str] = registry_config.get("url")
             image_uri = builder.build_image(
                 launch_project,
-                None,
+                repository,
                 entry_point,
                 docker_args,
             )
+            command_str = " ".join(
+                get_docker_command(image_uri, env_vars, [""], docker_args)
+            ).strip()
 
         if not self.ack_run_queue_item(launch_project):
             return None
-
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-
-        command_str = " ".join(
-            get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
-        ).strip()
-
-        wandb.termlog(
-            "Launching run in docker with command: {}".format(
-                sanitize_wandb_api_key(command_str)
-            )
-        )
+        sanitized_cmd_str = sanitize_wandb_api_key(command_str)
+        wandb.termlog(f"Launching run in docker with command: {sanitized_cmd_str}")
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()
@@ -177,7 +172,7 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
 def get_docker_command(
     image: str,
     env_vars: Dict[str, str],
-    entry_cmd: str,
+    entry_cmd: List[str],
     docker_args: Dict[str, Any] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
@@ -211,5 +206,10 @@ def get_docker_command(
                     cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
 
     cmd += [shlex.quote(image)]
-    cmd += [entry_cmd]
+    cmd += entry_cmd
     return cmd
+
+
+def join(split_command: List[str]) -> str:
+    """Return a shell-escaped string from *split_command*."""
+    return " ".join(shlex.quote(arg) for arg in split_command)

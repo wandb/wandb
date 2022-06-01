@@ -2,18 +2,15 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.02-batch2
+id: 0.imports.08-batch8
 tag:
-  shard: imports2
+  shard: imports8
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
-  pip_install_options:
-    - -qq
   requirements:
-    - torch
-    - -r 02-batch2-requirements.txt
+    - "-r 08-batch8-requirements.txt"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -22,31 +19,22 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 42  # elegy
+    - 56  # paddleocr
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 43  # detectron2
+    - 57  # ppdet
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 49  # huggingface_hub
+    - 58  # paddleseg
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 50  # hydra
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 44  # flair
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 45  # flax
+    - 59  # paddlenlp
 """
 
-
-import detectron2  # noqa: F401
-import elegy  # noqa: F401
-import flair  # noqa: F401
-import flax  # noqa: F401
-import huggingface_hub  # noqa: F401
-import hydra  # noqa: F401
+import paddlenlp  # noqa: F401
+import paddleocr  # noqa: F401
+import paddleseg  # noqa: F401
+import ppdet  # noqa: F401
 import wandb
 
 run = wandb.init()

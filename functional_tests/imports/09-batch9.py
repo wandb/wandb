@@ -2,15 +2,15 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.06-batch6
+id: 0.imports.09-batch9
 tag:
-  shard: imports6
+  shard: imports9
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
-    - "-r 06-batch6-requirements.txt"
+    - "-r 09-batch9-requirements.txt"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -19,11 +19,18 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 47  # TTS
+    - 60  # mmseg
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 61  # mmocr
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 62  # mmcls
 """
 
-
-import TTS  # noqa: F401
+import mmcls  # noqa: F401
+import mmocr  # noqa: F401
+import mmseg  # noqa: F401
 import wandb
 
 run = wandb.init()

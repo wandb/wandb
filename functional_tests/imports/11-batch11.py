@@ -2,15 +2,15 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.04-batch4
+id: 0.imports.11-batch11
 tag:
-  shard: imports4
+  shard: imports11
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
-    - "-r 04-batch4-requirements.txt"
+    - "-r 11-batch11-requirements.txt"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -19,43 +19,34 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 28  # pycaret
+    - 73  # nanodet
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 10  # ignite
+    - 74  # segmentation_models_pytorch
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 29  # pytorchvideo
+    - 75  # sentence_transformers
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 9  # pytorch_lightning
+    - 76  # dgl
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 30  # ray
+    - 78  # jina
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 5  # sklearn
+    - 79  # kornia
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 31  # simpletransformers
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 32  # skorch
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 33  # spacy
+    - 80  # albumentations
 """
 
-
-import ignite  # noqa: F401
-import pycaret  # noqa: F401
-import pytorch_lightning  # noqa: F401
-import pytorchvideo  # noqa: F401
-import ray  # noqa: F401
-import simpletransformers  # noqa: F401
-import sklearn  # noqa: F401
-import skorch  # noqa: F401
-import spacy  # noqa: F401
+import albumentations  # noqa: F401
+import dgl  # noqa: F401
+import jina  # noqa: F401
+import kornia  # noqa: F401
+import nanodet  # noqa: F401
+import segmentation_models_pytorch  # noqa: F401
+import sentence_transformers  # noqa: F401
 import wandb
 
 run = wandb.init()

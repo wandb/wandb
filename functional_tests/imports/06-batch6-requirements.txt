@@ -1,7 +1,0 @@
-# torch-points3d
-# torch_geometric
-# transformers
-# trax
-TTS
-# xgboost
-# yolov5

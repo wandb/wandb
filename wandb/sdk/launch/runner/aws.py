@@ -15,6 +15,7 @@ from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
+    EntryPoint,
     get_entry_point_command,
     LaunchProject,
 )
@@ -139,7 +140,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         account_id = caller_id["Account"]
         role_arn = get_role_arn(given_sagemaker_args, self.backend_config, account_id)
-
+        entry_point = launch_project.get_single_entry_point()
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
             given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
@@ -155,7 +156,13 @@ class AWSSagemakerRunner(AbstractRunner):
                     aws_secret_access_key=secret_key,
                 )
             sagemaker_args = build_sagemaker_args(
-                launch_project, self._api, account_id, default_output_path
+                launch_project,
+                self._api,
+                role_arn,
+                given_sagemaker_args.get("AlgorithmSpecification", {}).get(
+                    "TrainingImage"
+                ),
+                default_output_path,
             )
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
@@ -176,7 +183,6 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_secret_access_key=secret_key,
             )
         token = ecr_client.get_authorization_token()
-
         ecr_repo_name = given_sagemaker_args.get(
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
@@ -221,11 +227,10 @@ class AWSSagemakerRunner(AbstractRunner):
                 "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )
 
-        entry_point = launch_project.get_single_entry_point()
-
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
+            assert entry_point is not None
             # build our own image
             image = builder.build_image(
                 launch_project,
@@ -252,12 +257,12 @@ class AWSSagemakerRunner(AbstractRunner):
             entry_point, launch_project.override_args
         )
         if command_args:
-            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_args}")
+            command_str = " ".join(command_args)
+            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_str}")
         else:
             wandb.termlog(
                 "Launching run on sagemaker with user-provided entrypoint in image"
             )
-
         sagemaker_args = build_sagemaker_args(
             launch_project, self._api, role_arn, image, default_output_path
         )

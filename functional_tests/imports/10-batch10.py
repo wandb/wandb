@@ -2,15 +2,15 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.01-batch1
+id: 0.imports.10-batch10
 tag:
-  shard: imports1
+  shard: imports10
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
-    - "-r 01-batch1-requirements.txt"
+    - "-r 10-batch10-requirements.txt"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -19,44 +19,40 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 14  # allennlp
+    - 63  # timm
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 15  # autogluon
+    - 64  # fairseq
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 16  # autokeras
+    - 65  # deepchecks
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 18  # catalyst
+    - 66  # composer
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 7  # catboost
+    - 67  # sparseml
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 51  # datasets
+    - 69  # zenml
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 21  # deepchem
+    - 71  # accelerate
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 22  # deepctr
+    - 72  # merlin
 """
 
-
-import allennlp  # noqa: F401
-import autogluon  # noqa: F401
-import autokeras  # noqa: F401
-# import avalanche
-import catalyst  # noqa: F401
-import catboost  # noqa: F401
-# import dalle_pytorch
-import datasets  # noqa: F401
-import deepchem  # noqa: F401
-import deepctr  # noqa: F401
-# import deeppavlov
-# import detectron
+import accelerate  # noqa: F401
+import composer  # noqa: F401
+import deepchecks  # noqa: F401
+import fairseq  # noqa: F401
+import merlin  # noqa: F401
+import sparseml  # noqa: F401
+import timm  # noqa: F401
 import wandb
+import zenml  # noqa: F401
+
 
 run = wandb.init()
 wandb.log(dict(loss=1))

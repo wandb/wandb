@@ -68,7 +68,7 @@ class LocalProcessRunner(AbstractRunner):
             return None
 
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-        cmd += [entry_cmd]
+        cmd += entry_cmd
 
         command_str = " ".join(cmd).strip()
         wandb.termlog(

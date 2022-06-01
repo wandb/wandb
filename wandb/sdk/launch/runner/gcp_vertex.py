@@ -151,7 +151,7 @@ class VertexRunner(AbstractRunner):
                 gcp_project,
                 gcp_docker_host,
             )
-
+            assert entry_point is not None
             image_uri = builder.build_image(
                 launch_project,
                 repository,
@@ -161,10 +161,8 @@ class VertexRunner(AbstractRunner):
 
         if not self.ack_run_queue_item(launch_project):
             return None
-
-        entry_cmd = get_entry_point_command(
-            entry_point, launch_project.override_args
-        ).split()
+        # TODO: how to handle this?
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 
         worker_pool_specs = [
             {
