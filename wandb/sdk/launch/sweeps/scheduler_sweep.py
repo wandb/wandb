@@ -8,7 +8,7 @@ import time
 import threading
 from typing import Any, Dict, Optional
 
-from .daimyo import Daimyo, SweepRun, RunState
+from .scheduler import Scheduler, SweepRun, RunState
 import wandb
 from wandb import wandb_lib
 from wandb.errors import SweepError
@@ -18,8 +18,8 @@ from wandb.wandb_agent import Agent as LegacySweepAgent
 logger = logging.getLogger(__name__)
 
 
-class SweepDaimyo(Daimyo):
-    """A SweepDaimyo is a controller/agent that will populate a Launch RunQueue with
+class SweepScheduler(Scheduler):
+    """A SweepScheduler is a controller/agent that will populate a Launch RunQueue with
     launch jobs it creates from run suggestions it pulls from an internal sweeps RunQueue.
     """
 
@@ -33,7 +33,7 @@ class SweepDaimyo(Daimyo):
         main_thread_sleep: int = 3,
         **kwargs,
     ):
-        super(SweepDaimyo, self).__init__(*args, **kwargs)
+        super(SweepScheduler, self).__init__(*args, **kwargs)
         # Make sure the provided sweep_id corresponds to a valid sweep
         found = self._api.sweep(
             sweep_id, "{}", entity=self._entity, project=self._project

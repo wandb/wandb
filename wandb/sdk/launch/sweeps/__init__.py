@@ -1,48 +1,48 @@
 import logging
 from typing import Callable, Dict
 
-from .daimyo import Daimyo
+from .scheduler import Scheduler
 
 
 log = logging.getLogger(__name__)
 
 
-def _import_sweep_daimyo() -> Daimyo:
-    from .sweep_daimyo import SweepDaimyo
+def _import_sweep_scheduler() -> Scheduler:
+    from .scheduler_sweep import SweepScheduler
 
-    # TODO: Load dependencies for SweepDaimyo
+    # TODO: Load dependencies for SweepScheduler
     # pip install wandb[sweeps]
-    return SweepDaimyo
+    return SweepScheduler
 
 
-def _import_tune_daimyo() -> Daimyo:
-    from .tune_daimyo import TuneDaimyo
+def _import_tune_scheduler() -> Scheduler:
+    from .scheduler_tune import TuneScheduler
 
-    # TODO: Load dependencies for TuneDaimyo
+    # TODO: Load dependencies for TuneScheduler
     # pip install ray[tune]
-    return TuneDaimyo
+    return TuneScheduler
 
 
-_WANDB_DAIMYOS: Dict[str, Callable] = {
-    "tune": _import_tune_daimyo,
-    "sweep": _import_sweep_daimyo,
+_WANDB_SCHEDULERS: Dict[str, Callable] = {
+    "tune": _import_tune_scheduler,
+    "sweep": _import_sweep_scheduler,
 }
 
 
-def load_daimyo(daimyo_name: str, *args, **kwargs) -> Daimyo:
+def load_scheduler(scheduler_name: str, *args, **kwargs) -> Scheduler:
 
-    daimyo_name = daimyo_name.lower()
-    if daimyo_name not in _WANDB_DAIMYOS:
+    scheduler_name = scheduler_name.lower()
+    if scheduler_name not in _WANDB_SCHEDULERS:
         raise ValueError(
-            f"The `daimyo_name` argument must be one of "
-            f"{list(_WANDB_DAIMYOS.keys())}, got: {daimyo_name}"
+            f"The `scheduler_name` argument must be one of "
+            f"{list(_WANDB_SCHEDULERS.keys())}, got: {scheduler_name}"
         )
 
-    log.warn(f"Loading dependencies for Daimyo of type: {daimyo_name}")
-    import_func = _WANDB_DAIMYOS[daimyo_name]
+    log.warn(f"Loading dependencies for Daimyo of type: {scheduler_name}")
+    import_func = _WANDB_SCHEDULERS[scheduler_name]
     return import_func()(*args, **kwargs)
 
 
 __all__ = [
-    "load_daimyo",
+    "load_scheduler",
 ]

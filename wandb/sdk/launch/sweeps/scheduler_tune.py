@@ -1,7 +1,7 @@
-from .daimyo import Daimyo
+from .scheduler import Scheduler
 
 
-class TuneDaimyo(Daimyo):
+class TuneScheduler(Scheduler):
     """Daimyo that uses Ray's Tune to provide sweep suggestions.
 
     See: https://github.com/ray-project/ray/blob/master/python/ray/tune/suggest/_mock.py

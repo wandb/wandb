@@ -16,7 +16,7 @@ from wandb.sdk.lib.runid import generate_id
 logger = logging.getLogger(__name__)
 
 
-class DaimyoState(Enum):
+class SchedulerState(Enum):
     PENDING = 0
     STARTING = 1
     RUNNING = 2
@@ -44,11 +44,9 @@ class SweepRun:
     program: str = None
 
 
-class Daimyo(ABC):
-    """Daimyo 🏯  is a Lord in feudal Japan and Boba Fett's title in the Mandalorian.
-
-    In this context, the Daimyo is a controller/agent that will populate a Launch RunQueue
-    with jobs from a hyperparameter sweep.
+class Scheduler(ABC):
+    """ The Scheduler is a controller/agent that will populate a Launch RunQueue
+        with jobs from a hyperparameter sweep.
     """
 
     def __init__(
@@ -80,7 +78,7 @@ class Daimyo(ABC):
         if self._project is None:
             raise SweepError("Sweep Daimyo could not resolve project.")
 
-        self._state: DaimyoState = DaimyoState.PENDING
+        self._state: SchedulerState = SchedulerState.PENDING
         self._runs: Dict[str, SweepRun] = {}
 
     @abstractmethod
@@ -96,12 +94,12 @@ class Daimyo(ABC):
         pass
 
     @property
-    def state(self) -> DaimyoState:
+    def state(self) -> SchedulerState:
         logger.debug(f"Daimyo state is {self._state.name}")
         return self._state
 
     @state.setter
-    def state(self, value: DaimyoState) -> None:
+    def state(self, value: SchedulerState) -> None:
         logger.debug(f"Changing Daimyo state from {self.state.name} to {value.name}")
         self._state = value
 
@@ -109,16 +107,16 @@ class Daimyo(ABC):
         _msg = "Daimyo starting."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        self._state = DaimyoState.STARTING
+        self._state = SchedulerState.STARTING
         self._start()
         # TODO(hupo): Should start call run?
         self.run()
 
     def is_alive(self) -> bool:
         if self.state in [
-            DaimyoState.COMPLETED,
-            DaimyoState.FAILED,
-            DaimyoState.CANCELLED,
+            SchedulerState.COMPLETED,
+            SchedulerState.FAILED,
+            SchedulerState.CANCELLED,
         ]:
             return False
         return True
@@ -127,7 +125,7 @@ class Daimyo(ABC):
         _msg = "Daimyo Running."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        self.state = DaimyoState.RUNNING
+        self.state = SchedulerState.RUNNING
         try:
             while True:
                 if not self.is_alive():
@@ -138,21 +136,21 @@ class Daimyo(ABC):
             _msg = "Daimyo received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self.state = DaimyoState.CANCELLED
+            self.state = SchedulerState.CANCELLED
             self.exit()
             return
         except Exception as e:
             _msg = f"Daimyo failed with exception {e}"
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self.state = DaimyoState.FAILED
+            self.state = SchedulerState.FAILED
             self.exit()
             raise e
         else:
             _msg = f"Daimyo completed."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self.state = DaimyoState.COMPLETED
+            self.state = SchedulerState.COMPLETED
             self.exit()
 
     def _add_to_launch_queue(self, launch_spec: Dict[str, Any]):
