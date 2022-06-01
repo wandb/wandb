@@ -45,8 +45,8 @@ class SweepRun:
 
 
 class Scheduler(ABC):
-    """ The Scheduler is a controller/agent that will populate a Launch RunQueue
-        with jobs from a hyperparameter sweep.
+    """The Scheduler is a controller/agent that will populate a Launch RunQueue
+    with jobs from a hyperparameter sweep.
     """
 
     def __init__(
