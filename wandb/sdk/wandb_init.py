@@ -190,20 +190,24 @@ class _WandbInit:
         )
 
         # merge config with sweep or sagemaker (or config file)
-        self.sweep_config = self._wl._sweep_config or dict()
+        self.sweep_config = dict()
+        sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
         self.init_artifact_config = dict()
-        for config_data in sagemaker_config, self._wl._config, init_config:
+        for config_data in (
+            sagemaker_config,
+            self._wl._config,
+            init_config,
+        ):
             if not config_data:
                 continue
             # split out artifacts, since when inserted into
             # config they will trigger use_artifact
             # but the run is not yet upserted
-            for k, v in config_data.items():
-                if _is_artifact(v) or _is_artifact_string(v):
-                    self.init_artifact_config[k] = v
-                else:
-                    self.config.setdefault(k, v)
+            self._split_artifacts_from_config(config_data, self.config)
+
+        if sweep_config:
+            self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -276,6 +280,13 @@ class _WandbInit:
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
             hook.call()
+
+    def _split_artifacts_from_config(self, config_source, config_target):
+        for k, v in config_source.items():
+            if _is_artifact(v) or _is_artifact_string(v):
+                self.init_artifact_config[k] = v
+            else:
+                config_target.setdefault(k, v)
 
     def _enable_logging(self, log_fname, run_id=None):
         """Enables logging to the global debug log.
@@ -677,6 +688,7 @@ class _WandbInit:
         self._wl._global_run_stack.append(run)
         self.run = run
 
+        run._handle_launch_artifact_overrides()
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted

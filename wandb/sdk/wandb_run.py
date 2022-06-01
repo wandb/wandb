@@ -378,6 +378,8 @@ class Run:
     _is_attached: bool
     _settings: Settings
 
+    _launch_artifacts: Optional[Dict[str, Any]]
+
     def __init__(
         self,
         settings: Settings,
@@ -496,46 +498,6 @@ class Run:
                 sweep_config, user="sweep", _allow_val_change=True
             )
 
-        if self._settings.launch and (
-            os.environ.get("WANDB_CONFIG") is not None
-            or os.environ.get("WANDB_ARTIFACTS") is not None
-        ):
-            if os.environ.get("WANDB_CONFIG") is not None:
-                try:
-                    new_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
-                    self._config.update_locked(
-                        new_config, user="launch", _allow_val_change=True
-                    )
-                except (ValueError, SyntaxError):
-                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
-            if os.environ.get("WANDB_ARTIFACTS") is not None:
-                try:
-                    artifacts: Dict[str, Any] = json.loads(
-                        os.environ.get("WANDB_ARTIFACTS", "{}")
-                    )
-                    self._initialize_launch_artifact_maps(artifacts)
-                except (ValueError, SyntaxError):
-                    wandb.termwarn(
-                        "Malformed WANDB_ARTIFACTS, using original artifacts"
-                    )
-
-        elif (
-            self._settings.launch
-            and self._settings.launch_config_path
-            and os.path.exists(self._settings.launch_config_path)
-        ):
-            self._save(self._settings.launch_config_path)
-            with open(self._settings.launch_config_path) as fp:
-                launch_config = json.loads(fp.read())
-            if launch_config.get("overrides", {}).get("artifacts") is not None:
-                artifacts = launch_config.get("overrides").get("artifacts")
-                self._initialize_launch_artifact_maps(artifacts)
-
-            launch_run_config = launch_config.get("overrides", {}).get("run_config")
-            if launch_run_config:
-                self._config.update_locked(
-                    launch_run_config, user="launch", _allow_val_change=True
-                )
         self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
@@ -556,6 +518,106 @@ class Run:
 
     def _set_iface_port(self, iface_port: int) -> None:
         self._iface_port = iface_port
+
+    def _handle_launch_config(self) -> Dict[str, Any]:
+        launch_run_config = {}
+
+        if self._settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
+            if os.environ.get("WANDB_CONFIG") is not None:
+                try:
+                    launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+                    # self._config.update_locked(
+                    #     new_config, user="launch", _allow_val_change=True
+                    # )
+                except (ValueError, SyntaxError):
+                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+            # if os.environ.get("WANDB_ARTIFACTS") is not None:
+            #     try:
+            #         artifacts: Dict[str, Any] = json.loads(
+            #             os.environ.get("WANDB_ARTIFACTS", "{}")
+            #         )
+            #     except (ValueError, SyntaxError):
+            #         wandb.termwarn(
+            #             "Malformed WANDB_ARTIFACTS, using original artifacts"
+            #         )
+
+        elif (
+            self._settings.launch
+            and self._settings.launch_config_path
+            and os.path.exists(self._settings.launch_config_path)
+        ):
+            self._save(self._settings.launch_config_path)
+            with open(self._settings.launch_config_path) as fp:
+                launch_config = json.loads(fp.read())
+            # if launch_config.get("overrides", {}).get("artifacts") is not None:
+            #     artifacts = launch_config.get("overrides").get("artifacts")
+            #     # self._initialize_launch_artifact_maps(artifacts)
+            launch_run_config = launch_config.get("overrides", {}).get("run_config")
+        return launch_run_config
+
+    def _handle_launch_artifact_overrides(self) -> None:
+        if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
+            try:
+                artifacts: Dict[str, Any] = json.loads(
+                    os.environ.get("WANDB_ARTIFACTS", "{}")
+                )
+            except (ValueError, SyntaxError):
+                wandb.termwarn("Malformed WANDB_ARTIFACTS, using original artifacts")
+            else:
+                self._initialize_launch_artifact_maps(artifacts)
+
+        elif (
+            self._settings.launch
+            and self._settings.launch_config_path
+            and os.path.exists(self._settings.launch_config_path)
+        ):
+            self._save(self._settings.launch_config_path)
+            with open(self._settings.launch_config_path) as fp:
+                launch_config = json.loads(fp.read())
+            if launch_config.get("overrides", {}).get("artifacts") is not None:
+                artifacts = launch_config.get("overrides").get("artifacts")
+                self._initialize_launch_artifact_maps(artifacts)
+
+    def handle_launch_config_and_artifacts(
+        self,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        launch_run_config = {}
+        artifacts = {}
+        if self._settings.launch and (
+            os.environ.get("WANDB_CONFIG") is not None
+            or os.environ.get("WANDB_ARTIFACTS") is not None
+        ):
+            if os.environ.get("WANDB_CONFIG") is not None:
+                try:
+                    launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+                    # self._config.update_locked(
+                    #     new_config, user="launch", _allow_val_change=True
+                    # )
+                except (ValueError, SyntaxError):
+                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+            if os.environ.get("WANDB_ARTIFACTS") is not None:
+                try:
+                    artifacts: Dict[str, Any] = json.loads(
+                        os.environ.get("WANDB_ARTIFACTS", "{}")
+                    )
+                except (ValueError, SyntaxError):
+                    wandb.termwarn(
+                        "Malformed WANDB_ARTIFACTS, using original artifacts"
+                    )
+
+        elif (
+            self._settings.launch
+            and self._settings.launch_config_path
+            and os.path.exists(self._settings.launch_config_path)
+        ):
+            self._save(self._settings.launch_config_path)
+            with open(self._settings.launch_config_path) as fp:
+                launch_config = json.loads(fp.read())
+            if launch_config.get("overrides", {}).get("artifacts") is not None:
+                artifacts = launch_config.get("overrides").get("artifacts")
+                # self._initialize_launch_artifact_maps(artifacts)
+            launch_run_config = launch_config.get("overrides", {}).get("run_config")
+        return launch_run_config, artifacts
 
     def _initialize_launch_artifact_maps(self, artifacts: Dict[str, Any]) -> None:
         for key, item in artifacts.items():
