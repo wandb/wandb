@@ -88,7 +88,7 @@ class PanelAttr(Attr):
 
 
 class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
-    def __init__(self, panel_grid=None, spec=None, offset=0):
+    def __init__(self, panel_grid, spec=None, offset=0):
         self.panel_grid = panel_grid
         self._spec = spec or self._generate_default_panel_spec()
         self.offset = offset
@@ -106,7 +106,7 @@ class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
 
     def _generate_default_panel_spec(self):
         return {
-            "__id__": generate_name(),
+            # "__id__": generate_name(),
             "viewType": self.view_type,
             "config": {},
             # "ref": None,

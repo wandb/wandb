@@ -3436,9 +3436,6 @@ class PanelGrid(RequiresReportEditingMixin):
             self.panels[panel.offset] = panel.spec
         except IndexError:
             pass
-        # self.spec["metadata"]["panelBankSectionConfig"]["panels"][
-        #     panel.offset
-        # ] = panel.spec
 
     def _resolve_panel_collisions(self):
         pass
@@ -3479,12 +3476,6 @@ class PanelGrid(RequiresReportEditingMixin):
             p.panel_grid = self
             new_panel_specs.append(p.spec)
         self.spec["metadata"]["panelBankSectionConfig"]["panels"] = new_panel_specs
-
-        # self.spec["metadata"]["panelBankSectionConfig"]["panels"] = [
-        #     p.spec for p in new_panels
-        # ]
-
-        # TODO: If when assigning panel, set its panel_grid to self.
 
     @property
     def open_run_set(self):
