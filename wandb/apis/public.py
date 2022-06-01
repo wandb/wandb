@@ -3459,7 +3459,7 @@ class PanelGrid(RequiresReportEditingMixin):
         # TODO: If when assigning run_set, set its panel_grid to self.
 
     def __spec_to_obj(self, spec, offset):
-        Panel = wandb.apis.reports.panels.panel_mapping[spec["viewType"]]  # noqa: N806
+        Panel = wandb.apis.reports._panels.panel_mapping[spec["viewType"]]  # noqa: N806
         return Panel(self, spec, offset)
 
     @property
