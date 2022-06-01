@@ -3432,9 +3432,13 @@ class PanelGrid(RequiresReportEditingMixin):
 
     @report_callback
     def panel_callback(self, panel):
-        self.spec["metadata"]["panelBankSectionConfig"]["panels"][
-            panel.offset
-        ] = panel.spec
+        try:
+            self.panels[panel.offset] = panel.spec
+        except IndexError:
+            pass
+        # self.spec["metadata"]["panelBankSectionConfig"]["panels"][
+        #     panel.offset
+        # ] = panel.spec
 
     def _resolve_panel_collisions(self):
         pass
