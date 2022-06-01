@@ -147,15 +147,16 @@ def test_footer_hint(
     live_mock_server.set_ctx({"server_settings": server_settings})
     live_mock_server.set_ctx({"server_messages": server_messages})
 
-    with wandb.init(settings=test_settings) as run:
-        run.log(dict(d=2))
+    for _ in range(2):
+        with wandb.init(settings=test_settings) as run:
+            run.log(dict(d=2))
 
-    lines = capsys.readouterr().err.splitlines()
+        lines = capsys.readouterr().err.splitlines()
 
-    if server_settings and server_messages:
-        assert (
-            server_messages[0].get("utfText")
-            or server_messages[0].get("plainText") in lines[-1]
-        )
-    else:
-        assert "Find logs at:" in lines[-1]
+        if server_settings and server_messages:
+            assert (
+                server_messages[0].get("utfText")
+                or server_messages[0].get("plainText") in lines[-1]
+            )
+        else:
+            assert "Find logs at:" in lines[-1]
