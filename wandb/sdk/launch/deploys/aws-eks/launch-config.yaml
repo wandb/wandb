@@ -78,8 +78,8 @@ data:
     project: launch-welcome # TODO: SET YOUR ML PROJECT
     max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
     registry:
-      url:  620830334183.dkr.ecr.us-east-1.amazonaws.com/private-test-repo # TODO: SET ECR REPOSITORY URL HERE
-      ecr-provider: aws # TODO: SET ECR PROVIDER HERE
+      url: # TODO: SET ECR REPOSITORY URL HERE
+      ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
     build:
       type: kaniko
       cloud-provider: aws # TODO: SET CLOUD PROVIDER HERE
@@ -97,4 +97,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: "ac3ce2d3d2983f63ebe37134956ba655c46e77ee"  ### API KEY HERE
+  password: ""  ### API KEY HERE
