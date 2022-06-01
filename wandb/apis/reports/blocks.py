@@ -1,12 +1,44 @@
+__all__ = [
+    "CheckedList",
+    "OrderedList",
+    "UnorderedList",
+    "H1",
+    "H2",
+    "H3",
+    "P",
+    "BlockQuote",
+    "CalloutBlock",
+    "CodeBlock",
+    "MarkdownBlock",
+    "LaTeXInline",
+    "LaTeXBlock",
+    "Gallery",
+    "Image",
+    "WeaveBlock",
+    "HorizontalRule",
+    "TableOfContents",
+    "SoundCloud",
+    "Twitter",
+    "Spotify",
+    "Video",
+    "PanelGrid",
+]
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import re
 from typing import Union
 import urllib.parse
 
-from wandb.apis.public import PanelGrid  # noqa:F401
+from wandb.apis.public import PanelGrid
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
-from .helpers import Dispatcher
+
+
+class Dispatcher(ABC):
+    @classmethod
+    @abstractmethod
+    def from_json(cls, spec):
+        pass
 
 
 @dataclass
@@ -367,7 +399,7 @@ class Image(Block):
 
 
 @dataclass
-class Weave(Block):
+class WeaveBlock(Block):
     _spec: dict
 
     @classmethod
@@ -494,7 +526,7 @@ block_mapping = {
     "panel-grid": PanelGrid,
     "paragraph": P,
     "table-of-contents": TableOfContents,
-    "weave-panel": Weave,
+    "weave-panel": WeaveBlock,
     "video": Video,
     "spotify": Spotify,
     "twitter": Twitter,

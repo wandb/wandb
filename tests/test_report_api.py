@@ -363,7 +363,7 @@ class TestReportGetters:
         assert getattr(report, property) == value_getter(report._attrs, path)
 
     def test_get_blocks(self, report):
-        assert report.spec["blocks"] == [block.to_json() for block in report.blocks]
+        assert report.spec["blocks"] == [block.spec for block in report.blocks]
 
     def test_get_panel_grids(self, report):
         assert all([isinstance(panel, wb.PanelGrid) for panel in report.panel_grids])
@@ -730,7 +730,7 @@ class TestReportSetters:
 
     def test_set_blocks_with_weave(self, report):
         report.blocks = [
-            wb.Weave(
+            wb.WeaveBlock(
                 {
                     "type": "weave-panel",
                     "children": [{"text": ""}],

@@ -3189,15 +3189,19 @@ class RunSet(RequiresReportEditingMixin):
         return config
 
     @property
+    def _order_str(self):
+        return ",".join(
+            [k[0] + self.pm_query_generator.front_to_back(k[1:]) for k in self.order]
+        )
+
+    @property
     def runs(self, per_page=50):
-        order = ",".join(self.order)
-        filters = self.filters
         return Runs(
             self.panel_grid.report.client,
             self.entity,
             self.project,
-            filters=filters,
-            order=order,
+            filters=self.filters,
+            order=self._order_str,
             per_page=per_page,
         )
 
@@ -3426,6 +3430,15 @@ class PanelGrid(RequiresReportEditingMixin):
     def run_set_callback(self, run_set):
         self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
 
+    @report_callback
+    def panel_callback(self, panel):
+        self.spec["metadata"]["panelBankSectionConfig"]["panels"][
+            panel.offset
+        ] = panel.spec
+
+    def _resolve_panel_collisions(self):
+        pass
+
     @property
     def run_sets(self):
         return [
@@ -3438,19 +3451,21 @@ class PanelGrid(RequiresReportEditingMixin):
     def run_sets(self, new_run_sets):
         for rs in new_run_sets:
             if not isinstance(rs, RunSet):
-                raise TypeError("All objects must be of type wb.RunSet")
+                raise TypeError(
+                    f"All objects must be of type wb.RunSet (got {type(rs)!r})"
+                )
         self.spec["metadata"]["runSets"] = [rs.spec for rs in new_run_sets]
 
         # TODO: If when assigning run_set, set its panel_grid to self.
 
-    def __spec_to_obj(self, spec):
+    def __spec_to_obj(self, spec, offset):
         Panel = wandb.apis.reports.panels.panel_mapping[spec["viewType"]]  # noqa: N806
-        return Panel.from_json(spec)
+        return Panel(self, spec, offset)
 
     @property
     def panels(self):
         panel_specs = self.spec["metadata"]["panelBankSectionConfig"]["panels"]
-        return [self.__spec_to_obj(spec) for spec in panel_specs]
+        return [self.__spec_to_obj(spec, i) for i, spec in enumerate(panel_specs)]
 
     @panels.setter
     @report_callback
@@ -3595,9 +3610,9 @@ class BetaReport(Attrs):
     @property
     def blocks(self):
         _blocks = [self.__spec_to_obj(block) for block in self.spec["blocks"]]
-
+        return _blocks
         # ignore the starting and ending padding P blocks
-        return _blocks[1:-1]
+        # return _blocks[1:-1]
 
     @blocks.setter
     @top_callback
@@ -3608,10 +3623,13 @@ class BetaReport(Attrs):
             )
         for block in outline:
             if not isinstance(block, (wandb.apis.reports.blocks.Block, PanelGrid)):
-                raise TypeError(f"Must be a subclass of wb.Block (got: {block})")
+                raise TypeError(
+                    f"Must be a subclass of wandb.apis.reports.blocks.Block (got: {type(block)!r})"
+                )
 
         # add starting and ending padding P blocks
-        _blocks = [wandb.apis.reports.P("")] + outline + [wandb.apis.reports.P("")]
+        # _blocks = [wandb.apis.reports.P("")] + outline + [wandb.apis.reports.P("")]
+        _blocks = outline
 
         # Treat PanelGrid as special case for now
         # self.spec["blocks"] = [
