@@ -1371,9 +1371,11 @@ class Api:
 
         server_messages = None
         if self._server_settings_type:
-            server_messages = response["upsertBucket"]["serverSDKSettings"][
-                "sdkMessages"
-            ]
+            server_messages = (
+                response["upsertBucket"]
+                .get("serverSDKSettings", {})
+                .get("sdkMessages", [])
+            )
         return (
             response["upsertBucket"]["bucket"],
             response["upsertBucket"]["inserted"],

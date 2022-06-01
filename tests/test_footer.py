@@ -118,3 +118,44 @@ def test_footer_history(live_mock_server, test_settings, check_output_fn):
     run.log(dict(a=3))
     run.finish()
     check_output_fn(exp_summary=[], exp_history=["a", "d"])
+
+
+server_hint_utf = [
+    {
+        "utfText": "my first hint",
+        "plainText": "my first hint",
+        "htmlText": "",
+    }
+]
+
+server_hint_plain = [
+    {
+        "utfText": "",
+        "plainText": "my first hint",
+        "htmlText": "",
+    }
+]
+
+
+@pytest.mark.parametrize("server_settings", [True, False, None])
+@pytest.mark.parametrize(
+    "server_messages", [server_hint_utf, server_hint_plain, [], None]
+)
+def test_footer_hint(
+    live_mock_server, test_settings, capsys, server_settings, server_messages
+):
+    live_mock_server.set_ctx({"server_settings": server_settings})
+    live_mock_server.set_ctx({"server_messages": server_messages})
+
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(d=2))
+
+    lines = capsys.readouterr().err.splitlines()
+
+    if server_settings and server_messages:
+        assert (
+            server_messages[0].get("utfText")
+            or server_messages[0].get("plainText") in lines[-1]
+        )
+    else:
+        assert "Find logs at:" in lines[-1]

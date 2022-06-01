@@ -93,6 +93,13 @@ class PrinterTerm(_Printer):
         default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
     ) -> None:
         text = "\n".join(text) if isinstance(text, (list, tuple)) else text
+        if default_text is not None:
+            default_text = (
+                "\n".join(default_text)
+                if isinstance(default_text, (list, tuple))
+                else default_text
+            )
+            text = text or default_text
         if status == "info" or status is None:
             wandb.termlog(text)
         elif status == "warn":
