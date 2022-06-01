@@ -219,6 +219,17 @@ class RetryingClient:
             raise
 
 
+def _generate_name(length=12):
+    # This implementation roughly based this snippet in core
+    # https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
+
+    import numpy as np
+
+    rand = np.random.random()
+    rand = int(str(rand)[2:])
+    rand36 = np.base_repr(rand, 36)
+    return rand36.lower()[:length]
+
 class Api:
     """
     Used for querying the wandb server.
@@ -441,18 +452,6 @@ class Api:
         )
         self._client = RetryingClient(self._base_client)
 
-    @staticmethod
-    def _generate_name(length=12):
-        # This implementation roughly based this snippet in core
-        # https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
-
-        import numpy as np
-
-        rand = np.random.random()
-        rand = int(str(rand)[2:])
-        rand36 = np.base_repr(rand, 36)
-        return rand36.lower()[:length]
-
     def create_run(self, **kwargs):
         """Create a new run"""
         if kwargs.get("entity") is None:
@@ -517,7 +516,7 @@ class Api:
                 "entityName": entity,
                 "projectName": project,
                 "description": description,
-                "name": self._generate_name(),
+                "name": _generate_name(),
                 "displayName": title,
                 "type": "runs",
                 "spec": json.dumps(minimal_spec),
@@ -3759,7 +3758,7 @@ class BetaReport(Attrs):
                 "entityName": entity,
                 "projectName": project,
                 "description": description,
-                "name": self._generate_name() if clone else self.name,
+                "name": _generate_name() if clone else self.name,
                 "displayName": title,
                 "type": view_type,
                 "spec": json.dumps(self.spec),
