@@ -8,6 +8,7 @@ import getpass
 import json
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1148,6 +1149,9 @@ def launch(
             raise LaunchError("Invalid format for resource-args")
     else:
         resource_args = {}
+
+    if entry_point is not None:
+        entry_point = shlex.split(entry_point)
 
     if config is not None:
         config = util.load_json_yaml_dict(config)
