@@ -385,10 +385,16 @@ class Run:
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
+        launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._init(settings=settings, config=config, sweep_config=sweep_config)
+        self._init(
+            settings=settings,
+            config=config,
+            sweep_config=sweep_config,
+            launch_config=launch_config,
+        )
 
     def _init(
         self,

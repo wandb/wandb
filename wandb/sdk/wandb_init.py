@@ -80,7 +80,7 @@ class _WandbInit:
         self.kwargs = None
         self.settings = None
         self.sweep_config = None
-        self.launch_config = None
+        self.launch_config = {}
         self.config = None
         self.run = None
         self.backend = None
@@ -194,7 +194,6 @@ class _WandbInit:
         # merge config with sweep or sagemaker (or config file)
         self.sweep_config = dict()
         sweep_config = self._wl._sweep_config or dict()
-        launch_config = self._handle_launch_config()
         self.config = dict()
         self.init_artifact_config = dict()
         for config_data in (
@@ -211,9 +210,6 @@ class _WandbInit:
 
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
-
-        if launch_config:
-            self._split_artifacts_from_config(launch_config, self.launch_config)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -276,8 +272,10 @@ class _WandbInit:
 
             if settings._jupyter:
                 self._jupyter_setup(settings)
-
         self.settings = settings
+        launch_config = self._handle_launch_config()
+        if launch_config:
+            self._split_artifacts_from_config(launch_config, self.launch_config)
         # self.settings.freeze()
 
     def teardown(self):
@@ -289,20 +287,17 @@ class _WandbInit:
 
     def _handle_launch_config(self) -> Dict[str, Any]:
         launch_run_config = {}
-
-        if self._settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
-            if os.environ.get("WANDB_CONFIG") is not None:
-                try:
-                    launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
-                except (ValueError, SyntaxError):
-                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+        if self.settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
+            try:
+                launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+            except (ValueError, SyntaxError):
+                wandb.termwarn("Malformed WANDB_CONFIG, using original config")
         elif (
-            self._settings.launch
-            and self._settings.launch_config_path
-            and os.path.exists(self._settings.launch_config_path)
+            self.settings.launch
+            and self.settings.launch_config_path
+            and os.path.exists(self.settings.launch_config_path)
         ):
-            self._save(self._settings.launch_config_path)
-            with open(self._settings.launch_config_path) as fp:
+            with open(self.settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             launch_run_config = launch_config.get("overrides", {}).get("run_config")
         return launch_run_config
@@ -718,6 +713,12 @@ class _WandbInit:
         self.run = run
 
         run._handle_launch_artifact_overrides()
+        if (
+            self._wl.settings.launch
+            and self._wl.settings.launch_config_path
+            and os.path.exists(self._wl.settings.launch_config_path)
+        ):
+            run._save(self._wl.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
