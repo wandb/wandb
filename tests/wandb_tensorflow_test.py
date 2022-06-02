@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 import os
 import json
-import sys
 import platform
 import pytest
 
-if sys.version_info >= (3, 9):
-    pytest.importorskip("tensorflow")
 from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
 import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf

@@ -1,0 +1,5 @@
+mmcv
+mmsegmentation
+mmdet
+git+https://github.com/open-mmlab/mmocr.git
+git+https://github.com/open-mmlab/mmclassification.git
