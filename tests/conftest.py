@@ -478,7 +478,7 @@ def wandb_init(request, runner, mocker, mock_server):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
             return wandb.init(
-                settings=dict(console="off", mode="offline", _except_exit=False),
+                settings=dict(console="off", mode="offline"),
                 *args,
                 **kwargs,
             )
