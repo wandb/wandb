@@ -1,12 +1,8 @@
 import pytest
-import sys
 import wandb
 from wandb.errors import UsageError
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="PyTorch profiler stable in 3.9? to verify"
-)
 def test_profiler_without_init():
     import torch
 
