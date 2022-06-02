@@ -238,6 +238,15 @@ class Api:
             username
             email
             admin
+            apiKeys {
+                edges {
+                    node {
+                        id
+                        name
+                        description
+                    }
+                }
+            }
             teams {
                 edges {
                     node {
@@ -936,6 +945,14 @@ class User(Attrs):
     def __init__(self, client, attrs):
         super().__init__(attrs)
         self._client = client
+        self._user_api = None
+
+    @property
+    def user_api(self):
+        """An instance of the api using credentials from the user"""
+        if self._user_api is None and len(self.api_keys) > 0:
+            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        return self._user_api
 
     @classmethod
     def create(cls, api, email, admin=False):
@@ -993,10 +1010,13 @@ class User(Attrs):
             The new api key, or None on failure
         """
         try:
-            return self._client.execute(
+            # We must make this call using credentials from the original user
+            key = self.user_api.client.execute(
                 self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]["name"]
-        except requests.exceptions.HTTPError:
+            )["generateApiKey"]["apiKey"]
+            self._attrs["apiKeys"]["edges"].append({"node": key})
+            return key["name"]
+        except (requests.exceptions.HTTPError, AttributeError):
             return None
 
     def __repr__(self):
