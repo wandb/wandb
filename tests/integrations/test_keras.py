@@ -1,9 +1,6 @@
 import pytest
 import sys
 
-if sys.version_info >= (3, 9):
-    pytest.importorskip("tensorflow")
-
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (

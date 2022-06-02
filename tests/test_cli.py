@@ -901,9 +901,6 @@ def test_sync_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
-)
 def test_sync_tensorboard(runner, live_mock_server):
     with runner.isolated_filesystem():
         utils.fixture_copy("events.out.tfevents.1585769947.cvp")
@@ -928,9 +925,6 @@ def test_sync_tensorboard(runner, live_mock_server):
 
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015")
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
-)
 def test_sync_tensorboard_big(runner, live_mock_server):
     with runner.isolated_filesystem():
         utils.fixture_copy("events.out.tfevents.1611911647.big-histos")
@@ -969,9 +963,6 @@ def test_sync_wandb_run(runner, live_mock_server):
         assert "wandb: ERROR Nothing to sync." in result.output
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
-)
 def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
     with runner.isolated_filesystem():
         run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
