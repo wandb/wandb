@@ -644,7 +644,7 @@ class _WandbInit(object):
             and self.settings.launch_config_path
             and os.path.exists(self.settings.launch_config_path)
         ):
-            run._save(self._wl.settings.launch_config_path)
+            run._save(self.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
