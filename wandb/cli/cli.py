@@ -914,10 +914,6 @@ def sweep(
     )
     util.handle_sweep_config_violations(warnings)
 
-    # if queue is not None:
-    #     # Make run queue external (default is internal/hidden for sweeps)
-    #     api.modify_scope_run_queue(sweep_id, internal=False)
-
     wandb.termlog(
         "{} sweep with ID: {}".format(
             "Updated" if sweep_obj_id else "Created", click.style(sweep_id, fg="yellow")
@@ -947,17 +943,6 @@ def sweep(
         sweep_path = f'"{sweep_path}"'
 
     if queue is not None:
-
-        # launch_add(
-        #     os.getcwd(),  # URI is local path
-        #     resource="local-process",
-        #     entry_point=f"wandb agent {entity}/{project}/{sweep_id}",
-        #     project=project,
-        #     entity=entity,
-        #     queue=queue,
-        #     name=f"Agent_{sweep_id}",
-        # )
-
         wandb.termlog(
             "Run launch agent with: {}".format(
                 click.style(f"wandb launch-agent -q {queue} -p {project}", fg="yellow")
@@ -969,12 +954,12 @@ def sweep(
                 click.style("wandb agent %s" % sweep_path, fg="yellow")
             )
         )
-        if controller:
-            wandb.termlog("Starting wandb controller...")
-            from wandb import controller as wandb_controller
+    if controller:
+        wandb.termlog("Starting wandb controller...")
+        from wandb import controller as wandb_controller
 
-            tuner = wandb_controller(sweep_id)
-            tuner.run(verbose=verbose)
+        tuner = wandb_controller(sweep_id)
+        tuner.run(verbose=verbose)
 
 
 @cli.command(
@@ -1312,20 +1297,6 @@ def launch_scheduler(ctx, project, entity, sweep_id, queue):
 @click.option(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
-# @click.option(
-#     "--queue",
-#     "-q",
-#     is_flag=False,
-#     flag_value="default",
-#     default=None,
-#     help="Name of launch run queue to push runs into. If supplied without "
-#     'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
-#     "name supplied, specified run queue must exist under the project and entity supplied.",
-# )
-# @click.option(
-#     "--use_launch", is_flag=True, show_default=True, default=False,
-#     help="Use the launch API to launch runs instead of the agent.",
-# )
 @click.argument("sweep_id")
 @display_error
 def agent(ctx, project, entity, count, sweep_id):
@@ -1335,16 +1306,6 @@ def agent(ctx, project, entity, count, sweep_id):
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    # if use_launch:
-    #     wandb.termlog("Using launch 🚀 to run wandb agent 🕵️")
-    #     breakpoint()
-    #     # TODO(hupo): Start a LocalProcessRunner here
-    # else:
-    # if queue:
-    # wandb.termlog("Starting a launch sweep controller 🚀 ")
-    # from wandb.sdk.launch.sweeps.agent import launch_sweep_controller
-    # launch_sweep_controller(sweep_id, queue, entity=entity, project=project)
-    # else:
     wandb.termlog("Starting wandb agent 🕵️")
     wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
 

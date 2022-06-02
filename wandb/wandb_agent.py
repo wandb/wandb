@@ -250,7 +250,6 @@ class Agent:
                     continue
 
                 commands = self._api.agent_heartbeat(agent_id, {}, run_status)
-                # TODO(hupo): Are these commands here the run spec?
 
                 # TODO: send _server_responses
                 self._server_responses = []
@@ -507,7 +506,6 @@ class AgentApi:
 def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
-    # TODO(hupo): Trace agent path
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = util.parse_sweep_id(parts)
     if err:
@@ -597,7 +595,6 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
         wandb.agent(sweep_id, function=my_train_func)
         ```
     """
-    # TODO(hupo): Trace agent path
     global _INSTANCES
     _INSTANCES += 1
     try:
