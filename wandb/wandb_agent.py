@@ -132,9 +132,8 @@ class Agent:
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
     ):
-        # TODO(hupo): Trace agent path
         self._api = api
-        self._queue = queue  # multiprocessing.Queue()
+        self._queue = queue
         self._run_processes = {}  # keyed by run.id (GQL run name)
         self._server_responses = []
         self._sweep_id = sweep_id

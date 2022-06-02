@@ -152,9 +152,6 @@ class Api:
     def pop_from_run_queue(self, *args, **kwargs):
         return self.api.pop_from_run_queue(*args, **kwargs)
 
-    # def modify_scope_run_queue(self, *args, **kwargs):
-    #     return self.api.modify_scope_run_queue(*args, **kwargs)
-
     def ack_run_queue_item(self, *args, **kwargs):
         return self.api.ack_run_queue_item(*args, **kwargs)
 
