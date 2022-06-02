@@ -16,6 +16,7 @@ from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
+    EntryPoint,
     get_entry_point_command,
     LaunchProject,
 )
@@ -113,7 +114,7 @@ class AWSSagemakerRunner(AbstractRunner):
             "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
         )
         account_id = client.get_caller_identity()["Account"]
-
+        entry_point = launch_project.get_single_entry_point()
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
             given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
@@ -125,7 +126,9 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             )
-            sagemaker_args = build_sagemaker_args(launch_project, self._api, account_id)
+            sagemaker_args = build_sagemaker_args(
+                launch_project, entry_point, self._api, account_id
+            )
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
@@ -142,7 +145,6 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_secret_access_key=secret_key,
         )
         token = ecr_client.get_authorization_token()
-
         ecr_repo_name = given_sagemaker_args.get(
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
@@ -182,11 +184,10 @@ class AWSSagemakerRunner(AbstractRunner):
                 "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )
 
-        entry_point = launch_project.get_single_entry_point()
-
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
+            assert entry_point is not None
             # build our own image
             image = builder.build_image(
                 launch_project,
@@ -211,14 +212,14 @@ class AWSSagemakerRunner(AbstractRunner):
             entry_point, launch_project.override_args
         )
         if command_args:
-            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_args}")
+            command_str = " ".join(command_args)
+            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_str}")
         else:
             wandb.termlog(
                 "Launching run on sagemaker with user-provided entrypoint in image"
             )
-
         sagemaker_args = build_sagemaker_args(
-            launch_project, self._api, account_id, image
+            launch_project, entry_point, self._api, account_id, image
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
@@ -265,6 +266,7 @@ def merge_aws_tag_with_algorithm_specification(
 
 def build_sagemaker_args(
     launch_project: LaunchProject,
+    entry_point: Optional[EntryPoint],
     api: Api,
     account_id: str,
     aws_tag: Optional[str] = None,
@@ -317,7 +319,7 @@ def build_sagemaker_args(
     given_env = given_sagemaker_args.get(
         "Environment", sagemaker_args.get("environment", {})
     )
-    calced_env = get_env_vars_dict(launch_project, api)
+    calced_env = get_env_vars_dict(launch_project, entry_point, api)
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env
 
