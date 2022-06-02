@@ -84,6 +84,10 @@ data:
       type: kaniko
       cloud-provider: aws # TODO: SET CLOUD PROVIDER HERE
       build-context-store: s3://wandb-build # name here
+    runner: # this can be set to specify default runner configuration
+      type: sagemaker
+      role_arn: # TODO: fill in sagemaker execution role
+      s3_output_path: # TODO: set your sagemaker artifactoutput bucket
 
 kind: ConfigMap
 metadata:

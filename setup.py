@@ -38,6 +38,7 @@ launch_requirements = [
     "iso8601",
     "typing_extensions",
     "boto3",
+    "botocore",
     "google-cloud-storage",
     "kubernetes",
 ]
