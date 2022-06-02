@@ -2,9 +2,6 @@ import wandb
 import pytest
 import sys
 
-if sys.version_info >= (3, 9):
-    pytest.importorskip("pytorch", reason="pytorch doesnt support py3.9 yet")
-
 try:
     import torch
     import torch.nn as nn
