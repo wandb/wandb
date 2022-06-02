@@ -8,6 +8,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 import copy
+import json
 import logging
 import os
 import platform
@@ -79,6 +80,7 @@ class _WandbInit:
         self.kwargs = None
         self.settings = None
         self.sweep_config = None
+        self.launch_config = None
         self.config = None
         self.run = None
         self.backend = None
@@ -192,6 +194,7 @@ class _WandbInit:
         # merge config with sweep or sagemaker (or config file)
         self.sweep_config = dict()
         sweep_config = self._wl._sweep_config or dict()
+        launch_config = self._handle_launch_config()
         self.config = dict()
         self.init_artifact_config = dict()
         for config_data in (
@@ -208,6 +211,9 @@ class _WandbInit:
 
         if sweep_config:
             self._split_artifacts_from_config(sweep_config, self.sweep_config)
+
+        if launch_config:
+            self._split_artifacts_from_config(launch_config, self.launch_config)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -280,6 +286,26 @@ class _WandbInit:
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
             hook.call()
+
+    def _handle_launch_config(self) -> Dict[str, Any]:
+        launch_run_config = {}
+
+        if self._settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
+            if os.environ.get("WANDB_CONFIG") is not None:
+                try:
+                    launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+                except (ValueError, SyntaxError):
+                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+        elif (
+            self._settings.launch
+            and self._settings.launch_config_path
+            and os.path.exists(self._settings.launch_config_path)
+        ):
+            self._save(self._settings.launch_config_path)
+            with open(self._settings.launch_config_path) as fp:
+                launch_config = json.loads(fp.read())
+            launch_run_config = launch_config.get("overrides", {}).get("run_config")
+        return launch_run_config
 
     def _split_artifacts_from_config(self, config_source, config_target):
         for k, v in config_source.items():
@@ -540,7 +566,10 @@ class _WandbInit:
         # resuming needs access to the server, check server_status()?
 
         run = Run(
-            config=self.config, settings=self.settings, sweep_config=self.sweep_config
+            config=self.config,
+            settings=self.settings,
+            sweep_config=self.sweep_config,
+            launch_config=self.launch_config,
         )
 
         # probe the active start method
