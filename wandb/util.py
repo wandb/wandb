@@ -138,7 +138,7 @@ POW_2_BYTES = [
 
 def sentry_message(message: str) -> None:
     if error_reporting_enabled():
-        sentry_hub.capture_message(message)
+        sentry_hub.capture_message(message)  # type: ignore
     return None
 
 
@@ -159,9 +159,9 @@ def sentry_exc(
         return None
 
     if isinstance(exc, str):
-        sentry_hub.capture_exception(Exception(exc))
+        sentry_hub.capture_exception(Exception(exc))  # type: ignore
     else:
-        sentry_hub.capture_exception(exc)
+        sentry_hub.capture_exception(exc)  # type: ignore
     if delay:
         time.sleep(2)
     return None
@@ -214,7 +214,7 @@ def sentry_set_scope(
         return getattr(s, key, None)
 
     # with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
-    with sentry_hub.configure_scope() as scope:
+    with sentry_hub.configure_scope() as scope:  # type: ignore
         scope.set_tag("platform", get_platform_name())
 
         # apply settings tags
