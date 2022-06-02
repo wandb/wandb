@@ -366,7 +366,6 @@ class Settings:
     _disable_meta: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
-    _except_exit: bool
     _executable: str
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
@@ -1371,10 +1370,6 @@ class Settings:
             settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
-        # hack to make sure we don't hang on windows
-        if self._windows and self._except_exit is None:
-            settings["_except_exit"] = True  # type: ignore
-
         if _logger is not None:
             _logger.info(
                 f"Inferring settings from compute environment: {_redact_dict(settings)}"
