@@ -24,7 +24,6 @@ import time
 from typing import Optional
 import urllib
 
-from dateutil.relativedelta import relativedelta
 import requests
 import wandb
 from wandb import __version__, env, util
