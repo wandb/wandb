@@ -638,6 +638,13 @@ class _WandbInit(object):
         self._wl._global_run_stack.append(run)
         self.run = run
 
+        run._handle_launch_artifact_overrides()
+        if (
+            self.settings.launch
+            and self.settings.launch_config_path
+            and os.path.exists(self.settings.launch_config_path)
+        ):
+            run._save(self._wl.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
@@ -673,7 +680,8 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+    attach_id: Optional[str] = None,
+    run_id: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
