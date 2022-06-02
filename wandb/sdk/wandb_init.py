@@ -73,6 +73,24 @@ def _maybe_mp_process(backend: Backend) -> bool:
     return False
 
 
+def _handle_launch_config(settings: "Settings") -> Dict[str, Any]:
+    launch_run_config = {}
+    if settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
+        try:
+            launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+        except (ValueError, SyntaxError):
+            wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+    elif (
+        settings.launch
+        and settings.launch_config_path
+        and os.path.exists(settings.launch_config_path)
+    ):
+        with open(settings.launch_config_path) as fp:
+            launch_config = json.loads(fp.read())
+        launch_run_config = launch_config.get("overrides", {}).get("run_config")
+    return launch_run_config
+
+
 class _WandbInit:
     _init_telemetry_obj: telemetry.TelemetryRecord
 
@@ -272,10 +290,12 @@ class _WandbInit:
 
             if settings._jupyter:
                 self._jupyter_setup(settings)
-        self.settings = settings
-        launch_config = self._handle_launch_config()
+        launch_config = _handle_launch_config(settings)
         if launch_config:
             self._split_artifacts_from_config(launch_config, self.launch_config)
+
+        self.settings = settings
+
         # self.settings.freeze()
 
     def teardown(self):
@@ -284,23 +304,6 @@ class _WandbInit:
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
             hook.call()
-
-    def _handle_launch_config(self) -> Dict[str, Any]:
-        launch_run_config = {}
-        if self.settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
-            try:
-                launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
-            except (ValueError, SyntaxError):
-                wandb.termwarn("Malformed WANDB_CONFIG, using original config")
-        elif (
-            self.settings.launch
-            and self.settings.launch_config_path
-            and os.path.exists(self.settings.launch_config_path)
-        ):
-            with open(self.settings.launch_config_path) as fp:
-                launch_config = json.loads(fp.read())
-            launch_run_config = launch_config.get("overrides", {}).get("run_config")
-        return launch_run_config
 
     def _split_artifacts_from_config(self, config_source, config_target):
         for k, v in config_source.items():
