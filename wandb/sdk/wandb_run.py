@@ -531,26 +531,6 @@ class Run:
     def _set_iface_port(self, iface_port: int) -> None:
         self._iface_port = iface_port
 
-    def _handle_launch_config(self) -> Dict[str, Any]:
-        launch_run_config = {}
-
-        if self._settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
-            if os.environ.get("WANDB_CONFIG") is not None:
-                try:
-                    launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
-                except (ValueError, SyntaxError):
-                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
-        elif (
-            self._settings.launch
-            and self._settings.launch_config_path
-            and os.path.exists(self._settings.launch_config_path)
-        ):
-            self._save(self._settings.launch_config_path)
-            with open(self._settings.launch_config_path) as fp:
-                launch_config = json.loads(fp.read())
-            launch_run_config = launch_config.get("overrides", {}).get("run_config")
-        return launch_run_config
-
     def _handle_launch_artifact_overrides(self) -> None:
         if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
             try:

@@ -717,9 +717,9 @@ class _WandbInit:
 
         run._handle_launch_artifact_overrides()
         if (
-            self._wl.settings.launch
-            and self._wl.settings.launch_config_path
-            and os.path.exists(self._wl.settings.launch_config_path)
+            self.settings.launch
+            and self.settings.launch_config_path
+            and os.path.exists(self.settings.launch_config_path)
         ):
             run._save(self._wl.settings.launch_config_path)
         # put artifacts in run config here
