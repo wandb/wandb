@@ -1427,7 +1427,9 @@ def local(ctx, *args, **kwargs):
     ctx.invoke(start, *args, **kwargs)
 
 
-@cli.group(help="Commands for operating a local W&B server", invoke_without_command=True)
+@cli.group(
+    help="Commands for operating a local W&B server", invoke_without_command=True
+)
 @click.pass_context
 @click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
 @click.option(
@@ -1478,7 +1480,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             subprocess.call(["docker", "pull", "wandb/local"])
         else:
             wandb.termlog(
-                "A new version of W&B local is available, upgrade by calling `wandb server --upgrade`"
+                "A new version of the W&B server is available, upgrade by calling `wandb server --upgrade`"
             )
     running = subprocess.check_output(
         ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
