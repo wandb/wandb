@@ -50,7 +50,6 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-from sentry_sdk import capture_exception, capture_message
 import shortuuid  # type: ignore
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
@@ -99,24 +98,16 @@ def get_platform_name() -> str:
 
 
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
-# side effect of loading a module.
+#  side effect of loading a module.
 sentry_client: Optional["sentry_sdk.client.Client"] = None
 sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
 if error_reporting_enabled():
     default_dsn = (
-        # "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"  # production
-        "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.sentry.io/6438430"  # junk
+        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
     )
     sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
-    # sentry_sdk.init(
-    #     dsn=sentry_dsn,
-    #     release=wandb.__version__,
-    #     default_integrations=False,
-    #     environment=SENTRY_ENV,
-    # )
     sentry_client = sentry_sdk.Client(
         dsn=sentry_dsn,
-        # integrations=[ExcepthookIntegration(always_run=True)],
         default_integrations=False,
         environment=SENTRY_ENV,
         release=wandb.__version__,
@@ -148,6 +139,7 @@ POW_2_BYTES = [
 def sentry_message(message: str) -> None:
     if error_reporting_enabled():
         sentry_hub.capture_message(message)
+    return None
 
 
 def sentry_exc(
@@ -163,13 +155,16 @@ def sentry_exc(
     ],
     delay: bool = False,
 ) -> None:
-    if error_reporting_enabled():
-        if isinstance(exc, str):
-            sentry_hub.capture_exception(Exception(exc))
-        else:
-            sentry_hub.capture_exception(exc)
-        if delay:
-            time.sleep(2)
+    if not error_reporting_enabled():
+        return None
+
+    if isinstance(exc, str):
+        sentry_hub.capture_exception(Exception(exc))
+    else:
+        sentry_hub.capture_exception(exc)
+    if delay:
+        time.sleep(2)
+    return None
 
 
 def sentry_reraise(exc: Any) -> None:
@@ -194,8 +189,8 @@ def sentry_set_scope(
     ] = None,
     process_context: Optional[str] = None,
 ) -> None:
-    # Using GLOBAL_HUB means these tags will persist between threads.
-    # Normally there is one hub per thread.
+    if not error_reporting_enabled():
+        return None
 
     # Tags come from two places: settings and args passed into this func.
     args = dict(locals())
