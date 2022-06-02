@@ -1,5 +1,6 @@
-import wandb
 import time
+
+import wandb
 import numpy as np
 
 labels = ["foo", "bar", "baz"]
@@ -16,14 +17,19 @@ class Model:
         for call in calls:
             rows += 1
             best_idx = np.argmax(call.results[0])
-            table.add_data(wandb.Image(call.args[0]), call.results[0][best_idx], labels[best_idx], call.kwargs["id"])
+            table.add_data(
+                wandb.Image(call.args[0]),
+                call.results[0][best_idx],
+                labels[best_idx],
+                call.kwargs["id"],
+            )
         print(f"Flushed {rows} rows")
         return table
 
 
 model = Model()
 for i in range(100):
-    res = model.predict(np.random.random((28,28,1)), id=i)
+    res = model.predict(np.random.random((28, 28, 1)), id=i)
     if i % 10 == 0:
         if i != 0:
             print(f"Predicted {i} images, most recent {res}")

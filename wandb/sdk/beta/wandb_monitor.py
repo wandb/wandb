@@ -1,4 +1,3 @@
-#
 """
 Monitor inference with Weights & Biases
 """
@@ -10,6 +9,16 @@ import inspect
 import sys
 import threading
 from timeit import default_timer as timer
+from typing import (
+    NamedTuple,
+    Dict,
+    Optional,
+    Union,
+    Callable,
+    Tuple,
+    TypeVar,
+    Any,
+)
 
 import wandb
 from wandb.data_types import Table
@@ -18,23 +27,8 @@ from ..internal import sample
 from ..wandb_artifacts import Artifact
 from ..wandb_settings import Settings
 
-if wandb.TYPE_CHECKING:
-    from typing import (
-        NamedTuple,
-        Dict,
-        Optional,
-        Union,
-        Callable,
-        Tuple,
-        TypeVar,
-        Any,
-    )  # noqa: F401
 
-    T = TypeVar("T")
-else:
-    # Awful hack for python2
-    NamedTuple = object
-
+T = TypeVar("T")
 np = wandb.util.get_module("numpy")
 
 
@@ -150,7 +144,7 @@ class Monitor:
         self._flush_interval = flush_interval
         self._max_samples = max_pred_samples
         # TODO: actually make this max_samples?
-        self._sampled_preds = sample.UniformSampleAccumulator(max_pred_samples // 2)
+        self._sampled_preds = sample.UniformSampleAccumulator(max_pred_samples // 2)  # type: ignore[no-untyped-call]
         self._counter = 0
         self._flush_count = 0
         self._config = config
@@ -241,18 +235,18 @@ class Monitor:
         if self._schema == {}:
             self._detect_schema(results, args, kwargs)
 
-        self._sampled_preds.add(Prediction(args, kwargs, results, millis))
+        self._sampled_preds.add(Prediction(args, kwargs, results, millis))  # type: ignore[no-untyped-call]
 
     def flush(self) -> None:
         """
         Flush all sampled metrics to W&B
         """
-        preds = self._sampled_preds.get()
+        preds = self._sampled_preds.get()  # type: ignore[no-untyped-call]
         if len(preds) == 0:
             return
         metrics: Dict[str, Any] = {"calls": self._counter}
         self._counter = 0
-        self._sampled_preds = sample.UniformSampleAccumulator(self._max_samples)
+        self._sampled_preds = sample.UniformSampleAccumulator(self._max_samples)  # type: ignore[no-untyped-call]
         for arg in self._schema["inputs"]:
             if arg.data_type in ["df", "np"]:
                 metric_name = f"input_{arg.key}"
@@ -278,14 +272,12 @@ class Monitor:
                 name = self._artifact.name
                 typ = self._artifact.type
                 meta = self._artifact.metadata
-                wandb.run.log_artifact(self._artifact)  # type: ignore[attr-defined]
-                wandb.run.log({"examples": table})  # type: ignore[attr-defined]
+                wandb.run.log_artifact(self._artifact)  # type: ignore[union-attr]
+                wandb.run.log({"examples": table})  # type: ignore[union-attr]
                 # Reset our artifact for the next flush
                 self._artifact = wandb.Artifact(name, typ, metadata=meta)
             else:
-                wandb.termwarn(
-                    f"to_table returned an incompatible object: {table}"
-                )
+                wandb.termwarn(f"to_table returned an incompatible object: {table}")
 
         self._flush_count += 1
         self._maybe_rotate_run()
@@ -312,8 +304,8 @@ class Monitor:
     def _maybe_rotate_run(self) -> bool:
         # TODO: decide if this is the right metric...
         if self._flush_count > 100000:
-            config = dict(wandb.run.config)  # type: ignore[attr-defined]
-            settings = copy.copy(wandb.run._settings)  # type: ignore[attr-defined]
+            config = dict(wandb.run.config)  # type: ignore[union-attr]
+            settings = copy.copy(wandb.run._settings)  # type: ignore[union-attr]
             settings.run_id = None
             wandb.finish()
             self._flush_count = 0
