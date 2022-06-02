@@ -1403,7 +1403,9 @@ def docker(
 
 
 @cli.command(
-    context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)", hidden=True
+    context_settings=RUN_CONTEXT,
+    help="Start a local W&B container (deprecated, see wandb server --help)",
+    hidden=True,
 )
 @click.pass_context
 @click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
@@ -1420,20 +1422,36 @@ def docker(
     "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
 )
 @display_error
-def local(*args, **kwargs):
-    wandb.termwarn(
-        "`wandb local` has been replaced with `wandb server`."
-    )
-    wandb.termlog(
-        "Please use `wandb server` instead."
-    )
+def local(ctx, *args, **kwargs):
+    wandb.termwarn("`wandb local` has been replaced with `wandb server start`.")
+    ctx.invoke(start, *args, **kwargs)
 
 
-@cli.command(
-    context_settings=RUN_CONTEXT, help="Launch W&B server (Experimental)"
-)
+@cli.group(help="Commands for operating a local W&B server", invoke_without_command=True)
 @click.pass_context
-@click.option("--port", "-p", default="8080", help="The host port to bind W&B server on")
+@click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
+@click.option(
+    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+)
+@click.option(
+    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+)
+@click.option(
+    "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version"
+)
+@click.option(
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+)
+def server(ctx, *args, **kwargs):
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(start, *args, **kwargs)
+
+
+@server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
+@click.pass_context
+@click.option(
+    "--port", "-p", default="8080", help="The host port to bind W&B server on"
+)
 @click.option(
     "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
 )
@@ -1447,7 +1465,7 @@ def local(*args, **kwargs):
     "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
 )
 @display_error
-def server(ctx, port, env, daemon, upgrade, edge):
+def start(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
     if not find_executable("docker"):
         raise ClickException("Docker not installed, install it from https://docker.com")
