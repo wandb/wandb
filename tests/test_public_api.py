@@ -637,14 +637,14 @@ def test_invite_user(mock_server, api):
     assert t.invite("test@test.com")
     assert t.invite("test")
     mock_server.set_context("graphql_conflict", True)
-    assert t.invite("conflict") == False
+    assert t.invite("conflict") is False
 
 
 def test_delete_member(mock_server, api):
     t = api.team("test")
     assert t.members[0].delete()
     mock_server.set_context("graphql_conflict", True)
-    assert t.invite("conflict") == False
+    assert t.invite("conflict") is False
 
 
 def test_query_user(mock_server, api):
