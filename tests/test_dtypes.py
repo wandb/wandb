@@ -657,7 +657,6 @@ def test_table_specials():
     )
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_nan_non_float():
     import pandas as pd
 
@@ -763,7 +762,6 @@ def test_table_typing_numpy():
     table.add_data(np.array([[[[1, 2, 3]]]]))
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_table_typing_pandas():
     import pandas as pd
 

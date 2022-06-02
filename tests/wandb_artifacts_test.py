@@ -403,9 +403,6 @@ def test_add_s3_reference_object_with_name(runner, mocker):
         }
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
-)
 def test_add_s3_reference_path(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -424,9 +421,6 @@ def test_add_s3_reference_path(runner, mocker, capsys):
         assert "Generating checksum" in err
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
-)
 def test_add_s3_reference_path_with_content_type(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -445,9 +439,6 @@ def test_add_s3_reference_path_with_content_type(runner, mocker, capsys):
         assert "Generating checksum" in err
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
-)
 def test_add_s3_max_objects(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -591,7 +582,6 @@ def test_add_reference_unknown_handler(runner):
         }
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         import pandas as pd

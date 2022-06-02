@@ -56,7 +56,6 @@ def test_telemetry_imports_catboost(runner, live_mock_server, parse_ctx):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
 )
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="jax has no py3.10 wheel")
 def test_telemetry_imports_jax(runner, live_mock_server, parse_ctx):
     with runner.isolated_filesystem():
         import jax
