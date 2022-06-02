@@ -158,7 +158,6 @@ def test_interactive(cls, capfd):
         r.uninstall()
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 9), reason="Tensorflow not available.")
 @pytest.mark.skipif(
     not sys.stdout.isatty(), reason="Keras won't show progressbar on non tty terminal."
 )
@@ -188,10 +187,6 @@ def test_numpy(cls, capfd):
         r.uninstall()
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9),
-    reason="Torch not available.",
-)
 @pytest.mark.parametrize("cls", impls)
 @pytest.mark.timeout(5)
 def test_print_torch_model(cls, capfd):
