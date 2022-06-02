@@ -121,6 +121,10 @@ class AWSSagemakerRunner(AbstractRunner):
         default_output_path = self.backend_config.get("runner", {}).get(
             "s3_output_path"
         )
+        if default_output_path is not None and not default_output_path.startswith(
+            "s3://"
+        ):
+            default_output_path = f"s3://{default_output_path}"
 
         region = get_region(given_sagemaker_args, registry_config.get("region"))
         instance_role = False

@@ -400,7 +400,7 @@ def maybe_create_imagepull_secret(
 ) -> Optional["V1Secret"]:
     secret = None
     if (
-        registry_config.get("ecr-provider") == "AWS"
+        registry_config.get("ecr-provider").lower() == "aws"
         and registry_config.get("url") is not None
         and registry_config.get("credentials") is not None
     ):
@@ -444,8 +444,8 @@ def maybe_create_imagepull_secret(
             raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
     # TODO: support other ecxr providers
     elif (
-        registry_config.get("ecr-provider") != "AWS"
-        and registry_config.get("ecr-provider") is not None
+        registry_config.get("ecr-provider") is not None
+        and registry_config.get("ecr-provider").lower() != "aws"
     ):
         raise LaunchError(
             "Registry provider not supported: {}".format(
