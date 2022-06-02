@@ -1,0 +1,76 @@
+codecov:
+  require_ci_to_pass: no
+  notify:
+    # after_n_builds calculation
+    # 18 =  1 (lin-py36)
+    #       4 (win-py37)
+    #       1 (pylaunch)
+    #      10 (func-s_{base,tf115,tf21,tf25,tf26,service,noml,grpc,py310,docs}-lin-*)
+    #       2 (unit-s_{nb,kfp}-{lin}-*)
+    # also change comment block after_n_builds just below
+    after_n_builds: 18
+    wait_for_ci: no
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: no
+  after_n_builds: 18
+
+ignore:
+  - "wandb/vendor"
+  - "wandb/proto"
+
+coverage:
+  precision: 2
+  round: down
+  range: "50...100"
+  status:
+    project:
+      default:
+        threshold: 0.75%
+        if_ci_failed: error #success, failure, error, ignore
+    patch:
+      default:
+        target: 0
+        informational: true
+      sdk:
+        paths:
+          - wandb/sdk/*.py
+      sdk-internal:
+        paths:
+          - wandb/sdk/internal/
+      sdk-launch:
+        paths:
+          - wandb/sdk/launch/
+      sdk-service:
+        paths:
+          - wandb/sdk/service/
+      sdk-other:
+        paths:
+          - "!wandb/sdk/*.py"
+          - "!wandb/sdk/internal/"
+          - "!wandb/sdk/launch/"
+          - "!wandb/sdk/service/"
+          - wandb/sdk/
+      apis:
+        informational: true
+        paths:
+          - wandb/apis/
+      other:
+        informational: true
+        paths:
+          - "!wandb/sdk/"
+          - "!wandb/apis/"
+          - wandb/
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+github_checks:
+  annotations: true

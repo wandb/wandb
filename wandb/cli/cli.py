@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
+import configparser
 import copy
 import datetime
 from functools import wraps
@@ -8,45 +8,67 @@ import getpass
 import json
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import traceback
+
 
 import click
 from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
-import six
-from six.moves import configparser
 import wandb
 from wandb import Config
 from wandb import env, util
 from wandb import Error
 from wandb import wandb_agent
-from wandb import wandb_controller
 from wandb import wandb_sdk
+
 from wandb.apis import InternalApi, PublicApi
+from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
-from wandb.old.settings import Settings
-from wandb.sync import get_run_from_path, get_runs, SyncManager
+from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.lib.wburls import wburls
+
+# from wandb.old.core import wandb_dir
+import wandb.sdk.verify.verify as wandb_verify
+from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
-# whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
-# DANGER this changes the sys.path so we should never do this in a user script
-whaaaaat = util.vendor_import("whaaaaat")
 
+# Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
+_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+if not os.path.exists(_wandb_dir):
+    _wandb_dir = tempfile.gettempdir()
 
+try:
+    _username = getpass.getuser()
+except KeyError:
+    # getuser() could raise KeyError in restricted environments like
+    # chroot jails or docker containers. Return user id in these cases.
+    _username = str(os.getuid())
+
+_wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
+
+logging.basicConfig(
+    filename=_wandb_log_path,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-
 CONTEXT = dict(default_map={})
 
 
 def cli_unsupported(argument):
-    wandb.termerror("Unsupported argument `{}`".format(argument))
+    wandb.termerror(f"Unsupported argument `{argument}`")
     sys.exit(1)
 
 
@@ -54,7 +76,7 @@ class ClickWandbException(ClickException):
     def format_message(self):
         # log_file = util.get_log_file_path()
         log_file = ""
-        orig_type = "{}.{}".format(self.orig_type.__module__, self.orig_type.__name__)
+        orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
@@ -76,9 +98,14 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error("".join(lines))
+            wandb.termerror(
+                "Find detailed error logs at: {}".format(
+                    os.path.join(_wandb_dir, "debug-cli.log")
+                )
+            )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
-            six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
+            raise click_exc.with_traceback(sys.exc_info()[2])
 
     return wrapper
 
@@ -94,7 +121,8 @@ def _get_cling_api(reset=None):
         wandb_sdk.wandb_setup._setup(_reset=True)
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
-        wandb.setup(settings=wandb.Settings(_cli_only_mode=True))
+        # only override the necessary setting
+        wandb.setup(settings=dict(_cli_only_mode=True))
         _api = InternalApi()
     return _api
 
@@ -103,23 +131,17 @@ def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
     api = _get_cling_api()
-
     try:
         if len(result) == 0:
             project = click.prompt("Enter a name for your first project")
             # description = editor()
             project = api.upsert_project(project, entity=entity)["name"]
         else:
-            project_names = [project["name"] for project in result]
-            question = {
-                "type": "list",
-                "name": "project_name",
-                "message": "Which project should we use?",
-                "choices": project_names + ["Create New"],
-            }
-            result = whaaaaat.prompt([question])
+            project_names = [project["name"] for project in result] + ["Create New"]
+            wandb.termlog("Which project should we use?")
+            result = util.prompt_choices(project_names)
             if result:
-                project = result["project_name"]
+                project = result
             else:
                 project = "Create New"
             # TODO: check with the server if the project exists
@@ -130,7 +152,7 @@ def prompt_for_project(ctx, entity):
                 # description = editor()
                 project = api.upsert_project(project, entity=entity)["name"]
 
-    except wandb.errors.error.CommError as e:
+    except wandb.errors.CommError as e:
         raise ClickException(str(e))
 
     return project
@@ -199,54 +221,68 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
-    if host and not host.startswith("http"):
-        raise ClickException("host must start with http(s)://")
-
-    _api = InternalApi()
-    if host == "https://api.wandb.ai" or (host is None and cloud):
-        _api.clear_setting("base_url", globally=True, persist=True)
-        # To avoid writing an empty local settings file, we only clear if it exists
-        if os.path.exists(Settings._local_path()):
-            _api.clear_setting("base_url", persist=True)
-    elif host:
-        # force relogin if host is specified
-        _api.set_setting("base_url", host.strip("/"), globally=True, persist=True)
-    key = key[0] if len(key) > 0 else None
-    if host or cloud or key:
+    wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
+    # A change in click or the test harness means key can be none...
+    key = key[0] if key is not None and len(key) > 0 else None
+    if key:
         relogin = True
 
-    wandb.setup(
-        settings=wandb.Settings(
-            _cli_only_mode=True,
-            _disable_viewer=relogin,
-            anonymous=anon_mode,
-            base_url=host,
-        )
+    login_settings = dict(
+        _cli_only_mode=True,
+        _disable_viewer=relogin,
+        anonymous=anon_mode,
     )
+    if host is not None:
+        login_settings["base_url"] = host
+
+    try:
+        wandb.setup(settings=login_settings)
+    except TypeError as e:
+        wandb.termerror(str(e))
+        sys.exit(1)
+
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
+    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
+@click.option(
+    "--grpc-port", default=None, type=int, help="The host port to bind grpc service."
+)
+@click.option(
+    "--sock-port", default=None, type=int, help="The host port to bind socket service."
+)
+@click.option("--port-filename", default=None, help="Save allocated port to file.")
+@click.option("--address", default=None, help="The address to bind service.")
+@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
+@click.option("--debug", is_flag=True, help="log debug info")
+@click.option("--serve-sock", is_flag=True, help="use socket mode")
+@click.option("--serve-grpc", is_flag=True, help="use grpc mode")
 @display_error
-def grpc_server(project=None, entity=None):
-    _ = util.get_module(
-        "grpc",
-        required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
+def service(
+    grpc_port=None,
+    sock_port=None,
+    port_filename=None,
+    address=None,
+    pid=None,
+    debug=False,
+    serve_sock=False,
+    serve_grpc=False,
+):
+    from wandb.sdk.service.server import WandbServer
+
+    server = WandbServer(
+        grpc_port=grpc_port,
+        sock_port=sock_port,
+        port_fname=port_filename,
+        address=address,
+        pid=pid,
+        debug=debug,
+        serve_sock=serve_sock,
+        serve_grpc=serve_grpc,
     )
-    from wandb.server.grpc_server import main as grpc_server
-
-    grpc_server()
-
-
-@cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.argument("agent_spec", nargs=-1)
-@display_error
-def superagent(project=None, entity=None, agent_spec=None):
-    wandb.superagent.run_agent(agent_spec)
+    server.serve()
 
 
 @cli.command(
@@ -258,25 +294,33 @@ def superagent(project=None, entity=None, agent_spec=None):
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
 # @click.option('--show', is_flag=True, help="Show settings")
 @click.option("--reset", is_flag=True, help="Reset settings")
+@click.option(
+    "--mode",
+    "-m",
+    help=' Can be "online", "offline" or "disabled". Defaults to online.',
+)
 @click.pass_context
 @display_error
-def init(ctx, project, entity, reset):
+def init(ctx, project, entity, reset, mode):
     from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
 
     if __stage_dir__ is None:
         _set_stage_dir("wandb")
 
-    # non interactive init
-    if reset or project or entity:
+    # non-interactive init
+    if reset or project or entity or mode:
         api = InternalApi()
         if reset:
             api.clear_setting("entity", persist=True)
             api.clear_setting("project", persist=True)
+            api.clear_setting("mode", persist=True)
             # TODO(jhr): clear more settings?
         if entity:
             api.set_setting("entity", entity, persist=True)
         if project:
             api.set_setting("project", project, persist=True)
+        if mode:
+            api.set_setting("mode", mode, persist=True)
         return
 
     if os.path.isdir(wandb_dir()) and os.path.exists(
@@ -318,7 +362,8 @@ def init(ctx, project, entity, reset):
     if not viewer:
         click.echo(
             click.style(
-                "We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.",
+                "We're sorry, there was a problem logging you in. "
+                "Please send us a note at support@wandb.com and tell us how this happened.",
                 fg="red",
                 bold=True,
             )
@@ -327,19 +372,16 @@ def init(ctx, project, entity, reset):
 
     # At this point we should be logged in successfully.
     if len(viewer["teams"]["edges"]) > 1:
-        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]]
-        question = {
-            "type": "list",
-            "name": "team_name",
-            "message": "Which team should we use?",
-            "choices": team_names
-            # TODO(jhr): disabling manual entry for cling
-            # 'choices': team_names + ["Manual Entry"]
-        }
-        result = whaaaaat.prompt([question])
+        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
+            "Manual entry"
+        ]
+        wandb.termlog(
+            "Which team should we use?",
+        )
+        result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
-            entity = result["team_name"]
+            entity = result
         else:
             entity = "Manual Entry"
         if entity == "Manual Entry":
@@ -353,7 +395,7 @@ def init(ctx, project, entity, reset):
     try:
         project = prompt_for_project(ctx, entity)
     except ClickWandbException:
-        raise ClickException("Could not find team: %s" % entity)
+        raise ClickException(f"Could not find team: {entity}")
 
     api.set_setting("entity", entity, persist=True)
     api.set_setting("project", project, persist=True)
@@ -390,6 +432,12 @@ def init(ctx, project, entity, reset):
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
+@click.option(
+    "--sync-tensorboard/--no-sync-tensorboard",
+    is_flag=True,
+    default=None,
+    help="Stream tfevent files to wandb.",
+)
 @click.option("--include-globs", help="Comma seperated list of globs to include.")
 @click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
@@ -441,6 +489,7 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
+    sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
     include_online=None,
@@ -454,6 +503,8 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
 ):
+    # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
+    os.environ["WANDB_DIR"] = TMPDIR.name
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to sync offline runs")
@@ -487,30 +538,26 @@ def sync(
         for item in all_items:
             (synced if item.synced else unsynced).append(item)
         if sync_items:
-            wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
+            wandb.termlog(f"Number of runs to be synced: {len(sync_items)}")
             if show and show < len(sync_items):
-                wandb.termlog("Showing {} runs to be synced:".format(show))
+                wandb.termlog(f"Showing {show} runs to be synced:")
             for item in sync_items[: (show or len(sync_items))]:
-                wandb.termlog("  {}".format(item))
+                wandb.termlog(f"  {item}")
         else:
             wandb.termlog("No runs to be synced.")
         if synced:
             clean_cmd = click.style("wandb sync --clean", fg="yellow")
             wandb.termlog(
-                "NOTE: use {} to delete {} synced runs from local directory.".format(
-                    clean_cmd, len(synced)
-                )
+                f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
             )
         if unsynced:
             sync_cmd = click.style("wandb sync --sync-all", fg="yellow")
             wandb.termlog(
-                "NOTE: use {} to sync {} unsynced runs from local directory.".format(
-                    sync_cmd, len(unsynced)
-                )
+                f"NOTE: use {sync_cmd} to sync {len(unsynced)} unsynced runs from local directory."
             )
 
-    def _sync_path(path):
-        if run_id and len(path) > 1:
+    def _sync_path(_path, _sync_tensorboard):
+        if run_id and len(_path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
         sm = SyncManager(
@@ -521,13 +568,13 @@ def sync(
             app_url=api.app_url,
             view=view,
             verbose=verbose,
+            sync_tensorboard=_sync_tensorboard,
         )
-        for p in path:
+        for p in _path:
             sm.add(p)
         sm.start()
         while not sm.is_done():
             _ = sm.poll()
-            # print(status)
 
     def _sync_all():
         sync_items = get_runs(
@@ -541,7 +588,9 @@ def sync(
         if not sync_items:
             wandb.termerror("Nothing to sync.")
         else:
-            _sync_path(sync_items)
+            # When syncing run directories, default to not syncing tensorboard
+            sync_tb = sync_tensorboard if sync_tensorboard is not None else False
+            _sync_path(sync_items, sync_tb)
 
     def _clean():
         if path:
@@ -549,7 +598,7 @@ def sync(
             if not clean_force:
                 click.confirm(
                     click.style(
-                        "Are you sure you want to remove %i runs?" % len(runs),
+                        f"Are you sure you want to remove {len(runs)} runs?",
                         bold=True,
                     ),
                     abort=True,
@@ -568,19 +617,17 @@ def sync(
         )
         since = datetime.datetime.now() - datetime.timedelta(hours=clean_old_hours)
         old_runs = [run for run in runs if run.datetime < since]
-        old_runs.sort(key=lambda run: run.datetime)
+        old_runs.sort(key=lambda _run: _run.datetime)
         if old_runs:
             click.echo(
-                "Found {} runs, {} are older than {} hours".format(
-                    len(runs), len(old_runs), clean_old_hours
-                )
+                f"Found {len(runs)} runs, {len(old_runs)} are older than {clean_old_hours} hours"
             )
             for run in old_runs:
                 click.echo(run.path)
             if not clean_force:
                 click.confirm(
                     click.style(
-                        "Are you sure you want to remove %i runs?" % len(old_runs),
+                        f"Are you sure you want to remove {len(old_runs)} runs?",
                         bold=True,
                     ),
                     abort=True,
@@ -591,7 +638,7 @@ def sync(
         else:
             click.echo(
                 click.style(
-                    "No runs older than %i hours found" % clean_old_hours, fg="red"
+                    f"No runs older than {clean_old_hours} hours found", fg="red"
                 )
             )
 
@@ -600,7 +647,9 @@ def sync(
     elif clean:
         _clean()
     elif path:
-        _sync_path(path)
+        # When syncing a specific path, default to syncing tensorboard
+        sync_tb = sync_tensorboard if sync_tensorboard is not None else True
+        _sync_path(path, sync_tb)
     else:
         _summary()
 
@@ -611,11 +660,35 @@ def sync(
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=False, help="Set sweep name")
-@click.option("--program", default=False, help="Set sweep program")
-@click.option("--settings", default=False, help="Set sweep settings", hidden=True)
+@click.option("--name", default=None, help="Set sweep name")
+@click.option("--program", default=None, help="Set sweep program")
+@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
-@click.argument("config_yaml")
+@click.option(
+    "--stop",
+    is_flag=True,
+    default=False,
+    help="Finish a sweep to stop running new runs and let currently running runs finish.",
+)
+@click.option(
+    "--cancel",
+    is_flag=True,
+    default=False,
+    help="Cancel a sweep to kill all running runs and stop running new runs.",
+)
+@click.option(
+    "--pause",
+    is_flag=True,
+    default=False,
+    help="Pause a sweep to temporarily stop running new runs.",
+)
+@click.option(
+    "--resume",
+    is_flag=True,
+    default=False,
+    help="Resume a sweep to continue running new runs.",
+)
+@click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
     ctx,
@@ -627,8 +700,48 @@ def sweep(
     program,
     settings,
     update,
-    config_yaml,
+    stop,
+    cancel,
+    pause,
+    resume,
+    config_yaml_or_sweep_id,
 ):  # noqa: C901
+    state_args = "stop", "cancel", "pause", "resume"
+    lcls = locals()
+    is_state_change_command = sum(lcls[k] for k in state_args)
+    if is_state_change_command > 1:
+        raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
+    elif is_state_change_command == 1:
+        sweep_id = config_yaml_or_sweep_id
+        api = _get_cling_api()
+        if api.api_key is None:
+            wandb.termlog("Login to W&B to use the sweep feature")
+            ctx.invoke(login, no_offline=True)
+            api = _get_cling_api(reset=True)
+        parts = dict(entity=entity, project=project, name=sweep_id)
+        err = util.parse_sweep_id(parts)
+        if err:
+            wandb.termerror(err)
+            return
+        entity = parts.get("entity") or entity
+        project = parts.get("project") or project
+        sweep_id = parts.get("name") or sweep_id
+        state = [s for s in state_args if lcls[s]][0]
+        ings = {
+            "stop": "Stopping",
+            "cancel": "Cancelling",
+            "pause": "Pausing",
+            "resume": "Resuming",
+        }
+        wandb.termlog(
+            "{} sweep {}.".format(ings[state], f"{entity}/{project}/{sweep_id}")
+        )
+        getattr(api, "%s_sweep" % state)(sweep_id, entity=entity, project=project)
+        wandb.termlog("Done.")
+        return
+    else:
+        config_yaml = config_yaml_or_sweep_id
+
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}
@@ -661,11 +774,28 @@ def sweep(
         entity = parts.get("entity") or entity
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
+
+        has_project = (project or api.settings("project")) is not None
+        has_entity = (entity or api.settings("entity")) is not None
+
+        termerror_msg = (
+            "Sweep lookup requires a valid %s, and none was specified. \n"
+            "Either set a default %s in wandb/settings, or, if invoking \n`wandb sweep` "
+            "from the command line, specify the full sweep path via: \n\n"
+            "    wandb sweep {username}/{projectname}/{sweepid}\n\n"
+        )
+
+        if not has_entity:
+            wandb.termerror(termerror_msg % (("entity",) * 2))
+            return
+
+        if not has_project:
+            wandb.termerror(termerror_msg % (("project",) * 2))
+            return
+
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
         if not found:
-            wandb.termerror(
-                "Could not find sweep {}/{}/{}".format(entity, project, sweep_id)
-            )
+            wandb.termerror(f"Could not find sweep {entity}/{project}/{sweep_id}")
             return
         sweep_obj_id = found["id"]
 
@@ -704,7 +834,9 @@ def sweep(
 
     is_local = config.get("controller", {}).get("type") == "local"
     if is_local:
-        tuner = wandb_controller.controller()
+        from wandb import controller as wandb_controller
+
+        tuner = wandb_controller()
         err = tuner._validate(config)
         if err:
             wandb.termerror("Error in sweep file: %s" % err)
@@ -724,15 +856,18 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
-    sweep_id = api.upsert_sweep(
+    sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
     )
+    util.handle_sweep_config_violations(warnings)
+
     wandb.termlog(
         "{} sweep with ID: {}".format(
             "Updated" if sweep_obj_id else "Created", click.style(sweep_id, fg="yellow")
         )
     )
-    sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
+
+    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         wandb.termlog(
             "View sweep at: {}".format(
@@ -740,19 +875,19 @@ def sweep(
             )
         )
 
-    # reprobe entity and project if it was autodetected by upsert_sweep
+    # re-probe entity and project if it was auto-detected by upsert_sweep
     entity = entity or env.get("WANDB_ENTITY")
     project = project or env.get("WANDB_PROJECT")
 
     if entity and project:
-        sweep_path = "{}/{}/{}".format(entity, project, sweep_id)
+        sweep_path = f"{entity}/{project}/{sweep_id}"
     elif project:
-        sweep_path = "{}/{}".format(project, sweep_id)
+        sweep_path = f"{project}/{sweep_id}"
     else:
         sweep_path = sweep_id
 
     if sweep_path.find(" ") >= 0:
-        sweep_path = '"{}"'.format(sweep_path)
+        sweep_path = f'"{sweep_path}"'
 
     wandb.termlog(
         "Run sweep agent with: {}".format(
@@ -761,8 +896,298 @@ def sweep(
     )
     if controller:
         wandb.termlog("Starting wandb controller...")
-        tuner = wandb_controller.controller(sweep_id)
+        from wandb import controller as wandb_controller
+
+        tuner = wandb_controller(sweep_id)
         tuner.run(verbose=verbose)
+
+
+@cli.command(
+    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
+    "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
+    "or a git uri pointing to a remote repository, or path to a local directory.",
+)
+@click.argument("uri", nargs=1, required=False)
+@click.option(
+    "--entry-point",
+    "-E",
+    metavar="NAME",
+    default=None,
+    help="Entry point within project. [default: main]. If the entry point is not found, "
+    "attempts to run the project file with the specified name as a script, "
+    "using 'python' to run .py files and the default shell (specified by "
+    "environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.",
+)
+@click.option(
+    "--git-version",
+    "-g",
+    metavar="GIT-VERSION",
+    help="Version of the project to run, as a Git commit reference for Git projects.",
+)
+@click.option(
+    "--args-list",
+    "-a",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="An argument for the run, of the form -a name=value. Provided arguments that "
+    "are not in the list of arguments for an entry point will be passed to the "
+    "corresponding entry point as command-line arguments in the form `--name value`",
+)
+@click.option(
+    "--name",
+    envvar="WANDB_NAME",
+    help="Name of the run under which to launch the run. If not "
+    "specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    metavar="<str>",
+    default=None,
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
+    "If passed in, will override the entity value passed in using a config file.",
+)
+@click.option(
+    "--project",
+    "-p",
+    metavar="<str>",
+    default=None,
+    help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
+    "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",
+)
+@click.option(
+    "--resource",
+    "-r",
+    metavar="BACKEND",
+    default=None,
+    help="Execution resource to use for run. Supported values: 'local'."
+    " If passed in, will override the resource value passed in using a config file."
+    " Defaults to 'local'.",
+)
+@click.option(
+    "--docker-image",
+    "-d",
+    default=None,
+    metavar="DOCKER IMAGE",
+    help="Specific docker image you'd like to use. In the form name:tag."
+    " If passed in, will override the docker image value passed in using a config file.",
+)
+@click.option(
+    "--config",
+    "-c",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as a launch config. Dictation how the launched run will be configured. ",
+)
+@click.option(
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of run queue to push to. If none, launches single run directly. If supplied without "
+    "an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the "
+    "project and entity supplied.",
+)
+@click.option(
+    "--async",
+    "run_async",
+    is_flag=True,
+    help="Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for "
+    "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
+    "set on wandb launch-agent.",
+)
+@click.option(
+    "--resource-args",
+    "-R",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as resource args to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
+)
+@click.option(
+    "--cuda",
+    is_flag=False,
+    flag_value=True,
+    default=None,
+    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
+    "built by default and you must set --cuda=False to build a CPU-only image.",
+)
+@display_error
+def launch(
+    uri,
+    entry_point,
+    git_version,
+    args_list,
+    name,
+    resource,
+    entity,
+    project,
+    docker_image,
+    config,
+    queue,
+    run_async,
+    resource_args,
+    cuda,
+):
+    """
+    Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
+    In the case of a wandb URI the arguments used in the original run will be used by default.
+    These arguments can be overridden using the args option, or specifying those arguments
+    in the config's 'overrides' key, 'args' field as a list of strings.
+
+    Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
+    `wandb launch [URI] --queue [optional queuename]`.
+    """
+    logger.info(
+        f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
+    )
+    from wandb.sdk.launch import launch as wandb_launch
+
+    wandb.termlog(
+        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
+    )
+    api = _get_cling_api()
+
+    if run_async and queue is not None:
+        raise LaunchError(
+            "Cannot use both --async and --queue with wandb launch, see help for details."
+        )
+
+    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
+    if cuda is not None:
+        # preserve cuda=None as unspecified, otherwise convert to bool
+        if cuda == "True":
+            cuda = True
+        elif cuda == "False":
+            cuda = False
+        else:
+            raise LaunchError(
+                f"Invalid value for --cuda: '{cuda}' is not a valid boolean."
+            )
+
+    args_dict = util._user_args_to_dict(args_list)
+
+    if resource_args is not None:
+        resource_args = util.load_json_yaml_dict(resource_args)
+        if resource_args is None:
+            raise LaunchError("Invalid format for resource-args")
+    else:
+        resource_args = {}
+
+    if entry_point is not None:
+        entry_point = shlex.split(entry_point)
+
+    if config is not None:
+        config = util.load_json_yaml_dict(config)
+        if config is None:
+            raise LaunchError("Invalid format for config")
+    else:
+        config = {}
+
+    if resource is None and config.get("resource") is not None:
+        resource = config.get("resource")
+    elif resource is None:
+        resource = "local"
+
+    if (
+        uri is None
+        and docker_image is None
+        and config.get("uri") is not None
+        and config.get("docker", {}).get("docker_image") is None
+    ):
+        raise LaunchError("Must pass a URI or a docker image to launch.")
+
+    if queue is None:
+        # direct launch
+        try:
+            wandb_launch.run(
+                uri,
+                api,
+                entry_point,
+                git_version,
+                project=project,
+                entity=entity,
+                docker_image=docker_image,
+                name=name,
+                parameters=args_dict,
+                resource=resource,
+                resource_args=resource_args,
+                config=config,
+                synchronous=(not run_async),
+                cuda=cuda,
+            )
+        except LaunchError as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+        except ExecutionError as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+    else:
+        _launch_add(
+            api,
+            uri,
+            config,
+            project,
+            entity,
+            queue,
+            resource,
+            entry_point,
+            name,
+            git_version,
+            docker_image,
+            args_dict,
+            resource_args,
+            cuda=cuda,
+        )
+
+
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
+@click.pass_context
+@click.argument("project", nargs=1, required=False)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
+@click.option("--queues", "-q", default=None, help="The queue names to poll")
+@click.option(
+    "--max-jobs",
+    "-j",
+    default=None,
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1. Set to -1 for no upper limit",
+)
+@click.option(
+    "--config", "-c", default=None, help="path to the agent config yaml to use"
+)
+@display_error
+def launch_agent(
+    ctx, project=None, entity=None, queues=None, max_jobs=None, config=None
+):
+    logger.info(
+        f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
+    )
+
+    from wandb.sdk.launch import launch as wandb_launch
+
+    wandb.termlog(
+        f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
+    )
+    api = _get_cling_api()
+    if queues is not None:
+        queues = queues.split(",")
+    agent_config, api = wandb_launch.resolve_agent_config(
+        api, entity, project, max_jobs, queues
+    )
+    if agent_config.get("project") is None:
+        raise LaunchError(
+            "You must specify a project name or set WANDB_PROJECT environment variable."
+        )
+
+    wandb.termlog("Starting launch agent ✨")
+
+    wandb_launch.create_and_run_agent(api, agent_config)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -795,7 +1220,9 @@ def agent(ctx, project, entity, count, sweep_id):
 @display_error
 def controller(verbose, sweep_id):
     click.echo("Starting wandb controller...")
-    tuner = wandb_controller.controller(sweep_id)
+    from wandb import controller as wandb_controller
+
+    tuner = wandb_controller(sweep_id)
     tuner.run(verbose=verbose)
 
 
@@ -807,22 +1234,19 @@ RUN_CONTEXT["ignore_unknown_options"] = True
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
-@click.option("--help", is_flag=True)
-def docker_run(ctx, docker_run_args, help):
-    """Simple wrapper for `docker run` which sets W&B environment
-    Adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
+def docker_run(ctx, docker_run_args):
+    """Simple wrapper for `docker run` which adds WANDB_API_KEY and WANDB_DOCKER
+    environment variables to any docker run command.
+
     This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
     and --runtime wasn't set.
+
+    See `docker run --help` for more details.
     """
     api = InternalApi()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
-    if help or len(args) == 0:
-        wandb.termlog("This commands adds wandb env variables to your docker run calls")
-        subprocess.call(["docker", "run"] + args + ["--help"])
-        exit()
-    #  TODO: is this what we want?
     if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable(
         "nvidia-docker"
     ):
@@ -899,7 +1323,7 @@ def docker(
     wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
     wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
 
-    By default we override the entrypoint to check for the existance of wandb and install it if not present.  If you pass the --jupyter
+    By default, we override the entrypoint to check for the existence of wandb and install it if not present.  If you pass the --jupyter
     flag we will ensure jupyter is installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your system we will use
     the nvidia runtime.  If you just want wandb to set environment variable to an existing docker run command, see the wandb docker-run
     command.
@@ -1004,9 +1428,11 @@ def local(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
     if not find_executable("docker"):
         raise ClickException("Docker not installed, install it from https://docker.com")
-    if wandb.docker.image_id("wandb/local") != wandb.docker.image_id_from_registry(
+    local_image_sha = wandb.docker.image_id("wandb/local").split("wandb/local")[-1]
+    registry_image_sha = wandb.docker.image_id_from_registry("wandb/local").split(
         "wandb/local"
-    ):
+    )[-1]
+    if local_image_sha != registry_image_sha:
         if upgrade:
             subprocess.call(["docker", "pull", "wandb/local"])
         else:
@@ -1041,7 +1467,7 @@ def local(ctx, port, env, daemon, upgrade, edge):
         "--name",
         "wandb-local",
     ] + env_vars
-    host = "http://localhost:%s" % port
+    host = f"http://localhost:{port}"
     api.set_setting("base_url", host, globally=True, persist=True)
     if daemon:
         command += ["-d"]
@@ -1137,6 +1563,8 @@ def put(path, name, description, type, alias):
         type,
         artifact_name,
         artifact.digest,
+        client_id=artifact._client_id,
+        sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
         project_name=project,
         run_name=run.id,
@@ -1151,7 +1579,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
@@ -1202,14 +1632,6 @@ def ls(path, type):
     else:
         types = public_api.artifact_types(path)
 
-    def human_size(bytes, units=None):
-        units = units or ["", "KB", "MB", "GB", "TB", "PB", "EB"]
-        return (
-            str(bytes) + units[0]
-            if bytes < 1024
-            else human_size(bytes >> 10, units[1:])
-        )
-
     for kind in types:
         for collection in kind.collections():
             versions = public_api.artifact_versions(
@@ -1220,9 +1642,30 @@ def ls(path, type):
             latest = next(versions)
             print(
                 "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type, latest.updated_at, human_size(latest.size), latest.name
+                    kind.type,
+                    latest.updated_at,
+                    util.to_human_size(latest.size),
+                    latest.name,
                 )
             )
+
+
+@artifact.group(help="Commands for interacting with the artifact cache")
+def cache():
+    pass
+
+
+@cache.command(
+    context_settings=CONTEXT,
+    help="Clean up less frequently used files from the artifacts cache",
+)
+@click.argument("target_size")
+@display_error
+def cleanup(target_size):
+    target_size = util.from_human_size(target_size)
+    cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
+    reclaimed_bytes = cache.cleanup(target_size)
+    print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -1324,12 +1767,12 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             )
 
     if commit and api.git.enabled:
-        wandb.termlog("Fetching origin and finding commit: {}".format(commit))
+        wandb.termlog(f"Fetching origin and finding commit: {commit}")
         subprocess.check_call(["git", "fetch", "--all"])
         try:
             api.git.repo.commit(commit)
         except ValueError:
-            wandb.termlog("Couldn't find original commit: {}".format(commit))
+            wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
             files = api.download_urls(project, run=run, entity=entity)
             for filename in files:
@@ -1345,7 +1788,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
                         break
 
             if commit:
-                wandb.termlog("Falling back to upstream commit: {}".format(commit))
+                wandb.termlog(f"Falling back to upstream commit: {commit}")
                 patch_path, _ = api.download_write_file(files[filename])
             else:
                 raise ClickException(restore_message)
@@ -1440,7 +1883,7 @@ def magic(ctx, program, args):
     try:
         with open(program, "rb") as fp:
             code = compile(fp.read(), program, "exec")
-    except IOError:
+    except OSError:
         click.echo(click.style("Could not launch program: %s" % program, fg="red"))
         sys.exit(1)
     globs = {
@@ -1461,27 +1904,29 @@ wandb_magic_install()
     magic_run(code, globs, None)
 
 
-@cli.command("on", help="Ensure W&B is enabled in this directory")
+@cli.command("online", help="Enable W&B sync")
 @display_error
-def on():
+def online():
     api = InternalApi()
     try:
         api.clear_setting("disabled", persist=True)
+        api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
     click.echo(
-        "W&B enabled, running your script from this directory will now sync to the cloud."
+        "W&B online, running your script from this directory will now sync to the cloud."
     )
 
 
-@cli.command("off", help="Disable W&B in this directory, useful for testing")
+@cli.command("offline", help="Disable W&B sync")
 @display_error
-def off():
+def offline():
     api = InternalApi()
     try:
         api.set_setting("disabled", "true", persist=True)
+        api.set_setting("mode", "offline", persist=True)
         click.echo(
-            "W&B disabled, running your script from this directory will only write metadata locally."
+            "W&B offline, running your script from this directory will only write metadata locally."
         )
     except configparser.Error:
         click.echo(
@@ -1489,18 +1934,18 @@ def off():
         )
 
 
-@cli.command("online", hidden=True)
+@cli.command("on", hidden=True)
 @click.pass_context
 @display_error
-def online(ctx):
-    ctx.invoke(on)
+def on(ctx):
+    ctx.invoke(online)
 
 
-@cli.command("offline", hidden=True)
+@cli.command("off", hidden=True)
 @click.pass_context
 @display_error
-def offline(ctx):
-    ctx.invoke(off)
+def off(ctx):
+    ctx.invoke(offline)
 
 
 @cli.command("status", help="Show configuration settings")
@@ -1515,3 +1960,89 @@ def status(settings):
         click.echo(
             json.dumps(settings, sort_keys=True, indent=2, separators=(",", ": "))
         )
+
+
+@cli.command("disabled", help="Disable W&B.")
+def disabled():
+    api = InternalApi()
+    try:
+        api.set_setting("mode", "disabled", persist=True)
+        click.echo("W&B disabled.")
+    except configparser.Error:
+        click.echo(
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
+        )
+
+
+@cli.command("enabled", help="Enable W&B.")
+def enabled():
+    api = InternalApi()
+    try:
+        api.set_setting("mode", "online", persist=True)
+        click.echo("W&B enabled.")
+    except configparser.Error:
+        click.echo(
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
+        )
+
+
+@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
+@click.argument("args", nargs=-1)
+def gc(args):
+    click.echo(
+        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
+    )
+
+
+@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@click.option("--host", default=None, help="Test a specific instance of W&B")
+def verify(host):
+    # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
+    os.environ["WANDB_SILENT"] = "true"
+    os.environ["WANDB_PROJECT"] = "verify"
+    api = _get_cling_api()
+    reinit = False
+    if host is None:
+        host = api.settings("base_url")
+        print(f"Default host selected: {host}")
+    # if the given host does not match the default host, re-run init
+    elif host != api.settings("base_url"):
+        reinit = True
+
+    tmp_dir = tempfile.mkdtemp()
+    print(
+        "Find detailed logs for this test at: {}".format(os.path.join(tmp_dir, "wandb"))
+    )
+    os.chdir(tmp_dir)
+    os.environ["WANDB_BASE_URL"] = host
+    wandb.login(host=host)
+    if reinit:
+        api = _get_cling_api(reset=True)
+    if not wandb_verify.check_host(host):
+        sys.exit(1)
+    if not wandb_verify.check_logged_in(api, host):
+        sys.exit(1)
+    url_success, url = wandb_verify.check_graphql_put(api, host)
+    large_post_success = wandb_verify.check_large_post()
+    wandb_verify.check_secure_requests(
+        api.settings("base_url"),
+        "Checking requests to base url",
+        "Connections are not made over https. SSL required for secure communications.",
+    )
+    if url:
+        wandb_verify.check_secure_requests(
+            url,
+            "Checking requests made over signed URLs",
+            "Signed URL requests not made over https. SSL is required for secure communications.",
+        )
+        wandb_verify.check_cors_configuration(url, host)
+    wandb_verify.check_wandb_version(api)
+    check_run_success = wandb_verify.check_run(api)
+    check_artifacts_success = wandb_verify.check_artifacts()
+    if not (
+        check_artifacts_success
+        and check_run_success
+        and large_post_success
+        and url_success
+    ):
+        sys.exit(1)

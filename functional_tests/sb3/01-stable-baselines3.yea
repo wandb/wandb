@@ -1,0 +1,40 @@
+id: 0.sb3.01-stable-baselines3
+plugin:
+  - wandb
+tag:
+  skips:
+    - platform: win
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config][policy_type]: MlpPolicy
+  - :wandb:runs[0][config][total_timesteps]: 200
+  - :wandb:runs[0][config][policy_class]: "<class 'stable_baselines3.common.policies.ActorCriticPolicy'>"
+  - :wandb:runs[0][config][action_space]: "Discrete(2)"
+  - :wandb:runs[0][config][batch_size]: 64
+  - :wandb:runs[0][config][n_epochs]: 10
+  - :wandb:runs[0][summary][global_step]: 2048
+  - :wandb:runs[0][summary][gradients/action_net.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/action_net.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.policy_net.0.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.policy_net.0.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.policy_net.2.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.policy_net.2.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.value_net.0.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.value_net.0.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.value_net.2.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/mlp_extractor.value_net.2.weight][_type]: histogram
+  - :wandb:runs[0][summary][gradients/value_net.bias][_type]: histogram
+  - :wandb:runs[0][summary][gradients/value_net.weight][_type]: histogram
+  - :op:>:
+    - :wandb:runs[0][summary][rollout/ep_len_mean]
+    - 0.0
+  - :op:>:
+    - :wandb:runs[0][summary][rollout/ep_rew_mean]
+    - 0.0
+  - :op:>:
+    - :wandb:runs[0][summary][time/fps]
+    - 0.0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 22  # sb3
+  - :wandb:runs[0][exitcode]: 0

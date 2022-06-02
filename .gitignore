@@ -1,9 +1,12 @@
 __pycache__/
 htmlcov/
 .coverage
+coverage.xml
 .tox/
 .mypy_cache/
 .pytest_cache/
+.circle_cache/
+.yea_cache/
 build/
 dist/
 *.pyc
@@ -14,3 +17,13 @@ docs/.generated-files.txt
 docs/config.toml
 tests/logs/*
 !tests/logs/cleanup.sh
+pip-wheel-metadata
+.vscode/.ropeproject
+xcuserdata/
+test-results/
+mypy-results/
+cover-results/
+wandb/proto_check/
+.idea/
+.yea-requirements.txt
+.yeadoc/

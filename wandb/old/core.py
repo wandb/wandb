@@ -5,7 +5,6 @@ The purpose of this module is to break circular imports.
 """
 
 import os
-import string
 import sys
 import time
 import tempfile
@@ -29,11 +28,17 @@ LIB_ROOT = os.path.join(os.path.dirname(__file__), '..')
 IS_GIT = os.path.exists(os.path.join(LIB_ROOT, '.git'))
 
 
-def wandb_dir():
-    root_dir = env.get_dir(os.getcwd())
+def wandb_dir(root_dir=None):
+    if root_dir is None or root_dir == "":
+        try:
+            cwd = os.getcwd()
+        except OSError:
+            termwarn("os.getcwd() no longer exists, using system temp directory")
+            cwd = tempfile.gettempdir()
+        root_dir = env.get_dir(cwd)
     path = os.path.join(root_dir, __stage_dir__ or ("wandb" + os.sep))
     if not os.access(root_dir, os.W_OK):
-        termwarn("Path %s wasn't writable, using system temp directory" % path)
+        termwarn(f"Path {path} wasn't writable, using system temp directory", repeat=False)
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
     return path
 
@@ -48,7 +53,7 @@ class Error(Exception):
     """Base W&B Error"""
 
     def __init__(self, message):
-        super(Error, self).__init__(message)
+        super().__init__(message)
         self.message = message
 
     # For python 2 support
@@ -72,13 +77,13 @@ PRINTED_MESSAGES = set()
 def termlog(string='', newline=True, repeat=True):
     """Log to standard error with formatting.
 
-    Args:
-            string (str, optional): The string to print
-            newline (bool, optional): Print a newline at the end of the string
-            repeat (bool, optional): If set to False only prints the string once per process
+    Arguments:
+        string (str, optional): The string to print
+        newline (bool, optional): Print a newline at the end of the string
+        repeat (bool, optional): If set to False only prints the string once per process
     """
     if string:
-        line = '\n'.join(['{}: {}'.format(LOG_STRING, s)
+        line = '\n'.join([f'{LOG_STRING}: {s}'
                           for s in string.split('\n')])
     else:
         line = ''
@@ -97,13 +102,13 @@ def termlog(string='', newline=True, repeat=True):
 
 
 def termwarn(string, **kwargs):
-    string = '\n'.join(['{} {}'.format(WARN_STRING, s)
+    string = '\n'.join([f'{WARN_STRING} {s}'
                         for s in string.split('\n')])
     termlog(string=string, newline=True, **kwargs)
 
 
 def termerror(string, **kwargs):
-    string = '\n'.join(['{} {}'.format(ERROR_STRING, s)
+    string = '\n'.join([f'{ERROR_STRING} {s}'
                         for s in string.split('\n')])
     termlog(string=string, newline=True, **kwargs)
 

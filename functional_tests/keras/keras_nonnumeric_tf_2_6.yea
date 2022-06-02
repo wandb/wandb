@@ -1,0 +1,18 @@
+id: 0.keras.nonnumericlayers.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_nonnumeric.py
+depend:
+    requirements:
+        - tensorflow>=2.6.2,<2.7
+        - pandas
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary][parameters/linear_model_1.bias][_type]: histogram
+    - :wandb:runs[0][summary][parameters/linear_model_1.weights][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model_1/bias.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model_1/kernel.gradient][_type]: histogram
+    - :wandb:runs[0][exitcode]: 0

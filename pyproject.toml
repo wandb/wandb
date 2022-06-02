@@ -1,25 +1,18 @@
 [tool.black]
 line-length = 88
+include = '\.pyi?$'
 exclude = '''
-| wandb/apis/__init__.py
-'''
-include = '''
-  wandb/sdk/
-| wandb/backend/
-| wandb/interface/
-| wandb/internal/
-| wandb/util/
-| wandb/server/
-| wandb/integration/gym/
-| wandb/integration/tensorboard/
-| wandb/cli/
-| wandb/integration/magic.py
-| wandb/integration/keras/
-| wandb/integration/sagemaker/
-| wandb/sync/
-| wandb/agents/
-| wandb/secretagent/
-| wandb/wandb_agent.py
-| wandb/wandb_controller.py
-| wandb/apis/
+  wandb/vendor/
+| wandb/old/
+| wandb/bin/
+| wandb/proto/
+| wandb/proto_check/
+| wandb/sdk/launch/deploys/
+| wandb/run*
+| wandb/offline-run*
+| tests/fixtures/
+| tests/logs/
+| tests/notebooks/
+| __pycache__
+| .pyc
 '''

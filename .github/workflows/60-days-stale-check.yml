@@ -1,0 +1,20 @@
+name: 60 Days Stale Check
+on:
+  schedule:
+    - cron: '00 00 * * *' # Run each day at 00:00 UTC
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v3.0.14
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: 'This issue is stale because it has been open 60 days with no activity.'
+          stale-pr-message: 'This PR is stale because it has been open 60 days with no activity.'
+          days-before-stale: -1 # 60 days before marking anything stale - Turned off
+          days-before-close: -1 # Do not close anything automatically
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          exempt-pr-labels: 'never-stale' # Exempt 'never-stale' labels from being marked stale
+          exempt-issue-labels: 'never-stale' # Exempt 'never-stale' labels from being marked stale

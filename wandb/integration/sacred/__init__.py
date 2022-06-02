@@ -8,7 +8,7 @@ import wandb
 
 class WandbObserver(RunObserver):
     """Logs sacred experiment data to W&B.
-    Args:
+    Arguments:
         Accepts all the arguments accepted by wandb.init()
 
         name — A display name for this run, which shows up in the UI and is editable, doesn't have to be unique
@@ -57,7 +57,9 @@ class WandbObserver(RunObserver):
         self.run = wandb.init(**kwargs)
         self.resources = {}
 
-    def started_event(self, ex_info, command, host_info, start_time, config, meta_info, _id):
+    def started_event(
+        self, ex_info, command, host_info, start_time, config, meta_info, _id
+    ):
         """
         TODO:
         * add the source code file
@@ -69,27 +71,31 @@ class WandbObserver(RunObserver):
         if result:
             if not isinstance(result, tuple):
                 result = (
-                    result,)  # transform single result to tuple so that both single & multiple results use same code
+                    result,
+                )  # transform single result to tuple so that both single & multiple results use same code
 
             for i, r in enumerate(result):
                 if isinstance(r, float) or isinstance(r, int):
-                    wandb.log({"result_{}".format(i): float(r)})
+                    wandb.log({f"result_{i}": float(r)})
                 elif isinstance(r, dict):
                     wandb.log(r)
                 elif isinstance(r, object):
-                    artifact = wandb.Artifact('result_{}.pkl'.format(i), type='result')
+                    artifact = wandb.Artifact(f"result_{i}.pkl", type="result")
                     artifact.add_file(r)
                     self.run.log_artifact(artifact)
-                elif isinstance(r,numpy.ndarray):
-                    wandb.log({"result_{}".format(i):wandb.Image(r)})
+                elif isinstance(r, numpy.ndarray):
+                    wandb.log({f"result_{i}": wandb.Image(r)})
                 else:
                     warnings.warn(
-                        "logging results does not support type '{}' results. Ignoring this result".format(type(r)))
+                        "logging results does not support type '{}' results. Ignoring this result".format(
+                            type(r)
+                        )
+                    )
 
     def artifact_event(self, name, filename, metadata=None, content_type=None):
         if content_type is None:
-            content_type = 'file'
-        artifact = wandb.Artifact(name,type=content_type)
+            content_type = "file"
+        artifact = wandb.Artifact(name, type=content_type)
         artifact.add_file(filename)
         self.run.log_artifact(artifact)
 
@@ -104,12 +110,12 @@ class WandbObserver(RunObserver):
     def log_metrics(self, metrics_by_name, info):
         for metric_name, metric_ptr in metrics_by_name.items():
             for _step, value in zip(metric_ptr["steps"], metric_ptr["values"]):
-                if isinstance(value,numpy.ndarray):
-                    wandb.log({metric_name:wandb.Image(value)})
+                if isinstance(value, numpy.ndarray):
+                    wandb.log({metric_name: wandb.Image(value)})
                 else:
-                    wandb.log({metric_name:value})
+                    wandb.log({metric_name: value})
 
-    def __update_config(self,config):
+    def __update_config(self, config):
         for k, v in config.items():
             self.run.config[k] = v
-        self.run.config['resources'] = []
+        self.run.config["resources"] = []

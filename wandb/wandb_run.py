@@ -7,4 +7,4 @@ In the future use:
 
 from wandb.sdk.wandb_run import Run
 
-__all__ = ['Run']
+__all__ = ["Run"]

@@ -5,24 +5,25 @@ import configparser
 from wandb import util
 from wandb.old import core
 from wandb import env
-from wandb.util import wandb_dir
 
 
-class Settings(object):
-    """Global W&B settings stored under $WANDB_CONFIG_DIR/settings.
-    """
+class Settings:
+    """Global W&B settings stored under $WANDB_CONFIG_DIR/settings."""
 
-    DEFAULT_SECTION = 'default'
+    DEFAULT_SECTION = "default"
 
     _UNSET = object()
 
-    def __init__(self, load_settings=True):
+    def __init__(self, load_settings=True, root_dir=None):
         self._global_settings = Settings._settings()
         self._local_settings = Settings._settings()
+        self.root_dir = root_dir
 
         if load_settings:
             self._global_settings.read([Settings._global_path()])
-            self._local_settings.read([Settings._local_path()])
+            # Only attempt to read if there is a directory existing
+            if os.path.isdir(core.wandb_dir(self.root_dir)):
+                self._local_settings.read([Settings._local_path(self.root_dir)])
 
     def get(self, section, key, fallback=_UNSET):
         # Try the local settings first. If we can't find the key, then try the global settings.
@@ -41,6 +42,7 @@ class Settings(object):
 
     def set(self, section, key, value, globally=False, persist=False):
         """Persists settings to disk if persist = True"""
+
         def write_setting(settings, settings_path, persist):
             if not settings.has_section(section):
                 Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
@@ -52,7 +54,9 @@ class Settings(object):
         if globally:
             write_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            write_setting(self._local_settings, Settings._local_path(), persist)
+            write_setting(
+                self._local_settings, Settings._local_path(self.root_dir), persist
+            )
 
     def clear(self, section, key, globally=False, persist=False):
         def clear_setting(settings, settings_path, persist):
@@ -64,12 +68,14 @@ class Settings(object):
         if globally:
             clear_setting(self._global_settings, Settings._global_path(), persist)
         else:
-            clear_setting(self._local_settings, Settings._local_path(), persist)
+            clear_setting(
+                self._local_settings, Settings._local_path(self.root_dir), persist
+            )
 
     def items(self, section=None):
         section = section if section is not None else Settings.DEFAULT_SECTION
 
-        result = {'section': section}
+        result = {"section": section}
 
         try:
             if section in self._global_settings.sections():
@@ -98,11 +104,13 @@ class Settings(object):
 
     @staticmethod
     def _global_path():
-        config_dir = os.environ.get(env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb"))
+        config_dir = os.environ.get(
+            env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb")
+        )
         util.mkdir_exists_ok(config_dir)
-        return os.path.join(config_dir, 'settings')
+        return os.path.join(config_dir, "settings")
 
     @staticmethod
-    def _local_path():
-        util.mkdir_exists_ok(wandb_dir())
-        return os.path.join(wandb_dir(), 'settings')
+    def _local_path(root_dir=None):
+        util.mkdir_exists_ok(core.wandb_dir(root_dir))
+        return os.path.join(core.wandb_dir(root_dir), "settings")

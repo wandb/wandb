@@ -3,6 +3,8 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_base.proto";
+import "wandb/proto/wandb_telemetry.proto";
 
 /*
  * Record: Persistent on disk data (BE CAREFUL)
@@ -17,36 +19,43 @@ import "google/protobuf/timestamp.proto";
  ************************/
 
 /*
- * Record: joined record for message passing and persistance
+ * Record: joined record for message passing and persistence
  */
 message Record {
   int64            num = 1;
   oneof record_type {
     // Low numbers for more frequent data
-    HistoryRecord  history = 2;
-    SummaryRecord  summary = 3;
-    OutputRecord   output = 4;
-    ConfigRecord   config = 5;
-    FilesRecord    files = 6;
-    StatsRecord    stats = 7;
-    ArtifactRecord artifact = 8;
-    TBRecord       tbrecord = 9;
+    HistoryRecord   history = 2;
+    SummaryRecord   summary = 3;
+    OutputRecord    output = 4;
+    ConfigRecord    config = 5;
+    FilesRecord     files = 6;
+    StatsRecord     stats = 7;
+    ArtifactRecord  artifact = 8;
+    TBRecord        tbrecord = 9;
+    AlertRecord     alert = 10;
+    TelemetryRecord telemetry = 11;
+    MetricRecord    metric = 12;
     // Higher numbers for less frequent data
-    RunRecord      run = 17;
-    RunExitRecord  exit = 18;
-    FinalRecord    final = 20;
-    HeaderRecord   header = 21;
-    FooterRecord   footer = 22;
+    RunRecord       run = 17;
+    RunExitRecord   exit = 18;
+    FinalRecord     final = 20;
+    HeaderRecord    header = 21;
+    FooterRecord    footer = 22;
+    RunPreemptingRecord preempting = 23;    
+    LinkArtifactRecord link_artifact = 24;
     // request field does not belong here longterm
-    Request        request = 100;
+    Request         request = 100;
   }
   Control          control = 16;
   string           uuid = 19;
+  _RecordInfo _info = 200;
 }
 
 message Control {
   bool req_resp = 1;  // record is expecting a result
   bool local = 2;     // should not be persisted or synchronized
+  string relay_id = 3;  // used by service transport to identify correct stream
 }
 
 /*
@@ -63,25 +72,30 @@ message Result {
     /* response field does not belong here longterm */
     Response          response = 100;
   }
+  Control             control = 16;
   string              uuid = 24;
+  _ResultInfo _info = 200;
 }
 
 /*
  * FinalRecord
  */
 message FinalRecord {
+  _RecordInfo _info = 200;
 }
 
 /*
  * HeaderRecord
  */
 message HeaderRecord {
+  _RecordInfo _info = 200;
 }
 
 /*
  * FooterRecord
  */
 message FooterRecord {
+  _RecordInfo _info = 200;
 }
 
 /*
@@ -105,6 +119,16 @@ message RunRecord {
 
   string                    storage_id = 16;
   google.protobuf.Timestamp start_time = 17;
+  bool                      resumed = 18;
+  TelemetryRecord           telemetry = 19;
+  int32                     runtime = 20;
+  GitRepoRecord             git = 21;
+  _RecordInfo               _info = 200;
+}
+
+message GitRepoRecord {
+  string remote_url = 1;
+  string last_commit = 2;
 }
 
 message RunUpdateResult {
@@ -129,9 +153,21 @@ message ErrorInfo {
  */
 message RunExitRecord {
   int32 exit_code = 1;
+  int32 runtime = 2;
+  _RecordInfo _info = 200;
 }
 
 message RunExitResult {
+}
+
+/*
+ * RunPreemptingRecord: run being preempted
+ */
+message RunPreemptingRecord {
+  _RecordInfo _info = 200;
+}
+
+message RunPreemptingResult {
 }
 
 /*
@@ -139,6 +175,7 @@ message RunExitResult {
  */
 message SettingsRecord {
   repeated SettingsItem item = 1;
+  _RecordInfo _info = 200;
 }
 
 message SettingsItem {
@@ -149,8 +186,14 @@ message SettingsItem {
 /*
  * HistoryRecord: wandb/sdk/wandb_history/History
  */
+message HistoryStep {
+  int64 num = 1;
+}
+
 message HistoryRecord {
   repeated HistoryItem item = 1;
+  HistoryStep step = 2;
+  _RecordInfo _info = 200;
 }
 
 message HistoryItem {
@@ -173,9 +216,59 @@ message OutputRecord {
   OutputType                output_type = 1;
   google.protobuf.Timestamp timestamp = 2;
   string                    line = 3;
+  _RecordInfo               _info = 200;
 }
 
 message OutputResult {
+}
+
+/*
+ * MetricRecord: wandb/sdk/wandb_metric/Metric
+ */
+message MetricRecord {
+  // only name or globname is set
+  string          name = 1;
+  string          glob_name = 2;
+
+  // step metric index can be used instead of step_metric when
+  // MetricRecord is encoded in a list of MetricRecords
+  string          step_metric = 4;
+  int32           step_metric_index = 5;  // one-based array index
+
+  MetricOptions   options = 6;
+  MetricSummary   summary = 7;
+  MetricGoal      goal = 8;
+  MetricControl   _control = 9;
+
+  enum MetricGoal {
+    GOAL_UNSET = 0;
+    GOAL_MINIMIZE = 1;
+    GOAL_MAXIMIZE = 2;
+  }
+  _RecordInfo     _info = 200;
+}
+
+message MetricResult {
+}
+
+message MetricOptions {
+  bool step_sync = 1;
+  bool hidden = 2;
+  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
+}
+
+message MetricControl {
+  bool overwrite = 1;
+}
+
+message MetricSummary {
+  bool min = 1;
+  bool max = 2;
+  bool mean = 3;
+  bool best = 4;
+  bool last = 5;
+  bool none = 6;
+  bool copy = 7;
 }
 
 /*
@@ -184,6 +277,7 @@ message OutputResult {
 message ConfigRecord {
   repeated ConfigItem update = 1;
   repeated ConfigItem remove = 2;
+  _RecordInfo         _info = 200;
 }
 
 message ConfigItem {
@@ -201,6 +295,7 @@ message ConfigResult {
 message SummaryRecord {
   repeated SummaryItem update = 1;
   repeated SummaryItem remove = 2;
+  _RecordInfo          _info = 200;
 }
 
 message SummaryItem {
@@ -217,6 +312,7 @@ message SummaryResult {
  */
 message FilesRecord {
   repeated FilesItem files = 1;
+  _RecordInfo        _info = 200;
 }
 
 message FilesItem {
@@ -230,6 +326,9 @@ message FilesItem {
   string external_path = 16;
 }
 
+message FilesResult {
+}
+
 /*
  * StatsRecord: system metrics
  */
@@ -240,6 +339,7 @@ message StatsRecord {
   StatsType                 stats_type = 1;
   google.protobuf.Timestamp timestamp = 2;
   repeated StatsItem        item = 3;
+  _RecordInfo               _info = 200;
 }
 
 message StatsItem {
@@ -263,6 +363,12 @@ message ArtifactRecord {
   bool                          use_after_commit = 10;
   repeated string               aliases = 11;
   ArtifactManifest              manifest = 12;
+  string                        distributed_id=13;
+  bool                          finalize=14;
+  string                        client_id=15;
+  string                        sequence_client_id=16;
+  bool                          incremental_beta1=100;
+  _RecordInfo                   _info = 200;
 }
 
 message ArtifactManifest {
@@ -293,12 +399,50 @@ message StoragePolicyConfigItem {
   string            value_json = 2;
 }
 
+message ArtifactResult {
+}
+
+message LinkArtifactResult {
+}
+
+/*
+ * LinkArtifactRecord: link artifact to portfolio
+ */
+ message LinkArtifactRecord {
+  string          client_id = 1;
+  string          server_id = 2;
+  string          portfolio_name = 3;
+  string          portfolio_entity = 4;
+  string          portfolio_project = 5;
+  repeated string portfolio_aliases = 6;
+  _RecordInfo     _info = 200;
+ }
+
 /*
  * TBRecord: store tb locations
  */
 message TBRecord {
   string log_dir = 1;
   bool   save = 2;
+  string root_dir = 3;
+  _RecordInfo _info = 200;
+}
+
+message TBResult {
+}
+
+/*
+ * AlertRecord: store alert notifications
+ */
+message AlertRecord {
+  string title = 1;
+  string text = 2;
+  string level = 3;
+  int64  wait_duration = 4;
+  _RecordInfo _info = 200;
+}
+
+message AlertResult {
 }
 
 /************************
@@ -310,7 +454,8 @@ message TBRecord {
  */
 message Request {
   oneof request_type {
-    StatusRequest         status = 1;
+    StopStatusRequest     stop_status = 1;
+    NetworkStatusRequest  network_status = 2;
     DeferRequest          defer = 3;
     GetSummaryRequest     get_summary = 4;
     LoginRequest          login = 5;
@@ -318,9 +463,17 @@ message Request {
     ResumeRequest         resume = 7;
     PollExitRequest       poll_exit = 8;
     SampledHistoryRequest sampled_history = 9;
+    PartialHistoryRequest partial_history = 10;
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
+    LogArtifactRequest    log_artifact = 13;
+    ArtifactSendRequest   artifact_send = 14;
+    ArtifactPollRequest   artifact_poll = 15;
+    ArtifactDoneRequest   artifact_done = 16;
     ShutdownRequest       shutdown = 64;
+    AttachRequest         attach = 65;
+    StatusRequest         status = 66;
+    TestInjectRequest     test_inject = 1000;
   }
 }
 
@@ -329,14 +482,21 @@ message Request {
  */
 message Response {
   oneof response_type {
-    StatusResponse         status_response = 19;
+    StopStatusResponse     stop_status_response = 19;
+    NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
     GetSummaryResponse     get_summary_response = 25;
     PollExitResponse       poll_exit_response = 26;
     SampledHistoryResponse sampled_history_response = 27;
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
+    LogArtifactResponse    log_artifact_response = 30;
+    ArtifactSendResponse   artifact_send_response = 31;
+    ArtifactPollResponse   artifact_poll_response = 32;
     ShutdownResponse       shutdown_response = 64;
+    AttachResponse         attach_response = 65;
+    StatusResponse         status_response = 66;
+    TestInjectResponse     test_inject_response = 1000;
   }
 }
 
@@ -347,27 +507,38 @@ message DeferRequest {
   enum DeferState {
     BEGIN = 0;
     FLUSH_STATS = 1;
-    FLUSH_TB = 2;
-    FLUSH_SUM = 3;
-    FLUSH_DIR = 4;
-    FLUSH_FP = 5;
-    FLUSH_FS = 6;
-    FLUSH_FINAL = 7;
-    END = 8;
+    FLUSH_PARTIAL_HISTORY = 2;
+    FLUSH_TB = 3;
+    FLUSH_SUM = 4;
+    FLUSH_DEBOUNCER = 5;
+    FLUSH_DIR = 6;
+    FLUSH_FP = 7;
+    FLUSH_FS = 8;
+    FLUSH_FINAL = 9;
+    END = 10;
   }
   DeferState state = 1;
+  // Internal message, no _info field needed
 }
 
 /*
  * PauseRequest: internal message to pause the heartbeat
  */
 message PauseRequest {
+  _RequestInfo _info = 200;
+}
+
+message PauseResponse {
 }
 
 /*
  * ResumeRequest: internal message to resume the heartbeat
  */
 message ResumeRequest {
+  _RequestInfo _info = 200;
+}
+
+message ResumeResponse {
 }
 
 /*
@@ -375,6 +546,7 @@ message ResumeRequest {
  */
 message LoginRequest {
   string api_key = 1;
+  _RequestInfo _info = 200;
 }
 
 message LoginResponse {
@@ -385,6 +557,7 @@ message LoginResponse {
  * GetSummaryRequest: request consolidated summary
  */
 message GetSummaryRequest {
+  _RequestInfo _info = 200;
 }
 
 message GetSummaryResponse {
@@ -395,17 +568,39 @@ message GetSummaryResponse {
  * StatusRequest:
  */
 message StatusRequest {
-  bool check_stop_req = 1;
+  _RequestInfo _info = 200;
 }
 
 message StatusResponse {
   bool run_should_stop = 1;
 }
 
+message StopStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message StopStatusResponse {
+  bool run_should_stop = 1;
+}
+
+message NetworkStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message NetworkStatusResponse {
+  repeated HttpResponse network_responses = 1;
+}
+
+message HttpResponse {
+  int32 http_status_code = 1;
+  string http_response_text = 2;
+}
+
 /*
  * PollExitRequest:
  */
 message PollExitRequest {
+  _RequestInfo _info = 200;
 }
 
 message PollExitResponse {
@@ -413,6 +608,7 @@ message PollExitResponse {
   RunExitResult   exit_result = 2;
   FileCounts      file_counts = 3;
   FilePusherStats pusher_stats = 4;
+  LocalInfo local_info = 5;
 }
 
 message FileCounts {
@@ -428,19 +624,79 @@ message FilePusherStats {
   int64 deduped_bytes = 3;
 }
 
+message LocalInfo {
+  string version = 1;
+  bool out_of_date = 2;
+}
+
 /*
  * ShutdownRequest:
  */
 message ShutdownRequest {
+  _RequestInfo _info = 200;
 }
 
 message ShutdownResponse {
 }
 
 /*
+ * AttachRequest:
+ */
+message AttachRequest {
+  string attach_id = 20;
+  _RequestInfo _info = 200;
+}
+
+message AttachResponse {
+  RunRecord run = 1;
+  ErrorInfo error = 2;
+}
+
+/*
+ * TestInjectRequest:
+ */
+message TestInjectRequest {
+  bool handler_exc = 1;
+  bool handler_exit = 2;
+  bool handler_abort = 3;
+  bool sender_exc = 4;
+  bool sender_exit = 5;
+  bool sender_abort = 6;
+  bool req_exc = 7;
+  bool req_exit = 8;
+  bool req_abort = 9;
+  bool resp_exc = 10;
+  bool resp_exit = 11;
+  bool resp_abort = 12;
+  bool msg_drop = 13;
+  bool msg_hang = 14;
+  _RequestInfo _info = 200;
+}
+
+message TestInjectResponse {
+}
+
+/*
+ * PartialHistoryRequest:
+ */
+ message HistoryAction{
+    bool flush = 1;
+ }
+ message PartialHistoryRequest{
+    repeated HistoryItem item = 1;
+    HistoryStep step = 2;
+    HistoryAction action = 3;
+   _RequestInfo _info = 200;
+ }
+
+ message PartialHistoryResponse {
+}
+
+/*
  * SampledHistoryRequest:
  */
 message SampledHistoryRequest {
+  _RequestInfo _info = 200;
 }
 
 message SampledHistoryItem {
@@ -459,6 +715,7 @@ message SampledHistoryResponse {
  */
 message RunStartRequest {
   RunRecord run = 1;
+  _RequestInfo _info = 200;
 }
 
 message RunStartResponse {
@@ -468,8 +725,63 @@ message RunStartResponse {
  * CheckVersion:
  */
 message CheckVersionRequest {
+  string current_version = 1;
+  _RequestInfo _info = 200;
 }
 
 message CheckVersionResponse {
-  string message = 1;
+  string upgrade_message = 1;
+  string yank_message = 2;
+  string delete_message = 3;
+}
+
+/*
+ * LogArtifact:
+ */
+message LogArtifactRequest {
+  ArtifactRecord  artifact = 1;
+  int64           history_step = 2;
+  _RequestInfo    _info = 200;
+}
+
+message LogArtifactResponse {
+  string artifact_id = 1;
+  string error_message = 2;
+}
+
+/*
+ * ArtifactSend:
+ */
+message ArtifactSendRequest {
+  ArtifactRecord artifact = 1;
+  _RequestInfo _info = 200;
+}
+
+message ArtifactSendResponse {
+  string xid = 1;
+}
+
+/*
+ * ArtifactPoll:
+ */
+message ArtifactPollRequest {
+  string xid = 1;
+  _RequestInfo _info = 200;
+}
+
+message ArtifactPollResponse {
+  string artifact_id = 1;
+  string error_message = 2;
+  bool   ready = 16;
+}
+
+/*
+ * ArtifactDone:
+ */
+message ArtifactDoneRequest {
+  string artifact_id = 1;
+  string error_message = 2;
+  string xid = 16;
+
+  // Internal message, no _info field needed
 }

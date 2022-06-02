@@ -7,4 +7,4 @@ In the future use:
 
 from wandb.integration.fastai import WandbCallback
 
-__all__ = ['WandbCallback']
+__all__ = ["WandbCallback"]

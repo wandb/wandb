@@ -1,43 +1,42 @@
-from __future__ import unicode_literals
-
 import json
 import os
-import sys
 import time
-import requests
 
-from gql import gql
-import six
+from wandb_gql import gql
 
 import wandb
 from wandb import util
-from wandb import data_types
+from wandb.sdk.data_types.utils import val_to_json
 from wandb.apis.internal import Api
-from wandb.lib.filenames import SUMMARY_FNAME
-from six import string_types
+
+
+from wandb.sdk import lib as wandb_lib
 
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
-
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
 
 
-class SummarySubDict(object):
+class SummarySubDict:
     """Nested dict-like object that proxies read and write operations through a root object.
 
     This lets us do synchronous serialization and lazy loading of large values.
     """
 
     def __init__(self, root=None, path=()):
+        self._path = tuple(path)
         if root is None:
             self._root = self
+            self._json_dict = {}
         else:
             self._root = root
-        self._path = tuple(path)
+            json_dict = root._json_dict
+            for k in path:
+                json_dict = json_dict[k]
+            self._json_dict = json_dict
         self._dict = {}
-        self._json_dict = {}
 
         # We use this to track which keys the user has set explicitly
         # so that we don't automatically overwrite them when we update
@@ -93,7 +92,7 @@ class SummarySubDict(object):
         return self._json_dict.keys()
 
     def get(self, k, default=None):
-        if isinstance(k, string_types):
+        if isinstance(k, str):
             k = k.strip()
         if k not in self._dict:
             self._root._root_get(self._path + (k,), self._dict)
@@ -106,20 +105,22 @@ class SummarySubDict(object):
             yield k, self[k]
 
     def __getitem__(self, k):
-        if isinstance(k, string_types):
+        if isinstance(k, str):
             k = k.strip()
 
         self.get(k)  # load the value into _dict if it should be there
-        return self._dict[k]
+        res = self._dict[k]
+
+        return res
 
     def __contains__(self, k):
-        if isinstance(k, string_types):
+        if isinstance(k, str):
             k = k.strip()
 
         return k in self._json_dict
 
     def __setitem__(self, k, v):
-        if isinstance(k, string_types):
+        if isinstance(k, str):
             k = k.strip()
 
         path = self._path
@@ -174,10 +175,10 @@ class SummarySubDict(object):
         if not key_vals:
             return
 
-        key_vals = dict((k.strip(), v) for k, v in six.iteritems(key_vals))
+        key_vals = {k.strip(): v for k, v in key_vals.items()}
 
         if overwrite:
-            write_items = list(six.iteritems(key_vals))
+            write_items = list(key_vals.items())
             self._locked_keys.update(key_vals.keys())
         else:
             write_keys = set(key_vals.keys()) - self._locked_keys
@@ -203,7 +204,7 @@ class Summary(SummarySubDict):
     """
 
     def __init__(self, run, summary=None):
-        super(Summary, self).__init__()
+        super().__init__()
         self._run = run
         self._h5_path = os.path.join(self._run.dir, DEEP_SUMMARY_FNAME)
         # Lazy load the h5 file
@@ -314,13 +315,13 @@ class Summary(SummarySubDict):
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in six.iteritems(value):
+            for key, value in value.items():
                 json_value[key] = self._encode(value, path_from_root + (key,))
             return json_value
         else:
             path = ".".join(path_from_root)
             friendly_value, converted = util.json_friendly(
-                data_types.val_to_json(self._run, path, value, namespace="summary"))
+                val_to_json(self._run, path, value, namespace="summary"))
             json_value, compressed = util.maybe_compress_summary(
                 friendly_value, util.get_h5_typename(value))
             if compressed:
@@ -350,15 +351,15 @@ def upload_h5(file, run_id, entity=None, project=None):
 
 class FileSummary(Summary):
     def __init__(self, run):
-        super(FileSummary, self).__init__(run)
-        self._fname = os.path.join(run.dir, SUMMARY_FNAME)
+        super().__init__(run)
+        self._fname = os.path.join(run.dir, wandb_lib.filenames.SUMMARY_FNAME)
         self.load()
 
     def load(self):
         try:
             with open(self._fname) as f:
                 self._json_dict = json.load(f)
-        except (IOError, ValueError):
+        except (OSError, ValueError):
             self._json_dict = {}
 
     def _write(self, commit=False):
@@ -377,7 +378,7 @@ class FileSummary(Summary):
 
 class HTTPSummary(Summary):
     def __init__(self, run, client, summary=None):
-        super(HTTPSummary, self).__init__(run, summary=summary)
+        super().__init__(run, summary=summary)
         self._run = run
         self._client = client
         self._started = time.time()
@@ -388,7 +389,7 @@ class HTTPSummary(Summary):
     def open_h5(self):
         if not self._h5 and h5py:
             download_h5(self._run.id, entity=self._run.entity, project=self._run.project, out_dir=self._run.dir)
-        super(HTTPSummary, self).open_h5()
+        super().open_h5()
 
     def _write(self, commit=False):
         mutation = gql('''

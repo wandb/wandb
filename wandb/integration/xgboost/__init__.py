@@ -1,19 +1,13 @@
-'''W&B callback for xgboost
+# """W&B callback for xgboost
 
-Really simple callback to get logging for each tree
+# Really simple callback to get logging for each tree
 
-Example usage:
+# Example usage:
+"""
+Use the `wandb_callback` to add `wandb` logging to any `XGboost` model. However, it will be deprecated in favor of
+WandbCallback. Use it instead for more features.
+"""
 
-param_list = [("eta", 0.08), ("max_depth", 6), ("subsample", 0.8), ("colsample_bytree", 0.8), ("objective", "multi:softmax"), ("eval_metric", "merror"), ("alpha", 8), ("lambda", 2), ("num_class", 10)]
-config.update(dict(param_list))
-bst = xgb.train(param_list, d_train, callbacks=[wandb_callback()])
-'''
+from .xgboost import wandb_callback, WandbCallback
 
-import wandb
-
-def wandb_callback():
-    def callback(env):
-        for k, v in env.evaluation_result_list:
-            wandb.log({k: v}, commit=False)
-        wandb.log({})
-    return callback
+__all__ = ["wandb_callback", "WandbCallback"]

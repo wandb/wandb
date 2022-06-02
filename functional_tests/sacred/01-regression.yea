@@ -1,0 +1,13 @@
+id: 0.sacred.01-regression
+plugin:
+  - wandb
+tag:
+  skips:
+    - platform: win
+depend:
+    requirements:
+        - numpy
+        - sklearn
+        - sacred
+assert:
+  - :yea:exit: 0

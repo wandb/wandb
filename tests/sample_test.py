@@ -1,9 +1,12 @@
 """sample tests."""
 
-from __future__ import print_function
 
 import pytest
-from wandb.internal import sample
+
+import wandb
+
+sample = wandb.wandb_sdk.internal.sample
+
 
 def doit(num, samples=None):
     s = sample.UniformSampleAccumulator(min_samples=samples)
@@ -15,7 +18,7 @@ def doit(num, samples=None):
 def diff(l):
     d = []
     for n, v in enumerate(l[1:]):
-        d.append(v-l[n])
+        d.append(v - l[n])
     return d
 
 

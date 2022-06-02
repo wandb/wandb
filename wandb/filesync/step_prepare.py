@@ -1,21 +1,31 @@
 """Batching file prepare requests to our API."""
 
-import collections
+import queue
 import threading
 import time
-from six.moves import queue
+from typing import Any, Callable, NamedTuple, Sequence, Union
+
 
 # Request for a file to be prepared.
-RequestPrepare = collections.namedtuple(
-    'RequestPrepare', ('prepare_fn', 'on_prepare', 'response_queue'))
+class RequestPrepare(NamedTuple):
+    prepare_fn: Callable[..., Any]
+    on_prepare: Callable[..., Any]
+    response_queue: "queue.Queue[ResponsePrepare]"
 
-RequestFinish = collections.namedtuple('RequestFinish', ())
 
-ResponsePrepare = collections.namedtuple(
-    'ResponsePrepare', ('upload_url', 'upload_headers', 'birth_artifact_id'))
+RequestFinish = NamedTuple("RequestFinish", ())
 
-    
-class StepPrepare(object):
+
+class ResponsePrepare(NamedTuple):
+    upload_url: str
+    upload_headers: Sequence[str]
+    birth_artifact_id: str
+
+
+Event = Union[RequestPrepare, RequestFinish, ResponsePrepare]
+
+
+class StepPrepare:
     """A thread that batches requests to our file prepare API.
 
     Any number of threads may call prepare_async() in parallel. The PrepareBatcher thread
@@ -40,24 +50,29 @@ class StepPrepare(object):
             prepare_response = self._prepare_batch(batch)
             # send responses
             for prepare_request in batch:
-                name = prepare_request.prepare_fn()['name']
+                name = prepare_request.prepare_fn()["name"]
                 response_file = prepare_response[name]
-                upload_url = response_file['uploadUrl']
-                upload_headers = response_file['uploadHeaders']
-                birth_artifact_id = response_file['artifact']['id']
+                upload_url = response_file["uploadUrl"]
+                upload_headers = response_file["uploadHeaders"]
+                birth_artifact_id = response_file["artifact"]["id"]
                 if prepare_request.on_prepare:
-                    prepare_request.on_prepare(upload_url, upload_headers, birth_artifact_id)
+                    prepare_request.on_prepare(
+                        upload_url, upload_headers, birth_artifact_id
+                    )
                 prepare_request.response_queue.put(
-                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id))
+                    ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
+                )
             if finish:
                 break
-            
+
     def _gather_batch(self, first_request):
         batch_start_time = time.time()
         batch = [first_request]
         while True:
             try:
-                request = self._request_queue.get(block=True, timeout=self._inter_event_time)
+                request = self._request_queue.get(
+                    block=True, timeout=self._inter_event_time
+                )
                 if isinstance(request, RequestFinish):
                     return True, batch
                 batch.append(request)
@@ -71,7 +86,7 @@ class StepPrepare(object):
     def _prepare_batch(self, batch):
         """Execute the prepareFiles API call.
 
-        Args:
+        Arguments:
             batch: List of RequestPrepare objects
         Returns:
             dict of (save_name: ResponseFile) pairs where ResponseFile is a dict with
@@ -86,7 +101,7 @@ class StepPrepare(object):
 
     def prepare_async(self, prepare_fn, on_prepare=None):
         """Request the backend to prepare a file for upload.
-        
+
         Returns:
             response_queue: a queue containing the prepare result. The prepare result is
                 either a file upload url, or None if the file doesn't need to be uploaded.

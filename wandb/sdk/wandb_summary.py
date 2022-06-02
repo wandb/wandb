@@ -1,12 +1,7 @@
-#
 import abc
+import typing as t
 
-import six
-import wandb
-from wandb.interface.summary_record import SummaryItem, SummaryRecord
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    import typing as t
+from .interface.summary_record import SummaryItem, SummaryRecord
 
 
 def _get_dict(d):
@@ -16,10 +11,9 @@ def _get_dict(d):
     return vars(d)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class SummaryDict(object):
-    """dict-like which wraps all nested dictionraries in a SummarySubDict,
-     and triggers self._root._callback on property changes."""
+class SummaryDict(metaclass=abc.ABCMeta):
+    """dict-like which wraps all nested dictionaries in a SummarySubDict,
+    and triggers self._root._callback on property changes."""
 
     @abc.abstractmethod
     def _as_dict(self):
@@ -69,7 +63,7 @@ class SummaryDict(object):
     def update(self, d: t.Dict):
         # import ipdb; ipdb.set_trace()
         record = SummaryRecord()
-        for key, value in six.iteritems(d):
+        for key, value in d.items():
             item = SummaryItem()
             item.key = (key,)
             item.value = value
@@ -79,13 +73,44 @@ class SummaryDict(object):
 
 
 class Summary(SummaryDict):
-    """Root node of the summary data structure. Contains the callback."""
+    """
+    Tracks single values for each metric for each run.
+
+    By default, a metric's summary is the last value of its History.
+
+    For example, `wandb.log({'accuracy': 0.9})` will add a new step to History and
+    update Summary to the latest value. In some cases, it's more useful to have
+    the maximum or minimum of a metric instead of the final value. You can set
+    history manually `(wandb.summary['accuracy'] = best_acc)`.
+
+    In the UI, summary metrics appear in the table to compare across runs.
+    Summary metrics are also used in visualizations like the scatter plot and
+    parallel coordinates chart.
+
+    After training has completed, you may want to save evaluation metrics to a
+    run. Summary can handle numpy arrays and PyTorch/TensorFlow tensors. When
+    you save one of these types to Summary, we persist the entire tensor in a
+    binary file and store high level metrics in the summary object, such as min,
+    mean, variance, and 95th percentile.
+
+    Examples:
+        ```python
+        wandb.init(config=args)
+
+        best_accuracy = 0
+        for epoch in range(1, args.epochs + 1):
+        test_loss, test_accuracy = test()
+        if (test_accuracy > best_accuracy):
+            wandb.run.summary["best_accuracy"] = test_accuracy
+            best_accuracy = test_accuracy
+        ```
+    """
 
     _update_callback: t.Callable
     _get_current_summary_callback: t.Callable
 
     def __init__(self, get_current_summary_callback: t.Callable):
-        super(Summary, self).__init__()
+        super().__init__()
         object.__setattr__(self, "_update_callback", None)
         object.__setattr__(
             self, "_get_current_summary_callback", get_current_summary_callback

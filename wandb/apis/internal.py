@@ -1,12 +1,23 @@
-from wandb.internal.internal_api import Api as InternalApi
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
-class Api(object):
+class Api:
     """Internal proxy to the official internal API.  Eventually these methods
     should likely be moved to PublicApi"""
 
     def __init__(self, *args, **kwargs):
-        self.api = InternalApi(*args, **kwargs)
+        self._api_args = args
+        self._api_kwargs = kwargs
+        self._api = None
+
+    @property
+    def api(self):
+        # This is a property in order ot delay construction of Internal API
+        # for as long as possible. If constructed in constructor, then the
+        # whole InternalAPI is started when simply importing wandb.
+        if self._api is None:
+            self._api = InternalApi(*self._api_args, **self._api_kwargs)
+        return self._api
 
     @property
     def api_key(self):
@@ -21,6 +32,10 @@ class Api(object):
         return self.api.app_url
 
     @property
+    def default_entity(self):
+        return self.api.default_entity
+
+    @property
     def git(self):
         return self.api.git
 
@@ -30,11 +45,17 @@ class Api(object):
     def download_file(self, *args, **kwargs):
         return self.api.download_file(*args, **kwargs)
 
+    def download_write_file(self, *args, **kwargs):
+        return self.api.download_write_file(*args, **kwargs)
+
     def set_current_run_id(self, run_id):
         return self.api.set_current_run_id(run_id)
 
     def viewer(self):
         return self.api.viewer()
+
+    def max_cli_version(self):
+        return self.api.max_cli_version()
 
     def viewer_server_info(self):
         return self.api.viewer_server_info()
@@ -62,6 +83,9 @@ class Api(object):
     def parse_slug(self, *args, **kwargs):
         return self.api.parse_slug(*args, **kwargs)
 
+    def download_url(self, *args, **kwargs):
+        return self.api.download_url(*args, **kwargs)
+
     def download_urls(self, *args, **kwargs):
         return self.api.download_urls(*args, **kwargs)
 
@@ -77,6 +101,24 @@ class Api(object):
     def upsert_sweep(self, *args, **kwargs):
         return self.api.upsert_sweep(*args, **kwargs)
 
+    def set_sweep_state(self, *args, **kwargs):
+        return self.api.set_sweep_state(*args, **kwargs)
+
+    def get_sweep_state(self, *args, **kwargs):
+        return self.api.get_sweep_state(*args, **kwargs)
+
+    def stop_sweep(self, *args, **kwargs):
+        return self.api.stop_sweep(*args, **kwargs)
+
+    def cancel_sweep(self, *args, **kwargs):
+        return self.api.cancel_sweep(*args, **kwargs)
+
+    def pause_sweep(self, *args, **kwargs):
+        return self.api.pause_sweep(*args, **kwargs)
+
+    def resume_sweep(self, *args, **kwargs):
+        return self.api.resume_sweep(*args, **kwargs)
+
     def register_agent(self, *args, **kwargs):
         return self.api.register_agent(*args, **kwargs)
 
@@ -91,6 +133,36 @@ class Api(object):
 
     def run_config(self, *args, **kwargs):
         return self.api.run_config(*args, **kwargs)
+
+    def upload_file_retry(self, *args, **kwargs):
+        return self.api.upload_file_retry(*args, **kwargs)
+
+    def get_run_info(self, *args, **kwargs):
+        return self.api.get_run_info(*args, **kwargs)
+
+    def get_project_run_queues(self, *args, **kwargs):
+        return self.api.get_project_run_queues(*args, **kwargs)
+
+    def push_to_run_queue(self, *args, **kwargs):
+        return self.api.push_to_run_queue(*args, **kwargs)
+
+    def pop_from_run_queue(self, *args, **kwargs):
+        return self.api.pop_from_run_queue(*args, **kwargs)
+
+    def ack_run_queue_item(self, *args, **kwargs):
+        return self.api.ack_run_queue_item(*args, **kwargs)
+
+    def create_launch_agent(self, *args, **kwargs):
+        return self.api.create_launch_agent(*args, **kwargs)
+
+    def update_launch_agent_status(self, *args, **kwargs):
+        return self.api.update_launch_agent_status(*args, **kwargs)
+
+    def launch_agent_introspection(self, *args, **kwargs):
+        return self.api.launch_agent_introspection(*args, **kwargs)
+
+    def get_launch_agent(self, *args, **kwargs):
+        return self.api.get_launch_agent(*args, **kwargs)
 
 
 __all__ = ["Api"]

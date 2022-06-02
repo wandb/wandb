@@ -1,0 +1,12 @@
+id: 0.mp.16-offline
+tag:
+  shard: service
+env:
+  - WANDB_BASE_URL: https://does.not-resolve/
+command:
+  timeout: 20
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 0
+  - :yea:exit: 0

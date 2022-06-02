@@ -2,27 +2,158 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_telemetry.proto";
+
 
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
+  rpc Attach(AttachRequest) returns (AttachResponse) {}
+  rpc TBSend(TBRecord) returns (TBResult) {}
+  rpc RunStart(RunStartRequest) returns (RunStartResponse) {}
+  rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse) {}
+  rpc SampledHistory(SampledHistoryRequest) returns (SampledHistoryResponse) {}
+  rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
+  rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
+  rpc Metric(MetricRecord) returns (MetricResult) {}
+  rpc PartialLog(PartialHistoryRequest) returns (PartialHistoryResponse) {}
   rpc Log(HistoryRecord) returns (HistoryResult) {}
   rpc Summary(SummaryRecord) returns (SummaryResult) {}
   rpc Config(ConfigRecord) returns (ConfigResult) {}
+  rpc Files(FilesRecord) returns (FilesResult) {}
   rpc Output(OutputRecord) returns (OutputResult) {}
-  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
-  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
+  rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
+  rpc Alert(AlertRecord) returns (AlertResult) {}
+  rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
+  rpc LinkArtifact(LinkArtifactRecord) returns (LinkArtifactResult) {}
+
+  // rpc messages for async operations: Send, Poll, Cancel, Release
+  rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}
+  rpc ArtifactPoll(ArtifactPollRequest) returns (ArtifactPollResponse) {}
+  // rpc ArtifactCancel(ArtifactCancelRequest) returns (ArtifactCancelResponse) {}
+  // rpc ArtifactRelease(ArtifactReleaseRequest) returns (ArtifactReleaseResponse) {}
+
+  rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
+  rpc Pause(PauseRequest) returns (PauseResponse) {}
+  rpc Resume(ResumeRequest) returns (ResumeResponse) {}
+  rpc Status(StatusRequest) returns (StatusResponse) {}
+  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
+  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
+  rpc ServerInformInit(ServerInformInitRequest) returns (ServerInformInitResponse) {}
+  rpc ServerInformStart(ServerInformStartRequest) returns (ServerInformStartResponse) {}
+  rpc ServerInformFinish(ServerInformFinishRequest) returns (ServerInformFinishResponse) {}
+  rpc ServerInformAttach(ServerInformAttachRequest) returns (ServerInformAttachResponse) {}
+  rpc ServerInformDetach(ServerInformDetachRequest) returns (ServerInformDetachResponse) {}
+  rpc ServerInformTeardown(ServerInformTeardownRequest) returns (ServerInformTeardownResponse) {}
 }
 
 message ServerShutdownRequest {
+  _RecordInfo _info = 200;
 }
 
-message ServerShutdownResult {
+message ServerShutdownResponse {
 }
 
 message ServerStatusRequest {
+  _RecordInfo _info = 200;
 }
 
-message ServerStatusResult {
+message ServerStatusResponse {
+}
+
+message StringTupleValue {
+    repeated string string_values = 1;
+}
+
+message SettingsValue {
+  oneof value_type {
+    int64 int_value = 1;
+    string string_value = 2;
+    double float_value = 3;
+    bool bool_value = 4;
+    bool null_value = 5;
+    StringTupleValue tuple_value = 6;
+    string timestamp_value = 7;
+  }
+}
+
+message ServerInformInitRequest {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformInitResponse {
+}
+
+message ServerInformStartRequest {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformStartResponse {
+}
+
+message ServerInformFinishRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformFinishResponse {
+}
+
+message ServerInformAttachRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformAttachResponse {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformDetachRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformDetachResponse {
+}
+
+message ServerInformTeardownRequest {
+  int32 exit_code = 1;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformTeardownResponse {
+}
+
+/*
+ * ServerRequest, ServerResponse: used in sock server
+ */
+
+message ServerRequest {
+  oneof server_request_type {
+    Record record_publish = 1;
+    Record record_communicate = 2;
+    ServerInformInitRequest inform_init = 3;
+    ServerInformFinishRequest inform_finish = 4;
+    ServerInformAttachRequest inform_attach = 5;
+    ServerInformDetachRequest inform_detach = 6;
+    ServerInformTeardownRequest inform_teardown = 7;
+    ServerInformStartRequest inform_start = 8;
+
+  }
+}
+
+message ServerResponse {
+  oneof server_response_type {
+    Result result_communicate = 2;
+    ServerInformInitResponse inform_init_response = 3;
+    ServerInformFinishResponse inform_finish_response = 4;
+    ServerInformAttachResponse inform_attach_response = 5;
+    ServerInformDetachResponse inform_detach_response = 6;
+    ServerInformTeardownResponse inform_teardown_response = 7;
+    ServerInformStartResponse inform_start_response = 8;
+
+  }
 }

@@ -7,4 +7,4 @@ In the future use:
 
 from wandb.integration.keras import WandbCallback  # type: ignore
 
-__all__ = ['WandbCallback']
+__all__ = ["WandbCallback"]

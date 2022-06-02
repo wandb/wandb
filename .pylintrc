@@ -1,7 +1,6 @@
 [MASTER]
 exclude =
     wandb/vendor
-    wandb/sdk_py27
 
 max-line-length = 180
 good-names = logger

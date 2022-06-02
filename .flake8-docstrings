@@ -1,0 +1,15 @@
+[flake8]
+
+filename =
+    ./wandb/sdk/wandb_watch.py
+    ./wandb/sdk/integration_utils/data_logging.py
+    ./wandb/sdk/wandb_require.py
+    ./wandb/sdk/wandb_run.py
+    ./wandb/sdk/wandb_init.py
+    ./wandb/sdk/launch/launch.py
+    ./wandb/sdk/launch/runner/local.py
+    ./wandb/sdk/lib/timed_input.py
+    ./wandb/integration/metaflow/metaflow.py
+    ./wandb/integration/lightgbm/__init__.py
+    ./wandb/sdk/internal/profiler.py
+    ./wandb/integration/xgboost/xgboost.py

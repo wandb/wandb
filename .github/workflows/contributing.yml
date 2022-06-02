@@ -1,0 +1,41 @@
+name: contributing
+
+defaults:
+  run:
+    # run shell in interactive mode
+    shell: bash -ieo pipefail {0}
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  contributing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        python-version:
+          - '3.7'
+          - '3.8'
+          - '3.9'
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Test quick start steps from contributing guide
+        run: |
+          python -m pip install --upgrade pip
+          pip install wheel
+          pip install -e .
+          curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
+          cat << EOF > ~/.bashrc
+          export PYENV_ROOT="$HOME/.pyenv"
+          export PATH="$HOME/.pyenv/bin:$PATH"
+          eval "$(pyenv init --path)"
+          eval "$(pyenv virtualenv-init -)"
+          EOF
+          source ~/.bashrc
+          ./tools/setup_dev_environment.py --python-versions 3.7
+          make proto

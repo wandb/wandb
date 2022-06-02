@@ -5,13 +5,11 @@ summary test.
 import pytest  # type: ignore
 
 from wandb import wandb_sdk
-from wandb.interface.summary_record import SummaryRecord
 
-# if TYPE_CHECKING:
-#     import typing as t
+from wandb.sdk.interface.summary_record import SummaryRecord
 
 
-class MockCallback(object):
+class MockCallback:
     # current_dict: t.Dict
     # summary_record: t.Optional[SummaryRecord]
 
@@ -56,8 +54,12 @@ class MockCallback(object):
 # def create_summary_and_mock(current_dict: t.Dict):
 def create_summary_and_mock(current_dict):
     m = MockCallback(current_dict)
-    s = wandb_sdk.Summary(m.get_current_summary_callback,)
-    s._set_update_callback(m.update_callback,)
+    s = wandb_sdk.Summary(
+        m.get_current_summary_callback,
+    )
+    s._set_update_callback(
+        m.update_callback,
+    )
 
     return s, m
 
