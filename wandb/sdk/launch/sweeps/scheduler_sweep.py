@@ -67,7 +67,6 @@ class SweepScheduler(Scheduler):
 
     def _heartbeat(self):
         while True:
-            # Make sure Daimyo is alive
             if not self.is_alive():
                 return
             # AgentHeartbeat wants dict of runs which are running or queued

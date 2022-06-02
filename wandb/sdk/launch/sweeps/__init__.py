@@ -38,7 +38,7 @@ def load_scheduler(scheduler_name: str, *args, **kwargs) -> Scheduler:
             f"{list(_WANDB_SCHEDULERS.keys())}, got: {scheduler_name}"
         )
 
-    log.warn(f"Loading dependencies for Daimyo of type: {scheduler_name}")
+    log.warn(f"Loading dependencies for Scheduler of type: {scheduler_name}")
     import_func = _WANDB_SCHEDULERS[scheduler_name]
     return import_func()(*args, **kwargs)
 

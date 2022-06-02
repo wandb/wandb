@@ -70,13 +70,13 @@ class Scheduler(ABC):
             or api.default_entity
         )
         if self._entity is None:
-            raise SweepError("Sweep Daimyo could not resolve entity.")
+            raise SweepError("Sweep Scheduler could not resolve entity.")
 
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
         if self._project is None:
-            raise SweepError("Sweep Daimyo could not resolve project.")
+            raise SweepError("Sweep Scheduler could not resolve project.")
 
         self._state: SchedulerState = SchedulerState.PENDING
         self._runs: Dict[str, SweepRun] = {}
@@ -95,16 +95,16 @@ class Scheduler(ABC):
 
     @property
     def state(self) -> SchedulerState:
-        logger.debug(f"Daimyo state is {self._state.name}")
+        logger.debug(f"Scheduler state is {self._state.name}")
         return self._state
 
     @state.setter
     def state(self, value: SchedulerState) -> None:
-        logger.debug(f"Changing Daimyo state from {self.state.name} to {value.name}")
+        logger.debug(f"Changing Scheduler state from {self.state.name} to {value.name}")
         self._state = value
 
     def start(self):
-        _msg = "Daimyo starting."
+        _msg = "Scheduler starting."
         logger.debug(_msg)
         wandb.termlog(_msg)
         self._state = SchedulerState.STARTING
@@ -122,7 +122,7 @@ class Scheduler(ABC):
         return True
 
     def run(self):
-        _msg = "Daimyo Running."
+        _msg = "Scheduler Running."
         logger.debug(_msg)
         wandb.termlog(_msg)
         self.state = SchedulerState.RUNNING
@@ -133,21 +133,21 @@ class Scheduler(ABC):
                 self.update_run_states()
                 self._run()
         except KeyboardInterrupt:
-            _msg = "Daimyo received KeyboardInterrupt. Exiting."
+            _msg = "Scheduler received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = SchedulerState.CANCELLED
             self.exit()
             return
         except Exception as e:
-            _msg = f"Daimyo failed with exception {e}"
+            _msg = f"Scheduler failed with exception {e}"
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = SchedulerState.FAILED
             self.exit()
             raise e
         else:
-            _msg = f"Daimyo completed."
+            _msg = f"Scheduler completed."
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = SchedulerState.COMPLETED

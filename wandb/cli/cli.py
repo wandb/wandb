@@ -671,7 +671,7 @@ def sync(
     is_flag=False,
     flag_value="default",
     default=None,
-    help="Name of launch run queue to push runs into. If supplied without "
+    help="Name of launch run queue to push sweep runs into. If supplied without "
     'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
@@ -870,30 +870,30 @@ def sweep(
         or util.auto_project_name(config.get("program"))
     )
 
-    daimyo_launch_spec = None
+    _launch_scheduler_spec = None
     if queue is not None:
         wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
-        # Because the launch job spec below is the daimyo, it
+        # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
         # know until it is created,so we use this placeholder
         # and replace in UpsertSweep in the backend.
         _sweep_id_placeholder = "WANDB_SWEEP_ID"
 
-        # Launch job spec for the daimyo
-        daimyo_launch_spec = json.dumps(
+        # Launch job spec for the Scheduler
+        _launch_scheduler_spec = json.dumps(
             {
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
                         os.getcwd(),  # uri,
                         api,
-                        f"Daimyo.{_sweep_id_placeholder}",  # name,
+                        f"Scheduler.{_sweep_id_placeholder}",  # name,
                         project,
                         entity,
                         None,  # docker_image,
                         "local-process",  # resource,
-                        f"wandb daimyo {_sweep_id_placeholder} -p {project} -q {queue}",  # entry_point,
+                        f"wandb launch-scheduler {_sweep_id_placeholder} -p {project} -q {queue}",  # entry_point,
                         None,  # version,
                         None,  # params,
                         None,  # resource_args,
@@ -910,7 +910,7 @@ def sweep(
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
-        daimyo=daimyo_launch_spec,
+        launch_scheduler=_launch_scheduler_spec,
     )
     util.handle_sweep_config_violations(warnings)
 
@@ -1271,7 +1271,7 @@ def launch_agent(
     wandb_launch.create_and_run_agent(api, agent_config)
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B Daimyo (Experimental)")
+@cli.command(context_settings=CONTEXT, help="Run a W&B Launch Scheduler (Experimental)")
 @click.pass_context
 @click.option(
     "--project", "-p", default=None, help="The project of the sweep and launch queue."
@@ -1289,20 +1289,20 @@ def launch_agent(
 )
 @click.argument("sweep_id")
 @display_error
-def daimyo(ctx, project, entity, sweep_id, queue):
+def launch_scheduler(ctx, project, entity, sweep_id, queue):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    wandb.termlog("Starting a Launch 🚀  Daimyo 🏯 ")
-    from wandb.sdk.launch.sweeps import load_daimyo
+    wandb.termlog("Starting a 🚀 Launch Scheduler ")
+    from wandb.sdk.launch.sweeps import load_scheduler
 
-    _daimyo = load_daimyo(
+    _scheduler = load_scheduler(
         "sweep", api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
     )
-    _daimyo.start()
+    _scheduler.start()
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
