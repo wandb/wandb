@@ -102,11 +102,11 @@ def get_platform_name() -> str:
 #  side effect of loading a module.
 sentry_client: Optional["sentry_sdk.client.Client"] = None
 sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
+sentry_default_dsn = (
+    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+)
 if error_reporting_enabled():
-    default_dsn = (
-        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
-    )
-    sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
+    sentry_dsn = os.environ.get(SENTRY_DSN, sentry_default_dsn)
     sentry_client = sentry_sdk.Client(
         dsn=sentry_dsn,
         default_integrations=False,
