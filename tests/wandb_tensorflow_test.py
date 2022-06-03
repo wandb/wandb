@@ -12,7 +12,7 @@ from wandb.errors import term
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-SUMMARY_PB_FILENAME = os.path.join(THIS_DIR, "wandb_tensorflow_summary.pb")
+SUMMARY_PB_FILENAME = os.path.join(THIS_DIR, "assets", "wandb_tensorflow_summary.pb")
 SUMMARY_PB = open(SUMMARY_PB_FILENAME, "rb").read()
 PR_CURVE_PANEL_CONFIG = {
     "panel_type": "Vega2",

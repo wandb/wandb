@@ -163,7 +163,7 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
 def test_notebook_exits(live_mock_server, test_settings):
 
     script_dirname = os.path.dirname(__file__)
-    script_fname = os.path.join(script_dirname, "..", "notebooks/ipython_exit.py")
+    script_fname = os.path.join(script_dirname, os.pardir, "notebooks", "ipython_exit.py")
     bindir = os.path.dirname(sys.executable)
     ipython = os.path.join(bindir, "ipython")
     cmd = [ipython, script_fname]

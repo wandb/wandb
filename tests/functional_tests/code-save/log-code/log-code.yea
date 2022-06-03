@@ -16,10 +16,10 @@ assert:
   - :wandb:runs[0][summary]: {}
   - :wandb:runs[0][exitcode]: 0
   - :wandb:runs[0][output][stdout][0]: :runline0
-  - :wandb:runs[0][config_wandb][code_path]: code/functional_tests/code-save/log-code/log-code.py
+  - :wandb:runs[0][config_wandb][code_path]: code/tests/functional_tests/code-save/log-code/log-code.py
   - :op:contains:
     - :wandb:runs[0][files]
-    - code/functional_tests/code-save/log-code/log-code.py
+    - code/tests/functional_tests/code-save/log-code/log-code.py
   - :op:contains:
     - :wandb:artifacts
     - :src0

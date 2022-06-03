@@ -372,7 +372,7 @@ def test_save_invalid_path(wandb_init_run):
     with open(test_path, "w") as f:
         f.write("something")
     with pytest.raises(ValueError):
-        wandb.save(os.path.join(root, "..", "..", "*.txt"), base_path=root)
+        wandb.save(os.path.join(root, os.pardir, os.pardir, "*.txt"), base_path=root)
 
 
 def test_restore_no_path(mock_server):

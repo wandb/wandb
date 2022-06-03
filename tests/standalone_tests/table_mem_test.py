@@ -23,7 +23,7 @@ if __name__ == "__main__":
         cnt = 2 * (10**c)
         start = time.time()
         print(f"Starting count {cnt}")
-        t = main(10**c, (32, 32, 3))
+        t = main(cnt, (32, 32, 3))
         run.log({f"table_{cnt}_rows": t})
         print(f"Completed count {cnt} in {time.time() - start} seconds")
     run.finish()
