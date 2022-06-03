@@ -6,7 +6,7 @@ tag:
     - linux
     - mac
 command:
-  program: 05-sentry-third-party.py
+  program: sentry-third-party.py
 depend:
   requirements:
     - sentry_sdk

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import shutil
 from typing import Any, Dict
 
@@ -21,8 +22,9 @@ def main():
 
     # assert that importing wandb does not set Sentry's global hub/client
     assert sentry_sdk.Hub.current.client.dsn != wandb.util.sentry_default_dsn
-    # but an internal Sentry client for wandb is created ok
-    assert isinstance(wandb.util.sentry_client, sentry_sdk.client.Client)
+    # but an internal Sentry client for wandb is created ok if WANDB_ERROR_REPORTING != False
+    if wandb.util.error_reporting_enabled():
+        assert isinstance(wandb.util.sentry_client, sentry_sdk.client.Client)
 
     run = wandb.init()
 
@@ -30,7 +32,7 @@ def main():
     for i in range(2):
         try:
             print(
-                f"Raising exception #{i+1} to be captured by third-party sentry client"
+                f"Raising exception #{i + 1} to be captured by third-party sentry client"
             )
             raise ValueError("Catch me if you can!")
         except ValueError:
