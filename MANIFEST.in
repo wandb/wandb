@@ -5,9 +5,7 @@ include requirements_sweeps.txt
 include wandb/bin/apple_gpu_stats
 
 
-
 recursive-include wandb *.py
 recursive-include wandb *.sh
-recursive-include tests/unit_tests *.py
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
