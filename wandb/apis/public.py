@@ -24,7 +24,6 @@ import time
 from typing import Optional
 import urllib
 
-from dateutil.relativedelta import relativedelta
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -3892,9 +3891,13 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            delta = relativedelta(datetime.datetime.now() - start_time)
+            now = datetime.datetime.now()
+            delta = abs((now - start_time).total_seconds())
+            hours = int(delta // 3600)
+            minutes = int((delta - hours * 3600) // 60)
+            seconds = delta - hours * 3600 - minutes * 60
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
+                f"Done. {hours}:{minutes}:{seconds:.1f}",
                 prefix=False,
             )
         return dirpath
