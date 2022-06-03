@@ -1,0 +1,2 @@
+logs/*
+!logs/cleanup.sh
