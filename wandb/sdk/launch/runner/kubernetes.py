@@ -445,5 +445,5 @@ def maybe_create_imagepull_secret(
             raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
     # TODO: support other ecxr providers
     elif ecr_provider != "aws":
-        raise LaunchError("Registry provider not supported: {}".format(ecr_provider))
+        raise LaunchError(f"Registry provider not supported: {ecr_provider}")
     return secret

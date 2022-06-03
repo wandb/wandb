@@ -198,6 +198,7 @@ def is_bare_wandb_uri(uri: str) -> bool:
     # and the second last being "runs"
     if len(result) == 4 and result[-2] == "runs":
         return True
+    return False
 
 
 def fetch_wandb_project_run_info(
