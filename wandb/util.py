@@ -155,13 +155,11 @@ def sentry_exc(
     ],
     delay: bool = False,
 ) -> None:
-    if not error_reporting_enabled():
-        return None
-
-    if isinstance(exc, str):
-        sentry_hub.capture_exception(Exception(exc))  # type: ignore
-    else:
-        sentry_hub.capture_exception(exc)  # type: ignore
+    if error_reporting_enabled():
+        if isinstance(exc, str):
+            sentry_hub.capture_exception(Exception(exc))  # type: ignore
+        else:
+            sentry_hub.capture_exception(exc)  # type: ignore
     if delay:
         time.sleep(2)
     return None
