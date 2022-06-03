@@ -205,9 +205,12 @@ def image_id(image_name: str) -> Optional[str]:
         return image_name
     else:
         digests = shell(["inspect", image_name, "--format", "{{.RepoDigests}}"])
-        if digests == "[]" or digests is None:
+        try:
+            if digests is None:
+                raise ValueError()
+            return json.loads(digests)[0]
+        except (ValueError, IndexError):
             return image_id_from_registry(image_name)
-        return json.loads(digests)[0]
 
 
 def get_image_uid(image_name: str) -> int:
