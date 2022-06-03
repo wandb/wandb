@@ -275,10 +275,13 @@ def build_sagemaker_args(
         raise LaunchError(
             "No sagemaker args specified. Specify sagemaker args in resource_args"
         )
-    if given_sagemaker_args.get("OutputDataConfig") is None:
+    if (
+        given_sagemaker_args.get("OutputDataConfig") is None
+        and default_output_path is not None
+    ):
         sagemaker_args["OutputDataConfig"] = {"S3OutputPath": default_output_path}
     else:
-        sagemaker_args["OutputDataConfig"] = given_sagemaker_args["OutputDataConfig"]
+        sagemaker_args["OutputDataConfig"] = given_sagemaker_args.get("OutputDataConfig")
 
     if sagemaker_args.get("OutputDataConfig") is None:
         raise LaunchError(
