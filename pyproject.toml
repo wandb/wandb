@@ -16,3 +16,6 @@ exclude = '''
 | __pycache__
 | .pyc
 '''
+
+[tool.isort]
+profile = "black"
