@@ -66,7 +66,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         files_sorted = sorted(
             [
                 "config.yaml",
-                f"code/tests/logs/{test_name}/train.py",
+                f"code/tests/unit_tests/logs/{test_name}/train.py",
                 "requirements.txt",
                 "wandb-metadata.json",
                 "wandb-summary.json",

@@ -116,7 +116,7 @@ def test_multiproc_spawn(runner, test_settings):
 
         test_mod.main()
         sys.modules["__main__"].__spec__ = importlib.machinery.ModuleSpec(
-            name="tests.utils.test_mod", loader=importlib.machinery.BuiltinImporter
+            name="tests.unit_tests.utils.test_mod", loader=importlib.machinery.BuiltinImporter
         )
         test_mod.main()
         sys.modules["__main__"].__spec__ = None

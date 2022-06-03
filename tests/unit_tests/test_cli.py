@@ -14,7 +14,7 @@ import wandb
 from wandb.cli import cli
 from wandb.apis.internal import InternalApi
 
-from tests import utils
+from tests.unit_tests import utils
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 DOCKER_SHA = (

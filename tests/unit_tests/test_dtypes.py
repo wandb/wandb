@@ -3,7 +3,6 @@ from wandb import data_types
 import numpy as np
 import pytest
 import os
-import sys
 import datetime
 
 from wandb.sdk.data_types._dtypes import *

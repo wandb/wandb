@@ -13,7 +13,7 @@ import requests
 
 import wandb
 from wandb import Api
-from tests import utils
+from tests.unit_tests import utils
 
 
 def test_api_auto_login_no_tty(mocker):

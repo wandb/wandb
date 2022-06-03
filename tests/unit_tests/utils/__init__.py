@@ -1,14 +1,14 @@
-from tests.utils.dummy_data import (
+from tests.unit_tests.utils.dummy_data import (
     matplotlib_multiple_axes_figures,
     matplotlib_with_image,
     matplotlib_without_image,
 )
-from tests.utils.mock_server import mock_server, default_ctx, create_app, ParseCTX
+from tests.unit_tests.utils.mock_server import mock_server, default_ctx, create_app, ParseCTX
 
-from tests.utils.mock_requests import InjectRequests
-from tests.utils.records import RecordsUtil
-from tests.utils.notebook_client import WandbNotebookClient
-from tests.utils.utils import (
+from tests.unit_tests.utils.mock_requests import InjectRequests
+from tests.unit_tests.utils.records import RecordsUtil
+from tests.unit_tests.utils.notebook_client import WandbNotebookClient
+from tests.unit_tests.utils.utils import (
     subdict,
     free_port,
     first_filestream,
