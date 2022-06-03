@@ -1,6 +1,5 @@
 import json
-from multiprocessing.sharedctypes import Value
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -25,7 +24,7 @@ def launch_add(
     entity: Optional[str] = None,
     queue: Optional[str] = None,
     resource: Optional[str] = None,
-    entry_point: Optional[str] = None,
+    entry_point: Optional[List[str]] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
@@ -61,7 +60,7 @@ def _launch_add(
     entity: Optional[str],
     queue: Optional[str],
     resource: Optional[str],
-    entry_point: Optional[str],
+    entry_point: Optional[List[str]],
     name: Optional[str],
     version: Optional[str],
     docker_image: Optional[str],

@@ -39,15 +39,6 @@ def test_tpu_system_stats(monkeypatch, fake_interface):
     assert stats.stats()["tpu"] == MockTPUProfiler().utilization
 
 
-def is_tf_pkg_installed():
-    try:
-        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver
-        from tensorflow.python.profiler import profiler_client
-    except (ImportError):
-        return False
-    return True
-
-
 class MockProfilerClient:
     def __init__(self, tpu_utilization: int = 10.1) -> None:
         self.tpu_utilization = tpu_utilization
@@ -74,11 +65,11 @@ class MockProfilerClient:
             raise Exception
 
 
-@pytest.mark.skipif(
-    not is_tf_pkg_installed(),
-    reason="tensorflow modules tpu_cluster_resolver and profiler_client are missing",
-)
 def test_tpu_instance():
+    _ = pytest.importorskip(
+        "tensorflow.python.distribute.cluster_resolver.tpu_cluster_resolver"
+    )
+    _ = pytest.importorskip("tensorflow.python.profiler.profiler_client")
     with pytest.raises(Exception) as e_info:
         tpu_profiler = TPUProfiler(tpu="my-tpu")
         assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)

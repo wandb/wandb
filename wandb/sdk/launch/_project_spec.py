@@ -7,9 +7,9 @@ import enum
 import json
 import logging
 import os
-from shlex import quote, split
+from shlex import quote
 import tempfile
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.apis.internal import Api
@@ -65,7 +65,7 @@ class LaunchProject:
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
-        self.target_project = target_project
+        self.target_project = target_project.lower()
         self.name = name
         self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
@@ -82,6 +82,7 @@ class LaunchProject:
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
+        self.override_entrypoint: Optional[EntryPoint] = None
         self.resource = resource
         self.resource_args = resource_args
         self.deps_type: Optional[str] = None
@@ -91,13 +92,11 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if (
-            "entry_point" in overrides
-            and overrides["entry_point"] is not None
-            and overrides["entry_point"] != ""
-        ):
+        if overrides.get("entry_point") is not None:
             _logger.info("Adding override entry point")
-            self.add_entry_point(overrides["entry_point"])
+            self.override_entrypoint = self.add_entry_point(
+                overrides.get("entry_point")  # type: ignore
+            )
         if self.job is None and self.uri is None and self.docker_image is None:
             raise LaunchError(
                 "Project must have at least one of uri, job, or docker_image specified."
@@ -174,9 +173,9 @@ class LaunchProject:
             return None
         return list(self._entry_points.values())[0]
 
-    def add_entry_point(self, command: str) -> "EntryPoint":
+    def add_entry_point(self, command: List[str]) -> "EntryPoint":
         """Adds an entry point to the project."""
-        entry_point = split(command)[-1]
+        entry_point = command[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
@@ -301,10 +300,10 @@ class LaunchProject:
             if not self._entry_points:
                 _, ext = os.path.splitext(program_name)
                 if ext == ".py":
-                    entry_point = f"python {program_name}"
+                    entry_point = ["python", program_name]
                 elif ext == ".sh":
                     command = os.environ.get("SHELL", "bash")
-                    entry_point = f"{command} {program_name}"
+                    entry_point = [command, program_name]
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 self.add_entry_point(entry_point)
@@ -315,95 +314,46 @@ class LaunchProject:
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
             )
-
             if not self._entry_points:
                 wandb.termlog(
                     "Entry point for repo not specified, defaulting to python main.py"
                 )
-                self.add_entry_point("python main.py")
+                self.add_entry_point(["python", "main.py"])
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
-    def __init__(self, name: str, command: str):
+    def __init__(self, name: str, command: List[str]):
         self.name = name
         self.command = command
-        self.parameters: Dict[str, Any] = {}
 
-    def _validate_parameters(self, user_parameters: Dict[str, Any]) -> None:
-        missing_params = []
-        for name in self.parameters:
-            if name not in user_parameters and self.parameters[name].default is None:
-                missing_params.append(name)
-        if missing_params:
-            raise ExecutionError(
-                "No value given for missing parameters: %s"
-                % ", ".join(["'%s'" % name for name in missing_params])
-            )
-
-    def compute_parameters(
-        self, user_parameters: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Optional[str]], Dict[str, Optional[str]]]:
-        """Validates and sanitizes parameters dict into expected dict format.
-
-        Given a dict mapping user-specified param names to values, computes parameters to
-        substitute into the command for this entry point. Returns a tuple (params, extra_params)
-        where `params` contains key-value pairs for parameters specified in the entry point
-        definition, and `extra_params` contains key-value pairs for additional parameters passed
-        by the user.
-        """
-        if user_parameters is None:
-            user_parameters = {}
-        # Validate params before attempting to resolve parameter values
-        self._validate_parameters(user_parameters)
-        final_params = {}
-        extra_params = {}
-
-        parameter_keys = list(self.parameters.keys())
-        for key in parameter_keys:
-            param_obj = self.parameters[key]
-            key_position = parameter_keys.index(key)
-            value = (
-                user_parameters[key]
-                if key in user_parameters
-                else self.parameters[key].default
-            )
-            final_params[key] = param_obj.compute_value(value, key_position)
-        for key in user_parameters:
-            if key not in final_params:
-                extra_params[key] = user_parameters[key]
-        return (
-            self._sanitize_param_dict(final_params),
-            self._sanitize_param_dict(extra_params),
-        )
-
-    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> str:
+    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        params, extra_params = self.compute_parameters(user_parameters)
-        command_with_params = self.command.format(**params)
-        command_arr = [command_with_params]
-        command_arr.extend(
-            [
-                f"--{key} {value}" if value is not None else f"--{key}"
-                for key, value in extra_params.items()
-            ]
-        )
-        return " ".join(command_arr)
+        command_arr = []
+        command_arr += self.command
+        extras = compute_command_args(user_parameters)
+        command_arr += extras
+        return command_arr
 
-    @staticmethod
-    def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
-        """Sanitizes a dictionary of parameters, quoting values, except for keys with None values."""
-        return {
-            (str(key)): (quote(str(value)) if value is not None else None)
-            for key, value in param_dict.items()
-        }
+
+def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
+    arr: List[str] = []
+    if parameters is None:
+        return arr
+    for key, value in parameters.items():
+        if value is not None:
+            arr.append(f"--{key}")
+            arr.append(quote(str(value)))
+        else:
+            arr.append(f"--{key}")
+    return arr
 
 
 def get_entry_point_command(
     entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
-) -> str:
+) -> List[str]:
     """Returns the shell command to execute in order to run the specified entry point.
 
     Arguments:
@@ -414,7 +364,7 @@ def get_entry_point_command(
         List of strings representing the shell command to be executed
     """
     if entry_point is None:
-        return ""
+        return []
     return entry_point.compute_command(parameters)
 
 
@@ -481,16 +431,10 @@ def fetch_and_validate_project(
     ) or os.path.exists(
         os.path.join(launch_project.project_dir, "requirements.frozen.txt")
     ):
-        print("DEptS YTPE is pip")
         launch_project.deps_type = "pip"
     elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
         launch_project.deps_type = "conda"
 
-    first_entry_point = list(launch_project._entry_points.keys())[0]
-    _logger.info("validating entrypoint parameters")
-    launch_project.get_entry_point(first_entry_point)._validate_parameters(
-        launch_project.override_args
-    )
     return launch_project
 
 

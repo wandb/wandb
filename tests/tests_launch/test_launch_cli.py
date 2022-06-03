@@ -257,10 +257,12 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
             [
                 "https://github.com/test/repo.git",
                 "--entry-point",
-                "train.py",
+                "python train.py",
             ],
         )
+    print(result)
     assert result.exit_code == 0
+
     assert "Launching run in docker with command: docker run" in result.output
 
 
@@ -380,7 +382,10 @@ def test_launch_agent_project_environment_variable(
     )
 
 
-def test_launch_agent_no_project(runner, test_settings, live_mock_server):
+def test_launch_agent_no_project(runner, test_settings, live_mock_server, monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
+    )
     result = runner.invoke(cli.launch_agent)
     assert result.exit_code == 1
     assert (

@@ -3,7 +3,7 @@ plugin:
   - wandb
 tag:
   shard: service
-  skip: True
+  skip: true
 command:
   program: train-tpu-ddp.py
 depend:

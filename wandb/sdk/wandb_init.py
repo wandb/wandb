@@ -876,7 +876,7 @@ def init(
             "production". It's easy to add and remove tags in the UI, or filter
             down to just runs with a specific tag.
         name: (str, optional) A short display name for this run, which is how
-            you'll identify this run in the UI. By default we generate a random
+            you'll identify this run in the UI. By default, we generate a random
             two-word name that lets you easily cross-reference runs from the
             table to charts. Keeping these run names short makes the chart
             legends and tables easier to read. If you're looking for a place to
@@ -886,14 +886,14 @@ def init(
             ran this run.
         dir: (str, optional) An absolute path to a directory where metadata will
             be stored. When you call `download()` on an artifact, this is the
-            directory where downloaded files will be saved. By default this is
+            directory where downloaded files will be saved. By default, this is
             the `./wandb` directory.
         resume: (bool, str, optional) Sets the resuming behavior. Options:
             `"allow"`, `"must"`, `"never"`, `"auto"` or `None`. Defaults to `None`.
             Cases:
             - `None` (default): If the new run has the same ID as a previous run,
                 this run overwrites that data.
-            - `"auto"` (or `True`): if the preivous run on this machine crashed,
+            - `"auto"` (or `True`): if the previous run on this machine crashed,
                 automatically resume it. Otherwise, start a new run.
             - `"allow"`: if id is set with `init(id="UNIQUE_ID")` or
                 `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
@@ -930,7 +930,7 @@ def init(
         mode: (str, optional) Can be `"online"`, `"offline"` or `"disabled"`. Defaults to
             online.
         allow_val_change: (bool, optional) Whether to allow config values to
-            change after setting the keys once. By default we throw an exception
+            change after setting the keys once. By default, we throw an exception
             if a config value is overwritten. If you want to track something
             like a varying learning rate at multiple times during training, use
             `wandb.log()` instead. (default: `False` in scripts, `True` in Jupyter)

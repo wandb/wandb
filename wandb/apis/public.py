@@ -25,7 +25,6 @@ import time
 from typing import List, Optional
 import urllib
 
-from dateutil.relativedelta import relativedelta
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -243,6 +242,15 @@ class Api:
             username
             email
             admin
+            apiKeys {
+                edges {
+                    node {
+                        id
+                        name
+                        description
+                    }
+                }
+            }
             teams {
                 edges {
                     node {
@@ -290,8 +298,11 @@ class Api:
         """
     )
 
-    def __init__(self, overrides={}, timeout: Optional[int] = None):
+    def __init__(
+        self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
+    ):
         self.settings = InternalApi().settings()
+        self._api_key = api_key
         if self.api_key is None:
             wandb.login()
         self.settings.update(overrides)
@@ -373,6 +384,8 @@ class Api:
 
     @property
     def api_key(self):
+        if self._api_key is not None:
+            return self._api_key
         auth = requests.utils.get_netrc_auth(self.settings["base_url"])
         key = None
         if auth:
@@ -380,6 +393,7 @@ class Api:
         # Environment should take precedence
         if os.getenv("WANDB_API_KEY"):
             key = os.environ["WANDB_API_KEY"]
+        self._api_key = key  # memoize key
         return key
 
     @property
@@ -964,6 +978,14 @@ class User(Attrs):
     def __init__(self, client, attrs):
         super().__init__(attrs)
         self._client = client
+        self._user_api = None
+
+    @property
+    def user_api(self):
+        """An instance of the api using credentials from the user"""
+        if self._user_api is None and len(self.api_keys) > 0:
+            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        return self._user_api
 
     @classmethod
     def create(cls, api, email, admin=False):
@@ -1021,10 +1043,13 @@ class User(Attrs):
             The new api key, or None on failure
         """
         try:
-            return self._client.execute(
+            # We must make this call using credentials from the original user
+            key = self.user_api.client.execute(
                 self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]["name"]
-        except requests.exceptions.HTTPError:
+            )["generateApiKey"]["apiKey"]
+            self._attrs["apiKeys"]["edges"].append({"node": key})
+            return key["name"]
+        except (requests.exceptions.HTTPError, AttributeError):
             return None
 
     def __repr__(self):
@@ -4539,9 +4564,13 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            delta = relativedelta(datetime.datetime.now() - start_time)
+            now = datetime.datetime.now()
+            delta = abs((now - start_time).total_seconds())
+            hours = int(delta // 3600)
+            minutes = int((delta - hours * 3600) // 60)
+            seconds = delta - hours * 3600 - minutes * 60
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
+                f"Done. {hours}:{minutes}:{seconds:.1f}",
                 prefix=False,
             )
         return dirpath

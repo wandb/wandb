@@ -1200,6 +1200,7 @@ def test_launch_local_cuda_config(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_prev_run_cuda(
     live_mock_server,
     test_settings,
@@ -1226,6 +1227,7 @@ def test_launch_cuda_prev_run_cuda(
     assert "--gpus all" in returned_command
 
 
+@pytest.mark.timeout(120)
 def test_launch_cuda_false_prev_run_cuda(
     live_mock_server,
     test_settings,
@@ -1281,7 +1283,7 @@ def test_launch_cuda_config_false_prev_run_cuda(
 
 
 def test_launch_entrypoint(test_settings):
-    entry_point_string = "python main.py"
+    entry_point = ["python", "main.py"]
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -1289,8 +1291,8 @@ def test_launch_entrypoint(test_settings):
         "https://wandb.ai/mock_server_entity/test/runs/1",
         api,
         {},
-        None,
-        None,
+        "live_mock_server_entity",
+        "Test_project",
         None,
         {},
         {},
@@ -1299,9 +1301,9 @@ def test_launch_entrypoint(test_settings):
         {},
         None,
     )
-    launch_project.add_entry_point(entry_point_string)
+    launch_project.add_entry_point(entry_point)
     calced_ep = launch_project.get_single_entry_point().compute_command({"blah": 2})
-    assert calced_ep == "python main.py --blah 2"
+    assert calced_ep == ["python", "main.py", "--blah", "2"]
 
 
 @pytest.mark.timeout(320)
@@ -1344,7 +1346,7 @@ def test_launch_build_config_file(
     runner, mocked_fetchable_git_repo, test_settings, monkeypatch
 ):
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.local.LocalRunner,
+        wandb.sdk.launch.runner.local.LocalContainerRunner,
         "run",
         lambda *args, **kwargs: (args, kwargs),
     )
