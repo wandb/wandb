@@ -33,11 +33,10 @@ def load_modules(use_yea=False):
     global RequestsMock, InjectRequestsParse, ArtifactEmulator
     if use_yea:
         from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
-        from yea_wandb.artifact_emu  import  ArtifactEmulator
+        from yea_wandb.artifact_emu import ArtifactEmulator
     else:
         from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
         from tests.utils.artifact_emu import ArtifactEmulator
-      
 
 
 # global (is this safe?)

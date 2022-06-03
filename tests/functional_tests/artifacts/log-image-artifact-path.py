@@ -3,7 +3,7 @@ import wandb
 
 
 def make_image():
-    return wandb.Image(np.random.randint(255, size=(32,32)))
+    return wandb.Image(np.random.randint(255, size=(32, 32)))
 
 
 def main():

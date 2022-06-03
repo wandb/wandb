@@ -64,7 +64,9 @@ def main():
     for n in range(4):
         main_q = mp.Queue()
         proc_q = mp.Queue()
-        p = mp.Process(target=process_child, kwargs=dict(n=n, main_q=main_q, proc_q=proc_q))
+        p = mp.Process(
+            target=process_child, kwargs=dict(n=n, main_q=main_q, proc_q=proc_q)
+        )
         workers.append((p, main_q, proc_q))
 
     for p, _, _ in workers:

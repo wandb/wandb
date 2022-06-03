@@ -11,8 +11,12 @@ if __name__ == "__main__":
     with pytest.raises(wandb.errors.UsageError) as e:
         wandb.login(key="local-87eLxjoRhY6u2ofg63NAJo7rVYHZo4NGACOvpSsF}")
         assert (
-            "Attempting to use a local API key to connect to https://api.wandb.ai" in str(e.value)
+            "Attempting to use a local API key to connect to https://api.wandb.ai"
+            in str(e.value)
         )
 
     # check that this logic does not apply if base_url is not cloud
-    assert wandb.login(key="local-87eLxjoRhY6u2ofg63NAJo7rVYHZo4NGACOvpSsF", host="https://api.wandb.test")
+    assert wandb.login(
+        key="local-87eLxjoRhY6u2ofg63NAJo7rVYHZo4NGACOvpSsF",
+        host="https://api.wandb.test",
+    )

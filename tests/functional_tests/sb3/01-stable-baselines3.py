@@ -28,9 +28,7 @@ def make_env():
 
 
 env = DummyVecEnv([make_env])
-model = PPO(
-    config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{run.name}"
-)
+model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{run.name}")
 
 model.learn(
     total_timesteps=config["total_timesteps"],

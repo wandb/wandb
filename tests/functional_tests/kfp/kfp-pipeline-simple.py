@@ -34,7 +34,8 @@ if wandb_package:
     print("INFO: wandb_probe_package found:", wandb_package)
     packages_to_install.append(wandb_package)
 add = components.create_component_from_func(
-    add, packages_to_install=packages_to_install,
+    add,
+    packages_to_install=packages_to_install,
 )
 
 

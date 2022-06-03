@@ -17,7 +17,9 @@ dataset = (x, y)
 class DummyModel(tf.keras.Model):
     def __init__(self, num_classes=10):
         super().__init__()
-        self.conv = tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1))
+        self.conv = tf.keras.layers.Conv2D(
+            3, 3, activation="relu", input_shape=(28, 28, 1)
+        )
         self.flatten = tf.keras.layers.Flatten()
         self.classifier = tf.keras.layers.Dense(10, activation="softmax")
 
@@ -49,6 +51,6 @@ api = wandb.Api()
 artifact = api.artifact(f"{run.project}/model-{run.name}:latest")
 download_dir = artifact.download()
 files = os.listdir(download_dir)
-assert files[0] == 'variables'
-assert files[1] == 'keras_metadata.pb'
-assert files[2] == 'saved_model.pb'
+assert files[0] == "variables"
+assert files[1] == "keras_metadata.pb"
+assert files[2] == "saved_model.pb"

@@ -8,7 +8,7 @@ import wandb
 
 # todo: yea seems to swallow memory_profiler.profile's output
 @profile
-def main(count:int, size=(32, 32, 3))->wandb.Table:
+def main(count: int, size=(32, 32, 3)) -> wandb.Table:
     table = wandb.Table(columns=["img_1", "img_2", "img_3"])
     for _ in range(count):
         table.add_data(

@@ -810,7 +810,7 @@ def test_artifact_interface_set_item():
 
 def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path_1 = os.path.join(test_folder,  "assets", "test.png")
+    im_path_1 = os.path.join(test_folder, "assets", "test.png")
     im_path_2 = os.path.join(test_folder, "assets", "test2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="artifact")

@@ -17,7 +17,7 @@ def f(x):
 
 
 def main():
-    res = Parallel(n_jobs=2)(delayed(f)(i ** 2) for i in range(4))
+    res = Parallel(n_jobs=2)(delayed(f)(i**2) for i in range(4))
     print(res)
 
 

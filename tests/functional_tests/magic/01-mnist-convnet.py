@@ -29,6 +29,7 @@ from wandb import magic  # noqa: F401
 # Make sure this is reproducible
 np.random.seed(1)
 import tensorflow as tf
+
 tf.random.set_seed(2)
 
 """
@@ -59,10 +60,10 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
 
 # limit training data
 data_slice = 3000
-x_train = x_train[:data_slice,:]
-y_train = y_train[:data_slice,:]
-x_test = x_test[:data_slice,:]
-y_test = y_test[:data_slice,:]
+x_train = x_train[:data_slice, :]
+y_train = y_train[:data_slice, :]
+x_test = x_test[:data_slice, :]
+y_test = y_test[:data_slice, :]
 
 """
 ## Build the model

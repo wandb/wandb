@@ -114,13 +114,16 @@ if wandb_package:
     print("INFO: wandb_probe_package found:", wandb_package)
     packages_to_install.append(wandb_package)
 preprocess_data = components.create_component_from_func(
-    preprocess_data, packages_to_install=packages_to_install,
+    preprocess_data,
+    packages_to_install=packages_to_install,
 )
 train_model = components.create_component_from_func(
-    train_model, packages_to_install=packages_to_install,
+    train_model,
+    packages_to_install=packages_to_install,
 )
 test_model = components.create_component_from_func(
-    test_model, packages_to_install=packages_to_install,
+    test_model,
+    packages_to_install=packages_to_install,
 )
 
 
@@ -142,7 +145,8 @@ def testing_pipeline(seed: int):
 
 client = kfp.Client()
 run = client.create_run_from_pipeline_func(
-    testing_pipeline, arguments={"seed": random.randint(0, 999999)},
+    testing_pipeline,
+    arguments={"seed": random.randint(0, 999999)},
 )
 
 run.wait_for_run_completion()

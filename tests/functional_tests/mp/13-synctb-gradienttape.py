@@ -36,10 +36,10 @@ loss_object = tf.keras.losses.SparseCategoricalCrossentropy()
 optimizer = tf.keras.optimizers.Adam(learning_rate=wandb.config.learning_rate)
 
 # Define our metrics
-train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('train_accuracy')
-test_loss = tf.keras.metrics.Mean('test_loss', dtype=tf.float32)
-test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('test_accuracy')
+train_loss = tf.keras.metrics.Mean("train_loss", dtype=tf.float32)
+train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy("train_accuracy")
+test_loss = tf.keras.metrics.Mean("test_loss", dtype=tf.float32)
+test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy("test_accuracy")
 
 
 def train_step(model, optimizer, x_train, y_train):
@@ -62,20 +62,22 @@ def test_step(model, x_test, y_test):
 
 
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-log_base = args.log_dir or 'logs/gradient_tape/'
-train_log_dir = log_base + '/' + current_time + '/train'
-test_log_dir = log_base + '/' + current_time + '/test'
+log_base = args.log_dir or "logs/gradient_tape/"
+train_log_dir = log_base + "/" + current_time + "/train"
+test_log_dir = log_base + "/" + current_time + "/test"
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
 
 def create_model():
-    return tf.keras.models.Sequential([
-        tf.keras.layers.Flatten(input_shape=(28, 28)),
-        tf.keras.layers.Dense(512, activation='relu'),
-        tf.keras.layers.Dropout(wandb.config.dropout),
-        tf.keras.layers.Dense(10, activation='softmax')
-    ])
+    return tf.keras.models.Sequential(
+        [
+            tf.keras.layers.Flatten(input_shape=(28, 28)),
+            tf.keras.layers.Dense(512, activation="relu"),
+            tf.keras.layers.Dropout(wandb.config.dropout),
+            tf.keras.layers.Dense(10, activation="softmax"),
+        ]
+    )
 
 
 model = create_model()  # reset our model
@@ -87,8 +89,8 @@ for epoch in range(EPOCHS):
         train_step(model, optimizer, x_train, y_train)
 
     with train_summary_writer.as_default():
-        tf.summary.scalar('loss', train_loss.result(), step=epoch)
-        tf.summary.scalar('accuracy', train_accuracy.result(), step=epoch)
+        tf.summary.scalar("loss", train_loss.result(), step=epoch)
+        tf.summary.scalar("accuracy", train_accuracy.result(), step=epoch)
 
     images = None
     for (x_test, y_test) in test_dataset:
@@ -97,17 +99,20 @@ for epoch in range(EPOCHS):
             images = np.reshape(x_test[0:25], (-1, 28, 28, 1))
 
     with test_summary_writer.as_default():
-        tf.summary.scalar('loss', test_loss.result(), step=epoch)
-        tf.summary.scalar('accuracy', test_accuracy.result(), step=epoch)
-        tf.summary.image("25 test data examples", images,
-                         max_outputs=25, step=epoch)
+        tf.summary.scalar("loss", test_loss.result(), step=epoch)
+        tf.summary.scalar("accuracy", test_accuracy.result(), step=epoch)
+        tf.summary.image("25 test data examples", images, max_outputs=25, step=epoch)
 
-    template = 'Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}'
-    print(template.format(epoch + 1,
-                          train_loss.result(),
-                          train_accuracy.result() * 100,
-                          test_loss.result(),
-                          test_accuracy.result() * 100))
+    template = "Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}"
+    print(
+        template.format(
+            epoch + 1,
+            train_loss.result(),
+            train_accuracy.result() * 100,
+            test_loss.result(),
+            test_accuracy.result() * 100,
+        )
+    )
 
     # Reset metrics every epoch
     train_loss.reset_states()

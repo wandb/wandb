@@ -19,7 +19,7 @@ def f(run, x):
 
 def main():
     run = wandb.init()
-    res = Parallel(n_jobs=2)(delayed(f)(run, i ** 2) for i in range(4))
+    res = Parallel(n_jobs=2)(delayed(f)(run, i**2) for i in range(4))
     print(res)
 
 

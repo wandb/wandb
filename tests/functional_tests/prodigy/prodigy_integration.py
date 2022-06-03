@@ -60,16 +60,16 @@ from prodigy_connect import Connect
 import wandb
 from wandb.integration.prodigy import upload_dataset
 
-sys.modules['prodigy'] = Mock()
-sys.modules['prodigy.components'] = Mock()
-sys.modules['prodigy.components.db'] = Connect()
+sys.modules["prodigy"] = Mock()
+sys.modules["prodigy.components"] = Mock()
+sys.modules["prodigy.components.db"] = Connect()
 
 # Extract test dataset files downloaded by "yea"
-with ZipFile('prodigy_test_resources.zip', 'r') as zip_obj:
+with ZipFile("prodigy_test_resources.zip", "r") as zip_obj:
     zip_obj.extractall()
 
 # Test upload each dataset
-run = wandb.init(project='prodigy')
+run = wandb.init(project="prodigy")
 all_files = os.listdir("prodigy_test_resources")
 for dataset in all_files:
     dataset_name = dataset.split(".")[0]  # remove .json
