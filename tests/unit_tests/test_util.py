@@ -18,7 +18,7 @@ import numpy
 import plotly
 import requests
 
-from . import utils
+from tests import utils
 from wandb import util
 
 try:

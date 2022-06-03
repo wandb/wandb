@@ -6,12 +6,10 @@ import numpy as np
 import pytest
 import PIL
 import os
-import sys
 import glob
 import platform
 from click.testing import CliRunner
-from . import utils
-from .utils import dummy_data
+from tests import utils
 import matplotlib
 import rdkit.Chem
 from unittest import mock
@@ -396,7 +394,7 @@ def test_make_plot_media_from_matplotlib_with_image():
 
 def test_create_bokeh_plot(mocked_run):
     """Ensures that wandb.Bokeh constructor accepts a bokeh plot"""
-    bp = dummy_data.bokeh_plot()
+    bp = utils.dummy_data.bokeh_plot()
     bp = wandb.data_types.Bokeh(bp)
     bp.bind_to_run(mocked_run, "bokeh", 0)
 

@@ -15,7 +15,7 @@ import time
 from unittest import mock
 
 import wandb
-from .utils import fixture_open, first_filestream
+from tests import utils
 
 
 reloadFn = importlib.reload
@@ -36,7 +36,9 @@ def test_resume_allow_success(live_mock_server, test_settings):
     run.finish()
     server_ctx = live_mock_server.get_ctx()
     print("CTX", server_ctx)
-    first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
+    first_stream_hist = utils.first_filestream(server_ctx)["files"][
+        "wandb-history.jsonl"
+    ]
     print(first_stream_hist)
     assert first_stream_hist["offset"] == 15
     assert json.loads(first_stream_hist["content"][0])["_step"] == 16
@@ -54,7 +56,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
 def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
     with runner.isolation():
         with open("train.py", "w") as f:
-            f.write(fixture_open("train.py").read())
+            f.write(utils.fixture_open("train.py").read())
         p1 = subprocess.Popen(["python", "train.py"], env=os.environ)
         p2 = subprocess.Popen(["python", "train.py"], env=os.environ)
         exit_codes = [p.wait() for p in (p1, p2)]

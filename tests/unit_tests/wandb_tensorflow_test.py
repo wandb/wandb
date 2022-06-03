@@ -9,10 +9,10 @@ import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
 import wandb
 from wandb.errors import term
+from tests import utils
 
 
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-SUMMARY_PB_FILENAME = os.path.join(THIS_DIR, "assets", "wandb_tensorflow_summary.pb")
+SUMMARY_PB_FILENAME = utils.assets_path("wandb_tensorflow_summary.pb")
 SUMMARY_PB = open(SUMMARY_PB_FILENAME, "rb").read()
 PR_CURVE_PANEL_CONFIG = {
     "panel_type": "Vega2",

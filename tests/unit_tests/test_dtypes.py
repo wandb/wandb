@@ -6,10 +6,12 @@ import os
 import datetime
 
 from wandb.sdk.data_types._dtypes import *
+from ..utils import assets_path
+
 
 class_labels = {1: "tree", 2: "car", 3: "road"}
 test_folder = os.path.dirname(os.path.realpath(__file__))
-im_path = os.path.join(test_folder, "assets", "test.png")
+im_path = assets_path("test.png")
 
 
 def test_none_type():

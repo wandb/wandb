@@ -8,7 +8,7 @@ import shutil
 import wandb
 from wandb.util import mkdir_exists_ok
 
-from .utils import first_filestream
+from tests import utils
 
 
 def test_send_status_request_stopped(mock_server, backend_interface):
@@ -321,7 +321,7 @@ def test_output(mocked_run, mock_server, backend_interface):
         interface.publish_output("stdout", "\rFinal line baby\n")
 
     print("DUDE!", mock_server.ctx)
-    stream = first_filestream(mock_server.ctx)
+    stream = utils.first_filestream(mock_server.ctx)
     assert "Final line baby" in stream["files"]["output.log"]["content"][0]
 
 
