@@ -7,7 +7,6 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .abstract import AbstractRun, AbstractRunner, Status

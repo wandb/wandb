@@ -5,7 +5,7 @@ Implementation of launch agent.
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -58,7 +58,7 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = config.get("max_jobs") or 1
-        self.default_config: Optional[Dict[str, Any]] = config
+        self.default_config: Dict[str, Any] = config
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -180,10 +180,9 @@ class LaunchAgent:
             self.default_config, override_build_config, override_registry_config
         )
         builder = load_builder(build_config)
-        if (
-            self.default_config.get("runner") is not None
-            and self.default_config["runner"].get("type") == resource
-        ):
+
+        default_runner = self.default_config.get("runner", {}).get("type")
+        if default_runner == resource:
             backend_config["runner"] = self.default_config.get("runner")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()

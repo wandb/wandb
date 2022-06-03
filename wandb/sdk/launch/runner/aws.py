@@ -1,9 +1,8 @@
 import configparser
 import logging
 import os
-import subprocess
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, cast, Dict, Optional, Tuple
 
 if False:
     import boto3  # type: ignore
@@ -15,7 +14,6 @@ from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
-    EntryPoint,
     get_entry_point_command,
     LaunchProject,
 )
@@ -104,19 +102,7 @@ class AWSSagemakerRunner(AbstractRunner):
             raise LaunchError(
                 "No sagemaker args specified. Specify sagemaker args in resource_args"
             )
-        if (
-            given_sagemaker_args.get(
-                "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
-            )
-            is None
-            and registry_config.get("url") is None
-        ):
-            raise LaunchError(
-                "AWS sagemaker requires an ECR Repository to push the container to "
-                "set this by adding a `EcrRepoName` key to the sagemaker"
-                "field of resource_args or through the url key in the registry section "
-                "of the launch agent config."
-            )
+        validate_sagemaker_requirements(given_sagemaker_args, registry_config)
 
         default_output_path = self.backend_config.get("runner", {}).get(
             "s3_output_path"
@@ -184,32 +170,9 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             )
-        token = ecr_client.get_authorization_token()
-        ecr_repo_name = given_sagemaker_args.get(
-            "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
+        repository = get_ecr_repository_url(
+            ecr_client, given_sagemaker_args, registry_config
         )
-        if ecr_repo_name:
-            if not ecr_repo_name.startswith("arn:aws:ecr:"):
-                repository = (
-                    token["authorizationData"][0]["proxyEndpoint"].replace(
-                        "https://", ""
-                    )
-                    + f"/{ecr_repo_name}"
-                )
-            else:
-                repository = ecr_repo_name
-        else:
-            repository = registry_config.get("url")
-
-        if repository is None:
-            raise LaunchError(
-                "Must provide a repository url either through resource args or launch config file"
-            )
-
-        if registry_config.get("ecr-repo-provider", "aws").lower() != "aws":
-            raise LaunchError(
-                "Sagemaker jobs requires an AWS ECR Repo to push the container to"
-            )
         # TODO: handle login credentials gracefully
         login_credentials = registry_config.get("credentials")
         if login_credentials is not None:
@@ -303,8 +266,10 @@ def build_sagemaker_args(
     aws_tag: Optional[str] = None,
     default_output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    sagemaker_args = {}
-    given_sagemaker_args = launch_project.resource_args.get("sagemaker")
+    sagemaker_args: Dict[str, Any] = {}
+    given_sagemaker_args: Optional[Dict[str, Any]] = launch_project.resource_args.get(
+        "sagemaker"
+    )
 
     if given_sagemaker_args is None:
         raise LaunchError(
@@ -319,9 +284,10 @@ def build_sagemaker_args(
         raise LaunchError(
             "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
         )
-    sagemaker_args["TrainingJobName"] = (
-        given_sagemaker_args.get("TrainingJobName") or launch_project.run_id
+    training_job_name = cast(
+        str, (given_sagemaker_args.get("TrainingJobName") or launch_project.run_id)
     )
+    sagemaker_args["TrainingJobName"] = training_job_name
 
     sagemaker_args[
         "AlgorithmSpecification"
@@ -462,3 +428,55 @@ def get_role_arn(
         return role_arn
 
     return f"arn:aws:iam::{account_id}:role/{role_arn}"
+
+
+def validate_sagemaker_requirements(
+    given_sagemaker_args: Dict[str, Any], registry_config: Dict[str, Any]
+) -> None:
+    if (
+        given_sagemaker_args.get(
+            "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
+        )
+        is None
+        and registry_config.get("url") is None
+    ):
+        raise LaunchError(
+            "AWS sagemaker requires an ECR Repository to push the container to "
+            "set this by adding a `EcrRepoName` key to the sagemaker"
+            "field of resource_args or through the url key in the registry section "
+            "of the launch agent config."
+        )
+
+    if registry_config.get("ecr-repo-provider", "aws").lower() != "aws":
+        raise LaunchError(
+            "Sagemaker jobs requires an AWS ECR Repo to push the container to"
+        )
+
+
+def get_ecr_repository_url(
+    ecr_client: "boto3.Client",
+    given_sagemaker_args: Dict[str, Any],
+    registry_config: Dict[str, Any],
+) -> str:
+    token = ecr_client.get_authorization_token()
+    ecr_repo_name = given_sagemaker_args.get(
+        "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
+    )
+    if ecr_repo_name:
+        if not isinstance(ecr_repo_name, str):
+            raise LaunchError("EcrRepoName must be a string")
+        if not ecr_repo_name.startswith("arn:aws:ecr:"):
+            repository = cast(
+                str,
+                token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
+                + f"/{ecr_repo_name}",
+            )
+        else:
+            repository = ecr_repo_name
+    else:
+        repository = cast(str, registry_config.get("url", ""))
+    if not repository:
+        raise LaunchError(
+            "Must provide a repository url either through resource args or launch config file"
+        )
+    return repository

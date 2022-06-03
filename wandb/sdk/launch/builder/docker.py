@@ -6,7 +6,6 @@ import wandb
 import wandb.docker as docker
 from wandb.errors import DockerError, LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
-from wandb.sdk.launch.runner.aws import aws_ecr_login
 
 from .build import (
     _create_docker_build_ctx,
