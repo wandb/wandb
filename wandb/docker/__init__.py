@@ -204,7 +204,7 @@ def image_id(image_name: str) -> Optional[str]:
     if "@sha256:" in image_name:
         return image_name
     else:
-        digests = shell(["inspect", image_name, "--format", "{{.RepoDigests}}"])
+        digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
         try:
             if digests is None:
                 raise ValueError()
