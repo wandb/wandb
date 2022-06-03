@@ -12,6 +12,8 @@ from wandb.sdk.launch.runner.aws import (
     SagemakerSubmittedRun,
     get_aws_credentials,
     get_region,
+    get_ecr_repository_url,
+    validate_sagemaker_requirements,
 )
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
@@ -600,3 +602,38 @@ def test_no_RoleARN(
             == "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"
             "field of resource_args"
         )
+
+
+def test_validate_sagemaker_requirements():
+    given_sagemaker_args = {}
+    registry_config = {}
+    with pytest.raises(wandb.errors.LaunchError):
+        validate_sagemaker_requirements(given_sagemaker_args, registry_config)
+
+    registry_config["ecr-repo-provider"] = "gcp"
+    with pytest.raises(wandb.errors.LaunchError):
+        validate_sagemaker_requirements(given_sagemaker_args, registry_config)
+
+
+def test_get_ecr_repository_url():
+    client = MagicMock()
+    client.get_authorization_token.return_value = {
+        "authorizationData": [{"proxyEndpoint": "token"}]
+    }
+    given_sagemaker_args = {}
+    registry_config = {}
+    with pytest.raises(wandb.errors.LaunchError):
+        get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+
+    given_sagemaker_args["EcrRepoName"] = {"asd": 123}
+    with pytest.raises(wandb.errors.LaunchError):
+        get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+
+    given_sagemaker_args["EcrRepoName"] = "test_repo_name"
+    repo = get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+    assert repo == "token/test_repo_name"
+    given_sagemaker_args.pop("EcrRepoName")
+
+    registry_config["url"] = "test-reg-repo"
+    repo = get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+    assert repo == "test-reg-repo"
