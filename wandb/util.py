@@ -3,11 +3,13 @@ import binascii
 import codecs
 import colorsys
 import contextlib
+from datetime import date, datetime
 import errno
 import functools
 import gzip
 import hashlib
 import importlib
+from importlib import import_module
 import json
 import logging
 import math
@@ -21,22 +23,19 @@ import re
 import shlex
 import socket
 import sys
+from sys import getsizeof
 import tarfile
 import tempfile
 import threading
 import time
 import traceback
-import urllib
-from datetime import date, datetime
-from importlib import import_module
-from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
-    IO,
     Any,
     Callable,
     Dict,
     Generator,
+    IO,
     List,
     Mapping,
     Optional,
@@ -46,16 +45,16 @@ from typing import (
     Type,
     Union,
 )
+import urllib
 from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
-import yaml
-
 import wandb
-from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
-from wandb.errors import CommError, UsageError, term
+from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
+from wandb.errors import CommError, term, UsageError
+import yaml
 
 logger = logging.getLogger(__name__)
 _not_importable = set()

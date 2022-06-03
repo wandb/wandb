@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import os
 import shutil
 from typing import Any, Dict
 
