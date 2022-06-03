@@ -56,7 +56,11 @@ def subdict(d, expected_dict):
 
 def fixture_path(path):
     return os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), os.pardir,"assets", "fixtures", path
+        os.path.dirname(os.path.abspath(__file__)),
+        os.pardir,
+        "assets",
+        "fixtures",
+        path,
     )
 
 
