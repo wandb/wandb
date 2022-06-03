@@ -13,7 +13,7 @@ import requests
 
 import wandb
 from wandb import Api
-from tests.unit_tests import utils
+from tests import utils
 
 
 def test_api_auto_login_no_tty(mocker):
@@ -547,7 +547,7 @@ def test_artifact_verify(runner, mock_server, api):
 
 def test_artifact_save_norun(runner, mock_server, test_settings):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -557,7 +557,7 @@ def test_artifact_save_norun(runner, mock_server, test_settings):
 
 def test_artifact_save_run(runner, mock_server, test_settings):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -569,7 +569,7 @@ def test_artifact_save_run(runner, mock_server, test_settings):
 
 def test_artifact_save_norun_nosettings(runner, mock_server, test_settings):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])

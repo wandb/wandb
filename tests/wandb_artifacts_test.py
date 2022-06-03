@@ -720,14 +720,14 @@ def test_artifact_error_for_invalid_aliases(runner, live_mock_server, test_setti
 
 def test_add_obj_wbimage_no_classes(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         wb_image = wandb.Image(
             im_path,
             masks={
                 "ground_truth": {
-                    "path": os.path.join(test_folder, "..", "assets", "2x2.png"),
+                    "path": os.path.join(test_folder, "assets", "2x2.png"),
                 },
             },
         )
@@ -737,7 +737,7 @@ def test_add_obj_wbimage_no_classes(runner):
 
 def test_add_obj_wbimage(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -763,7 +763,7 @@ def test_add_obj_wbimage(runner):
 
 def test_add_obj_using_brackets(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -810,8 +810,8 @@ def test_artifact_interface_set_item():
 
 def test_duplicate_wbimage_from_file(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path_1 = os.path.join(test_folder, "..", "assets", "test.png")
-    im_path_2 = os.path.join(test_folder, "..", "assets", "test2.png")
+    im_path_1 = os.path.join(test_folder,  "assets", "test.png")
+    im_path_2 = os.path.join(test_folder, "assets", "test2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="artifact")
         wb_image_1 = wandb.Image(im_path_1)
@@ -875,7 +875,7 @@ def test_deduplicate_wbimagemask_from_array(runner):
 
 def test_add_obj_wbimage_classes_obj(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         classes = wandb.Classes([{"id": 0, "name": "person"}])
@@ -901,7 +901,7 @@ def test_add_obj_wbimage_classes_obj(runner):
 
 def test_add_obj_wbimage_classes_obj_already_added(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         classes = wandb.Classes([{"id": 0, "name": "person"}])
@@ -932,7 +932,7 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
 
 def test_add_obj_wbimage_image_already_added(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         artifact.add_file(im_path)
@@ -955,7 +955,7 @@ def test_add_obj_wbimage_image_already_added(runner):
 
 def test_add_obj_wbtable_images(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    im_path = os.path.join(test_folder,"..", "assets", "2x2.png")
+    im_path = os.path.join(test_folder, "assets", "2x2.png")
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -981,8 +981,8 @@ def test_add_obj_wbtable_images(runner):
 
 def test_add_obj_wbtable_images_duplicate_name(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
-    img_1 = os.path.join(test_folder, "..", "assets", "2x2.png")
-    img_2 = os.path.join(test_folder, "..", "assets", "test.png")
+    img_1 = os.path.join(test_folder, "assets", "2x2.png")
+    img_2 = os.path.join(test_folder, "assets", "test.png")
     with runner.isolated_filesystem():
         os.mkdir("dir1")
         shutil.copy(img_1, "dir1/img.png")
