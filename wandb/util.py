@@ -46,12 +46,11 @@ from typing import (
     Union,
 )
 import urllib
+from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-from sentry_sdk import capture_exception, capture_message
 import shortuuid  # type: ignore
-import six
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
@@ -62,7 +61,7 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile('[<>:"/?*]')
+RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -70,44 +69,77 @@ if IS_GIT:
 else:
     SENTRY_ENV = "production"
 
+
+PLATFORM_WINDOWS = "windows"
+PLATFORM_LINUX = "linux"
+PLATFORM_BSD = "bsd"
+PLATFORM_DARWIN = "darwin"
+PLATFORM_UNKNOWN = "unknown"
+
+
+def get_platform_name() -> str:
+    if sys.platform.startswith("win"):
+        return PLATFORM_WINDOWS
+    elif sys.platform.startswith("darwin"):
+        return PLATFORM_DARWIN
+    elif sys.platform.startswith("linux"):
+        return PLATFORM_LINUX
+    elif sys.platform.startswith(
+        (
+            "dragonfly",
+            "freebsd",
+            "netbsd",
+            "openbsd",
+        )
+    ):
+        return PLATFORM_BSD
+    else:
+        return PLATFORM_UNKNOWN
+
+
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
-# side effect of loading a module.
+#  side effect of loading a module.
+sentry_client: Optional["sentry_sdk.client.Client"] = None
+sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
+sentry_default_dsn = (
+    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+)
 if error_reporting_enabled():
-    default_dsn = (
-        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
-    )
-    sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
-    sentry_sdk.init(
+    sentry_dsn = os.environ.get(SENTRY_DSN, sentry_default_dsn)
+    sentry_client = sentry_sdk.Client(
         dsn=sentry_dsn,
-        release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
+        release=wandb.__version__,
     )
 
+    sentry_hub = sentry_sdk.Hub(sentry_client)
+
 POW_10_BYTES = [
-    ("B", 10 ** 0),
-    ("KB", 10 ** 3),
-    ("MB", 10 ** 6),
-    ("GB", 10 ** 9),
-    ("TB", 10 ** 12),
-    ("PB", 10 ** 15),
-    ("EB", 10 ** 18),
+    ("B", 10**0),
+    ("KB", 10**3),
+    ("MB", 10**6),
+    ("GB", 10**9),
+    ("TB", 10**12),
+    ("PB", 10**15),
+    ("EB", 10**18),
 ]
 
 POW_2_BYTES = [
-    ("B", 2 ** 0),
-    ("KiB", 2 ** 10),
-    ("MiB", 2 ** 20),
-    ("GiB", 2 ** 30),
-    ("TiB", 2 ** 40),
-    ("PiB", 2 ** 50),
-    ("EiB", 2 ** 60),
+    ("B", 2**0),
+    ("KiB", 2**10),
+    ("MiB", 2**20),
+    ("GiB", 2**30),
+    ("TiB", 2**40),
+    ("PiB", 2**50),
+    ("EiB", 2**60),
 ]
 
 
 def sentry_message(message: str) -> None:
     if error_reporting_enabled():
-        capture_message(message)
+        sentry_hub.capture_message(message)  # type: ignore
+    return None
 
 
 def sentry_exc(
@@ -125,11 +157,12 @@ def sentry_exc(
 ) -> None:
     if error_reporting_enabled():
         if isinstance(exc, str):
-            capture_exception(Exception(exc))
+            sentry_hub.capture_exception(Exception(exc))  # type: ignore
         else:
-            capture_exception(exc)
-        if delay:
-            time.sleep(2)
+            sentry_hub.capture_exception(exc)  # type: ignore
+    if delay:
+        time.sleep(2)
+    return None
 
 
 def sentry_reraise(exc: Any) -> None:
@@ -142,26 +175,81 @@ def sentry_reraise(exc: Any) -> None:
     sentry_exc(exc)
     # this will messily add this "reraise" function to the stack trace
     # but hopefully it's not too bad
-    six.reraise(type(exc), exc, sys.exc_info()[2])
+    raise exc.with_traceback(sys.exc_info()[2])
 
 
 def sentry_set_scope(
-    process_context: Optional[str],
-    entity: Optional[str],
-    project: Optional[str],
-    email: Optional[str] = None,
-    url: Optional[str] = None,
+    settings_dict: Optional[
+        Union[
+            "wandb.sdk.wandb_settings.Settings",
+            "wandb.sdk.internal.settings_static.SettingsStatic",
+        ]
+    ] = None,
+    process_context: Optional[str] = None,
 ) -> None:
-    # Using GLOBAL_HUB means these tags will persist between threads.
-    # Normally there is one hub per thread.
-    with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
-        scope.set_tag("process_context", process_context)
-        scope.set_tag("entity", entity)
-        scope.set_tag("project", project)
-        if email:
-            scope.user = {"email": email}
-        if url:
-            scope.set_tag("url", url)
+    if not error_reporting_enabled():
+        return None
+
+    # Tags come from two places: settings and args passed into this func.
+    args = dict(locals())
+    del args["settings_dict"]
+
+    settings_tags = [
+        "entity",
+        "project",
+        "run_id",
+        "run_url",
+        "sweep_url",
+        "sweep_id",
+        "deployment",
+        "_require_service",
+    ]
+
+    s = settings_dict
+
+    # convenience function for getting attr from settings
+    def get(key: str) -> Any:
+        return getattr(s, key, None)
+
+    with sentry_hub.configure_scope() as scope:  # type: ignore
+        scope.set_tag("platform", get_platform_name())
+
+        # apply settings tags
+        if s is not None:
+            for tag in settings_tags:
+                val = get(tag)
+                if val not in [None, ""]:
+                    scope.set_tag(tag, val)
+
+            python_runtime = (
+                "colab"
+                if get("_colab")
+                else ("jupyter" if get("_jupyter") else "python")
+            )
+            scope.set_tag("python_runtime", python_runtime)
+
+            # Hack for constructing run_url and sweep_url given run_id and sweep_id
+            required = ["entity", "project", "base_url"]
+            params = {key: get(key) for key in required}
+            if all(params.values()):
+                # here we're guaranteed that entity, project, base_url all have valid values
+                app_url = wandb.util.app_url(params["base_url"])
+                e, p = (quote(params[k]) for k in ["entity", "project"])
+
+                # TODO: the settings object will be updated to contain run_url and sweep_url
+                # This is done by passing a settings_map in the run_start protocol buffer message
+                for word in ["run", "sweep"]:
+                    _url, _id = f"{word}_url", f"{word}_id"
+                    if not get(_url) and get(_id):
+                        scope.set_tag(_url, f"{app_url}/{e}/{p}/{word}s/{get(_id)}")
+
+            if hasattr(s, "email"):
+                scope.user = {"email": s.email}
+
+        # apply directly passed-in tags
+        for tag, value in args.items():
+            if value is not None and value != "":
+                scope.set_tag(tag, value)
 
 
 def vendor_setup() -> Callable:
@@ -309,7 +397,7 @@ def make_tarfile(
         tar_info.mtime = 0
         return tar_info if custom_filter is None else custom_filter(tar_info)
 
-    unzipped_filename = tempfile.mktemp()
+    descriptor, unzipped_filename = tempfile.mkstemp()
     try:
         with tarfile.open(unzipped_filename, "w") as tar:
             tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
@@ -320,6 +408,7 @@ def make_tarfile(
         ) as gzipped_tar, open(unzipped_filename, "rb") as tar_file:
             gzipped_tar.write(tar_file.read())
     finally:
+        os.close(descriptor)
         os.remove(unzipped_filename)
 
 
@@ -523,11 +612,14 @@ def json_friendly(  # noqa: C901
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
-        elif isinstance(obj, np.generic) and obj.dtype.kind == "f":
+        elif isinstance(obj, np.generic) and (
+            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+        ):
             # obj is a numpy float with precision greater than that of native python float
-            # (i.e., float96 or float128). in this case obj.item() does not return a native
-            # python float to avoid loss of precision, so we need to explicitly cast this
-            # down to a 64bit float
+            # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+            # in these cases, obj.item() does not return a native
+            # python float (in the first case - to avoid loss of precision,
+            # so we need to explicitly cast this down to a 64bit float)
             obj = float(obj)
 
     elif isinstance(obj, bytes):
@@ -536,7 +628,7 @@ def json_friendly(  # noqa: C901
         obj = obj.isoformat()
     elif callable(obj):
         obj = (
-            "{}.{}".format(obj.__module__, obj.__qualname__)
+            f"{obj.__module__}.{obj.__qualname__}"
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
@@ -807,7 +899,7 @@ def find_runner(program: str) -> Union[None, list, List[str]]:
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except IOError:  # PermissionError doesn't exist in 2.7
+        except OSError:  # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith("#!"):
@@ -856,7 +948,7 @@ def get_log_file_path() -> str:
     """
     # TODO(jhr, cvp): refactor
     if wandb.run is not None:
-        return wandb.run._settings.log_internal  # type: ignore
+        return wandb.run._settings.log_internal
     return os.path.join("wandb", "debug-internal.log")
 
 
@@ -952,7 +1044,7 @@ def image_id_from_k8s() -> Optional[str]:
                 k8s_server,
                 verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
                 timeout=3,
-                headers={"Authorization": "Bearer {}".format(open(token_path).read())},
+                headers={"Authorization": f"Bearer {open(token_path).read()}"},
             )
             res.raise_for_status()
         except requests.RequestException:
@@ -994,7 +1086,7 @@ def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
         try:
             result = q.get(True, timeout)
             if isinstance(result, Exception):
-                six.reraise(type(result), result, sys.exc_info()[2])
+                raise result.with_traceback(sys.exc_info()[2])
             return result, thread
         except queue.Empty:
             return None, thread
@@ -1033,7 +1125,10 @@ def class_colors(class_count: int) -> List[List[int]]:
     ]
 
 
-def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+def _prompt_choice(
+    input_timeout: int = None,
+    jupyter: bool = False,
+) -> str:
     input_fn: Callable = input
     prompt = term.LOG_STRING
     if input_timeout is not None:
@@ -1054,7 +1149,9 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
 
 
 def prompt_choices(
-    choices: Sequence[str], input_timeout: int = None, jupyter: bool = False,
+    choices: Sequence[str],
+    input_timeout: int = None,
+    jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
@@ -1181,7 +1278,7 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     entity = None
     project = None
     sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, six.string_types):
+    if not isinstance(sweep_id, str):
         return "Expected string sweep_id"
 
     sweep_split = sweep_id.split("/")
@@ -1299,9 +1396,8 @@ def uri_from_path(path: Optional[str]) -> str:
 
 def is_unicode_safe(stream: TextIO) -> bool:
     """returns true if the stream supports UTF-8"""
-    if not hasattr(stream, "encoding"):
-        return False
-    return stream.encoding.lower() in {"utf-8", "utf_8"}
+    encoding = getattr(stream, "encoding", None)
+    return encoding.lower() in {"utf-8", "utf_8"} if encoding else False
 
 
 def _has_internet() -> bool:
@@ -1321,13 +1417,13 @@ def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w"
+    path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
     """
     Opens a path for I/O, guaranteeing that the file is flushed and
     fsynced when the file's context expires.
     """
-    with open(path, mode) as f:
+    with open(path, mode, encoding=encoding) as f:
         yield f
 
         f.flush()
@@ -1366,6 +1462,10 @@ def _is_databricks() -> bool:
                 if hasattr(sc, "appName"):
                     return bool(sc.appName == "Databricks Shell")
     return False
+
+
+def _is_py_path(path: str) -> bool:
+    return path.endswith(".py")
 
 
 def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
@@ -1414,7 +1514,7 @@ def handle_sweep_config_violations(warnings: List[str]) -> None:
 def _log_thread_stacks() -> None:
     """Log all threads, useful for debugging."""
 
-    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+    thread_map = {t.ident: t.name for t in threading.enumerate()}
 
     for thread_id, frame in sys._current_frames().items():
         logger.info(
@@ -1435,7 +1535,6 @@ def artifact_to_json(
 ) -> Dict[str, Any]:
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
-
     if hasattr(artifact, "_sequence_name"):
         sequence_name = artifact._sequence_name  # type: ignore
     else:
@@ -1460,17 +1559,139 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
         elif (
             isinstance(item, wandb.Artifact)
             or isinstance(item, wandb.apis.public.Artifact)
+            or _is_artifact_string(item)
         ) and nested:
             return True
     return False
 
 
-def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
-    if os.path.splitext(config)[-1] == ".json":
-        with open(config, "r") as f:
+def load_json_yaml_dict(config: str) -> Any:
+    ext = os.path.splitext(config)[-1]
+    if ext == ".json":
+        with open(config) as f:
             return json.load(f)
+    elif ext == ".yaml":
+        with open(config) as f:
+            return yaml.safe_load(f)
     else:
         try:
             return json.loads(config)
         except ValueError:
             return None
+
+
+def _parse_entity_project_item(path: str) -> tuple:
+    """Parses paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
+
+    Args:
+        path: `str`, input path; must be between 0 and 3 in length.
+
+    Returns:
+        tuple of length 3 - (item, project, entity)
+
+    Example:
+        alias, project, entity = _parse_entity_project_item("myproj/mymodel:best")
+
+        assert entity   == ""
+        assert project  == "myproj"
+        assert alias    == "mymodel:best"
+
+    """
+    words = path.split("/")
+    if len(words) > 3:
+        raise ValueError(
+            "Invalid path: must be str the form {item}, {project}/{item}, or {entity}/{project}/{item}"
+        )
+    padded_words = [""] * (3 - len(words)) + words
+    return tuple(reversed(padded_words))
+
+
+def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
+    """Takes in `aliases` which can be None, str, or List[str] and returns List[str].
+    Ensures that "latest" is always present in the returned list.
+
+    Args:
+        aliases: `Optional[Union[str, List[str]]]`
+
+    Returns:
+        List[str], with "latest" always present.
+
+    Example:
+        aliases = _resolve_aliases(["best", "dev"])
+        assert aliases == ["best", "dev", "latest"]
+
+        aliases = _resolve_aliases("boom")
+        assert aliases == ["boom", "latest"]
+
+    """
+    if aliases is None:
+        aliases = []
+
+    if not any(map(lambda x: isinstance(aliases, x), [str, list])):
+        raise ValueError("`aliases` must either be None or of type str or list")
+
+    if isinstance(aliases, str):
+        aliases = [aliases]
+
+    if "latest" not in aliases:
+        aliases.append("latest")
+
+    return aliases
+
+
+def _is_artifact(v: Any) -> bool:
+    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+
+
+def _is_artifact_string(v: Any) -> bool:
+    return isinstance(v, str) and v.startswith("wandb-artifact://")
+
+
+def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
+    if not v.startswith("wandb-artifact://"):
+        raise ValueError(f"Invalid artifact string: {v}")
+    parsed_v = v[len("wandb-artifact://") :]
+    base_uri = None
+    url_info = urllib.parse.urlparse(parsed_v)
+    if url_info.scheme != "":
+        base_uri = f"{url_info.scheme}://{url_info.netloc}"
+        parts = url_info.path.split("/")[1:]
+    else:
+        parts = parsed_v.split("/")
+    if parts[0] == "_id":
+        # for now can't fetch paths but this will be supported in the future
+        # when we allow passing typed media objects, this can be extended
+        # to include paths
+        return parts[1], base_uri
+
+    if len(parts) < 3:
+        raise ValueError(f"Invalid artifact string: {v}")
+
+    # for now can't fetch paths but this will be supported in the future
+    # when we allow passing typed media objects, this can be extended
+    # to include paths
+    entity, project, name_and_alias_or_version = parts[:3]
+    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
+
+
+def _get_max_cli_version() -> Union[str, None]:
+    max_cli_version = wandb.api.max_cli_version()
+    return str(max_cli_version) if max_cli_version is not None else None
+
+
+def _is_offline() -> bool:
+    return (  # type: ignore[no-any-return]
+        wandb.run is not None and wandb.run.settings._offline
+    ) or wandb.setup().settings._offline
+
+
+def ensure_text(
+    string: Union[str, bytes], encoding: str = "utf-8", errors: str = "strict"
+) -> str:
+    """Coerce s to str."""
+    if isinstance(string, bytes):
+        return string.decode(encoding, errors)
+    elif isinstance(string, str):
+        return string
+    else:
+        raise TypeError(f"not expecting type '{type(string)}'")

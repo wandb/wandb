@@ -1,10 +1,11 @@
+import io
 import wandb
 from wandb import data_types
+from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 import numpy as np
 import pytest
 import PIL
 import os
-import six
 import sys
 import glob
 import platform
@@ -13,18 +14,12 @@ from . import utils
 from .utils import dummy_data
 import matplotlib
 import rdkit.Chem
-from wandb import Api
-import time
+from unittest import mock
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 data = np.random.randint(255, size=(1000))
-
-
-@pytest.fixture
-def api(runner):
-    return Api()
 
 
 def test_wb_value(live_mock_server, test_settings):
@@ -64,7 +59,6 @@ def test_wb_value(live_mock_server, test_settings):
     run.finish()
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_log_dataframe(live_mock_server, test_settings):
     import pandas as pd
 
@@ -210,7 +204,10 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types._prune_max_seq(large_list), mocked_run, "test2", 0
+        wandb.wandb_sdk.data_types.utils._prune_max_seq(large_list),
+        mocked_run,
+        "test2",
+        0,
     )
     expected = {
         "_type": "images/separated",
@@ -329,9 +326,6 @@ def test_matplotlib_image_with_multiple_axes():
         wandb.Image(plt)  # this should not error.
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
-)
 def test_matplotlib_plotly_with_multiple_axes():
     """Ensures that wandb.Plotly constructor can accept a plotly figure
     reference in which the figure has multiple axes. Importantly, there is
@@ -374,9 +368,6 @@ def test_image_from_matplotlib_with_image():
     plt.close()
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
-)
 def test_make_plot_media_from_matplotlib_without_image():
     """Ensures that wand.Plotly.make_plot_media() returns a Plotly object when
     there is no image
@@ -410,7 +401,6 @@ def test_create_bokeh_plot(mocked_run):
     bp.bind_to_run(mocked_run, "bokeh", 0)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_gif(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
     vid = wandb.Video(video, format="gif")
@@ -418,7 +408,6 @@ def test_video_numpy_gif(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_mp4(mocked_run):
     video = np.random.randint(255, size=(10, 3, 28, 28))
     vid = wandb.Video(video, format="mp4")
@@ -426,7 +415,6 @@ def test_video_numpy_mp4(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".mp4")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_multi(mocked_run):
     video = np.random.random(size=(2, 10, 3, 28, 28))
     vid = wandb.Video(video)
@@ -434,7 +422,6 @@ def test_video_numpy_multi(mocked_run):
     assert vid.to_json(mocked_run)["path"].endswith(".gif")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="No moviepy.editor in py2")
 def test_video_numpy_invalid():
     video = np.random.random(size=(3, 28, 28))
     with pytest.raises(ValueError):
@@ -471,7 +458,7 @@ def test_molecule(mocked_run):
 def test_molecule_file(mocked_run):
     with open("test.pdb", "w") as f:
         f.write("00000")
-    mol = wandb.Molecule(open("test.pdb", "r"))
+    mol = wandb.Molecule(open("test.pdb"))
     mol.bind_to_run(mocked_run, "rad", "summary")
     wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
@@ -528,10 +515,12 @@ def test_molecule_from_rdkit_invalid_input(mocked_run):
 
 
 def test_html_str(mocked_run):
-    html = wandb.Html("<html><body><h1>Hello</h1></body></html>")
+    html_str = "<html><body><h1>Hello</h1></body></html>"
+    html = wandb.Html(html_str)
     html.bind_to_run(mocked_run, "rad", "summary")
     wandb.Html.seq_to_json([html], mocked_run, "rad", "summary")
     assert os.path.exists(html._path)
+    assert html == wandb.Html(html_str)
     wandb.finish()
 
 
@@ -586,6 +575,32 @@ def test_table_default():
     }
 
 
+def test_big_table_throws_error_that_can_be_overridden(live_mock_server, test_settings):
+    test_settings.update({"table_raise_on_max_row_limit_exceeded": True})
+    run = wandb.init(settings=test_settings)
+
+    # make this smaller just for this one test to make the runtime shorter
+    with mock.patch("wandb.Table.MAX_ARTIFACT_ROWS", 10):
+        table = wandb.Table(
+            data=np.arange(wandb.Table.MAX_ARTIFACT_ROWS + 1)[:, None].tolist(),
+            columns=["col1"],
+        )
+
+        with pytest.raises(ValueError):
+            run.log({"table": table})
+
+        with mock.patch(
+            "wandb.Table.MAX_ARTIFACT_ROWS", wandb.Table.MAX_ARTIFACT_ROWS + 1
+        ):
+            try:
+                # should no longer raise
+                run.log({"table": table})
+            except Exception as e:
+                assert (
+                    False
+                ), f"Logging a big table with an overridden limit raised with {e}"
+
+
 def test_table_eq_debug():
     # Invalid Type
     a = wandb.Table(data=[[1, 2, 3], [4, 5, 6]])
@@ -628,7 +643,6 @@ def test_table_eq_debug():
     assert a == b
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_table_custom():
     import pandas as pd
 
@@ -671,7 +685,11 @@ def test_object3d_numpy(mocked_run):
 
 
 def test_object3d_dict(mocked_run):
-    obj = wandb.Object3D({"type": "lidar/beta",})
+    obj = wandb.Object3D(
+        {
+            "type": "lidar/beta",
+        }
+    )
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
     wandb.finish()
@@ -679,7 +697,11 @@ def test_object3d_dict(mocked_run):
 
 def test_object3d_dict_invalid(mocked_run):
     with pytest.raises(ValueError):
-        obj = wandb.Object3D({"type": "INVALID",})
+        obj = wandb.Object3D(
+            {
+                "type": "INVALID",
+            }
+        )
     wandb.finish()
 
 
@@ -707,7 +729,7 @@ def test_object3d_io(mocked_run):
     f = utils.fixture_open("Box.gltf")
     body = f.read()
 
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
     obj = wandb.Object3D(ioObj, file_type="obj")
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
@@ -729,7 +751,7 @@ def test_object3d_unsupported_numpy():
 
     f = utils.fixture_open("Box.gltf")
     body = f.read()
-    ioObj = six.StringIO(six.u(body))
+    ioObj = io.StringIO(body)
 
     with pytest.raises(ValueError):
         wandb.Object3D(ioObj)
@@ -818,7 +840,6 @@ def test_table_from_numpy():
         table = wandb.Table(dataframe=np_data)
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_table_from_pandas():
     import pandas as pd
 
@@ -853,11 +874,43 @@ def test_graph():
 
 
 def test_numpy_arrays_to_list():
-    conv = data_types._numpy_arrays_to_lists
+    conv = _numpy_arrays_to_lists
     assert conv(np.array(1)) == [1]
-    assert conv(np.array((1, 2,))) == [1, 2]
-    assert conv([np.array((1, 2,))]) == [[1, 2]]
-    assert conv(np.array(({"a": [np.array((1, 2,))]}, 3,))) == [{"a": [[1, 2]]}, 3]
+    assert conv(
+        np.array(
+            (
+                1,
+                2,
+            )
+        )
+    ) == [1, 2]
+    assert conv(
+        [
+            np.array(
+                (
+                    1,
+                    2,
+                )
+            )
+        ]
+    ) == [[1, 2]]
+    assert conv(
+        np.array(
+            (
+                {
+                    "a": [
+                        np.array(
+                            (
+                                1,
+                                2,
+                            )
+                        )
+                    ]
+                },
+                3,
+            )
+        )
+    ) == [{"a": [[1, 2]]}, 3]
 
 
 def test_partitioned_table_from_json(runner, mock_server, api):
@@ -995,12 +1048,15 @@ def test_ndarrays_in_tables():
     )
 
 
-def test_table_logging(mocked_run, live_mock_server, test_settings, api):
+def test_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     run = wandb.init(settings=test_settings)
     run.log(
         {
             "logged_table": wandb.Table(
-                columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+                columns=["a"],
+                data=[[wandb.Image(np.ones(shape=(32, 32)))]],
             )
         }
     )
@@ -1008,28 +1064,31 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
     assert True
 
 
-def test_reference_table_logging(mocked_run, live_mock_server, test_settings, api):
-    live_mock_server.set_ctx({"max_cli_version": "0.10.33"})
+@pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
+def test_reference_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api, max_cli_version
+):
+    live_mock_server.set_ctx({"max_cli_version": max_cli_version})
     run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
     run.log({"logged_table": t})
     run.log({"logged_table": t})
     run.finish()
     assert True
 
+
+def test_reference_table_artifacts(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
-    run.log({"logged_table": t})
-    run.log({"logged_table": t})
-    run.finish()
-    assert True
-
-
-def test_reference_table_artifacts(mocked_run, live_mock_server, test_settings, api):
-    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
-    run = wandb.init(settings=test_settings)
-    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    t = wandb.Table(
+        columns=["a"],
+        data=[[wandb.Image(np.ones(shape=(32, 32)))]],
+    )
 
     art = wandb.Artifact("A", "dataset")
     art.add(t, "table")
@@ -1055,21 +1114,27 @@ def test_table_reference(runner, live_mock_server, test_settings):
     assert True
 
 
-def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings, api):
+def test_partitioned_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     run = wandb.init(settings=test_settings)
     run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
     run.finish()
     assert True
 
 
-def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
+def test_joined_table_logging(
+    mocked_run, live_mock_server, test_settings, reinit_internal_api
+):
     run = wandb.init(settings=test_settings)
     art = wandb.Artifact("A", "dataset")
     t1 = wandb.Table(
-        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+        columns=["id", "a"],
+        data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
     )
     t2 = wandb.Table(
-        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+        columns=["id", "a"],
+        data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
     )
     art.add(t1, "t1")
     art.add(t2, "t2")
@@ -1089,6 +1154,29 @@ def test_fail_to_make_file(mocked_run):
             assert False
     except ValueError as e:
         assert " is invalid. Please remove invalid filename characters" in str(e)
+
+
+def test_log_with_dir_sep_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+    run.log({"train/image": wb_image})
+    run.finish()
+    assert True
+
+
+def test_log_with_back_slash_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+
+    # windows doesnt allow a backslash in media keys right now
+    if platform.system() == "Windows":
+        with pytest.raises(ValueError):
+            run.log({r"train\image": wb_image})
+    else:
+        run.log({r"train\image": wb_image})
+
+    run.finish()
+    assert True
 
 
 runbindable_media = [
@@ -1116,3 +1204,34 @@ def test_media_keys_escaped_as_glob_for_publish(mocked_run, media):
     ]
     assert not any(weird_key in g for g in published_globs), published_globs
     assert any(glob.escape(weird_key) in g for g in published_globs), published_globs
+
+
+def test_image_array_old_wandb(
+    live_mock_server, test_settings, monkeypatch, capsys, parse_ctx
+):
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+    run = wandb.init(settings=test_settings)
+    im_count = 5
+    wb_image = [wandb.Image(image) for i in range(im_count)]
+    run.log({"logged_images": wb_image})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    outerr = capsys.readouterr()
+    assert "Unable to log image array filenames. In some cases, this can prevent images from being"
+    "viewed in the UI. Please upgrade your wandb server." in outerr.err
+    summary = ctx_util.summary
+    assert "filenames" not in list(summary["logged_images"].keys())
+
+
+def test_image_array_old_wandb_mp_warning(test_settings, capsys, monkeypatch):
+    monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+    with mock.patch.dict("os.environ", WANDB_REQUIRE_SERVICE="true"):
+        with wandb.init(settings=test_settings) as run:
+            wb_image = [wandb.Image(image) for _ in range(5)]
+            run._init_pid += 1
+            run.log({"logged_images": wb_image})
+    outerr = capsys.readouterr()
+    assert (
+        "Attempting to log a sequence of Image objects from multiple processes might result in data loss. Please upgrade your wandb server"
+        in outerr.err
+    )

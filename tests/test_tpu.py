@@ -1,3 +1,4 @@
+import os
 import pytest
 import time
 
@@ -6,7 +7,7 @@ from wandb.sdk.internal.stats import SystemStats
 from wandb.sdk.internal.tpu import TPUProfiler
 
 
-class MockTPUProfiler(object):
+class MockTPUProfiler:
     def __init__(self):
         self.utilization = 22.1
 
@@ -26,7 +27,7 @@ def test_tpu_system_stats(monkeypatch, fake_interface):
     monkeypatch.setattr(
         wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
     )
-    stats = SystemStats(pid=1000, interface=fake_interface)
+    stats = SystemStats(pid=os.getpid(), interface=fake_interface)
     # stats.start()
     # time.sleep(1)
     # stats.shutdown()
@@ -38,16 +39,7 @@ def test_tpu_system_stats(monkeypatch, fake_interface):
     assert stats.stats()["tpu"] == MockTPUProfiler().utilization
 
 
-def is_tf_pkg_installed():
-    try:
-        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver
-        from tensorflow.python.profiler import profiler_client
-    except (ImportError):
-        return False
-    return True
-
-
-class MockProfilerClient(object):
+class MockProfilerClient:
     def __init__(self, tpu_utilization: int = 10.1) -> None:
         self.tpu_utilization = tpu_utilization
 
@@ -73,11 +65,11 @@ class MockProfilerClient(object):
             raise Exception
 
 
-@pytest.mark.skipif(
-    not is_tf_pkg_installed(),
-    reason="tensorflow modules tpu_cluster_resolver and profiler_client are missing",
-)
 def test_tpu_instance():
+    _ = pytest.importorskip(
+        "tensorflow.python.distribute.cluster_resolver.tpu_cluster_resolver"
+    )
+    _ = pytest.importorskip("tensorflow.python.profiler.profiler_client")
     with pytest.raises(Exception) as e_info:
         tpu_profiler = TPUProfiler(tpu="my-tpu")
         assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)

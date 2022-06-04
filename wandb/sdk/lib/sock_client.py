@@ -51,7 +51,7 @@ class SockClient:
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
         header = struct.pack("<BI", ord("W"), raw_size)
-        self._sock.send(header + data)
+        self._sock.sendall(header + data)
 
     def send_server_request(self, msg: Any) -> None:
         self._send_message(msg)
@@ -64,6 +64,30 @@ class SockClient:
             # things like network status poll loop, there might be a better way to quiesce
             pass
 
+    def send_and_recv(
+        self,
+        *,
+        inform_init: spb.ServerInformInitRequest = None,
+        inform_start: spb.ServerInformStartRequest = None,
+        inform_attach: spb.ServerInformAttachRequest = None,
+        inform_finish: spb.ServerInformFinishRequest = None,
+        inform_teardown: spb.ServerInformTeardownRequest = None,
+    ) -> spb.ServerResponse:
+        self.send(
+            inform_init=inform_init,
+            inform_start=inform_start,
+            inform_attach=inform_attach,
+            inform_finish=inform_finish,
+            inform_teardown=inform_teardown,
+        )
+        # TODO: this solution is fragile, but for checking attach
+        # it should be relatively stable.
+        # This pass would be solved as part of the fix in https://wandb.atlassian.net/browse/WB-8709
+        response = self.read_server_response(timeout=1)
+        if response is None:
+            raise Exception("No response")
+        return response
+
     def send(
         self,
         *,
@@ -71,7 +95,7 @@ class SockClient:
         inform_start: spb.ServerInformStartRequest = None,
         inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
-        inform_teardown: spb.ServerInformTeardownRequest = None
+        inform_teardown: spb.ServerInformTeardownRequest = None,
     ) -> None:
         server_req = spb.ServerRequest()
         if inform_init:

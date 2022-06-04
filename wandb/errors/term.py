@@ -1,7 +1,8 @@
 import logging
 from typing import Any
-import click
 import sys
+
+import click
 
 
 LOG_STRING = click.style("wandb", fg="blue", bold=True)
@@ -19,10 +20,10 @@ _logger = None
 
 def termsetup(settings, logger):
     global _silent, _show_info, _show_warnings, _show_errors, _logger
-    _silent = settings._silent
-    _show_info = settings._show_info
-    _show_warnings = settings._show_warnings
-    _show_errors = settings._show_errors
+    _silent = settings.silent
+    _show_info = settings.show_info
+    _show_warnings = settings.show_warnings
+    _show_errors = settings.show_errors
     _logger = logger
 
 
@@ -46,24 +47,24 @@ def termlog(
 
 
 def termwarn(string: str, **kwargs: Any) -> None:
-    string = "\n".join(["{} {}".format(WARN_STRING, s) for s in string.split("\n")])
+    string = "\n".join([f"{WARN_STRING} {s}" for s in string.split("\n")])
     _log(
         string=string,
         newline=True,
         silent=not _show_warnings,
         level=logging.WARNING,
-        **kwargs
+        **kwargs,
     )
 
 
 def termerror(string: str, **kwargs: Any) -> None:
-    string = "\n".join(["{} {}".format(ERROR_STRING, s) for s in string.split("\n")])
+    string = "\n".join([f"{ERROR_STRING} {s}" for s in string.split("\n")])
     _log(
         string=string,
         newline=True,
         silent=not _show_errors,
         level=logging.ERROR,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -74,9 +75,7 @@ def _log(
     silent = silent or _silent
     if string:
         if prefix:
-            line = "\n".join(
-                ["{}: {}".format(LOG_STRING, s) for s in string.split("\n")]
-            )
+            line = "\n".join([f"{LOG_STRING}: {s}" for s in string.split("\n")])
         else:
             line = string
     else:

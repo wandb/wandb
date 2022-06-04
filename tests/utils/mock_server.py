@@ -1,24 +1,28 @@
 """Mock Server for simple calls the cli and public api make"""
 
-from flask import Flask, request, g, jsonify
-import os
-import sys
-import re
 from datetime import datetime, timedelta
-import json
-import platform
-import yaml
-import six
+import functools
 import gzip
+import json
+import logging
+import os
+import platform
+import re
+import sys
+import threading
+import time
+import urllib.parse
+
+from flask import Flask, request, g, jsonify
+import requests
+from werkzeug.exceptions import BadRequest
+import yaml
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
 import wandb
 
 sys.path[0:0] = save_path
-import logging
-from six.moves import urllib
-import threading
 
 RequestsMock = None
 InjectRequestsParse = None
@@ -58,6 +62,7 @@ def default_ctx():
         "artifacts": {},
         "artifacts_by_id": {},
         "artifacts_created": {},
+        "portfolio_links": {},
         "upsert_bucket_count": 0,
         "out_of_date": False,
         "empty_query": False,
@@ -74,7 +79,7 @@ def default_ctx():
         "emulate_azure": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
-        "return_jupyter_in_run_info": False,
+        "run_script_type": "python",
         "alerts": [],
         "gorilla_supports_launch_agents": True,
         "launch_agents": {},
@@ -87,6 +92,9 @@ def default_ctx():
         "n_sweep_runs": 0,
         "code_saving_enabled": True,
         "sentry_events": [],
+        "run_cuda_version": None,
+        # relay mode, keep track of upsert runs for validation
+        "relay_run_info": {},
     }
 
 
@@ -97,7 +105,7 @@ def mock_server(mocker):
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
     sdk_path = "wandb.sdk"
-    mocker.patch("gql.transport.requests.requests", mock)
+    mocker.patch("wandb_gql.transport.requests.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
@@ -145,10 +153,14 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-    if ctx["return_jupyter_in_run_info"]:
+    if ctx["run_script_type"] == "notebook":
         program_name = "one_cell.ipynb"
-    else:
+    elif ctx["run_script_type"] == "shell":
+        program_name = "test.sh"
+    elif ctx["run_script_type"] == "python":
         program_name = "train.py"
+    elif ctx["run_script_type"] == "unknown":
+        program_name = "unknown.unk"
     return {
         "id": "test",
         "name": "test",
@@ -169,7 +181,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -224,12 +240,14 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "artifactType": {"name": "dataset"},
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
-                + "/storage?file=wandb_manifest.json&id={}".format(_id)
+                + f"/storage?file=wandb_manifest.json&id={_id}"
             }
         },
     }
@@ -248,7 +266,7 @@ def paginated(node, ctx, extra={}):
     }
 
 
-class CTX(object):
+class CTX:
     """This is a silly threadsafe wrapper for getting ctx into the server
     NOTE: This will stop working for live_mock_server if we make pytest run
     in parallel.
@@ -312,7 +330,12 @@ def _bucket_config(ctx):
             "edges": [
                 {
                     "node": {
-                        "directUrl": base_url + "/storage?file=" + name,
+                        "url": base_url + "/storage?file=" + name,
+                        "directUrl": base_url
+                        + "/storage?file="
+                        + name
+                        + "&direct=true",
+                        "updatedAt": datetime.now().isoformat(),
                         "name": name,
                     }
                 }
@@ -338,12 +361,125 @@ class HttpException(Exception):
         return rv
 
 
+class SnoopRelay:
+
+    _inject_count: int
+    _inject_time: float
+
+    def __init__(self):
+        self._inject_count = 0
+        self._inject_time = 0.0
+
+    def relay(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+
+            # Normal mockserver mode, disable live relay and call next function
+            if not os.environ.get("MOCKSERVER_RELAY"):
+                return func(*args, **kwargs)
+
+            if request.method == "POST":
+                url_path = request.path
+                body = request.get_json()
+
+                base_url = os.environ.get(
+                    "MOCKSERVER_RELAY_REMOTE_BASE_URL",
+                    "https://api.wandb.ai",
+                )
+                url = urllib.parse.urljoin(base_url, url_path)
+
+                resp = requests.post(url, json=body)
+                data = resp.json()
+                run_obj = data.get("data", {}).get("upsertBucket", {}).get("bucket", {})
+                project_obj = run_obj.get("project", {})
+
+                run_id = run_obj.get("name")
+                project = project_obj.get("name")
+                entity = project_obj.get("entity", {}).get("name")
+
+                ctx = get_ctx()
+                if run_id:
+                    ctx["relay_run_info"].setdefault(run_id, {})
+                    ctx["relay_run_info"][run_id]["project"] = project
+                    ctx["relay_run_info"][run_id]["entity"] = entity
+
+                # TODO: This is a hardcoded for now, will add inject specification to the yea file
+                if run_id and run_id.startswith("inject"):
+                    time_now = time.time()
+                    if self._inject_count == 0:
+                        self._inject_time = time_now
+                    self._inject_count += 1
+                    if time_now < self._inject_time + 21:
+                        # print("INJECT", self._inject_count, time_now, self._inject_time)
+                        time.sleep(12)
+                        raise HttpException("some error", status_code=500)
+                return data
+            assert False  # we do not support get requests yet, and likely never will :)
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    def context_enrich(self, ctx):
+        for run_id, run_info in ctx["relay_run_info"].items():
+            run_num = len(ctx["runs"])
+            insert = run_id not in ctx["run_ids"]
+            if insert:
+                ctx["run_ids"].append(run_id)
+            run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
+
+            # NOTE: not used, added for consistency with non-relay mode
+            r = run_ctx.setdefault("run", {})
+            r.setdefault("display_name", f"relay_name-{run_num}")
+            r.setdefault("storage_id", f"storageid{run_num}")
+            r.setdefault("project_name", "relay_proj")
+            r.setdefault("entity_name", "relay_entity")
+
+            # TODO: handle errors better
+            try:
+                import wandb
+
+                api = wandb.Api(
+                    overrides={
+                        "base_url": os.environ.get(
+                            "MOCKSERVER_RELAY_REMOTE_BASE_URL",
+                            "https://api.wandb.ai",
+                        )
+                    }
+                )
+                run = api.run(f"{run_info['entity']}/{run_info['project']}/{run_id}")
+            except Exception as e:
+                print(f"ERROR: problem calling public api for run {run_id}", e)
+                continue
+
+            value_config = {k: dict(value=v) for k, v in run.rawconfig.items()}
+            # TODO: need to have a correct state mapping
+            exitcode = 0 if run.state == "finished" else 1
+
+            for c in ctx, run_ctx:
+                c.setdefault("config", []).append(dict(value_config))
+                c.setdefault("file_stream", []).append(
+                    dict(
+                        exitcode=exitcode,
+                        files={
+                            "wandb-summary.json": dict(
+                                offset=0, content=[json.dumps(run.summary_metrics)]
+                            )
+                        },
+                    )
+                )
+            ctx["runs"][run_id] = run_ctx
+        # print("SEND", ctx)
+        return ctx
+
+
 def create_app(user_ctx=None):
     app = Flask(__name__)
     # When starting in live mode, user_ctx is a fancy object
     if isinstance(user_ctx, dict):
         with app.app_context():
             set_ctx(user_ctx)
+    snoop = SnoopRelay()
 
     @app.teardown_appcontext
     def persist_ctx(exc):
@@ -362,11 +498,18 @@ def create_app(user_ctx=None):
     def update_ctx():
         """Updating context for live_mock_server"""
         ctx = get_ctx()
-        body = request.get_json()
+        # in Flask/Werkzeug 2.1.0 get_json raises an exception on
+        # empty json, so we try/catch here
+        try:
+            body = request.get_json()
+        except BadRequest:
+            body = None
+
         if request.method == "GET":
+            ctx = snoop.context_enrich(ctx)
             return json.dumps(ctx)
         elif request.method == "DELETE":
-            app.logger.info("reseting context")
+            app.logger.info("resetting context")
             set_ctx(default_ctx())
             return json.dumps(get_ctx())
         else:
@@ -377,6 +520,7 @@ def create_app(user_ctx=None):
             return json.dumps(get_ctx())
 
     @app.route("/graphql", methods=["POST"])
+    @snoop.relay
     def graphql():
         #  TODO: in tests wandb-username is set to the test name, lets scope ctx to it
         ctx = get_ctx()
@@ -551,7 +695,10 @@ def create_app(user_ctx=None):
                 else:
                     project_field_name = "model"
                     run_field_name = "bucket"
-                if "commit" in body["query"]:
+                if (
+                    "commit" in body["query"]
+                    or body["variables"].get("fileName") == "wandb-metadata.json"
+                ):
                     run_config = _bucket_config(ctx)
                 else:
                     run_config = run(ctx)
@@ -637,7 +784,11 @@ def create_app(user_ctx=None):
                 return json.dumps(
                     {
                         "data": {
-                            "QueryType": {"fields": [{"name": "serverInfo"},]},
+                            "QueryType": {
+                                "fields": [
+                                    {"name": "serverInfo"},
+                                ]
+                            },
                             "ServerInfoType": {
                                 "fields": [
                                     {"name": "cliVersionInfo"},
@@ -651,7 +802,11 @@ def create_app(user_ctx=None):
             return json.dumps(
                 {
                     "data": {
-                        "QueryType": {"fields": [{"name": "serverInfo"},]},
+                        "QueryType": {
+                            "fields": [
+                                {"name": "serverInfo"},
+                            ]
+                        },
                         "ServerInfoType": {
                             "fields": [
                                 {"name": "cliVersionInfo"},
@@ -740,7 +895,15 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             new_run_needed = body["variables"]["runState"] == "{}"
@@ -750,7 +913,9 @@ def create_app(user_ctx=None):
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": (
                                 json.dumps(
                                     [
@@ -782,8 +947,8 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
 
             r = run_ctx.setdefault("run", {})
-            r.setdefault("display_name", "lovely-dawn-{}".format(run_num + 32))
-            r.setdefault("storage_id", "storageid{}".format(run_num))
+            r.setdefault("display_name", f"lovely-dawn-{run_num + 32}")
+            r.setdefault("storage_id", f"storageid{run_num}")
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
 
@@ -888,12 +1053,15 @@ def create_app(user_ctx=None):
                     }
                 )
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
+        if "mutation LinkArtifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.link(variables=body["variables"])
         if "mutation CreateArtifact(" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create(variables=body["variables"])
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
-            app.logger.info("Creating artifact {}".format(collection_name))
+            app.logger.info(f"Creating artifact {collection_name}")
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
                 collection_name, []
@@ -922,7 +1090,14 @@ def create_app(user_ctx=None):
             art = artifact(ctx, id_override=id)
             if len(art.get("aliases", [])) and not delete_aliases:
                 raise Exception("delete_aliases not set, but artifact has aliases")
-            return {"data": {"deleteArtifact": {"artifact": art, "success": True,}}}
+            return {
+                "data": {
+                    "deleteArtifact": {
+                        "artifact": art,
+                        "success": True,
+                    }
+                }
+            }
         if "mutation CreateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -943,7 +1118,13 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
             for c in ctx, run_ctx:
                 c["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -960,7 +1141,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
@@ -1117,7 +1304,9 @@ def create_app(user_ctx=None):
                     if full_name is not None:
                         collection_name = full_name.split(":")[0]
                     art = artifact(
-                        ctx, collection_name=collection_name, request_url_root=base_url,
+                        ctx,
+                        collection_name=collection_name,
+                        request_url_root=base_url,
                     )
                 # code artifacts use source-RUNID names, we return the code type
                 art["artifactType"] = {"id": 2, "name": "code"}
@@ -1275,7 +1464,7 @@ def create_app(user_ctx=None):
             return {"data": {"deleteApiKey": {"success": True}}}
         if "mutation GenerateApiKey" in body["query"]:
             return {
-                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Z" * 40}}}
             }
         if "mutation DeleteInvite" in body["query"]:
             return {"data": {"deleteInvite": {"success": True}}}
@@ -1663,19 +1852,30 @@ def create_app(user_ctx=None):
                     },
                 }
         elif file == "wandb-metadata.json":
-            return {
+            if ctx["run_script_type"] == "notebook":
+                code_path = "one_cell.ipynb"
+            elif ctx["run_script_type"] == "shell":
+                code_path = "test.sh"
+            elif ctx["run_script_type"] == "python":
+                code_path = "train.py"
+            elif ctx["run_script_type"] == "unknown":
+                code_path = "unknown.unk"
+            result = {
                 "docker": "test/docker",
                 "program": "train.py",
-                "codePath": "train.py",
+                "codePath": code_path,
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
+            if ctx["run_cuda_version"]:
+                result["cuda"] = ctx["run_cuda_version"]
+            return result
         elif file == "requirements.txt":
             return "numpy==1.19.5\n"
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return """
+            return r"""
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
@@ -1686,7 +1886,7 @@ index 30d74d2..9a2c773 100644
 +testing
 \ No newline at end of file
 """
-        # emulate azure when we're receving requests from them
+        # emulate azure when we're receiving requests from them
         if extra is not None:
             return "", 201
         return "", 200
@@ -1777,6 +1977,7 @@ index 30d74d2..9a2c773 100644
         return "ARTIFACT %s" % digest, 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
+    @snoop.relay
     def file_stream(entity, project, run):
         ctx = get_ctx()
         run_ctx = get_run_ctx(run)
@@ -1861,13 +2062,13 @@ index 30d74d2..9a2c773 100644
 
     @app.errorhandler(404)
     def page_not_found(e):
-        print("Got request to: %s (%s)" % (request.url, request.method))
+        print(f"Got request to: {request.url} ({request.method})")
         return "Not Found", 404
 
     return app
 
 
-RE_DATETIME = re.compile("^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
+RE_DATETIME = re.compile(r"^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
 
 
 def strip_datetime(s):
@@ -1878,7 +2079,7 @@ def strip_datetime(s):
     return s
 
 
-class ParseCTX(object):
+class ParseCTX:
     def __init__(self, ctx, run_id=None):
         self._ctx = ctx["runs"][run_id] if run_id else ctx
         self._run_id = run_id
@@ -1890,21 +2091,21 @@ class ParseCTX(object):
             files = update.get("files")
             if not files:
                 continue
-            for k, v in six.iteritems(files):
+            for k, v in files.items():
                 data.setdefault(k, []).append(v)
         return data
 
     def get_filestream_file_items(self):
         data = {}
         fs_file_updates = self.get_filestream_file_updates()
-        for k, v in six.iteritems(fs_file_updates):
+        for k, v in fs_file_updates.items():
             l = []
             for d in v:
                 offset = d.get("offset")
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                # this check isnt valid right now.
+                # this check isn't valid right now.
                 # TODO: lets just assume it is fine, look into this later
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
@@ -2041,6 +2242,10 @@ class ParseCTX(object):
         return self._ctx.get("artifacts_created") or {}
 
     @property
+    def portfolio_links(self):
+        return self._ctx.get("portfolio_links") or {}
+
+    @property
     def tags(self):
         return self._ctx.get("tags") or []
 
@@ -2098,4 +2303,11 @@ if __name__ == "__main__":
 
     app = create_app()
     app.logger.setLevel(logging.INFO)
-    app.run(debug=False, port=int(os.environ.get("PORT", 8547)))
+
+    # allow caller to bind to a specific hostaddr
+    mockserver_bind = os.environ.get("MOCKSERVER_BIND")
+    kwargs = {}
+    if mockserver_bind:
+        kwargs["host"] = mockserver_bind
+
+    app.run(debug=False, port=int(os.environ.get("PORT", 8547)), **kwargs)

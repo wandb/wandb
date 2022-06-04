@@ -1,11 +1,7 @@
 import platform
-import sys
 from pathlib import Path
 
 import pytest
-
-if sys.version_info >= (3, 9):
-    pytest.importorskip("pytorch", reason="pytorch doesnt support py3.9 yet")
 
 if platform.system() == "Windows":
     pytest.importorskip("metaflow", reason="metaflow does not support native Windows")
@@ -167,7 +163,7 @@ def test_track_sklearn_model():
 def test_track_pytorch_model():
     class Net(nn.Module):
         def __init__(self):
-            super(Net, self).__init__()
+            super().__init__()
             self.conv1 = nn.Conv2d(1, 32, 3, 1)
             self.conv2 = nn.Conv2d(32, 64, 3, 1)
             self.dropout1 = nn.Dropout(0.25)
@@ -251,7 +247,7 @@ def test_use_models():
 
     class Net(nn.Module):
         def __init__(self):
-            super(Net, self).__init__()
+            super().__init__()
             self.conv1 = nn.Conv2d(1, 32, 3, 1)
             self.conv2 = nn.Conv2d(32, 64, 3, 1)
             self.dropout1 = nn.Dropout(0.25)

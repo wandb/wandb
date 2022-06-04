@@ -1,6 +1,9 @@
 import wandb
 import pytest
 
+import numpy as np
+import datetime
+
 
 def test_basic_ndx():
     # Base Case
@@ -56,7 +59,8 @@ def test_pk_cast(use_helper=False):
     assert [row[0] for row in table.data] == ["1", "2", "3"]
     assert all(row[0]._table == table for row in table.data)
     assert isinstance(
-        table._column_types.params["type_map"]["id"], wandb.data_types._PrimaryKeyType,
+        table._column_types.params["type_map"]["id"],
+        wandb.data_types._PrimaryKeyType,
     )
 
     # Assert that multiple PKs are not supported
@@ -77,7 +81,8 @@ def test_pk_cast(use_helper=False):
     # Assert that the table was not modified
     assert all([row[0].__class__ == int for row in table.data])
     assert not isinstance(
-        table._column_types.params["type_map"]["id"], wandb.data_types._PrimaryKeyType,
+        table._column_types.params["type_map"]["id"],
+        wandb.data_types._PrimaryKeyType,
     )
 
     # TODO: Test duplicates (not supported today)
@@ -127,7 +132,8 @@ def test_fk_cast(use_helper=False):
         [row[0]._table == table_a and row[0]._col_name == "id" for row in table.data]
     )
     assert isinstance(
-        table._column_types.params["type_map"]["fk"], wandb.data_types._ForeignKeyType,
+        table._column_types.params["type_map"]["fk"],
+        wandb.data_types._ForeignKeyType,
     )
 
     # Fails on Numerics for now
@@ -141,7 +147,8 @@ def test_fk_cast(use_helper=False):
     # Assert that the table was not modified
     assert all([row[0].__class__ == int for row in table.data])
     assert not isinstance(
-        table._column_types.params["type_map"]["fk"], wandb.data_types._ForeignKeyType,
+        table._column_types.params["type_map"]["fk"],
+        wandb.data_types._ForeignKeyType,
     )
 
 
@@ -200,13 +207,19 @@ def test_loading_from_json_with_mixed_types():
                 "type_map": {
                     "Column_1": {
                         "params": {
-                            "allowed_types": [{"wb_type": "any"}, {"wb_type": "none"},]
+                            "allowed_types": [
+                                {"wb_type": "any"},
+                                {"wb_type": "none"},
+                            ]
                         },
                         "wb_type": "union",
                     },
                     "Column_2": {
                         "params": {
-                            "allowed_types": [{"wb_type": "any"}, {"wb_type": "none"},]
+                            "allowed_types": [
+                                {"wb_type": "any"},
+                                {"wb_type": "none"},
+                            ]
                         },
                         "wb_type": "union",
                     },
@@ -223,3 +236,24 @@ def test_loading_from_json_with_mixed_types():
     artifact = wandb.Artifact("my_artifact", type="dataset")
     _ = wandb.Table.from_json(json_obj, artifact)
     assert True
+
+
+def test_datetime_conversion():
+    art = wandb.Artifact("A", "B")
+    t = wandb.Table(
+        columns=["dt", "t", "np", "d"],
+        data=[
+            [
+                datetime.datetime(2000, 12, d),
+                datetime.date(2000, 12, d),
+                np.datetime64("2000-12-" + ("0" if d < 10 else "") + str(d)),
+                d,
+            ]
+            for d in range(1, 3)
+        ],
+    )
+    json = t.to_json(art)
+    assert json["data"] == [
+        [975628800000, 975628800000, 975628800000, 1],
+        [975715200000, 975715200000, 975715200000, 2],
+    ]

@@ -38,9 +38,9 @@ class InterfaceSock(InterfaceShared):
         self._router = MessageSockRouter(self._sock_client)
 
     def _hack_set_run(self, run: "Run") -> None:
-        super(InterfaceSock, self)._hack_set_run(run)
-        assert run.id
-        self._stream_id = run.id
+        super()._hack_set_run(run)
+        assert run._run_id
+        self._stream_id = run._run_id
 
     def _assign(self, record: Any) -> None:
         assert self._stream_id
@@ -63,7 +63,7 @@ class InterfaceSock(InterfaceShared):
     ) -> Optional["pb.StopStatusResponse"]:
         # Message stop_status is called from a daemon thread started by wandb_run
         # The underlying socket might go away while the thread is still running.
-        # Handle this like a timedout message as the daemon thread will eventually
+        # Handle this like a timed-out message as the daemon thread will eventually
         # be killed.
         try:
             data = super()._communicate_stop_status(status)
@@ -76,7 +76,7 @@ class InterfaceSock(InterfaceShared):
     ) -> Optional["pb.NetworkStatusResponse"]:
         # Message network_status is called from a daemon thread started by wandb_run
         # The underlying socket might go away while the thread is still running.
-        # Handle this like a timedout message as the daemon thread will eventually
+        # Handle this like a timed-out message as the daemon thread will eventually
         # be killed.
         try:
             data = super()._communicate_network_status(status)

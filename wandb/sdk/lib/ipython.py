@@ -1,4 +1,3 @@
-#
 import logging
 import sys
 from typing import Optional
@@ -10,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 TABLE_STYLES = """<style>
-    table.wandb td:nth-child(1) { padding: 0 10px; text-align: right }
-    .wandb-row { display: flex; flex-direction: row; flex-wrap: wrap; width: 100% }
+    table.wandb td:nth-child(1) { padding: 0 10px; text-align: left ; width: auto;} td:nth-child(2) {text-align: left ; width: 100%}
+    .wandb-row { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; width: 100% }
     .wandb-col { display: flex; flex-direction: column; flex-basis: 100%; flex: 1; padding: 10px; }
     </style>
 """
@@ -42,7 +41,7 @@ def in_jupyter() -> bool:
 
 def display_html(html: str):  # type: ignore
     """Displays HTML in notebooks, is a noop outside of a jupyter context"""
-    if wandb.run and wandb.run._settings._silent:
+    if wandb.run and wandb.run._settings.silent:
         return
     try:
         from IPython.core.display import display, HTML  # type: ignore
@@ -54,7 +53,7 @@ def display_html(html: str):  # type: ignore
 
 def display_widget(widget):
     """Displays ipywidgets in notebooks, is a noop outside of a jupyter context"""
-    if wandb.run and wandb.run._settings._silent:
+    if wandb.run and wandb.run._settings.silent:
         return
     try:
         from IPython.core.display import display
@@ -66,7 +65,7 @@ def display_widget(widget):
     return display(widget)
 
 
-class ProgressWidget(object):
+class ProgressWidget:
     """A simple wrapper to render a nice progress bar with a label"""
 
     def __init__(self, widgets, min, max):

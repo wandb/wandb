@@ -1,6 +1,6 @@
 import collections
-import os
 import logging
+import os
 import threading
 
 import wandb
@@ -48,7 +48,7 @@ class UploadJob(threading.Thread):
         self.copied = copied
         self.save_fn = save_fn
         self.digest = digest
-        super(UploadJob, self).__init__()
+        super().__init__()
 
     def run(self):
         success = False
@@ -62,11 +62,6 @@ class UploadJob(threading.Thread):
                 self._file_stream.push_success(self.artifact_id, self.save_name)
 
     def push(self):
-        try:
-            size = os.path.getsize(self.save_path)
-        except OSError:
-            size = 0
-
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
@@ -125,7 +120,7 @@ class UploadJob(threading.Thread):
             # If the upload URL is relative, fill it in with the base URL,
             # since its a proxied file store like the on-prem VM.
             if upload_url.startswith("/"):
-                upload_url = "{}{}".format(self._api.api_url, upload_url)
+                upload_url = f"{self._api.api_url}{upload_url}"
             try:
                 with open(self.save_path, "rb") as f:
                     self._api.upload_file_retry(

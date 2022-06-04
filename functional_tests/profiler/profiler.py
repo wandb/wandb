@@ -21,7 +21,7 @@ def test_profiler():
 
     class Net(torch.nn.Module):
         def __init__(self):
-            super(Net, self).__init__()
+            super().__init__()
             self.conv1 = torch.nn.Conv2d(1, 32, 3, 1)
             self.conv2 = torch.nn.Conv2d(32, 64, 3, 1)
             self.fc1 = torch.nn.Linear(9216, 128)
@@ -53,6 +53,7 @@ def test_profiler():
     with wandb.init() as run:
         run.config.id = "profiler_sync_trace_files"
         with torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU],
             schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
             on_trace_ready=wandb.profiler.torch_trace_handler(),
             record_shapes=True,

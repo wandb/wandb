@@ -221,18 +221,18 @@ class StreamMux:
 
     def _process_drop(self, action: StreamAction) -> None:
         with self._streams_lock:
-            stream = self._streams.pop(action._stream_id)
-            stream.drop()
-            stream.join()
+            if action._stream_id in self._streams:
+                stream = self._streams.pop(action._stream_id)
+                stream.drop()
+                stream.join()
 
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
             return
 
         # TODO(settings) remove type ignore once SettingsStatic and Settings unified
-        print("")
         printer = get_printer(
-            all(stream._settings._jupyter for stream in streams.values())  # type: ignore
+            all(stream._settings._jupyter for stream in streams.values())
         )
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false

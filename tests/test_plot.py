@@ -1,11 +1,7 @@
 import pytest
-import sys
-
-if sys.version_info >= (3, 10):
-    pytest.importorskip("sklearn")
 
 from sklearn.naive_bayes import MultinomialNB
-from wandb.plot import confusion_matrix, pr_curve, roc_curve
+from wandb.plot import confusion_matrix, pr_curve, roc_curve, line_series
 
 
 @pytest.fixture
@@ -105,3 +101,31 @@ def test_conf_mat_missing_values_without_classes(wandb_init_run):
     assert conf_mat.table.data[6] == ["Class_3", "Class_1", 0]
     assert conf_mat.table.data[7] == ["Class_3", "Class_2", 0]
     assert conf_mat.table.data[8] == ["Class_3", "Class_3", 0]
+
+
+@pytest.mark.parametrize("xs", [["600417", "600421"], [613, 215]])
+@pytest.mark.parametrize("ys", [[[3, 4]], [["3", "4"]], [[1, 2], [7.1, 8.3]]])
+def test_line_series(wandb_init_run, xs, ys):
+    line_series_plt = line_series(xs, ys)
+    assert line_series_plt.table.data[0] == [xs[0], "key_0", ys[0][0]]
+    assert line_series_plt.table.data[1] == [xs[1], "key_0", ys[0][1]]
+
+    if len(ys) == 2:
+        assert line_series_plt.table.data[2] == [xs[0], "key_1", ys[1][0]]
+        assert line_series_plt.table.data[3] == [xs[1], "key_1", ys[1][1]]
+
+
+@pytest.mark.parametrize(
+    ["args", "kwargs", "error"],
+    [
+        [(1, [[3, 4]]), {}, TypeError],
+        [([1], [3]), {}, TypeError],
+        [([1], 3), {}, TypeError],
+        [([[1], [2]], [[3]]), {}, AssertionError],
+        [([1, 2], [[3, 4]]), {"keys": ["a", "b"]}, AssertionError],
+    ],
+)
+def test_line_series_bad_inputs(wandb_init_run, args, kwargs, error):
+    with pytest.raises(error) as e_info:
+        line_series(*args, **kwargs)
+        print(e_info.value)

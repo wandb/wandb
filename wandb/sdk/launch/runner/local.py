@@ -1,28 +1,26 @@
 import logging
 import os
-import re
+import shlex
 import signal
 import subprocess
+import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.errors import CommError, LaunchError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import LaunchProject
-from ..docker import (
-    build_docker_image_if_needed,
-    construct_local_image_uri,
-    docker_image_exists,
-    docker_image_inspect,
-    generate_docker_base_image,
-    get_full_command,
+from .._project_spec import get_entry_point_command, LaunchProject
+from ..builder.build import (
+    get_env_vars_dict,
     pull_docker_image,
-    validate_docker_installation,
 )
 from ..utils import (
+    _is_wandb_dev_uri,
+    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    sanitize_wandb_api_key,
 )
 
 
@@ -71,111 +69,77 @@ class LocalSubmittedRun(AbstractRun):
         return Status("failed")
 
 
-class LocalRunner(AbstractRunner):
+class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
-        _logger.info("Validating docker installation")
-        validate_docker_installation()
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        entry_point = launch_project.get_single_entry_point()
+        if launch_project.cuda:
+            docker_args["gpus"] = "all"
 
-        entry_cmd = entry_point.command
-        copy_code = True
-        if launch_project.docker_image:
-            _logger.info("Pulling user provided docker image")
-            pull_docker_image(launch_project.docker_image)
-            copy_code = False
-        else:
-            # TODO: potentially pull the base_image
-            if not docker_image_exists(launch_project.base_image):
-                if generate_docker_base_image(launch_project, entry_cmd) is None:
-                    raise LaunchError("Unable to build base image")
+        if _is_wandb_local_uri(self._api.settings("base_url")):
+            if sys.platform == "win32":
+                docker_args["net"] = "host"
             else:
-                wandb.termlog(
-                    "Using existing base image: {}".format(launch_project.base_image)
-                )
-                launch_project._update_uid_to_base_image_uid()
+                docker_args["network"] = "host"
+            if sys.platform == "linux" or sys.platform == "linux2":
+                docker_args["add-host"] = "host.docker.internal:host-gateway"
 
-        command_separator = " "
-        command_args = []
+        entry_point = launch_project.get_single_entry_point()
+        env_vars = get_env_vars_dict(launch_project, entry_point, self._api)
 
-        _logger.info("Inspecting base image for env, and working dir...")
-        container_inspect = docker_image_inspect(launch_project.base_image)
-        container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
-        container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
-        if launch_project.docker_image is None or launch_project.build_image:
-            image_uri = construct_local_image_uri(launch_project)
-            command_args = get_full_command(
-                image_uri,
-                launch_project,
-                self._api,
-                container_workdir,
-                docker_args,
-                entry_point,
-            )
-            command_str = command_separator.join(command_args)
+        # When running against local port, need to swap to local docker host
+        if (
+            _is_wandb_local_uri(self._api.settings("base_url"))
+            and sys.platform == "darwin"
+        ):
+            _, _, port = self._api.settings("base_url").split(":")
+            env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
+        elif _is_wandb_dev_uri(self._api.settings("base_url")):
+            env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
 
-            sanitized_command_str = re.sub(
-                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
-            )
-
-            _logger.info("Building docker image...")
-            build_docker_image_if_needed(
-                launch_project=launch_project,
-                api=self._api,
-                copy_code=copy_code,
-                workdir=container_workdir,
-                container_env=container_env,
-                runner_type="local",
-                image_uri=image_uri,
-                command_args=command_args,
-            )
-        else:
-            # TODO: rewrite env vars and copy code in supplied docker image
-            wandb.termwarn(
-                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
-                    launch_project.docker_image
-                )
-            )
+        if launch_project.docker_image:
+            # user has provided their own docker image
             image_uri = launch_project.docker_image
-            _logger.info("Getting docker command...")
-            command_args = get_full_command(
-                image_uri,
+            pull_docker_image(image_uri)
+            env_vars.pop("WANDB_RUN_ID")
+            # if they've given an override to the entrypoint
+            entry_cmd = get_entry_point_command(
+                entry_point, launch_project.override_args
+            )
+            command_str = " ".join(
+                get_docker_command(image_uri, env_vars, entry_cmd, docker_args)
+            ).strip()
+        else:
+            assert entry_point is not None
+            repository: Optional[str] = registry_config.get("url")
+            image_uri = builder.build_image(
                 launch_project,
-                self._api,
-                container_workdir,
-                docker_args,
+                repository,
                 entry_point,
+                docker_args,
             )
-            command_str = command_separator.join(command_args)
-            sanitized_command_str = re.sub(
-                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
-            )
+            command_str = " ".join(
+                get_docker_command(image_uri, env_vars, [""], docker_args)
+            ).strip()
 
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                _logger.info("Acking run queue item...")
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return None
-
-        wandb.termlog(
-            "Launching run in docker with command: {}".format(sanitized_command_str)
-        )
+        if not self.ack_run_queue_item(launch_project):
+            return None
+        sanitized_cmd_str = sanitize_wandb_api_key(command_str)
+        wandb.termlog(f"Launching run in docker with command: {sanitized_cmd_str}")
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()
         return run
 
 
-def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -185,6 +149,8 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     Returns:
         An instance of `LocalSubmittedRun`
     """
+    if work_dir is None:
+        work_dir = os.getcwd()
     env = os.environ.copy()
     if os.name == "nt":
         # we are running on windows
@@ -193,7 +159,56 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)
+
+
+def get_docker_command(
+    image: str,
+    env_vars: Dict[str, str],
+    entry_cmd: List[str],
+    docker_args: Dict[str, Any] = None,
+) -> List[str]:
+    """Constructs the docker command using the image and docker args.
+
+    Arguments:
+    image: a Docker image to be run
+    env_vars: a dictionary of environment variables for the command
+    entry_cmd: the entry point command to run
+    docker_args: a dictionary of additional docker args for the command
+    """
+    docker_path = "docker"
+    cmd: List[Any] = [docker_path, "run", "--rm"]
+
+    # hacky handling of env vars, needs to be improved
+    for env_key, env_value in env_vars.items():
+        cmd += ["-e", f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
+
+    if docker_args:
+        for name, value in docker_args.items():
+            # Passed just the name as boolean flag
+            if isinstance(value, bool) and value:
+                if len(name) == 1:
+                    cmd += ["-" + shlex.quote(name)]
+                else:
+                    cmd += ["--" + shlex.quote(name)]
+            else:
+                # Passed name=value
+                if len(name) == 1:
+                    cmd += ["-" + shlex.quote(name), shlex.quote(str(value))]
+                else:
+                    cmd += ["--" + shlex.quote(name), shlex.quote(str(value))]
+
+    cmd += [shlex.quote(image)]
+    cmd += entry_cmd
+    return cmd
+
+
+def join(split_command: List[str]) -> str:
+    """Return a shell-escaped string from *split_command*."""
+    return " ".join(shlex.quote(arg) for arg in split_command)

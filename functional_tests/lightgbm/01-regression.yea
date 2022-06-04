@@ -1,6 +1,9 @@
 id: 0.lightgbm.01-regression
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: mac
 depend:
   requirements:
     - lightgbm

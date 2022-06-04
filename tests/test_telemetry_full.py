@@ -37,10 +37,25 @@ def test_telemetry_imports_hf(runner, live_mock_server, parse_ctx):
             assert telemetry and 11 in telemetry.get("2", [])
 
 
+def test_telemetry_imports_catboost(runner, live_mock_server, parse_ctx):
+    with runner.isolated_filesystem():
+        with mock.patch.dict("sys.modules", {"catboost": mock.Mock()}):
+            import catboost
+
+            run = wandb.init()
+            run.finish()
+
+            ctx_util = parse_ctx(live_mock_server.get_ctx())
+            telemetry = ctx_util.telemetry
+
+            # catboost in both init and finish modules
+            assert telemetry and 7 in telemetry.get("1", [])
+            assert telemetry and 7 in telemetry.get("2", [])
+
+
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
 )
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="jax has no py3.10 wheel")
 def test_telemetry_imports_jax(runner, live_mock_server, parse_ctx):
     with runner.isolated_filesystem():
         import jax

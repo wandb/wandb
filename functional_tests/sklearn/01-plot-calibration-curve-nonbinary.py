@@ -5,9 +5,15 @@ Reproduction for WB-6749.
 
 ---
 id: 0.sklearn.01-plot-calibration-curve-nonbinary
+tag:
+  shard: sklearn
 plugin:
   - wandb
 depend:
+  requirements:
+    - numpy
+    - pandas
+    - scikit-learn
   files:
     - file: wine.csv
       source: https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv
@@ -64,3 +70,5 @@ wandb.sklearn.plot_calibration_curve(model, X_train, y_train, "RandomForestClass
 print(model.n_features_)
 
 outs = model.predict(X_train)
+
+run.finish()

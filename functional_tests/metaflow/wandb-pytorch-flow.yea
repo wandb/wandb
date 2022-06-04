@@ -1,6 +1,18 @@
 id: metaflow.pytorch.base
 plugin:
   - wandb
+depend:
+  pip_install_options:
+    - --extra-index-url
+    - https://download.pytorch.org/whl/cpu
+  requirements:
+    - "metaflow>=2.3.5"
+    - "torch"
+    - "torchvision"
+tag:
+  shard: metaflow
+  skips:
+    - platform: win
 command:
     args:
         - --no-pylint
