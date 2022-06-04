@@ -7,6 +7,11 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+  #  - repo: https://github.com/pycqa/isort
+  #    rev: 5.5.2
+  #    hooks:
+  #      - id: isort
+  #        args: ["--profile", "black", "--filter-files"]
   - repo: https://github.com/psf/black
     rev: 22.3.0
     hooks:
@@ -20,7 +25,3 @@ repos:
     rev: v1.12.1
     hooks:
       - id: blacken-docs
-  - repo: https://github.com/pycqa/isort
-    rev: 5.5.2
-    hooks:
-      - id: isort
