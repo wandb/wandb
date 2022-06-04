@@ -1994,6 +1994,7 @@ class Run:
     def _create_repo_job(self):
         """Create a job from a repo"""
         import pkg_resources
+
         name = f"{self._remote_url}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
@@ -2011,7 +2012,10 @@ class Run:
             "source_type": "repo",
             "repo": self._remote_url,
             "commit": self._last_commit,
-            "entrypoint": self._settings.program_relpath,
+            "entrypoint": [
+                sys.executable.split("/")[-1],
+                self._settings.program_relpath,
+            ],
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
@@ -2027,6 +2031,7 @@ class Run:
     def _create_artifact_job(self) -> None:
         """Create a job from an artifact"""
         import pkg_resources
+
         ca = self._code_artifact.wait()
         aname, tag = ca.name.split(":")
         name = f"{aname}_{self._settings.program}"
@@ -2045,7 +2050,10 @@ class Run:
         source_info = {
             "source_type": "artifact",
             "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}:{tag}",
-            "entrypoint": self._settings.program_relpath,
+            "entrypoint": [
+                sys.executable.split("/")[-1],
+                self._settings.program_relpath,
+            ],
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
@@ -2063,29 +2071,30 @@ class Run:
 
     def _create_container_job(self) -> None:
         name = os.getenv("WANDB_DOCKER")
-        entrypoint = self._settings.program
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
         output_types = summary_to_types(self.summary)
-        requirements_path = os.path.join(self._settings.files_dir, "requirements.frozen.txt")
+        requirements_path = os.path.join(
+            self._settings.files_dir, "requirements.frozen.txt"
+        )
         if os.path.exists(requirements_path):
             job_artifact.add_file(requirements_path)
 
         backup = None
         if self._remote_url and self._last_commit:
             backup = {
-            "source_type": "repo",
-            "repo": self._remote_url,
-            "commit": self._last_commit,
-            "entrypoint": self._settings.program_relpath,
-        }
+                "source_type": "repo",
+                "repo": self._remote_url,
+                "commit": self._last_commit,
+                "entrypoint": [sys.executable, self._settings.program_relpath],
+            }
         elif self._code_artifact:
             ca = self._code_artifact.wait()
             aname = ca.name.split(":")[0]
             backup = {
                 "source_type": "artifact",
                 "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}",
-                "entrypoint": self._settings.program_relpath,
+                "entrypoint": [sys.executable, self._settings.program_relpath],
             }
 
         source_info = {

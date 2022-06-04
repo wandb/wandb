@@ -2134,6 +2134,7 @@ class QueuedRun(Attrs):
         self.sweep = None
         self._state = attrs.get("state", "not found")
         self._run = None
+        print("finished init")
 
     @property
     def run(self):
@@ -2261,6 +2262,8 @@ class QueuedRun(Attrs):
     # TODO: FIX
     @normalize_exceptions
     def wait_until_finished(self):
+        if not self._run:
+            self.wait_until_running()
         query = gql(
             """
             query RunState($project: String!, $entity: String!, $name: String!) {
@@ -2393,6 +2396,13 @@ class QueuedRun(Attrs):
                 "name": self._run.id,
             }
             variables.update(kwargs)
+        else:
+            variables = {
+                "entity": self.entity,
+                "project": self.project,
+            }
+            variables.update(kwargs)
+        print(query)
         return self.client.execute(query, variable_values=variables)
 
     def _sampled_history(self, keys, x_axis="_step", samples=500):
@@ -2741,7 +2751,7 @@ class QueuedRun(Attrs):
                                 node {
                                     id
                                     state
-                                    resultingRunId
+                                    associatedRunId
                                 }
                             }
                         }
@@ -2753,15 +2763,15 @@ class QueuedRun(Attrs):
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self._queue,
+            "runQueue": self.queue,
         }
 
         while True:
             res = self.client.execute(query, variable_values)
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
-                    item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["resultingRunId"] is not None
+                    item["node"]["id"] == self.run_queue_item_id
+                    and item["node"]["associatedRunId"] is not None
                 ):
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
@@ -5111,7 +5121,6 @@ class ArtifactFiles(Paginator):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
 
 
-
 class Job(Media):
     _log_type = "job"
 
@@ -5122,12 +5131,7 @@ class Job(Media):
     _project: str
     _entrypoint: List[str]
 
-    def __init__(
-        self,
-        client: Api,
-        name,
-        path: str = None
-    ) -> None:
+    def __init__(self, client: Api, name, path: str = None) -> None:
 
         self._job_artifact = client.artifact(name, type="job")
         if path:
@@ -5152,12 +5156,11 @@ class Job(Media):
         if self._source_info.get("source_type") == "image":
             self._set_configure_launch_project(self._configure_launch_project_container)
 
-
     def _set_configure_launch_project(self, func):
         self.configure_launch_project = func
 
     def _configure_launch_project_artifact(self, launch_project):
-        artifact_name = self._source_info.get("artifact")[len("wandb-artiact://")+1:]
+        artifact_name = self._source_info.get("artifact")[len("wandb-artiact://") + 1 :]
         code_artifact = self._client.artifact(artifact_name, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
@@ -5165,22 +5168,22 @@ class Job(Media):
         frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
         print(os.listdir(self._fpath))
         shutil.copy(frozen_requirements_path, launch_project.project_dir)
-        launch_project.add_entry_point(f"python {self._entrypoint}")
+        launch_project.add_entry_point(self._entrypoint)
         # TODO: handle args??
 
     def _configure_launch_project_repo(self, launch_project):
         _fetch_git_repo(
-                    launch_project.project_dir,
-                    self._source_info["remote"],
-                    self._source_info["commit"],
-                )
+            launch_project.project_dir,
+            self._source_info["remote"],
+            self._source_info["commit"],
+        )
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):
             with open(os.path.join(self._fpath, "diff.patch")) as f:
                 apply_patch(f.read(), launch_project.project_dir)
         launch_project.build_image = True
         frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
         shutil.copy(frozen_requirements_path, launch_project.project_dir)
-        launch_project.add_entry_point(f"python {self._entrypoint}")
+        launch_project.add_entry_point(self._entrypoint)
         # TODO: handle args??
 
     def _configure_launch_project_container(self, launch_project):
@@ -5197,11 +5200,10 @@ class Job(Media):
         self._entrypoint = entrypoint
 
     def call(self, config, project=None, entity=None, queue=None, resource="local"):
+        print("Called cal;")
         from wandb.sdk.launch import launch_add
 
         run_config = self._config_defaults().copy()
-
-
 
         run_config.update(config)
         # assigned_config_type = self._input_types.assign(run_config)
