@@ -2134,7 +2134,6 @@ class QueuedRun(Attrs):
         self.sweep = None
         self._state = attrs.get("state", "not found")
         self._run = None
-        print("finished init")
 
     @property
     def run(self):
@@ -2144,15 +2143,18 @@ class QueuedRun(Attrs):
     def state(self):
         if self._run:
             return self._run.state
-        raise ValueError("Run not found")
 
     @property
     def entity(self):
+        if self._run:
+            return self._run.entity
         return self._entity
 
     @property
     def username(self):
         wandb.termwarn("Run.username is deprecated. Please use Run.entity instead.")
+        if self._run:
+            return self._run.entity
         return self._entity
 
     @property
@@ -2259,31 +2261,12 @@ class QueuedRun(Attrs):
         self._run._attrs["rawconfig"] = config_raw
         return self._run._attrs
 
-    # TODO: FIX
     @normalize_exceptions
     def wait_until_finished(self):
         if not self._run:
             self.wait_until_running()
-        query = gql(
-            """
-            query RunState($project: String!, $entity: String!, $name: String!) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $name) {
-                        state
-                    }
-                }
-            }
-        """
-        )
-        while True:
-            res = self._exec(query)
-            state = res["project"]["run"]["state"]
-            if state in ["finished", "crashed", "failed"]:
-                print(f"Run finished with status: {state}")
-                self._attrs["state"] = state
-                self._state = state
-                return
-            time.sleep(5)
+        self._run.wait_until_finished()
+        return self._run
 
     @normalize_exceptions
     def update(self):
@@ -2292,30 +2275,8 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        mutation = gql(
-            """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
-            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}) {
-                bucket {
-                    ...RunFragment
-                }
-            }
-        }
-        %s
-        """
-            % RUN_FRAGMENT
-        )
-        _ = self._exec(
-            mutation,
-            id=self._run.storage_id,
-            tags=self._run.tags,
-            description=self._run.description,
-            notes=self._run.notes,
-            display_name=self._run.display_name,
-            config=self._run.json_config,
-            groupName=self._run.group,
-        )
-        self._run.summary.update()
+        else:
+            self._run.update()
 
     @normalize_exceptions
     def delete(self, delete_artifacts=False):
@@ -2342,50 +2303,18 @@ class QueuedRun(Attrs):
                 },
             )
         else:
-            mutation = gql(
-                """
-                mutation DeleteRun(
-                    $id: ID!,
-                    %s
-                ) {
-                    deleteRun(input: {
-                        id: $id,
-                        %s
-                    }) {
-                        clientMutationId
-                    }
-                }
-            """
-                %
-                # Older backends might not support the 'deleteArtifacts' argument,
-                # so only supply it when it is explicitly set.
-                (
-                    "$deleteArtifacts: Boolean" if delete_artifacts else "",
-                    "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
-                )
-            )
-
-            self.client.execute(
-                mutation,
-                variable_values={
-                    "id": self.storage_id,
-                    "deleteArtifacts": delete_artifacts,
-                },
-            )
+            self._run.delete(delete_artifacts=delete_artifacts)
 
     def save(self):
         if self._run is None:
             raise ValueError("Run not found")
-        self._run.update()
+        self._run.save()
 
     @property
     def json_config(self):
         if self._run is None:
             raise ValueError("Run not found")
-        config = {}
-        for k, v in self._run.config.items():
-            config[k] = {"value": v, "desc": None}
-        return json.dumps(config)
+        return self._run.json_config
 
     def _exec(self, query, **kwargs):
         """Execute a query against the cloud backend"""
@@ -2402,44 +2331,18 @@ class QueuedRun(Attrs):
                 "project": self.project,
             }
             variables.update(kwargs)
-        print(query)
+
         return self.client.execute(query, variable_values=variables)
 
     def _sampled_history(self, keys, x_axis="_step", samples=500):
         if self._run is None:
             raise ValueError("Run not found")
-        spec = {"keys": [x_axis] + keys, "samples": samples}
-        query = gql(
-            """
-        query RunSampledHistory($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { sampledHistory(specs: $specs) }
-            }
-        }
-        """
-        )
-
-        response = self._exec(query, specs=[json.dumps(spec)])
-        # sampledHistory returns one list per spec, we only send one spec
-        return response["project"]["run"]["sampledHistory"][0]
+        self._run._sampled_history(keys, x_axis, samples)
 
     def _full_history(self, samples=500, stream="default"):
         if self._run is None:
             raise ValueError("Run not found")
-        node = "history" if stream == "default" else "events"
-        query = gql(
-            """
-        query RunFullHistory($project: String!, $entity: String!, $name: String!, $samples: Int) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { %s(samples: $samples) }
-            }
-        }
-        """
-            % node
-        )
-
-        response = self._exec(query, samples=samples)
-        return [json.loads(line) for line in response["project"]["run"][node]]
+        return self._run._full_history(samples, stream)
 
     @normalize_exceptions
     def files(self, names=[], per_page=50):
@@ -2453,7 +2356,7 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        return Files(self.client, self, names, per_page)
+        self._run.files(names, per_page)
 
     @normalize_exceptions
     def file(self, name):
@@ -2466,7 +2369,7 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        return Files(self.client, self, [name])[0]
+        return self._run.file(name)
 
     @normalize_exceptions
     def upload_file(self, path, root="."):
@@ -2482,16 +2385,7 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        api = InternalApi(
-            default_settings={"entity": self._run.entity, "project": self._run.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self._run.id)
-        root = os.path.abspath(root)
-        name = os.path.relpath(path, root)
-        with open(os.path.join(root, name), "rb") as f:
-            api.push({util.to_forward_slash_path(name): f})
-        return Files(self.client, self._run, [name])[0]
+        return self._run.upload_file(path, root)
 
     @normalize_exceptions
     def history(
@@ -2514,27 +2408,7 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        if keys is not None and not isinstance(keys, list):
-            wandb.termerror("keys must be specified in a list")
-            return []
-        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
-            wandb.termerror("keys argument must be a list of strings")
-            return []
-
-        if keys and stream != "default":
-            wandb.termerror("stream must be default when specifying keys")
-            return []
-        elif keys:
-            lines = self._sampled_history(keys=keys, x_axis=x_axis, samples=samples)
-        else:
-            lines = self._full_history(samples=samples, stream=stream)
-        if pandas:
-            pandas = util.get_module("pandas")
-            if pandas:
-                lines = pandas.DataFrame.from_records(lines)
-            else:
-                print("Unable to load pandas, call history with pandas=False")
-        return lines
+        return self._run.history(samples, keys, x_axis, pandas, stream)
 
     @normalize_exceptions
     def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
@@ -2560,51 +2434,21 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        if keys is not None and not isinstance(keys, list):
-            wandb.termerror("keys must be specified in a list")
-            return []
-        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
-            wandb.termerror("keys argument must be a list of strings")
-            return []
-
-        last_step = self.lastHistoryStep
-        # set defaults for min/max step
-        if min_step is None:
-            min_step = 0
-        if max_step is None:
-            max_step = last_step + 1
-        # if the max step is past the actual last step, clamp it down
-        if max_step > last_step:
-            max_step = last_step + 1
-        if keys is None:
-            return HistoryScan(
-                run=self._run,
-                client=self.client,
-                page_size=page_size,
-                min_step=min_step,
-                max_step=max_step,
-            )
-        else:
-            return SampledHistoryScan(
-                run=self._run,
-                client=self.client,
-                keys=keys,
-                page_size=page_size,
-                min_step=min_step,
-                max_step=max_step,
-            )
+        return self._run.scan_history(
+            keys=keys, page_size=page_size, min_step=min_step, max_step=max_step
+        )
 
     @normalize_exceptions
     def logged_artifacts(self, per_page=100):
         if self._run is None:
             raise ValueError("Run not found")
-        return RunArtifacts(self.client, self._run, mode="logged", per_page=per_page)
+        return self._run.logged_artifacts(per_page=per_page)
 
     @normalize_exceptions
     def used_artifacts(self, per_page=100):
         if self._run is None:
             raise ValueError("Run not found")
-        return RunArtifacts(self.client, self._run, mode="used", per_page=per_page)
+        return self._run.used_artifacts(per_page=per_page)
 
     @normalize_exceptions
     def use_artifact(self, artifact, use_as=None):
@@ -2623,22 +2467,7 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        api = InternalApi(
-            default_settings={"entity": self._run.entity, "project": self._run.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self._run.id)
-
-        if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
-            return artifact
-        elif isinstance(artifact, wandb.Artifact):
-            raise ValueError(
-                "Only existing artifacts are accepted by this api. "
-                "Manually create one with `wandb artifacts put`"
-            )
-        else:
-            raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
+        self._run.use_artifact(artifact, use_as=use_as)
 
     @normalize_exceptions
     def log_artifact(self, artifact, aliases=None):
@@ -2653,91 +2482,37 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError("Run not found")
-        api = InternalApi(
-            default_settings={"entity": self._run.entity, "project": self._run.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self.id)
-
-        if isinstance(artifact, Artifact):
-            artifact_collection_name = artifact.name.split(":")[0]
-            api.create_artifact(
-                artifact.type,
-                artifact_collection_name,
-                artifact.digest,
-                aliases=aliases,
-            )
-            return artifact
-        elif isinstance(artifact, wandb.Artifact):
-            raise ValueError(
-                "Only existing artifacts are accepted by this api. "
-                "Manually create one with `wandb artifacts put`"
-            )
-        else:
-            raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
+        self._run.log_artifact(artifact, aliases=aliases)
 
     @property
     def summary(self):
         if self._run is None:
             raise ValueError("Run not found")
-        if self._run._summary is None:
-            # TODO: fix the outdir issue
-            self._run._summary = HTTPSummary(
-                self._run, self.client, summary=self._run.summary_metrics
-            )
-        return self._summary
+        return self._run.summary
 
     @property
     def path(self):
         if self._run is None:
             raise ValueError("Run not found")
-        return [
-            urllib.parse.quote_plus(str(self._run.entity)),
-            urllib.parse.quote_plus(str(self._run.project)),
-            urllib.parse.quote_plus(str(self._run.id)),
-        ]
+        return self._run.path
 
     @property
     def url(self):
-        path = self._run.path
-        path.insert(2, "runs")
-        return self.client.app_url + "/".join(path)
+        if self._run is None:
+            raise ValueError("Run not found")
+        return self._run.url
 
     @property
     def lastHistoryStep(self):  # noqa: N802
         if self._run is None:
             raise ValueError("Run not found")
-        query = gql(
-            """
-        query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { historyKeys }
-            }
-        }
-        """
-        )
-        response = self._exec(query)
-        if (
-            response is None
-            or response.get("project") is None
-            or response["project"].get("run") is None
-            or response["project"]["run"].get("historyKeys") is None
-        ):
-            return -1
-        history_keys = response["project"]["run"]["historyKeys"]
-        return history_keys["lastStep"] if "lastStep" in history_keys else -1
+        return self._run.lastHistoryStep
 
     def to_html(self, height=420, hidden=False):
         """Generate HTML containing an iframe displaying this run"""
         if self._run is None:
             raise ValueError("Run not found")
-        url = self._run.url + "?jupyter=true"
-        style = f"border:none;width:100%;height:{height}px;"
-        prefix = ""
-        if hidden:
-            style += "display:none;"
-            prefix = ipython.toggle_button()
-        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+        return self._run.to_html(height, hidden)
 
     @normalize_exceptions
     def wait_until_running(self):
@@ -2773,45 +2548,30 @@ class QueuedRun(Attrs):
                     item["node"]["id"] == self.run_queue_item_id
                     and item["node"]["associatedRunId"] is not None
                 ):
+                    print("getting Run")
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
-                        Run(
+                        self._run = Run(
                             self.client,
                             self._entity,
                             self.project,
-                            item["node"]["resultingRunId"],
+                            item["node"]["associatedRunId"],
                         )
-                        self._run_id = item["node"]["resultingRunId"]
-                        return
-                    except ValueError:
+                        self._run_id = item["node"]["associatedRunId"]
+                        return self._run
+                    except ValueError as e:
+                        print(e)
                         continue
+
             time.sleep(5)
 
     def _repr_html_(self) -> str:
-
         return self.to_html()
 
     def __repr__(self):
         if self._run is None:
             return "<QueuedRun {} ({})".format(self.run_queue_item_id, self.queue)
         return "<Run {} ({})>".format("/".join(self.path), self.state)
-
-
-# class QueuedRun(Run):
-#     def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-#         super().__init__(dict(attrs))
-#         self.client = client
-#         self._entity = entity
-#         self.project = project
-#         self._queue = queue
-#         self._run_queue_item_id = run_queue_item_id
-#         self._run_id = None
-
-#     @property
-#     def run(self):
-#         if self._run_id is None:
-#             raise LaunchError("Tried to fetch run without having run_id")
-#         return Run(self.client, self._entity, self.project, self._run_id)
 
 
 class Sweep(Attrs):
