@@ -1351,4 +1351,3 @@ class TestRunSetSetters:
 # class TestPanels:
 #     def test_line_plot(self, panel_grid):
 #         p = wb.LinePlot(panel_grid)
-    
