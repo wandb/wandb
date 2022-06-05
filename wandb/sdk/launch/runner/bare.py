@@ -45,20 +45,26 @@ class LocalProcessRunner(AbstractRunner):
 
         cmd: List[Any] = []
 
-        if launch_project.uri is None:
+        if launch_project.uri is None and launch_project.job is None:
             raise LaunchError("Launch LocalProcessRunner received empty project uri")
         if launch_project.project_dir is None:
             raise LaunchError("Launch LocalProcessRunner received empty project dir")
 
         # Check to make sure local python dependencies match run's requirement.txt
-        source_entity, source_project, run_name = parse_wandb_uri(launch_project.uri)
-        validate_wandb_python_deps(
-            source_entity,
-            source_project,
-            run_name,
-            self._api,
-            launch_project.project_dir,
-        )
+        if launch_project.uri:
+            source_entity, source_project, run_name = parse_wandb_uri(
+                launch_project.uri
+            )
+            validate_wandb_python_deps(
+                source_entity,
+                source_project,
+                run_name,
+                self._api,
+                launch_project.project_dir,
+            )
+        else:
+            # TODO: validate deps
+            pass
 
         env_vars = get_env_vars_dict(launch_project, None, self._api)
         for env_key, env_value in env_vars.items():

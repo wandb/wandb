@@ -1537,8 +1537,9 @@ def artifact_to_json(
 
     return {
         "_type": "artifactVersion",
-        "_version": "v0",
+        "_version": "v1",
         "id": artifact.id,
+        "digest": artifact.digest,
         "version": artifact.version,
         "sequenceName": sequence_name,
         "usedAs": artifact._use_as,
@@ -1640,6 +1641,10 @@ def _is_artifact(v: Any) -> bool:
 
 def _is_artifact_string(v: Any) -> bool:
     return isinstance(v, str) and v.startswith("wandb-artifact://")
+
+
+def _is_artifact_dict(v: Any) -> bool:
+    return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
 def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:

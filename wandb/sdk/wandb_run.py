@@ -45,6 +45,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.util import (
+    _is_artifact_dict,
     _is_artifact_string,
     _is_py_path,
     add_import_hook,
@@ -1146,10 +1147,15 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact]
     ) -> Union[Artifact, public.Artifact]:
-        if _is_artifact_string(val):
+        if _is_artifact_dict(val):
+            public_api = self._public_api()
+            artifact = public.Artifact.from_id(val["id"], public_api.client)
+            return self.use_artifact(artifact, use_as=key)
+        elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
             artifact_string, base_url = parse_artifact_string(val)
+            print("ARTIFACT STRING", artifact_string)
             overrides = {}
             if base_url is not None:
                 overrides = {"base_url": base_url}

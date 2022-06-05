@@ -792,6 +792,7 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
+        print("ARTIFACT NAME", artifact_name)
         artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
             raise ValueError(
@@ -2144,6 +2145,36 @@ class QueuedRun(Attrs):
         if self._run:
             return self._run.state
 
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue,
+        }
+        res = self.client.execute(query, variable_values)
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            if item["node"]["id"] == self.run_queue_item_id:
+                return item["node"]["state"].lower()
+        raise ValueError("Could not find QueuedRun associated run_id")
+
     @property
     def entity(self):
         if self._run:
@@ -2152,7 +2183,9 @@ class QueuedRun(Attrs):
 
     @property
     def username(self):
-        wandb.termwarn("Run.username is deprecated. Please use Run.entity instead.")
+        wandb.termwarn(
+            "QueuedRun.username is deprecated. Please use Run.entity instead."
+        )
         if self._run:
             return self._run.entity
         return self._entity
@@ -2516,6 +2549,8 @@ class QueuedRun(Attrs):
 
     @normalize_exceptions
     def wait_until_running(self):
+        if self._run is not None:
+            return self._run
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -2548,7 +2583,6 @@ class QueuedRun(Attrs):
                     item["node"]["id"] == self.run_queue_item_id
                     and item["node"]["associatedRunId"] is not None
                 ):
-                    print("getting Run")
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
                         self._run = Run(
@@ -2561,7 +2595,6 @@ class QueuedRun(Attrs):
                         return self._run
                     except ValueError as e:
                         print(e)
-                        continue
 
             time.sleep(5)
 
