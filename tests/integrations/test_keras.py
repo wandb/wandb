@@ -1,9 +1,6 @@
 import pytest
 import sys
 
-if sys.version_info >= (3, 9):
-    pytest.importorskip("tensorflow")
-
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (
@@ -316,7 +313,6 @@ def test_keras_log_gradients(
     assert ctx_util.history[0]["gradients/dense/bias.gradient"]["_type"] == "histogram"
 
 
-#  @pytest.mark.skip(reason="Coverage insanity error: sqlite3.OperationalError: unable to open database file")
 def test_keras_save_model(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(
         *dummy_data,

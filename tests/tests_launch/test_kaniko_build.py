@@ -10,7 +10,7 @@ from google.cloud import storage
 import kubernetes
 import wandb
 from wandb.errors import LaunchError
-from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko import (
     KanikoBuilder,
     _create_dockerfile_configmap,
@@ -413,7 +413,8 @@ def test_build_image_success(
             {},
             None,
         )
-        image_uri = builder.build_image(project, "repository-url", None, {})
+        entry_point = EntryPoint("main.py", ["python", "main.py"])
+        image_uri = builder.build_image(project, "repository-url", entry_point, {})
         assert "cleaning up resources" in capsys.readouterr().err
         assert image_uri == f"repository-url:{project.run_id}"
 

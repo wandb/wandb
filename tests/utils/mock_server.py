@@ -1549,7 +1549,7 @@ def create_app(user_ctx=None):
             return {"data": {"deleteApiKey": {"success": True}}}
         if "mutation GenerateApiKey" in body["query"]:
             return {
-                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Z" * 40}}}
             }
         if "mutation DeleteInvite" in body["query"]:
             return {"data": {"deleteInvite": {"success": True}}}

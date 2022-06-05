@@ -20,12 +20,12 @@ from ..utils import (
 _logger = logging.getLogger(__name__)
 
 
-class BareRunner(AbstractRunner):
+class LocalProcessRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun.
 
-    BareRunner is very similar to a LocalRunner, except it does not
+    LocalProcessRunner is very similar to a LocalContainerRunner, except it does not
     run the command inside a docker container. Instead, it runs the
-    command specified directly on the BARE machine.
+    command specified as a process directly on the bare metal machine.
 
     """
 
@@ -36,9 +36,9 @@ class BareRunner(AbstractRunner):
         **kwargs,
     ) -> Optional[AbstractRun]:
         if args is not None:
-            _logger.warning(f"BareRunner.run received unused args {args}")
+            _logger.warning(f"LocalProcessRunner.run received unused args {args}")
         if kwargs is not None:
-            _logger.warning(f"BareRunner.run received unused kwargs {kwargs}")
+            _logger.warning(f"LocalProcessRunner.run received unused kwargs {kwargs}")
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         entry_point = launch_project.get_single_entry_point()
@@ -46,9 +46,9 @@ class BareRunner(AbstractRunner):
         cmd: List[Any] = []
 
         if launch_project.uri is None:
-            raise LaunchError("Launch BareRunner received empty project uri")
+            raise LaunchError("Launch LocalProcessRunner received empty project uri")
         if launch_project.project_dir is None:
-            raise LaunchError("Launch BareRunner received empty project dir")
+            raise LaunchError("Launch LocalProcessRunner received empty project dir")
 
         # Check to make sure local python dependencies match run's requirement.txt
         source_entity, source_project, run_name = parse_wandb_uri(launch_project.uri)
@@ -60,7 +60,7 @@ class BareRunner(AbstractRunner):
             launch_project.project_dir,
         )
 
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(launch_project, None, self._api)
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
 
@@ -68,7 +68,7 @@ class BareRunner(AbstractRunner):
             return None
 
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-        cmd += [entry_cmd]
+        cmd += entry_cmd
 
         command_str = " ".join(cmd).strip()
         wandb.termlog(
