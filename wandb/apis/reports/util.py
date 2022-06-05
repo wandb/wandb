@@ -1,8 +1,8 @@
 from abc import ABC
 from collections import UserList
-from typing import *
+from typing import List
 
-from .validators import *
+from wandb.apis.reports.validators import type_validate
 
 UNDEFINED_TYPE = object()
 NOT_SETABLE = None
@@ -56,12 +56,14 @@ class Attr:
         fset: callable = base_fset,
         fdel: callable = None,
         doc: str = None,
-        validators: List[callable] = [],
+        validators: List[callable] = None,
     ):
         self.attr_type = attr_type
         self.fget = fget
         self.fset = fset
         self.fdel = fdel
+        if validators is None:
+            validators = []
         if not isinstance(validators, list):
             validators = [validators]
         self.validators = validators  # + [type_validate]
@@ -95,9 +97,9 @@ class Attr:
             validator(self, value)
 
 
-def sort_layouts(l):
-    x = l["x"] + l["w"]
-    y = l["y"] + l["h"]
+def sort_layouts(layout):
+    x = layout["x"] + layout["w"]
+    y = layout["y"] + layout["h"]
     return y, x
 
 

@@ -19,13 +19,27 @@ __all__ = [
 ]
 
 from functools import wraps
-from typing import *
+from typing import List, Union
 
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
-from ._panel_helpers import *
-from .util import *
-from .validators import *
+from ._panel_helpers import LineKey, RGBA
+from .util import Attr, generate_name, is_none, SubclassOnlyABC, UNDEFINED_TYPE
+from .validators import (
+    AGGFUNCS,
+    between,
+    CODE_COMPARE_DIFF,
+    elem_types,
+    FONT_SIZES,
+    LEGEND_POSITIONS,
+    length,
+    LINEPLOT_STYLES,
+    MARKS,
+    one_of,
+    RANGEFUNCS,
+    SMOOTHING_TYPES,
+    type_validate,
+)
 
 
 def panel_grid_callback(f):
@@ -137,7 +151,7 @@ class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
 
         try:
             params = new_layout.items()
-        except:
+        except AttributeError:
             raise TypeError(f"Layout must be a dict (got {type(new_layout)!r})")
 
         required_keys = {"x", "y", "w", "h"}
@@ -152,7 +166,9 @@ class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
 
         for k, v in params:
             if not isinstance(v, int):
-                raise TypeError(f"Layout dimensions must be of {int} (got {type(v)!r})")
+                raise TypeError(
+                    f"Layout dimensions must be of {int} (got {k}={type(v)!r})"
+                )
         self._spec["layout"] = new_layout
 
 

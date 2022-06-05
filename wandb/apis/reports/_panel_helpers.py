@@ -1,10 +1,10 @@
 __all__ = ["LineKey", "RGBA"]
 
-import re
 from dataclasses import dataclass
+import re
 
-from .util import *
-from .validators import *
+from wandb.apis.reports.util import Attr
+from wandb.apis.reports.validators import between
 
 
 @dataclass
