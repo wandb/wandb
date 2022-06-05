@@ -756,8 +756,8 @@ class WandBJSONEncoder(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
         if hasattr(obj, "json_encode"):
             return obj.json_encode()
-        # if hasattr(obj, 'to_json'):
-        #     return obj.to_json()
+        if hasattr(obj, "to_json"):
+            return obj.to_json(wandb.run)
         tmp_obj, converted = json_friendly(obj)
         if converted:
             return tmp_obj

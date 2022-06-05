@@ -1155,7 +1155,6 @@ class Run:
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
             artifact_string, base_url = parse_artifact_string(val)
-            print("ARTIFACT STRING", artifact_string)
             overrides = {}
             if base_url is not None:
                 overrides = {"base_url": base_url}
