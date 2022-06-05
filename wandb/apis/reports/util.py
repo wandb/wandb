@@ -1,7 +1,12 @@
 from abc import ABC
-from typing import List, Union
+from collections import UserList
+from typing import *
 
 from .validators import *
+
+UNDEFINED_TYPE = object()
+NOT_SETABLE = None
+NOT_DELABLE = None
 
 
 def generate_name(length=12):
@@ -20,7 +25,7 @@ def is_none(x):
     if isinstance(x, (list, tuple)):
         return all(v is None for v in x)
     else:
-        return x is None
+        return x is None or x == {}
 
 
 class SubclassOnlyABC(ABC):
@@ -31,22 +36,39 @@ class SubclassOnlyABC(ABC):
         return super(SubclassOnlyABC, cls).__new__(cls)
 
 
+def base_fget(self, instance):
+    return instance.__dict__[self.name]
+
+
+def base_fset(self, instance, value):
+    instance.__dict__[self.name] = value
+
+
 class Attr:
+    """
+    Like property, but with validators and optionally types.
+    """
+
     def __init__(
         self,
-        fget: callable,
-        fset: callable = None,
+        attr_type=UNDEFINED_TYPE,
+        fget: callable = base_fget,
+        fset: callable = base_fset,
         fdel: callable = None,
         doc: str = None,
         validators: List[callable] = [],
     ):
-        # self.json_keys = json_keys
+        self.attr_type = attr_type
         self.fget = fget
         self.fset = fset
         self.fdel = fdel
         if not isinstance(validators, list):
             validators = [validators]
         self.validators = validators  # + [type_validate]
+        if self.attr_type is not UNDEFINED_TYPE:
+            self.validators = [type_validate(attr_type)] + self.validators
+        if doc is None and fget is not None:
+            doc = fget.__doc__
         self.__doc__ = doc
 
     def __get__(self, instance, owner):
@@ -83,5 +105,12 @@ def sort_panels_by_layout(panels):
     return sorted(panels, key=lambda p: sort_layouts(p.layout))
 
 
-NOT_SETABLE = None
-NOT_DELABLE = None
+class CollapsingList(UserList):
+    def __repr__(self):
+        if len(self) > 2:
+            items = self[:2]
+            ending = ", ..."
+        else:
+            items = self
+            ending = ""
+        return "[{}{}]".format(", ".join(repr(i) for i in items), ending)

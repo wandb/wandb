@@ -337,10 +337,21 @@ class TestPublicAPIReportCreation:
             with pytest.raises(result):
                 report = api.report(path)
 
-    def test_report_saving(self, report):
-        # need to mock out the different cases
-        result = report.save()
-        assert isinstance(result, wandb.apis.public.BetaReport)
+    # @pytest.mark.parametrize("clone", [True, False])
+    # def test_save_report(self, report, clone):
+    #     report2 = report.save(clone=clone)
+    #     if clone:
+    #         assert report.id != report2.id
+    #     else:
+    #         assert report.id == report2.id
+    #     assert report.entity == report2.entity
+    #     assert report.project == report2.project
+    #     assert report.description == report2.description
+    #     assert report.title == report2.title
+
+    #     for b1, b2 in zip(report.blocks, report2.blocks):
+    #         if not isinstance(b1, wandb.apis.public.PanelGrid):
+    #             assert b1 == b2
 
 
 @pytest.mark.usefixtures("require_report_editing", "require_v5_reports")
@@ -366,7 +377,7 @@ class TestReportGetters:
         assert report.spec["blocks"] == [block.spec for block in report.blocks]
 
     def test_get_panel_grids(self, report):
-        assert all([isinstance(panel, wb.PanelGrid) for panel in report.panel_grids])
+        assert all([isinstance(pg, wb.PanelGrid) for pg in report.panel_grids])
 
     def test_get_run_sets(self, report):
         all([isinstance(rs, wb.RunSet) for pg in report.run_sets for rs in pg])
@@ -893,6 +904,11 @@ class TestPanelGridGetters:
 
         assert getattr(panel_grid, property) == value_getter(panel_grid.spec, path)
 
+    def test_get_panels(self, panel_grid):
+        assert all(
+            [isinstance(p, wandb.apis.reports._panels.Panel) for p in panel_grid.panels]
+        )
+
 
 @pytest.mark.usefixtures(
     "require_report_editing", "panel_grid_modified", "report_modified"
@@ -919,6 +935,22 @@ class TestPanelGridSetters:
         assert panel_grid.spec["metadata"]["runSets"] == [
             rs.spec for rs in new_run_sets
         ]
+
+    def test_set_panel_layouts(self, panel_grid):
+        panels = [
+            wb.LinePlot(panel_grid),
+            wb.LinePlot(panel_grid),
+            wb.LinePlot(panel_grid),
+            wb.LinePlot(panel_grid),
+            wb.LinePlot(panel_grid),
+            wb.LinePlot(panel_grid),
+            wb.LinePlot(panel_grid),
+        ]
+        panel_grid.panels = panels
+
+        for i, p1 in enumerate(panels):
+            for p2 in panels[i:]:
+                assert wandb.apis.public.collides(p1, p2) is False
 
 
 @pytest.mark.usefixtures("require_report_editing")
@@ -1314,3 +1346,9 @@ class TestRunSetSetters:
             == run_set.query_generator.mongo_to_filter(run_set.filters)
         )
         assert run_set.query_generator.filter_to_mongo(filterspec) == filtermongo
+
+
+# class TestPanels:
+#     def test_line_plot(self, panel_grid):
+#         p = wb.LinePlot(panel_grid)
+    

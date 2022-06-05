@@ -45,7 +45,6 @@ from wandb_gql.transport.requests import RequestsHTTPTransport
 
 from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
 
-
 logger = logging.getLogger(__name__)
 
 # Only retry requests for 20 seconds in the public api
@@ -229,6 +228,52 @@ def _generate_name(length=12):
     rand = int(str(rand)[2:])
     rand36 = np.base_repr(rand, 36)
     return rand36.lower()[:length]
+
+
+def collides(p1, p2):
+    l1, l2 = p1.layout, p2.layout
+
+    if (
+        (p1.spec["__id__"] == p2.spec["__id__"])
+        or (l1["x"] + l1["w"] <= l2["x"])
+        or (l1["x"] >= l2["w"] + l2["x"])
+        or (l1["y"] + l1["h"] <= l2["y"])
+        or (l1["y"] >= l2["y"] + l2["h"])
+    ):
+        return False
+
+    return True
+
+
+def shift(p1, p2):
+    l1, l2 = p1.layout, p2.layout
+
+    x = l1["x"] + l1["w"] - l2["x"]
+    y = l1["y"] + l1["h"] - l2["y"]
+
+    return x, y
+
+
+def fix_collisions(panels):
+    X_MAX = 24
+
+    for i, p1 in enumerate(panels):
+        for p2 in panels[i:]:
+            if collides(p1, p2):
+
+                # try to move right
+                x, y = shift(p1, p2)
+                if p2.layout["x"] + p2.layout["w"] + x <= X_MAX:
+                    p2.layout["x"] += x
+
+                # if you hit right right bound, move down
+                else:
+                    p2.layout["y"] += y
+
+                    # then check if you can move left again to cleanup layout
+                    p2.layout["x"] = 0
+    return panels
+
 
 class Api:
     """
@@ -479,7 +524,7 @@ class Api:
         self,
         entity=None,
         project=None,
-        description="No description",
+        description="",
         title="Untitled Report",
     ):
         if entity is None and self.default_entity:
@@ -3059,21 +3104,26 @@ class PythonMongoishQueryGenerator:
         return {"$or": [{op: values}]}
 
     def front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+
         if name in self.FRONTEND_NAME_MAPPING:
             return self.FRONTEND_NAME_MAPPING[name]
         elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return name
         elif name in self.run_set._runs_config:
-            return f"config.{name}.value"
+            return f"config.{name}.value{rest}"
         else:  # assume summary metrics
-            return f"summary_metrics.{name}"
+            return f"summary_metrics.{name}{rest}"
 
     def back_to_front(self, name):
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
         elif name in self.FRONTEND_NAME_MAPPING:
             return name
-        elif name.startswith("config.") and name.endswith(".value"):
+        elif (
+            name.startswith("config.") and ".value" in name
+        ):  # may be brittle: originally "endswith", but that doesn't work with nested keys...
             # strip is weird sometimes (??)
             return name.replace("config.", "").replace(".value", "")
         elif name.startswith("summary_metrics."):
@@ -3437,9 +3487,6 @@ class PanelGrid(RequiresReportEditingMixin):
         except IndexError:
             pass
 
-    def _resolve_panel_collisions(self):
-        pass
-
     @property
     def run_sets(self):
         return [
@@ -3472,7 +3519,7 @@ class PanelGrid(RequiresReportEditingMixin):
     @report_callback
     def panels(self, new_panels):
         new_panel_specs = []
-        for p in new_panels:
+        for p in fix_collisions(new_panels):
             p.panel_grid = self
             new_panel_specs.append(p.spec)
         self.spec["metadata"]["panelBankSectionConfig"]["panels"] = new_panel_specs
@@ -3764,7 +3811,7 @@ class BetaReport(Attrs):
                 "spec": json.dumps(self.spec),
             },
         )
-        # return r["upsertView"]["view"]
+
         return BetaReport(
             self.client, r["upsertView"]["view"], entity=entity, project=project
         )
