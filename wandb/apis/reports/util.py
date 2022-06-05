@@ -33,7 +33,7 @@ class SubclassOnlyABC(ABC):
         if cls.__bases__ == (SubclassOnlyABC,):
             raise TypeError(f"Abstract class {cls.__name__} cannot be instantiated")
 
-        return super(SubclassOnlyABC, cls).__new__(cls)
+        return super().__new__(cls)
 
 
 def base_fget(self, instance):
