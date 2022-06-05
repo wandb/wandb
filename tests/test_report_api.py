@@ -280,6 +280,11 @@ def run_set(panel_grid):
 
 
 @pytest.fixture
+def run(run_set):
+    yield run_set.runs[0]
+
+
+@pytest.fixture
 def run_set_modified(run_set):
     assert not run_set.modified
     yield
@@ -624,6 +629,20 @@ class TestReportSetters:
         blocks = [block(*args, **kwargs) for block, args, kwargs in blocks_args_kwargs]
         report.blocks = blocks
         assert report.spec["blocks"] == blockspec
+
+        # and also get blocks is equivalent
+        def spec_to_obj(spec):
+            Block = wandb.apis.reports._blocks.block_mapping[spec["type"]]  # noqa: N806
+            if spec["type"] == "panel-grid":
+                return wb.PanelGrid.from_json(report=self, spec=spec)
+            else:
+                return Block.from_json(spec=spec)
+
+        blocks_from_spec = [spec_to_obj(spec) for spec in blockspec]
+        assert blocks == blocks_from_spec
+
+        # and also the specs are the same
+        blockspec = [block.spec for block in blocks_from_spec]
 
     def test_set_blocks_with_panel_grid(self, report):
         print(os.environ)
@@ -1351,3 +1370,24 @@ class TestRunSetSetters:
 # class TestPanels:
 #     def test_line_plot(self, panel_grid):
 #         p = wb.LinePlot(panel_grid)
+
+
+class Misc:
+    def test_add_overrides(self, panel_grid, run_set, run):
+        metric = "abcdef"
+
+        p1 = wb.LinePlot(panel_grid)
+        p1.groupby = "something"
+        p1.line_colors = {
+            wb.LineKey.from_run(run, metric): wb.RGBA(255, 255, 255, 1),
+            wb.LineKey.from_panel_agg(run_set, p1, metric): wb.RGBA(255, 255, 0, 1),
+            wb.LineKey.from_runset_agg(run_set, metric): wb.RGBA(255, 0, 0, 1),
+        }
+        p1.line_titles = {wb.LineKey.from_run(run, metric): "asdf"}
+        p1.line_widths = {wb.LineKey.from_run(run, metric): 1.5}
+        p1.line_marks = {wb.LineKey.from_run(run, metric): "dotdotdash"}
+
+        p2 = wb.BarPlot(panel_grid)
+
+        panels = [wb.BarPlot(panel_grid)]
+        panel_grid.panels = panels
