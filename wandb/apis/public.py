@@ -39,11 +39,11 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
+from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
 
-from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +255,7 @@ def shift(p1, p2):
 
 
 def fix_collisions(panels):
-    X_MAX = 24
+    x_max = 24
 
     for i, p1 in enumerate(panels):
         for p2 in panels[i:]:
@@ -263,7 +263,7 @@ def fix_collisions(panels):
 
                 # try to move right
                 x, y = shift(p1, p2)
-                if p2.layout["x"] + p2.layout["w"] + x <= X_MAX:
+                if p2.layout["x"] + p2.layout["w"] + x <= x_max:
                     p2.layout["x"] += x
 
                 # if you hit right right bound, move down
