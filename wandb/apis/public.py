@@ -26,6 +26,7 @@ import time
 from typing import Optional
 import urllib
 
+from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import __version__, env, util
