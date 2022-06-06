@@ -60,6 +60,7 @@ class LaunchAgent:
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
         self._configured_runners = self._parse_runner_config(config)
+        self._supported_labels = []
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -151,17 +152,28 @@ class LaunchAgent:
         """
         QUERY = gql(
             """
-            query Query {
-                runQueues(entityName: String!): [RunQueue!]
+            query GetRunQueuesByEntity($entityName: String!) {
+                runQueues(entityName: $entityName) {
+                    resource_config
+                } 
             }
             """
         )
 
         run_queues = self._api.client.execute(QUERY, {"entityName": entity})
         resource_configs = [json.loads(q["resourceConfig"]) for q in run_queues]
-        valid_resource_configs = [
-            rc for rc in resource_configs if rc["runner"] in self._configured_runners
-        ]
+        valid_resource_configs = []
+
+        # can't wait for structural pattern matching...
+        for rc in resource_configs:
+            runner = rc["runner"]
+            if runner in self._configured_runners:
+                if runner.startswith("local") and not any(
+                    lbl in self._supported_labels for lbl in runner.get("labels")
+                ):
+                    continue
+                valid_resource_configs.append(rc)
+
         return valid_resource_configs
 
     def _select_queue(self, queues: list[RunQueue]) -> RunQueue:
