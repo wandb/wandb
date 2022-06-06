@@ -1,2 +1,8 @@
 version: 2.1
-
+jobs:
+  build:
+    docker:
+      - image: cimg/node:17.2.0
+    steps:
+      - run: echo "done"
+    
