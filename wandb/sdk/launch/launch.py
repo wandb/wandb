@@ -24,10 +24,11 @@ _logger = logging.getLogger(__name__)
 
 def resolve_agent_config(
     api: Api,
-    entity: Optional[str],
-    project: Optional[str],
-    max_jobs: Optional[float],
-    queues: Optional[List[str]],
+    entity: Optional[str] = None,
+    project: Optional[str] = None,
+    max_jobs: Optional[float] = None,
+    queues: Optional[List[str]] = None,
+    config_path: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
         "entity": api.default_entity,
@@ -37,13 +38,15 @@ def resolve_agent_config(
         "base_url": api.settings("base_url"),
         "registry": {},
         "build": {},
-        "runner": {},
+        "runners": {"local-process": {}, "local-container": {}},
     }
 
     resolved_config: Dict[str, Any] = defaults
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+    config_path = config_path if config_path is not None else LAUNCH_CONFIG_FILE
+    expanded_config = os.path.expanduser(config_path)
+    if os.path.exists(expanded_config):
         config = {}
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+        with open(expanded_config) as f:
             try:
                 config = yaml.safe_load(f)
                 print(config)
