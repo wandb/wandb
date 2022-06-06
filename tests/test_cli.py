@@ -25,7 +25,7 @@ DOCKER_SHA = (
 
 @pytest.fixture
 def docker(request, mock_server, mocker, monkeypatch):
-    wandb_args = {"check_output": b"wandb/deepo@sha256:abc123"}
+    wandb_args = {"check_output": b'["wandb/deepo@sha256:abc123"]'}
     marker = request.node.get_closest_marker("wandb_args")
     if marker:
         wandb_args.update(marker.kwargs)
