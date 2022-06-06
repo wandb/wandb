@@ -176,11 +176,13 @@ class LaunchAgent:
 
         return valid_resource_configs
 
-    def _select_queue(self, queues: list[RunQueue]) -> RunQueue:
+    def _select_queue(self, queues: list[RunQueue]) -> list[RunQueue]:
         """
         `Smartly` select a queue!
         """
-        return random.choice(queues)
+        # return random.choice(queues)
+        random.shuffle(queues)
+        return queues
 
     def _get_combined_config(self):
         """ "
