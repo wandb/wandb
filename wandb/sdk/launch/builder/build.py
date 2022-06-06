@@ -202,9 +202,7 @@ def get_base_setup(
     return base_setup
 
 
-def get_env_vars_dict(
-    launch_project: LaunchProject, entry_point: Optional[EntryPoint], api: Api
-) -> Dict[str, str]:
+def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
     """Generates environment variables for the project.
 
     Arguments:

@@ -60,7 +60,7 @@ class LocalProcessRunner(AbstractRunner):
             launch_project.project_dir,
         )
 
-        env_vars = get_env_vars_dict(launch_project, None, self._api)
+        env_vars = get_env_vars_dict(launch_project, self._api)
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
 
