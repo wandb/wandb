@@ -1391,3 +1391,24 @@ class Misc:
 
         panels = [wb.BarPlot(panel_grid)]
         panel_grid.panels = panels
+
+    def test_fix_bad_layouts(self, panel_grid):
+        xs = [0, 1, 2, 3, 5, 8, 13, 21]
+        ys = [0, 1, 2, 3, 5, 8, 13, 21]
+        ws = [4, 8, 12, 16]
+        hs = [4, 8, 12, 16]
+
+        panels = []
+        for x in xs:
+            for y in ys:
+                for w in ws:
+                    for h in hs:
+                        p = wb.LinePlot(panel_grid)
+                        p.spec["layout"] = dict(x=x, y=y, w=w, h=h)
+                        panels.append(p)
+
+        panel_grid.panels = panels
+
+        for i, p in enumerate(panel_grid.panels):
+            for p2 in panel_grid.panels[i:]:
+                assert wandb.apis.public.collides(p, p2) is False
