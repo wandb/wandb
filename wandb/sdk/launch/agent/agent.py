@@ -2,15 +2,18 @@
 Implementation of launch agent.
 """
 
+import json
 import logging
 import os
+import random
 import time
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, TypeVar, Union
 
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
+from wandb_gql import gql
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
@@ -29,6 +32,8 @@ AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
 
 _logger = logging.getLogger(__name__)
+
+RunQueue = TypeVar("RunQueue")
 
 
 def _convert_access(access: str) -> str:
@@ -54,7 +59,7 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._configured_runners = LaunchAgent._parse_runner_config(config)
+        self._configured_runners = self._parse_runner_config(config)
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -121,24 +126,61 @@ class LaunchAgent:
     @staticmethod
     def _parse_runner_config(config: Dict[str, Any]) -> Dict[str, Any]:
         """
-            Parses a RunnersConfig block from the agent config. Returns a dictionary
-            of support runners in the form of:
-            {
-                kubernetes: {
-                    namespace: "wandb"
-                },
-                sagemaker: {
+        Parses a RunnersConfig block from the agent config. Returns a dictionary
+        of support runners in the form of:
+        {
+            kubernetes: {
+                namespace: "wandb"
+            },
+            sagemaker: {
 
-                },
-                local-process: {
-                    labels: [ "gpu-pool" ]
-                },
-                local-container: {
-                    labels: [ "gpu-pool"]
-                }
+            },
+            local-process: {
+                labels: [ "gpu-pool" ]
+            },
+            local-container: {
+                labels: [ "gpu-pool"]
             }
+        }
         """
         pass
+
+    def _get_valid_resource_configs(self, entity: str) -> list[RunQueue]:
+        """
+        Given an entity, return a list of run queues associated with that entity.
+        """
+        QUERY = gql(
+            """
+            query Query {
+                runQueues(entityName: String!): [RunQueue!]
+            }
+            """
+        )
+
+        run_queues = self._api.client.execute(QUERY, {"entityName": entity})
+        resource_configs = [json.loads(q["resourceConfig"]) for q in run_queues]
+        valid_resource_configs = [
+            rc for rc in resource_configs if rc["runner"] in self._configured_runners
+        ]
+        return valid_resource_configs
+
+    def _select_queue(self, queues: list[RunQueue]) -> RunQueue:
+        """
+        `Smartly` select a queue!
+        """
+        return random.choice(queues)
+
+    def _get_combined_config(self):
+        """ "
+        Return a combined config to do the next job.
+        """
+        valid_resource_configs = self._get_valid_resource_configs(self._entity)
+        selected_resource_config = self._select_queue(valid_resource_configs)
+        combined_config = {
+            **selected_resource_config.config,
+            **self._configured_runners,
+        }
+        return combined_config
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
