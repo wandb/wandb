@@ -1175,6 +1175,7 @@ def launch_agent(
         f"W&B launch is in an experimental state and usage APIs may change without warning. See {wburls.get('cli_launch')}"
     )
     api = _get_cling_api()
+    print(config)
     if queues is not None:
         queues = queues.split(",")
     agent_config, api = wandb_launch.resolve_agent_config(
