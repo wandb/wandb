@@ -75,16 +75,14 @@ def _maybe_mp_process(backend: Backend) -> bool:
 
 def _handle_launch_config(settings: "Settings") -> Dict[str, Any]:
     launch_run_config = {}
-    if settings.launch and (os.environ.get("WANDB_CONFIG") is not None):
+    if not settings.launch:
+        return launch_run_config
+    if os.environ.get("WANDB_CONFIG") is not None:
         try:
             launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
         except (ValueError, SyntaxError):
             wandb.termwarn("Malformed WANDB_CONFIG, using original config")
-    elif (
-        settings.launch
-        and settings.launch_config_path
-        and os.path.exists(settings.launch_config_path)
-    ):
+    elif settings.launch_config_path and os.path.exists(settings.launch_config_path):
         with open(settings.launch_config_path) as fp:
             launch_config = json.loads(fp.read())
         launch_run_config = launch_config.get("overrides", {}).get("run_config")
