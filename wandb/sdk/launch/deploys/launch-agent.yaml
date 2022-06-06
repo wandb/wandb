@@ -1,0 +1,25 @@
+base_url: https://api.wandb.ai # TODO: SET YOUR WANDB BASE URL
+project: launch_test # TODO: SET YOUR ML PROJECT
+max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
+registry:
+  url: # TODO: SET ECR REPOSITORY URL HERE
+  ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
+  credentials:
+    secret-name: aws-secret # TODO: SET SECRET NAME HERE
+    secret-mount-path: /root/.aws/ # SET MOUNT PATH HERE for aws /root/.aws
+build:
+  type: docker
+  cloud-provider: AWS # TODO: SET CLOUD PROVIDER HERE
+  credentials:
+    secret-name: aws-secret
+    secret-mount-path: /root/.aws/
+  build-context-store: wandb-build # name here
+runners:
+  - kubernetes:
+      namespace: wandb
+  - local-process:
+      labels:
+        - gpu
+  - local-container:
+      labels:
+        - gpu
