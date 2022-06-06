@@ -54,7 +54,7 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._configured_runners = LaunchAgent._parse_runner_config(config)
+        self._configured_runners = config.get("runners")
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -117,28 +117,6 @@ class LaunchAgent:
         # update status back to polling if no jobs are running
         if self._running == 0:
             self.update_status(AGENT_POLLING)
-
-    @staticmethod
-    def _parse_runner_config(config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-            Parses a RunnersConfig block from the agent config. Returns a dictionary
-            of support runners in the form of:
-            {
-                kubernetes: {
-                    namespace: "wandb"
-                },
-                sagemaker: {
-
-                },
-                local-process: {
-                    labels: [ "gpu-pool" ]
-                },
-                local-container: {
-                    labels: [ "gpu-pool"]
-                }
-            }
-        """
-        pass
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
