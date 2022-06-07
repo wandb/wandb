@@ -32,6 +32,8 @@ def allow(option):
 @allow(type(None))
 def type_validate(attr_type, how=None):
     def _type_validate(attr, value):
+        if value is None:
+            return
         for v in howify(value, how):
             if not isinstance(v, attr_type):
                 raise TypeError(
@@ -44,6 +46,8 @@ def type_validate(attr_type, how=None):
 @allow(None)
 def one_of(opts, how=None):
     def _one_of(attr, value):
+        if value is None:
+            return
         for v in howify(value, how):
             if v not in opts:
                 raise ValueError(f"{attr.name!r} must be one of {opts!r} (got {v!r})")
@@ -53,6 +57,8 @@ def one_of(opts, how=None):
 
 def length(n):
     def _expected_len(attr, value):
+        if value is None:
+            return
         if len(value) > n:
             raise ValueError(
                 f"{attr.name!r} must have a length of {n} (got len({attr.name!r})=={len(value)!r}"
@@ -64,6 +70,8 @@ def length(n):
 @allow(type(None))
 def elem_types(attr_type, how=None):
     def _elements_of_type(attr, value):
+        if value is None:
+            return
         for v in howify(value, how):
             if not isinstance(v, attr_type):
                 raise TypeError(
@@ -75,6 +83,8 @@ def elem_types(attr_type, how=None):
 
 def between(lb, ub, how=None):
     def _between(attr, value):
+        if value is None:
+            return
         for v in howify(value, how):
             if not lb <= v <= ub:
                 raise ValueError(
@@ -91,24 +101,3 @@ def howify(value, how=None):
         return value.values()
     else:
         return (value,)
-
-
-# def dict_values_between(lb, ub):
-#     def _dict_values_between(attr, value):
-#         for v in value.keys():
-#             if not lb <= v <= ub:
-#                 raise ValueError(
-#                     f"{attr.name!r} dict values must be between ({lb}, {ub}) (got {value})"
-#                 )
-
-#     return _dict_values_between
-
-
-# def dict_keys_types(attr_type):
-#     def _dict_keys_of_type(attr, value):
-#         if not isinstance(value, attr_type):
-#             raise TypeError(
-#                 f"{attr.name!r} dict keys must be of type {attr_type!r} (got {type(value)!r})"
-#             )
-
-#     return _dict_keys_of_type

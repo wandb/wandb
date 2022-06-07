@@ -1,4 +1,5 @@
 from abc import ABC
+from dataclasses import field
 from typing import List
 
 from wandb.apis.reports.validators import type_validate
@@ -35,8 +36,8 @@ class SubclassOnlyABC(ABC):
         return super().__new__(cls)
 
 
-def base_fget(self, instance):
-    return instance.__dict__[self.name]
+def base_fget(self, instance, default=None):
+    return instance.__dict__.get(self.name, default)
 
 
 def base_fset(self, instance, value):
@@ -51,6 +52,7 @@ class Attr:
     def __init__(
         self,
         attr_type=UNDEFINED_TYPE,
+        default=None,
         fget: callable = base_fget,
         fset: callable = base_fset,
         # fdel: callable = None,
@@ -58,6 +60,7 @@ class Attr:
         validators: List[callable] = None,
     ):
         self.attr_type = attr_type
+        self.default = default
         self.fget = fget
         self.fset = fset
         # self.fdel = fdel
@@ -75,13 +78,15 @@ class Attr:
     def __get__(self, instance, owner):
         if not instance:
             return self
-        return self.fget(self, instance)
+        return self.fget(self, instance, self.default)
 
     def __set__(self, instance, value):
+        if value is self:
+            value = self.default
         if self.fset is None:
             raise AttributeError("Unsettable attr")
         self._validate(value)
-        return self.fset(self, instance, value)
+        self.fset(self, instance, value)
 
     # def __delete__(self, instance):
     #     if self.fdel is None:
@@ -94,6 +99,10 @@ class Attr:
     def _validate(self, value):
         for validator in self.validators:
             validator(self, value)
+
+
+def attr(*args, repr=True, **kwargs):
+    return field(default=Attr(*args, **kwargs), repr=repr)
 
 
 # def sort_layouts(layout):

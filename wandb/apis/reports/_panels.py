@@ -10,21 +10,22 @@ __all__ = [
     "MediaBrowser",
     "MarkdownPanel",
     "ConfusionMatrix",
-    "DataFrames",
-    "MultiRunTable",
-    "Vega",
-    "Vega2",
-    "Vega3",
-    "WeavePanel",
+    # "DataFrames",
+    # "MultiRunTable",
+    # "Vega",
+    # "Vega2",
+    # "Vega3",
+    # "WeavePanel",
 ]
 
 from functools import wraps
 from typing import List, Union
+from dataclasses import dataclass, field
 
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
 from ._panel_helpers import LineKey, RGBA
-from .util import Attr, generate_name, is_none, SubclassOnlyABC, UNDEFINED_TYPE
+from .util import Attr, attr, generate_name, is_none, SubclassOnlyABC, UNDEFINED_TYPE
 from .validators import (
     AGGFUNCS,
     between,
@@ -46,17 +47,19 @@ def panel_grid_callback(f):
     @wraps(f)
     def wrapper(attr, panel, *args, **kwargs):
         panel.modified = True
-        panel.panel_grid.panel_callback(panel)
+        if hasattr(panel, "disable_callback") and not panel.disable_callback:
+            # if not panel.disable_callback:
+            panel.panel_grid.panel_callback(panel)
         f(attr, panel, *args, **kwargs)
 
     return wrapper
 
 
-def default_fget(attr, panel):
+def default_fget(attr, panel, default=None):
     if isinstance(attr.json_keys, str):
-        return panel.config.get(attr.json_keys)
+        return panel.config.get(attr.json_keys, default)
     elif isinstance(attr.json_keys, (list, tuple)):
-        return [panel.config.get(k) for k in attr.json_keys]
+        return [panel.config.get(k, default) for k in attr.json_keys]
     else:
         raise TypeError(
             f"Received unexpected type for json_keys ({type(attr.json_keys)!r}"
@@ -68,6 +71,8 @@ def default_fset(attr, panel, value):
     if isinstance(attr.json_keys, str):
         panel.config[attr.json_keys] = value
     elif isinstance(attr.json_keys, (list, tuple)):
+        if isinstance(value, type(None)):
+            value = [None] * len(attr.json_keys)
         for k, v in zip(attr.json_keys, value):
             panel.config[k] = v
     else:
@@ -98,22 +103,53 @@ class PanelAttr(Attr):
         self,
         json_keys: Union[str, List[str]],
         attr_type=UNDEFINED_TYPE,
+        default=None,
         fget: callable = default_fget,
         fset: callable = default_fset,
-        fdel: callable = default_fdel,
+        # fdel: callable = default_fdel,
         *args,
         **kwargs,
     ):
-        super().__init__(attr_type, fget, fset, fdel, *args, **kwargs)
+        super().__init__(attr_type, default, fget, fset, *args, **kwargs)
         self.json_keys = json_keys
 
 
+def panel_attr(*args, repr=True, **kwargs):
+    return field(default=PanelAttr(*args, **kwargs), repr=repr)
+
+
+def _generate_default_panel_spec():
+    return {
+        "__id__": generate_name(),
+        "viewType": None,
+        "config": {},
+        # "ref": None,
+        "layout": {"x": 0, "y": 0, "w": 8, "h": 6},
+    }
+
+
+@dataclass
 class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
-    def __init__(self, panel_grid, spec=None, offset=0):
-        self.panel_grid = panel_grid
-        self._spec = spec or self._generate_default_panel_spec()
-        self.offset = offset
-        self.modified = False
+    panel_grid: ... = attr()
+    _spec: ... = attr(dict, default=_generate_default_panel_spec(), repr=False)
+    offset: ... = attr(int, repr=False)
+
+    def __post_init__(self):
+        self._spec["viewType"] = self.view_type
+        # if self._spec is None:
+        #     self._spec = self._generate_default_panel_spec()
+        self.disable_callback = True if self.panel_grid is None else False
+
+    # panel_grid: ... = Attr()  # of type PanelGrid
+    # _spec: ... = Attr()
+    # offset: ... = Attr(int)
+
+    # def __init__(self, panel_grid=None, spec=None, offset=0):
+    #     # self.panel_grid = panel_grid
+    #     self._spec = spec or self._generate_default_panel_spec()
+    #     self.offset = offset
+    #     self.modified = False
+    #     self.disable_callbacks = True if self.panel_grid is None else False
 
     def __repr__(self):
         clas = self.__class__.__name__
@@ -125,14 +161,18 @@ class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
         settings = [f"{k}={v!r}" for k, v in props.items() if not is_none(v)]
         return "{}({})".format(clas, ", ".join(settings))
 
-    def _generate_default_panel_spec(self):
-        return {
-            "__id__": generate_name(),
-            "viewType": self.view_type,
-            "config": {},
-            # "ref": None,
-            "layout": {"x": 0, "y": 0, "w": 8, "h": 6},
-        }
+    # def _generate_default_panel_spec(self):
+    #     return {
+    #         "__id__": generate_name(),
+    #         "viewType": self.view_type,
+    #         "config": {},
+    #         # "ref": None,
+    #         "layout": {"x": 0, "y": 0, "w": 8, "h": 6},
+    #     }
+
+    @property
+    def view_type(self):
+        return "NOPE"
 
     @property
     def spec(self):
@@ -172,72 +212,87 @@ class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
         self._spec["layout"] = new_layout
 
 
-def line_override_get(attr, panel):
-    titles = panel.config.get(attr.json_keys, {})
-    return {LineKey(k): v for k, v in titles.items()}
+def line_override_get(attr, panel, default={}):
+    titles = panel.config.get(attr.json_keys, default)
+    return {LineKey(k): v for k, v in titles.items()} if titles is not None else None
 
 
 def line_override_set(attr, panel, value):
-    titles = {linekey.key: v for linekey, v in value.items()}
+    titles = (
+        {linekey.key: v for linekey, v in value.items()} if value is not None else None
+    )
     panel.config[attr.json_keys] = titles
 
 
-def line_color_override_get(attr, panel):
-    colors = panel.config.get(attr.json_keys, {})
-    return {LineKey(k): RGBA.from_json(v) for k, v in colors.items()}
+def line_color_override_get(attr, panel, default={}):
+    colors = panel.config.get(attr.json_keys, default)
+    return (
+        {LineKey(k): RGBA.from_json(v) for k, v in colors.items()}
+        if colors is not None
+        else None
+    )
 
 
 def line_color_override_set(attr, panel, colors):
-    colors = {linekey.key: v.spec for linekey, v in colors.items()}
+    colors = (
+        {linekey.key: v.spec for linekey, v in colors.items()}
+        if colors is not None
+        else None
+    )
     panel.config[attr.json_keys] = colors
 
 
+@dataclass
 class LinePlot(Panel):
-    title = PanelAttr("chartTitle", str)
-    x = PanelAttr("xAxis", str)
-    y = PanelAttr("metrics", list)
-    range_x = PanelAttr(
+    title: ... = panel_attr("chartTitle", str)
+    x: ... = panel_attr("xAxis", str)
+    y: ... = panel_attr("metrics", list)
+    range_x: ... = panel_attr(
         ["xAxisMin", "xAxisMax"],
         (list, tuple),
         validators=[length(2), elem_types((int, float))],
     )
-    range_y = PanelAttr(
+    range_y: ... = panel_attr(
         ["yAxisMin", "yAxisMax"],
         (list, tuple),
         validators=[length(2), elem_types((int, float))],
     )
-    log_x = PanelAttr("xLogScale", bool)
-    log_y = PanelAttr("yLogScale", bool)
-    title_x = PanelAttr("xAxisTitle", str)
-    title_y = PanelAttr("yAxisTitle", str)
-    ignore_outliers = PanelAttr("ignoreOutliers", bool)
-    groupby = PanelAttr("groupBy", str)
-    groupby_aggfunc = PanelAttr("groupAgg", validators=[one_of(AGGFUNCS)])
-    groupby_rangefunc = PanelAttr("groupArea", validators=[one_of(RANGEFUNCS)])
-    smoothing_factor = PanelAttr("smoothingWeight", float)
-    smoothing_type = PanelAttr("smoothingType", validators=[one_of(SMOOTHING_TYPES)])
-    smoothing_show_original = PanelAttr("showOriginalAfterSmoothing", bool)
-    max_runs_to_show = PanelAttr("limit", int)
-    custom_expressions = PanelAttr("expressions", str)
-    plot_type = PanelAttr("plotType", validators=[one_of(LINEPLOT_STYLES)])
-    font_size = PanelAttr("fontSize", validators=[one_of(FONT_SIZES)])
-    legend_position = PanelAttr("legendPosition", validators=[one_of(LEGEND_POSITIONS)])
-    legend_template = PanelAttr("legendTemplate", str)
-    # PanelAttr("startingXAxis")
-    # PanelAttr("useLocalSmoothing")
-    # PanelAttr("useGlobalSmoothingWeight")
-    # PanelAttr("legendFields")
-    # PanelAttr("aggregate")
-    # PanelAttr("aggregateMetrics")
-    # PanelAttr("metricRegex")
-    # PanelAttr("useMetricRegex")
-    # PanelAttr("yAxisAutoRange")
-    # PanelAttr("groupRunsLimit")
-    # PanelAttr("xExpression")
-    # PanelAttr("colorEachMetricDifferently")
-    # PanelAttr("showLegend")
+    log_x: ... = panel_attr("xLogScale", bool)
+    log_y: ... = panel_attr("yLogScale", bool)
+    title_x: ... = panel_attr("xAxisTitle", str)
+    title_y: ... = panel_attr("yAxisTitle", str)
+    ignore_outliers: ... = panel_attr("ignoreOutliers", bool)
+    groupby: ... = panel_attr("groupBy", str)
+    groupby_aggfunc: ... = panel_attr("groupAgg", validators=[one_of(AGGFUNCS)])
+    groupby_rangefunc: ... = panel_attr("groupArea", validators=[one_of(RANGEFUNCS)])
+    smoothing_factor: ... = panel_attr("smoothingWeight", float)
+    smoothing_type: ... = panel_attr(
+        "smoothingType", validators=[one_of(SMOOTHING_TYPES)]
+    )
+    smoothing_show_original: ... = panel_attr("showOriginalAfterSmoothing", bool)
+    max_runs_to_show: ... = panel_attr("limit", int)
+    custom_expressions: ... = panel_attr("expressions", str)
+    plot_type: ... = panel_attr("plotType", validators=[one_of(LINEPLOT_STYLES)])
+    font_size: ... = panel_attr("fontSize", validators=[one_of(FONT_SIZES)])
+    legend_position: ... = panel_attr(
+        "legendPosition", validators=[one_of(LEGEND_POSITIONS)]
+    )
+    legend_template: ... = panel_attr("legendTemplate", str)
+    # panel_attr("startingXAxis")
+    # panel_attr("useLocalSmoothing")
+    # panel_attr("useGlobalSmoothingWeight")
+    # panel_attr("legendFields")
+    # panel_attr("aggregate")
+    # panel_attr("aggregateMetrics")
+    # panel_attr("metricRegex")
+    # panel_attr("useMetricRegex")
+    # panel_attr("yAxisAutoRange")
+    # panel_attr("groupRunsLimit")
+    # panel_attr("xExpression")
+    # panel_attr("colorEachMetricDifferently")
+    # panel_attr("showLegend")
 
-    line_titles = PanelAttr(
+    line_titles: ... = panel_attr(
         "overrideSeriesTitles",
         dict,
         fget=line_override_get,
@@ -247,14 +302,14 @@ class LinePlot(Panel):
             type_validate(str, how="values"),
         ],
     )
-    line_marks = PanelAttr(
+    line_marks: ... = panel_attr(
         "overrideMarks",
         dict,
         fget=line_override_get,
         fset=line_override_set,
         validators=[type_validate(LineKey, how="keys"), one_of(MARKS, how="values")],
     )
-    line_colors = PanelAttr(
+    line_colors: ... = panel_attr(
         "overrideColors",
         dict,
         fget=line_color_override_get,
@@ -264,7 +319,7 @@ class LinePlot(Panel):
             type_validate(RGBA, how="values"),
         ],
     )
-    line_widths = PanelAttr(
+    line_widths: ... = panel_attr(
         "overrideLineWidths",
         dict,
         fget=line_override_get,
@@ -280,81 +335,86 @@ class LinePlot(Panel):
     def view_type(self):
         return "Run History Line Plot"
 
+    def __post_init__(self):
+        super().__post_init__()
 
+
+@dataclass
 class ScatterPlot(Panel):
-    title = PanelAttr("chartTitle", str)
-    x = PanelAttr("xAxis", str)
-    y = PanelAttr("yAxis", str)
-    z = PanelAttr("zAxis", str)
-    range_x = PanelAttr(
+    title: ... = panel_attr("chartTitle", str)
+    x: ... = panel_attr("xAxis", str)
+    y: ... = panel_attr("yAxis", str)
+    z: ... = panel_attr("zAxis", str)
+    range_x: ... = panel_attr(
         ["xAxisMin", "xAxisMax"],
         (list, tuple),
         validators=[length(2), elem_types((int, float))],
     )
-    range_y = PanelAttr(
+    range_y: ... = panel_attr(
         ["yAxisMin", "yAxisMax"],
         (list, tuple),
         validators=[length(2), elem_types((int, float))],
     )
-    range_z = PanelAttr(
+    range_z: ... = panel_attr(
         ["zAxisMin", "zAxisMax"],
         (list, tuple),
         validators=[length(2), elem_types((int, float))],
     )
-    log_x = PanelAttr("xAxisLogScale", bool)
-    log_y = PanelAttr("yAxisLogScale", bool)
-    log_z = PanelAttr("zAxisLogScale", bool)
-    running_ymin = PanelAttr("showMaxYAxisLine", bool)
-    running_ymax = PanelAttr("showMinYAxisLine", bool)
-    running_ymean = PanelAttr("showAvgYAxisLine", bool)
-    legend_template = PanelAttr("legendTemplate", str)
+    log_x: ... = panel_attr("xAxisLogScale", bool)
+    log_y: ... = panel_attr("yAxisLogScale", bool)
+    log_z: ... = panel_attr("zAxisLogScale", bool)
+    running_ymin: ... = panel_attr("showMaxYAxisLine", bool)
+    running_ymax: ... = panel_attr("showMinYAxisLine", bool)
+    running_ymean: ... = panel_attr("showAvgYAxisLine", bool)
+    legend_template: ... = panel_attr("legendTemplate", str)
 
-    # gradient = PanelAttr("customGradient", dict, validators=[type_validate(RGBA, how='values')])
-    # color = PanelAttr("color")
-    # range_color = PanelAttr(
+    # gradient: ... = panel_attr("customGradient", dict, validators=[type_validate(RGBA, how='values')])
+    # color: ... = panel_attr("color")
+    # range_color: ... = panel_attr(
     #     ["minColor", "maxColor"],
     #     (list, tuple),
     #     validators=[length(2), elem_types((int, float))],
     # )
 
-    # PanelAttr("legendFields")
-    font_size = PanelAttr("fontSize", validators=[one_of(FONT_SIZES)])
-    # PanelAttr("yAxisLineSmoothingWeight")
+    # panel_attr("legendFields")
+    font_size: ... = panel_attr("fontSize", validators=[one_of(FONT_SIZES)])
+    # panel_attr("yAxisLineSmoothingWeight")
 
     @property
     def view_type(self):
         return "Scatter Plot"
 
 
+@dataclass
 class BarPlot(Panel):
-    title = PanelAttr("chartTitle", str)
-    metrics = PanelAttr("metrics", list, validators=[elem_types(str)])
-    vertical = PanelAttr("vertical", bool)
-    range_x = PanelAttr(
+    title: ... = panel_attr("chartTitle", str)
+    metrics: ... = panel_attr("metrics", list, validators=[elem_types(str)])
+    vertical: ... = panel_attr("vertical", bool)
+    range_x: ... = panel_attr(
         ["xAxisMin", "xAxisMax"],
         (list, tuple),
         validators=[length(2), elem_types((int, float))],
     )
-    title_x = PanelAttr("xAxisTitle", str)
-    title_y = PanelAttr("yAxisTitle", str)
-    groupby = PanelAttr("groupBy", str)
-    groupby_aggfunc = PanelAttr("groupAgg", validators=[one_of(AGGFUNCS)])
-    groupby_rangefunc = PanelAttr("groupArea", validators=[one_of(RANGEFUNCS)])
-    max_runs_to_show = PanelAttr("limit", int)
-    max_bars_to_show = PanelAttr("barLimit", int)
-    custom_expressions = PanelAttr("expressions", str)
-    legend_template = PanelAttr("legendTemplate", str)
-    font_size = PanelAttr("fontSize", validators=[one_of(FONT_SIZES)])
-    # PanelAttr("limit")
-    # PanelAttr("barLimit")
-    # PanelAttr("aggregate")
-    # PanelAttr("aggregateMetrics")
-    # PanelAttr("groupRunsLimit")
-    # PanelAttr("plotStyle")
-    # PanelAttr("legendFields")
-    # PanelAttr("colorEachMetricDifferently")
+    title_x: ... = panel_attr("xAxisTitle", str)
+    title_y: ... = panel_attr("yAxisTitle", str)
+    groupby: ... = panel_attr("groupBy", str)
+    groupby_aggfunc: ... = panel_attr("groupAgg", validators=[one_of(AGGFUNCS)])
+    groupby_rangefunc: ... = panel_attr("groupArea", validators=[one_of(RANGEFUNCS)])
+    max_runs_to_show: ... = panel_attr("limit", int)
+    max_bars_to_show: ... = panel_attr("barLimit", int)
+    custom_expressions: ... = panel_attr("expressions", str)
+    legend_template: ... = panel_attr("legendTemplate", str)
+    font_size: ... = panel_attr("fontSize", validators=[one_of(FONT_SIZES)])
+    # panel_attr("limit")
+    # panel_attr("barLimit")
+    # panel_attr("aggregate")
+    # panel_attr("aggregateMetrics")
+    # panel_attr("groupRunsLimit")
+    # panel_attr("plotStyle")
+    # panel_attr("legendFields")
+    # panel_attr("colorEachMetricDifferently")
 
-    line_titles = PanelAttr(
+    line_titles: ... = panel_attr(
         "overrideSeriesTitles",
         dict,
         fget=line_override_get,
@@ -364,7 +424,7 @@ class BarPlot(Panel):
             type_validate(str, how="values"),
         ],
     )
-    line_colors = PanelAttr(
+    line_colors: ... = panel_attr(
         "overrideColors",
         dict,
         fget=line_color_override_get,
@@ -389,52 +449,58 @@ def scalar_metric_fset(prop, panel, value):
     panel.config[prop.json_keys] = [value]
 
 
+@dataclass
 class ScalarChart(Panel):
-    title = PanelAttr("chartTitle", str)
-    metric = PanelAttr("metrics", str, fget=scalar_metric_fget, fset=scalar_metric_fset)
-    groupby_aggfunc = PanelAttr("groupAgg", validators=[one_of(AGGFUNCS)])
-    groupby_rangefunc = PanelAttr("groupArea", validators=[one_of(RANGEFUNCS)])
-    custom_expressions = PanelAttr("expressions", str)
-    legend_template = PanelAttr("legendTemplate", str)
+    title: ... = panel_attr("chartTitle", str)
+    metric: ... = panel_attr(
+        "metrics", str, fget=scalar_metric_fget, fset=scalar_metric_fset
+    )
+    groupby_aggfunc: ... = panel_attr("groupAgg", validators=[one_of(AGGFUNCS)])
+    groupby_rangefunc: ... = panel_attr("groupArea", validators=[one_of(RANGEFUNCS)])
+    custom_expressions: ... = panel_attr("expressions", str)
+    legend_template: ... = panel_attr("legendTemplate", str)
 
-    # PanelAttr("aggregate")
-    # PanelAttr("aggregateMetrics")
-    # PanelAttr("groupBy")
-    # PanelAttr("groupRunsLimit")
-    # PanelAttr("legendFields")
-    # PanelAttr("showLegend")
-    font_size = PanelAttr("fontSize", validators=[one_of(FONT_SIZES)])
+    # panel_attr("aggregate")
+    # panel_attr("aggregateMetrics")
+    # panel_attr("groupBy")
+    # panel_attr("groupRunsLimit")
+    # panel_attr("legendFields")
+    # panel_attr("showLegend")
+    font_size: ... = panel_attr("fontSize", validators=[one_of(FONT_SIZES)])
 
     @property
     def view_type(self):
         return "Scalar Chart"
 
 
+@dataclass
 class CodeComparer(Panel):
-    diff = PanelAttr("diff", validators=[one_of(CODE_COMPARE_DIFF)])
+    diff: ... = panel_attr("diff", validators=[one_of(CODE_COMPARE_DIFF)])
 
     @property
     def view_type(self):
         return "Code Comparer"
 
 
+@dataclass
 class ParallelCoordinatesPlot(Panel):
-    columns = PanelAttr("columns", str)
-    title = PanelAttr("chartTitle", str)
+    columns: ... = panel_attr("columns", str)
+    title: ... = panel_attr("chartTitle", str)
 
-    # PanelAttr("dimensions")
-    # PanelAttr("customGradient")
-    # PanelAttr("gradientColor")
-    # PanelAttr("legendFields")
-    font_size = PanelAttr("fontSize", validators=[one_of(FONT_SIZES)])
+    # panel_attr("dimensions")
+    # panel_attr("customGradient")
+    # panel_attr("gradientColor")
+    # panel_attr("legendFields")
+    font_size: ... = panel_attr("fontSize", validators=[one_of(FONT_SIZES)])
 
     @property
     def view_type(self):
         return "Parallel Coordinates Plot"
 
 
+@dataclass
 class ParameterImportancePlot(Panel):
-    with_respect_to = PanelAttr("targetKey")
+    with_respect_to: ... = panel_attr("targetKey")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -446,87 +512,97 @@ class ParameterImportancePlot(Panel):
         return "Parameter Importance"
 
 
+@dataclass
 class RunComparer(Panel):
-    diff_only = PanelAttr("diffOnly", validators=[one_of(["split", None])])
+    diff_only: ... = panel_attr("diffOnly", validators=[one_of(["split", None])])
 
     @property
     def view_type(self):
         return "Run Comparer"
 
 
+@dataclass
 class MediaBrowser(Panel):
-    num_columns = PanelAttr("columnCount", int)
-    media_keys = PanelAttr("media_keys", str)
+    num_columns: ... = panel_attr("columnCount", int)
+    media_keys: ... = panel_attr("media_keys", str)
 
-    # PanelAttr("chartTitle")
-    # PanelAttr("stepIndex")
-    # PanelAttr("mediaIndex")
-    # PanelAttr("actualSize")
-    # PanelAttr("fitToDimension")
-    # PanelAttr("pixelated")
-    # PanelAttr("mode")
-    # PanelAttr("gallerySettings")
-    # PanelAttr("gridSettings")
-    # PanelAttr("selection")
-    # PanelAttr("page")
-    # PanelAttr("tileLayout")
-    # PanelAttr("stepStrideLength")
-    # PanelAttr("snapToExistingStep")
-    # PanelAttr("maxGalleryItems")
-    # PanelAttr("maxYAxisCount")
-    # PanelAttr("moleculeConfig")
-    # PanelAttr("segmentationMaskConfig")
-    # PanelAttr("boundingBoxConfig")
+    # panel_attr("chartTitle")
+    # panel_attr("stepIndex")
+    # panel_attr("mediaIndex")
+    # panel_attr("actualSize")
+    # panel_attr("fitToDimension")
+    # panel_attr("pixelated")
+    # panel_attr("mode")
+    # panel_attr("gallerySettings")
+    # panel_attr("gridSettings")
+    # panel_attr("selection")
+    # panel_attr("page")
+    # panel_attr("tileLayout")
+    # panel_attr("stepStrideLength")
+    # panel_attr("snapToExistingStep")
+    # panel_attr("maxGalleryItems")
+    # panel_attr("maxYAxisCount")
+    # panel_attr("moleculeConfig")
+    # panel_attr("segmentationMaskConfig")
+    # panel_attr("boundingBoxConfig")
 
     @property
     def view_type(self):
         return "Media Browser"
 
 
+@dataclass
 class MarkdownPanel(Panel):
-    markdown = PanelAttr("value", str)
+    markdown: ... = panel_attr("value", str)
 
     @property
     def view_type(self):
         return "Markdown Panel"
 
 
+@dataclass
 class ConfusionMatrix(Panel):
     @property
     def view_type(self):
         return "Confusion Matrix"
 
 
+@dataclass
 class DataFrames(Panel):
     @property
     def view_type(self):
         return "Data Frame Table"
 
 
+@dataclass
 class MultiRunTable(Panel):
     @property
     def view_type(self):
         return "Multi Run Table"
 
 
+@dataclass
 class Vega(Panel):
     @property
     def view_type(self):
         return "Vega"
 
 
+@dataclass
 class Vega2(Panel):
     @property
     def view_type(self):
         return "Vega2"
 
 
+@dataclass
 class Vega3(Panel):
     @property
     def view_type(self):
         return "Vega3"
 
 
+@dataclass
 class WeavePanel(Panel):
     @property
     def view_type(self):

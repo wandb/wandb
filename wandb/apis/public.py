@@ -13,6 +13,7 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 import ast
 from collections import namedtuple
 from copy import deepcopy
+from dataclasses import dataclass, field
 import datetime
 from functools import partial, wraps
 import json
@@ -23,7 +24,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Optional
+from typing import Iterable, List, Optional
 import urllib
 
 from pkg_resources import parse_version
@@ -42,7 +43,6 @@ from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
-
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +272,116 @@ def fix_collisions(panels):
                     # then check if you can move left again to cleanup layout
                     p2.layout["x"] = 0
     return panels
+
+
+def base_fget(self, instance, default=None):
+    return instance.__dict__.get(self.name, default)
+
+
+def base_fset(self, instance, value):
+    instance.__dict__[self.name] = value
+
+
+UNDEFINED_TYPE = object()
+
+
+def allow(option):
+    def deco(validator):
+        @wraps(validator)
+        def wrapper(*args, **kwargs):
+            args = [
+                (*arg, option) if isinstance(arg, Iterable) else (arg, option)
+                for arg in args
+            ]
+            return validator(*args, **kwargs)
+
+        return wrapper
+
+    return deco
+
+
+def howify(value, how=None):
+    if how == "keys":
+        return value.keys()
+    elif how == "values":
+        return value.values()
+    else:
+        return (value,)
+
+
+@allow(type(None))
+def type_validate(attr_type, how=None):
+    def _type_validate(attr, value):
+        if value is None:
+            return
+        for v in howify(value, how):
+            if not isinstance(v, attr_type):
+                raise TypeError(
+                    f"{attr.name!r} values must be of type {attr_type!r} (got {type(v)!r})"
+                )
+
+    return _type_validate
+
+
+class Attr:
+    """
+    Like property, but with validators and optionally types.
+    """
+
+    def __init__(
+        self,
+        attr_type=UNDEFINED_TYPE,
+        default=None,
+        fget: callable = base_fget,
+        fset: callable = base_fset,
+        # fdel: callable = None,
+        doc: str = None,
+        validators: List[callable] = None,
+    ):
+        self.attr_type = attr_type
+        self.default = default
+        self.fget = fget
+        self.fset = fset
+        # self.fdel = fdel
+        if validators is None:
+            validators = []
+        if not isinstance(validators, list):
+            validators = [validators]
+        self.validators = validators
+        if self.attr_type is not UNDEFINED_TYPE:
+            self.validators = [type_validate(attr_type)] + self.validators
+        if doc is None and fget is not None:
+            doc = fget.__doc__
+        self.__doc__ = doc
+
+    def __get__(self, instance, owner):
+        if not instance:
+            return self
+        return self.fget(self, instance, self.default)
+
+    def __set__(self, instance, value):
+        if value is self:
+            value = self.default
+        if self.fset is None:
+            raise AttributeError("Unsettable attr")
+        self._validate(value)
+        self.fset(self, instance, value)
+
+    # def __delete__(self, instance):
+    #     if self.fdel is None:
+    #         raise AttributeError("Undeletable attr")
+    #     return self.fdel(self, instance)
+
+    def __set_name__(self, owner, name):
+        self.name = name
+
+    def _validate(self, value):
+        for validator in self.validators:
+            validator(self, value)
+
+
+def attr(*args, repr=True, **kwargs):
+    return field(default=Attr(*args, **kwargs), repr=repr)
 
 
 class Api:
@@ -3151,415 +3261,6 @@ class PythonMongoishQueryGenerator:
         return name
 
 
-class RunSet(RequiresReportEditingMixin):
-    def __init__(self, panel_grid, spec=None, offset=0):
-        self.panel_grid = panel_grid
-        self.spec = spec
-        if self.spec is None:  # or spec is malformed?
-            self.spec = self.__generate_default_run_set_spec()
-        if "project" not in self.spec:
-            self.spec["project"] = deepcopy(self.panel_grid.report._attrs["project"])
-        self.query_generator = QueryGenerator()
-        self.pm_query_generator = PythonMongoishQueryGenerator(self)
-        self.offset = offset
-        self.modified = False
-
-    def __repr__(self):
-        return f"<RunSet {self.entity}/{self.project}>"
-
-    def __generate_default_run_set_spec(self):
-        default = {
-            "filters": {
-                "op": "OR",
-                "filters": [{"op": "AND", "filters": []}],
-            },
-            "runFeed": {
-                "version": 2,
-                "columnVisible": {"run:name": False},
-                "columnPinned": {},
-                "columnWidths": {},
-                "columnOrder": [],
-                "pageSize": 10,
-                "onlyShowSelected": False,
-            },
-            "sort": {
-                "keys": [
-                    {
-                        "key": {"section": "run", "name": "createdAt"},
-                        "ascending": False,
-                    }
-                ]
-            },
-            "enabled": True,
-            "name": "Run set",
-            "search": {"query": ""},
-            "grouping": [],
-            "selections": {"root": 1, "bounds": [], "tree": []},
-            "expandedRowAddresses": [],
-        }
-        return deepcopy(default)
-
-    def panel_grid_callback(setter):  # noqa: N805
-        @wraps(setter)
-        def wrapper(self, *args, **kwargs):
-            self.modified = True
-            self.panel_grid.run_set_callback(self)
-            setter(self, *args, **kwargs)
-
-        return wrapper
-
-    @property
-    def name(self):
-        return self.spec["name"]
-
-    @name.setter
-    @panel_grid_callback
-    def name(self, new_name):
-        if not isinstance(new_name, str):
-            raise TypeError("Name must be a string")
-        self.spec["name"] = new_name
-
-    @property
-    def id(self):
-        return self.spec["id"]
-
-    @property
-    def entity(self):
-        return self.spec["project"]["entityName"]
-
-    @entity.setter
-    @panel_grid_callback
-    def entity(self, new_entity):
-        self.spec["project"]["entityName"] = new_entity
-
-    @property
-    def project(self):
-        return self.spec["project"]["name"]
-
-    @project.setter
-    @panel_grid_callback
-    def project(self, new_project):
-        self.spec["project"]["name"] = new_project
-
-    @property
-    def query(self):
-        return self.spec["search"]["query"]
-
-    @query.setter
-    def query(self, q):
-        self.spec["search"]["query"] = q
-
-    @property
-    def _runs_config(self):
-        # there must be a better way to do this...
-        config = {}
-        for run in Runs(self.panel_grid.report.client, self.entity, self.project):
-            config.update(run.config)
-        return config
-
-    @property
-    def _order_str(self):
-        return ",".join(
-            [k[0] + self.pm_query_generator.front_to_back(k[1:]) for k in self.order]
-        )
-
-    @property
-    def runs(self, per_page=50):
-        return Runs(
-            self.panel_grid.report.client,
-            self.entity,
-            self.project,
-            filters=self.filters,
-            order=self._order_str,
-            per_page=per_page,
-        )
-
-    @property
-    def visible(self):
-        return self.spec["selections"]["tree"]
-
-    # TODO: handle wild sub selection madness?
-    @visible.setter
-    @panel_grid_callback
-    def visible(self, run_ids):
-        for run_id in run_ids:
-            if not isinstance(run_id, str):
-                raise TypeError("`run_ids` must be a valid list of run ids")
-            if len(run_id) != 8:
-                raise ValueError("valid run id must have 8 alphanumeric characters")
-
-        self.spec["selections"]["tree"] = run_ids
-
-    @property
-    def enabled(self):
-        return self.spec["enabled"]
-
-    @enabled.setter
-    @panel_grid_callback
-    def enabled(self, is_enabled):
-        if not isinstance(is_enabled, bool):
-            raise TypeError("Setting must be boolean")
-        self.spec["enabled"] = is_enabled
-
-    @property
-    def only_show_selected(self):
-        return self.spec["runFeed"]["onlyShowSelected"]
-
-    @only_show_selected.setter
-    @panel_grid_callback
-    def only_show_selected(self, is_only_show_selected):
-        if not isinstance(is_only_show_selected, bool):
-            raise TypeError("Setting must be boolean")
-        self.spec["runFeed"]["onlyShowSelected"] = is_only_show_selected
-
-    @property
-    def show_all_runs(self):
-        return bool(self.spec["selections"]["root"])
-
-    @show_all_runs.setter
-    @panel_grid_callback
-    def show_all_runs(self, flag):
-        if not isinstance(flag, bool):
-            raise TypeError("Setting must be boolean")
-        self.spec["selections"]["root"] = 1 if flag else 0
-
-    @property
-    def filters(self):
-        return self.query_generator.filter_to_mongo(self.spec["filters"])
-
-    def __validate_mongo_filters(self, mongo_filters):
-        # TODO: Validate if the col exists in this project
-        pass
-
-    @filters.setter
-    @panel_grid_callback
-    def filters(self, mongo_filters):
-        self.__validate_mongo_filters(mongo_filters)
-        self.spec["filters"] = self.query_generator.mongo_to_filter(mongo_filters)
-
-    def set_filters_with_python_expr(self, expr):
-        mongo = self.pm_query_generator.python_to_mongo(expr)
-        self.filters = mongo
-
-    @property
-    def order(self):
-        return self._order_to_cols()
-
-    @order.setter
-    @panel_grid_callback
-    def order(self, cols):
-        if not isinstance(cols, list):
-            raise TypeError("`order` must be a list of columns prefixed with +/-")
-        for col in cols:
-            # TODO: Validate if the col exists in this project
-            if not isinstance(col, str):
-                raise TypeError("columns must be strings")
-            if col[0] not in {"+", "-"}:
-                raise ValueError(
-                    'columns must be prefixed with "+" or "-" to indicate ascending or descending'
-                )
-        self.spec["sort"] = self._cols_to_order(cols)
-
-    @property
-    def groupby(self):
-        return self._groupby_to_cols()
-
-    @groupby.setter
-    @panel_grid_callback
-    def groupby(self, cols):
-        if not isinstance(cols, list):
-            raise TypeError("`groupby` must be a list of cols")
-        for col in cols:
-            # TODO: Validate if the col exists in this project
-            if not isinstance(col, str):
-                raise TypeError("cols must be string")
-        self.spec["grouping"] = self._cols_to_groupby(cols)
-
-    def _cols_to_order(self, cols):
-        _cols = [
-            col[0] + self.pm_query_generator.front_to_back(col[1:]) for col in cols
-        ]
-        return self.query_generator.order_to_keys(_cols)
-
-    def _order_to_cols(self):
-        cols = self.query_generator.keys_to_order(self.spec["sort"])
-        return [col[0] + self.pm_query_generator.back_to_front(col[1:]) for col in cols]
-
-    def _cols_to_groupby(self, cols):
-        _cols = [self.pm_query_generator.front_to_back(col) for col in cols]
-        return [self.query_generator.server_path_to_key(k) for k in _cols]
-
-    def _groupby_to_cols(self):
-        cols = [
-            self.query_generator.key_to_server_path(k) for k in self.spec["grouping"]
-        ]
-        return [self.pm_query_generator.back_to_front(col) for col in cols]
-
-
-class PanelGrid(RequiresReportEditingMixin):
-    def __init__(self, report, spec=None, offset=0):
-        self.report = report
-        self.spec = spec
-        if self.spec is None:
-            self.spec = self.__generate_default_panel_grid_spec()
-        self.offset = offset
-        self.modified = False
-
-    def __repr__(self):
-        return f"<PanelGrid with {len(self.run_sets)} run set(s) and {len(self.panels)} panel(s)>"
-
-    def __generate_default_panel_grid_spec(self):
-        default = {
-            "type": "panel-grid",
-            "children": [{"text": ""}],
-            "metadata": {
-                "openViz": True,
-                "panels": {
-                    "views": {"0": {"name": "Panels", "defaults": [], "config": []}},
-                    "tabs": ["0"],
-                },
-                "panelBankConfig": {
-                    "state": 0,
-                    "settings": {
-                        "autoOrganizePrefix": 2,
-                        "showEmptySections": False,
-                        "sortAlphabetically": False,
-                    },
-                    "sections": [
-                        {
-                            "name": "Hidden Panels",
-                            "isOpen": False,
-                            "panels": [],
-                            "type": "flow",
-                            "flowConfig": {
-                                "snapToColumns": True,
-                                "columnsPerPage": 3,
-                                "rowsPerPage": 2,
-                                "gutterWidth": 16,
-                                "boxWidth": 460,
-                                "boxHeight": 300,
-                            },
-                            "sorted": 0,
-                            "localPanelSettings": {
-                                "xAxis": "_step",
-                                "smoothingWeight": 0,
-                                "smoothingType": "exponential",
-                                "ignoreOutliers": False,
-                                "xAxisActive": False,
-                                "smoothingActive": False,
-                            },
-                        }
-                    ],
-                },
-                "panelBankSectionConfig": {
-                    "name": "Report Panels",
-                    "isOpen": False,
-                    "panels": [],
-                    "type": "grid",
-                    "flowConfig": {
-                        "snapToColumns": True,
-                        "columnsPerPage": 3,
-                        "rowsPerPage": 2,
-                        "gutterWidth": 16,
-                        "boxWidth": 460,
-                        "boxHeight": 300,
-                    },
-                    "sorted": 0,
-                    "localPanelSettings": {
-                        "xAxis": "_step",
-                        "smoothingWeight": 0,
-                        "smoothingType": "exponential",
-                        "ignoreOutliers": False,
-                        "xAxisActive": False,
-                        "smoothingActive": False,
-                    },
-                },
-                "customRunColors": {},
-                "runSets": [RunSet(self).spec],
-                "openRunSet": 0,
-                "name": "unused-name",
-            },
-        }
-        return deepcopy(default)
-
-    @classmethod
-    def from_json(cls, report, spec):
-        return cls(report, spec)
-
-    def report_callback(setter):  # noqa: N805
-        @wraps(setter)
-        def wrapper(self, *args, **kwargs):
-            self.modified = True
-            self.report.panel_grid_callback(self)
-            setter(self, *args, **kwargs)
-
-        return wrapper
-
-    @report_callback
-    def run_set_callback(self, run_set):
-        self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
-
-    @report_callback
-    def panel_callback(self, panel):
-        try:
-            self.panels[panel.offset] = panel.spec
-        except IndexError:
-            pass
-
-    @property
-    def run_sets(self):
-        return [
-            RunSet(self, spec, offset=i)
-            for i, spec in enumerate(self.spec["metadata"]["runSets"])
-        ]
-
-    @run_sets.setter
-    @report_callback
-    def run_sets(self, new_run_sets):
-        for rs in new_run_sets:
-            if not isinstance(rs, RunSet):
-                raise TypeError(
-                    f"All objects must be of type wb.RunSet (got {type(rs)!r})"
-                )
-        self.spec["metadata"]["runSets"] = [rs.spec for rs in new_run_sets]
-
-        # TODO: If when assigning run_set, set its panel_grid to self.
-
-    def __spec_to_obj(self, spec, offset):
-        Panel = wandb.apis.reports._panels.panel_mapping[spec["viewType"]]  # noqa: N806
-        return Panel(self, spec, offset)
-
-    @property
-    def panels(self):
-        panel_specs = self.spec["metadata"]["panelBankSectionConfig"]["panels"]
-        return [self.__spec_to_obj(spec, i) for i, spec in enumerate(panel_specs)]
-
-    @panels.setter
-    @report_callback
-    def panels(self, new_panels):
-        new_panel_specs = []
-        for p in fix_collisions(new_panels):
-            p.panel_grid = self
-            new_panel_specs.append(p.spec)
-        self.spec["metadata"]["panelBankSectionConfig"]["panels"] = new_panel_specs
-
-    @property
-    def open_run_set(self):
-        return self.spec["metadata"]["openRunSet"]
-
-    @open_run_set.setter
-    @report_callback
-    def open_run_set(self, idx):
-        total_run_sets = len(self.run_sets)
-        if not isinstance(idx, int):
-            raise TypeError(f"`idx` must be an int < {total_run_sets}")
-        if idx >= total_run_sets:
-            raise ValueError(
-                f"`idx` must be less than the total number of run sets ({total_run_sets})"
-            )
-        self.spec["metadata"]["openRunSet"] = idx
-
-
 class BetaReport(Attrs):
     """BetaReport is a class associated with reports created in wandb.
 
@@ -3837,6 +3538,546 @@ class BetaReport(Attrs):
 
     def _repr_html_(self) -> str:
         return self.to_html()
+
+
+def _generate_default_panel_grid_spec():
+    return {
+        "type": "panel-grid",
+        "children": [{"text": ""}],
+        "metadata": {
+            "openViz": True,
+            "panels": {
+                "views": {"0": {"name": "Panels", "defaults": [], "config": []}},
+                "tabs": ["0"],
+            },
+            "panelBankConfig": {
+                "state": 0,
+                "settings": {
+                    "autoOrganizePrefix": 2,
+                    "showEmptySections": False,
+                    "sortAlphabetically": False,
+                },
+                "sections": [
+                    {
+                        "name": "Hidden Panels",
+                        "isOpen": False,
+                        "panels": [],
+                        "type": "flow",
+                        "flowConfig": {
+                            "snapToColumns": True,
+                            "columnsPerPage": 3,
+                            "rowsPerPage": 2,
+                            "gutterWidth": 16,
+                            "boxWidth": 460,
+                            "boxHeight": 300,
+                        },
+                        "sorted": 0,
+                        "localPanelSettings": {
+                            "xAxis": "_step",
+                            "smoothingWeight": 0,
+                            "smoothingType": "exponential",
+                            "ignoreOutliers": False,
+                            "xAxisActive": False,
+                            "smoothingActive": False,
+                        },
+                    }
+                ],
+            },
+            "panelBankSectionConfig": {
+                "name": "Report Panels",
+                "isOpen": False,
+                "panels": [],
+                "type": "grid",
+                "flowConfig": {
+                    "snapToColumns": True,
+                    "columnsPerPage": 3,
+                    "rowsPerPage": 2,
+                    "gutterWidth": 16,
+                    "boxWidth": 460,
+                    "boxHeight": 300,
+                },
+                "sorted": 0,
+                "localPanelSettings": {
+                    "xAxis": "_step",
+                    "smoothingWeight": 0,
+                    "smoothingType": "exponential",
+                    "ignoreOutliers": False,
+                    "xAxisActive": False,
+                    "smoothingActive": False,
+                },
+            },
+            "customRunColors": {},
+            "runSets": [],
+            "openRunSet": 0,
+            "name": "unused-name",
+        },
+    }
+
+
+@dataclass
+class PanelGrid(RequiresReportEditingMixin):
+    report: ... = attr(BetaReport)
+    spec: ... = attr(dict, default=_generate_default_panel_grid_spec(), repr=False)
+    offset: ... = attr(int, default=0, repr=False)
+
+    def __post_init__(self):
+        self.modified = False
+
+    # def __init__(self, report, spec=None, offset=0):
+    #     self.report = report
+    #     self.spec = spec
+    #     if self.spec is None:
+    #         self.spec = self.__generate_default_panel_grid_spec()
+    #     self.offset = offset
+    #     self.modified = False
+
+    def __repr__(self):
+        return f"<PanelGrid with {len(self.run_sets)} run set(s) and {len(self.panels)} panel(s)>"
+
+    def __generate_default_panel_grid_spec(self):
+        default = {
+            "type": "panel-grid",
+            "children": [{"text": ""}],
+            "metadata": {
+                "openViz": True,
+                "panels": {
+                    "views": {"0": {"name": "Panels", "defaults": [], "config": []}},
+                    "tabs": ["0"],
+                },
+                "panelBankConfig": {
+                    "state": 0,
+                    "settings": {
+                        "autoOrganizePrefix": 2,
+                        "showEmptySections": False,
+                        "sortAlphabetically": False,
+                    },
+                    "sections": [
+                        {
+                            "name": "Hidden Panels",
+                            "isOpen": False,
+                            "panels": [],
+                            "type": "flow",
+                            "flowConfig": {
+                                "snapToColumns": True,
+                                "columnsPerPage": 3,
+                                "rowsPerPage": 2,
+                                "gutterWidth": 16,
+                                "boxWidth": 460,
+                                "boxHeight": 300,
+                            },
+                            "sorted": 0,
+                            "localPanelSettings": {
+                                "xAxis": "_step",
+                                "smoothingWeight": 0,
+                                "smoothingType": "exponential",
+                                "ignoreOutliers": False,
+                                "xAxisActive": False,
+                                "smoothingActive": False,
+                            },
+                        }
+                    ],
+                },
+                "panelBankSectionConfig": {
+                    "name": "Report Panels",
+                    "isOpen": False,
+                    "panels": [],
+                    "type": "grid",
+                    "flowConfig": {
+                        "snapToColumns": True,
+                        "columnsPerPage": 3,
+                        "rowsPerPage": 2,
+                        "gutterWidth": 16,
+                        "boxWidth": 460,
+                        "boxHeight": 300,
+                    },
+                    "sorted": 0,
+                    "localPanelSettings": {
+                        "xAxis": "_step",
+                        "smoothingWeight": 0,
+                        "smoothingType": "exponential",
+                        "ignoreOutliers": False,
+                        "xAxisActive": False,
+                        "smoothingActive": False,
+                    },
+                },
+                "customRunColors": {},
+                "runSets": [RunSet(self).spec],
+                "openRunSet": 0,
+                "name": "unused-name",
+            },
+        }
+        return deepcopy(default)
+
+    @classmethod
+    def from_json(cls, report, spec):
+        return cls(report, spec)
+
+    def report_callback(setter):  # noqa: N805
+        @wraps(setter)
+        def wrapper(self, *args, **kwargs):
+            self.modified = True
+            self.report.panel_grid_callback(self)
+            setter(self, *args, **kwargs)
+
+        return wrapper
+
+    @report_callback
+    def run_set_callback(self, run_set):
+        self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
+
+    @report_callback
+    def panel_callback(self, panel):
+        try:
+            self.panels[panel.offset] = panel.spec
+        except IndexError:
+            pass
+
+    @property
+    def run_sets(self):
+        return [
+            RunSet(self, spec, offset=i)
+            for i, spec in enumerate(self.spec["metadata"]["runSets"])
+        ]
+
+    @run_sets.setter
+    @report_callback
+    def run_sets(self, new_run_sets):
+        for rs in new_run_sets:
+            if not isinstance(rs, RunSet):
+                raise TypeError(
+                    f"All objects must be of type wb.RunSet (got {type(rs)!r})"
+                )
+        self.spec["metadata"]["runSets"] = [rs.spec for rs in new_run_sets]
+
+        # TODO: If when assigning run_set, set its panel_grid to self.
+
+    def __spec_to_obj(self, spec, offset):
+        Panel = wandb.apis.reports._panels.panel_mapping[spec["viewType"]]  # noqa: N806
+        return Panel(self, spec, offset)
+
+    @property
+    def panels(self):
+        panel_specs = self.spec["metadata"]["panelBankSectionConfig"]["panels"]
+        return [self.__spec_to_obj(spec, i) for i, spec in enumerate(panel_specs)]
+
+    @panels.setter
+    @report_callback
+    def panels(self, new_panels):
+        new_panel_specs = []
+        for p in fix_collisions(new_panels):
+            p.panel_grid = self
+            p.disable_callbacks = False
+            new_panel_specs.append(p.spec)
+        self.spec["metadata"]["panelBankSectionConfig"]["panels"] = new_panel_specs
+
+    @property
+    def open_run_set(self):
+        return self.spec["metadata"]["openRunSet"]
+
+    @open_run_set.setter
+    @report_callback
+    def open_run_set(self, idx):
+        total_run_sets = len(self.run_sets)
+        if not isinstance(idx, int):
+            raise TypeError(f"`idx` must be an int < {total_run_sets}")
+        if idx >= total_run_sets:
+            raise ValueError(
+                f"`idx` must be less than the total number of run sets ({total_run_sets})"
+            )
+        self.spec["metadata"]["openRunSet"] = idx
+
+
+def _generate_default_run_set_spec():
+    return {
+        "filters": {
+            "op": "OR",
+            "filters": [{"op": "AND", "filters": []}],
+        },
+        "runFeed": {
+            "version": 2,
+            "columnVisible": {"run:name": False},
+            "columnPinned": {},
+            "columnWidths": {},
+            "columnOrder": [],
+            "pageSize": 10,
+            "onlyShowSelected": False,
+        },
+        "sort": {
+            "keys": [
+                {
+                    "key": {"section": "run", "name": "createdAt"},
+                    "ascending": False,
+                }
+            ]
+        },
+        "enabled": True,
+        "name": "Run set",
+        "search": {"query": ""},
+        "grouping": [],
+        "selections": {"root": 1, "bounds": [], "tree": []},
+        "expandedRowAddresses": [],
+    }
+
+
+@dataclass
+class RunSet(RequiresReportEditingMixin):
+    panel_grid: ... = attr(PanelGrid)
+    spec: ... = attr(dict, default=_generate_default_run_set_spec(), repr=False)
+    offset: ... = attr(int, default=0, repr=False)
+
+    def __post_init__(self):
+        self.query_generator = QueryGenerator()
+        self.pm_query_generator = PythonMongoishQueryGenerator(self)
+        self.modified = False
+
+    # def __init__(self, panel_grid, spec=None, offset=0):
+    #     self.panel_grid = panel_grid
+    #     self.spec = spec
+    #     if self.spec is None:  # or spec is malformed?
+    #         self.spec = self.__generate_default_run_set_spec()
+    #     if "project" not in self.spec:
+    #         self.spec["project"] = deepcopy(self.panel_grid.report._attrs["project"])
+    #     self.query_generator = QueryGenerator()
+    #     self.pm_query_generator = PythonMongoishQueryGenerator(self)
+    #     self.offset = offset
+    #     self.modified = False
+
+    def __repr__(self):
+        return f"<RunSet {self.entity}/{self.project}>"
+
+    # def __generate_default_run_set_spec(self):
+    #     default = {
+    #         "filters": {
+    #             "op": "OR",
+    #             "filters": [{"op": "AND", "filters": []}],
+    #         },
+    #         "runFeed": {
+    #             "version": 2,
+    #             "columnVisible": {"run:name": False},
+    #             "columnPinned": {},
+    #             "columnWidths": {},
+    #             "columnOrder": [],
+    #             "pageSize": 10,
+    #             "onlyShowSelected": False,
+    #         },
+    #         "sort": {
+    #             "keys": [
+    #                 {
+    #                     "key": {"section": "run", "name": "createdAt"},
+    #                     "ascending": False,
+    #                 }
+    #             ]
+    #         },
+    #         "enabled": True,
+    #         "name": "Run set",
+    #         "search": {"query": ""},
+    #         "grouping": [],
+    #         "selections": {"root": 1, "bounds": [], "tree": []},
+    #         "expandedRowAddresses": [],
+    #     }
+    #     return deepcopy(default)
+
+    def panel_grid_callback(setter):  # noqa: N805
+        @wraps(setter)
+        def wrapper(self, *args, **kwargs):
+            self.modified = True
+            self.panel_grid.run_set_callback(self)
+            setter(self, *args, **kwargs)
+
+        return wrapper
+
+    @property
+    def name(self):
+        return self.spec["name"]
+
+    @name.setter
+    @panel_grid_callback
+    def name(self, new_name):
+        if not isinstance(new_name, str):
+            raise TypeError("Name must be a string")
+        self.spec["name"] = new_name
+
+    @property
+    def id(self):
+        return self.spec["id"]
+
+    @property
+    def entity(self):
+        if "project" in self.spec:
+            return self.spec["project"]["entityName"]
+        else:
+            return None
+
+    @entity.setter
+    @panel_grid_callback
+    def entity(self, new_entity):
+        self.spec["project"]["entityName"] = new_entity
+
+    @property
+    def project(self):
+        if "project" in self.spec:
+            return self.spec["project"]["name"]
+        else:
+            return None
+
+    @project.setter
+    @panel_grid_callback
+    def project(self, new_project):
+        self.spec["project"]["name"] = new_project
+
+    @property
+    def query(self):
+        return self.spec["search"]["query"]
+
+    @query.setter
+    def query(self, q):
+        self.spec["search"]["query"] = q
+
+    @property
+    def _runs_config(self):
+        # there must be a better way to do this...
+        config = {}
+        for run in Runs(self.panel_grid.report.client, self.entity, self.project):
+            config.update(run.config)
+        return config
+
+    @property
+    def _order_str(self):
+        return ",".join(
+            [k[0] + self.pm_query_generator.front_to_back(k[1:]) for k in self.order]
+        )
+
+    @property
+    def runs(self, per_page=50):
+        return Runs(
+            self.panel_grid.report.client,
+            self.entity,
+            self.project,
+            filters=self.filters,
+            order=self._order_str,
+            per_page=per_page,
+        )
+
+    @property
+    def visible(self):
+        return self.spec["selections"]["tree"]
+
+    # TODO: handle wild sub selection madness?
+    @visible.setter
+    @panel_grid_callback
+    def visible(self, run_ids):
+        for run_id in run_ids:
+            if not isinstance(run_id, str):
+                raise TypeError("`run_ids` must be a valid list of run ids")
+            if len(run_id) != 8:
+                raise ValueError("valid run id must have 8 alphanumeric characters")
+
+        self.spec["selections"]["tree"] = run_ids
+
+    @property
+    def enabled(self):
+        return self.spec["enabled"]
+
+    @enabled.setter
+    @panel_grid_callback
+    def enabled(self, is_enabled):
+        if not isinstance(is_enabled, bool):
+            raise TypeError("Setting must be boolean")
+        self.spec["enabled"] = is_enabled
+
+    @property
+    def only_show_selected(self):
+        return self.spec["runFeed"]["onlyShowSelected"]
+
+    @only_show_selected.setter
+    @panel_grid_callback
+    def only_show_selected(self, is_only_show_selected):
+        if not isinstance(is_only_show_selected, bool):
+            raise TypeError("Setting must be boolean")
+        self.spec["runFeed"]["onlyShowSelected"] = is_only_show_selected
+
+    @property
+    def show_all_runs(self):
+        return bool(self.spec["selections"]["root"])
+
+    @show_all_runs.setter
+    @panel_grid_callback
+    def show_all_runs(self, flag):
+        if not isinstance(flag, bool):
+            raise TypeError("Setting must be boolean")
+        self.spec["selections"]["root"] = 1 if flag else 0
+
+    @property
+    def filters(self):
+        return self.query_generator.filter_to_mongo(self.spec["filters"])
+
+    def __validate_mongo_filters(self, mongo_filters):
+        # TODO: Validate if the col exists in this project
+        pass
+
+    @filters.setter
+    @panel_grid_callback
+    def filters(self, mongo_filters):
+        self.__validate_mongo_filters(mongo_filters)
+        self.spec["filters"] = self.query_generator.mongo_to_filter(mongo_filters)
+
+    def set_filters_with_python_expr(self, expr):
+        mongo = self.pm_query_generator.python_to_mongo(expr)
+        self.filters = mongo
+
+    @property
+    def order(self):
+        return self._order_to_cols()
+
+    @order.setter
+    @panel_grid_callback
+    def order(self, cols):
+        if not isinstance(cols, list):
+            raise TypeError("`order` must be a list of columns prefixed with +/-")
+        for col in cols:
+            # TODO: Validate if the col exists in this project
+            if not isinstance(col, str):
+                raise TypeError("columns must be strings")
+            if col[0] not in {"+", "-"}:
+                raise ValueError(
+                    'columns must be prefixed with "+" or "-" to indicate ascending or descending'
+                )
+        self.spec["sort"] = self._cols_to_order(cols)
+
+    @property
+    def groupby(self):
+        return self._groupby_to_cols()
+
+    @groupby.setter
+    @panel_grid_callback
+    def groupby(self, cols):
+        if not isinstance(cols, list):
+            raise TypeError("`groupby` must be a list of cols")
+        for col in cols:
+            # TODO: Validate if the col exists in this project
+            if not isinstance(col, str):
+                raise TypeError("cols must be string")
+        self.spec["grouping"] = self._cols_to_groupby(cols)
+
+    def _cols_to_order(self, cols):
+        _cols = [
+            col[0] + self.pm_query_generator.front_to_back(col[1:]) for col in cols
+        ]
+        return self.query_generator.order_to_keys(_cols)
+
+    def _order_to_cols(self):
+        cols = self.query_generator.keys_to_order(self.spec["sort"])
+        return [col[0] + self.pm_query_generator.back_to_front(col[1:]) for col in cols]
+
+    def _cols_to_groupby(self, cols):
+        _cols = [self.pm_query_generator.front_to_back(col) for col in cols]
+        return [self.query_generator.server_path_to_key(k) for k in _cols]
+
+    def _groupby_to_cols(self):
+        cols = [
+            self.query_generator.key_to_server_path(k) for k in self.spec["grouping"]
+        ]
+        return [self.pm_query_generator.back_to_front(col) for col in cols]
 
 
 class HistoryScan:
