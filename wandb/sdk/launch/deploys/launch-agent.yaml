@@ -15,11 +15,11 @@ build:
     secret-mount-path: /root/.aws/
   build-context-store: wandb-build # name here
 runners:
-  - kubernetes:
-      namespace: wandb
-  - local-process:
-      labels:
-        - gpu
-  - local-container:
-      labels:
-        - gpu
+  - type: kubernetes
+    namespace: wandb
+  - type: local-process
+    labels:
+      - gpu
+  - type: local-container
+    labels:
+      - gpu
