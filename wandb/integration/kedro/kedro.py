@@ -12,15 +12,15 @@ except ImportError as e:
     raise Exception(
         "Error `kedro` is not installed. This integration requires Kedro! Please run `pip install kedro`."
     ) from e
- 
+
 try:
     from fastcore.all import typedispatch
 except ImportError as e:
     raise Exception(
         "Error `fastcore` is not installed. This integration requires fastcore! Please run `pip install fastcore`."
     ) from e
- 
- 
+
+
 class WandbHooks:
     @hook_impl
     def before_pipeline_run(self, catalog: DataCatalog) -> None:
@@ -69,7 +69,7 @@ class WandbHooks:
         parameters = self.catalog.load("parameters")
 
         for parameter in parameters:
-            if not parameter.startswith("wandb"): 
+            if not parameter.startswith("wandb"):
                 self.run.config[parameter] = parameters[parameter]
 
         for dataset in self.catalog._data_sets.values():
@@ -82,27 +82,27 @@ class WandbHooks:
     @hook_impl
     def after_pipeline_run(self) -> None:
         self.run.finish()
- 
- 
+
+
 # Numpy Arrays
 try:
     import numpy as np
- 
+
     @typedispatch
     def _serialize(filepath: Path, obj: np.ndarray) -> None:
         np.save(filepath, obj)
- 
+
     def _deserialize_numpy(filepath: Path) -> np.ndarray:
         return np.load(filepath)
- 
+
 except ImportError:
     wandb.termwarn(
         "Warning: `numpy` is not installed. Logging arrays as Artifacts may not work."
     )
- 
+
 try:
     import pandas as pd
- 
+
     @typedispatch
     def _serialize(filepath: Path, obj: pd.DataFrame) -> None:
         if filepath.suffix == ".csv":
@@ -135,9 +135,9 @@ try:
             return pd.read_sql(filepath)
         else:
             return pd.read_pickle(filepath)
- 
+
     # TODO Read from file function
- 
+
 except ImportError:
     wandb.termwarn(
         "Warning: `pandas` is not installed. Logging dataframes as Artifacts may not work."
@@ -146,11 +146,11 @@ except ImportError:
 # Tensorflow Models
 try:
     import tensorflow as tf
- 
+
     @typedispatch
     def _serialize(filepath: Path, obj: tf.keras.Model) -> None:
         obj.save(filepath)
- 
+
     def _deserialize_tensorflow(filepath: Path) -> tf.keras.Model:
         return tf.keras.models.load_model(filepath)
 
@@ -162,19 +162,19 @@ except ImportError:
 # PyTorch Tensors and Models
 try:
     import torch
- 
+
     @typedispatch
     def _serialize(filepath: Path, obj: Union[torch.Tensor, torch.nn.Module]) -> None:
         torch.save(obj, filepath)
 
     def _deserialize_torch(filepath: Path) -> Union[torch.Tensor, torch.nn.Module]:
         return torch.load(filepath)
- 
+
 except ImportError:
     wandb.termwarn(
         "Warning: `torch` is not installed. Logging torch Tensors as Artifacts may not work."
     )
- 
+
 # Pickle Objects - Default
 @typedispatch
 def _serialize(filepath: Path, obj: Any) -> None:
@@ -196,13 +196,13 @@ def _deserialize(filepath: Path) -> Any:
         return _deserialize_tensorflow(filepath)
     else:
         return _deserialize_pickle(filepath)
- 
- 
+
+
 class WandbArtifact(AbstractDataSet):
     """
     WandbArtifact loads from/to a Wandb Artifact using the underlying Filesystem
     """
- 
+
     def __init__(
         self,
         artifact_name: str,
@@ -212,7 +212,7 @@ class WandbArtifact(AbstractDataSet):
         override: Optional[bool] = True,
     ) -> None:
         super(WandbArtifact, self).__init__()
- 
+
         self.artifact_name = artifact_name
         self.artifact_type = artifact_type
         self.alias = alias
@@ -221,7 +221,7 @@ class WandbArtifact(AbstractDataSet):
         self.entity = None
         self.project = None
         self.run = None
- 
+
     def _describe(self) -> Dict[str, Any]:
         return {
             "type": "wandb_artifact",
@@ -230,40 +230,40 @@ class WandbArtifact(AbstractDataSet):
             "artifact_name": self.artifact_name,
             "alias": self.alias,
         }
- 
+
     def _load(self) -> Any:
         artifact = self.run.use_artifact(f"{self.artifact_name}:{self.alias}")
- 
+
         if artifact is None:
             raise Exception(
                 f"Artifact {self.artifact_name} does not exist in {self.run.project_name()}"
             )
- 
+
         if self.override:
             # Any existing files in `root` are remained untouched by default.
             # If `override` is set to True, existing files in `root` are deleted
             # before downloading artifact.
             if self.filepath.is_file():
                 self.filepath.unlink()
- 
+
         artifact.download(self.filepath.parent)
- 
-        return _deserialize(self.filepath) 
- 
+
+        return _deserialize(self.filepath)
+
     def _save(self, data: Any) -> None:
         artifact = wandb.Artifact(
             self.artifact_name, type=self.artifact_type
         )
- 
+
         if self.override:
             if self.filepath.is_file():
                 self.filepath.unlink()
         # serialize data to self.filepath based on the type of data
         _serialize(self.filepath, data)
- 
+
         if self.filepath.is_file():
             artifact.add_file(self.filepath)
- 
+
         if self.run:
             self.run.log_artifact(artifact)
 
