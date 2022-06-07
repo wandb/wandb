@@ -154,9 +154,13 @@ class LaunchAgent:
             """
             query GetRunQueuesByEntity($entityName: String!) {
                 runQueues(entityName: $entityName) {
-                    resource_config
-                    queue_id
-                    name
+                    edges {
+                        node {
+                              config
+                              queue_id
+                              name
+                         }   
+                     }    
                 } 
             }
             """
