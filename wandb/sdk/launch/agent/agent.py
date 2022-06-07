@@ -146,7 +146,7 @@ class LaunchAgent:
         """
         pass
 
-    def _get_valid_resource_configs(self, entity: str) -> list[RunQueue]:
+    def _get_valid_queues(self, entity: str) -> list[RunQueue]:
         """
         Given an entity, return a list of run queues associated with that entity.
         """
@@ -155,6 +155,8 @@ class LaunchAgent:
             query GetRunQueuesByEntity($entityName: String!) {
                 runQueues(entityName: $entityName) {
                     resource_config
+                    queue_id
+                    name
                 } 
             }
             """
@@ -162,19 +164,19 @@ class LaunchAgent:
 
         run_queues = self._api.client.execute(QUERY, {"entityName": entity})
         resource_configs = [json.loads(q["resourceConfig"]) for q in run_queues]
-        valid_resource_configs = []
+        valid_queues = []
 
         # can't wait for structural pattern matching...
-        for rc in resource_configs:
+        for q, rc in zip(run_queues, resource_configs):
             runner = rc["runner"]
             if runner in self._configured_runners:
                 if runner.startswith("local") and not any(
                     lbl in self._supported_labels for lbl in runner.get("labels")
                 ):
                     continue
-                valid_resource_configs.append(rc)
+                valid_queues.append(q)
 
-        return valid_resource_configs
+        return valid_queues
 
     def _select_queue(self, queues: list[RunQueue]) -> list[RunQueue]:
         """
@@ -188,7 +190,7 @@ class LaunchAgent:
         """ "
         Return a combined config to do the next job.
         """
-        valid_resource_configs = self._get_valid_resource_configs(self._entity)
+        valid_resource_configs = self._get_valid_queues(self._entity)
         selected_resource_config = self._select_queue(valid_resource_configs)
         combined_config = {
             **selected_resource_config.config,
