@@ -37,27 +37,25 @@ RunQueue = TypeVar("RunQueue")
 
 
 def kubernetes(agent, queue):
-    return False
+    valid = False
+    return valid
 
 
 def sagemaker(agent, queue):
-    return False
+    valid = False
+    return valid
 
 
 def local_process(agent, queue):
     rc = queue["resourceConfig"]
-
-    if not any(lbl in agent._supported_labels for lbl in rc.get("labels")):
-        return False
-    return True
+    valid = any(lbl in agent._supported_labels for lbl in rc.get("labels"))
+    return valid
 
 
 def local_container(agent, queue):
     rc = queue["resourceConfig"]
-
-    if not any(lbl in agent._supported_labels for lbl in rc.get("labels")):
-        return False
-    return True
+    valid = any(lbl in agent._supported_labels for lbl in rc.get("labels"))
+    return valid
 
 
 runner_dispatch = {
