@@ -146,60 +146,55 @@ class LaunchAgent:
         """
         pass
 
-    def _get_valid_queues(self, entity: str) -> list[RunQueue]:
+    def _filter_to_valid_queues(self) -> None:
         """
         Given an entity, return a list of run queues associated with that entity.
         """
-        QUERY = gql(
-            """
-            query GetRunQueuesByEntity($entityName: String!) {
-                runQueues(entityName: $entityName) {
-                    edges {
-                        node {
-                              config
-                              queue_id
-                              name
-                         }   
-                     }    
-                } 
-            }
-            """
-        )
-
-        run_queues = self._api.client.execute(QUERY, {"entityName": entity})
-        resource_configs = [json.loads(q["resourceConfig"]) for q in run_queues]
+        run_queues = self._api.get_run_queues_by_entity(self._entity)
         valid_queues = []
+        for q in run_queues:
+            runner = q["resourceConfig"]["runner"]
 
-        # can't wait for structural pattern matching...
-        for q, rc in zip(run_queues, resource_configs):
-            runner = rc["runner"]
             if runner in self._configured_runners:
-                if runner.startswith("local") and not any(
-                    lbl in self._supported_labels for lbl in runner.get("labels")
-                ):
+                if runner == "kubernetes":
                     continue
+                elif runner == "sagemaker":
+                    continue
+                elif runner == "local-process":
+                    if not any(
+                        lbl in self._supported_labels for lbl in runner.get("labels")
+                    ):
+                        continue
+                elif runner == "local-container":
+                    if not any(
+                        lbl in self._supported_labels for lbl in runner.get("labels")
+                    ):
+                        continue
+                else:
+                    raise ValueError(f"Unsupported runner: {runner}")
                 valid_queues.append(q)
 
-        return valid_queues
+        self._queues = valid_queues
 
-    def _select_queue(self, queues: list[RunQueue]) -> list[RunQueue]:
+    def _order_queues_by_priority(self) -> None:
+
         """
         `Smartly` select a queue!
         """
         # return random.choice(queues)
-        random.shuffle(queues)
-        return queues
+        random.shuffle(self._queues)
+
+        # random.shuffle(queues)
+        # return queues
 
     def _get_combined_config(self):
         """ "
         Return a combined config to do the next job.
         """
-        valid_resource_configs = self._get_valid_queues(self._entity)
-        selected_resource_config = self._select_queue(valid_resource_configs)
-        combined_config = {
-            **selected_resource_config.config,
-            **self._configured_runners,
-        }
+        self._filter_to_valid_queues()
+        self._order_queues_by_priority()
+        job = self._queues[0].pop()
+        combined_config = {**job.config, **self._configured_runners}
         return combined_config
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
@@ -300,14 +295,15 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
-                    for queue in self._queues:
-                        job = self.pop_from_queue(queue)
-                        if job:
-                            try:
-                                self.run_job(job)
-                            except Exception as e:
-                                wandb.termerror(f"Error running job: {e}")
-                                self._api.ack_run_queue_item(job["runQueueItemId"])
+                    job = self._get_combined_config()
+                    # for queue in self._queues:
+                    #     job = self.pop_from_queue(queue)
+                    if job:
+                        try:
+                            self.run_job(job)
+                        except Exception as e:
+                            wandb.termerror(f"Error running job: {e}")
+                            self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:

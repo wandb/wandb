@@ -1,3 +1,4 @@
+from wandb.sdk.launch.agent.agent import RunQueue
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -1046,6 +1047,28 @@ class Api:
             },
         )
         return response["popFromRunQueue"]
+
+    def get_run_queues_by_entity(self, entity: str) -> list[RunQueue]:
+        """
+        Given an entity, return a list of run queues associated with that entity.
+        """
+        query = gql(
+            """
+            query GetRunQueuesByEntity($entityName: String!) {
+                runQueues(entityName: $entityName) {
+                    edges {
+                        node {
+                              config
+                              queue_id
+                              name
+                         }   
+                     }    
+                } 
+            }
+            """
+        )
+        response = self.gql(query, variable_values={"entityName": entity})
+        return response
 
     @normalize_exceptions
     def ack_run_queue_item(self, item_id, run_id=None):
