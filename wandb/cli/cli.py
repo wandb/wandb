@@ -8,6 +8,7 @@ import getpass
 import json
 import logging
 import os
+import requests
 import shlex
 import shutil
 import subprocess
@@ -1434,6 +1435,26 @@ def local(ctx, *args, **kwargs):
 @cli.group(help="Commands for operating a local W&B server")
 def server():
     pass
+
+
+@server.command(context_settings=RUN_CONTEXT, help="Debug a local W&B server")
+@click.option("--host", default=None, help="Test a specific instance of W&B")
+@display_error
+def debug(host):
+    # wandb.login(host=host)
+    # api = wandb.Api()
+    # api.api_key
+    # host = "http://localhost:8080"
+    if host != None:
+        env_url = f"{host}/system-admin/api/env"
+        print(env_url)
+        env = requests.options(env_url)
+        print(env.content)
+        # debug_url = f"{host}/system-admin/api/debug"
+        # debug = requests.options(debug_url)
+        # print(debug.content)
+    else:
+        print("No host provided.")
 
 
 @server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
