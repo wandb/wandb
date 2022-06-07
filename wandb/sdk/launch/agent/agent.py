@@ -36,6 +36,38 @@ _logger = logging.getLogger(__name__)
 RunQueue = TypeVar("RunQueue")
 
 
+def kubernetes(agent, queue):
+    return False
+
+
+def sagemaker(agent, queue):
+    return False
+
+
+def local_process(agent, queue):
+    rc = queue["resourceConfig"]
+
+    if not any(lbl in agent._supported_labels for lbl in rc.get("labels")):
+        return False
+    return True
+
+
+def local_container(agent, queue):
+    rc = queue["resourceConfig"]
+
+    if not any(lbl in agent._supported_labels for lbl in rc.get("labels")):
+        return False
+    return True
+
+
+runner_dispatch = {
+    "kubernetes": kubernetes,
+    "sagemaker": sagemaker,
+    "local-process": local_process,
+    "local-container": local_container,
+}
+
+
 def _convert_access(access: str) -> str:
     """Converts access string to a value accepted by wandb."""
     access = access.upper()
@@ -153,27 +185,15 @@ class LaunchAgent:
         run_queues = self._api.get_run_queues_by_entity(self._entity)
         valid_queues = []
         for q in run_queues:
-            runner = q["resourceConfig"]["runner"]
+            rc = q["resourceConfig"]
+            runner = rc["runner"]
 
             if runner in self._configured_runners:
-                if runner == "kubernetes":
-                    continue
-                elif runner == "sagemaker":
-                    continue
-                elif runner == "local-process":
-                    if not any(
-                        lbl in self._supported_labels for lbl in runner.get("labels")
-                    ):
-                        continue
-                elif runner == "local-container":
-                    if not any(
-                        lbl in self._supported_labels for lbl in runner.get("labels")
-                    ):
-                        continue
-                else:
-                    raise ValueError(f"Unsupported runner: {runner}")
-                valid_queues.append(q)
-
+                valid = runner_dispatch[runner]
+                if valid:
+                    valid_queues.append(q)
+            else:
+                raise ValueError(f"Unsupported runner: ({runner})")
         self._queues = valid_queues
 
     def _order_queues_by_priority(self) -> None:

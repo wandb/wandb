@@ -1048,6 +1048,7 @@ class Api:
         )
         return response["popFromRunQueue"]
 
+    @normalize_exceptions
     def get_run_queues_by_entity(self, entity: str) -> list[RunQueue]:
         """
         Given an entity, return a list of run queues associated with that entity.
