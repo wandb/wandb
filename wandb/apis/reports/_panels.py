@@ -132,13 +132,14 @@ def _generate_default_panel_spec():
 class Panel(SubclassOnlyABC, RequiresReportEditingMixin):
     panel_grid: ... = attr()
     _spec: ... = attr(dict, default=_generate_default_panel_spec(), repr=False)
-    offset: ... = attr(int, repr=False)
+    offset: ... = attr(int, default=0, repr=False)
 
     def __post_init__(self):
         self._spec["viewType"] = self.view_type
         # if self._spec is None:
         #     self._spec = self._generate_default_panel_spec()
         self.disable_callback = True if self.panel_grid is None else False
+        self.modified = False
 
     # panel_grid: ... = Attr()  # of type PanelGrid
     # _spec: ... = Attr()
