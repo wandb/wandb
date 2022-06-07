@@ -159,6 +159,9 @@ class InterfaceBase:
                 update.key = k
                 if isinstance(v, Media) and self._run is not None:
                     if not v._run:
+                        # TODO: should we do thi? or should we just call a
+                        # reduced version of to_json that saves a minimal
+                        # json blob describing the media?
                         v.bind_to_run(self._run, f"config.{k}", 0)
                     update.value_json = json_dumps_safer(v.to_json(self._run))
                 else:

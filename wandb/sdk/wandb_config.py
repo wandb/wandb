@@ -171,7 +171,7 @@ class Config:
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
                 locked_keys.add(key)
-        sanitized = self._sanitize_dict(
+        sanitized = self._sanitize_dict_recursive(
             parsed_dict, allow_val_change, ignore_keys=locked_keys
         )
         self._items.update(sanitized)
@@ -194,7 +194,7 @@ class Config:
         d = wandb_helper.parse_config(d)
         # strip out keys already configured
         d = {k: v for k, v in d.items() if k not in self._items}
-        d = self._sanitize_dict(d)
+        d = self._sanitize_dict_recursive(d)
         self._items.update(d)
         if self._callback:
             self._callback(data=d)
@@ -262,6 +262,24 @@ class Config:
                     ).format(key, self._items[key], val)
                 )
         return key, val
+
+    def _sanitize_dict_recursive(
+        self, config_dict, allow_val_change=None, ignore_keys: dict = None
+    ):
+        sanitized = {}
+        self._raise_value_error_on_nested_artifact(config_dict)
+        for k, v in config_dict.items():
+            if ignore_keys and k in ignore_keys:
+                continue
+            if isinstance(v, dict):
+                k, v = self._sanitize_dict_recursive(
+                    v, allow_val_change, ignore_keys.get(k)
+                )
+                sanitized[k] = v
+            else:
+                k, v = self._sanitize(k, v, allow_val_change)
+            sanitized[k] = v
+        return sanitized
 
     def _raise_value_error_on_nested_artifact(self, v, nested=False):
         # we can't swap nested artifacts because their root key can be locked by other values
