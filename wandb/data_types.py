@@ -444,6 +444,7 @@ class Table(Media):
         return self._eq_debug(other)
 
     def add_row(self, *row):
+        """add_row is deprecated. Please use add_data"""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
