@@ -117,7 +117,10 @@ def prompt_api_key(  # noqa: C901
 
         if not key:
             if not (settings.is_local or local):
-                host = app_url.lstrip("http://").lstrip("https://")
+                host = app_url
+                for prefix in "http://", "https://":
+                    if app_url.startswith(prefix):
+                        host = app_url[len(prefix) :]
                 wandb.termlog(
                     f"Logging into {host}. (Learn about deployment options: {wburls.get('deployments')})"
                 )
