@@ -1059,7 +1059,7 @@ class Api:
                     edges {
                         node {
                               config
-                              queue_id
+                              projectName
                               name
                          }   
                      }    
@@ -1068,7 +1068,7 @@ class Api:
             """
         )
         response = self.gql(query, variable_values={"entityName": entity})
-        return response
+        return [r["node"] for r in response["runQueues"]["edges"]]
 
     @normalize_exceptions
     def ack_run_queue_item(self, item_id, run_id=None):

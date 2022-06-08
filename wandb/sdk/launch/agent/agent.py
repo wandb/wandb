@@ -66,6 +66,21 @@ runner_dispatch = {
 }
 
 
+def merge_dicts(x, y):
+    """
+    https://stackoverflow.com/questions/47564712/merge-nested-dictionaries-by-appending
+
+    Inserts items from dict x into dict y, prioritizing x if keys exist in both dicts
+    """
+    for key in y:
+        if key in x:
+            if isinstance(x[key], dict) and isinstance(y[key], dict):
+                merge_dicts(x[key], y[key])
+        else:
+            x[key] = y[key]
+    return x
+
+
 def _convert_access(access: str) -> str:
     """Converts access string to a value accepted by wandb."""
     access = access.upper()
@@ -101,14 +116,16 @@ class LaunchAgent:
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
         )
-        self._queues = config.get("queues", ["default"])
-        create_response = self._api.create_launch_agent(
-            self._entity,
-            self._project,
-            self._queues,
-            self.gorilla_supports_agents,
-        )
-        self._id = create_response["launchAgentId"]
+        self._queues = self._get_valid_run_queues()
+        print(self._queues)
+        # create_response = self._api.create_launch_agent(
+        #     self._entity,
+        #     self._project,
+        #     self._queues,
+        #     self.gorilla_supports_agents,
+        # )
+        # self._id = create_response["launchAgentId"]
+        self._id = "testing"
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
     @property
@@ -116,19 +133,19 @@ class LaunchAgent:
         """Returns a list of keys running job ids for the agent."""
         return list(self._jobs.keys())
 
-    def pop_from_queue(self, queue: str) -> Any:
+    def pop_from_queue(self, queue: RunQueue) -> Any:
         """Pops an item off the runqueue to run as a job."""
         try:
-            ups = self._api.pop_from_run_queue(
-                queue,
+            rqi = self._api.pop_from_run_queue(
+                queue["name"],
                 entity=self._entity,
-                project=self._project,
+                project=queue["projectName"],
                 agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
             return None
-        return ups
+        return rqi
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
@@ -174,42 +191,65 @@ class LaunchAgent:
             }
         }
         """
-        pass
+        runners = config.get("runners", [{}])
+        return {k: v for elem in runners for k, v in elem.items()}
 
-    def _filter_valid_queues(self) -> None:
+    def _get_valid_run_queues(self) -> list[RunQueue]:
         """
         Given an entity, return a list of run queues associated with that entity.
         """
         run_queues = self._api.get_run_queues_by_entity(self._entity)
         valid_queues = []
-        for q in run_queues:
-            rc = q["resourceConfig"]
-            runner = rc["runner"]
 
-            if runner in self._configured_runners:
-                valid = runner_dispatch[runner]
-                if valid:
-                    valid_queues.append(q)
-            else:
-                raise ValueError(f"Unsupported runner: ({runner})")
-        self._queues = valid_queues
+        # for q in run_queues:
+        #     # rc = q["node"]["resourceConfig"]
+        #     # runner = q["node"]["name"]
+        #     runner = "local-process"
+
+        #     if runner in self._configured_runners:
+        #         func = runner_dispatch[runner]
+        #         valid = func()
+        #         if valid:
+        #             valid_queues.append(q)
+        #     else:
+        #         raise ValueError(f"Unsupported runner: ({runner})")
+        # return valid_queues
+        return run_queues
 
     def _order_queues_by_priority(self) -> None:
-
         """
         `Smartly` select a queue!
         """
         random.shuffle(self._queues)  # So smart!
 
     def _get_combined_config(self):
-        """ "
+        """
         Return a combined config to do the next job.
         """
-        self._filter_valid_queues()
         self._order_queues_by_priority()
-        job = self._queues[0].pop()
-        combined_config = {**job.config, **self._configured_runners}
-        return combined_config
+
+        # job = random.choice(self._queues).pop()
+
+        # from the pool of valid queues
+        # select a queue somehow
+        # try to pop an item
+        # if you succeed, break
+        # if not, repeat until you can pop
+
+        for q in self._queues:
+            try:
+                selected_queue, job = q, self.pop_from_queue(q)
+            except IndexError:
+                wandb.termlog(f"Queue is empty ({q})")
+            else:
+                if job is not None:
+                    break
+
+        default_config = selected_queue["resourceConfig"]
+        if job is not None and default_config is not None:
+            job["resourceConfig"] = merge_dicts(job["resourceConfig"], default_config)
+
+        return job
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
@@ -290,7 +330,7 @@ class LaunchAgent:
         """Main loop function for agent."""
         wandb.termlog(
             "launch agent polling project {}/{} on queues: {}".format(
-                self._entity, self._project, ",".join(self._queues)
+                self._entity, self._project, ",".join([q["name"] for q in self._queues])
             )
         )
         try:
@@ -298,15 +338,15 @@ class LaunchAgent:
                 self._ticks += 1
                 job = None
 
-                agent_response = self._api.get_launch_agent(
-                    self._id, self.gorilla_supports_agents
-                )
-                self._name = agent_response[
-                    "name"
-                ]  # hacky, but we don't return the name on create so this is first time
-                if agent_response["stopPolling"]:
-                    # shutdown process and all jobs if requested from ui
-                    raise KeyboardInterrupt
+                # agent_response = self._api.get_launch_agent(
+                #     self._id, self.gorilla_supports_agents
+                # )
+                # self._name = agent_response[
+                #     "name"
+                # ]  # hacky, but we don't return the name on create so this is first time
+                # if agent_response["stopPolling"]:
+                #     # shutdown process and all jobs if requested from ui
+                #     raise KeyboardInterrupt
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
                     job = self._get_combined_config()

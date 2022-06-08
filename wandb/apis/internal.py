@@ -164,5 +164,8 @@ class Api:
     def get_launch_agent(self, *args, **kwargs):
         return self.api.get_launch_agent(*args, **kwargs)
 
+    def get_run_queues_by_entity(self, *args, **kwargs):
+        return self.api.get_run_queues_by_entity(*args, **kwargs)
+
 
 __all__ = ["Api"]
