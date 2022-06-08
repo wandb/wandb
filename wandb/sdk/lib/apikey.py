@@ -122,7 +122,7 @@ def prompt_api_key(  # noqa: C901
                     if app_url.startswith(prefix):
                         host = app_url[len(prefix) :]
                 wandb.termlog(
-                    f"Logging into {host}. (Learn about deployment options: {wburls.get('deployments')})"
+                    f"Logging into {host}. (Learn how to deploy a W&B server locally: {wburls.get('wandb_server')})"
                 )
             wandb.termlog(
                 f"You can find your API key in your browser here: {app_url}/authorize"
