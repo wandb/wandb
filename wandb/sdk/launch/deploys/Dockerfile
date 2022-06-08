@@ -1,4 +1,4 @@
-FROM python:3.9-slim-bullseye
+FROM python:3.11.0b1-slim-buster
 
 # install git
 RUN apt-get update && apt-get upgrade -y \
