@@ -15,6 +15,8 @@ from wandb.apis import InternalApi
 from wandb.errors import term
 from wandb.util import _is_databricks, isatty, prompt_choices
 
+from .wburls import wburls
+
 
 LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
 LOGIN_CHOICE_NEW = "Create a W&B account"
@@ -114,6 +116,10 @@ def prompt_api_key(  # noqa: C901
         key = browser_callback() if browser_callback else None
 
         if not key:
+            if not (settings.is_local or local):
+                host = app_url.lstrip("http://").lstrip("https://")
+                wandb.termlog(
+                    f"Logging into {host}. (Learn about deployment options: {wburls.get('deployments')})")
             wandb.termlog(
                 f"You can find your API key in your browser here: {app_url}/authorize"
             )
