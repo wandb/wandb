@@ -1176,6 +1176,65 @@ class Api:
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
     @normalize_exceptions
+    def create_new_launch_agent(self, entity, gorilla_agent_support):
+
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, return a client-generated id
+            return {
+                "success": True,
+                "launchAgentId": None,
+            }
+
+        hostname = socket.gethostname()
+        mutation = gql(
+            """
+            mutation createNewLaunchAgent($entity: String!, $hostname: String!){
+                createNewLaunchAgent(
+                    input: {
+                        entityName: $entity,
+                        hostname: $hostname
+                    }
+                ) {
+                    newLaunchAgentId
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+            "hostname": hostname,
+        }
+        return self.gql(mutation, variable_values)["createNewLaunchAgent"]
+
+    @normalize_exceptions
+    def update_new_launch_agent_status(self, agent_id, status, gorilla_agent_support):
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, this is a no-op
+            return {
+                "success": True,
+            }
+
+        mutation = gql(
+            """
+            mutation updateNewLaunchAgent($agentId: ID!, $agentStatus: String){
+                updateLaunchAgent(
+                    input: {
+                        newLaunchAgentId: $agentId
+                        agentStatus: $agentStatus
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+            "agentStatus": status,
+        }
+        return self.gql(mutation, variable_values)["updateLaunchAgent"]
+
+    @normalize_exceptions
     def get_launch_agent(self, agent_id, gorilla_agent_support):
         if not gorilla_agent_support:
             return {
@@ -1202,6 +1261,33 @@ class Api:
             "agentId": agent_id,
         }
         return self.gql(query, variable_values)["launchAgent"]
+
+    @normalize_exceptions
+    def get_new_launch_agent(self, agent_id, gorilla_agent_support):
+        if not gorilla_agent_support:
+            return {
+                "id": None,
+                "name": "",
+                "stopPolling": False,
+            }
+        query = gql(
+            """
+            query NewLaunchAgent($agentId: ID!) {
+                newLaunchAgent(id: $agentId) {
+                    id
+                    name
+                    hostname
+                    agentStatus
+                    stopPolling
+                    heartbeatAt
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+        }
+        return self.gql(query, variable_values)["newLaunchAgent"]
 
     @normalize_exceptions
     def upsert_run(
