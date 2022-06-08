@@ -119,7 +119,8 @@ def prompt_api_key(  # noqa: C901
             if not (settings.is_local or local):
                 host = app_url.lstrip("http://").lstrip("https://")
                 wandb.termlog(
-                    f"Logging into {host}. (Learn about deployment options: {wburls.get('deployments')})")
+                    f"Logging into {host}. (Learn about deployment options: {wburls.get('deployments')})"
+                )
             wandb.termlog(
                 f"You can find your API key in your browser here: {app_url}/authorize"
             )
