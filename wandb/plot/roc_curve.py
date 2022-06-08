@@ -13,12 +13,15 @@ def roc_curve(
     ROC curve.
 
     Arguments:
-        y_true (arr): Test set labels.
-        y_probas (arr): Test set predicted probabilities.
-        labels (list): Named labels for target varible (y). Makes plots easier to
+        y_true (arr): true sparse labels
+        y_probas (arr): Target scores, can either be probability estimates, confidence
+                         values, or non-thresholded measure of decisions.
+                         shape: (*y_true.shape, num_classes)
+        labels (list): Named labels for target variable (y). Makes plots easier to
                         read by replacing target values with corresponding index.
-                        For example labels= ['dog', 'cat', 'owl'] all 0s are
+                        For example labels = ['dog', 'cat', 'owl'] all 0s are
                         replaced by 'dog', 1s by 'cat'.
+        classes_to_plot (list): unique values of y_true to include in the plot
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -33,66 +36,79 @@ def roc_curve(
         "numpy",
         required="roc requires the numpy library, install with `pip install numpy`",
     )
+    pd = util.get_module(
+        "pandas",
+        required="roc requires the pandas library, install with `pip install pandas`",
+    )
     util.get_module(
         "sklearn",
         required="roc requires the scikit library, install with `pip install scikit-learn`",
     )
     from sklearn.metrics import roc_curve
+    from sklearn.utils import resample
 
-    if test_missing(y_true=y_true, y_probas=y_probas) and test_types(
-        y_true=y_true, y_probas=y_probas
-    ):
-        y_true = np.array(y_true)
-        y_probas = np.array(y_probas)
-        classes = np.unique(y_true)
-        probas = y_probas
+    if not test_missing(y_true=y_true, y_probas=y_probas):
+        return
+    if not test_types(y_true=y_true, y_probas=y_probas):
+        return
 
-        if classes_to_plot is None:
-            classes_to_plot = classes
+    y_true = np.array(y_true)
+    y_probas = np.array(y_probas)
+    classes = np.unique(y_true)
 
-        fpr_dict = dict()
-        tpr_dict = dict()
+    if classes_to_plot is None:
+        classes_to_plot = classes
 
-        indices_to_plot = np.in1d(classes, classes_to_plot)
+    indices_to_plot = np.where(np.isin(classes, classes_to_plot))[0]
 
-        data = []
-        count = 0
+    fpr = dict()
+    tpr = dict()
 
-        for i, to_plot in enumerate(indices_to_plot):
-            fpr_dict[i], tpr_dict[i], _ = roc_curve(
-                y_true, probas[:, i], pos_label=classes[i]
-            )
-            if to_plot:
-                for j in range(len(fpr_dict[i])):
-                    if labels is not None and (
-                        isinstance(classes[i], int)
-                        or isinstance(classes[0], np.integer)
-                    ):
-                        class_dict = labels[classes[i]]
-                    else:
-                        class_dict = classes[i]
-                    fpr = [
-                        class_dict,
-                        round(fpr_dict[i][j], 3),
-                        round(tpr_dict[i][j], 3),
-                    ]
-                    data.append(fpr)
-                    count += 1
-                    if count >= chart_limit:
-                        wandb.termwarn(
-                            "wandb uses only the first %d datapoints to create the plots."
-                            % wandb.Table.MAX_ROWS
-                        )
-                        break
-        table = wandb.Table(columns=["class", "fpr", "tpr"], data=data)
-        title = title or "ROC"
-        return wandb.plot_table(
-            "wandb/area-under-curve/v0",
-            table,
-            {"x": "fpr", "y": "tpr", "class": "class"},
-            {
-                "title": title,
-                "x-axis-title": "False positive rate",
-                "y-axis-title": "True positive rate",
-            },
+    for i in indices_to_plot:
+        if labels is not None and (
+                isinstance(classes[i], int)
+                or isinstance(classes[0], np.integer)
+        ):
+            class_label = labels[classes[i]]
+        else:
+            class_label = classes[i]
+
+        fpr[class_label], tpr[class_label], _ = roc_curve(
+            y_true, y_probas[..., i], pos_label=classes[i]
         )
+
+    df = pd.DataFrame(
+        {
+            "class": np.hstack([[k] * len(v) for k, v in fpr.items()]),
+            "fpr": np.hstack(fpr.values()),
+            "tpr": np.hstack(tpr.values()),
+        }
+    )
+    df = df.round(3)
+
+    if len(df) > chart_limit:
+        wandb.termwarn(
+            "wandb uses only %d data points to create the plots."
+            % wandb.Table.MAX_ROWS
+        )
+        # different sampling could be applied, possibly to ensure endpoints are kept
+        df = resample(
+            df,
+            replace=False,
+            n_samples=chart_limit,
+            random_state=42,
+            stratify=df["class"]
+        ).sort_values(["fpr", "tpr", "class"])
+
+    table = wandb.Table(dataframe=df)
+    title = title or "ROC"
+    return wandb.plot_table(
+        "wandb/area-under-curve/v0",
+        table,
+        {"x": "fpr", "y": "tpr", "class": "class"},
+        {
+            "title": title,
+            "x-axis-title": "False positive rate",
+            "y-axis-title": "True positive rate",
+        },
+    )
