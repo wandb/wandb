@@ -4,11 +4,16 @@ from wandb.plots.utils import test_missing, test_types
 
 
 CHART_LIMIT = wandb.Table.MAX_ROWS
-# the maximum number of precision/recall curve points per class
-PER_CLASS_LIMIT = 20
 
 
-def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, title=None):
+def pr_curve(
+    y_true=None,
+    y_probas=None,
+    labels=None,
+    classes_to_plot=None,
+    interp_size=21,
+    title=None,
+):
     """
     Computes the tradeoff between precision and recall for different thresholds.
     A high area under the curve represents both high recall and high precision,
@@ -19,12 +24,18 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, titl
     PR curve is useful when the classes are very imbalanced.
 
     Arguments:
-        y_true (arr): Test set labels.
-        y_probas (arr): Test set predicted probabilities.
+        y_true (arr): true sparse labels
+        y_probas (arr): Target scores, can either be probability estimates, confidence
+                         values, or non-thresholded measure of decisions.
+                         shape: (*y_true.shape, num_classes)
         labels (list): Named labels for target variable (y). Makes plots easier to
-            read by replacing target values with corresponding index.
-            For example labels = ["dog", "cat", "owl"] all 0s are
-            replaced by "dog", 1s by "cat".
+                        read by replacing target values with corresponding index.
+                        For example labels = ['dog', 'cat', 'owl'] all 0s are
+                        replaced by 'dog', 1s by 'cat'.
+        classes_to_plot (list): unique values of y_true to include in the plot
+        interp_size (int): the recall values will be fixed to `interp_size` points
+                            uniform on [0, 1] and the precision will be interpolated for
+                            these recall values.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -52,6 +63,12 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, titl
         "roc requires the scikit library, install with `pip install scikit-learn`",
     )
 
+    def _step(x):
+        y = np.array(x)
+        for i in range(1, len(y)):
+            y[i] = max(y[i], y[i - 1])
+        return y
+
     y_true = np.array(y_true)
     y_probas = np.array(y_probas)
 
@@ -65,11 +82,11 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, titl
         classes_to_plot = classes
 
     precision = dict()
-    recall = dict()
+    interp_recall = np.linspace(0, 1, interp_size)
     indices_to_plot = np.where(np.isin(classes, classes_to_plot))[0]
     for i in indices_to_plot:
         if labels is not None and (
-                isinstance(classes[i], int) or isinstance(classes[0], np.integer)
+            isinstance(classes[i], int) or isinstance(classes[0], np.integer)
         ):
             class_label = labels[classes[i]]
         else:
@@ -78,22 +95,20 @@ def pr_curve(y_true=None, y_probas=None, labels=None, classes_to_plot=None, titl
         cur_precision, cur_recall, _ = sklearn_metrics.precision_recall_curve(
             y_true, y_probas[:, i], pos_label=classes[i]
         )
-        # TODO Tyler this doesn't uniformly sample precision/recall. it over-samples
-        #            low thresholds
-        if len(cur_precision) > PER_CLASS_LIMIT:
-            slc = (np.arange(PER_CLASS_LIMIT) / PER_CLASS_LIMIT * len(cur_precision)).astype(int)
-            # ensure we include the last point
-            slc[-1] = -1
-        else:
-            slc = slice(None, None)
-        precision[class_label] = cur_precision[slc]
-        recall[class_label] = cur_recall[slc]
+        # smooth the precision (monotonically increasing)
+        cur_precision = _step(cur_precision)
+
+        # reverse order so that recall in ascending
+        cur_precision = cur_precision[::-1]
+        cur_recall = cur_recall[::-1]
+        indices = np.searchsorted(cur_recall, interp_recall, side="left")
+        precision[class_label] = cur_precision[indices]
 
     df = pd.DataFrame(
         {
             "class": np.hstack([[k] * len(v) for k, v in precision.items()]),
             "precision": np.hstack(list(precision.values())),
-            "recall": np.hstack(list(recall.values())),
+            "recall": np.tile(interp_recall, len(precision)),
         }
     )
     df = df.round(3)
