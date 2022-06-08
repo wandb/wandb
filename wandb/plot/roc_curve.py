@@ -66,8 +66,7 @@ def roc_curve(
 
     for i in indices_to_plot:
         if labels is not None and (
-                isinstance(classes[i], int)
-                or isinstance(classes[0], np.integer)
+            isinstance(classes[i], int) or isinstance(classes[0], np.integer)
         ):
             class_label = labels[classes[i]]
         else:
@@ -88,8 +87,7 @@ def roc_curve(
 
     if len(df) > chart_limit:
         wandb.termwarn(
-            "wandb uses only %d data points to create the plots."
-            % wandb.Table.MAX_ROWS
+            "wandb uses only %d data points to create the plots." % wandb.Table.MAX_ROWS
         )
         # different sampling could be applied, possibly to ensure endpoints are kept
         df = resample(
@@ -97,7 +95,7 @@ def roc_curve(
             replace=False,
             n_samples=chart_limit,
             random_state=42,
-            stratify=df["class"]
+            stratify=df["class"],
         ).sort_values(["fpr", "tpr", "class"])
 
     table = wandb.Table(dataframe=df)
