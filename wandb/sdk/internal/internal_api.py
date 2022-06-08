@@ -1048,6 +1048,29 @@ class Api:
         return response["popFromRunQueue"]
 
     @normalize_exceptions
+    def get_run_queues_by_entity(self, entity: str):
+        """
+        Given an entity, return a list of run queues associated with that entity.
+        """
+        query = gql(
+            """
+            query GetRunQueuesByEntity($entityName: String!) {
+                runQueues(entityName: $entityName) {
+                    edges {
+                        node {
+                              config
+                              queue_id
+                              name
+                         }   
+                     }    
+                } 
+            }
+            """
+        )
+        response = self.gql(query, variable_values={"entityName": entity})
+        return response
+
+    @normalize_exceptions
     def ack_run_queue_item(self, item_id, run_id=None):
         mutation = gql(
             """

@@ -2,15 +2,18 @@
 Implementation of launch agent.
 """
 
+import json
 import logging
 import os
+import random
 import time
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, TypeVar, Union
 
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
+from wandb_gql import gql
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
@@ -29,6 +32,38 @@ AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
 
 _logger = logging.getLogger(__name__)
+
+RunQueue = TypeVar("RunQueue")
+
+
+def kubernetes(agent, queue):
+    valid = False
+    return valid
+
+
+def sagemaker(agent, queue):
+    valid = False
+    return valid
+
+
+def local_process(agent, queue):
+    rc = queue["resourceConfig"]
+    valid = any(lbl in agent._supported_labels for lbl in rc.get("labels"))
+    return valid
+
+
+def local_container(agent, queue):
+    rc = queue["resourceConfig"]
+    valid = any(lbl in agent._supported_labels for lbl in rc.get("labels"))
+    return valid
+
+
+runner_dispatch = {
+    "kubernetes": kubernetes,
+    "sagemaker": sagemaker,
+    "local-process": local_process,
+    "local-container": local_container,
+}
 
 
 def _convert_access(access: str) -> str:
@@ -54,7 +89,8 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._configured_runners = config.get("runners")
+        self._configured_runners = self._parse_runner_config(config)
+        self._supported_labels = []
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -117,6 +153,63 @@ class LaunchAgent:
         # update status back to polling if no jobs are running
         if self._running == 0:
             self.update_status(AGENT_POLLING)
+
+    @staticmethod
+    def _parse_runner_config(config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parses a RunnersConfig block from the agent config. Returns a dictionary
+        of support runners in the form of:
+        {
+            kubernetes: {
+                namespace: "wandb"
+            },
+            sagemaker: {
+
+            },
+            local-process: {
+                labels: [ "gpu-pool" ]
+            },
+            local-container: {
+                labels: [ "gpu-pool"]
+            }
+        }
+        """
+        pass
+
+    def _filter_valid_queues(self) -> None:
+        """
+        Given an entity, return a list of run queues associated with that entity.
+        """
+        run_queues = self._api.get_run_queues_by_entity(self._entity)
+        valid_queues = []
+        for q in run_queues:
+            rc = q["resourceConfig"]
+            runner = rc["runner"]
+
+            if runner in self._configured_runners:
+                valid = runner_dispatch[runner]
+                if valid:
+                    valid_queues.append(q)
+            else:
+                raise ValueError(f"Unsupported runner: ({runner})")
+        self._queues = valid_queues
+
+    def _order_queues_by_priority(self) -> None:
+
+        """
+        `Smartly` select a queue!
+        """
+        random.shuffle(self._queues)  # So smart!
+
+    def _get_combined_config(self):
+        """ "
+        Return a combined config to do the next job.
+        """
+        self._filter_valid_queues()
+        self._order_queues_by_priority()
+        job = self._queues[0].pop()
+        combined_config = {**job.config, **self._configured_runners}
+        return combined_config
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
@@ -216,14 +309,15 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
-                    for queue in self._queues:
-                        job = self.pop_from_queue(queue)
-                        if job:
-                            try:
-                                self.run_job(job)
-                            except Exception as e:
-                                wandb.termerror(f"Error running job: {e}")
-                                self._api.ack_run_queue_item(job["runQueueItemId"])
+                    job = self._get_combined_config()
+                    # for queue in self._queues:
+                    #     job = self.pop_from_queue(queue)
+                    if job:
+                        try:
+                            self.run_job(job)
+                        except Exception as e:
+                            wandb.termerror(f"Error running job: {e}")
+                            self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
