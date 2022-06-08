@@ -2,7 +2,8 @@ import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types
 
-chart_limit = wandb.Table.MAX_ROWS
+
+CHART_LIMIT = wandb.Table.MAX_ROWS
 
 
 def roc_curve(
@@ -40,30 +41,30 @@ def roc_curve(
         "pandas",
         required="roc requires the pandas library, install with `pip install pandas`",
     )
-    util.get_module(
-        "sklearn",
-        required="roc requires the scikit library, install with `pip install scikit-learn`",
+    sklearn_metrics = util.get_module(
+        "sklearn.metrics",
+        "roc requires the scikit library, install with `pip install scikit-learn`",
     )
-    from sklearn.metrics import roc_curve
-    from sklearn.utils import resample
+    sklearn_utils = util.get_module(
+        "sklearn.utils",
+        "roc requires the scikit library, install with `pip install scikit-learn`",
+    )
+
+    y_true = np.array(y_true)
+    y_probas = np.array(y_probas)
 
     if not test_missing(y_true=y_true, y_probas=y_probas):
         return
     if not test_types(y_true=y_true, y_probas=y_probas):
         return
 
-    y_true = np.array(y_true)
-    y_probas = np.array(y_probas)
     classes = np.unique(y_true)
-
     if classes_to_plot is None:
         classes_to_plot = classes
 
-    indices_to_plot = np.where(np.isin(classes, classes_to_plot))[0]
-
     fpr = dict()
     tpr = dict()
-
+    indices_to_plot = np.where(np.isin(classes, classes_to_plot))[0]
     for i in indices_to_plot:
         if labels is not None and (
             isinstance(classes[i], int) or isinstance(classes[0], np.integer)
@@ -72,28 +73,28 @@ def roc_curve(
         else:
             class_label = classes[i]
 
-        fpr[class_label], tpr[class_label], _ = roc_curve(
+        fpr[class_label], tpr[class_label], _ = sklearn_metrics.roc_curve(
             y_true, y_probas[..., i], pos_label=classes[i]
         )
 
     df = pd.DataFrame(
         {
             "class": np.hstack([[k] * len(v) for k, v in fpr.items()]),
-            "fpr": np.hstack(fpr.values()),
-            "tpr": np.hstack(tpr.values()),
+            "fpr": np.hstack(list(fpr.values())),
+            "tpr": np.hstack(list(tpr.values())),
         }
     )
     df = df.round(3)
 
-    if len(df) > chart_limit:
+    if len(df) > CHART_LIMIT:
         wandb.termwarn(
             "wandb uses only %d data points to create the plots." % wandb.Table.MAX_ROWS
         )
         # different sampling could be applied, possibly to ensure endpoints are kept
-        df = resample(
+        df = sklearn_utils.resample(
             df,
             replace=False,
-            n_samples=chart_limit,
+            n_samples=CHART_LIMIT,
             random_state=42,
             stratify=df["class"],
         ).sort_values(["fpr", "tpr", "class"])
