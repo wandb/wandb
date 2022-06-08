@@ -82,7 +82,7 @@ def pr_curve(
         classes_to_plot = classes
 
     precision = dict()
-    interp_recall = np.linspace(0, 1, interp_size)
+    interp_recall = np.linspace(0, 1, interp_size)[::-1]
     indices_to_plot = np.where(np.isin(classes, classes_to_plot))[0]
     for i in indices_to_plot:
         if labels is not None and (
