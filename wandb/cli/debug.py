@@ -5,11 +5,10 @@ Commands:
     wandb debug service
     wandb debug service SERVICE-ID info
     wandb debug service SERVICE-ID run RUN-ID info
-    wandb debug service SERVICE-ID run RUN-ID user PID info
     wandb debug service SERVICE-ID run RUN-ID user PID show stacks
     wandb debug service SERVICE-ID run RUN-ID user PID thread THREAD-ID
     wandb debug service SERVICE-ID run RUN-ID user PID thread THREAD-ID info
-    wandb debug service SERVICE-ID run RUN-ID internal info
+    wandb debug service SERVICE-ID run RUN-ID internal show threads
     wandb debug service SERVICE-ID run RUN-ID internal show stacks
     wandb debug service SERVICE-ID run RUN-ID internal thread THREAD-ID show stack
 
@@ -85,9 +84,7 @@ def dbg_run_node(ctx):
     os.environ["WANDB_RUN_ID"] = run_id
 
 
-@click.command()
-@click.pass_context
-def dbg_run_stacks(ctx):
+def _get_interface():
     # print("junk", vars(ctx))
     run_id = os.environ["WANDB_RUN_ID"]
     manager = get_manager()
@@ -108,6 +105,12 @@ def dbg_run_stacks(ctx):
     sock_client = svc_iface_sock._get_sock_client()
     sock_interface = InterfaceSock(sock_client)
     sock_interface._stream_id = run_id
+    return sock_interface
+
+@click.command()
+@click.pass_context
+def dbg_run_stacks(ctx):
+    sock_interface = _get_interface()
     sock_interface.publish_debug()
     data = sock_interface.communicate_debug_poll("data")
     # print("GOT", data)
@@ -122,6 +125,18 @@ def dbg_run_stacks(ctx):
                 print(f"\t\t\t{var.var}")
                 print(f"\t\t\t\t{var.type}")
                 print(f"\t\t\t\t{var.repr}")
+
+
+@click.command()
+@click.pass_context
+def dbg_run_threads(ctx):
+    sock_interface = _get_interface()
+    sock_interface.publish_debug()
+    data = sock_interface.communicate_debug_poll("data")
+    if not data:
+        return
+    for thread in data.data.threads:
+        print(f"{thread.name}")
 
 
 @click.command(hidden=True)
@@ -168,4 +183,5 @@ def install_subcommands(base):
 
     dbg_run_node.add_command(dbg_run_internal, name="internal")
     dbg_run_internal.add_command(dbg_run_internal_show, name="show")
+    dbg_run_internal_show.add_command(dbg_run_threads, name="threads")
     dbg_run_internal_show.add_command(dbg_run_stacks, name="stacks")
