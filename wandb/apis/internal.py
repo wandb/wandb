@@ -158,14 +158,23 @@ class Api:
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)
 
+    def update_new_launch_agent_status(self, *args, **kwargs):
+        return self.api.update_new_launch_agent_status(*args, **kwargs)
+
     def launch_agent_introspection(self, *args, **kwargs):
         return self.api.launch_agent_introspection(*args, **kwargs)
 
     def get_launch_agent(self, *args, **kwargs):
         return self.api.get_launch_agent(*args, **kwargs)
 
+    def get_new_launch_agent(self, *args, **kwargs):
+        return self.api.get_new_launch_agent(*args, **kwargs)
+
     def get_run_queues_by_entity(self, *args, **kwargs):
         return self.api.get_run_queues_by_entity(*args, **kwargs)
+
+    def create_new_launch_agent(self, *args, **kwargs):
+        return self.api.create_new_launch_agent(*args, **kwargs)
 
 
 __all__ = ["Api"]

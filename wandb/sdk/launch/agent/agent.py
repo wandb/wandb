@@ -47,15 +47,27 @@ def sagemaker(agent, queue):
 
 
 def local_process(agent, queue):
-    rc = queue["resourceConfig"]
-    valid = any(lbl in agent._supported_labels for lbl in rc.get("labels"))
-    return valid
+    agent_config = agent._configured_runners["local-process"]
+    queue_config = queue["config"]["local-process"]
+
+    label_satisfied = False
+    for lbl in agent_config.get("labels", []):
+        if lbl in queue_config.get("labels", []):
+            label_satisfied = True
+
+    return label_satisfied
 
 
 def local_container(agent, queue):
-    rc = queue["resourceConfig"]
-    valid = any(lbl in agent._supported_labels for lbl in rc.get("labels"))
-    return valid
+    agent_config = agent._configured_runners["local-container"]
+    queue_config = queue["config"]["local-container"]
+
+    label_satisfied = False
+    for lbl in agent_config.get("labels", []):
+        if lbl in queue_config.get("labels", []):
+            label_satisfied = True
+
+    return label_satisfied
 
 
 runner_dispatch = {
@@ -105,7 +117,6 @@ class LaunchAgent:
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
         self._configured_runners = self._parse_runner_config(config)
-        self._supported_labels = []
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -118,14 +129,10 @@ class LaunchAgent:
         )
         self._queues = self._get_valid_run_queues()
         print(self._queues)
-        # create_response = self._api.create_launch_agent(
-        #     self._entity,
-        #     self._project,
-        #     self._queues,
-        #     self.gorilla_supports_agents,
-        # )
-        # self._id = create_response["launchAgentId"]
-        self._id = "testing"
+        create_response = self._api.create_new_launch_agent(
+            self._entity, self.gorilla_supports_agents
+        )
+        self._id = create_response["newLaunchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
     @property
@@ -149,14 +156,11 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        wandb.termlog(
-            "agent {} polling on project {}, queues {} for jobs".format(
-                self._name, self._project, " ".join(self._queues)
-            )
-        )
+        project_queues = [f"{q['projectName']}/{q['name']}" for q in self._queues]
+        wandb.termlog(f"LAUNCH AGENT POLLING {self._entity} on queues {project_queues}")
 
     def update_status(self, status: str) -> None:
-        update_ret = self._api.update_launch_agent_status(
+        update_ret = self._api.update_new_launch_agent_status(
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
@@ -194,27 +198,24 @@ class LaunchAgent:
         runners = config.get("runners", [{}])
         return {k: v for elem in runners for k, v in elem.items()}
 
-    def _get_valid_run_queues(self) -> list[RunQueue]:
+    def _get_valid_run_queues(self) -> List[RunQueue]:
         """
         Given an entity, return a list of run queues associated with that entity.
         """
         run_queues = self._api.get_run_queues_by_entity(self._entity)
         valid_queues = []
 
-        # for q in run_queues:
-        #     # rc = q["node"]["resourceConfig"]
-        #     # runner = q["node"]["name"]
-        #     runner = "local-process"
-
-        #     if runner in self._configured_runners:
-        #         func = runner_dispatch[runner]
-        #         valid = func()
-        #         if valid:
-        #             valid_queues.append(q)
-        #     else:
-        #         raise ValueError(f"Unsupported runner: ({runner})")
-        # return valid_queues
-        return run_queues
+        for q in run_queues:
+            # q["config"] = {"local-process": {"labels": ["gpu"]}}
+            runner = next(iter(q["config"]))
+            if runner in self._configured_runners:
+                valid = runner_dispatch[runner]
+                if valid(agent=self, queue=q):
+                    valid_queues.append(q)
+            else:
+                wandb.termwarn(f"Unsupported runner: ({runner})")
+                continue
+        return valid_queues
 
     def _order_queues_by_priority(self) -> None:
         """
@@ -228,14 +229,6 @@ class LaunchAgent:
         """
         self._order_queues_by_priority()
 
-        # job = random.choice(self._queues).pop()
-
-        # from the pool of valid queues
-        # select a queue somehow
-        # try to pop an item
-        # if you succeed, break
-        # if not, repeat until you can pop
-
         for q in self._queues:
             try:
                 selected_queue, job = q, self.pop_from_queue(q)
@@ -245,9 +238,9 @@ class LaunchAgent:
                 if job is not None:
                     break
 
-        default_config = selected_queue["resourceConfig"]
+        default_config = selected_queue["config"]
         if job is not None and default_config is not None:
-            job["resourceConfig"] = merge_dicts(job["resourceConfig"], default_config)
+            job["config"] = merge_dicts(job["config"], default_config)
 
         return job
 
@@ -328,25 +321,21 @@ class LaunchAgent:
 
     def loop(self) -> None:
         """Main loop function for agent."""
-        wandb.termlog(
-            "launch agent polling project {}/{} on queues: {}".format(
-                self._entity, self._project, ",".join([q["name"] for q in self._queues])
-            )
-        )
+        self.print_status()
         try:
             while True:
                 self._ticks += 1
                 job = None
 
-                # agent_response = self._api.get_launch_agent(
-                #     self._id, self.gorilla_supports_agents
-                # )
-                # self._name = agent_response[
-                #     "name"
-                # ]  # hacky, but we don't return the name on create so this is first time
-                # if agent_response["stopPolling"]:
-                #     # shutdown process and all jobs if requested from ui
-                #     raise KeyboardInterrupt
+                agent_response = self._api.get_new_launch_agent(
+                    self._id, self.gorilla_supports_agents
+                )
+                self._name = agent_response[
+                    "name"
+                ]  # hacky, but we don't return the name on create so this is first time
+                if agent_response["stopPolling"]:
+                    # shutdown process and all jobs if requested from ui
+                    raise KeyboardInterrupt
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
                     job = self._get_combined_config()
