@@ -126,6 +126,8 @@ class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
     def __init__(self, api: Api, config: Dict[str, Any]):
+        print("config", config)
+
         self._entity = config.get("entity")
         self._project = config.get("project")
         self._api = api
@@ -136,7 +138,12 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._configured_runners = self._setup_runners(config)
+        self._configured_runners = {}
+        # self._configured_runners = self._setup_runners(config)
+        self._setup_runners(config)
+
+        print("*******", self._configured_runners)
+
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -214,8 +221,10 @@ class LaunchAgent:
             }
         }
         """
-        runners = config.get("runners", [{}])
-        return {k: v for elem in runners for k, v in elem.items()}
+        runners = config["runners"]
+
+        # runners = config.get("runners", [{}])
+        # return {k: v for elem in runners for k, v in elem.items()}
 
     @staticmethod
     def _get_gpus():
@@ -251,28 +260,25 @@ class LaunchAgent:
         return {k: v for k, v in resources.items() if v is not None}
 
     def _setup_runners(self, config):
-        runners = self._parse_runner_config(config)
         system_resource_defaults = self._get_system_resource_defaults()
+        for runner in config["runners"]:
+            if runner["type"] in {"local-process", "local-container"}:
+                if "resources" not in runner:
+                    runner["resources"] = {}
+                    for k, v in system_resource_defaults.items():
+                        if k not in runner["resources"]:
+                            runner["resources"][k] = v
 
-        for spec in runners.values():
-            # add resources
-            if "resources" not in spec:
-                spec["resources"] = {}
-            for k, v in system_resource_defaults.items():
-                if k not in spec["resources"]:
-                    spec["resources"][k] = v
+                # add labels
+                gpu_labels = self._get_gpus().get("name")
+                gpu_labels = [gpu_labels] if gpu_labels else []
 
-            # add labels
-            gpu_labels = self._get_gpus().get("name")
-            gpu_labels = [gpu_labels] if gpu_labels else []
-
-            if "labels" not in spec:
-                spec["labels"] = []
-            for lbl in gpu_labels:
-                if lbl not in spec["labels"]:
-                    spec["labels"].append(lbl)
-
-        return runners
+                if "labels" not in runner:
+                    runner["labels"] = []
+                for lbl in gpu_labels:
+                    if lbl not in runner["labels"]:
+                        runner["labels"].append(lbl)
+            self._configured_runners[runner["type"]] = runner
 
     def _get_valid_run_queues(self) -> List[RunQueue]:
         """
@@ -282,10 +288,10 @@ class LaunchAgent:
         valid_queues = []
 
         for q in run_queues:
-            if q['config'] is None:
+            if q["config"] is None:
                 valid_queues.append(q)
                 continue
-            runner = next(iter(q['config']))
+            runner = next(iter(q["config"]))
             if runner in self._configured_runners:
                 valid = runner_dispatch[runner]
                 if valid(agent=self, queue=q):

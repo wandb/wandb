@@ -38,10 +38,9 @@ def resolve_agent_config(
         "base_url": api.settings("base_url"),
         "registry": {},
         "build": {},
-        "runners": {"local-process": {}, "local-container": {}},
+        "runners": [{"type": "local-process"}, {"type": "local-container"}],
     }
-
-    resolved_config: Dict[str, Any] = defaults
+    resolved_config: Dict[str, Any] = defaults.copy()
     config_path = config_path if config_path is not None else LAUNCH_CONFIG_FILE
     expanded_config = os.path.expanduser(config_path)
     if os.path.exists(expanded_config):
@@ -85,7 +84,10 @@ def resolve_agent_config(
             entity=resolved_config["entity"],
         )
         api = Api(default_settings=settings)
-
+        api.set_setting("base_url", resolved_config["base_url"], persist=True)
+        api.set_setting("api_key", resolved_config["api_key"], persist=True)
+        api.set_setting("project", resolved_config["project"], persist=True)
+        api.set_setting("entity", resolved_config["entity"], persist=True)
     return resolved_config, api
 
 
