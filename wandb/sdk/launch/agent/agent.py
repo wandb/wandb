@@ -282,13 +282,10 @@ class LaunchAgent:
         valid_queues = []
 
         for q in run_queues:
-            q["config"] = {
-                "local-process": {
-                    "labels": ["gpu"],
-                    "resources": {"cpu": 1, "gpu": 0, "ram": 1},
-                }
-            }
-            runner = next(iter(q["config"]))
+            if q['config'] is None:
+                valid_queues.append(q)
+                continue
+            runner = next(iter(q['config']))
             if runner in self._configured_runners:
                 valid = runner_dispatch[runner]
                 if valid(agent=self, queue=q):
@@ -322,7 +319,9 @@ class LaunchAgent:
 
             default_config = selected_queue["config"]
             if job is not None and default_config is not None:
-                job["config"] = merge_dicts(job["config"], default_config)
+                job["runSpec"]["resource_args"] = merge_dicts(
+                    job["runSpec"]["resource_args"], default_config
+                )
 
             return job
 

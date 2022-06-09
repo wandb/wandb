@@ -1193,11 +1193,11 @@ class Api:
         hostname = socket.gethostname()
         mutation = gql(
             """
-            mutation createNewLaunchAgent($entity: String!, $hostname: String!, $config: JSONString){
+            mutation createNewLaunchAgent($entity: String!, $hostname: String!, $config: JSONString!){
                 createNewLaunchAgent(
                     input: {
                         entityName: $entity,
-                        hostname: $hostname
+                        hostname: $hostname,
                         config: $config
                     }
                 ) {
