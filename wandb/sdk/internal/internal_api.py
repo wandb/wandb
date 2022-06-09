@@ -1041,6 +1041,8 @@ class Api:
         }
         """
         )
+        print()
+        print(queue_name, entity, project, agent_id)
         response = self.gql(
             mutation,
             variable_values={
@@ -1050,6 +1052,7 @@ class Api:
                 "launchAgentId": agent_id.decode("utf-8"),
             },
         )
+        print(response)
         return response["popFromRunQueue"]
 
     @normalize_exceptions
@@ -1181,7 +1184,7 @@ class Api:
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
     @normalize_exceptions
-    def create_new_launch_agent(self, entity, gorilla_agent_support):
+    def create_new_launch_agent(self, entity, config, gorilla_agent_support):
 
         if not gorilla_agent_support:
             # if gorilla doesn't support launch agents, return a client-generated id
@@ -1193,11 +1196,12 @@ class Api:
         hostname = socket.gethostname()
         mutation = gql(
             """
-            mutation createNewLaunchAgent($entity: String!, $hostname: String!){
+            mutation createNewLaunchAgent($entity: String!, $hostname: String!, $config: JSONString!){
                 createNewLaunchAgent(
                     input: {
                         entityName: $entity,
-                        hostname: $hostname
+                        hostname: $hostname,
+                        config: $config
                     }
                 ) {
                     newLaunchAgentId
@@ -1208,8 +1212,10 @@ class Api:
         variable_values = {
             "entity": entity,
             "hostname": hostname,
+            "config": json.dumps(config),
         }
-        return self.gql(mutation, variable_values)["createNewLaunchAgent"]
+        z = self.gql(mutation, variable_values)["createNewLaunchAgent"]
+        return z
 
     @normalize_exceptions
     def update_new_launch_agent_status(self, agent_id, status, gorilla_agent_support):

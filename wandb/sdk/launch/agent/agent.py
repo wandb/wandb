@@ -149,7 +149,7 @@ class LaunchAgent:
         )
         self._queues = self._get_valid_run_queues()
         create_response = self._api.create_new_launch_agent(
-            self._entity, self.gorilla_supports_agents
+            self._entity, self.default_config, self.gorilla_supports_agents
         )
         self._id = create_response["newLaunchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
@@ -161,6 +161,7 @@ class LaunchAgent:
 
     def pop_from_queue(self, queue: RunQueue) -> Any:
         """Pops an item off the runqueue to run as a job."""
+        print("calling pop")
         try:
             rqi = self._api.pop_from_run_queue(
                 queue["name"],
@@ -171,6 +172,7 @@ class LaunchAgent:
         except Exception as e:
             print("Exception:", e)
             return None
+        print("called pop")
         return rqi
 
     def print_status(self) -> None:
