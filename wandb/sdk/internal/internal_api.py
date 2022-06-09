@@ -1181,7 +1181,7 @@ class Api:
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
     @normalize_exceptions
-    def create_new_launch_agent(self, entity, gorilla_agent_support):
+    def create_new_launch_agent(self, entity, config, gorilla_agent_support):
 
         if not gorilla_agent_support:
             # if gorilla doesn't support launch agents, return a client-generated id
@@ -1193,11 +1193,12 @@ class Api:
         hostname = socket.gethostname()
         mutation = gql(
             """
-            mutation createNewLaunchAgent($entity: String!, $hostname: String!){
+            mutation createNewLaunchAgent($entity: String!, $hostname: String!, $config: JSONString!){
                 createNewLaunchAgent(
                     input: {
                         entityName: $entity,
-                        hostname: $hostname
+                        hostname: $hostname,
+                        config: $config
                     }
                 ) {
                     newLaunchAgentId
@@ -1208,6 +1209,7 @@ class Api:
         variable_values = {
             "entity": entity,
             "hostname": hostname,
+            "config": json.dumps(config),
         }
         return self.gql(mutation, variable_values)["createNewLaunchAgent"]
 

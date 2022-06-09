@@ -148,9 +148,8 @@ class LaunchAgent:
             self._api.launch_agent_introspection() is not None
         )
         self._queues = self._get_valid_run_queues()
-        print(self._queues)
         create_response = self._api.create_new_launch_agent(
-            self._entity, self.gorilla_supports_agents
+            self._entity, self.default_config, self.gorilla_supports_agents
         )
         self._id = create_response["newLaunchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
@@ -266,7 +265,21 @@ class LaunchAgent:
             #         "resources": {"cpu": 1, "gpu": 0, "ram": 1},
             #     }
             # }
-            runner = next(iter(q["config"]))
+
+            # {
+            #   "resource": "local-process",
+            #   "defaultResourceConfig": {
+            #       "labels": ["gpu"]
+            #   }
+            # }
+            config = q["config"]
+            if config is None:
+                valid_queues.append(q)
+                continue
+            else:
+                config = json.loads(config)
+                q["config"] = config
+            runner = next(iter(config))
             if runner in self._configured_runners:
                 valid = runner_dispatch[runner]
                 if valid(agent=self, queue=q):
@@ -300,7 +313,9 @@ class LaunchAgent:
 
             default_config = selected_queue["config"]
             if job is not None and default_config is not None:
-                job["config"] = merge_dicts(job["config"], default_config)
+                job["runSpec"]["resource_args"] = merge_dicts(
+                    job["runSpec"]["resource_args"], default_config
+                )
 
             return job
 
