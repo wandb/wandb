@@ -1041,8 +1041,6 @@ class Api:
         }
         """
         )
-        print()
-        print(queue_name, entity, project, agent_id)
         response = self.gql(
             mutation,
             variable_values={
@@ -1052,7 +1050,6 @@ class Api:
                 "launchAgentId": agent_id.decode("utf-8"),
             },
         )
-        print(response)
         return response["popFromRunQueue"]
 
     @normalize_exceptions
@@ -1214,8 +1211,7 @@ class Api:
             "hostname": hostname,
             "config": json.dumps(config),
         }
-        z = self.gql(mutation, variable_values)["createNewLaunchAgent"]
-        return z
+        return self.gql(mutation, variable_values)["createNewLaunchAgent"]
 
     @normalize_exceptions
     def update_new_launch_agent_status(self, agent_id, status, gorilla_agent_support):

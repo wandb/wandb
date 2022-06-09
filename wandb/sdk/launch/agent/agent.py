@@ -161,7 +161,6 @@ class LaunchAgent:
 
     def pop_from_queue(self, queue: RunQueue) -> Any:
         """Pops an item off the runqueue to run as a job."""
-        print("calling pop")
         try:
             rqi = self._api.pop_from_run_queue(
                 queue["name"],
@@ -172,7 +171,6 @@ class LaunchAgent:
         except Exception as e:
             print("Exception:", e)
             return None
-        print("called pop")
         return rqi
 
     def print_status(self) -> None:
