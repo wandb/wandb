@@ -70,7 +70,6 @@ class Api:
         }
         self.retry_timedelta = retry_timedelta
         self.default_settings.update(default_settings or {})
-        print("UPDATED DEFAULT SETTINGS FOR API", self.default_settings["base_url"])
         self.retry_uploads = 10
         self._settings = Settings(
             load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
