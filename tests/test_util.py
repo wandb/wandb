@@ -11,8 +11,6 @@ import pytest
 
 import wandb
 
-if sys.version_info >= (3, 9):
-    pytest.importorskip("tensorflow")
 import tensorflow as tf
 
 import matplotlib.pyplot as plt

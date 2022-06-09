@@ -15,7 +15,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
-def mock_boto(artifact, path=False):
+def mock_boto(artifact, path=False, content_type=None):
     class S3Object:
         def __init__(self, name="my_object.pb", metadata=None, version_id=None):
             self.metadata = metadata or {"md5": "1234567890abcde"}
@@ -24,6 +24,11 @@ def mock_boto(artifact, path=False):
             self.name = name
             self.key = name
             self.content_length = 10
+            self.content_type = (
+                "application/pb; charset=UTF-8"
+                if content_type is None
+                else content_type
+            )
 
         def load(self):
             if path:
@@ -398,9 +403,6 @@ def test_add_s3_reference_object_with_name(runner, mocker):
         }
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
-)
 def test_add_s3_reference_path(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -419,9 +421,24 @@ def test_add_s3_reference_path(runner, mocker, capsys):
         assert "Generating checksum" in err
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="botocore doesnt support py3.9 yet"
-)
+def test_add_s3_reference_path_with_content_type(runner, mocker, capsys):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact, path=False, content_type="application/x-directory")
+        artifact.add_reference("s3://my-bucket/")
+
+        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
+        _, err = capsys.readouterr()
+        assert "Generating checksum" in err
+
+
 def test_add_s3_max_objects(runner, mocker, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
@@ -565,7 +582,6 @@ def test_add_reference_unknown_handler(runner):
         }
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
         import pandas as pd
@@ -601,7 +617,75 @@ def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
         artifact.add(wb_table_timestamp, "wb_table_timestamp")
 
         run.log_artifact(artifact)
+
         run.finish()
+
+
+def test_artifact_table_deserialize_timestamp_column():
+    artifact_json = {
+        "_type": "table",
+        "column_types": {
+            "params": {
+                "type_map": {
+                    "Date Time": {
+                        "params": {
+                            "allowed_types": [
+                                {"wb_type": "none"},
+                                {"wb_type": "timestamp"},
+                            ]
+                        },
+                        "wb_type": "union",
+                    },
+                }
+            },
+            "wb_type": "typedDict",
+        },
+        "columns": [
+            "Date Time",
+        ],
+        "data": [
+            [
+                1230800400000.0,
+            ],
+            [
+                None,
+            ],
+        ],
+    }
+
+    artifact_json_non_null = {
+        "_type": "table",
+        "column_types": {
+            "params": {
+                "type_map": {
+                    "Date Time": {"wb_type": "timestamp"},
+                }
+            },
+            "wb_type": "typedDict",
+        },
+        "columns": [
+            "Date Time",
+        ],
+        "data": [
+            [
+                1230800400000.0,
+            ],
+            [
+                1230807600000.0,
+            ],
+        ],
+    }
+
+    for art in (artifact_json, artifact_json_non_null):
+        artifact = wandb.Artifact(name="test", type="test")
+        timestamp_idx = art["columns"].index("Date Time")
+        table = wandb.Table.from_json(art, artifact)
+        assert [row[timestamp_idx] for row in table.data] == [
+            datetime.fromtimestamp(row[timestamp_idx] / 1000.0, tz=timezone.utc)
+            if row[timestamp_idx] is not None
+            else None
+            for row in art["data"]
+        ]
 
 
 @pytest.mark.timeout(120)

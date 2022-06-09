@@ -1,3 +1,64 @@
+## 0.12.18 (June 9, 2022)
+
+#### :nail_care: Enhancement
+* Launch: BareRunner based on LocalRunner by @hu-po in https://github.com/wandb/client/pull/3577
+* Add ability to specify api key to public api by @dannygoldstein in https://github.com/wandb/client/pull/3657
+* Add support in artifacts for files with unicode on windows by @kptkin in https://github.com/wandb/client/pull/3650
+* Added telemetry  for new packages by @manangoel99 in https://github.com/wandb/client/pull/3713
+* Improve API key management by @vanpelt in https://github.com/wandb/client/pull/3718
+* Add information about `wandb server` during login by @raubitsj in https://github.com/wandb/client/pull/3754
+
+#### :bug: Bug Fix
+* fix(weave): Natively support timestamps in Python Table Types by @dannygoldstein in https://github.com/wandb/client/pull/3606
+* Add support for magic with service by @kptkin in https://github.com/wandb/client/pull/3623
+* Add unit tests for DirWatcher and supporting classes by @speezepearson in https://github.com/wandb/client/pull/3589
+* Improve `DirWatcher.update_policy` O(1) instead of O(num files uploaded) by @speezepearson in https://github.com/wandb/client/pull/3613
+* Add argument to control what to log in SB3 callback by @astariul in https://github.com/wandb/client/pull/3643
+* Improve parameter naming in sb3 integration by @dmitryduev in https://github.com/wandb/client/pull/3647
+* Adjust the requirements for the dev environment setup on an M1 Mac by @dmitryduev in https://github.com/wandb/client/pull/3627
+* Launch: Fix NVIDIA base image Linux keys by @KyleGoyette in https://github.com/wandb/client/pull/3637
+* Fix launch run queue handling from config file by @KyleGoyette in https://github.com/wandb/client/pull/3636
+* Fix issue where tfevents were not always consumed by @minyoung in https://github.com/wandb/client/pull/3673
+* [Snyk] Fix for 8 vulnerabilities by @snyk-bot in https://github.com/wandb/client/pull/3695
+* Fix s3 storage handler to upload folders when key names collide by @jlzhao27 in https://github.com/wandb/client/pull/3699
+* Correctly load timestamps from tables in artifacts by @dannygoldstein in https://github.com/wandb/client/pull/3691
+* Require `protobuf<4` by @dmitryduev in https://github.com/wandb/client/pull/3709
+* Make Containers created through launch re-runnable as container jobs by @KyleGoyette in https://github.com/wandb/client/pull/3642
+* Fix tensorboard integration skipping steps at finish() by @KyleGoyette in https://github.com/wandb/client/pull/3626
+* Rename `wandb local` to `wandb server` by @jsbroks in https://github.com/wandb/client/pull/3716
+* Fix busted docker inspect command by @vanpelt in https://github.com/wandb/client/pull/3742
+* Add dedicated sentry client by @dmitryduev in https://github.com/wandb/client/pull/3724
+* Image Type should gracefully handle older type params by @tssweeney in https://github.com/wandb/client/pull/3731
+
+#### :broom: Cleanup
+* Inline FileEventHandler.synced into the only method where it's used by @speezepearson in https://github.com/wandb/client/pull/3594
+* Use passed size argument to make `PolicyLive.min_wait_for_size` a classmethod by @speezepearson in https://github.com/wandb/client/pull/3593
+* Make FileEventHandler an ABC, remove some "default" method impls which were only used once by @speezepearson in https://github.com/wandb/client/pull/3595
+* Remove unused field from DirWatcher by @speezepearson in https://github.com/wandb/client/pull/3592
+* Make sweeps an extra instead of vendoring by @dmitryduev in https://github.com/wandb/client/pull/3628
+* Add nightly CI testing by @dmitryduev in https://github.com/wandb/client/pull/3580
+* Improve keras and data type Reference Docs by @ramit-wandb in https://github.com/wandb/client/pull/3676
+* Update `pytorch` version requirements in dev environments by @dmitryduev in https://github.com/wandb/client/pull/3683
+* Clean up CircleCI config by @dmitryduev in https://github.com/wandb/client/pull/3722
+* Add `py310` testing in CI by @dmitryduev in https://github.com/wandb/client/pull/3730
+* Ditch `dateutil` from the requirements by @dmitryduev in https://github.com/wandb/client/pull/3738
+* Add deprecated string to `Table.add_row` by @nate-wandb in https://github.com/wandb/client/pull/3739
+
+## New Contributors
+* @sephmard made their first contribution in https://github.com/wandb/client/pull/3610
+* @astariul made their first contribution in https://github.com/wandb/client/pull/3643
+* @manangoel99 made their first contribution in https://github.com/wandb/client/pull/3713
+* @nate-wandb made their first contribution in https://github.com/wandb/client/pull/3739
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.17...v0.12.18
+
+## 0.12.17 (May 26, 2022)
+
+#### :bug: Bug Fix
+* Update requirements to fix incompatibility with protobuf >= 4 by @dmitryduev in #3709
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.16...v0.12.17
+
 ## 0.12.16 (May 3, 2022)
 
 #### :nail_care: Enhancement

@@ -444,6 +444,7 @@ class Table(Media):
         return self._eq_debug(other)
 
     def add_row(self, *row):
+        """add_row is deprecated. Please use add_data"""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
@@ -536,6 +537,7 @@ class Table(Media):
         data = []
         column_types = None
         np_deserialized_columns = {}
+        timestamp_column_indices = set()
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
@@ -549,6 +551,14 @@ class Table(Media):
                     for t in col_type.params["allowed_types"]:
                         if isinstance(t, _dtypes.NDArrayType):
                             ndarray_type = t
+                        elif isinstance(t, _dtypes.TimestampType):
+                            timestamp_column_indices.add(
+                                json_obj["columns"].index(col_name)
+                            )
+
+                elif isinstance(col_type, _dtypes.TimestampType):
+                    timestamp_column_indices.add(json_obj["columns"].index(col_name))
+
                 if (
                     ndarray_type is not None
                     and ndarray_type._get_serialization_path() is not None
@@ -570,7 +580,11 @@ class Table(Media):
             row_data = []
             for c_ndx, item in enumerate(row):
                 cell = item
-                if c_ndx in np_deserialized_columns:
+                if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
+                    cell = datetime.datetime.fromtimestamp(
+                        item / 1000, tz=datetime.timezone.utc
+                    )
+                elif c_ndx in np_deserialized_columns:
                     cell = np_deserialized_columns[c_ndx][r_ndx]
                 elif isinstance(item, dict) and "_type" in item:
                     obj = WBValue.init_from_json(item, source_artifact)
@@ -1761,7 +1775,12 @@ class _ImageFileType(_dtypes.Type):
     types = [Image]
 
     def __init__(
-        self, box_layers=None, box_score_keys=None, mask_layers=None, class_map=None
+        self,
+        box_layers=None,
+        box_score_keys=None,
+        mask_layers=None,
+        class_map=None,
+        **kwargs,
     ):
         box_layers = box_layers or {}
         box_score_keys = box_score_keys or []

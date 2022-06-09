@@ -69,10 +69,8 @@ class TestIsTfEventsFileCreatedBy:
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows"
-    or sys.version_info < (3, 5)
-    or sys.version_info >= (3, 9),
-    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted, tf not required for tests in py39",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     pytest.importorskip("tensorboard.summary.v1")

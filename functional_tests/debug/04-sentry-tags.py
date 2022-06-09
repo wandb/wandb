@@ -9,8 +9,12 @@ tag:
   platforms:
     - linux
     - mac
+var:
+  - num_sentry_events:
+      :fn:len: :wandb:sentry_events
 assert:
   - :wandb:runs_len: 1
+  - :num_sentry_events: 1
   - :wandb:sentry_events[0][level]: error
   - :wandb:sentry_events[0][exception][values][0][type]: FileNotFoundError
   - :wandb:sentry_events[0][tags][entity]: mock_server_entity
