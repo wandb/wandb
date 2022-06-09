@@ -11,12 +11,14 @@ import os
 import requests
 import shlex
 import shutil
+import io
 import subprocess
 import sys
 import tempfile
 import textwrap
 import time
 import traceback
+import zipfile
 
 
 import click
@@ -1442,17 +1444,30 @@ def server():
 @display_error
 def debug(host):
     # wandb.login(host=host)
-    # api = wandb.Api()
-    # api.api_key
-    # host = "http://localhost:8080"
+    api = wandb.Api()
+    # print(api.api_key)
+    host = "https://ethan.wandb.ml/"
     if host != None:
+        print(f"Gathering information about instance on {host}")
         env_url = f"{host}/system-admin/api/env"
-        print(env_url)
-        env = requests.options(env_url)
-        print(env.content)
-        # debug_url = f"{host}/system-admin/api/debug"
-        # debug = requests.options(debug_url)
-        # print(debug.content)
+        env_response = requests.get(env_url).json()
+        user_settings = env_response["userSettings"]
+
+        license = user_settings["license"]["value"]
+        local_version = env_response["buildInfo"]["version"]
+        sso_enabled = user_settings["ssoEnable"]["value"]
+
+        print("Version: ".ljust(72, "."), end="")
+        print(local_version)
+        print("SSO enabled: ".ljust(72, "."), end="")
+        print(sso_enabled)
+
+        print("Downloading debug files".ljust(72, "."), end="\n")
+        debug_url = f"{host}/system-admin/api/debug"
+        debug_request = requests.get(debug_url, stream=True)
+        with open("output/debug.zip", "wb") as fd:
+            fd.write(debug_request.content)
+        print("Download complete".ljust(72, "."), end="\n")
     else:
         print("No host provided.")
 
