@@ -1,5 +1,5 @@
-base_url: https://api.wandb.test # TODO: SET YOUR WANDB BASE URL
-project: launch-welcome # TODO: SET YOUR ML PROJECT
+base_url: https://qa-google.wandb.io # TODO: SET YOUR WANDB BASE URL
+project: summerhack # TODO: SET YOUR ML PROJECT
 max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
 registry:
   url: # TODO: SET ECR REPOSITORY URL HERE
