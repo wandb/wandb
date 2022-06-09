@@ -3,10 +3,13 @@
 import os
 import queue
 import shutil
+import tempfile
 import threading
 from typing import Any, Callable, NamedTuple, Union
 
 from wandb.filesync import step_upload
+from wandb.sdk.interface import artifacts
+from wandb.sdk.internal import internal_api
 import wandb.util
 
 
@@ -21,7 +24,7 @@ class RequestUpload(NamedTuple):
 
 
 class RequestStoreManifestFiles(NamedTuple):
-    manifest: Any
+    manifest: artifacts.ArtifactManifest
     artifact_id: str
     save_fn: Callable[..., Any]
 
@@ -29,12 +32,12 @@ class RequestStoreManifestFiles(NamedTuple):
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
-    before_commit: Callable[..., Any]
-    on_commit: Callable[..., Any]
+    before_commit: step_upload.PreCommitFn
+    on_commit: step_upload.PostCommitFn
 
 
 class RequestFinish(NamedTuple):
-    callback: Callable[..., Any]
+    callback: step_upload.OnRequestFinishFn
 
 
 Event = Union[
@@ -45,8 +48,8 @@ Event = Union[
 class StepChecksum:
     def __init__(
         self,
-        api,
-        tempdir,
+        api: internal_api.InternalAPI,
+        tempdir: tempfile.TemporaryDirectory,
         request_queue: "queue.Queue[Event]",
         output_queue: "queue.Queue[step_upload.Event]",
         stats,
@@ -60,7 +63,7 @@ class StepChecksum:
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
-    def _thread_body(self):
+    def _thread_body(self) -> None:
         while True:
             req = self._request_queue.get()
             if isinstance(req, RequestUpload):
@@ -133,11 +136,11 @@ class StepChecksum:
 
         self._output_queue.put(step_upload.RequestFinish(req.callback))
 
-    def start(self):
+    def start(self) -> None:
         self._thread.start()
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         return self._thread.is_alive()
 
-    def finish(self):
+    def finish(self) -> None:
         self._request_queue.put(RequestFinish(None))

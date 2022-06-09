@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING, Iterable, Optional
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -34,6 +35,21 @@ from ..lib.git import GitRepo
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
+
+    class CreateArtifactFileSpecInput(TypedDict):
+        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
+
+        artifactID: str
+        name: str
+        md5: str
+        mimetype: Optional[str]
+        artifactManifestID: Optional[str]
 
 
 class Api:
@@ -2571,7 +2587,9 @@ class Api:
         return server_id
 
     @normalize_exceptions
-    def create_artifact_files(self, artifact_files):
+    def create_artifact_files(
+        self, artifact_files: Iterable[CreateArtifactFileSpecInput]
+    ):
         mutation = gql(
             """
         mutation CreateArtifactFiles(

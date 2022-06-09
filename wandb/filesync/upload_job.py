@@ -2,8 +2,14 @@ import collections
 import logging
 import os
 import threading
+from typing import TYPE_CHECKING
 
 import wandb
+from wandb.filesync import dir_watcher, stats
+from wandb.sdk.internal import internal_api
+
+if TYPE_CHECKING:
+    import queue
 
 EventJobDone = collections.namedtuple("EventJobDone", ("job", "success"))
 logger = logging.getLogger(__name__)
@@ -12,18 +18,18 @@ logger = logging.getLogger(__name__)
 class UploadJob(threading.Thread):
     def __init__(
         self,
-        done_queue,
-        stats,
-        api,
+        done_queue: "queue.Queue[EventJobDone]",
+        stats: stats.Stats,
+        api: internal_api.Api,
         file_stream,
-        silent,
-        save_name,
-        path,
-        artifact_id,
-        md5,
-        copied,
+        silent: bool,
+        save_name: dir_watcher.SaveName,
+        path: dir_watcher.PathStr,
+        artifact_id: str,
+        md5: str,
+        copied: bool,
         save_fn,
-        digest,
+        digest: str,
     ):
         """A file upload thread.
 

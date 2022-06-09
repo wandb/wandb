@@ -5,7 +5,8 @@ import threading
 from typing import Any, Callable, NamedTuple, Union
 
 from wandb.errors.term import termerror
-from wandb.filesync import upload_job
+from wandb.filesync import stats, upload_job
+from wandb.sdk.internal import internal_api
 
 
 RequestUpload = NamedTuple(
@@ -39,8 +40,8 @@ Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish]
 class StepUpload:
     def __init__(
         self,
-        api,
-        stats,
+        api: internal_api.Api,
+        stats: stats.Stats,
         event_queue: "queue.Queue[Event]",
         max_jobs,
         file_stream,
