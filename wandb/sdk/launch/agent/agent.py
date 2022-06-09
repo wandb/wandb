@@ -55,7 +55,17 @@ def local_process(agent, queue):
         if lbl in queue_config.get("labels", []):
             label_satisfied = True
 
-    return label_satisfied
+    resource_satisfied = True
+    for criterion, requirement in queue_config.get("resources", {}).items():
+        agent_config_resources = agent_config.get("resources", {})
+        if (
+            agent_config_resources
+            and agent_config_resources.get(criterion) is not None
+            and agent_config_resources.get(criterion) < requirement
+        ):
+            resource_satisfied = False
+
+    return label_satisfied and resource_satisfied
 
 
 def local_container(agent, queue):
@@ -67,7 +77,17 @@ def local_container(agent, queue):
         if lbl in queue_config.get("labels", []):
             label_satisfied = True
 
-    return label_satisfied
+    resource_satisfied = True
+    for criterion, requirement in agent_config.get("resources", {}).items():
+        queue_config_resources = queue_config.get("resources", {})
+        if (
+            queue_config_resources
+            and queue_config_resources.get(criterion) is not None
+            and queue_config_resources.get(criterion) < requirement
+        ):
+            resource_satisfied = False
+
+    return label_satisfied and resource_satisfied
 
 
 runner_dispatch = {
@@ -116,7 +136,7 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._configured_runners = self._parse_runner_config(config)
+        self._configured_runners = self._setup_runners(config)
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -198,6 +218,40 @@ class LaunchAgent:
         runners = config.get("runners", [{}])
         return {k: v for elem in runners for k, v in elem.items()}
 
+    @staticmethod
+    def _get_system_resource_defaults():
+        import psutil
+        from wandb.vendor.pynvml import pynvml
+
+        def get_gpus():
+            try:
+                pynvml.nvmlInit()
+            except pynvml.NVMLError:
+                pass
+            else:
+                return pynvml.nvmlDeviceGetCount()
+
+        resources = {
+            "cpus": psutil.cpu_count(),
+            "gpus": get_gpus(),
+            "ram": psutil.virtual_memory().total / (1024**3),
+        }
+
+        return {k: v for k, v in resources.items() if v is not None}
+
+    def _setup_runners(self, config):
+        runners = self._parse_runner_config(config)
+        system_resource_defaults = self._get_system_resource_defaults()
+
+        for spec in runners.values():
+            if "resources" not in spec:
+                spec["resources"] = {}
+            for k, v in system_resource_defaults.items():
+                if k not in spec["resources"]:
+                    spec["resources"][k] = v
+
+        return runners
+
     def _get_valid_run_queues(self) -> List[RunQueue]:
         """
         Given an entity, return a list of run queues associated with that entity.
@@ -206,7 +260,12 @@ class LaunchAgent:
         valid_queues = []
 
         for q in run_queues:
-            # q["config"] = {"local-process": {"labels": ["gpu"]}}
+            # q["config"] = {
+            #     "local-process": {
+            #         "labels": ["gpu"],
+            #         "resources": {"cpu": 1, "gpu": 0, "ram": 1},
+            #     }
+            # }
             runner = next(iter(q["config"]))
             if runner in self._configured_runners:
                 valid = runner_dispatch[runner]
@@ -229,20 +288,21 @@ class LaunchAgent:
         """
         self._order_queues_by_priority()
 
-        for q in self._queues:
-            try:
-                selected_queue, job = q, self.pop_from_queue(q)
-            except IndexError:
-                wandb.termlog(f"Queue is empty ({q})")
-            else:
-                if job is not None:
-                    break
+        if self._queues:
+            for q in self._queues:
+                try:
+                    selected_queue, job = q, self.pop_from_queue(q)
+                except IndexError:
+                    wandb.termlog(f"Queue is empty ({q})")
+                else:
+                    if job is not None:
+                        break
 
-        default_config = selected_queue["config"]
-        if job is not None and default_config is not None:
-            job["config"] = merge_dicts(job["config"], default_config)
+            default_config = selected_queue["config"]
+            if job is not None and default_config is not None:
+                job["config"] = merge_dicts(job["config"], default_config)
 
-        return job
+            return job
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""

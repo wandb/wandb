@@ -20,6 +20,10 @@ runners:
   - local-process:
       labels:
         - gpu
+      resources:
+        cpu: 4
+        gpu: 1
+        ram: 16
   - local-container:
       labels:
         - gpu
