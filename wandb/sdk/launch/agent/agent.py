@@ -148,9 +148,8 @@ class LaunchAgent:
             self._api.launch_agent_introspection() is not None
         )
         self._queues = self._get_valid_run_queues()
-        print(self._queues)
         create_response = self._api.create_new_launch_agent(
-            self._entity, self.gorilla_supports_agents
+            self._entity, self.gorilla_supports_agents, config=self._configured_runners
         )
         self._id = create_response["newLaunchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
@@ -219,21 +218,33 @@ class LaunchAgent:
         return {k: v for elem in runners for k, v in elem.items()}
 
     @staticmethod
-    def _get_system_resource_defaults():
-        import psutil
+    def _get_gpus():
+        from collections import Counter
         from wandb.vendor.pynvml import pynvml
 
-        def get_gpus():
-            try:
-                pynvml.nvmlInit()
-            except pynvml.NVMLError:
-                pass
-            else:
-                return pynvml.nvmlDeviceGetCount()
+        try:
+            pynvml.nvmlInit()
+        except pynvml.NVMLError:
+            gpu_names = []
+        else:
+            gpu_count = pynvml.nvmlDeviceGetCount()
+            gpus = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(gpu_count)]
+            gpu_names = [pynvml.nvmlDeviceGetName(gpu).decode("utf8") for gpu in gpus]
+        finally:
+            gpus = Counter(gpu_names)
+
+        # Get just the first GPU name and count
+        if gpus:
+            name, count = next(iter(gpus.items()))
+            return {"name": name, "count": count}
+        return {}
+
+    def _get_system_resource_defaults(self):
+        import psutil
 
         resources = {
             "cpus": psutil.cpu_count(),
-            "gpus": get_gpus(),
+            "gpus": self._get_gpus().get("count", 0),
             "ram": psutil.virtual_memory().total / (1024**3),
         }
 
@@ -244,11 +255,22 @@ class LaunchAgent:
         system_resource_defaults = self._get_system_resource_defaults()
 
         for spec in runners.values():
+            # add resources
             if "resources" not in spec:
                 spec["resources"] = {}
             for k, v in system_resource_defaults.items():
                 if k not in spec["resources"]:
                     spec["resources"][k] = v
+
+            # add labels
+            gpu_labels = self._get_gpus().get("name")
+            gpu_labels = [gpu_labels] if gpu_labels else []
+
+            if "labels" not in spec:
+                spec["labels"] = []
+            for lbl in gpu_labels:
+                if lbl not in spec["labels"]:
+                    spec["labels"].append(lbl)
 
         return runners
 
@@ -260,12 +282,12 @@ class LaunchAgent:
         valid_queues = []
 
         for q in run_queues:
-            # q["config"] = {
-            #     "local-process": {
-            #         "labels": ["gpu"],
-            #         "resources": {"cpu": 1, "gpu": 0, "ram": 1},
-            #     }
-            # }
+            q["config"] = {
+                "local-process": {
+                    "labels": ["gpu"],
+                    "resources": {"cpu": 1, "gpu": 0, "ram": 1},
+                }
+            }
             runner = next(iter(q["config"]))
             if runner in self._configured_runners:
                 valid = runner_dispatch[runner]
@@ -303,6 +325,35 @@ class LaunchAgent:
                 job["config"] = merge_dicts(job["config"], default_config)
 
             return job
+
+    def _get_current_resource_usage(self):
+        """
+        Get current resource utilization based on resources requested for each job
+        (not actual) utilization.
+        """
+        resources_used = {"cpu": 0, "gpu": 0, "ram": 0}
+
+        # uses the maximum requested resources for each job, not the actual current utilization
+        for i, job in self._jobs.items():
+            for name, value in resources_used.items():
+                resources_used[name] += job["resources"][name]
+
+        return resources_used
+
+    def _resources_available_for_this_job(self, job):
+        """
+        Check if there are sufficient resources available for `job`.
+        """
+        resources = ["cpu", "gpu", "ram"]
+        current_resource_usage = self._get_current_resource_usage()
+
+        for resource in resources:
+            job_requires = job["resources"].get(resource)
+            currently_available = current_resource_usage.get(resource)
+
+            if job_requires > currently_available:
+                return False
+        return True
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
@@ -399,9 +450,9 @@ class LaunchAgent:
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
                     job = self._get_combined_config()
-                    # for queue in self._queues:
-                    #     job = self.pop_from_queue(queue)
                     if job:
+                        if not self._resources_available_for_this_job(job):
+                            continue
                         try:
                             self.run_job(job)
                         except Exception as e:
