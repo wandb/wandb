@@ -2,15 +2,18 @@
 Implementation of launch agent.
 """
 
+import json
 import logging
 import os
+import random
 import time
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, TypeVar, Union
 
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
+from wandb_gql import gql
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
@@ -29,6 +32,85 @@ AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
 
 _logger = logging.getLogger(__name__)
+
+RunQueue = TypeVar("RunQueue")
+
+
+def kubernetes(agent, queue):
+    valid = False
+    return valid
+
+
+def sagemaker(agent, queue):
+    valid = False
+    return valid
+
+
+def local_process(agent, queue):
+    agent_config = agent._configured_runners["local-process"]
+    queue_config = queue["config"]["local-process"]
+
+    label_satisfied = False
+    for lbl in agent_config.get("labels", []):
+        if lbl in queue_config.get("labels", []):
+            label_satisfied = True
+
+    resource_satisfied = True
+    for criterion, requirement in queue_config.get("resources", {}).items():
+        agent_config_resources = agent_config.get("resources", {})
+        if (
+            agent_config_resources
+            and agent_config_resources.get(criterion) is not None
+            and agent_config_resources.get(criterion) < requirement
+        ):
+            resource_satisfied = False
+
+    return label_satisfied and resource_satisfied
+
+
+def local_container(agent, queue):
+    agent_config = agent._configured_runners["local-container"]
+    queue_config = queue["config"]["local-container"]
+
+    label_satisfied = False
+    for lbl in agent_config.get("labels", []):
+        if lbl in queue_config.get("labels", []):
+            label_satisfied = True
+
+    resource_satisfied = True
+    for criterion, requirement in agent_config.get("resources", {}).items():
+        queue_config_resources = queue_config.get("resources", {})
+        if (
+            queue_config_resources
+            and queue_config_resources.get(criterion) is not None
+            and queue_config_resources.get(criterion) < requirement
+        ):
+            resource_satisfied = False
+
+    return label_satisfied and resource_satisfied
+
+
+runner_dispatch = {
+    "kubernetes": kubernetes,
+    "sagemaker": sagemaker,
+    "local-process": local_process,
+    "local-container": local_container,
+}
+
+
+def merge_dicts(x, y):
+    """
+    https://stackoverflow.com/questions/47564712/merge-nested-dictionaries-by-appending
+
+    Inserts items from dict x into dict y, prioritizing x if keys exist in both dicts
+    """
+    for key in y:
+        if key in x:
+            if isinstance(x[key], dict) and isinstance(y[key], dict):
+                merge_dicts(x[key], y[key])
+        else:
+            x[key] = y[key]
+    return x
 
 
 def _convert_access(access: str) -> str:
@@ -54,7 +136,7 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._configured_runners = config.get("runners")
+        self._configured_runners = self._setup_runners(config)
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -65,14 +147,12 @@ class LaunchAgent:
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
         )
-        self._queues = config.get("queues", ["default"])
-        create_response = self._api.create_launch_agent(
-            self._entity,
-            self._project,
-            self._queues,
-            self.gorilla_supports_agents,
+        self._queues = self._get_valid_run_queues()
+        print(self._queues)
+        create_response = self._api.create_new_launch_agent(
+            self._entity, self.gorilla_supports_agents
         )
-        self._id = create_response["launchAgentId"]
+        self._id = create_response["newLaunchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
     @property
@@ -80,30 +160,27 @@ class LaunchAgent:
         """Returns a list of keys running job ids for the agent."""
         return list(self._jobs.keys())
 
-    def pop_from_queue(self, queue: str) -> Any:
+    def pop_from_queue(self, queue: RunQueue) -> Any:
         """Pops an item off the runqueue to run as a job."""
         try:
-            ups = self._api.pop_from_run_queue(
-                queue,
+            rqi = self._api.pop_from_run_queue(
+                queue["name"],
                 entity=self._entity,
-                project=self._project,
+                project=queue["projectName"],
                 agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
             return None
-        return ups
+        return rqi
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        wandb.termlog(
-            "agent {} polling on project {}, queues {} for jobs".format(
-                self._name, self._project, " ".join(self._queues)
-            )
-        )
+        project_queues = [f"{q['projectName']}/{q['name']}" for q in self._queues]
+        wandb.termlog(f"LAUNCH AGENT POLLING {self._entity} on queues {project_queues}")
 
     def update_status(self, status: str) -> None:
-        update_ret = self._api.update_launch_agent_status(
+        update_ret = self._api.update_new_launch_agent_status(
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
@@ -117,6 +194,115 @@ class LaunchAgent:
         # update status back to polling if no jobs are running
         if self._running == 0:
             self.update_status(AGENT_POLLING)
+
+    @staticmethod
+    def _parse_runner_config(config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parses a RunnersConfig block from the agent config. Returns a dictionary
+        of support runners in the form of:
+        {
+            kubernetes: {
+                namespace: "wandb"
+            },
+            sagemaker: {
+
+            },
+            local-process: {
+                labels: [ "gpu-pool" ]
+            },
+            local-container: {
+                labels: [ "gpu-pool"]
+            }
+        }
+        """
+        runners = config.get("runners", [{}])
+        return {k: v for elem in runners for k, v in elem.items()}
+
+    @staticmethod
+    def _get_system_resource_defaults():
+        import psutil
+        from wandb.vendor.pynvml import pynvml
+
+        def get_gpus():
+            try:
+                pynvml.nvmlInit()
+            except pynvml.NVMLError:
+                pass
+            else:
+                return pynvml.nvmlDeviceGetCount()
+
+        resources = {
+            "cpus": psutil.cpu_count(),
+            "gpus": get_gpus(),
+            "ram": psutil.virtual_memory().total / (1024**3),
+        }
+
+        return {k: v for k, v in resources.items() if v is not None}
+
+    def _setup_runners(self, config):
+        runners = self._parse_runner_config(config)
+        system_resource_defaults = self._get_system_resource_defaults()
+
+        for spec in runners.values():
+            if "resources" not in spec:
+                spec["resources"] = {}
+            for k, v in system_resource_defaults.items():
+                if k not in spec["resources"]:
+                    spec["resources"][k] = v
+
+        return runners
+
+    def _get_valid_run_queues(self) -> List[RunQueue]:
+        """
+        Given an entity, return a list of run queues associated with that entity.
+        """
+        run_queues = self._api.get_run_queues_by_entity(self._entity)
+        valid_queues = []
+
+        for q in run_queues:
+            # q["config"] = {
+            #     "local-process": {
+            #         "labels": ["gpu"],
+            #         "resources": {"cpu": 1, "gpu": 0, "ram": 1},
+            #     }
+            # }
+            runner = next(iter(q["config"]))
+            if runner in self._configured_runners:
+                valid = runner_dispatch[runner]
+                if valid(agent=self, queue=q):
+                    valid_queues.append(q)
+            else:
+                wandb.termwarn(f"Unsupported runner: ({runner})")
+                continue
+        return valid_queues
+
+    def _order_queues_by_priority(self) -> None:
+        """
+        `Smartly` select a queue!
+        """
+        random.shuffle(self._queues)  # So smart!
+
+    def _get_combined_config(self):
+        """
+        Return a combined config to do the next job.
+        """
+        self._order_queues_by_priority()
+
+        if self._queues:
+            for q in self._queues:
+                try:
+                    selected_queue, job = q, self.pop_from_queue(q)
+                except IndexError:
+                    wandb.termlog(f"Queue is empty ({q})")
+                else:
+                    if job is not None:
+                        break
+
+            default_config = selected_queue["config"]
+            if job is not None and default_config is not None:
+                job["config"] = merge_dicts(job["config"], default_config)
+
+            return job
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
@@ -195,17 +381,13 @@ class LaunchAgent:
 
     def loop(self) -> None:
         """Main loop function for agent."""
-        wandb.termlog(
-            "launch agent polling project {}/{} on queues: {}".format(
-                self._entity, self._project, ",".join(self._queues)
-            )
-        )
+        self.print_status()
         try:
             while True:
                 self._ticks += 1
                 job = None
 
-                agent_response = self._api.get_launch_agent(
+                agent_response = self._api.get_new_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
                 self._name = agent_response[
@@ -216,14 +398,15 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
-                    for queue in self._queues:
-                        job = self.pop_from_queue(queue)
-                        if job:
-                            try:
-                                self.run_job(job)
-                            except Exception as e:
-                                wandb.termerror(f"Error running job: {e}")
-                                self._api.ack_run_queue_item(job["runQueueItemId"])
+                    job = self._get_combined_config()
+                    # for queue in self._queues:
+                    #     job = self.pop_from_queue(queue)
+                    if job:
+                        try:
+                            self.run_job(job)
+                        except Exception as e:
+                            wandb.termerror(f"Error running job: {e}")
+                            self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:

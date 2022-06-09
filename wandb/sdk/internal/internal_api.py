@@ -1021,6 +1021,11 @@ class Api:
 
     @normalize_exceptions
     def pop_from_run_queue(self, queue_name, entity=None, project=None, agent_id=None):
+        if agent_id:
+            id = base64.b64decode(agent_id)
+            id = id[3:]
+            agent_id = base64.b64encode(id)
+
         mutation = gql(
             """
         mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
@@ -1042,10 +1047,33 @@ class Api:
                 "entity": entity,
                 "project": project,
                 "queueName": queue_name,
-                "launchAgentId": agent_id,
+                "launchAgentId": agent_id.decode("utf-8"),
             },
         )
         return response["popFromRunQueue"]
+
+    @normalize_exceptions
+    def get_run_queues_by_entity(self, entity: str):
+        """
+        Given an entity, return a list of run queues associated with that entity.
+        """
+        query = gql(
+            """
+            query GetRunQueuesByEntity($entityName: String!) {
+                runQueues(entityName: $entityName) {
+                    edges {
+                        node {
+                              config
+                              projectName
+                              name
+                         }   
+                     }    
+                } 
+            }
+            """
+        )
+        response = self.gql(query, variable_values={"entityName": entity})
+        return [r["node"] for r in response["runQueues"]["edges"]]
 
     @normalize_exceptions
     def ack_run_queue_item(self, item_id, run_id=None):
@@ -1194,7 +1222,7 @@ class Api:
         mutation = gql(
             """
             mutation updateNewLaunchAgent($agentId: ID!, $agentStatus: String){
-                updateLaunchAgent(
+                updateNewLaunchAgent(
                     input: {
                         newLaunchAgentId: $agentId
                         agentStatus: $agentStatus
@@ -1209,7 +1237,7 @@ class Api:
             "agentId": agent_id,
             "agentStatus": status,
         }
-        return self.gql(mutation, variable_values)["updateLaunchAgent"]
+        return self.gql(mutation, variable_values)["updateNewLaunchAgent"]
 
     @normalize_exceptions
     def get_launch_agent(self, agent_id, gorilla_agent_support):

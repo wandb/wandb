@@ -1180,10 +1180,10 @@ def launch_agent(
     agent_config, api = wandb_launch.resolve_agent_config(
         api, entity, project, max_jobs, queues, config
     )
-    if agent_config.get("project") is None:
-        raise LaunchError(
-            "You must specify a project name or set WANDB_PROJECT environment variable."
-        )
+    # if agent_config.get("project") is None:
+    #     raise LaunchError(
+    #         "You must specify a project name or set WANDB_PROJECT environment variable."
+    #     )
 
     wandb.termlog("Starting launch agent ✨")
 
