@@ -124,6 +124,12 @@ def dbg_run_stacks(ctx):
                 print(f"\t\t\t\t{var.repr}")
 
 
+@click.command(hidden=True)
+def complete():
+    show = """autoload -Uz compinit; compinit; if [ ! -r "~/.wandb-complete.zsh" ]; then; _WANDB_COMPLETE=zsh_source wandb > ~/.wandb-complete.zsh; fi; . ~/.wandb-complete.zsh"""
+    print(show)
+
+
 @click.group()
 def dbg_run_internal():
     pass
@@ -157,6 +163,7 @@ def install_subcommands(base):
     run_cmd = CliRuns(name="run", help="Debug runs")
     base.add_command(service_cmd)
     base.add_command(run_cmd)
+    base.add_command(complete)
     service_subcommand.add_command(run_cmd)
 
     dbg_run_node.add_command(dbg_run_internal, name="internal")
