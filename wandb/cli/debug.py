@@ -80,8 +80,13 @@ def dbg_run():
 @click.pass_context
 def dbg_run_node(ctx):
     run_id = ctx.info_name
-    # print("GOT RUN", run_id)
     os.environ["WANDB_RUN_ID"] = run_id
+
+
+@click.group()
+@click.pass_context
+def dbg_thread_node(ctx):
+    pass
 
 
 def _get_interface():
@@ -129,14 +134,27 @@ def dbg_run_stacks(ctx):
 
 @click.command()
 @click.pass_context
-def dbg_run_threads(ctx):
+def dbg_thread_stack(ctx):
+    pass
+
+
+def list_threads():
     sock_interface = _get_interface()
     sock_interface.publish_debug()
     data = sock_interface.communicate_debug_poll("data")
-    if not data:
-        return
-    for thread in data.data.threads:
-        print(f"{thread.name}")
+    threads = []
+    if data:
+        for thread in data.data.threads:
+            threads.append(f"{thread.name}")
+    return threads
+
+
+@click.command()
+@click.pass_context
+def dbg_run_threads(ctx):
+    threads = list_threads()
+    for thread in threads:
+        print(thread)
 
 
 @click.command(hidden=True)
@@ -155,6 +173,11 @@ def dbg_run_internal_show():
     pass
 
 
+@click.group()
+def dbg_run_thread_show():
+    pass
+
+
 class CliServices(click.MultiCommand):
     def list_commands(self, ctx):
         services = list_services()
@@ -170,12 +193,26 @@ class CliRuns(click.MultiCommand):
         return runs
 
     def get_command(self, ctx, name):
+        run_id = name
+        os.environ["WANDB_RUN_ID"] = run_id
         return dbg_run_node
+
+
+class CliThreads(click.MultiCommand):
+    def list_commands(self, ctx):
+        threads = list_threads()
+        return threads
+
+    def get_command(self, ctx, name):
+        # TODO: use context obj
+        os.environ["WANDB_THREAD_ID"] = name
+        return dbg_thread_node
 
 
 def install_subcommands(base):
     service_cmd = CliServices(name="service", help="Debug services")
     run_cmd = CliRuns(name="run", help="Debug runs")
+    thread_cmd = CliThreads(name="thread", help="Debug threads")
     base.add_command(service_cmd)
     base.add_command(run_cmd)
     base.add_command(complete)
@@ -183,5 +220,10 @@ def install_subcommands(base):
 
     dbg_run_node.add_command(dbg_run_internal, name="internal")
     dbg_run_internal.add_command(dbg_run_internal_show, name="show")
+    dbg_run_internal.add_command(thread_cmd)
     dbg_run_internal_show.add_command(dbg_run_threads, name="threads")
     dbg_run_internal_show.add_command(dbg_run_stacks, name="stacks")
+
+    dbg_run_thread_show.add_command(dbg_thread_stack, name="stack")
+
+    dbg_thread_node.add_command(dbg_run_thread_show, name="show")
