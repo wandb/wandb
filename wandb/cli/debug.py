@@ -126,7 +126,7 @@ def dbg_run_stacks(ctx):
 
 @click.command(hidden=True)
 def complete():
-    show = """autoload -Uz compinit; compinit; if [ ! -r "~/.wandb-complete.zsh" ]; then; _WANDB_COMPLETE=zsh_source wandb > ~/.wandb-complete.zsh; fi; . ~/.wandb-complete.zsh"""
+    show = """__='\n================================\nHINT: to use this command type:\neval `wandb debug complete`\n================================\nIgnore the following:\n'; autoload -Uz compinit; compinit; if [ ! -r "~/.wandb-complete.zsh" ]; then; _WANDB_COMPLETE=zsh_source wandb > ~/.wandb-complete.zsh; fi; . ~/.wandb-complete.zsh"""
     print(show)
 
 
