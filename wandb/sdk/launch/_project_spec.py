@@ -47,6 +47,7 @@ class LaunchProject:
         launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
+        username: str,
         name: Optional[str],
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
@@ -62,6 +63,7 @@ class LaunchProject:
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
+        self.username = username
         self.target_project = target_project.lower()
         self.name = name
         self.build_image: bool = docker_config.get("build_image", False)
@@ -380,6 +382,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec,
         launch_spec["entity"],
         launch_spec["project"],
+        launch_spec["username"],
         name,
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
