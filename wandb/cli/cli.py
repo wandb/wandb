@@ -36,6 +36,8 @@ from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.lib.wburls import wburls
 
+from wandb.sdk.service import port_file
+
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
@@ -244,6 +246,25 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 
 
+def _wait_for_ports(fname: str, proc: subprocess.Popen = None) -> bool:
+        time_max = time.time() + 30
+        while time.time() < time_max:
+            if not os.path.isfile(fname):
+                time.sleep(0.2)
+                continue
+            try:
+                pf = port_file.PortFile()
+                pf.read(fname)
+                if not pf.is_valid:
+                    time.sleep(0.2)
+                    continue
+                return pf.grpc_port, pf.sock_port
+            except Exception as e:
+                print("Error:", e)
+                return False
+        return False
+
+
 @cli.command(
     context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
@@ -259,6 +280,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @click.option("--debug", is_flag=True, help="log debug info")
 @click.option("--serve-sock", is_flag=True, help="use socket mode")
 @click.option("--serve-grpc", is_flag=True, help="use grpc mode")
+@click.option("--bg", is_flag=True, help="run in the background")
 @display_error
 def service(
     grpc_port=None,
@@ -269,7 +291,67 @@ def service(
     debug=False,
     serve_sock=False,
     serve_grpc=False,
+    bg=False,
 ):
+    if bg:
+        from wandb.sdk.wandb_manager import _ManagerToken
+
+        token = _ManagerToken.from_environment()
+        if token:
+            print("# WARNING: existing service detected, not making another")
+            return
+
+        # https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
+        exec_cmd_list = [sys.executable, sys.executable, "-m"]
+        exec_cmd_list += ["wandb", "service"]
+        if grpc_port is not None:
+            exec_cmd_list += ["--grpc-port", str(grpc_port)]
+        if sock_port is not None:
+            exec_cmd_list += ["--sock-port", str(sock_port)]
+        if port_filename is not None:
+            exec_cmd_list += ["--port-filename", str(port_filename)]
+        if address is not None:
+            exec_cmd_list += ["--address", str(address)]
+        if pid is not None:
+            exec_cmd_list += ["--pid", str(pid)]
+        if debug:
+            exec_cmd_list += ["--debug"]
+        # make sure we set sock if not grpc
+        if not serve_grpc:
+            serve_sock = True
+        if serve_sock:
+            exec_cmd_list += ["--serve-sock"]
+        if serve_grpc:
+            exec_cmd_list += ["--serve-grpc"]
+        ppid = os.getppid()
+        pid = os.getpid()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fname = os.path.join(tmpdir, f"port-{pid}.txt")
+            pid_str = str(ppid)
+            exec_cmd_list += ["--pid", pid_str]
+            exec_cmd_list += ["--port-filename", fname]
+            # print("RUN", exec_cmd_list)
+            ret = os.spawnl(os.P_NOWAIT, *exec_cmd_list)
+            # print("GOT", ret)
+            # HACK: wait for fname
+            ports = _wait_for_ports(fname)
+            if not ports:
+                print("# PROBLEM starting service")
+                return
+            grpc_port, sock_port = ports
+            host = "localhost"
+            if grpc_port:
+                transport = "grpc"
+                port = grpc_port
+            else:
+                transport = "tcp"
+                port = sock_port
+            assert port
+            token = _ManagerToken.from_params(transport=transport, host=host, port=port)
+            print(f"export WANDB_SERVICE={token.token}")
+        return
+
     from wandb.sdk.service.server import WandbServer
 
     server = WandbServer(

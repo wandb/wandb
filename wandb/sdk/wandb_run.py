@@ -1922,9 +1922,9 @@ class Run:
 
         if self._backend and self._backend.interface:
             logger.info("communicating current version")
-            self._check_version = self._backend.interface.communicate_check_version(
-                current_version=wandb.__version__
-            )
+            # self._check_version = self._backend.interface.communicate_check_version(
+            #     current_version=wandb.__version__
+            # )
         logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
