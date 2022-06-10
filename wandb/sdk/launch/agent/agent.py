@@ -183,7 +183,7 @@ class LaunchAgent:
 
     def update_status(self, status: str) -> None:
         update_ret = self._api.update_new_launch_agent_status(
-            self._id, status, self.gorilla_supports_agents
+            self._id, status, self.gorilla_supports_agents, self._configured_runners
         )
         if not update_ret["success"]:
             wandb.termerror(f"Failed to update agent status to {status}")

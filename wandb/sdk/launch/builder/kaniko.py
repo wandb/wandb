@@ -375,10 +375,7 @@ def find_image(image_uri: str):
         "boto3",
         "AWS cloud provider requires boto3, install with pip install wandb[launch]",
     )
-    botocore = get_module(
-        "botocore",
-        "aws cloud-provider requires botocore,  install with pip install wandb[launch]",
-    )
+
     if "amazonaws" in image_uri:
         print(image_uri)
         account_id = image_uri.split("/")
@@ -392,5 +389,5 @@ def find_image(image_uri: str):
                 imageIds=[{"imageTag": tag}],
             )
             return True
-        except botocore.errorfactory.ImageNotFoundException:
+        except Exception:
             return False
