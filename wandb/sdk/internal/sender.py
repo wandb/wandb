@@ -43,6 +43,7 @@ if TYPE_CHECKING:
         RunExitResult,
         RunRecord,
     )
+    from wandb.sdk.wandb_settings import Settings
 
 
 logger = logging.getLogger(__name__)
@@ -808,7 +809,7 @@ class SendManager:
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
+        self._dir_watcher = DirWatcher(cast(Settings, self._settings), self._pusher, file_dir)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,

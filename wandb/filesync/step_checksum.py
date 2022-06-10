@@ -5,20 +5,15 @@ import queue
 import shutil
 import tempfile
 import threading
-from typing import Any, Callable, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union
 
 from wandb.filesync import stats, step_upload
 from wandb.sdk.interface import artifacts
 from wandb.sdk.internal import internal_api, progress
 import wandb.util
 
-SaveFn = Callable[
-    [
-        artifacts.ArtifactEntry,
-        "progress.ProgressFn",
-    ],
-    Any,
-]
+if TYPE_CHECKING:
+    from wandb.sdk.internal import artifacts as internal_artifacts
 
 
 class RequestUpload(NamedTuple):
@@ -27,14 +22,15 @@ class RequestUpload(NamedTuple):
     artifact_id: Optional[str]
     copy: bool
     use_prepare_flow: bool
-    save_fn: Optional[SaveFn]
-    digest: str
+    save_fn: Optional[step_upload.SaveFn]
+    # save_fn: Optional[SaveFn]
+    digest: Optional[str]
 
 
 class RequestStoreManifestFiles(NamedTuple):
     manifest: artifacts.ArtifactManifest
     artifact_id: str
-    save_fn: SaveFn
+    save_fn: internal_artifacts.SaveFn
 
 
 class RequestCommitArtifact(NamedTuple):
@@ -87,7 +83,7 @@ class StepChecksum:
                         # large files: https://bugs.python.org/issue43743
                         shutil.copy2(req.path, path)
                     except OSError:
-                        shutil._USE_CP_SENDFILE = False
+                        shutil._USE_CP_SENDFILE = False  # type: ignore[attr-defined]
                         shutil.copy2(req.path, path)
                 checksum = None
                 if req.use_prepare_flow:
@@ -113,14 +109,16 @@ class StepChecksum:
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(
-                            save_fn, entry
+                            save_fn: internal_artifacts.SaveFn,
+                            entry: artifacts.ArtifactEntry,
                         ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(
                                 entry, progress_callback
                             )
 
+                        entry_size: int = entry.size  # type: ignore[assignment]
                         self._stats.init_file(
-                            entry.local_path, entry.size, is_artifact_file=True
+                            entry.local_path, entry_size, is_artifact_file=True
                         )
                         self._output_queue.put(
                             step_upload.RequestUpload(

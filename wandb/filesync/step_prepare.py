@@ -34,7 +34,8 @@ class RequestPrepare(NamedTuple):
     response_queue: "queue.Queue[ResponsePrepare]"
 
 
-RequestFinish = NamedTuple("RequestFinish", ())
+class RequestFinish(NamedTuple):
+    pass
 
 
 class ResponsePrepare(NamedTuple):
@@ -64,7 +65,7 @@ class StepPrepare:
         self._inter_event_time = inter_event_time
         self._batch_time = batch_time
         self._max_batch_size = max_batch_size
-        self._request_queue: "queue.Queue[RequestPrepare]" = queue.Queue()
+        self._request_queue: "queue.Queue[RequestPrepare | RequestFinish]" = queue.Queue()
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
@@ -132,18 +133,18 @@ class StepPrepare:
 
     def prepare_async(
         self, prepare_fn: DoPrepareFn, on_prepare: Optional[Callable[..., Any]] = None
-    ) -> "queue.Queue[RequestPrepare]":
+    ) -> "queue.Queue[ResponsePrepare]":
         """Request the backend to prepare a file for upload.
 
         Returns:
             response_queue: a queue containing the prepare result. The prepare result is
                 either a file upload url, or None if the file doesn't need to be uploaded.
         """
-        response_queue = queue.Queue()
+        response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
         self._request_queue.put(RequestPrepare(prepare_fn, on_prepare, response_queue))
         return response_queue
 
-    def prepare(self, prepare_fn: DoPrepareFn) -> RequestPrepare:
+    def prepare(self, prepare_fn: DoPrepareFn) -> ResponsePrepare:
         return self.prepare_async(prepare_fn).get()
 
     def start(self) -> None:

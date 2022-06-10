@@ -3,7 +3,7 @@ import os
 import queue
 import tempfile
 import time
-from typing import Callable, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Mapping, Optional, Tuple
 
 import wandb
 from wandb.sdk.interface import artifacts
@@ -13,6 +13,9 @@ import wandb.util
 from wandb.filesync import stats
 from wandb.filesync import step_checksum
 from wandb.filesync import step_upload
+
+if TYPE_CHECKING:
+    from wandb.sdk.internal import artifacts as internal_artifacts
 
 
 # Temporary directory for copies we make of some file types to
@@ -38,8 +41,8 @@ class FilePusher:
         self,
         api: internal_api.Api,
         file_stream: file_stream.FileStreamApi,
-        silent=False,
-    ):
+        silent: Optional[bool] =False,
+    ) -> None:
         self._api = api
 
         self._tempdir = tempfile.TemporaryDirectory("wandb")
@@ -64,7 +67,7 @@ class FilePusher:
             self._event_queue,
             self.MAX_UPLOAD_JOBS,
             file_stream=file_stream,
-            silent=silent,
+            silent=bool(silent),
         )
         self._step_upload.start()
 
@@ -116,8 +119,8 @@ class FilePusher:
         artifact_id: Optional[str] = None,
         copy: bool = True,
         use_prepare_flow: bool = False,
-        save_fn: Optional[step_checksum.SaveFn] = None,
-        digest=None,
+        save_fn: Optional[step_upload.SaveFn] = None,
+        digest: Optional[str] = None,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
         Arguments:
@@ -141,7 +144,7 @@ class FilePusher:
         self,
         manifest: artifacts.ArtifactManifest,
         artifact_id: str,
-        save_fn: step_checksum.SaveFn,
+        save_fn: "internal_artifacts.SaveFn",
     ) -> None:
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)

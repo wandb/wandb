@@ -1,44 +1,56 @@
 """Batching file prepare requests to our API."""
 
 import queue
+import sys
 import threading
-from typing import Any, Callable, NamedTuple, Union
+from typing import TYPE_CHECKING, Any, Callable, MutableMapping, MutableSequence, MutableSet, NamedTuple, Optional, Union
 
 from wandb.errors.term import termerror
-from wandb.filesync import stats, upload_job
-from wandb.sdk.internal import file_stream, internal_api, progress
+from wandb.filesync import upload_job
+
+if TYPE_CHECKING:
+    from wandb.filesync import dir_watcher, stats
+    from wandb.sdk.internal import file_stream, internal_api, progress
+
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
+
+    class ArtifactStatus(TypedDict):
+        finalize: bool
+        pending_count: int
+        commit_requested: bool
+        pre_commit_callbacks: MutableSet["PreCommitFn"]
+        post_commit_callbacks: MutableSet["PostCommitFn"]
 
 PreCommitFn = Callable[[], None]
 PostCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], Any]
 
-RequestUpload = NamedTuple(
-    "EventStartUploadJob",
-    (
-        ("path", str),
-        ("save_name", str),
-        ("artifact_id", str),
-        ("md5", str),
-        ("copied", bool),
-        ("save_fn", SaveFn),
-        ("digest", str),
-    ),
-)
+class RequestUpload(NamedTuple):
+    path: str
+    save_name: str
+    artifact_id: Optional[str]
+    md5: Optional[str]
+    copied: bool
+    save_fn: Optional[SaveFn]
+    digest: Optional[str]
 
 
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
-    before_commit: PreCommitFn
-    on_commit: PostCommitFn
+    before_commit: Optional[PreCommitFn]
+    on_commit: Optional[PostCommitFn]
 
 
 class RequestFinish(NamedTuple):
-    callback: OnRequestFinishFn
+    callback: Optional[OnRequestFinishFn]
 
 
-Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish]
+Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone]
 
 
 class StepUpload:
@@ -61,15 +73,16 @@ class StepUpload:
         self._thread.daemon = True
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
-        self._running_jobs = {}
-        self._pending_jobs = []
+        self._running_jobs: MutableMapping[dir_watcher.SaveName, upload_job.UploadJob] = {}
+        self._pending_jobs: MutableSequence[RequestUpload] = []
 
-        self._artifacts = {}
+        self._artifacts: MutableMapping[str, ArtifactStatus] = {}
 
         self._finished = False
         self.silent = silent
 
     def _thread_body(self) -> None:
+        event: Optional[Event]
         # Wait for event in the queue, and process one by one until a
         # finish event is received
         finish_callback = None
@@ -100,7 +113,7 @@ class StepUpload:
                     finish_callback()
                 break
 
-    def _handle_event(self, event):
+    def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
             job.join()
@@ -173,6 +186,7 @@ class StepUpload:
         job.start()
 
     def _init_artifact(self, artifact_id):
+
         self._artifacts[artifact_id] = {
             "pending_count": 0,
             "commit_requested": False,

@@ -9,14 +9,17 @@ from typing import Mapping, MutableMapping, MutableSet, NewType, Optional, TYPE_
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
-from wandb.sdk.internal.file_pusher import FilePusher
-from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk import wandb_settings
 
-wd_polling = util.vendor_import("watchdog.observers.polling")
-wd_events = util.vendor_import("watchdog.events")
 if TYPE_CHECKING:
-    wd_api = util.vendor_import("watchdog.observers.api")
     from wandb.sdk.interface.interface import PolicyName
+    from wandb.sdk.internal.file_pusher import FilePusher
+    import wandb.vendor.watchdog.events as wd_events
+    import wandb.vendor.watchdog.observers.api as wd_api
+    import wandb.vendor.watchdog.observers.polling as wd_polling
+else:
+    wd_polling = util.vendor_import("watchdog.observers.polling")
+    wd_events = util.vendor_import("watchdog.events")
 
 PathStr = str  # TODO(spencerpearson): would be nice to use Path here
 SaveName = NewType("SaveName", str)
@@ -35,10 +38,10 @@ class FileEventHandler(abc.ABC):
     ) -> None:
         self.file_path = file_path
         # Convert windows paths to unix paths
-        save_name = util.to_forward_slash_path(save_name)
+        save_name = SaveName(util.to_forward_slash_path(save_name))
         self.save_name = save_name
         self._file_pusher = file_pusher
-        self._last_sync = None
+        self._last_sync: Optional[float] = None
 
     @property
     @abc.abstractmethod
@@ -108,17 +111,17 @@ class PolicyLive(FileEventHandler):
         file_path: PathStr,
         save_name: SaveName,
         file_pusher: FilePusher,
-        settings: Optional[SettingsStatic] = None,
+        settings: Optional[wandb_settings.Settings] = None,
         *args,
         **kwargs,
     ):
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
-        self._last_uploaded_time = None
-        self._last_uploaded_size = 0
+        self._last_uploaded_time: Optional[float] = None
+        self._last_uploaded_size: int = 0
         if settings is not None:
             if settings._live_policy_rate_limit is not None:
                 self.RATE_LIMIT_SECONDS = settings._live_policy_rate_limit
-            self._min_wait_time = settings._live_policy_wait_time
+            self._min_wait_time: Optional[float] = settings._live_policy_wait_time
         else:
             self._min_wait_time = None
 
@@ -182,7 +185,7 @@ class PolicyLive(FileEventHandler):
 class DirWatcher:
     def __init__(
         self,
-        settings: SettingsStatic,
+        settings: wandb_settings.Settings,
         file_pusher: FilePusher,
         file_dir: Optional[PathStr] = None,
     ):
@@ -196,7 +199,7 @@ class DirWatcher:
             "now": set(),
         }
         self._file_pusher = file_pusher
-        self._file_event_handlers = {}
+        self._file_event_handlers: MutableMapping[SaveName, FileEventHandler] = {}
         self._file_observer = wd_polling.PollingObserver()
         self._file_observer.schedule(
             self._per_file_event_handler(), self._dir, recursive=True
@@ -213,12 +216,12 @@ class DirWatcher:
 
     def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
         if path == glob.escape(path):
-            save_name = os.path.relpath(os.path.join(self._dir, path), self._dir)
+            save_name = SaveName(os.path.relpath(os.path.join(self._dir, path), self._dir))
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
         for src_path in glob.glob(os.path.join(self._dir, path)):
-            save_name = os.path.relpath(src_path, self._dir)
+            save_name = SaveName(os.path.relpath(src_path, self._dir))
             feh = self._get_file_event_handler(src_path, save_name)
             # handle the case where the policy changed
             if feh.policy != policy:
@@ -230,12 +233,12 @@ class DirWatcher:
                 feh = self._get_file_event_handler(src_path, save_name)
             feh.on_modified(force=True)
 
-    def _per_file_event_handler(self) -> FileEventHandler:
+    def _per_file_event_handler(self) -> wd_events.FileSystemEventHandler:
         """Create a Watchdog file event handler that does different things for every file"""
         file_event_handler = wd_events.PatternMatchingEventHandler()
-        file_event_handler.on_created = self._on_file_created
-        file_event_handler.on_modified = self._on_file_modified
-        file_event_handler.on_moved = self._on_file_moved
+        file_event_handler.on_created = self._on_file_created  # type: ignore[assignment]
+        file_event_handler.on_modified = self._on_file_modified  # type: ignore[assignment]
+        file_event_handler.on_moved = self._on_file_moved  # type: ignore[assignment]
         file_event_handler._patterns = [os.path.join(self._dir, os.path.normpath("*"))]
         # Ignore hidden files/folders
         #  TODO: what other files should we skip?
@@ -262,14 +265,18 @@ class DirWatcher:
             emitter = self.emitter
             if emitter:
                 emitter._timeout = int(self._file_count / 100) + 1
-        save_name = os.path.relpath(event.src_path, self._dir)
+        save_name = SaveName(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
+
+    # TODO(spencerpearson): this pattern repeats so many times we should have a method/function for it
+    # def _save_name(self, path: PathStr) -> SaveName:
+    #     return SaveName(os.path.relpath(path, self._dir))
 
     def _on_file_modified(self, event: wd_events.FileModifiedEvent) -> None:
         logger.info(f"file/dir modified: { event.src_path}")
         if os.path.isdir(event.src_path):
             return None
-        save_name = os.path.relpath(event.src_path, self._dir)
+        save_name = SaveName(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
     def _on_file_moved(self, event: wd_events.FileMovedEvent) -> None:
@@ -277,8 +284,8 @@ class DirWatcher:
         logger.info(f"file/dir moved: {event.src_path} -> {event.dest_path}")
         if os.path.isdir(event.dest_path):
             return None
-        old_save_name = os.path.relpath(event.src_path, self._dir)
-        new_save_name = os.path.relpath(event.dest_path, self._dir)
+        old_save_name = SaveName(os.path.relpath(event.src_path, self._dir))
+        new_save_name = SaveName(os.path.relpath(event.dest_path, self._dir))
 
         # We have to move the existing file handler to the new name
         handler = self._get_file_event_handler(event.src_path, old_save_name)
@@ -344,7 +351,7 @@ class DirWatcher:
                 self._file_observer._timeout = 0
                 self._file_observer._stopped_event.set()
                 self._file_observer.join()
-                self.emitter.queue_events(0)
+                self.emitter.queue_events(0)  # type: ignore[union-attr]
                 while True:
                     try:
                         self._file_observer.dispatch_events(
@@ -368,7 +375,7 @@ class DirWatcher:
         for dirpath, _, filenames in os.walk(self._dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
-                save_name = os.path.relpath(file_path, self._dir)
+                save_name = SaveName(os.path.relpath(file_path, self._dir))
                 ignored = False
                 for glb in self._settings.ignore_globs:
                     if len(fnmatch.filter([save_name], glb)) > 0:
