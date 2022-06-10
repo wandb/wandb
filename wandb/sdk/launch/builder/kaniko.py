@@ -64,9 +64,7 @@ def _wait_for_completion(
 class KanikoBuilder(AbstractBuilder):
     type = "kaniko"
 
-    def __init__(
-        self, builder_config: Dict[str, Any]
-    ) -> None:
+    def __init__(self, builder_config: Dict[str, Any]) -> None:
         super().__init__(builder_config)
         self.config_map_name = builder_config.get(
             "config-map-name", "wandb-launch-build-context"
@@ -342,10 +340,10 @@ class KanikoBuilder(AbstractBuilder):
                 volume_mounts=volume_mounts,
             )
 
-        tolerations = [ client.V1Toleration(
-            key=tol["key"],
-            value=tol["value"],
-            effect="NoSchedule") for tol in self.tolerations ]
+        tolerations = [
+            client.V1Toleration(key=tol["key"], value=tol["value"], effect="NoSchedule")
+            for tol in self.tolerations
+        ]
         # Create and configure a spec section
         template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
@@ -385,7 +383,7 @@ def find_image(image_uri: str):
         print(image_uri)
         account_id = image_uri.split("/")
         tag = image_uri.split(":")[-1]
-        ecr_client = boto3.client("ecr", region_name=repo_info["region"])
+        ecr_client = boto3.client("ecr", region_name="us-east-1")
         repo_name = image_uri.split("/")[-1].split(":")[0]
         try:
             ecr_client.describe_images(
