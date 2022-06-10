@@ -27,8 +27,10 @@ class Progress:
     def __init__(self, file: IO[bytes], callback: Optional["ProgressFn"] = None):
         self.file = file
         if callback is None:
+
             def callback_(new_bytes: int, total_bytes: int) -> None:
                 pass
+
             callback = callback_
 
         self.callback: "ProgressFn" = callback
