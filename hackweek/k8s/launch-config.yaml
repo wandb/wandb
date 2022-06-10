@@ -75,13 +75,12 @@ apiVersion: v1
 data:
   launch-config.yaml: |
     base_url: https://qa-google.wandb.io # TODO: SET YOUR WANDB BASE URL
+    entity: launch-pad
+    project: summerhack
     max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
     registry:
       url: # TODO: SET ECR REPOSITORY URL HERE
       ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
-      credentials:
-        secret-name: aws-secret # TODO: SET SECRET NAME HERE
-        secret-mount-path: /root/.aws/ # SET MOUNT PATH HERE for aws /root/.aws
     build:
       type: kaniko
       cloud-provider: AWS # TODO: SET CLOUD PROVIDER HERE
@@ -90,10 +89,9 @@ data:
       tolerations:
         - key: wandb
           value: system
-      credentials:
-        secret-name: aws-secret
-        secret-mount-path: /root/.aws/
-      build-context-store: wandb-build # name here
+      build-context-store: wandb-build-summerhack # name here
+    runners:
+      - type: kubernetes
 
 kind: ConfigMap
 metadata:
@@ -107,4 +105,4 @@ metadata:
   namespace: wandb
 type: kubernetes.io/basic-auth
 stringData:
-  password: ""  ### API KEY HERE
+  password: ""
