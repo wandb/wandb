@@ -318,9 +318,11 @@ class LaunchAgent:
         Get current resources available based on resources requested for each job
         """
         # Starting resources
+        from copy import deepcopy
+
         resources_available = {
             runner["type"]: runner.get("resources")
-            for runner in self._configured_runners
+            for runner in deepcopy(self._configured_runners)
             if runner["type"] not in {"kubernetes", "sagemaker"}
         }
 
