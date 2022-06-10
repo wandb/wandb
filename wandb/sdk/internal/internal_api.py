@@ -2595,7 +2595,7 @@ class Api:
 
     @normalize_exceptions
     def create_artifact_files(
-        self, artifact_files: Iterable[CreateArtifactFileSpecInput]
+        self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
     ):
         mutation = gql(
             """

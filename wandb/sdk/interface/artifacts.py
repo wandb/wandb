@@ -20,11 +20,11 @@ import wandb
 from wandb import env
 from wandb import util
 from wandb.data_types import WBValue
-from wandb.sdk.internal import progress
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     from wandb.sdk import wandb_artifacts
+    from wandb.sdk.internal import progress
 
 
 if TYPE_CHECKING:
@@ -97,7 +97,10 @@ class ArtifactManifest:
         pass
 
     def __init__(
-        self, artifact, storage_policy: wandb_artifacts.WandbStoragePolicy, entries=None
+        self,
+        artifact,
+        storage_policy: "wandb_artifacts.WandbStoragePolicy",
+        entries=None,
     ):
         self.artifact = artifact
         self.storage_policy = storage_policy

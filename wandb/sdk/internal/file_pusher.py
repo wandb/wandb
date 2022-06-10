@@ -6,8 +6,6 @@ import time
 from typing import TYPE_CHECKING, Callable, Mapping, Optional, Tuple
 
 import wandb
-from wandb.sdk.interface import artifacts
-from wandb.sdk.internal import file_stream, internal_api
 import wandb.util
 
 from wandb.filesync import stats
@@ -15,7 +13,12 @@ from wandb.filesync import step_checksum
 from wandb.filesync import step_upload
 
 if TYPE_CHECKING:
-    from wandb.sdk.internal import artifacts as internal_artifacts
+    from wandb.sdk.interface import artifacts
+    from wandb.sdk.internal import (
+        artifacts as internal_artifacts,
+        file_stream,
+        internal_api,
+    )
 
 
 # Temporary directory for copies we make of some file types to
@@ -39,9 +42,9 @@ class FilePusher:
 
     def __init__(
         self,
-        api: internal_api.Api,
-        file_stream: file_stream.FileStreamApi,
-        silent: Optional[bool] =False,
+        api: "internal_api.Api",
+        file_stream: "file_stream.FileStreamApi",
+        silent: Optional[bool] = False,
     ) -> None:
         self._api = api
 
@@ -142,7 +145,7 @@ class FilePusher:
 
     def store_manifest_files(
         self,
-        manifest: artifacts.ArtifactManifest,
+        manifest: "artifacts.ArtifactManifest",
         artifact_id: str,
         save_fn: "internal_artifacts.SaveFn",
     ) -> None:

@@ -9,9 +9,9 @@ from typing import Mapping, MutableMapping, MutableSet, NewType, Optional, TYPE_
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
-from wandb.sdk import wandb_settings
 
 if TYPE_CHECKING:
+    from wandb.sdk import wandb_settings
     from wandb.sdk.interface.interface import PolicyName
     from wandb.sdk.internal.file_pusher import FilePusher
     import wandb.vendor.watchdog.events as wd_events
@@ -111,7 +111,7 @@ class PolicyLive(FileEventHandler):
         file_path: PathStr,
         save_name: SaveName,
         file_pusher: FilePusher,
-        settings: Optional[wandb_settings.Settings] = None,
+        settings: Optional["wandb_settings.Settings"] = None,
         *args,
         **kwargs,
     ):
@@ -185,7 +185,7 @@ class PolicyLive(FileEventHandler):
 class DirWatcher:
     def __init__(
         self,
-        settings: wandb_settings.Settings,
+        settings: "wandb_settings.Settings",
         file_pusher: FilePusher,
         file_dir: Optional[PathStr] = None,
     ):
@@ -216,7 +216,9 @@ class DirWatcher:
 
     def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
         if path == glob.escape(path):
-            save_name = SaveName(os.path.relpath(os.path.join(self._dir, path), self._dir))
+            save_name = SaveName(
+                os.path.relpath(os.path.join(self._dir, path), self._dir)
+            )
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
@@ -233,7 +235,7 @@ class DirWatcher:
                 feh = self._get_file_event_handler(src_path, save_name)
             feh.on_modified(force=True)
 
-    def _per_file_event_handler(self) -> wd_events.FileSystemEventHandler:
+    def _per_file_event_handler(self) -> "wd_events.FileSystemEventHandler":
         """Create a Watchdog file event handler that does different things for every file"""
         file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created  # type: ignore[assignment]
@@ -255,7 +257,7 @@ class DirWatcher:
 
         return file_event_handler
 
-    def _on_file_created(self, event: wd_events.FileCreatedEvent) -> None:
+    def _on_file_created(self, event: "wd_events.FileCreatedEvent") -> None:
         logger.info("file/dir created: %s", event.src_path)
         if os.path.isdir(event.src_path):
             return None
@@ -272,14 +274,14 @@ class DirWatcher:
     # def _save_name(self, path: PathStr) -> SaveName:
     #     return SaveName(os.path.relpath(path, self._dir))
 
-    def _on_file_modified(self, event: wd_events.FileModifiedEvent) -> None:
+    def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
         logger.info(f"file/dir modified: { event.src_path}")
         if os.path.isdir(event.src_path):
             return None
         save_name = SaveName(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
-    def _on_file_moved(self, event: wd_events.FileMovedEvent) -> None:
+    def _on_file_moved(self, event: "wd_events.FileMovedEvent") -> None:
         # TODO: test me...
         logger.info(f"file/dir moved: {event.src_path} -> {event.dest_path}")
         if os.path.isdir(event.dest_path):

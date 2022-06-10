@@ -7,18 +7,17 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING
 import wandb
 from wandb import util
 import wandb.filesync.step_prepare
-from wandb.sdk.internal.progress import ProgressFn
 
 from ..interface.artifacts import ArtifactEntry, ArtifactManifest
 
 
 if TYPE_CHECKING:
-    from wandb.filesync import step_upload
     from wandb.sdk.internal.internal_api import Api as InternalApi
+    from wandb.sdk.internal.progress import ProgressFn
     from .file_pusher import FilePusher
     from wandb.proto import wandb_internal_pb2
 
-SaveFn = Callable[[ArtifactEntry, ProgressFn], Any]
+SaveFn = Callable[[ArtifactEntry, "ProgressFn"], Any]
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:

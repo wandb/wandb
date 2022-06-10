@@ -1,4 +1,3 @@
-import dataclasses
 import sys
 import threading
 from typing import TYPE_CHECKING, Mapping, MutableMapping, Optional

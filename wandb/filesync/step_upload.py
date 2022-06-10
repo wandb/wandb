@@ -3,7 +3,17 @@
 import queue
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Callable, MutableMapping, MutableSequence, MutableSet, NamedTuple, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    MutableMapping,
+    MutableSequence,
+    MutableSet,
+    NamedTuple,
+    Optional,
+    Union,
+)
 
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
@@ -24,10 +34,12 @@ if TYPE_CHECKING:
         pre_commit_callbacks: MutableSet["PreCommitFn"]
         post_commit_callbacks: MutableSet["PostCommitFn"]
 
+
 PreCommitFn = Callable[[], None]
 PostCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], Any]
+
 
 class RequestUpload(NamedTuple):
     path: str
@@ -50,7 +62,9 @@ class RequestFinish(NamedTuple):
     callback: Optional[OnRequestFinishFn]
 
 
-Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone]
+Event = Union[
+    RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone
+]
 
 
 class StepUpload:
@@ -73,10 +87,12 @@ class StepUpload:
         self._thread.daemon = True
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
-        self._running_jobs: MutableMapping[dir_watcher.SaveName, upload_job.UploadJob] = {}
+        self._running_jobs: MutableMapping[
+            dir_watcher.SaveName, upload_job.UploadJob
+        ] = {}
         self._pending_jobs: MutableSequence[RequestUpload] = []
 
-        self._artifacts: MutableMapping[str, ArtifactStatus] = {}
+        self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
         self._finished = False
         self.silent = silent
@@ -186,7 +202,6 @@ class StepUpload:
         job.start()
 
     def _init_artifact(self, artifact_id):
-
         self._artifacts[artifact_id] = {
             "pending_count": 0,
             "commit_requested": False,

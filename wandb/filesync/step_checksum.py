@@ -3,17 +3,17 @@
 import os
 import queue
 import shutil
-import tempfile
 import threading
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union, cast
 
-from wandb.filesync import stats, step_upload
-from wandb.sdk.interface import artifacts
-from wandb.sdk.internal import internal_api, progress
+from wandb.filesync import step_upload
 import wandb.util
 
 if TYPE_CHECKING:
-    from wandb.sdk.internal import artifacts as internal_artifacts
+    import tempfile
+    from wandb.filesync import stats
+    from wandb.sdk.interface import artifacts
+    from wandb.sdk.internal import artifacts as internal_artifacts, internal_api
 
 
 class RequestUpload(NamedTuple):
@@ -23,7 +23,6 @@ class RequestUpload(NamedTuple):
     copy: bool
     use_prepare_flow: bool
     save_fn: Optional[step_upload.SaveFn]
-    # save_fn: Optional[SaveFn]
     digest: Optional[str]
 
 
@@ -52,11 +51,11 @@ Event = Union[
 class StepChecksum:
     def __init__(
         self,
-        api: internal_api.Api,
-        tempdir: tempfile.TemporaryDirectory,
+        api: "internal_api.Api",
+        tempdir: "tempfile.TemporaryDirectory",
         request_queue: "queue.Queue[Event]",
         output_queue: "queue.Queue[step_upload.Event]",
-        stats: stats.Stats,
+        stats: "stats.Stats",
     ):
         self._api = api
         self._tempdir = tempdir
@@ -116,9 +115,10 @@ class StepChecksum:
                                 entry, progress_callback
                             )
 
-                        entry_size: int = entry.size  # type: ignore[assignment]
                         self._stats.init_file(
-                            entry.local_path, entry_size, is_artifact_file=True
+                            entry.local_path,
+                            cast(int, entry.size),
+                            is_artifact_file=True,
                         )
                         self._output_queue.put(
                             step_upload.RequestUpload(

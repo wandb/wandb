@@ -5,11 +5,11 @@ import threading
 from typing import TYPE_CHECKING
 
 import wandb
-from wandb.filesync import dir_watcher, stats
-from wandb.sdk.internal import file_stream, internal_api
 
 if TYPE_CHECKING:
     import queue
+    from wandb.filesync import dir_watcher, stats
+    from wandb.sdk.internal import file_stream, internal_api
 
 EventJobDone = collections.namedtuple("EventJobDone", ("job", "success"))
 logger = logging.getLogger(__name__)
@@ -19,12 +19,12 @@ class UploadJob(threading.Thread):
     def __init__(
         self,
         done_queue: "queue.Queue[EventJobDone]",
-        stats: stats.Stats,
-        api: internal_api.Api,
-        file_stream: file_stream.FileStreamApi,
+        stats: "stats.Stats",
+        api: "internal_api.Api",
+        file_stream: "file_stream.FileStreamApi",
         silent: bool,
-        save_name: dir_watcher.SaveName,
-        path: dir_watcher.PathStr,
+        save_name: "dir_watcher.SaveName",
+        path: "dir_watcher.PathStr",
         artifact_id: str,
         md5: str,
         copied: bool,

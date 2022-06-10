@@ -4,6 +4,7 @@ import queue
 import threading
 import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     List,
@@ -15,9 +16,10 @@ from typing import (
     Union,
 )
 
-from wandb.sdk.internal import internal_api
+if TYPE_CHECKING:
+    from wandb.sdk.internal import internal_api
 
-DoPrepareFn = Callable[[], internal_api.CreateArtifactFileSpecInput]
+DoPrepareFn = Callable[[], "internal_api.CreateArtifactFileSpecInput"]
 OnPrepareFn = Callable[
     [
         str,  # GraphQL File.uploadUrl
@@ -56,7 +58,7 @@ class StepPrepare:
 
     def __init__(
         self,
-        api: internal_api.Api,
+        api: "internal_api.Api",
         batch_time: float,
         inter_event_time: float,
         max_batch_size: int,
@@ -65,7 +67,9 @@ class StepPrepare:
         self._inter_event_time = inter_event_time
         self._batch_time = batch_time
         self._max_batch_size = max_batch_size
-        self._request_queue: "queue.Queue[RequestPrepare | RequestFinish]" = queue.Queue()
+        self._request_queue: "queue.Queue[RequestPrepare | RequestFinish]" = (
+            queue.Queue()
+        )
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
 
@@ -125,7 +129,7 @@ class StepPrepare:
                 an uploadUrl key. The value of the uploadUrl key is None if the file
                 already exists, or a url string if the file should be uploaded.
         """
-        file_specs: List[internal_api.CreateArtifactFileSpecInput] = []
+        file_specs: List["internal_api.CreateArtifactFileSpecInput"] = []
         for prepare_request in batch:
             file_spec = prepare_request.prepare_fn()
             file_specs.append(file_spec)
