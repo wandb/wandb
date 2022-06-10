@@ -291,14 +291,23 @@ def find_run():
     return runid
 
 
-def log(key, value):
+def log(key, value, image):
     runid = find_run()
     run = wandb.attach(runid)
-    try:
-        value = int(value)
-    except ValueError:
-        pass
-    run.log(dict(key=value))
+    key = key or "key"
+    data = None
+    if value is not None:
+        data = value
+        try:
+            data = int(data)
+        except ValueError:
+            pass
+    if image is not None:
+        data = wandb.Image(image)
+
+    data = data or 0
+
+    run.log({key: data})
 
 
 def finish():

@@ -5,5 +5,6 @@ wandb init
 for value in `seq 10`; do
   wandb log --key data --value $value
 done
+wandb log --key image --value cowboy.png
 
 wandb finish

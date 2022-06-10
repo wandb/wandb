@@ -412,8 +412,9 @@ def init(ctx, name):
 @click.pass_context
 @click.option("--key", help="key")
 @click.option("--value", help="value")
-def log(ctx, key, value):
-    debug_cli.log(key, value)
+@click.option("--image", help="value")
+def log(ctx, key, value, image):
+    debug_cli.log(key, value, image)
 
 
 @cli.command(context_settings=CONTEXT)
