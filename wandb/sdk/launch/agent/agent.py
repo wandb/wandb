@@ -311,6 +311,10 @@ class LaunchAgent:
                     job["runSpec"]["resource_args"], default_config
                 )
 
+                if job["runSpec"]["resource"] not in self._configured_runners:
+                    # TODO: Return the lease on this item
+                    return None
+
             return job
 
     def _get_current_resources_available(self):
@@ -460,6 +464,11 @@ class LaunchAgent:
                         except Exception as e:
                             wandb.termerror(f"Error running job: {e}")
                             self._api.ack_run_queue_item(job["runQueueItemId"])
+
+                            import traceback
+
+                            traceback.print_exc()
+
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
