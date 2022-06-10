@@ -281,8 +281,9 @@ def _wait_for_ports(fname: str, proc: subprocess.Popen = None) -> bool:
 @click.option("--serve-sock", is_flag=True, help="use socket mode")
 @click.option("--serve-grpc", is_flag=True, help="use grpc mode")
 @click.option("--bg", is_flag=True, help="run in the background")
-@click.option("--shell", is_flag=True, help="start a new shell")
 @click.option("--detach", is_flag=True, help="detach from session")
+@click.option("--shell", is_flag=True, help="start a new shell")
+@click.argument("args", nargs=-1)
 @display_error
 def service(
     grpc_port=None,
@@ -296,7 +297,12 @@ def service(
     bg=False,
     shell=False,
     detach=False,
+    args=None,
 ):
+    if args and not shell:
+        print("ERROR: args require the shell flag")
+        os.exit(1)
+
     if bg or shell:
         from wandb.sdk.wandb_manager import _ManagerToken
 
@@ -372,7 +378,9 @@ def service(
                 # prompt = env.get("PROMPT")
                 # if prompt:
                 #    env["PROMPT"] = "(wb)" + prompt
-                os.execve("/bin/zsh", ["zsh"], env)
+                cmd = ["zsh"]
+                cmd += args
+                os.execve("/bin/zsh", cmd, env)
         return
 
     from wandb.sdk.service.server import WandbServer
