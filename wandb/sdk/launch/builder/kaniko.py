@@ -64,8 +64,10 @@ def _wait_for_completion(
 class KanikoBuilder(AbstractBuilder):
     type = "kaniko"
 
-    def __init__(self, builder_config: Dict[str, Any]):
-        super().__init__(builder_config)
+    def __init__(
+        self, builder_config: Dict[str, Any], registry_config: Dict[str, Any]
+    ) -> None:
+        super().__init__(builder_config, registry_config)
         self.config_map_name = builder_config.get(
             "config-map-name", "wandb-launch-build-context"
         )
@@ -192,7 +194,9 @@ class KanikoBuilder(AbstractBuilder):
 
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
-        image_uri = f"{repository}:{launch_project.run_id}"
+        image_uri = f"{repository}:{launch_project.image_tag}"
+        if find_image(image_uri):
+            return image_uri
         entry_cmd = " ".join(
             get_entry_point_command(entrypoint, launch_project.override_args)
         )
@@ -356,3 +360,29 @@ class KanikoBuilder(AbstractBuilder):
         )
 
         return job
+
+
+def find_image(image_uri: str):
+    boto3 = get_module(
+        "boto3",
+        "AWS cloud provider requires boto3, install with pip install wandb[launch]",
+    )
+    botocore = get_module(
+        "botocore",
+        "aws cloud-provider requires botocore,  install with pip install wandb[launch]",
+    )
+    if "amazonaws" in image_uri:
+        print(image_uri)
+        account_id = image_uri.split("/")
+        tag = image_uri.split(":")[-1]
+        ecr_client = boto3.client("ecr", region_name=repo_info["region"])
+        repo_name = image_uri.split("/")[-1].split(":")[0]
+        try:
+            ecr_client.describe_images(
+                registryId=account_id,
+                repositoryName=repo_name,
+                imageIds=[{"imageTag": tag}],
+            )
+            return True
+        except botocore.errorfactory.ImageNotFoundException:
+            return False

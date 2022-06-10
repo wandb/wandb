@@ -10,14 +10,15 @@ from typing import Any, Dict, List, Optional, Tuple
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, ExecutionError, LaunchError
+from wandb.errors import CommError, DockerError, ExecutionError, LaunchError
+from wandb.sdk.launch.builder.build import docker_image_exists, pull_docker_image
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
 _VALID_IP_REGEX = r"^https?://[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?"
 _VALID_PIP_PACKAGE_REGEX = r"^[a-zA-Z0-9_.-]+$"
-_VALID_WANDB_REGEX = r"^https?://(api.)?wandb"
+_VALID_WANDB_REGEX = r"^https?://.*(api.)?wandb"
 _WANDB_URI_REGEX = re.compile(r"|".join([_VALID_WANDB_REGEX, _VALID_IP_REGEX]))
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
@@ -28,7 +29,6 @@ _WANDB_DEV_URI_REGEX = re.compile(
 _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
-
 API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
@@ -446,7 +446,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> bool:
+) -> Optional[Any]:
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -458,9 +458,9 @@ def check_and_download_code_artifacts(
     for artifact in run_artifacts:
         if hasattr(artifact, "type") and artifact.type == "code":
             artifact.download(project_dir)
-            return True
+            return artifact
 
-    return False
+    return None
 
 
 def to_camel_case(maybe_snake_str: str) -> str:

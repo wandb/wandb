@@ -108,6 +108,7 @@ class LocalContainerRunner(AbstractRunner):
             # user has provided their own docker image
             image_uri = launch_project.docker_image
             pull_docker_image(image_uri)
+            # dont specify run id if user provided image, could have multiple runs
             env_vars.pop("WANDB_RUN_ID")
             # if they've given an override to the entrypoint
             entry_cmd = get_entry_point_command(

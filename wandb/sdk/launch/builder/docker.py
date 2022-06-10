@@ -9,7 +9,8 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .build import (
     _create_docker_build_ctx,
-    construct_local_image_uri,
+    docker_image_exists,
+    pull_docker_image,
     generate_dockerfile,
     validate_docker_installation,
 )
@@ -42,9 +43,11 @@ class DockerBuilder(AbstractBuilder):
     ) -> str:
 
         if repository:
-            image_uri = f"{repository}:{launch_project.run_id}"
+            image_uri = f"{repository}:{launch_project.image_tag}"
         else:
-            image_uri = construct_local_image_uri(launch_project)
+            image_uri = f"{launch_project.image_name}:{launch_project.image_tag}"
+        if find_image(image_uri):
+            return image_uri
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, self.type
@@ -83,3 +86,16 @@ class DockerBuilder(AbstractBuilder):
                 raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 
         return image_uri
+
+
+def find_image(full_image_name: str):
+    exists = docker_image_exists(full_image_name)
+    if exists:
+        return full_image_name
+    else:
+        try:
+            pull_docker_image(full_image_name)
+            return full_image_name
+        except LaunchError:
+            wandb.termlog("Image not found on registry building new image")
+            return None
