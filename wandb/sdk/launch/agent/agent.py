@@ -262,25 +262,6 @@ class LaunchAgent:
                 )
         return config["runners"]
 
-        # for runner in config["runners"]:
-        #     if runner["type"] in {"local-process", "local-container"}:
-        #         if "resources" not in runner:
-        #             runner["resources"] = {}
-        #             for k, v in system_resource_defaults.items():
-        #                 if k not in runner["resources"]:
-        #                     runner["resources"][k] = v
-
-        #         # add labels
-        #         gpu_labels = self._get_gpus().get("name")
-        #         gpu_labels = [gpu_labels] if gpu_labels else []
-
-        #         if "labels" not in runner:
-        #             runner["labels"] = []
-        #         for lbl in gpu_labels:
-        #             if lbl not in runner["labels"]:
-        #                 runner["labels"].append(lbl)
-        #     self._configured_runners[runner["type"]] = runner
-
     def _get_valid_run_queues(self) -> List[RunQueue]:
         """
         Given an entity, return a list of run queues associated with that entity.
@@ -337,15 +318,17 @@ class LaunchAgent:
         Get current resources available based on resources requested for each job
         """
         # Starting resources
+        from copy import deepcopy
+
         resources_available = {
             runner["type"]: runner.get("resources")
-            for runner in self._configured_runners
+            for runner in deepcopy(self._configured_runners)
             if runner["type"] not in {"kubernetes", "sagemaker"}
         }
 
         # Resources consumed by running jobs
         for j in self._jobs.values():
-            resource_args = j.job_spec.get("resource_args", {})
+            resource_args = j.job_spec["runSpec"].get("resource_args", {})
             for runner_type, requirements in resource_args.items():
                 for resource, value in requirements.items():
                     resources_available[runner_type][resource] -= value
@@ -357,20 +340,15 @@ class LaunchAgent:
         """
         available = self._get_current_resources_available()
         resource_args = job["runSpec"].get("resource_args")
-        for runner_type, requirements in (
-            job["runSpec"].get("resource_args", {}).items()
-        ):
+        for runner_type, requirements in resource_args.items():
             break
-
-        resource_requirements = requirements.get("resources")
-        if resource_requirements:
-            for resource, value in resource_requirements.items():
-                if resource not in VALID_RESOURCES:
-                    raise ValueError(
-                        f"Expected resources to be one of {VALID_RESOURCES}, but got {resource}"
-                    )
-                if available[runner_type][resource] < value:
-                    return False
+        for resource, value in requirements.items():
+            if resource not in VALID_RESOURCES:
+                raise ValueError(
+                    f"Expected resources to be one of {VALID_RESOURCES}, but got {resource}"
+                )
+            if available[runner_type][resource] < value:
+                return False
         return True
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
