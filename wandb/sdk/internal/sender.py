@@ -32,6 +32,7 @@ from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib import tracelog
 from ..lib.proto_util import message_to_dict
+from ..wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -43,7 +44,6 @@ if TYPE_CHECKING:
         RunExitResult,
         RunRecord,
     )
-    from wandb.sdk.wandb_settings import Settings
 
 
 logger = logging.getLogger(__name__)
