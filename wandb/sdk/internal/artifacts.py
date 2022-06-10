@@ -1,8 +1,9 @@
 import json
 import os
+import sys
 import tempfile
 import threading
-from typing import Any, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING, TypeAlias
+from typing import Any, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import wandb
 from wandb import util
@@ -17,7 +18,14 @@ if TYPE_CHECKING:
     from .file_pusher import FilePusher
     from wandb.proto import wandb_internal_pb2
 
-SaveFn: TypeAlias = Callable[[ArtifactEntry, "ProgressFn"], Any]
+    if sys.version_info >= (3, 8):
+        from typing import Protocol
+    else:
+        from typing_extensions import Protocol
+
+    class SaveFn(Protocol):
+        def __call__(self, entry: ArtifactEntry, progress_callback: "ProgressFn") -> Any:
+            pass
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:

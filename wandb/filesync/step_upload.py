@@ -12,7 +12,6 @@ from typing import (
     MutableSet,
     NamedTuple,
     Optional,
-    TypeAlias,
     Union,
 )
 
@@ -36,10 +35,10 @@ if TYPE_CHECKING:
         post_commit_callbacks: MutableSet["PostCommitFn"]
 
 
-PreCommitFn: TypeAlias = Callable[[], None]
-PostCommitFn: TypeAlias = Callable[[], None]
-OnRequestFinishFn: TypeAlias = Callable[[], None]
-SaveFn: TypeAlias = Callable[["progress.ProgressFn"], Any]
+PreCommitFn = Callable[[], None]
+PostCommitFn = Callable[[], None]
+OnRequestFinishFn = Callable[[], None]
+SaveFn = Callable[["progress.ProgressFn"], Any]
 
 
 class RequestUpload(NamedTuple):

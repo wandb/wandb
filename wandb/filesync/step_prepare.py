@@ -1,6 +1,7 @@
 """Batching file prepare requests to our API."""
 
 import queue
+import sys
 import threading
 import time
 from typing import (
@@ -13,22 +14,30 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    TypeAlias,
     Union,
 )
 
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
 
-DoPrepareFn: TypeAlias = Callable[[], "internal_api.CreateArtifactFileSpecInput"]
-OnPrepareFn: TypeAlias = Callable[
-    [
-        str,  # GraphQL File.uploadUrl
-        Sequence[str],  # GraphQL File.uploadHeaders
-        str,  # GraphQL File.artifact.id
-    ],
-    None,
-]
+    if sys.version_info >= (3, 8):
+        from typing import Protocol
+    else:
+        from typing_extensions import Protocol
+
+    class DoPrepareFn(Protocol):
+        def __call__(self) -> "internal_api.CreateArtifactFileSpecInput":
+            pass
+
+    class OnPrepareFn(Protocol):
+        def __call__(
+            self,
+            upload_url: str,  # GraphQL type File.uploadUrl
+            upload_headers: Sequence[str],  # GraphQL type File.uploadHeaders
+            artifact_id: str,  # GraphQL type File.artifact.id
+        ) -> None:
+            pass
+
 
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
