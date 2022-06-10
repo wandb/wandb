@@ -347,12 +347,13 @@ class LaunchAgent:
         for runner_type, requirements in resource_args.items():
             break
         for resource, value in requirements.items():
-            if resource not in VALID_RESOURCES:
-                raise ValueError(
-                    f"Expected resources to be one of {VALID_RESOURCES}, but got {resource}"
-                )
-            if available[runner_type][resource] < value:
-                return False
+            if resource != "labels":
+                if resource not in VALID_RESOURCES:
+                    raise ValueError(
+                        f"Expected resources to be one of {VALID_RESOURCES}, but got {resource}"
+                    )
+                if available[runner_type][resource] < value:
+                    return False
         return True
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
