@@ -34,7 +34,12 @@ class FilePusher:
 
     MAX_UPLOAD_JOBS = 64
 
-    def __init__(self, api: internal_api.Api, file_stream: file_stream.FileStreamApi, silent=False):
+    def __init__(
+        self,
+        api: internal_api.Api,
+        file_stream: file_stream.FileStreamApi,
+        silent=False,
+    ):
         self._api = api
 
         self._tempdir = tempfile.TemporaryDirectory("wandb")
@@ -108,10 +113,10 @@ class FilePusher:
         self,
         save_name: str,
         path: str,
-        artifact_id: Optional[str] =None,
-        copy: bool =True,
-        use_prepare_flow: bool =False,
-        save_fn: Optional[step_checksum.SaveFn]=None,
+        artifact_id: Optional[str] = None,
+        copy: bool = True,
+        use_prepare_flow: bool = False,
+        save_fn: Optional[step_checksum.SaveFn] = None,
         digest=None,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
@@ -132,12 +137,21 @@ class FilePusher:
         )
         self._incoming_queue.put(event)
 
-    def store_manifest_files(self, manifest: artifacts.ArtifactManifest, artifact_id: str, save_fn: step_checksum.SaveFn) -> None:
+    def store_manifest_files(
+        self,
+        manifest: artifacts.ArtifactManifest,
+        artifact_id: str,
+        save_fn: step_checksum.SaveFn,
+    ) -> None:
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
 
     def commit_artifact(
-        self, artifact_id: str, finalize: bool = True, before_commit: Optional[step_upload.PreCommitFn] = None, on_commit: Optional[step_upload.PostCommitFn]=None
+        self,
+        artifact_id: str,
+        finalize: bool = True,
+        before_commit: Optional[step_upload.PreCommitFn] = None,
+        on_commit: Optional[step_upload.PostCommitFn] = None,
     ):
         event = step_checksum.RequestCommitArtifact(
             artifact_id, finalize, before_commit, on_commit

@@ -12,10 +12,14 @@ from wandb.sdk.interface import artifacts
 from wandb.sdk.internal import internal_api, progress
 import wandb.util
 
-SaveFn = Callable[[
-    artifacts.ArtifactEntry,
-    "progress.ProgressFn",
-], Any]
+SaveFn = Callable[
+    [
+        artifacts.ArtifactEntry,
+        "progress.ProgressFn",
+    ],
+    Any,
+]
+
 
 class RequestUpload(NamedTuple):
     path: str
@@ -108,7 +112,9 @@ class StepChecksum:
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
-                        def make_save_fn_with_entry(save_fn, entry) -> step_upload.SaveFn:
+                        def make_save_fn_with_entry(
+                            save_fn, entry
+                        ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(
                                 entry, progress_callback
                             )

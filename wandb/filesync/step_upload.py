@@ -22,7 +22,7 @@ RequestUpload = NamedTuple(
         ("md5", str),
         ("copied", bool),
         ("save_fn", SaveFn),
-        ("digest", Any),
+        ("digest", str),
     ),
 )
 
@@ -47,9 +47,9 @@ class StepUpload:
         api: internal_api.Api,
         stats: stats.Stats,
         event_queue: "queue.Queue[Event]",
-        max_jobs,
+        max_jobs: int,
         file_stream: file_stream.FileStreamApi,
-        silent=False,
+        silent: bool = False,
     ):
         self._api = api
         self._stats = stats
@@ -69,7 +69,7 @@ class StepUpload:
         self._finished = False
         self.silent = silent
 
-    def _thread_body(self):
+    def _thread_body(self) -> None:
         # Wait for event in the queue, and process one by one until a
         # finish event is received
         finish_callback = None

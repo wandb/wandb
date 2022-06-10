@@ -96,7 +96,9 @@ class ArtifactManifest:
     def version(cls):
         pass
 
-    def __init__(self, artifact, storage_policy: wandb_artifacts.WandbStoragePolicy, entries=None):
+    def __init__(
+        self, artifact, storage_policy: wandb_artifacts.WandbStoragePolicy, entries=None
+    ):
         self.artifact = artifact
         self.storage_policy = storage_policy
         self.entries = entries or {}

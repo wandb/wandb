@@ -14,6 +14,7 @@ from wandb_gql.client import RetryError
 
 _F = TypeVar("_F", bound=Callable)
 
+
 def normalize_exceptions(func: _F) -> _F:
     """Function decorator for catching common errors and re-raising as wandb.Error"""
 

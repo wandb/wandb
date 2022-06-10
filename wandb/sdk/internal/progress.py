@@ -19,6 +19,7 @@ if TYPE_CHECKING:
         def __call__(self, new_bytes: int, total_bytes: int) -> None:
             pass
 
+
 class Progress:
     """A helper class for displaying progress"""
 

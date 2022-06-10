@@ -150,7 +150,9 @@ class Retry:
 
             self._num_iter += 1
 
+
 _F = TypeVar("_F", bound=Callable)
+
 
 def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
     def decorator(fn: _F) -> _F:

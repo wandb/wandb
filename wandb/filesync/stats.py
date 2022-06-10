@@ -18,12 +18,15 @@ if TYPE_CHECKING:
         failed: bool
         artifact_file: bool
 
+
 class Stats:
-    def __init__(self):
+    def __init__(self) -> None:
         self._stats: MutableMapping[str, "FileStats"] = {}
         self._lock = threading.Lock()
 
-    def init_file(self, save_name: str, size: int, is_artifact_file: bool=False) -> None:
+    def init_file(
+        self, save_name: str, size: int, is_artifact_file: bool = False
+    ) -> None:
         with self._lock:
             self._stats[save_name] = {
                 "deduped": False,
@@ -33,12 +36,12 @@ class Stats:
                 "artifact_file": is_artifact_file,
             }
 
-    def set_file_deduped(self, save_name) -> None:
+    def set_file_deduped(self, save_name: str) -> None:
         file_stats = self._stats[save_name]
         file_stats["deduped"] = True
         file_stats["uploaded"] = file_stats["total"]
 
-    def update_uploaded_file(self, save_name, total_uploaded: int) -> None:
+    def update_uploaded_file(self, save_name: str, total_uploaded: int) -> None:
         self._stats[save_name]["uploaded"] = total_uploaded
 
     def update_failed_file(self, save_name: str) -> None:
