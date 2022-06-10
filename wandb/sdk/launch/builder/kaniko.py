@@ -74,6 +74,9 @@ class KanikoBuilder(AbstractBuilder):
         self.build_job_name = builder_config.get(
             "build-job-name", "wandb-launch-container-build"
         )
+        self.node_selectors = builder_config.get("node-selectors", [])
+        self.tolerations = builder_config.get("tolerations", [])
+
         cloud_provider = builder_config.get("cloud-provider", None)
         if cloud_provider is None or not isinstance(cloud_provider, str):
             raise LaunchError("Kaniko builder requires string cloud-provider")
@@ -338,6 +341,11 @@ class KanikoBuilder(AbstractBuilder):
                 args=args,
                 volume_mounts=volume_mounts,
             )
+
+        tolerations = [ client.V1Toleration(
+            key=tol["key"],
+            value=tol["value"],
+            effect="NoSchedule") for tol in self.tolerations ]
         # Create and configure a spec section
         template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(labels={"wandb": "launch"}),
@@ -346,6 +354,8 @@ class KanikoBuilder(AbstractBuilder):
                 active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
                 containers=[container],
                 volumes=volumes,
+                node_selector=self.node_selectors,
+                tolerations=tolerations,
             ),
         )
         # Create the specification of job
