@@ -367,6 +367,11 @@ def service(
                 env = os.environ
                 env["WANDB_SERVICE"] = token.token
                 env["WANDB_REQUIRE_SERVICE"] = "true"
+                env["WANDB_PROMPT"] = "(wb)"
+                # PROMPT=%F{blue}%1~%f %#
+                # prompt = env.get("PROMPT")
+                # if prompt:
+                #    env["PROMPT"] = "(wb)" + prompt
                 os.execve("/bin/zsh", ["zsh"], env)
         return
 
