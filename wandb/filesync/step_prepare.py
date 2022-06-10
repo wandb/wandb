@@ -5,7 +5,6 @@ import sys
 import threading
 import time
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     List,
@@ -14,6 +13,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TYPE_CHECKING,
     Union,
 )
 
@@ -41,8 +41,8 @@ if TYPE_CHECKING:
 
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
-    prepare_fn: DoPrepareFn
-    on_prepare: Optional[OnPrepareFn]
+    prepare_fn: "DoPrepareFn"
+    on_prepare: Optional["OnPrepareFn"]
     response_queue: "queue.Queue[ResponsePrepare]"
 
 
@@ -146,7 +146,7 @@ class StepPrepare:
         return self._api.create_artifact_files(file_specs)
 
     def prepare_async(
-        self, prepare_fn: DoPrepareFn, on_prepare: Optional[Callable[..., Any]] = None
+        self, prepare_fn: "DoPrepareFn", on_prepare: Optional[Callable[..., Any]] = None
     ) -> "queue.Queue[ResponsePrepare]":
         """Request the backend to prepare a file for upload.
 
@@ -158,7 +158,7 @@ class StepPrepare:
         self._request_queue.put(RequestPrepare(prepare_fn, on_prepare, response_queue))
         return response_queue
 
-    def prepare(self, prepare_fn: DoPrepareFn) -> ResponsePrepare:
+    def prepare(self, prepare_fn: "DoPrepareFn") -> ResponsePrepare:
         return self.prepare_async(prepare_fn).get()
 
     def start(self) -> None:

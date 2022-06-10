@@ -3,14 +3,13 @@ import os
 import queue
 import tempfile
 import time
-from typing import TYPE_CHECKING, Mapping, Optional, Tuple
+from typing import Mapping, Optional, Tuple, TYPE_CHECKING
 
 import wandb
-import wandb.util
-
 from wandb.filesync import stats
 from wandb.filesync import step_checksum
 from wandb.filesync import step_upload
+import wandb.util
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts

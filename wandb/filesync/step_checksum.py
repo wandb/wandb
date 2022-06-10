@@ -4,7 +4,7 @@ import os
 import queue
 import shutil
 import threading
-from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
+from typing import cast, NamedTuple, Optional, TYPE_CHECKING, Union
 
 from wandb.filesync import step_upload
 import wandb.util
@@ -27,9 +27,9 @@ class RequestUpload(NamedTuple):
 
 
 class RequestStoreManifestFiles(NamedTuple):
-    manifest: artifacts.ArtifactManifest
+    manifest: "artifacts.ArtifactManifest"
     artifact_id: str
-    save_fn: internal_artifacts.SaveFn
+    save_fn: "internal_artifacts.SaveFn"
 
 
 class RequestCommitArtifact(NamedTuple):
@@ -108,8 +108,8 @@ class StepChecksum:
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(
-                            save_fn: internal_artifacts.SaveFn,
-                            entry: artifacts.ArtifactEntry,
+                            save_fn: "internal_artifacts.SaveFn",
+                            entry: "artifacts.ArtifactEntry",
                         ) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(
                                 entry, progress_callback

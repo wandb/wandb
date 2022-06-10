@@ -32,7 +32,7 @@ class FileEventHandler(abc.ABC):
         self,
         file_path: PathStr,
         save_name: SaveName,
-        file_pusher: FilePusher,
+        file_pusher: "FilePusher",
         *args,
         **kwargs,
     ) -> None:
@@ -110,7 +110,7 @@ class PolicyLive(FileEventHandler):
         self,
         file_path: PathStr,
         save_name: SaveName,
-        file_pusher: FilePusher,
+        file_pusher: "FilePusher",
         settings: Optional["wandb_settings.Settings"] = None,
         *args,
         **kwargs,
@@ -186,7 +186,7 @@ class DirWatcher:
     def __init__(
         self,
         settings: "wandb_settings.Settings",
-        file_pusher: FilePusher,
+        file_pusher: "FilePusher",
         file_dir: Optional[PathStr] = None,
     ):
         self._file_count = 0

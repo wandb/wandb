@@ -4,7 +4,6 @@ import queue
 import sys
 import threading
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     MutableMapping,
@@ -12,6 +11,7 @@ from typing import (
     MutableSet,
     NamedTuple,
     Optional,
+    TYPE_CHECKING,
     Union,
 )
 
@@ -70,11 +70,11 @@ Event = Union[
 class StepUpload:
     def __init__(
         self,
-        api: internal_api.Api,
-        stats: stats.Stats,
+        api: "internal_api.Api",
+        stats: "stats.Stats",
         event_queue: "queue.Queue[Event]",
         max_jobs: int,
-        file_stream: file_stream.FileStreamApi,
+        file_stream: "file_stream.FileStreamApi",
         silent: bool = False,
     ):
         self._api = api

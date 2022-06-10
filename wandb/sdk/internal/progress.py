@@ -4,7 +4,7 @@ progress.
 
 import os
 import sys
-from typing import IO, TYPE_CHECKING, Optional, Protocol
+from typing import IO, Optional, TYPE_CHECKING
 
 from wandb.errors import CommError
 
@@ -27,9 +27,11 @@ class Progress:
     def __init__(self, file: IO[bytes], callback: Optional["ProgressFn"] = None):
         self.file = file
         if callback is None:
-            callback = lambda new_bytes, total_bytes: None
+            def callback_(new_bytes: int, total_bytes: int) -> None:
+                pass
+            callback = callback_
 
-        self.callback: ProgressFn = callback
+        self.callback: "ProgressFn" = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
 

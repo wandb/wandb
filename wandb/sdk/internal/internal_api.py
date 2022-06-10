@@ -1,4 +1,4 @@
-from typing import IO, TYPE_CHECKING, Iterable, Mapping, Optional
+from typing import IO, TYPE_CHECKING, Iterable, Mapping, Optional, Union
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -32,7 +32,7 @@ from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 
-from .progress import Progress, ProgressFn
+from .progress import Progress
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,8 @@ if TYPE_CHECKING:
         from typing import TypedDict
     else:
         from typing_extensions import TypedDict
+
+    from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
@@ -1630,8 +1632,8 @@ class Api:
         self,
         url: str,
         file: IO[bytes],
-        callback: Optional[ProgressFn] = None,
-        extra_headers: Mapping[str, str | bytes] = {},
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Mapping[str, Union[str, bytes]] = {},
     ):
         """Uploads a file to W&B with failure resumption
 

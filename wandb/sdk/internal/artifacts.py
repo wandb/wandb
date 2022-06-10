@@ -3,7 +3,7 @@ import os
 import sys
 import tempfile
 import threading
-from typing import Any, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import wandb
 from wandb import util
