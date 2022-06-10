@@ -31,10 +31,10 @@ def resolve_agent_config(
     config_path: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
-        "entity": api.default_entity,
+        "entity": "",
         "max_jobs": 1,
         "queues": ["default"],
-        "api_key": api.api_key,
+        "api_key": "",
         "base_url": api.settings("base_url"),
         "registry": {},
         "build": {},
@@ -52,8 +52,6 @@ def resolve_agent_config(
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
         resolved_config.update(dict(config))
-    if os.environ.get("WANDB_PROJECT") is not None:
-        resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
     if os.environ.get("WANDB_API_KEY") is not None:
@@ -80,13 +78,11 @@ def resolve_agent_config(
         settings = dict(
             api_key=resolved_config["api_key"],
             base_url=resolved_config["base_url"],
-            project=resolved_config["project"],
             entity=resolved_config["entity"],
         )
         api = Api(default_settings=settings)
         api.set_setting("base_url", resolved_config["base_url"], persist=True)
         api.set_setting("api_key", resolved_config["api_key"], persist=True)
-        api.set_setting("project", resolved_config["project"], persist=True)
         api.set_setting("entity", resolved_config["entity"], persist=True)
     return resolved_config, api
 

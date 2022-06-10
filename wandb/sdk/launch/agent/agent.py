@@ -137,7 +137,9 @@ class LaunchAgent:
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
         self._configured_runners = self._configure_runners(config)
-        wandb.termlog(f"Configured runners for this agent are: {self._configured_runners}")
+        wandb.termlog(
+            f"Configured runners for this agent are: {self._configured_runners}"
+        )
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -306,8 +308,13 @@ class LaunchAgent:
                 else:
                     if job is not None:
                         break
-            if job is not None and job["runSpec"]["resource"] not in self._configured_runners:
-                wandb.termlog(f"Skipping job {job} because the runner is not configured to handle it")
+            if (
+                job is not None
+                and job["runSpec"]["resource"] not in self._configured_runners
+            ):
+                wandb.termlog(
+                    f"Skipping job {job} because the runner is not configured to handle it"
+                )
                 # TODO: Return the lease on this item
                 return None
             default_config = selected_queue["config"]
@@ -349,7 +356,7 @@ class LaunchAgent:
             break
         for resource, value in requirements.items():
             if resource in VALID_RESOURCES and available[runner_type][resource] < value:
-                    return False
+                return False
 
         return True
 
@@ -387,7 +394,7 @@ class LaunchAgent:
             launch_spec["overrides"]["args"] = util._user_args_to_dict(
                 launch_spec["overrides"].get("args", [])
             )
-        self._validate_and_fix_spec_project_entity(launch_spec)
+        self._validate_and_fix_spec_entity(launch_spec)
 
         project = create_project_from_spec(launch_spec, self._api)
         _logger.info("Fetching and validating project...")
