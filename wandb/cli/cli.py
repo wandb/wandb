@@ -399,6 +399,27 @@ def service(
     server.serve()
 
 
+@cli.command(context_settings=CONTEXT)
+@click.pass_context
+@click.option("--name", help="The project to use.")
+def init(ctx, name):
+    pass
+
+
+@cli.command(context_settings=CONTEXT)
+@click.pass_context
+@click.option("--key", help="key")
+@click.option("--value", help="value")
+def log(ctx, key, value):
+    pass
+
+
+@cli.command(context_settings=CONTEXT)
+@click.pass_context
+def finish(ctx):
+    pass
+
+
 @cli.command(
     context_settings=CONTEXT, help="Configure a directory with Weights & Biases"
 )
@@ -415,7 +436,7 @@ def service(
 )
 @click.pass_context
 @display_error
-def init(ctx, project, entity, reset, mode):
+def configure(ctx, project, entity, reset, mode):
     from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
 
     if __stage_dir__ is None:
