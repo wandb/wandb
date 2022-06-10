@@ -39,13 +39,11 @@ RunQueue = TypeVar("RunQueue")
 
 
 def kubernetes(agent, queue):
-    valid = False
-    return valid
+    return True
 
 
 def sagemaker(agent, queue):
-    valid = False
-    return valid
+    return True
 
 
 def local_process(agent, queue):
@@ -139,6 +137,7 @@ class LaunchAgent:
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
         self._configured_runners = self._configure_runners(config)
+        wandb.termlog(f"Configured runners for this agent are: {self._configured_runners}")
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -231,7 +230,7 @@ class LaunchAgent:
 
     def _configure_runners(self, config):
         system_resource_defaults = self._get_system_resource_defaults()
-
+        configured_runners = {}
         for runner in config["runners"]:
             if runner["type"] in {"kubernetes", "sagemaker"}:
                 pass
@@ -260,7 +259,9 @@ class LaunchAgent:
                 raise ValueError(
                     f"Expected runner type to be one of {VALID_RUNNER_TYPES} but got {runner}"
                 )
-        return config["runners"]
+
+            configured_runners[runner["type"]] = runner
+        return configured_runners
 
     def _get_valid_run_queues(self) -> List[RunQueue]:
         """
@@ -268,7 +269,6 @@ class LaunchAgent:
         """
         run_queues = self._api.get_run_queues_by_entity(self._entity)
         valid_queues = []
-
         for q in run_queues:
             config = q["config"]
             if config is not None:
@@ -306,15 +306,15 @@ class LaunchAgent:
                 else:
                     if job is not None:
                         break
+            if job is not None and job["runSpec"]["resource"] not in self._configured_runners:
+                wandb.termlog(f"Skipping job {job} because the runner is not configured to handle it")
+                # TODO: Return the lease on this item
+                return None
             default_config = selected_queue["config"]
             if job is not None and default_config is not None:
                 job["runSpec"]["resource_args"] = merge_dicts(
                     job["runSpec"]["resource_args"], default_config
                 )
-
-                if job["runSpec"]["resource"] not in self._configured_runners:
-                    # TODO: Return the lease on this item
-                    return None
 
             return job
 
@@ -326,9 +326,9 @@ class LaunchAgent:
         from copy import deepcopy
 
         resources_available = {
-            runner["type"]: runner.get("resources")
-            for runner in deepcopy(self._configured_runners)
-            if runner["type"] not in {"kubernetes", "sagemaker"}
+            key: deepcopy(runner)
+            for key, runner in self._configured_runners.items()
+            if key in {"local-process", "local-container"}
         }
 
         # Resources consumed by running jobs
@@ -348,12 +348,9 @@ class LaunchAgent:
         for runner_type, requirements in resource_args.items():
             break
         for resource, value in requirements.items():
-            if resource not in VALID_RESOURCES:
-                raise ValueError(
-                    f"Expected resources to be one of {VALID_RESOURCES}, but got {resource}"
-                )
-            if available[runner_type][resource] < value:
-                return False
+            if resource in VALID_RESOURCES and available[runner_type][resource] < value:
+                    return False
+
         return True
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
