@@ -3,6 +3,7 @@ Internal utility for converting arguments from a launch spec or call to wandb la
 into a runnable wandb launch script
 """
 
+import binascii
 import enum
 import json
 import logging
@@ -64,6 +65,7 @@ class LaunchProject:
         self.target_project = target_project.lower()
         self.name = name
         self.build_image: bool = docker_config.get("build_image", False)
+        self._image_tag = None
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
@@ -142,6 +144,13 @@ class LaunchProject:
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
         return f"{self.target_project}_launch"
+
+    @property
+    def image_tag(self) -> str:
+        if self._image_tag is not None:
+            return self._image_tag
+        else:
+            return None
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the override run config values if a matching key exists in the override arguments."""
@@ -222,6 +231,9 @@ class LaunchProject:
 
             if downloaded_code_artifact:
                 self.build_image = True
+                self._image_tag = binascii.hexlify(
+                    downloaded_code_artifact.digest.encode()
+                ).decode()
             elif not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise ExecutionError(
@@ -238,6 +250,9 @@ class LaunchProject:
 
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
+                tag = run_info["git"]["remote"] + run_info["git"]["commit"] + patch
+                self._image_tag = binascii.hexlify(tag.encode()).decode()
+
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):
                     downloaded_entrypoint = utils.download_entry_point(
