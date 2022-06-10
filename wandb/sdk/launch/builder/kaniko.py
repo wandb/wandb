@@ -385,7 +385,7 @@ def find_image(image_uri: str):
         print(image_uri)
         account_id = image_uri.split("/")
         tag = image_uri.split(":")[-1]
-        ecr_client = boto3.client("ecr", region_name=repo_info["region"])
+        ecr_client = boto3.client("ecr", region_name="us-east-1")
         repo_name = image_uri.split("/")[-1].split(":")[0]
         try:
             ecr_client.describe_images(
