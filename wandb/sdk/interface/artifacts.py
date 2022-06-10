@@ -20,6 +20,11 @@ import wandb
 from wandb import env
 from wandb import util
 from wandb.data_types import WBValue
+from wandb.sdk.internal import progress
+
+if TYPE_CHECKING:
+    # need this import for type annotations, but want to avoid circular dependency
+    from wandb.sdk import wandb_artifacts
 
 
 if TYPE_CHECKING:
@@ -91,7 +96,7 @@ class ArtifactManifest:
     def version(cls):
         pass
 
-    def __init__(self, artifact, storage_policy, entries=None):
+    def __init__(self, artifact, storage_policy: wandb_artifacts.WandbStoragePolicy, entries=None):
         self.artifact = artifact
         self.storage_policy = storage_policy
         self.entries = entries or {}
@@ -794,7 +799,7 @@ class StoragePolicy:
         artifact_manifest_id: str,
         entry: ArtifactEntry,
         preparer: "StepPrepare",
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
         raise NotImplementedError
 

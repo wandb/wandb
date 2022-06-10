@@ -6,8 +6,12 @@ from typing import Any, Callable, NamedTuple, Union
 
 from wandb.errors.term import termerror
 from wandb.filesync import stats, upload_job
-from wandb.sdk.internal import internal_api
+from wandb.sdk.internal import file_stream, internal_api, progress
 
+PreCommitFn = Callable[[], None]
+PostCommitFn = Callable[[], None]
+OnRequestFinishFn = Callable[[], None]
+SaveFn = Callable[["progress.ProgressFn"], Any]
 
 RequestUpload = NamedTuple(
     "EventStartUploadJob",
@@ -17,7 +21,7 @@ RequestUpload = NamedTuple(
         ("artifact_id", str),
         ("md5", str),
         ("copied", bool),
-        ("save_fn", Callable[..., Any]),
+        ("save_fn", SaveFn),
         ("digest", Any),
     ),
 )
@@ -26,12 +30,12 @@ RequestUpload = NamedTuple(
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
-    before_commit: Callable[..., Any]
-    on_commit: Callable[..., Any]
+    before_commit: PreCommitFn
+    on_commit: PostCommitFn
 
 
 class RequestFinish(NamedTuple):
-    callback: Callable[..., Any]
+    callback: OnRequestFinishFn
 
 
 Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish]
@@ -44,7 +48,7 @@ class StepUpload:
         stats: stats.Stats,
         event_queue: "queue.Queue[Event]",
         max_jobs,
-        file_stream,
+        file_stream: file_stream.FileStreamApi,
         silent=False,
     ):
         self._api = api

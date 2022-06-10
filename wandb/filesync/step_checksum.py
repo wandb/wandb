@@ -5,39 +5,43 @@ import queue
 import shutil
 import tempfile
 import threading
-from typing import Any, Callable, NamedTuple, Union
+from typing import Any, Callable, NamedTuple, Optional, Union
 
-from wandb.filesync import step_upload
+from wandb.filesync import stats, step_upload
 from wandb.sdk.interface import artifacts
-from wandb.sdk.internal import internal_api
+from wandb.sdk.internal import internal_api, progress
 import wandb.util
 
+SaveFn = Callable[[
+    artifacts.ArtifactEntry,
+    "progress.ProgressFn",
+], Any]
 
 class RequestUpload(NamedTuple):
     path: str
     save_name: str
-    artifact_id: str
+    artifact_id: Optional[str]
     copy: bool
     use_prepare_flow: bool
-    save_fn: Callable[..., Any]
-    digest: Any
+    save_fn: Optional[SaveFn]
+    digest: str
 
 
 class RequestStoreManifestFiles(NamedTuple):
     manifest: artifacts.ArtifactManifest
     artifact_id: str
-    save_fn: Callable[..., Any]
+    save_fn: SaveFn
 
 
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
-    before_commit: step_upload.PreCommitFn
-    on_commit: step_upload.PostCommitFn
+    before_commit: Optional[step_upload.PreCommitFn]
+    on_commit: Optional[step_upload.PostCommitFn]
 
 
 class RequestFinish(NamedTuple):
-    callback: step_upload.OnRequestFinishFn
+    callback: Optional[step_upload.OnRequestFinishFn]
 
 
 Event = Union[
@@ -48,11 +52,11 @@ Event = Union[
 class StepChecksum:
     def __init__(
         self,
-        api: internal_api.InternalAPI,
+        api: internal_api.Api,
         tempdir: tempfile.TemporaryDirectory,
         request_queue: "queue.Queue[Event]",
         output_queue: "queue.Queue[step_upload.Event]",
-        stats,
+        stats: stats.Stats,
     ):
         self._api = api
         self._tempdir = tempdir
@@ -104,7 +108,7 @@ class StepChecksum:
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
-                        def make_save_fn_with_entry(save_fn, entry):
+                        def make_save_fn_with_entry(save_fn, entry) -> step_upload.SaveFn:
                             return lambda progress_callback: save_fn(
                                 entry, progress_callback
                             )

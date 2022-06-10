@@ -3,8 +3,11 @@ import os
 import queue
 import tempfile
 import time
+from typing import Callable, Mapping, Optional, Tuple
 
 import wandb
+from wandb.sdk.interface import artifacts
+from wandb.sdk.internal import file_stream, internal_api
 import wandb.util
 
 from wandb.filesync import stats
@@ -31,15 +34,15 @@ class FilePusher:
 
     MAX_UPLOAD_JOBS = 64
 
-    def __init__(self, api, file_stream, silent=False):
+    def __init__(self, api: internal_api.Api, file_stream: file_stream.FileStreamApi, silent=False):
         self._api = api
 
         self._tempdir = tempfile.TemporaryDirectory("wandb")
 
         self._stats = stats.Stats()
 
-        self._incoming_queue = queue.Queue()
-        self._event_queue = queue.Queue()
+        self._incoming_queue: "queue.Queue[step_checksum.Event]" = queue.Queue()
+        self._event_queue: "queue.Queue[step_upload.Event]" = queue.Queue()
 
         self._step_checksum = step_checksum.StepChecksum(
             self._api,
@@ -60,12 +63,12 @@ class FilePusher:
         )
         self._step_upload.start()
 
-    def get_status(self):
+    def get_status(self) -> Tuple[bool, Mapping[str, int]]:
         running = self.is_alive()
         summary = self._stats.summary()
         return running, summary
 
-    def print_status(self, prefix=True):
+    def print_status(self, prefix: bool = True) -> None:
         step = 0
         spinner_states = ["-", "\\", "|", "/"]
         stop = False
@@ -98,17 +101,17 @@ class FilePusher:
         # clear progress line.
         wandb.termlog(" " * 79, prefix=prefix)
 
-    def file_counts_by_category(self):
+    def file_counts_by_category(self) -> Mapping[str, int]:
         return self._stats.file_counts_by_category()
 
     def file_changed(
         self,
-        save_name,
-        path,
-        artifact_id=None,
-        copy=True,
-        use_prepare_flow=False,
-        save_fn=None,
+        save_name: str,
+        path: str,
+        artifact_id: Optional[str] =None,
+        copy: bool =True,
+        use_prepare_flow: bool =False,
+        save_fn: Optional[step_checksum.SaveFn]=None,
         digest=None,
     ):
         """Tell the file pusher that a file's changed and should be uploaded.
@@ -129,27 +132,27 @@ class FilePusher:
         )
         self._incoming_queue.put(event)
 
-    def store_manifest_files(self, manifest, artifact_id, save_fn):
+    def store_manifest_files(self, manifest: artifacts.ArtifactManifest, artifact_id: str, save_fn: step_checksum.SaveFn) -> None:
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
 
     def commit_artifact(
-        self, artifact_id, finalize=True, before_commit=None, on_commit=None
+        self, artifact_id: str, finalize: bool = True, before_commit: Optional[step_upload.PreCommitFn] = None, on_commit: Optional[step_upload.PostCommitFn]=None
     ):
         event = step_checksum.RequestCommitArtifact(
             artifact_id, finalize, before_commit, on_commit
         )
         self._incoming_queue.put(event)
 
-    def finish(self, callback=None):
+    def finish(self, callback: Optional[step_upload.OnRequestFinishFn] = None):
         logger.info("shutting down file pusher")
         self._incoming_queue.put(step_checksum.RequestFinish(callback))
 
-    def join(self):
+    def join(self) -> None:
         # NOTE: must have called finish before join
         logger.info("waiting for file pusher")
         while self.is_alive():
             time.sleep(0.5)
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         return self._step_checksum.is_alive() or self._step_upload.is_alive()

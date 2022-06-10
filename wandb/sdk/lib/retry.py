@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import time
+from typing import Any, Callable, TypeVar
 
 from requests import HTTPError
 import wandb
@@ -149,15 +150,16 @@ class Retry:
 
             self._num_iter += 1
 
+_F = TypeVar("_F", bound=Callable)
 
-def retriable(*args, **kargs):
-    def decorator(fn):
+def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
+    def decorator(fn: _F) -> _F:
         retrier = Retry(fn, *args, **kargs)
 
         @functools.wraps(fn)
         def wrapped_fn(*args, **kargs):
             return retrier(*args, **kargs)
 
-        return wrapped_fn
+        return wrapped_fn  # type: ignore
 
     return decorator

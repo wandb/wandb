@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import wandb
 from wandb.filesync import dir_watcher, stats
-from wandb.sdk.internal import internal_api
+from wandb.sdk.internal import file_stream, internal_api
 
 if TYPE_CHECKING:
     import queue
@@ -21,7 +21,7 @@ class UploadJob(threading.Thread):
         done_queue: "queue.Queue[EventJobDone]",
         stats: stats.Stats,
         api: internal_api.Api,
-        file_stream,
+        file_stream: file_stream.FileStreamApi,
         silent: bool,
         save_name: dir_watcher.SaveName,
         path: dir_watcher.PathStr,

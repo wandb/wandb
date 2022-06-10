@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Iterable, Optional
+import io
+from typing import IO, TYPE_CHECKING, Iterable, Mapping, Optional
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -32,7 +33,7 @@ from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 
-from .progress import Progress
+from .progress import Progress, ProgressFn
 
 logger = logging.getLogger(__name__)
 
@@ -1626,13 +1627,19 @@ class Api:
             else:
                 raise requests.exceptions.ConnectionError(e.message)
 
-    def upload_file(self, url, file, callback=None, extra_headers={}):
+    def upload_file(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional[ProgressFn] = None,
+        extra_headers: Mapping[str, str | bytes] = {},
+    ):
         """Uploads a file to W&B with failure resumption
 
         Arguments:
-            url (str): The url to download
-            file (str): The path to the file you want to upload
-            callback (func, optional): A callback which is passed the number of
+            url: The url to download
+            file: The path to the file you want to upload
+            callback: A callback which is passed the number of
             bytes uploaded since the last time it was called, used to report progress
 
         Returns:
