@@ -1,7 +1,5 @@
-base_url: https://api.wandb.test # TODO: SET YOUR WANDB BASE URL
+base_url: https://qa-google.wandb.io # TODO: SET YOUR WANDB BASE URL
 max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
-entity: asdasd
-api_key: a0902daf69619ecaa86e3383c65b5f46b39a93fe
 registry:
   url: # TODO: SET ECR REPOSITORY URL HERE
   ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
