@@ -1,5 +1,5 @@
 base_url: https://qa-google.wandb.io # TODO: SET YOUR WANDB BASE URL
-project: summerhack # TODO: SET YOUR ML PROJECT
+project: myproj # TODO: SET YOUR ML PROJECT
 max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
 registry:
   url: # TODO: SET ECR REPOSITORY URL HERE
@@ -15,15 +15,15 @@ build:
     secret-mount-path: /root/.aws/
   build-context-store: wandb-build # name here
 runners:
-  - kubernetes:
-      namespace: wandb
-  - local-process:
-      labels:
-        - gpu
-      resources:
-        cpu: 4
-        gpu: 1
-        ram: 16
-  - local-container:
-      labels:
-        - gpu
+  - type: kubernetes
+    namespace: wandb
+  - type: local-process
+    labels:
+      - gpu
+    resources:
+      cpus: 4
+      gpus: 1
+      ram: 16
+  - type: local-container
+    labels:
+      - gpu

@@ -1181,7 +1181,7 @@ class Api:
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
     @normalize_exceptions
-    def create_new_launch_agent(self, entity, config, gorilla_agent_support):
+    def create_new_launch_agent(self, entity, gorilla_agent_support, config={}):
 
         if not gorilla_agent_support:
             # if gorilla doesn't support launch agents, return a client-generated id
@@ -1206,6 +1206,9 @@ class Api:
             }
             """
         )
+
+        config = {}
+
         variable_values = {
             "entity": entity,
             "hostname": hostname,
@@ -1214,7 +1217,9 @@ class Api:
         return self.gql(mutation, variable_values)["createNewLaunchAgent"]
 
     @normalize_exceptions
-    def update_new_launch_agent_status(self, agent_id, status, gorilla_agent_support):
+    def update_new_launch_agent_status(
+        self, agent_id, status, gorilla_agent_support, config={}
+    ):
         if not gorilla_agent_support:
             # if gorilla doesn't support launch agents, this is a no-op
             return {
@@ -1223,11 +1228,12 @@ class Api:
 
         mutation = gql(
             """
-            mutation updateNewLaunchAgent($agentId: ID!, $agentStatus: String){
+            mutation updateNewLaunchAgent($agentId: ID!, $agentStatus: String, $config: JSONString){
                 updateNewLaunchAgent(
                     input: {
                         newLaunchAgentId: $agentId
                         agentStatus: $agentStatus
+                        config: $config
                     }
                 ) {
                     success
@@ -1238,6 +1244,7 @@ class Api:
         variable_values = {
             "agentId": agent_id,
             "agentStatus": status,
+            "config": json.dumps(config),
         }
         return self.gql(mutation, variable_values)["updateNewLaunchAgent"]
 

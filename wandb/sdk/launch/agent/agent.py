@@ -30,6 +30,8 @@ AGENT_POLLING_INTERVAL = 10
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
+VALID_RESOURCES = ["cpus", "gpus", "ram"]
+VALID_RUNNER_TYPES = ["kubernetes", "sagemaker", "local-process", "local-container"]
 
 _logger = logging.getLogger(__name__)
 
@@ -136,7 +138,7 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._configured_runners = self._setup_runners(config)
+        self._configured_runners = self._configure_runners(config)
         if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
@@ -149,7 +151,7 @@ class LaunchAgent:
         )
         self._queues = self._get_valid_run_queues()
         create_response = self._api.create_new_launch_agent(
-            self._entity, self.default_config, self.gorilla_supports_agents
+            self._entity, self.gorilla_supports_agents, config=self._configured_runners
         )
         self._id = create_response["newLaunchAgentId"]
         self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
@@ -195,61 +197,89 @@ class LaunchAgent:
             self.update_status(AGENT_POLLING)
 
     @staticmethod
-    def _parse_runner_config(config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Parses a RunnersConfig block from the agent config. Returns a dictionary
-        of support runners in the form of:
-        {
-            kubernetes: {
-                namespace: "wandb"
-            },
-            sagemaker: {
-
-            },
-            local-process: {
-                labels: [ "gpu-pool" ]
-            },
-            local-container: {
-                labels: [ "gpu-pool"]
-            }
-        }
-        """
-        runners = config.get("runners", [{}])
-        return {k: v for elem in runners for k, v in elem.items()}
-
-    @staticmethod
-    def _get_system_resource_defaults():
-        import psutil
+    def _get_gpus():
+        from collections import Counter
         from wandb.vendor.pynvml import pynvml
 
-        def get_gpus():
-            try:
-                pynvml.nvmlInit()
-            except pynvml.NVMLError:
-                pass
-            else:
-                return pynvml.nvmlDeviceGetCount()
+        try:
+            pynvml.nvmlInit()
+        except pynvml.NVMLError:
+            gpu_names = []
+        else:
+            gpu_count = pynvml.nvmlDeviceGetCount()
+            gpus = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(gpu_count)]
+            gpu_names = [pynvml.nvmlDeviceGetName(gpu).decode("utf8") for gpu in gpus]
+        finally:
+            gpus = Counter(gpu_names)
+
+        # Get just the first GPU name and count
+        if gpus:
+            name, count = next(iter(gpus.items()))
+            return {"name": name, "count": count}
+        return {}
+
+    def _get_system_resource_defaults(self):
+        import psutil
 
         resources = {
             "cpus": psutil.cpu_count(),
-            "gpus": get_gpus(),
+            "gpus": self._get_gpus().get("count", 0),
             "ram": psutil.virtual_memory().total / (1024**3),
         }
 
         return {k: v for k, v in resources.items() if v is not None}
 
-    def _setup_runners(self, config):
-        runners = self._parse_runner_config(config)
+    def _configure_runners(self, config):
         system_resource_defaults = self._get_system_resource_defaults()
 
-        for spec in runners.values():
-            if "resources" not in spec:
-                spec["resources"] = {}
-            for k, v in system_resource_defaults.items():
-                if k not in spec["resources"]:
-                    spec["resources"][k] = v
+        for runner in config["runners"]:
+            if runner["type"] in {"kubernetes", "sagemaker"}:
+                pass
+            elif runner["type"] in {"local-process", "local-container"}:
+                # add default resources if required
+                if "resources" not in runner:
+                    runner["resources"] = {}
+                for resource, constraint in system_resource_defaults.items():
+                    if resource not in VALID_RESOURCES:
+                        raise ValueError(
+                            f"Expected resources to be one of {VALID_RESOURCES}, but got {resource}"
+                        )
+                    if resource not in runner["resources"]:
+                        runner["resources"][resource] = constraint
 
-        return runners
+                # add default labels if required
+                gpu_labels = self._get_gpus().get("name")
+                gpu_labels = [gpu_labels] if gpu_labels else []
+
+                if "labels" not in runner:
+                    runner["labels"] = []
+                for lbl in gpu_labels:
+                    if lbl not in runner["labels"]:
+                        runner["labels"].append(lbl)
+            else:
+                raise ValueError(
+                    f"Expected runner type to be one of {VALID_RUNNER_TYPES} but got {runner}"
+                )
+        return config["runners"]
+
+        # for runner in config["runners"]:
+        #     if runner["type"] in {"local-process", "local-container"}:
+        #         if "resources" not in runner:
+        #             runner["resources"] = {}
+        #             for k, v in system_resource_defaults.items():
+        #                 if k not in runner["resources"]:
+        #                     runner["resources"][k] = v
+
+        #         # add labels
+        #         gpu_labels = self._get_gpus().get("name")
+        #         gpu_labels = [gpu_labels] if gpu_labels else []
+
+        #         if "labels" not in runner:
+        #             runner["labels"] = []
+        #         for lbl in gpu_labels:
+        #             if lbl not in runner["labels"]:
+        #                 runner["labels"].append(lbl)
+        #     self._configured_runners[runner["type"]] = runner
 
     def _get_valid_run_queues(self) -> List[RunQueue]:
         """
@@ -259,19 +289,6 @@ class LaunchAgent:
         valid_queues = []
 
         for q in run_queues:
-            # q["config"] = {
-            #     "local-process": {
-            #         "labels": ["gpu"],
-            #         "resources": {"cpu": 1, "gpu": 0, "ram": 1},
-            #     }
-            # }
-
-            # {
-            #   "resource": "local-process",
-            #   "defaultResourceConfig": {
-            #       "labels": ["gpu"]
-            #   }
-            # }
             config = q["config"]
             if config is None:
                 valid_queues.append(q)
@@ -295,10 +312,7 @@ class LaunchAgent:
         """
         random.shuffle(self._queues)  # So smart!
 
-    def _get_combined_config(self):
-        """
-        Return a combined config to do the next job.
-        """
+    def _get_combined_job_config(self):
         self._order_queues_by_priority()
 
         if self._queues:
@@ -306,11 +320,10 @@ class LaunchAgent:
                 try:
                     selected_queue, job = q, self.pop_from_queue(q)
                 except IndexError:
-                    wandb.termlog(f"Queue is empty ({q})")
+                    wandb.termlog(f"Queue is empty: {q}")
                 else:
                     if job is not None:
                         break
-
             default_config = selected_queue["config"]
             if job is not None and default_config is not None:
                 job["runSpec"]["resource_args"] = merge_dicts(
@@ -318,6 +331,47 @@ class LaunchAgent:
                 )
 
             return job
+
+    def _get_current_resources_available(self):
+        """
+        Get current resources available based on resources requested for each job
+        """
+        # Starting resources
+        resources_available = {
+            runner["type"]: runner.get("resources")
+            for runner in self._configured_runners
+            if runner["type"] not in {"kubernetes", "sagemaker"}
+        }
+
+        # Resources consumed by running jobs
+        for j in self._jobs.values():
+            resource_args = j.job_spec.get("resource_args", {})
+            for runner_type, requirements in resource_args.items():
+                for resource, value in requirements.items():
+                    resources_available[runner_type][resource] -= value
+        return resources_available
+
+    def _resources_available_for_this_job(self, job):
+        """
+        Check if there are sufficient resources available for `job`.
+        """
+        available = self._get_current_resources_available()
+        resource_args = job["runSpec"].get("resource_args")
+        for runner_type, requirements in (
+            job["runSpec"].get("resource_args", {}).items()
+        ):
+            break
+
+        resource_requirements = requirements.get("resources")
+        if resource_requirements:
+            for resource, value in resource_requirements.items():
+                if resource not in VALID_RESOURCES:
+                    raise ValueError(
+                        f"Expected resources to be one of {VALID_RESOURCES}, but got {resource}"
+                    )
+                if available[runner_type][resource] < value:
+                    return False
+        return True
 
     def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
@@ -391,6 +445,7 @@ class LaunchAgent:
         _logger.info("Backend loaded...")
         run = backend.run(project, builder, registry_config)
         if run:
+            run.job_spec = job
             self._jobs[run.id] = run
             self._running += 1
 
@@ -413,10 +468,13 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self._running < self._max_jobs:
                     # only check for new jobs if we're not at max
-                    job = self._get_combined_config()
-                    # for queue in self._queues:
-                    #     job = self.pop_from_queue(queue)
+                    job = self._get_combined_job_config()
                     if job:
+                        if not self._resources_available_for_this_job(job):
+                            wandb.termwarn(
+                                f"Resources were not available for {job['runQueueItemId']}.  Job requires {job['runSpec']['resource_args']}, but agent only has {self._get_current_resources_available()}"
+                            )
+                            continue
                         try:
                             self.run_job(job)
                         except Exception as e:

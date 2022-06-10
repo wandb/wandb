@@ -90,7 +90,7 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if overrides.get("entry_point") is not None:
+        if overrides.get("entry_point"):
             _logger.info("Adding override entry point")
             self.override_entrypoint = self.add_entry_point(
                 overrides.get("entry_point")  # type: ignore
@@ -175,6 +175,8 @@ class LaunchProject:
 
     def add_entry_point(self, command: List[str]) -> "EntryPoint":
         """Adds an entry point to the project."""
+        if not isinstance(command, list):
+            return
         entry_point = command[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint

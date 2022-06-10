@@ -38,9 +38,8 @@ def resolve_agent_config(
         "base_url": api.settings("base_url"),
         "registry": {},
         "build": {},
-        "runners": {"local-process": {}, "local-container": {}},
+        "runners": [{"type": "local-process"}, {"type": "local-container"}],
     }
-
     resolved_config: Dict[str, Any] = defaults.copy()
     config_path = config_path if config_path is not None else LAUNCH_CONFIG_FILE
     expanded_config = os.path.expanduser(config_path)
@@ -73,7 +72,6 @@ def resolve_agent_config(
 
     if queues is not None:
         resolved_config.update({"queues": queues})
-
     if (
         resolved_config["entity"] != defaults["entity"]
         or resolved_config["api_key"] != defaults["api_key"]
