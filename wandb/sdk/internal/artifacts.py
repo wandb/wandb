@@ -24,7 +24,9 @@ if TYPE_CHECKING:
         from typing_extensions import Protocol
 
     class SaveFn(Protocol):
-        def __call__(self, entry: ArtifactEntry, progress_callback: "ProgressFn") -> Any:
+        def __call__(
+            self, entry: ArtifactEntry, progress_callback: "ProgressFn"
+        ) -> Any:
             pass
 
 
