@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 import threading
-from typing import Any, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Sequence, TYPE_CHECKING, TypeAlias
 
 import wandb
 from wandb import util
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .file_pusher import FilePusher
     from wandb.proto import wandb_internal_pb2
 
-SaveFn = Callable[[ArtifactEntry, "ProgressFn"], Any]
+SaveFn: TypeAlias = Callable[[ArtifactEntry, "ProgressFn"], Any]
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:

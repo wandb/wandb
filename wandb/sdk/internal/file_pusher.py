@@ -3,7 +3,7 @@ import os
 import queue
 import tempfile
 import time
-from typing import TYPE_CHECKING, Callable, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Mapping, Optional, Tuple
 
 import wandb
 import wandb.util

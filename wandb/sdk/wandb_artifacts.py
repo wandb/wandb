@@ -9,7 +9,6 @@ import tempfile
 import time
 from typing import (
     Any,
-    Callable,
     Dict,
     Generator,
     IO,

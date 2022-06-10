@@ -2,7 +2,6 @@
 progress.
 """
 
-import io
 import os
 import sys
 from typing import IO, TYPE_CHECKING, Optional, Protocol

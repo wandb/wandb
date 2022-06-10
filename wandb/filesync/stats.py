@@ -1,6 +1,6 @@
 import sys
 import threading
-from typing import TYPE_CHECKING, Mapping, MutableMapping, Optional
+from typing import TYPE_CHECKING, Mapping, MutableMapping
 
 import wandb
 

@@ -4,7 +4,7 @@ import os
 import queue
 import shutil
 import threading
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union, cast
+from typing import TYPE_CHECKING, NamedTuple, Optional, TypeAlias, Union, cast
 
 from wandb.filesync import step_upload
 import wandb.util
@@ -43,7 +43,7 @@ class RequestFinish(NamedTuple):
     callback: Optional[step_upload.OnRequestFinishFn]
 
 
-Event = Union[
+Event: TypeAlias = Union[
     RequestUpload, RequestStoreManifestFiles, RequestCommitArtifact, RequestFinish
 ]
 

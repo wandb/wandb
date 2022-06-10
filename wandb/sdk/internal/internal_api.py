@@ -1,4 +1,3 @@
-import io
 from typing import IO, TYPE_CHECKING, Iterable, Mapping, Optional
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore

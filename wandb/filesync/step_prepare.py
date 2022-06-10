@@ -13,14 +13,15 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeAlias,
     Union,
 )
 
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
 
-DoPrepareFn = Callable[[], "internal_api.CreateArtifactFileSpecInput"]
-OnPrepareFn = Callable[
+DoPrepareFn: TypeAlias = Callable[[], "internal_api.CreateArtifactFileSpecInput"]
+OnPrepareFn: TypeAlias = Callable[
     [
         str,  # GraphQL File.uploadUrl
         Sequence[str],  # GraphQL File.uploadHeaders
