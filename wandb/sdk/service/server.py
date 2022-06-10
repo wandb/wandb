@@ -25,6 +25,7 @@ class WandbServer:
     _serve_grpc: bool
     _serve_sock: bool
     _sock_server: Optional[SocketServer]
+    _detach: bool
 
     def __init__(
         self,
@@ -36,6 +37,7 @@ class WandbServer:
         debug: bool = True,
         serve_grpc: bool = False,
         serve_sock: bool = False,
+        detach: bool = False,
     ) -> None:
         self._grpc_port = grpc_port
         self._sock_port = sock_port
@@ -46,6 +48,7 @@ class WandbServer:
         self._serve_grpc = serve_grpc
         self._serve_sock = serve_sock
         self._sock_server = None
+        self._detach = detach
 
         if grpc_port:
             _ = wandb.util.get_module(
@@ -121,6 +124,9 @@ class WandbServer:
             tracelog.enable(tracelog_mode)
 
     def serve(self) -> None:
+        if self._detach:
+            os.setsid()
+
         self._setup_tracelog()
         mux = StreamMux()
         grpc_port = self._start_grpc(mux=mux) if self._serve_grpc else None

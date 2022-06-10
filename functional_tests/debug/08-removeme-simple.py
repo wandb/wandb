@@ -26,5 +26,4 @@ print("startup:", time.time() - start)
 wandb.log(dict(m1=1))
 wandb.log(dict(m2=2))
 import time
-time.sleep(30)
-wandb.finish()
+# wandb.finish()

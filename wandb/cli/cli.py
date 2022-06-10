@@ -281,6 +281,8 @@ def _wait_for_ports(fname: str, proc: subprocess.Popen = None) -> bool:
 @click.option("--serve-sock", is_flag=True, help="use socket mode")
 @click.option("--serve-grpc", is_flag=True, help="use grpc mode")
 @click.option("--bg", is_flag=True, help="run in the background")
+@click.option("--shell", is_flag=True, help="start a new shell")
+@click.option("--detach", is_flag=True, help="detach from session")
 @display_error
 def service(
     grpc_port=None,
@@ -292,8 +294,10 @@ def service(
     serve_sock=False,
     serve_grpc=False,
     bg=False,
+    shell=False,
+    detach=False,
 ):
-    if bg:
+    if bg or shell:
         from wandb.sdk.wandb_manager import _ManagerToken
 
         token = _ManagerToken.from_environment()
@@ -323,16 +327,23 @@ def service(
             exec_cmd_list += ["--serve-sock"]
         if serve_grpc:
             exec_cmd_list += ["--serve-grpc"]
-        ppid = os.getppid()
-        pid = os.getpid()
+
+        # get setsid in server (not portable?)
+        exec_cmd_list += ["--detach"]
+
+        if bg:
+            ppid = os.getppid()
+        elif shell:
+            # we use the current pid for shell
+            ppid = os.getpid()
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            fname = os.path.join(tmpdir, f"port-{pid}.txt")
+            fname = os.path.join(tmpdir, f"port-{os.getpid()}.txt")
             pid_str = str(ppid)
             exec_cmd_list += ["--pid", pid_str]
             exec_cmd_list += ["--port-filename", fname]
             # print("RUN", exec_cmd_list)
-            ret = os.spawnl(os.P_NOWAIT, *exec_cmd_list)
+            ret = os.spawnl(os.P_NOWAITO, *exec_cmd_list)
             # print("GOT", ret)
             # HACK: wait for fname
             ports = _wait_for_ports(fname)
@@ -349,7 +360,14 @@ def service(
                 port = sock_port
             assert port
             token = _ManagerToken.from_params(transport=transport, host=host, port=port)
-            print(f"export WANDB_SERVICE={token.token}")
+            if bg:
+                print(f"export WANDB_SERVICE={token.token}")
+            if shell:
+                print("Starting wandb-service shell...")
+                env = os.environ
+                env["WANDB_SERVICE"] = token.token
+                env["WANDB_REQUIRE_SERVICE"] = "true"
+                os.execve("/bin/zsh", ["zsh"], env)
         return
 
     from wandb.sdk.service.server import WandbServer
@@ -363,6 +381,7 @@ def service(
         debug=debug,
         serve_sock=serve_sock,
         serve_grpc=serve_grpc,
+        detach=detach,
     )
     server.serve()
 
