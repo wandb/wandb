@@ -33,6 +33,7 @@ class WBURLs:
             upgrade_local="https://wandb.me/local-upgrade",
             multiprocess="http://wandb.me/init-multiprocess",
             wandb_init="https://wandb.me/wandb-init",
+            wandb_server="https://wandb.me/wandb-server",
         )
 
     def get(self, s: "URLS") -> str:
