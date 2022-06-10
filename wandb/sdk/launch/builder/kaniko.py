@@ -65,9 +65,9 @@ class KanikoBuilder(AbstractBuilder):
     type = "kaniko"
 
     def __init__(
-        self, builder_config: Dict[str, Any], registry_config: Dict[str, Any]
+        self, builder_config: Dict[str, Any]
     ) -> None:
-        super().__init__(builder_config, registry_config)
+        super().__init__(builder_config)
         self.config_map_name = builder_config.get(
             "config-map-name", "wandb-launch-build-context"
         )
