@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: launch-agent
+  namespace: wandb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: launch-agent
+  template:
+    metadata:
+      labels:
+        app: launch-agent
+    spec:
+      serviceAccountName: wandb-launch-serviceaccount
+      containers:
+      - name: launch-agent
+        image: wandb/launch-agent-dev:latest
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        env:
+        - name: WANDB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wandb-api-key
+              key: password
+        volumeMounts:
+        - name: wandb-launch-config
+          mountPath: /home/launch_agent/.config/wandb
+          readOnly: true
+        - name: aws-secret # if you intend on using kaniko with ecr create a secret containing your aws credentials, with this name
+          mountPath: /home/launch_agent/.aws
+          readOnly: true
+      volumes:
+      - name: wandb-launch-config
+        configMap:
+          name: wandb-launch-configmap
+      - name: aws-secret # if you intend on using kaniko with ecr create a secret containing your aws credentials, with this name
+        secret:
+          secretName: aws-secret # if you intend on using kaniko with ecr create a secret containing your aws credentials, with this name
+          optional: true
