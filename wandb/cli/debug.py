@@ -188,6 +188,19 @@ class CliServices(click.MultiCommand):
 
 
 class CliRuns(click.MultiCommand):
+
+    # https://www.programcreek.com/python/?code=jd%2Fpifpaf%2Fpifpaf-master%2Fpifpaf%2F__main__.py
+    def format_commands(self, ctx, formatter):
+        # Same as click.MultiCommand.format_commands except it does not use
+        # get_command so we don't have to load commands on listing.
+        rows = []
+        for subcommand in self.list_commands(ctx):
+            rows.append((subcommand, 'Run ' + subcommand))
+
+        if rows:
+            with formatter.section('Commands'):
+                formatter.write_dl(rows)
+
     def list_commands(self, ctx):
         runs = list_runs()
         return runs
