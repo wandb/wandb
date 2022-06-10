@@ -1206,6 +1206,9 @@ class Api:
             }
             """
         )
+
+        config = {}
+
         variable_values = {
             "entity": entity,
             "hostname": hostname,
