@@ -3,9 +3,6 @@ from wandb import util
 from wandb.plots.utils import test_missing, test_types
 
 
-CHART_LIMIT = wandb.Table.MAX_ROWS
-
-
 def pr_curve(
     y_true=None,
     y_probas=None,
@@ -113,7 +110,7 @@ def pr_curve(
     )
     df = df.round(3)
 
-    if len(df) > CHART_LIMIT:
+    if len(df) > wandb.Table.MAX_ROWS:
         wandb.termwarn(
             "wandb uses only %d data points to create the plots." % wandb.Table.MAX_ROWS
         )
@@ -121,7 +118,7 @@ def pr_curve(
         df = sklearn_utils.resample(
             df,
             replace=False,
-            n_samples=CHART_LIMIT,
+            n_samples=wandb.Table.MAX_ROWS,
             random_state=42,
             stratify=df["class"],
         ).sort_values(["precision", "recall", "class"])
