@@ -1037,6 +1037,7 @@ class Api:
             }) {
                 runQueueItemId
                 runSpec
+                submittedBy
             }
         }
         """
@@ -1206,8 +1207,6 @@ class Api:
             }
             """
         )
-
-        config = {}
 
         variable_values = {
             "entity": entity,

@@ -325,7 +325,6 @@ class LaunchAgent:
                     if job is not None:
                         break
             default_config = selected_queue["config"]
-            # job["username"] = job.get("submittedBy", {}).get("username")
             if job is not None and default_config is not None:
                 job["runSpec"]["resource_args"] = merge_dicts(
                     job["runSpec"]["resource_args"], default_config
@@ -410,7 +409,7 @@ class LaunchAgent:
         # parse job
         _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
-        launch_spec["username"] = job.get("submittedBy", {}).get("username")
+        launch_spec["username"] = job.get("submittedBy", None)
         if launch_spec.get("overrides") and isinstance(
             launch_spec["overrides"].get("args"), list
         ):
