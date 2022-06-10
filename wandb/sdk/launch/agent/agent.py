@@ -311,6 +311,10 @@ class LaunchAgent:
                     job["runSpec"]["resource_args"], default_config
                 )
 
+                if job["runSpec"]["resource"] not in self._configured_runners:
+                    # TODO: Return the lease on this item
+                    return None
+
             return job
 
     def _get_current_resources_available(self):

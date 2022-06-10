@@ -64,7 +64,7 @@ class LaunchProject:
         self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.username = username
-        self.target_project = target_project.lower()
+        self.target_project = target_project.lower() if target_project else 'something'
         self.name = name
         self.build_image: bool = docker_config.get("build_image", False)
         self._image_tag = None
