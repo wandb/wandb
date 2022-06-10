@@ -409,6 +409,7 @@ class LaunchAgent:
         # parse job
         _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
+        launch_spec["username"] = job.get("submittedBy", None)
         if launch_spec.get("overrides") and isinstance(
             launch_spec["overrides"].get("args"), list
         ):
@@ -428,6 +429,7 @@ class LaunchAgent:
         }
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
+
         _logger.info("Loading backend")
         override_build_config = launch_spec.get("build")
         override_registry_config = launch_spec.get("registry")

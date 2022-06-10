@@ -218,6 +218,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars["WANDB_ENTITY"] = launch_project.target_entity
     env_vars["WANDB_LAUNCH"] = "True"
     env_vars["WANDB_RUN_ID"] = launch_project.run_id
+    if launch_project.username:
+        env_vars["WANDB_USERNAME"] = launch_project.username
     if launch_project.docker_image:
         env_vars["WANDB_DOCKER"] = launch_project.docker_image
 

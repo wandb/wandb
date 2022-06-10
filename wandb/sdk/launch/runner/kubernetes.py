@@ -167,6 +167,8 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeName"] = resource_args.get("node_name")
         if resource_args.get("node_selectors"):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        if resource_args.get("tolerations"):
+            pod_spec["tolerations"] = resource_args.get("tolerations")
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -361,6 +363,7 @@ class KubernetesRunner(AbstractRunner):
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec
         pod_template["metadata"] = pod_metadata
+
         if secret is not None:
             pod_spec["imagePullSecrets"] = [
                 {"name": f"regcred-{launch_project.run_id}"}
