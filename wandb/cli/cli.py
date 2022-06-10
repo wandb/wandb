@@ -6,6 +6,7 @@ import datetime
 from functools import wraps
 import getpass
 import json
+import jwt
 import logging
 import os
 import requests
@@ -1440,9 +1441,10 @@ def server():
 
 
 @server.command(context_settings=RUN_CONTEXT, help="Debug a local W&B server")
-@click.option("--host", default=None, help="Test a specific instance of W&B")
+@click.option("--host", default=None, help="Debug a specific instance of W&B")
+@click.option("--output", default=None, help="Debug bundle destination")
 @display_error
-def debug(host):
+def debug(host, output):
     # wandb.login(host=host)
     api = wandb.Api()
     # print(api.api_key)
@@ -1457,15 +1459,43 @@ def debug(host):
         local_version = env_response["buildInfo"]["version"]
         sso_enabled = user_settings["ssoEnable"]["value"]
 
+        print("Finding deployment id: ".ljust(72, "."), end="\n")
+        decode_data = jwt.decode(
+            "eyJhbGciOiJSUzI1NiIsImtpZCI6InUzaHgyQjQyQWhEUXM1M0xQY09yNnZhaTdoSlduYnF1bTRZTlZWd1VwSWM9In0.eyJjb25jdXJyZW50QWdlbnRzIjoxMCwiZGVwbG95bWVudElkIjoiY2E5MTFjZDAtMDcyNS00ZmEwLTljNTEtODZmYzgzNGFlYzNjIiwibWF4VXNlcnMiOjEwMCwibWF4U3RvcmFnZUdiIjoxMDAsIm1heFRlYW1zIjoxMDAsImV4cGlyZXNBdCI6IjIwMjItMDYtMjBUMDY6NTk6NTkuOTk5WiIsImZsYWdzIjpbIlNDQUxBQkxFIiwibXlzcWwiLCJzMyIsInJlZGlzIiwiTk9USUZJQ0FUSU9OUyIsInNsYWNrIiwibm90aWZpY2F0aW9ucyIsIk1BTkFHRU1FTlQiLCJvcmdfZGFzaCIsImF1dGgwIl0sInRyaWFsIjpmYWxzZSwiYWNjZXNzS2V5IjoiZTJkZTA5YjUtMGEwMS00YTkxLTgxMmEtMTQwYmJlOWIzYjRlIiwic2VhdHMiOjEwMCwidGVhbXMiOjEwMCwic3RvcmFnZUdpZ3MiOjEwMCwiZXhwIjoxNjU1NzA4Mzk5fQ.C7Xr5T-wsLXWLV-qCut4lLkSixVUDS0y1xUA2l4bsDgAQYByx4GOQNoZTgAkzv3WAmSNHL-f_x_IKy9iYxnYDGNTtwIiitvk-yarvBPNvyAARvktAINTx8PLviU3H5xKM5qNAkPouh9QbNLfUVWLW0D7rLoU7w3sLICqRpVCK6xahpxMQIZdrqecn_hcYYLjxNb8gn8ne3HCG-rg29WNoR7RGiggjGCG8ERqzrNBFdbv4n2r93ixuBECnTi-nq7kkei7e_WiMacZAK9gNkhdeASTo0jjX9_3QXFhYdop-VHyGNbb8906zJ4J2Czc6HMGvx28d97kELvwgG-lWKrVwg",
+            options={"verify_signature": False},
+            algorithms=["RS256"],
+        )
+        deployment_id = decode_data["deploymentId"]
+        print(
+            f"Find your deployement at https://deploy.wandb.ai/{deployment_id}".ljust(
+                72, "."
+            ),
+            end="\n",
+        )
+
         print("Version: ".ljust(72, "."), end="")
         print(local_version)
+        # print("License: ".ljust(72, "."), end="")
+        # print(license)
+        # print("Deployment ID: ".ljust(72, "."), end="")
+        # print(deployment_id)
         print("SSO enabled: ".ljust(72, "."), end="")
         print(sso_enabled)
+
+        # query = """query Deployment($id: ID!) {\n  deployment(id: $id) {\n    id\n    type\n    name\n    creatorId\n    organizationId\n    description\n    terraformWorkspaceId\n    createdAt\n    licenses(first: 5) {\n      nodes {\n        id\n        license\n        trial\n        deploymentId\n        maxStorageGb\n        maxTeams\n        maxUsers\n        createdAt\n        expiresAt\n        flags {\n          flag\n          name\n          description\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    releases {\n      id\n      message\n      createdAt\n      canceledAt\n      refresh\n      status\n      statusTimestamps {\n        appliedAt\n        erroredAt\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"""
+        # variables = {"id": deployment_id}
+        # print("Finding details from deployer".ljust(72, "."), end="\n")
+        # deployer_url = "https://deploy.wandb.ai/api/graphql"
+        # deployer_request = requests.post(
+        #     deployer_url, json={"query": query, "variables": variables}
+        # )
+        # print(deployer_request.text)
 
         print("Downloading debug files".ljust(72, "."), end="\n")
         debug_url = f"{host}/system-admin/api/debug"
         debug_request = requests.get(debug_url, stream=True)
-        with open("output/debug.zip", "wb") as fd:
+        output = "output/debug.zip"
+        with open(output, "wb") as fd:
             fd.write(debug_request.content)
         print("Download complete".ljust(72, "."), end="\n")
     else:
