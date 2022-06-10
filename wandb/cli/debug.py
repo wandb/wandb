@@ -244,7 +244,7 @@ def install_subcommands(base):
 
 from wandb.sdk.lib import filesystem
 
-def init(name):
+def init2(name):
     manager = get_manager()
     if not manager:
         print("ERROR: Must run inside wandb-service shell")
@@ -270,9 +270,38 @@ def init(name):
     got = manager._inform_init(settings=settings, run_id=runid)
 
 
+import wandb
+
+def init(name):
+    manager = get_manager()
+    if not manager:
+        print("ERROR: Must run inside wandb-service shell")
+        exit(1)
+    run = wandb.init()
+
+
+def find_run():
+    runs = list_runs()
+    if not runs:
+        print("ERROR: no runs found")
+        exit(1)
+    if len(runs) > 1:
+        print("WARNING: multiple runs found, using last")
+    runid = runs[-1]
+    return runid
+
+
 def log(key, value):
-    pass
+    runid = find_run()
+    run = wandb.attach(runid)
+    try:
+        value = int(value)
+    except ValueError:
+        pass
+    run.log(dict(key=value))
 
 
 def finish():
-    pass
+    runid = find_run()
+    run = wandb.attach(runid)
+    run.finish()
