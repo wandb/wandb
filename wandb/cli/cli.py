@@ -1161,7 +1161,6 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
-@display_error
 def launch_agent(
     ctx, project=None, entity=None, queues=None, max_jobs=None, config=None
 ):
