@@ -271,12 +271,13 @@ class LaunchAgent:
 
         for q in run_queues:
             config = q["config"]
-            if config is None:
-                valid_queues.append(q)
-                continue
-            else:
+            if config is not None:
                 config = json.loads(config)
                 q["config"] = config
+            # if there's not rules on the queue config, valid by default
+            if not config:
+                valid_queues.append(q)
+                continue
             runner = next(iter(config))
             if runner in self._configured_runners:
                 valid = runner_dispatch[runner]
@@ -359,22 +360,13 @@ class LaunchAgent:
         except Exception:
             self.finish_job_id(job_id)
 
-    def _validate_and_fix_spec_project_entity(
-        self, launch_spec: Dict[str, Any]
-    ) -> None:
-        """Checks if launch spec target project/entity differs from agent. Forces these values to agent's if they are set."""
+    def _validate_and_fix_spec_entity(self, launch_spec: Dict[str, Any]) -> None:
+        """Checks if launch spec target entity differs from agent. Forces these values to agent's if they are set."""
         if (
-            launch_spec.get("project") is not None
-            and launch_spec.get("project") != self._project
-        ) or (
             launch_spec.get("entity") is not None
             and launch_spec.get("entity") != self._entity
         ):
-            wandb.termwarn(
-                f"Launch agents only support sending runs to their own project and entity. This run will be sent to {self._entity}/{self._project}"
-            )
             launch_spec["entity"] = self._entity
-            launch_spec["project"] = self._project
 
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
