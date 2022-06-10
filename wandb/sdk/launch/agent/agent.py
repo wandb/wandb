@@ -464,11 +464,6 @@ class LaunchAgent:
                         except Exception as e:
                             wandb.termerror(f"Error running job: {e}")
                             self._api.ack_run_queue_item(job["runQueueItemId"])
-
-                            import traceback
-
-                            traceback.print_exc()
-
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:
