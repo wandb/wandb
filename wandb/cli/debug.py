@@ -240,3 +240,39 @@ def install_subcommands(base):
     dbg_run_thread_show.add_command(dbg_thread_stack, name="stack")
 
     dbg_thread_node.add_command(dbg_run_thread_show, name="show")
+
+
+from wandb.sdk.lib import filesystem
+
+def init(name):
+    manager = get_manager()
+    if not manager:
+        print("ERROR: Must run inside wandb-service shell")
+        exit(1)
+    from wandb import util
+    from wandb import Settings
+    from wandb.sdk.wandb_settings import Source
+    from wandb import setup
+    settings = Settings()
+    runid = util.generate_id()
+    base_settings = setup()
+    settings = base_settings.settings.copy()
+    settings._apply_init(dict(id=runid))
+    settings._set_run_start_time(source=Source.INIT)
+
+    # self._log_setup(settings)
+    filesystem._safe_makedirs(os.path.dirname(settings.log_user))
+    filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
+    filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
+    filesystem._safe_makedirs(settings.files_dir)
+    filesystem._safe_makedirs(settings._tmp_code_dir)
+
+    got = manager._inform_init(settings=settings, run_id=runid)
+
+
+def log(key, value):
+    pass
+
+
+def finish():
+    pass

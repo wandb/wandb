@@ -43,6 +43,8 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
+from . import debug as debug_cli
+
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
@@ -403,7 +405,7 @@ def service(
 @click.pass_context
 @click.option("--name", help="The project to use.")
 def init(ctx, name):
-    pass
+    debug_cli.init(name)
 
 
 @cli.command(context_settings=CONTEXT)
@@ -411,13 +413,13 @@ def init(ctx, name):
 @click.option("--key", help="key")
 @click.option("--value", help="value")
 def log(ctx, key, value):
-    pass
+    debug_cli.log(key, value)
 
 
 @cli.command(context_settings=CONTEXT)
 @click.pass_context
 def finish(ctx):
-    pass
+    debug_cli.finish()
 
 
 @cli.command(
@@ -2229,5 +2231,4 @@ def debug():
     pass
 
 
-from . import debug as debug_cli
 debug_cli.install_subcommands(debug)
