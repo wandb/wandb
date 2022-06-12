@@ -142,6 +142,10 @@ class Config:
             return True
         return False
 
+    def _check_locked_recursive(self, d, ignore_locked=False):
+        # for k, v in d.items():
+        pass
+
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
@@ -167,7 +171,7 @@ class Config:
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
-        locked_keys = set()
+        locked_keys = dict()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
                 locked_keys.add(key)
@@ -208,9 +212,16 @@ class Config:
         num = self._users[user]
 
         for k, v in d.items():
-            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
-            self._locked[k] = num
-            self._items[k] = v
+            if isinstance(v, dict):
+                locked_dict, value_dict = self.update_locked_recursive(
+                    v, user, _allow_val_change
+                )
+                self._items[k] = value_dict
+                self._locked[k] = locked_dict
+            else:
+                k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
+                self._locked[k] = num
+                self._items[k] = v
 
         if self._callback:
             self._callback(data=d)
