@@ -246,6 +246,8 @@ class Config:
             or isinstance(val, wandb.apis.public.Artifact)
         ):
             val = json_friendly_val(val)
+        elif isinstance(val, wandb.sdk.data_types.base_types.media.Media):
+            raise ValueError("Media objects are not allowed in the config.")
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(

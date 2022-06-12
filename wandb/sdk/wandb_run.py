@@ -959,6 +959,7 @@ class Run:
             An `Artifact` object if code was logged
         """
         name = name or f"source_{self._run_obj.project}_{self._settings.program}"
+        print("NAME", name)
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -2000,7 +2001,7 @@ class Run:
         """Create a job from a repo"""
         import pkg_resources
 
-        name = f"{self._remote_url}_{self._settings.program}"
+        name = f"job_{self._remote_url}_{self._settings.program}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
         output_types = summary_to_types(self.summary)
@@ -2039,7 +2040,7 @@ class Run:
 
         ca = self._code_artifact.wait()
         aname, tag = ca.name.split(":")
-        name = f"{aname}_{self._settings.program}"
+        name = f"job_{aname}"
         job_artifact = wandb.Artifact(name, type="job")
         input_types = config_to_types(self.config)
         print("inp", input_types)
@@ -2051,7 +2052,6 @@ class Run:
         )
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
-        print(aname)
         source_info = {
             "source_type": "artifact",
             "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}:{tag}",
@@ -2085,28 +2085,10 @@ class Run:
         if os.path.exists(requirements_path):
             job_artifact.add_file(requirements_path)
 
-        backup = None
-        if self._remote_url and self._last_commit:
-            backup = {
-                "source_type": "repo",
-                "repo": self._remote_url,
-                "commit": self._last_commit,
-                "entrypoint": [sys.executable, self._settings.program_relpath],
-            }
-        elif self._code_artifact:
-            ca = self._code_artifact.wait()
-            aname = ca.name.split(":")[0]
-            backup = {
-                "source_type": "artifact",
-                "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}",
-                "entrypoint": [sys.executable, self._settings.program_relpath],
-            }
-
         source_info = {
             "source_type": "docker",
             "docker": os.getenv("WANDB_DOCKER"),
             "entrypoint": self._settings.program_relpath,
-            "backup": backup,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
