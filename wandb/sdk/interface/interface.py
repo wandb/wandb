@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.data_types.base_types.media import Media
 from wandb.util import (
     get_h5_typename,
     json_dumps_safer,
@@ -156,7 +157,15 @@ class InterfaceBase:
             for k, v in data.items():
                 update = config.update.add()
                 update.key = k
-                update.value_json = json_dumps_safer(json_friendly(v)[0])
+                if isinstance(v, Media) and self._run is not None:
+                    if not v._run:
+                        # TODO: should we do thi? or should we just call a
+                        # reduced version of to_json that saves a minimal
+                        # json blob describing the media?
+                        v.bind_to_run(self._run, f"config.{k}", 0)
+                    update.value_json = json_dumps_safer(v.to_json(self._run))
+                else:
+                    update.value_json = json_dumps_safer(json_friendly(v)[0])
         if key:
             update = config.update.add()
             if isinstance(key, tuple):
