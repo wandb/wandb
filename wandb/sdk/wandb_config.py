@@ -5,17 +5,14 @@ config.
 import logging
 
 import wandb
-
 from wandb.util import (
     _is_artifact,
     _is_artifact_string,
-    _is_artifact_dict,
     check_dict_contains_nested_artifact,
     json_friendly_val,
 )
 
 from . import wandb_helper
-from .data_types.base_types.media import Media
 from .lib import config_util
 
 
@@ -142,10 +139,6 @@ class Config:
             return True
         return False
 
-    def _check_locked_recursive(self, d, ignore_locked=False):
-        # for k, v in d.items():
-        pass
-
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
@@ -171,11 +164,11 @@ class Config:
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
-        locked_keys = dict()
+        locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
                 locked_keys.add(key)
-        sanitized = self._sanitize_dict_recursive(
+        sanitized = self._sanitize_dict(
             parsed_dict, allow_val_change, ignore_keys=locked_keys
         )
         self._items.update(sanitized)
@@ -198,7 +191,7 @@ class Config:
         d = wandb_helper.parse_config(d)
         # strip out keys already configured
         d = {k: v for k, v in d.items() if k not in self._items}
-        d = self._sanitize_dict_recursive(d)
+        d = self._sanitize_dict(d)
         self._items.update(d)
         if self._callback:
             self._callback(data=d)
@@ -212,16 +205,9 @@ class Config:
         num = self._users[user]
 
         for k, v in d.items():
-            if isinstance(v, dict):
-                locked_dict, value_dict = self.update_locked_recursive(
-                    v, user, _allow_val_change
-                )
-                self._items[k] = value_dict
-                self._locked[k] = locked_dict
-            else:
-                k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
-                self._locked[k] = num
-                self._items[k] = v
+            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
+            self._locked[k] = num
+            self._items[k] = v
 
         if self._callback:
             self._callback(data=d)
@@ -252,14 +238,12 @@ class Config:
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        if _is_artifact_string(val) or _is_artifact(val) or _is_artifact_dict(val):
+        if _is_artifact_string(val) or _is_artifact(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
-        # TODO: support nested media/artifacts
         if not (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
-            or isinstance(val, Media)
         ):
             val = json_friendly_val(val)
         if not allow_val_change:
@@ -273,24 +257,6 @@ class Config:
                     ).format(key, self._items[key], val)
                 )
         return key, val
-
-    def _sanitize_dict_recursive(
-        self, config_dict, allow_val_change=None, ignore_keys: dict = None
-    ):
-        sanitized = {}
-        self._raise_value_error_on_nested_artifact(config_dict)
-        for k, v in config_dict.items():
-            if ignore_keys and k in ignore_keys:
-                continue
-            if isinstance(v, dict):
-                k, v = self._sanitize_dict_recursive(
-                    v, allow_val_change, ignore_keys.get(k)
-                )
-                sanitized[k] = v
-            else:
-                k, v = self._sanitize(k, v, allow_val_change)
-            sanitized[k] = v
-        return sanitized
 
     def _raise_value_error_on_nested_artifact(self, v, nested=False):
         # we can't swap nested artifacts because their root key can be locked by other values
