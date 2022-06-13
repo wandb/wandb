@@ -378,6 +378,7 @@ def test_aws_get_region_file_success(runner, monkeypatch):
         launch_project = _project_spec.LaunchProject(
             "https://wandb.ai/mock_server_entity/test/runs/1",
             None,
+            None,
             {},
             "test",
             "test",
@@ -403,6 +404,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
     with runner.isolated_filesystem():
         launch_project = _project_spec.LaunchProject(
             "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
             None,
             {},
             "test",
@@ -430,6 +432,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
     with runner.isolated_filesystem():
         launch_project = _project_spec.LaunchProject(
             "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
             None,
             {},
             "test",

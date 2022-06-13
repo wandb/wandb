@@ -214,11 +214,11 @@ class LaunchAgent:
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
-                            # try:
-                            self.run_job(job)
-                            # except Exception as e:
-                            #    wandb.termerror(f"Error running job: {e}")
-                            # self._api.ack_run_queue_item(job["runQueueItemId"])
+                            try:
+                                self.run_job(job)
+                            except Exception as e:
+                                wandb.termerror(f"Error running job: {e}")
+                                self._api.ack_run_queue_item(job["runQueueItemId"])
                 for job_id in self.job_ids:
                     self._update_finished(job_id)
                 if self._ticks % 2 == 0:

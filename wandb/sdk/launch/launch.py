@@ -169,9 +169,9 @@ def _run(
 
 
 def run(
-    uri: Optional[str],
-    job: Optional[str],
     api: Api,
+    uri: Optional[str] = None,
+    job: Optional[str] = None,
     entry_point: Optional[List[str]] = None,
     version: Optional[str] = None,
     parameters: Optional[Dict[str, Any]] = None,

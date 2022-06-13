@@ -2029,8 +2029,7 @@ class Run:
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
     ) -> "Artifact":
-        """Create a job version artifact from a repo"""
-
+        """Create a job version artifact from a repo."""
         name = wandb.util.make_artifact_name_safe(
             f"job_{self._remote_url}_{self._settings.program}"
         )
@@ -2065,15 +2064,17 @@ class Run:
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
     ) -> "Artifact":
-        """Create a job version artifact from a repo"""
         assert self._code_artifact is not None
         assert self._run_obj is not None
+
         ca = self._code_artifact.wait()
         aname, tag = ca.name.split(":")
         name = f"job_{aname}"
         job_artifact = wandb.Artifact(name, type="job")
+
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
+
         source_info = {
             "_version": "v0",
             "source_type": "artifact",
@@ -2089,13 +2090,12 @@ class Run:
             f.write(json.dumps(source_info))
 
         artifact = self.log_artifact(job_artifact)
-
         return artifact
 
     def _create_container_job(
         self, input_types: Dict[str, Any], output_types: Dict[str, Any]
     ) -> "Artifact":
-        name = os.getenv("WANDB_DOCKER")
+        name = f"job_{os.getenv('WANDB_DOCKER')}"
         job_artifact = wandb.Artifact(name, type="job")
 
         source_info = {

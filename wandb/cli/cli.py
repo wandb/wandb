@@ -1112,9 +1112,9 @@ def launch(
         # direct launch
         try:
             wandb_launch.run(
+                api,
                 uri,
                 job,
-                api,
                 entry_point,
                 git_version,
                 project=project,

@@ -333,7 +333,7 @@ def test_launch_resource_args(
 
 def test_launch_add_base(live_mock_server):
     queuedJob = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
-    assert queuedJob._run_queue_item_id == "1"
+    assert queuedJob.run_queue_item_id == "1"
 
 
 @pytest.mark.skipif(
@@ -881,8 +881,8 @@ def test_launch_notebook(
         default_settings=test_settings, load_settings=False
     )
     run = launch.run(
-        "https://wandb.ai/mock_server_entity/test/runs/jupyter1",
-        api,
+        api=api,
+        uri="https://wandb.ai/mock_server_entity/test/runs/jupyter1",
         project="new-test",
     )
     assert str(run.get_status()) == "finished"
@@ -899,8 +899,8 @@ def test_launch_full_build_new_image(
     )
     random_id = util.generate_id()
     run = launch.run(
-        "https://wandb.ai/mock_server_entity/test/runs/1",
-        api,
+        api=api,
+        uri="https://wandb.ai/mock_server_entity/test/runs/1",
         project=f"new-test-{random_id}",
     )
     assert str(run.get_status()) == "finished"
@@ -919,8 +919,8 @@ def test_launch_no_server_info(
     )
     try:
         launch.run(
-            "https://wandb.ai/mock_server_entity/test/runs/1",
-            api,
+            api=api,
+            uri="https://wandb.ai/mock_server_entity/test/runs/1",
             project="new-test",
         )
     except wandb.errors.LaunchError as e:
@@ -942,8 +942,8 @@ def test_launch_metadata(
     api.download_file = mock_file_download_request
 
     run = launch.run(
-        "https://wandb.ai/mock_server_entity/test/runs/1",
-        api,
+        api=api,
+        uri="https://wandb.ai/mock_server_entity/test/runs/1",
         project="test-another-new-project",
     )
     assert str(run.get_status()) == "finished"
@@ -1083,15 +1083,6 @@ def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
     runner, live_mock_server, test_settings, monkeypatch
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
-    arti = {
-        "name": "test:v0",
-        "project": "test",
-        "entity": "test",
-        "_version": "v0",
-        "_type": "artifactVersion",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
-    }
-    # artifacts_env_var = json.dumps({"old_name:v0": arti})
     config_env_var = json.dumps(
         {"epochs": 10, "art": "wandb-artifact://mock_server_entity/test/old_name:v0"}
     )
@@ -1100,7 +1091,6 @@ def test_run_in_launch_context_with_artifact_string_no_used_as_env_var(
         monkeypatch.setenv("WANDB_CONFIG", config_env_var)
         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        # arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
@@ -1288,6 +1278,7 @@ def test_launch_entrypoint(test_settings):
     )
     launch_project = _project_spec.LaunchProject(
         "https://wandb.ai/mock_server_entity/test/runs/1",
+        None,
         api,
         {},
         "live_mock_server_entity",
@@ -1315,8 +1306,8 @@ def test_launch_shell_script(
         default_settings=test_settings, load_settings=False
     )
     run = launch.run(
-        "https://wandb.ai/mock_server_entity/test/runs/shell1",
-        api,
+        api=api,
+        uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
         project="new-test",
     )
     assert str(run.get_status()) == "finished"
@@ -1334,8 +1325,8 @@ def test_launch_unknown_entrypoint(
     )
     with pytest.raises(LaunchError) as e_info:
         launch.run(
-            "https://wandb.ai/mock_server_entity/test/runs/shell1",
-            api,
+            api=api,
+            uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
             project="new-test",
         )
     assert "Unsupported entrypoint:" in str(e_info.value)
