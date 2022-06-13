@@ -23,6 +23,7 @@ data = np.random.randint(255, size=(1000))
 
 
 def test_wb_value(live_mock_server, test_settings):
+
     run = wandb.init(settings=test_settings)
     local_art = wandb.Artifact("N", "T")
     public_art = run.use_artifact("N:latest")
@@ -62,6 +63,7 @@ def test_wb_value(live_mock_server, test_settings):
 def test_log_dataframe(live_mock_server, test_settings):
     import pandas as pd
 
+    test_settings.update({"disable_job_creation": True})
     run = wandb.init(settings=test_settings)
     cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
     run.log({"results_df": cv_results})

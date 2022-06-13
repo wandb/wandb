@@ -2120,7 +2120,7 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.stop()
-        if self._has_job_reqs():
+        if self._has_job_reqs() and not self._settings._offline and not self._settings.disable_job_creation:
             self._create_job()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
