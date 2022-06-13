@@ -80,7 +80,6 @@ class TypeRegistry:
 
     @staticmethod
     def type_from_dtype(dtype: ConvertableToType) -> "Type":
-        print("Called type from dtype", dtype)
         # The dtype is already an instance of Type
         if isinstance(dtype, Type):
             wbtype: Type = dtype
@@ -866,9 +865,10 @@ class TypedDictType(Type):
 
 def config_to_types(config):
     """Recursively traverses dictionary converting all values to wandb types."""
+
+    return TypeRegistry.type_of(config.as_dict())
     type_dict = {}
     for k, v in config.items():
-        print("K< V", k, v)
         if isinstance(v, dict):
             if k.startswith("_"):
                 continue
@@ -880,6 +880,7 @@ def config_to_types(config):
             type_dict[k] = [str(TypeRegistry.type_of(x)) for x in v]
         else:
             type_dict[k] = str(TypeRegistry.type_of(v))
+    print("TYPE OF INPUT CONFIG", type_dict, type(type_dict))
     return type_dict
 
 

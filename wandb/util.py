@@ -1711,3 +1711,8 @@ def dict_to_types(d: Dict[str, Any]) -> Dict[str, Any]:
         elif isinstance(v, wandb.types.WandbType):
             type_dict[k] = v
     pass
+
+
+def make_artifact_name_safe(name: str) -> str:
+    """Make an artifact name safe for use in artifacts"""
+    return re.sub(r"[^a-zA-Z0-9_\-.]", "", name)

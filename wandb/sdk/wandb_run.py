@@ -936,7 +936,7 @@ class Run:
         Arguments:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
             name: (str, optional) The name of our code artifact. By default, we'll name
-                the artifact `source-$RUN_ID`. There may be scenarios where you want
+                the artifact `source-$PROJECT_ID-$ENTRYPOINT`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
@@ -958,7 +958,12 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name or f"source_{self._run_obj.project}_{self._settings.program}"
+        name = name
+        if name is None:
+            name_string = wandb.util.make_artifact_name_safe(
+                f"{self._run_obj.project}-{self.settings.program}"
+            )
+            name = f"source-{name_string}"
         print("NAME", name)
         art = wandb.Artifact(name, "code")
         files_added = False
@@ -1984,37 +1989,46 @@ class Run:
     def _create_job(self) -> None:
         artifact = None
         has_repo = self._remote_url is not None and self._last_commit is not None
+        input_types = TypeRegistry.type_of(self.config.as_dict())
+        output_types = TypeRegistry.type_of(self.summary._as_dict())
+
+        import pkg_resources
+
+        installed_packages = [d for d in iter(pkg_resources.working_set)]
+        installed_packages_list = sorted(
+            f"{i.key}=={i.version}" for i in installed_packages
+        )
         if has_repo:
-            artifact = self._create_repo_job()
+            artifact = self._create_repo_job(
+                input_types, output_types, installed_packages_list
+            )
         elif self._code_artifact:
-            artifact = self._create_artifact_job()
+            artifact = self._create_artifact_job(
+                input_types, output_types, installed_packages_list
+            )
         elif os.environ.get("WANDB_DOCKER"):
-            artifact = self._create_container_job()
+            artifact = self._create_container_job(input_types, output_types)
 
         if artifact:
+            artifact.wait()
             metadata = artifact.metadata
             if not metadata:
                 artifact.metadata["config_defaults"] = self.config.as_dict()
                 artifact.save()
 
-    def _create_repo_job(self):
+    def _create_repo_job(self, input_types, output_types, installed_packages_list):
         """Create a job from a repo"""
-        import pkg_resources
 
-        name = f"job_{self._remote_url}_{self._settings.program}"
+        name = wandb.util.make_artifact_name_safe(
+            f"job_{self._remote_url}_{self._settings.program}"
+        )
         job_artifact = wandb.Artifact(name, type="job")
-        input_types = config_to_types(self.config)
-        output_types = summary_to_types(self.summary)
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
         if os.path.exists(patch_path):
             job_artifact.add_file(patch_path, "diff.patch")
-        installed_packages = [d for d in iter(pkg_resources.working_set)]
-        installed_packages_list = sorted(
-            f"{i.key}=={i.version}" for i in installed_packages
-        )
-        with job_artifact.new_file("requirements.frozen.txt") as f:
-            f.write("\n".join(installed_packages_list))
+
         source_info = {
+            "_version": "v0",
             "source_type": "repo",
             "repo": self._remote_url,
             "commit": self._last_commit,
@@ -2022,19 +2036,18 @@ class Run:
                 sys.executable.split("/")[-1],
                 self._settings.program_relpath,
             ],
+            "input_types": input_types,
+            "output_types": output_types,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
 
-        with job_artifact.new_file("input_types.json") as f:
-            f.write(json.dumps(input_types))
+        artifact = self.log_artifact(job_artifact)
+        return artifact
 
-        with job_artifact.new_file("output_types.json") as f:
-            f.write(json.dumps(output_types))
-
-        self.log_artifact(job_artifact)
-
-    def _create_artifact_job(self) -> None:
+    def _create_artifact_job(
+        self, input_types, output_types, installed_packages_list
+    ) -> None:
         """Create a job from an artifact"""
         import pkg_resources
 
@@ -2042,10 +2055,7 @@ class Run:
         aname, tag = ca.name.split(":")
         name = f"job_{aname}"
         job_artifact = wandb.Artifact(name, type="job")
-        input_types = config_to_types(self.config)
-        print("inp", input_types)
-        output_types = summary_to_types(self.summary)
-        print("OUT", output_types)
+
         installed_packages = [d for d in iter(pkg_resources.working_set)]
         installed_packages_list = sorted(
             f"{i.key}=={i.version}" for i in installed_packages
@@ -2053,53 +2063,40 @@ class Run:
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         source_info = {
+            "_version": "v0",
             "source_type": "artifact",
             "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}:{tag}",
             "entrypoint": [
                 sys.executable.split("/")[-1],
                 self._settings.program_relpath,
             ],
+            "input_types": input_types.to_json(),
+            # "output_types": output_types.to_json(),
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
 
-        with job_artifact.new_file("input_types.json") as f:
-            f.write(json.dumps(input_types))
-
-        with job_artifact.new_file("output_types.json") as f:
-            f.write(json.dumps(output_types))
-        print(job_artifact.name)
         artifact = self.log_artifact(job_artifact)
-        artifact.wait()
 
         return artifact
 
-    def _create_container_job(self) -> None:
+    def _create_container_job(self, input_types, output_types) -> None:
         name = os.getenv("WANDB_DOCKER")
         job_artifact = wandb.Artifact(name, type="job")
-        input_types = config_to_types(self.config)
-        output_types = summary_to_types(self.summary)
-        requirements_path = os.path.join(
-            self._settings.files_dir, "requirements.frozen.txt"
-        )
-        if os.path.exists(requirements_path):
-            job_artifact.add_file(requirements_path)
 
         source_info = {
+            "_version": "v0",
             "source_type": "docker",
             "docker": os.getenv("WANDB_DOCKER"),
             "entrypoint": self._settings.program_relpath,
+            "input_types": input_types,
+            "output_types": output_types,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
 
-        with job_artifact.new_file("input_types.json") as f:
-            f.write(json.dumps(input_types))
-
-        with job_artifact.new_file("output_types.json") as f:
-            f.write(json.dumps(output_types))
-
-        self.log_artifact(job_artifact)
+        artifact = self.log_artifact(job_artifact)
+        return artifact
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")

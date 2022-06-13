@@ -805,29 +805,6 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch a job.")
         return Job(self, name, path)
-        entity, project, job_name = self._parse_artifact_path(name)
-        job_artifact = self.artifact(name, type="job")
-        fpath = job_artifact.download(root=path)
-        input_types = None
-        output_types = None
-        config_defaults = None
-        with open(os.path.join(fpath, "input_types.json"), "r") as f:
-            config = json.load(f)
-            input_types = config.get("type")
-        with open(os.path.join(fpath, "source_info.json")) as f:
-            source_info = json.load(f)
-        with open(os.path.join(fpath, "output_types.json")) as f:
-            output_types = json.load(f)
-        config_defaults = job_artifact.metadata.get("config_defaults")
-        if source_info.get("source_type") == "artifact":
-            # TODO: use job constructor
-            return Job(
-                name,
-                job_artifact,
-                input_types,
-                config_defaults,
-                output_types,
-            )
 
 
 class Attrs:
@@ -4939,8 +4916,12 @@ class Job(Media):
             self._source_info = json.load(f)
         self._entrypoint = self._source_info.get("entrypoint")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
-        with open(os.path.join(self._fpath, "input_types.json")) as f:
-            self._input_types = json.load(f)
+        print(self._source_info.get("input_types"))
+        self._input_types = wandb.sdk.data_types._dtypes.TypeRegistry.type_from_dict(
+            self._source_info.get("input_types")
+        )
+        # TODO: remove?
+        self._output_types = self._source_info.get("output_types")
 
         if self._source_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
@@ -4962,7 +4943,6 @@ class Job(Media):
         print(os.listdir(self._fpath))
         shutil.copy(frozen_requirements_path, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
-        # TODO: handle args??
 
     def _configure_launch_project_repo(self, launch_project):
         _fetch_git_repo(
@@ -4977,7 +4957,6 @@ class Job(Media):
         frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
         shutil.copy(frozen_requirements_path, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
-        # TODO: handle args??
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("image")
@@ -4993,25 +4972,14 @@ class Job(Media):
         self._entrypoint = entrypoint
 
     def call(self, config, project=None, entity=None, queue=None, resource="local"):
-        print("Called cal;")
         from wandb.sdk.launch import launch_add
 
         run_config = self._config_defaults().copy()
 
         run_config.update(config)
-        # assigned_config_type = self._input_types.assign(run_config)
-        # # TODO: also be helpful and check if the user passed additional
-        # #     keys that are not part of the run config. The type system
-        # #     will allow this. But its probably a typo on the user's part.
-        # if isinstance(assigned_config_type, InvalidType):
-        #     # TODO: This message prints all the dict keys, which can be
-        #     #     a lot, even though the user probably only provided a subset
-        #     #     since they're overriding defaults. Make the message more
-        #     #     specific to the subset the user provided
-        #     # TODO: Improve message: The message looks like a type error, but
-        #     #     we should say something like "Invalid arguments passed to
-        #     #     to job..."
-        #     raise TypeError(self._input_types.explain(run_config))
+        assigned_config_type = self._input_types.assign(run_config)
+        if isinstance(assigned_config_type, InvalidType):
+            raise TypeError(self._input_types.explain(run_config))
 
         queued_job = launch_add.launch_add(
             job=self._name,
