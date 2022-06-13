@@ -75,7 +75,7 @@ def default_ctx():
         "runs": {},
         "run_ids": [],
         "file_names": [],
-        "emulate_artifacts": None,
+        "emulate_artifacts": True,
         "emulate_azure": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
@@ -1084,6 +1084,10 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation updateArtifact" in body["query"]:
+            id = body["variables"]["artifactID"]
+            ctx.get("artifacts_by_id")[id] = body["variables"]
+            return {"data": {"updateArtifact": {"artifact": id}}}
         if "mutation DeleteArtifact(" in body["query"]:
             id = body["variables"]["artifactID"]
             delete_aliases = body["variables"]["deleteAliases"]
