@@ -792,7 +792,6 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        print("ARTIFACT NAME", artifact_name)
         artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
             raise ValueError(

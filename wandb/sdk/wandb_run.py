@@ -1989,8 +1989,8 @@ class Run:
     def _create_job(self) -> None:
         artifact = None
         has_repo = self._remote_url is not None and self._last_commit is not None
-        input_types = TypeRegistry.type_of(self.config.as_dict())
-        output_types = TypeRegistry.type_of(self.summary._as_dict())
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
 
         import pkg_resources
 
@@ -2025,6 +2025,8 @@ class Run:
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
         if os.path.exists(patch_path):
             job_artifact.add_file(patch_path, "diff.patch")
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
 
         source_info = {
             "_version": "v0",
@@ -2069,8 +2071,8 @@ class Run:
                 sys.executable.split("/")[-1],
                 self._settings.program_relpath,
             ],
-            "input_types": input_types.to_json(),
-            "output_types": output_types.to_json(),
+            "input_types": input_types,
+            "output_types": output_types,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
