@@ -70,7 +70,6 @@ class TypeRegistry:
     def type_from_dict(
         json_dict: t.Dict[str, t.Any], artifact: t.Optional["DownloadedArtifact"] = None
     ) -> "Type":
-        print("calling type from dict on", json_dict, artifact)
         wb_type = json_dict.get("wb_type")
         if wb_type is None:
             TypeError("json_dict must contain `wb_type` key")
@@ -206,9 +205,8 @@ class Type:
         Returns:
             Type: an instance of a subclass of the Type class.
         """
-        print("Called assign", py_obj)
+        # TODO: generalize this to handle other config input types
         if _is_artifact_representation(py_obj):
-            print(TypeRegistry.types_by_class())
             return self.assign_type(PythonObjectType("Artifact"))
         return self.assign_type(TypeRegistry.type_of(py_obj))
 
