@@ -75,7 +75,7 @@ def default_ctx():
         "runs": {},
         "run_ids": [],
         "file_names": [],
-        "emulate_artifacts": True,
+        "emulate_artifacts": None,
         "emulate_azure": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,

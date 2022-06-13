@@ -420,3 +420,7 @@ def test_launch_agent_launch_error_continue(
         )
         assert "blah blah" in result.output
         assert "except caught, acked item" in result.output
+
+
+def test_launch_job():
+    pass

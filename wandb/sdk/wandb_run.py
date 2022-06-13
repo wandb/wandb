@@ -29,7 +29,6 @@ from typing import (
     Union,
 )
 from typing import TYPE_CHECKING
-from xmlrpc.client import Boolean
 
 import requests
 import wandb
@@ -58,11 +57,12 @@ from wandb.viz import (
     CustomChart,
     Visualize,
 )
-from .data_types._dtypes import TypeRegistry
+
 from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
+from .data_types._dtypes import TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
@@ -447,7 +447,7 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
-        self._code_artifact = None
+        self._code_artifact: Optional["Artifact"] = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -959,9 +959,11 @@ class Run:
             An `Artifact` object if code was logged
         """
         name = name
+        if self._run_obj is None:
+            return None
         if name is None:
             name_string = wandb.util.make_artifact_name_safe(
-                f"{self._run_obj.project}-{self.settings.program}"
+                f"{self._run_obj.project}-{self._settings.program}"
             )
             name = f"source-{name_string}"
         print("NAME", name)
@@ -1151,9 +1153,10 @@ class Run:
             self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
-        self, key: str, val: Union[str, Artifact]
+        self, key: str, val: Union[str, Artifact, dict]
     ) -> Union[Artifact, public.Artifact]:
         if _is_artifact_dict(val):
+            assert isinstance(val, dict)
             public_api = self._public_api()
             artifact = public.Artifact.from_id(val["id"], public_api.client)
             return self.use_artifact(artifact, use_as=key)
@@ -1984,7 +1987,11 @@ class Run:
     def _has_job_reqs(self) -> bool:
         """Returns True if the run has job requirements."""
         has_repo = self._remote_url is not None and self._last_commit is not None
-        return has_repo or self._code_artifact or os.environ.get("WANDB_DOCKER")
+        return (
+            has_repo
+            or bool(self._code_artifact)
+            or os.environ.get("WANDB_DOCKER") is not None
+        )
 
     def _create_job(self) -> None:
         artifact = None
@@ -2016,8 +2023,14 @@ class Run:
                 artifact.metadata["config_defaults"] = self.config.as_dict()
                 artifact.save()
 
-    def _create_repo_job(self, input_types, output_types, installed_packages_list):
+    def _create_repo_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Artifact":
         """Create a job version artifact from a repo"""
+
         name = wandb.util.make_artifact_name_safe(
             f"job_{self._remote_url}_{self._settings.program}"
         )
@@ -2047,20 +2060,18 @@ class Run:
         return artifact
 
     def _create_artifact_job(
-        self, input_types, output_types, installed_packages_list
-    ) -> None:
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Artifact":
         """Create a job version artifact from a repo"""
-        import pkg_resources
-
+        assert self._code_artifact is not None
+        assert self._run_obj is not None
         ca = self._code_artifact.wait()
         aname, tag = ca.name.split(":")
         name = f"job_{aname}"
         job_artifact = wandb.Artifact(name, type="job")
-
-        installed_packages = [d for d in iter(pkg_resources.working_set)]
-        installed_packages_list = sorted(
-            f"{i.key}=={i.version}" for i in installed_packages
-        )
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         source_info = {
@@ -2081,7 +2092,9 @@ class Run:
 
         return artifact
 
-    def _create_container_job(self, input_types, output_types) -> None:
+    def _create_container_job(
+        self, input_types: Dict[str, Any], output_types: Dict[str, Any]
+    ) -> "Artifact":
         name = os.getenv("WANDB_DOCKER")
         job_artifact = wandb.Artifact(name, type="job")
 

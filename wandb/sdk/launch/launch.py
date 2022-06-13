@@ -95,6 +95,7 @@ def create_and_run_agent(
 
 def _run(
     uri: Optional[str],
+    job: Optional[str],
     name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
@@ -112,6 +113,7 @@ def _run(
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     launch_spec = construct_launch_spec(
         uri,
+        job,
         api,
         name,
         project,
@@ -168,6 +170,7 @@ def _run(
 
 def run(
     uri: Optional[str],
+    job: Optional[str],
     api: Api,
     entry_point: Optional[List[str]] = None,
     version: Optional[str] = None,
@@ -186,6 +189,7 @@ def run(
 
     Arguments:
     uri: URI of experiment to run. A wandb run uri or a Git repository URI.
+    job: string reference to a wandb.Job eg: wandb/test/my-job:latest
     api: An instance of a wandb Api from wandb.apis.internal.
     entry_point: Entry point to run within the project. Defaults to using the entry point used
         in the original run for wandb URIs, or main.py for git repository URIs.
@@ -233,6 +237,7 @@ def run(
 
     submitted_run_obj = _run(
         uri=uri,
+        job=job,
         name=name,
         project=project,
         entity=entity,

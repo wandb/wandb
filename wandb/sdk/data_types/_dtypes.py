@@ -3,7 +3,7 @@ import math
 import sys
 import typing as t
 
-from wandb.util import get_module, is_numpy_array, _is_artifact_representation
+from wandb.util import _is_artifact_representation, get_module, is_numpy_array
 
 np = get_module("numpy")  # intentionally not required
 

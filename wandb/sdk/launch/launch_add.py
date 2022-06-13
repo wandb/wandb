@@ -29,7 +29,7 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
-) -> "public.QueuedJob":
+) -> "public.QueuedRun":
     if uri is None and job is None:
         raise ValueError("Must specify either uri or job")
     api = Api()
@@ -98,7 +98,6 @@ def _launch_add(
         launch_config,
         cuda,
     )
-    print(launch_spec)
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:

@@ -57,6 +57,8 @@ class LaunchProject:
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
     ):
+        if uri is not None and job is not None:
+            raise LaunchError("Cannot specify both uri and job")
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
             _logger.info(f"Updating uri with base uri: {uri}")
@@ -107,18 +109,18 @@ class LaunchProject:
         elif self.job is not None:
             self.source = LaunchSource.JOB
             self.project_dir = tempfile.mkdtemp()
-        elif utils._is_wandb_uri(self.uri):
+        elif self.uri is not None and utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
-        elif utils._is_git_uri(self.uri):
+        elif self.uri is not None and utils._is_git_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         else:
             _logger.info(f"URI {self.uri} indicates a local uri")
             # assume local
-            if not os.path.exists(self.uri):
+            if self.uri is not None and not os.path.exists(self.uri):
                 raise LaunchError(
                     "Assumed URI supplied is a local path but path is not valid"
                 )
@@ -180,13 +182,7 @@ class LaunchProject:
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
 
-    def get_entry_point(self, entry_point: str) -> "EntryPoint":
-        """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
-        if entry_point in self._entry_points:
-            return self._entry_points[entry_point]
-        return self.add_entry_point(entry_point)
-
-    def _fetch_job(self, internal_api: Api):
+    def _fetch_job(self) -> None:
         public_api = PublicApi()
         job_dir = tempfile.mkdtemp()
         job = public_api.job(self.job, path=job_dir)
@@ -197,7 +193,7 @@ class LaunchProject:
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         # these asserts are all guaranteed to pass, but are required by mypy
-        assert self.source != LaunchSource.LOCAL
+        assert self.source != LaunchSource.LOCAL and self.source != LaunchSource.JOB
         assert isinstance(self.uri, str)
         assert self.project_dir is not None
         _logger.info("Fetching project locally...")
@@ -416,13 +412,14 @@ def fetch_and_validate_project(
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
-            wandb.termlog("Entry point for repo not specified, defaulting to main.py")
-            launch_project.add_entry_point("main.py")
+            wandb.termlog(
+                "Entry point for repo not specified, defaulting to `python main.py`"
+            )
+            launch_project.add_entry_point(["python", "main.py"])
     elif launch_project.source == LaunchSource.JOB:
-        launch_project._fetch_job(internal_api=api)
+        launch_project._fetch_job()
     else:
         launch_project._fetch_project_local(internal_api=api)
-    print(os.listdir(launch_project.project_dir))
     assert launch_project.project_dir is not None
     # this prioritizes pip, and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs

@@ -1650,6 +1650,7 @@ def _is_artifact_string(v: Any) -> bool:
 def _is_artifact_dict(v: Any) -> bool:
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
+
 def _is_artifact_representation(v: Any) -> bool:
     return _is_artifact(v) or _is_artifact_string(v) or _is_artifact_dict(v)
 

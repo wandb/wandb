@@ -15,7 +15,6 @@ import datetime
 from functools import partial
 import json
 import logging
-from multiprocessing.sharedctypes import Value
 import os
 import platform
 import re
@@ -34,9 +33,9 @@ from wandb.data_types import WBValue
 from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
-from wandb.sdk.interface import artifacts
 from wandb.sdk.data_types._dtypes import InvalidType, Type
 from wandb.sdk.data_types.base_types.media import Media
+from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb_gql import Client, gql
@@ -2295,7 +2294,7 @@ class QueuedRun(Attrs):
         if self._run is None:
             mutation = gql(
                 """
-                mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!) 
+                mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
                 {
                     deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
                         success
@@ -2579,7 +2578,7 @@ class QueuedRun(Attrs):
 
     def __repr__(self):
         if self._run is None:
-            return "<QueuedRun {} ({})".format(self.run_queue_item_id, self.queue)
+            return f"<QueuedRun {self.run_queue_item_id} ({self.queue})"
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 
