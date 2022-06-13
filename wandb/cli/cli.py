@@ -1214,7 +1214,7 @@ def agent(ctx, project, entity, count, sweep_id):
     #                'args': ['--max_epochs=10']})
 
 
-@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
+@cli.command(context_settings=CONTEXT, help="Run the W&B server sweep controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
 @click.argument("sweep_id")
 @display_error
