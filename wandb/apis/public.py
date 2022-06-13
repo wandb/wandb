@@ -4940,7 +4940,6 @@ class Job(Media):
             raise LaunchError("No code artifact found")
         code_artifact.download(launch_project.project_dir)
         frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
-        print(os.listdir(self._fpath))
         shutil.copy(frozen_requirements_path, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
 

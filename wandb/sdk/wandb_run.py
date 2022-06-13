@@ -2017,8 +2017,7 @@ class Run:
                 artifact.save()
 
     def _create_repo_job(self, input_types, output_types, installed_packages_list):
-        """Create a job from a repo"""
-
+        """Create a job version artifact from a repo"""
         name = wandb.util.make_artifact_name_safe(
             f"job_{self._remote_url}_{self._settings.program}"
         )
@@ -2048,7 +2047,7 @@ class Run:
     def _create_artifact_job(
         self, input_types, output_types, installed_packages_list
     ) -> None:
-        """Create a job from an artifact"""
+        """Create a job version artifact from a repo"""
         import pkg_resources
 
         ca = self._code_artifact.wait()
@@ -2071,7 +2070,7 @@ class Run:
                 self._settings.program_relpath,
             ],
             "input_types": input_types.to_json(),
-            # "output_types": output_types.to_json(),
+            "output_types": output_types.to_json(),
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))

@@ -17,7 +17,6 @@ from wandb.sdk.launch.builder.docker import DockerBuilder
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.utils import (
-    LAUNCH_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
