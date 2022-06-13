@@ -204,9 +204,13 @@ def image_id(image_name: str) -> Optional[str]:
     if "@sha256:" in image_name:
         return image_name
     else:
-        return shell(
-            ["inspect", image_name, "--format", "{{index .RepoDigests 0}}"]
-        ) or image_id_from_registry(image_name)
+        digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
+        try:
+            if digests is None:
+                raise ValueError()
+            return json.loads(digests)[0]
+        except (ValueError, IndexError):
+            return image_id_from_registry(image_name)
 
 def get_image_uid(image_name: str) -> int:
     """Retreve the image default uid through brute force"""
