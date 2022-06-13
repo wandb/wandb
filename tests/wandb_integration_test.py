@@ -63,7 +63,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         # Assert we've stored 2 runs worth of files
         # TODO: not confirming output.log because it is missing sometimes likely due to a BUG
         # TODO: code saving sometimes doesnt work?
-        files_sorted = sorted(
+        run_files_sorted = sorted(
             [
                 "config.yaml",
                 f"code/tests/logs/{test_name}/train.py",
@@ -72,9 +72,14 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
                 "wandb-summary.json",
             ]
         )
+        artifact_files_sorted = sorted(["wandb_manifest.json", "wandb_manifest.json"])
         for run, files in live_mock_server.get_ctx()["storage"].items():
-            num_runs += 1
             print("Files from server", files)
+            if run == "unknown":
+                target_files = artifact_files_sorted
+            else:
+                num_runs += 1
+                target_files = run_files_sorted
             assert (
                 sorted(
                     f
@@ -83,7 +88,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
                     and not f.endswith("pt.trace.json")
                     and f != "output.log"
                 )
-                == files_sorted
+                == target_files
             )
         assert num_runs == 2
 

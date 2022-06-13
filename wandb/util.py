@@ -1708,3 +1708,8 @@ def ensure_text(
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
     return re.sub(r"[^a-zA-Z0-9_\-.]", "", name)
+
+
+def has_main_file(path: str) -> bool:
+    """Check if a directory has a main.py file"""
+    return path != "<python with no main file>"

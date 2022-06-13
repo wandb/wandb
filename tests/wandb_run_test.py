@@ -150,12 +150,20 @@ def test_log_code_settings(live_mock_server, test_settings):
     run.finish()
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
-    assert artifact_name == "source-" + run.id
+    print(f"source-{run._project}-{run._settings.program}")
+    print(artifact_name)
+    assert artifact_name == wandb.util.make_artifact_name_safe(
+        f"source-{run._project}-{run._settings.program}"
+    )
 
 
 @pytest.mark.parametrize("save_code", [True, False])
 def test_log_code_env(live_mock_server, test_settings, save_code):
     # test for WB-7468
+
+    # disable job creation here, to test the code artifact creation specifically
+    test_settings.update({"disable_job_creation": True})
+
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
         with open("test.py", "w") as f:
             f.write('print("test")')
@@ -176,7 +184,9 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         ctx = live_mock_server.get_ctx()
         artifact_names = list(ctx["artifacts"].keys())
         if save_code:
-            assert artifact_names[0] == "source-" + run.id
+            assert artifact_names[0] == wandb.util.make_artifact_name_safe(
+                f"source-{run._project}-{run._settings.program}"
+            )
         else:
             assert len(artifact_names) == 0
 

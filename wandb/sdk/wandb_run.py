@@ -959,14 +959,12 @@ class Run:
             An `Artifact` object if code was logged
         """
         name = name
-        if self._run_obj is None:
-            return None
+
         if name is None:
             name_string = wandb.util.make_artifact_name_safe(
-                f"{self._run_obj.project}-{self._settings.program}"
+                f"{self._project}-{self._settings.program}"
             )
             name = f"source-{name_string}"
-        print("NAME", name)
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -1988,8 +1986,11 @@ class Run:
         """Returns True if the run has job requirements."""
         has_repo = self._remote_url is not None and self._last_commit is not None
         return (
-            has_repo
-            or bool(self._code_artifact)
+            (has_repo and wandb.util.has_main_file(self._settings.program))
+            or (
+                bool(self._code_artifact)
+                and wandb.util.has_main_file(self._settings.program)
+            )
             or os.environ.get("WANDB_DOCKER") is not None
         )
 
@@ -2120,7 +2121,11 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.stop()
-        if self._has_job_reqs() and not self._settings._offline and not self._settings.disable_job_creation:
+        if (
+            self._has_job_reqs()
+            and not self._settings._offline
+            and not self._settings.disable_job_creation
+        ):
             self._create_job()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
