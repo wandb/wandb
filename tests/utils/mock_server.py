@@ -1322,6 +1322,8 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 4, "name": "run_table"}
                 if "wb_validation_data" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                if "job" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 5, "name": "job"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
