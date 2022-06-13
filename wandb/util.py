@@ -756,8 +756,8 @@ class WandBJSONEncoder(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
         if hasattr(obj, "json_encode"):
             return obj.json_encode()
-        if hasattr(obj, "to_json"):
-            return obj.to_json(wandb.run)
+        # if hasattr(obj, "to_json"):
+        #     return obj.to_json()
         tmp_obj, converted = json_friendly(obj)
         if converted:
             return tmp_obj
@@ -1537,9 +1537,8 @@ def artifact_to_json(
 
     return {
         "_type": "artifactVersion",
-        "_version": "v1",
+        "_version": "v0",
         "id": artifact.id,
-        "digest": artifact.digest,
         "version": artifact.version,
         "sequenceName": sequence_name,
         "usedAs": artifact._use_as,
@@ -1695,22 +1694,6 @@ def ensure_text(
         return string
     else:
         raise TypeError(f"not expecting type '{type(string)}'")
-
-
-def dict_to_types(d: Dict[str, Any]) -> Dict[str, Any]:
-    """Recursively traverses dictionary converting all values to wandb types."""
-    type_dict = {}
-    for k, v in d.items():
-        if isinstance(v, dict):
-            if v.get("_type") is not None:
-                type_dict[k] = v["_type"]
-            else:
-                type_dict[k] = dict_to_types(v)
-        elif isinstance(v, list):
-            type_dict[k] = [dict_to_types(x) for x in v]
-        elif isinstance(v, wandb.types.WandbType):
-            type_dict[k] = v
-    pass
 
 
 def make_artifact_name_safe(name: str) -> str:

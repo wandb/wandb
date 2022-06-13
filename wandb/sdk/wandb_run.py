@@ -58,7 +58,7 @@ from wandb.viz import (
     CustomChart,
     Visualize,
 )
-from .data_types._dtypes import TypeRegistry, config_to_types, summary_to_types
+from .data_types._dtypes import TypeRegistry
 from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_metric

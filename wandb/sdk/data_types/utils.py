@@ -31,23 +31,6 @@ if TYPE_CHECKING:  # pragma: no cover
     ]
 
 
-def config_dict_to_json(
-    run: "Optional[LocalRun]",
-    payload: dict,
-) -> dict:
-    # Converts a Config row dict's elements so they're friendly for JSON serialization.
-
-    # We use list here because we were still seeing cases of RuntimeError dict changed size
-    for key in list(payload):
-        val = payload[key]
-        if isinstance(val, dict):
-            payload[key] = config_dict_to_json(run, val)
-        else:
-            payload[key] = val_to_json(run, key, val)
-
-    return payload
-
-
 def history_dict_to_json(
     run: "Optional[LocalRun]",
     payload: dict,
