@@ -1516,13 +1516,13 @@ def start(ctx, port, env, daemon, upgrade, edge):
     if daemon:
         if code != 0:
             wandb.termerror(
-                "Failed to launch the W&B local container, see the above error."
+                "Failed to launch the W&B server container, see the above error."
             )
             exit(1)
         else:
-            wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog("W&B server started at http://localhost:%s \U0001F680" % port)
             wandb.termlog(
-                "You can stop the server by running `docker stop wandb-local`"
+                "You can stop the server by running `wandb server stop`"
             )
             if not api.api_key:
                 # Let the server start before potentially launching a browser
