@@ -672,7 +672,7 @@ def sync(
     flag_value="default",
     default=None,
     help="Name of launch run queue to push sweep runs into. If supplied without "
-    'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
+    'an argument (`--queue`), defaults to classic sweep behavior. Else, if '
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
 @click.option(
@@ -877,10 +877,11 @@ def sweep(
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
         # know until it is created,so we use this placeholder
-        # and replace in UpsertSweep in the backend.
+        # and replace inside UpsertSweep in the backend (mutation.go)
         _sweep_id_placeholder = "WANDB_SWEEP_ID"
 
         # Launch job spec for the Scheduler
+        # TODO: Keep up to date with Launch Job Spec
         _launch_scheduler_spec = json.dumps(
             {
                 "queue": queue,
@@ -1277,17 +1278,17 @@ def launch_agent(
 def launch_scheduler(ctx, project, entity, sweep_id, queue):
     api = _get_cling_api()
     if api.api_key is None:
-        wandb.termlog("Login to W&B to use the sweep agent feature")
+        wandb.termlog("Login to W&B to use the W&B Launch Scheduler (Experimental)")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting a 🚀 Launch Scheduler ")
     from wandb.sdk.launch.sweeps import load_scheduler
 
-    _scheduler = load_scheduler(
+    scheduler = load_scheduler(
         "sweep", api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
     )
-    _scheduler.start()
+    scheduler.start()
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

@@ -1775,6 +1775,7 @@ class Api:
         }
         """
         )
+
         if agent_id is None:
             raise ValueError("Cannot call heartbeat with an unregistered agent.")
 
@@ -1883,7 +1884,7 @@ class Api:
                 controller: $controller,
                 launch_scheduler: $launch_scheduler,
                 scheduler: $scheduler,
-                state: $state,
+                state: $state
             }) {
                 sweep {
                     name
@@ -1929,6 +1930,7 @@ class Api:
 
         for mutation in mutations:
             try:
+                # import pdb; pdb.set_trace()
                 response = self.gql(
                     mutation,
                     variable_values={
