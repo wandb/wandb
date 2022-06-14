@@ -3,7 +3,7 @@ import random
 from typing import List
 
 from wandb.errors import LaunchError
-from wandb.sdk.launch.utils import diff_pip_requirements
+from wandb.sdk.launch.utils import diff_pip_requirements, parse_wandb_uri
 
 REQUIREMENT_FILE_BASIC: List[str] = [
     "package-one==1.0.0",
@@ -49,3 +49,7 @@ def test_diff_pip_requirements():
     # Github package should parse fine, but appear in diff
     diff = diff_pip_requirements(REQUIREMENT_FILE_BASIC, REQUIREMENT_FILE_GIT)
     assert len(diff) == 3
+
+def test_parse_wandb_uri_invalid_uri():
+    e, p, n = parse_wandb_uri("invalid_uri")
+    assert e is None and p is None and n is None, "Invalid URI should return Nones"

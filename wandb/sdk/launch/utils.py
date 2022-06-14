@@ -183,7 +183,11 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     stripped_uri = re.sub(
         _WANDB_QA_URI_REGEX, "", stripped_uri
     )  # also for testing just run it twice
-    entity, project, _, name = stripped_uri.split("/")[1:]
+    try:
+        entity, project, _, name = stripped_uri.split("/")[1:]
+    except ValueError as e:
+        _logger.warning(f"Trouble parsing wandb uri {uri}: {e}")
+        entity, project, name = None, None, None
     return entity, project, name
 
 
