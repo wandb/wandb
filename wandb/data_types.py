@@ -444,6 +444,7 @@ class Table(Media):
         return self._eq_debug(other)
 
     def add_row(self, *row):
+        """add_row is deprecated. Please use add_data"""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
@@ -1774,7 +1775,12 @@ class _ImageFileType(_dtypes.Type):
     types = [Image]
 
     def __init__(
-        self, box_layers=None, box_score_keys=None, mask_layers=None, class_map=None
+        self,
+        box_layers=None,
+        box_score_keys=None,
+        mask_layers=None,
+        class_map=None,
+        **kwargs,
     ):
         box_layers = box_layers or {}
         box_score_keys = box_score_keys or []

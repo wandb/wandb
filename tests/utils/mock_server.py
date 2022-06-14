@@ -1086,6 +1086,10 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation updateArtifact" in body["query"]:
+            id = body["variables"]["artifactID"]
+            ctx.get("artifacts_by_id")[id] = body["variables"]
+            return {"data": {"updateArtifact": {"artifact": id}}}
         if "mutation DeleteArtifact(" in body["query"]:
             id = body["variables"]["artifactID"]
             delete_aliases = body["variables"]["deleteAliases"]
@@ -1322,6 +1326,8 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 4, "name": "inference"}
                 if "wb_validation_data" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                if "job" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 5, "name": "job"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
@@ -1373,7 +1379,7 @@ def create_app(user_ctx=None):
                                             {
                                                 "node": {
                                                     "id": "test",
-                                                    "resultingRunId": "test",
+                                                    "associatedRunId": "test",
                                                 }
                                             }
                                         ]
@@ -1394,7 +1400,7 @@ def create_app(user_ctx=None):
                                             {
                                                 "node": {
                                                     "id": "test",
-                                                    "resultingRunId": None,
+                                                    "associatedRunId": None,
                                                 }
                                             }
                                         ]
@@ -1468,7 +1474,7 @@ def create_app(user_ctx=None):
             return {"data": {"deleteApiKey": {"success": True}}}
         if "mutation GenerateApiKey" in body["query"]:
             return {
-                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Z" * 40}}}
             }
         if "mutation DeleteInvite" in body["query"]:
             return {"data": {"deleteInvite": {"success": True}}}

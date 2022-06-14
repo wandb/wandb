@@ -24,7 +24,6 @@ import time
 from typing import Optional
 import urllib
 
-from dateutil.relativedelta import relativedelta
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -239,6 +238,15 @@ class Api:
             username
             email
             admin
+            apiKeys {
+                edges {
+                    node {
+                        id
+                        name
+                        description
+                    }
+                }
+            }
             teams {
                 edges {
                     node {
@@ -937,6 +945,14 @@ class User(Attrs):
     def __init__(self, client, attrs):
         super().__init__(attrs)
         self._client = client
+        self._user_api = None
+
+    @property
+    def user_api(self):
+        """An instance of the api using credentials from the user"""
+        if self._user_api is None and len(self.api_keys) > 0:
+            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        return self._user_api
 
     @classmethod
     def create(cls, api, email, admin=False):
@@ -994,10 +1010,13 @@ class User(Attrs):
             The new api key, or None on failure
         """
         try:
-            return self._client.execute(
+            # We must make this call using credentials from the original user
+            key = self.user_api.client.execute(
                 self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]["name"]
-        except requests.exceptions.HTTPError:
+            )["generateApiKey"]["apiKey"]
+            self._attrs["apiKeys"]["edges"].append({"node": key})
+            return key["name"]
+        except (requests.exceptions.HTTPError, AttributeError):
             return None
 
     def __repr__(self):
@@ -1467,7 +1486,7 @@ class QueuedJob(Attrs):
                                 node {
                                     id
                                     state
-                                    resultingRunId
+                                    associatedRunId
                                 }
                             }
                         }
@@ -1487,7 +1506,7 @@ class QueuedJob(Attrs):
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
                     item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["resultingRunId"] is not None
+                    and item["node"]["associatedRunId"] is not None
                 ):
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
@@ -1495,9 +1514,9 @@ class QueuedJob(Attrs):
                             self.client,
                             self._entity,
                             self.project,
-                            item["node"]["resultingRunId"],
+                            item["node"]["associatedRunId"],
                         )
-                        self._run_id = item["node"]["resultingRunId"]
+                        self._run_id = item["node"]["associatedRunId"]
                         return
                     except ValueError:
                         continue
@@ -3872,9 +3891,13 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            delta = relativedelta(datetime.datetime.now() - start_time)
+            now = datetime.datetime.now()
+            delta = abs((now - start_time).total_seconds())
+            hours = int(delta // 3600)
+            minutes = int((delta - hours * 3600) // 60)
+            seconds = delta - hours * 3600 - minutes * 60
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
+                f"Done. {hours}:{minutes}:{seconds:.1f}",
                 prefix=False,
             )
         return dirpath
