@@ -2015,12 +2015,10 @@ class Run:
                 input_types, output_types, installed_packages_list
             )
         elif os.environ.get("WANDB_DOCKER"):
-            print("MAKING DOCKER JOB")
             artifact = self._create_container_job(input_types, output_types)
 
         if artifact:
             artifact.wait()
-            print(artifact.name)
             metadata = artifact.metadata
             if not metadata:
                 artifact.metadata["config_defaults"] = self.config.as_dict()
