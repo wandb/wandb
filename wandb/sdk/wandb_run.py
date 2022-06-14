@@ -2020,6 +2020,7 @@ class Run:
 
         if artifact:
             artifact.wait()
+            print(artifact.name)
             metadata = artifact.metadata
             if not metadata:
                 artifact.metadata["config_defaults"] = self.config.as_dict()
@@ -2049,7 +2050,7 @@ class Run:
             "commit": self._last_commit,
             "entrypoint": [
                 sys.executable.split("/")[-1],
-                self._settings.program_relpath,
+                self._settings.program,
             ],
             "input_types": input_types,
             "output_types": output_types,

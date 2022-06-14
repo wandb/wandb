@@ -4901,7 +4901,9 @@ class Job(Media):
         self._input_types = TypeRegistry.type_from_dict(
             self._source_info.get("input_types")
         )
-        self._output_types = self._source_info.get("output_types")
+        self._output_types = TypeRegistry.type_from_dict(
+            self._source_info.get("output_types")
+        )
 
         if self._source_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)

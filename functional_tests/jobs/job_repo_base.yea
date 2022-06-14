@@ -1,0 +1,7 @@
+id: 1.jobs.repo-base
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:artifacts[job_gitgithub.comwandbclient.git_.scriptrepo_job_generator.py][type]: job

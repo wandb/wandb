@@ -69,7 +69,6 @@ class LaunchProject:
         self.target_entity = target_entity
         self.target_project = target_project.lower()
         self.name = name
-        self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
@@ -237,9 +236,7 @@ class LaunchProject:
                 self.project_dir,
             )
 
-            if downloaded_code_artifact:
-                self.build_image = True
-            elif not downloaded_code_artifact:
+            if not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise ExecutionError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
@@ -270,9 +267,6 @@ class LaunchProject:
                             f"Entrypoint file: {program_name} does not exist, "
                             "and could not be downloaded. Please specify the entrypoint for this run."
                         )
-                    # if the entrypoint is downloaded and inserted into the project dir
-                    # need to rebuild image with new code
-                    self.build_image = True
 
             if (
                 "_session_history.ipynb" in os.listdir(self.project_dir)

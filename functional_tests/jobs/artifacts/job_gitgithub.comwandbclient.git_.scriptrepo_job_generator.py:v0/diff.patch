@@ -1,0 +1,183 @@
+diff --git a/functional_tests/jobs/job_base.py b/functional_tests/jobs/job_base.py
+deleted file mode 100644
+index d0475e397..000000000
+--- a/functional_tests/jobs/job_base.py
++++ /dev/null
+@@ -1,22 +0,0 @@
+-import os
+-import subprocess
+-import wandb
+-import pytest
+-
+-cmd = ["python", "./script/job_generator.py"]
+-
+-subprocess.check_call(cmd)
+-
+-api = wandb.Api()
+-job = api.job("test-job/job_source-test-.scriptjob_generator.py:v0")
+-assert job._job_artifact is not None
+-assert job.name == "test-job/job_source-test-.scriptjob_generator.py:v0"
+-assert job._entrypoint == ["python", "train.py"]
+-assert job._input_types == wandb.sdk.data_types._dtypes.TypeRegistry.type_from_dict(
+-    {"foo": "bar", "lr": 0.1, "epochs": 5}
+-)
+-assert job._source_info["source_type"] == "artifact"
+-# manually insert defaults since mock server doesn't support metadata
+-job._job_artifact.metadata["config_defaults"] = {"epochs": 5, "lr": 0.1, "foo": "bar"}
+-with pytest.raises(TypeError):
+-    job.call(config={"batch_size": 64})
+diff --git a/functional_tests/jobs/job_base.yea b/functional_tests/jobs/job_base.yea
+deleted file mode 100644
+index 04d11db34..000000000
+--- a/functional_tests/jobs/job_base.yea
++++ /dev/null
+@@ -1,7 +0,0 @@
+-id: 0.jobs.artifact-base
+-plugin:
+-  - wandb
+-assert:
+-  - :wandb:runs_len: 1
+-  - :wandb:runs[0][exitcode]: 0
+-  - :wandb:artifacts[job_source-test-.scriptjob_generator.py][type]: job
+\ No newline at end of file
+diff --git a/functional_tests/jobs/script/job_generator.py b/functional_tests/jobs/script/job_generator.py
+deleted file mode 100644
+index 27654821e..000000000
+--- a/functional_tests/jobs/script/job_generator.py
++++ /dev/null
+@@ -1,10 +0,0 @@
+-import wandb
+-
+-settings = wandb.Settings()
+-settings.update({"disable_git": True})
+-run = wandb.init(
+-    project="test-job", config={"foo": "bar", "lr": 0.1, "epochs": 5}, settings=settings
+-)
+-for i in range(1, run.config["epochs"]):
+-    wandb.log({"loss": i})
+-    run.log_code()
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 84810c187..d55b1f0fc 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -23,6 +23,8 @@ import pytest
+ import requests
+ import webbrowser
+ 
++from wandb import PublicApi
++
+ from tests import utils
+ import wandb
+ from wandb import wandb_sdk
+@@ -951,3 +953,8 @@ def mock_tty(monkeypatch):
+ @pytest.fixture
+ def api(runner):
+     return Api()
++
++
++@pytest.fixture
++def job_artifact(mock_server):
++    artifact = wandb.api.public.Artifact()
+diff --git a/tests/test_public_api.py b/tests/test_public_api.py
+index eabe7940a..deb919a14 100644
+--- a/tests/test_public_api.py
++++ b/tests/test_public_api.py
+@@ -683,3 +683,7 @@ def test_direct_specification_of_api_key(mock_server, test_settings):
+     # test_settings has a different API key
+     api = wandb.PublicApi(api_key="abcd" * 10)
+     assert api.api_key == "abcd" * 10
++
++
++def test_queued_run(mock_server, test_settings):
++    pass
+diff --git a/tox.ini b/tox.ini
+index da600ce05..d53428f33 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -397,7 +397,7 @@ commands =
+ 
+ [testenv:func-s_{base,sklearn,metaflow,tf115,tf21,tf25,tf26,service,py310,docs,imports1,imports2,imports3,imports4,imports5,imports6,imports7,imports8,imports9,imports10,imports11,noml,grpc,kfp}-{py36,py37,py38,py39,py310}]
+ install_command = pip install --extra-index-url https://download.pytorch.org/whl/cpu {opts} {packages}
+-commands_pre =
++commands_pre = pip install -e /Users/kyle/newcli/yea-wandb
+ setenv =
+     {[base]setenv}
+     COVERAGE_FILE={envdir}/.coverage
+@@ -409,7 +409,7 @@ deps =
+     -r{toxinidir}/requirements.txt
+     func-s_{base,metaflow}-py{36,37,38,39,310}: -r{toxinidir}/requirements_dev.txt
+     pytest-mock
+-    yea-wandb=={env:YEA_WANDB_VERSION}
++    ; yea-wandb=={env:YEA_WANDB_VERSION}
+ extras =
+     func-s_service-py{36,37,38,39,310}: service
+     func-s_grpc-py{36,37,38,39,310}: grpc
+diff --git a/wandb/apis/public.py b/wandb/apis/public.py
+index 61702c0a2..8efd34a31 100644
+--- a/wandb/apis/public.py
++++ b/wandb/apis/public.py
+@@ -4901,7 +4901,9 @@ class Job(Media):
+         self._input_types = TypeRegistry.type_from_dict(
+             self._source_info.get("input_types")
+         )
+-        self._output_types = self._source_info.get("output_types")
++        self._output_types = TypeRegistry.type_from_dict(
++            self._source_info.get("output_types")
++        )
+ 
+         if self._source_info.get("source_type") == "artifact":
+             self._set_configure_launch_project(self._configure_launch_project_artifact)
+diff --git a/wandb/sdk/launch/_project_spec.py b/wandb/sdk/launch/_project_spec.py
+index 6a0e264ca..f35faf78d 100644
+--- a/wandb/sdk/launch/_project_spec.py
++++ b/wandb/sdk/launch/_project_spec.py
+@@ -69,7 +69,6 @@ class LaunchProject:
+         self.target_entity = target_entity
+         self.target_project = target_project.lower()
+         self.name = name
+-        self.build_image: bool = docker_config.get("build_image", False)
+         self.python_version: Optional[str] = docker_config.get("python_version")
+         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
+         self._base_image: Optional[str] = docker_config.get("base_image")
+@@ -237,9 +236,7 @@ class LaunchProject:
+                 self.project_dir,
+             )
+ 
+-            if downloaded_code_artifact:
+-                self.build_image = True
+-            elif not downloaded_code_artifact:
++            if not downloaded_code_artifact:
+                 if not run_info["git"]:
+                     raise ExecutionError(
+                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
+@@ -270,9 +267,6 @@ class LaunchProject:
+                             f"Entrypoint file: {program_name} does not exist, "
+                             "and could not be downloaded. Please specify the entrypoint for this run."
+                         )
+-                    # if the entrypoint is downloaded and inserted into the project dir
+-                    # need to rebuild image with new code
+-                    self.build_image = True
+ 
+             if (
+                 "_session_history.ipynb" in os.listdir(self.project_dir)
+diff --git a/wandb/sdk/wandb_run.py b/wandb/sdk/wandb_run.py
+index 273d69277..ffbcba91a 100644
+--- a/wandb/sdk/wandb_run.py
++++ b/wandb/sdk/wandb_run.py
+@@ -2020,6 +2020,7 @@ class Run:
+ 
+         if artifact:
+             artifact.wait()
++            print(artifact.name)
+             metadata = artifact.metadata
+             if not metadata:
+                 artifact.metadata["config_defaults"] = self.config.as_dict()
+@@ -2049,7 +2050,7 @@ class Run:
+             "commit": self._last_commit,
+             "entrypoint": [
+                 sys.executable.split("/")[-1],
+-                self._settings.program_relpath,
++                self._settings.program,
+             ],
+             "input_types": input_types,
+             "output_types": output_types,

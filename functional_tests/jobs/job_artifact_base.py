@@ -2,19 +2,19 @@ import os
 import subprocess
 import wandb
 import pytest
+import json
+from wandb.sdk.data_types._dtypes import TypeRegistry
 
-cmd = ["python", "./script/job_generator.py"]
+cmd = ["python", "./script/artifact_job_generator.py"]
 
 subprocess.check_call(cmd)
 
 api = wandb.Api()
-job = api.job("test-job/job_source-test-.scriptjob_generator.py:v0")
+job = api.job("job_source-test-.scriptartifact_job_generator.py:v0")
 assert job._job_artifact is not None
-assert job.name == "test-job/job_source-test-.scriptjob_generator.py:v0"
-assert job._entrypoint == ["python", "train.py"]
-assert job._input_types == wandb.sdk.data_types._dtypes.TypeRegistry.type_from_dict(
-    {"foo": "bar", "lr": 0.1, "epochs": 5}
-)
+assert job.name == "job_source-test-.scriptartifact_job_generator.py:v0"
+
+assert job._input_types == TypeRegistry.type_of({"foo": "bar", "lr": 0.1, "epochs": 5})
 assert job._source_info["source_type"] == "artifact"
 # manually insert defaults since mock server doesn't support metadata
 job._job_artifact.metadata["config_defaults"] = {"epochs": 5, "lr": 0.1, "foo": "bar"}
