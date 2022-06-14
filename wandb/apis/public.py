@@ -4942,6 +4942,8 @@ class Job(Media):
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("image")
+        if self._entrypoint:
+            launch_project.add_entry_point(self._entrypoint)
 
     def set_default_input(self, key, val):
         self._job_artifact.metadata["config_defaults"][key] = val
