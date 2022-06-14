@@ -122,15 +122,28 @@ class InterfaceBase:
     ) -> Optional[pb.StatusResponse]:
         raise NotImplementedError
 
-    def communicate_stop_status(self) -> Optional[pb.StopStatusResponse]:
-        status = pb.StopStatusRequest()
-        resp = self._communicate_stop_status(status)
+    def communicate_run_event_status(
+        self, id: str
+    ) -> Optional[pb.RunEventStatusResponse]:
+        status = pb.RunEventStatusRequest()
+        status.id = id
+        resp = self._communicate_run_event_status(status)
+        return resp
+
+    def _communicate_run_event_status(self, status: pb.RunEventStatusRequest):
+        raise NotImplementedError
+
+    def communicate_run_status(
+        self, id: Optional[str] = None
+    ) -> Optional[pb.RunStatusResponse]:
+        status = pb.RunStatusRequest()
+        resp = self._communicate_run_status(status)
         return resp
 
     @abstractmethod
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
+    def _communicate_run_status(
+        self, status: pb.RunStatusRequest
+    ) -> Optional[pb.RunStatusResponse]:
         raise NotImplementedError
 
     def communicate_network_status(self) -> Optional[pb.NetworkStatusResponse]:

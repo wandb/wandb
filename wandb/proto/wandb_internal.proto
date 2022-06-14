@@ -454,7 +454,7 @@ message AlertResult {
  */
 message Request {
   oneof request_type {
-    StopStatusRequest     stop_status = 1;
+    RunStatusRequest      run_status = 1;
     NetworkStatusRequest  network_status = 2;
     DeferRequest          defer = 3;
     GetSummaryRequest     get_summary = 4;
@@ -473,6 +473,7 @@ message Request {
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
+    RunEventStatusRequest run_event_status = 67;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -482,7 +483,7 @@ message Request {
  */
 message Response {
   oneof response_type {
-    StopStatusResponse     stop_status_response = 19;
+    RunStatusResponse      run_status_response = 19;
     NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
     GetSummaryResponse     get_summary_response = 25;
@@ -496,6 +497,7 @@ message Response {
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
+    RunEventStatusResponse run_event_status_response = 67;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -575,12 +577,21 @@ message StatusResponse {
   bool run_should_stop = 1;
 }
 
-message StopStatusRequest {
+message RunEventStatusRequest {
+  _RequestInfo _info = 200;
+  string id = 1;
+}
+
+message RunEventStatusResponse {
+}
+
+message RunStatusRequest {
   _RequestInfo _info = 200;
 }
 
-message StopStatusResponse {
+message RunStatusResponse {
   bool run_should_stop = 1;
+  repeated ExtraItem extra = 16;
 }
 
 message NetworkStatusRequest {

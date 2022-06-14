@@ -228,9 +228,17 @@ class InterfaceGrpc(InterfaceBase):
         # TODO: implement
         return None
 
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
+    def _communicate_run_event_status(
+        self, status: pb.RunEventStatusRequest
+    ) -> Optional[pb.RunEventStatusResponse]:
+        assert self._stub
+        self._assign(status)
+        # TODO: implement
+        return None
+
+    def _communicate_run_status(
+        self, status: pb.RunStatusRequest
+    ) -> Optional[pb.RunStatusResponse]:
         assert self._stub
         self._assign(status)
         # TODO: implement

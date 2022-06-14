@@ -42,6 +42,7 @@ from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
     RunRecord,
+    ExtraItem,
 )
 from wandb.util import (
     _is_artifact_string,
@@ -61,6 +62,7 @@ from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
+from . import wandb_widgets
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
@@ -133,6 +135,7 @@ class RunStatusChecker:
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
+        self._callbacks = {}
 
         self._join_event = threading.Event()
 
@@ -167,14 +170,34 @@ class RunStatusChecker:
     def check_status(self) -> None:
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_stop_status()
+            status_response = self._interface.communicate_run_status()
             if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
+            if status_response and status_response.extra:
+                for extra in status_response.extra:
+                    self.handle_extra(extra)
             join_requested = self._join_event.wait(self._stop_polling_interval)
+
+    def handle_extra(self, extra: ExtraItem) -> None:
+        id = extra.key
+        command = json.loads(extra.value_json)
+        cb_name = command.get("callback")
+        if cb_name:
+            cb = self._callbacks.get(cb_name)
+            if not cb:
+                wandb.termwarn(f"Received invalid callback ({cb_name})")
+            else:
+                try:
+                    status = cb(*command.get("args"), **command.get("kwargs"))
+                except Exception as e:
+                    wandb.termerror("Error while executing callback: %s", e)
+                self._interface.communicate_run_event_status(id)
+        else:
+            wandb.termwarn("Bad callback", command)
 
     def stop(self) -> None:
         self._join_event.set()
@@ -1015,6 +1038,13 @@ class Run:
         Entity can be a user name or the name of a team or organization.
         """
         return self._entity or ""
+
+    def add_callback(self, key: str, callback: Callable) -> bool:
+        """Add a callback to be executed via events in the W&B UI"""
+        if self._run_status_checker is not None:
+            self._run_status_checker._callbacks[key] = callback
+            return True
+        return False
 
     def _label_internal(
         self, code: str = None, repo: str = None, code_version: str = None
@@ -1942,6 +1972,7 @@ class Run:
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
+            wandb_widgets.add_factory_callbacks(self)
 
         self._console_start()
         self._on_ready()

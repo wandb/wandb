@@ -43,6 +43,8 @@ helper = wandb_sdk.helper
 sweep = wandb_sdk.sweep
 controller = wandb_sdk.controller
 require = wandb_sdk.require
+widgets = wandb_sdk.widgets
+connect = widgets.connect
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
@@ -205,6 +207,7 @@ __all__ = [
     "log",
     "summary",
     "join",
+    "widgets",
     "Api",
     "Graph",
     "Image",

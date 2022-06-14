@@ -58,15 +58,28 @@ class InterfaceSock(InterfaceShared):
         future = self._router.send_and_receive(rec, local=local)
         return future
 
-    def _communicate_stop_status(
-        self, status: "pb.StopStatusRequest"
-    ) -> Optional["pb.StopStatusResponse"]:
-        # Message stop_status is called from a daemon thread started by wandb_run
+    def _communicate_run_status(
+        self, status: "pb.RunStatusRequest"
+    ) -> Optional["pb.RunStatusResponse"]:
+        # Message run_status is called from a daemon thread started by wandb_run
         # The underlying socket might go away while the thread is still running.
         # Handle this like a timed-out message as the daemon thread will eventually
         # be killed.
         try:
-            data = super()._communicate_stop_status(status)
+            data = super()._communicate_run_status(status)
+        except BrokenPipeError:
+            data = None
+        return data
+
+    def _communicate_run_event_status(
+        self, status: "pb.RunEventStatusRequest"
+    ) -> Optional["pb.RunEventStatusResponse"]:
+        # Message run_status is called from a daemon thread started by wandb_run
+        # The underlying socket might go away while the thread is still running.
+        # Handle this like a timed-out message as the daemon thread will eventually
+        # be killed.
+        try:
+            data = super()._communicate_run_event_status(status)
         except BrokenPipeError:
             data = None
         return data

@@ -106,6 +106,8 @@ class Api:
         )
         self._current_run_id = None
         self._file_stream_api = None
+        self._run_events_queue_id = None
+        self._default_entity = None
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -199,7 +201,9 @@ class Api:
 
     @property
     def default_entity(self):
-        return self.viewer().get("entity")
+        if self._default_entity is None:
+            self._default_entity = self.viewer().get("entity")
+        return self._default_entity
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
@@ -819,13 +823,17 @@ class Api:
         return project["bucket"]
 
     @normalize_exceptions
-    def check_stop_requested(self, project_name, entity_name, run_id):
+    def check_status_requested(self, project_name, entity_name, run_id):
         query = gql(
             """
-        query RunStoppedStatus($projectName: String, $entityName: String, $runId: String!) {
+        query RunStatus($projectName: String, $entityName: String, $runId: String!) {
             project(name:$projectName, entityName:$entityName) {
                 run(name:$runId) {
                     stopped
+                }
+                runQueues {
+                    id
+                    name
                 }
             }
         }
@@ -843,12 +851,43 @@ class Api:
 
         project = response.get("project", None)
         if not project:
-            return False
+            return False, []
         run = project.get("run", None)
         if not run:
-            return False
+            return False, []
+        # TODO: will this be None?
+        items = project.get("runQueues", None)
+        if not items:
+            return run["stopped"], []
 
-        return run["stopped"]
+        queues = [r for r in items if r["name"] == "run_events"]
+
+        if len(queues) > 0:
+            self._run_events_queue_id = queues[0]["id"]
+            item = self.pop_from_run_queue(
+                "run_events", entity=entity_name, project=project_name
+            )
+        else:
+            item = None
+
+        extra = []
+        if item is not None:
+            extra.append(
+                {
+                    "key": item["runQueueItemId"],
+                    "value_json": json.dumps(item["runSpec"]),
+                }
+            )
+        # print("Adding run queue item! %s" % item["node"]["runSpec"])
+        # if self.ack_run_queue_item(item["node"]["id"], run_id):
+        #    extra.append(
+        #        {
+        #            "key": item["node"]["id"],
+        #            "value_json": item["node"]["runSpec"],
+        #        }
+        #    )
+
+        return run["stopped"], extra
 
     def format_project(self, project):
         return re.sub(r"\W+", "-", project.lower()).strip("-_")
@@ -1066,6 +1105,27 @@ class Api:
                 "Error acking run queue item. Item may have already been acknowledged by another process"
             )
         return response["ackRunQueueItem"]["success"]
+
+    @normalize_exceptions
+    def delete_run_queue_item(self, item_id, queue_id=None):
+        mutation = gql(
+            """
+        mutation deleteRunQueueItem($itemId: ID!, $queueId: ID!)  {
+            deleteFromRunQueue(input: { runQueueItemId: $itemId, queueID: $queueId }) {
+                success
+            }
+        }
+        """
+        )
+        # TODO: pretty lame
+        if queue_id is None:
+            queue_id = self._run_events_queue_id
+        response = self.gql(
+            mutation, variable_values={"itemId": item_id, "queueId": str(queue_id)}
+        )
+        if not response["deleteFromRunQueue"]["success"]:
+            raise CommError("Error deleting run queue item.")
+        return response["deleteFromRunQueue"]["success"]
 
     @normalize_exceptions
     def create_launch_agent(self, entity, project, queues, gorilla_agent_support):
