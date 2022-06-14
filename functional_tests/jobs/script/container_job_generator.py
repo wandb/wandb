@@ -1,7 +1,7 @@
 import wandb
 import os
 
-os.environ["WANDB_DOCKER"] = "my-test-container"
+os.environ["WANDB_DOCKER"] = "my-test-container:dummy"
 
 settings = wandb.Settings()
 settings.update({"disable_git": True})

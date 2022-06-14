@@ -2046,11 +2046,11 @@ class Run:
         source_info = {
             "_version": "v0",
             "source_type": "repo",
-            "repo": self._remote_url,
+            "remote": self._remote_url,
             "commit": self._last_commit,
             "entrypoint": [
                 sys.executable.split("/")[-1],
-                self._settings.program,
+                self._settings.program_relpath,
             ],
             "input_types": input_types,
             "output_types": output_types,
@@ -2085,7 +2085,7 @@ class Run:
             "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{sequence_name}:{tag}",
             "entrypoint": [
                 sys.executable.split("/")[-1],
-                self._settings.program_relpath,
+                self._settings.program,
             ],
             "input_types": input_types,
             "output_types": output_types,
@@ -2099,14 +2099,14 @@ class Run:
     def _create_container_job(
         self, input_types: Dict[str, Any], output_types: Dict[str, Any]
     ) -> "Artifact":
-        name = f"job_{os.getenv('WANDB_DOCKER')}"
+        name = wandb.util.make_artifact_name_safe(f"job_{os.getenv('WANDB_DOCKER')}")
         job_artifact = wandb.Artifact(name, type="job")
 
         source_info = {
             "_version": "v0",
             "source_type": "image",
             "image": os.getenv("WANDB_DOCKER"),
-            "entrypoint": self._settings.program,
+            "entrypoint": self._settings.program_relpath,
             "input_types": input_types,
             "output_types": output_types,
         }
