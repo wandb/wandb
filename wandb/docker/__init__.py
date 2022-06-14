@@ -212,6 +212,7 @@ def image_id(image_name: str) -> Optional[str]:
         except (ValueError, IndexError):
             return image_id_from_registry(image_name)
 
+
 def get_image_uid(image_name: str) -> int:
     """Retreve the image default uid through brute force"""
     return int(shell(["run", image_name, "id", "-u"]))
