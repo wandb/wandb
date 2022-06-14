@@ -50,6 +50,7 @@ def test_diff_pip_requirements():
     diff = diff_pip_requirements(REQUIREMENT_FILE_BASIC, REQUIREMENT_FILE_GIT)
     assert len(diff) == 3
 
+
 def test_parse_wandb_uri_invalid_uri():
     e, p, n = parse_wandb_uri("invalid_uri")
-    assert e is None and p is None and n is None, "Invalid URI should return Nones"
+    assert (e, p, n) == ("", "", ""), "Invalid URI should return empty strings"
