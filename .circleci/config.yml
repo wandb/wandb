@@ -887,7 +887,7 @@ workflows:
       - test:
           name: "unit-s_base-lin-py38"
           image: "python:3.8"
-          toxenv: "py38"
+          toxenv: "py38,covercircle"
       - test:
           name: "unit-s_base-lin-py39"
           image: "python:3.9"
