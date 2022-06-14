@@ -672,7 +672,7 @@ def sync(
     flag_value="default",
     default=None,
     help="Name of launch run queue to push sweep runs into. If supplied without "
-    'an argument (`--queue`), defaults to classic sweep behavior. Else, if '
+    "an argument (`--queue`), defaults to classic sweep behavior. Else, if "
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
 @click.option(

@@ -58,11 +58,8 @@ class Scheduler(ABC):
         queue: Optional[str] = None,
         **kwargs,
     ):
-        # This is internal API
         self._api = api
-        # TODO(hupo): Verify that the launch queue exists or create it?
         self._launch_queue = queue
-
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")

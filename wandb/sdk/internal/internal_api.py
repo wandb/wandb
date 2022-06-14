@@ -1930,7 +1930,6 @@ class Api:
 
         for mutation in mutations:
             try:
-                # import pdb; pdb.set_trace()
                 response = self.gql(
                     mutation,
                     variable_values={

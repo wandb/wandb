@@ -78,7 +78,7 @@ class LocalProcessRunner(AbstractRunner):
 
         command_str = " ".join(cmd).strip()
         wandb.termlog(
-            "Launching run on bare machine with command: {}".format(
+            "Launching run as a local process with command: {}".format(
                 sanitize_wandb_api_key(command_str)
             )
         )
