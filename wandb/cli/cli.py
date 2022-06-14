@@ -33,8 +33,7 @@ from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
-from wandb.sdk.launch.launch_add import _launch_add, launch_add
-from wandb.sdk.launch.utils import construct_launch_spec
+from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
@@ -666,16 +665,6 @@ def sync(
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
-    "--queue",
-    "-q",
-    is_flag=False,
-    flag_value="default",
-    default=None,
-    help="Name of launch run queue to push sweep runs into. If supplied without "
-    "an argument (`--queue`), defaults to classic sweep behavior. Else, if "
-    "name supplied, specified run queue must exist under the project and entity supplied.",
-)
-@click.option(
     "--stop",
     is_flag=True,
     default=False,
@@ -711,7 +700,6 @@ def sweep(
     program,
     settings,
     update,
-    queue,
     stop,
     cancel,
     pause,
@@ -860,7 +848,6 @@ def sweep(
         or env.get("WANDB_ENTITY")
         or config.get("entity")
         or api.settings("entity")
-        or api.default_entity
     )
     project = (
         project
@@ -869,49 +856,8 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
-
-    _launch_scheduler_spec = None
-    if queue is not None:
-        wandb.termlog("Using launch 🚀 queue: %s" % queue)
-
-        # Because the launch job spec below is the Scheduler, it
-        # will need to know the name of the sweep, which it wont
-        # know until it is created,so we use this placeholder
-        # and replace inside UpsertSweep in the backend (mutation.go)
-        _sweep_id_placeholder = "WANDB_SWEEP_ID"
-
-        # Launch job spec for the Scheduler
-        # TODO: Keep up to date with Launch Job Spec
-        _launch_scheduler_spec = json.dumps(
-            {
-                "queue": queue,
-                "run_spec": json.dumps(
-                    construct_launch_spec(
-                        os.getcwd(),  # uri,
-                        api,
-                        f"Scheduler.{_sweep_id_placeholder}",  # name,
-                        project,
-                        entity,
-                        None,  # docker_image,
-                        "local-process",  # resource,
-                        f"wandb launch-scheduler {_sweep_id_placeholder} -p {project} -q {queue}",  # entry_point,
-                        None,  # version,
-                        None,  # params,
-                        None,  # resource_args,
-                        None,  # launch_config,
-                        None,  # cuda,
-                        None,  # run_id,
-                    )
-                ),
-            }
-        )
-
     sweep_id, warnings = api.upsert_sweep(
-        config,
-        project=project,
-        entity=entity,
-        obj_id=sweep_obj_id,
-        launch_scheduler=_launch_scheduler_spec,
+        config, project=project, entity=entity, obj_id=sweep_obj_id
     )
     util.handle_sweep_config_violations(warnings)
 
@@ -943,18 +889,11 @@ def sweep(
     if sweep_path.find(" ") >= 0:
         sweep_path = f'"{sweep_path}"'
 
-    if queue is not None:
-        wandb.termlog(
-            "Run launch agent with: {}".format(
-                click.style(f"wandb launch-agent -q {queue} -p {project}", fg="yellow")
-            )
+    wandb.termlog(
+        "Run sweep agent with: {}".format(
+            click.style("wandb agent %s" % sweep_path, fg="yellow")
         )
-    else:
-        wandb.termlog(
-            "Run sweep agent with: {}".format(
-                click.style("wandb agent %s" % sweep_path, fg="yellow")
-            )
-        )
+    )
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller
@@ -1205,13 +1144,7 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.option(
-    "--project",
-    "-p",
-    default=None,
-    help="Name of the target project which the new run will be sent to. "
-    "If passed in, will override the project value passed in using a config file.",
-)
+@click.argument("project", nargs=1, required=False)
 @click.option(
     "--entity",
     "-e",
@@ -1255,40 +1188,6 @@ def launch_agent(
     wandb.termlog("Starting launch agent ✨")
 
     wandb_launch.create_and_run_agent(api, agent_config)
-
-
-@cli.command(context_settings=CONTEXT, help="Run a W&B Launch Scheduler (Experimental)")
-@click.pass_context
-@click.option(
-    "--project", "-p", default=None, help="The project of the sweep and launch queue."
-)
-@click.option("--entity", "-e", default=None, help="The entity scope for the project.")
-@click.option(
-    "--queue",
-    "-q",
-    is_flag=False,
-    flag_value="default",
-    default=None,
-    help="Name of launch run queue to push runs into. If supplied without "
-    'an argument (`--queue`), defaults to private "default" runqueue. Else, if '
-    "name supplied, specified run queue must exist under the project and entity supplied.",
-)
-@click.argument("sweep_id")
-@display_error
-def launch_scheduler(ctx, project, entity, sweep_id, queue):
-    api = _get_cling_api()
-    if api.api_key is None:
-        wandb.termlog("Login to W&B to use the W&B Launch Scheduler (Experimental)")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
-
-    wandb.termlog("Starting a 🚀 Launch Scheduler ")
-    from wandb.sdk.launch.sweeps import load_scheduler
-
-    scheduler = load_scheduler(
-        "sweep", api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
-    )
-    scheduler.start()
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
