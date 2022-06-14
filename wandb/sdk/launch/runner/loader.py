@@ -27,11 +27,11 @@ def load_backend(
 ) -> AbstractRunner:
     # Static backends
     if backend_name in ["local", "local-container"]:
-        from .local_container import LocalContainerRunner
+        from .local import LocalContainerRunner
 
         return LocalContainerRunner(api, backend_config)
     elif backend_name in ["bare", "local-process"]:
-        from .local_process import LocalProcessRunner
+        from .bare import LocalProcessRunner
 
         return LocalProcessRunner(api, backend_config)
     elif backend_name == "gcp-vertex":
