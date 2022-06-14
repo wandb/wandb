@@ -72,14 +72,12 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
                 "wandb-summary.json",
             ]
         )
-        artifact_files_sorted = sorted(["wandb_manifest.json", "wandb_manifest.json"])
         for run, files in live_mock_server.get_ctx()["storage"].items():
             print("Files from server", files)
             if run == "unknown":
-                target_files = artifact_files_sorted
-            else:
-                num_runs += 1
-                target_files = run_files_sorted
+                continue
+            num_runs += 1
+            target_files = run_files_sorted
             assert (
                 sorted(
                     f

@@ -2007,7 +2007,6 @@ class Run:
             f"{i.key}=={i.version}" for i in installed_packages
         )
         if has_repo:
-            print("MAKING REPO JOB")
             artifact = self._create_repo_job(
                 input_types, output_types, installed_packages_list
             )
@@ -2016,6 +2015,7 @@ class Run:
                 input_types, output_types, installed_packages_list
             )
         elif os.environ.get("WANDB_DOCKER"):
+            print("MAKING DOCKER JOB")
             artifact = self._create_container_job(input_types, output_types)
 
         if artifact:
@@ -2104,7 +2104,7 @@ class Run:
 
         source_info = {
             "_version": "v0",
-            "source_type": "docker",
+            "source_type": "container",
             "docker": os.getenv("WANDB_DOCKER"),
             "entrypoint": self._settings.program_relpath,
             "input_types": input_types,
