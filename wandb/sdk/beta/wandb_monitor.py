@@ -9,16 +9,7 @@ import inspect
 import sys
 import threading
 from timeit import default_timer as timer
-from typing import (
-    NamedTuple,
-    Dict,
-    Optional,
-    Union,
-    Callable,
-    Tuple,
-    TypeVar,
-    Any,
-)
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, TypeVar, Union
 
 import wandb
 from wandb.data_types import Table
