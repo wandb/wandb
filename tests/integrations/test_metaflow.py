@@ -1,11 +1,7 @@
 import platform
-import sys
 from pathlib import Path
 
 import pytest
-
-if sys.version_info >= (3, 9):
-    pytest.importorskip("pytorch", reason="pytorch doesnt support py3.9 yet")
 
 if platform.system() == "Windows":
     pytest.importorskip("metaflow", reason="metaflow does not support native Windows")

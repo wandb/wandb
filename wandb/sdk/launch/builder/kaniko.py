@@ -6,7 +6,6 @@ import tempfile
 import time
 from typing import Any, Dict, Optional
 
-
 import kubernetes  # type: ignore
 from kubernetes import client
 import wandb
@@ -187,17 +186,20 @@ class KanikoBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         repository: Optional[str],
-        entrypoint: Optional[EntryPoint],
+        entrypoint: EntryPoint,
         docker_args: Dict[str, Any],
     ) -> str:
+
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.run_id}"
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+        entry_cmd = " ".join(
+            get_entry_point_command(entrypoint, launch_project.override_args)
+        )
 
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
-            launch_project, entry_cmd, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
@@ -263,7 +265,7 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
-    ) -> client.V1Job:
+    ) -> "client.V1Job":
         env = None
         if self.instance_mode and self.cloud_provider == "AWS":
             region = repository.split(".")[3]
