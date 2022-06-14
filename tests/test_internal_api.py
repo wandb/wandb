@@ -9,12 +9,9 @@ def test_agent_heartbeat_with_no_agent_id_fails(test_settings):
         a.agent_heartbeat(None, {}, {})
 
 
-def test_run_state(mock_server, test_settings):
+def test_run_state(test_settings):
     _api = internal.Api()
-    _run = _api.run("test/test/test")
     with pytest.raises(CommError):
         _api.get_run_state("test", "foo_project", "test")
     with pytest.raises(CommError):
         _api.get_run_state("test", "test", "foo_run")
-    res = _run.get_run_state("test", "test", "test")
-    assert res == "finished"
