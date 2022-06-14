@@ -200,6 +200,14 @@ def test_run_config(mock_server, api):
     run = api.run("test/test/test")
     assert run.config == {"epochs": 10}
 
+def test_run_state(mock_server, api):
+    run = api.run("test/test/test")
+    with pytest.raises(wandb.CommError):
+        api.get_run_state("test", "foo_project", "test")
+    with pytest.raises(wandb.CommError):
+        api.get_run_state("test", "test", "foo_run")
+    res = run.get_run_state("test", "test", "test")
+    assert res == "finished"
 
 def test_run_history_system(mock_server, api):
     run = api.run("test/test/test")
