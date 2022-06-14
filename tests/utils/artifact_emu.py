@@ -20,11 +20,9 @@ class ArtifactEmulator:
 
         # Find most recent artifact
         versions = self._artifacts.get(collection_name)
-        versionIndex = 0
         if versions:
             last_version = versions[-1]
             latest = {"id": last_version["digest"], "versionIndex": len(versions) - 1}
-            versionIndex = len(versions) - 1
         art_seq = {"id": art_id, "latestArtifact": latest}
 
         aliases.append(dict(artifactCollectionName=collection_name, alias="latest"))
@@ -38,7 +36,7 @@ class ArtifactEmulator:
             "labels": [],
             "aliases": aliases,
             "artifactSequence": art_seq,
-            "versionIndex": versionIndex,
+            "versionIndex": 0,
             "currentManifest": dict(file=dict(directUrl=direct_url)),
         }
 
