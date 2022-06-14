@@ -1065,7 +1065,7 @@ class SendManager:
                 max_cli_version
             ) < parse_version("0.10.16"):
                 logger.warning(
-                    "This W&B server doesn't support distributed artifacts, "
+                    "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
                 return None
