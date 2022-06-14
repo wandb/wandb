@@ -1,5 +1,4 @@
 import json
-import pprint
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
@@ -29,7 +28,6 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
-    run_id: Optional[str] = None,
 ) -> "public.QueuedJob":
     api = Api()
     return _launch_add(
@@ -45,7 +43,6 @@ def launch_add(
         version,
         docker_image,
         params,
-        run_id=run_id,
     )
 
 
@@ -64,7 +61,6 @@ def _launch_add(
     params: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
-    run_id: Optional[str] = None,
 ) -> "public.QueuedJob":
 
     resource = resource or "local"
@@ -94,7 +90,6 @@ def _launch_add(
         resource_args,
         launch_config,
         cuda,
-        run_id,
     )
 
     res = push_to_queue(api, queue, launch_spec)
@@ -102,7 +97,6 @@ def _launch_add(
     if res is None or "runQueueItemId" not in res:
         raise Exception("Error adding run to queue")
     wandb.termlog(f"Added run to queue {queue}")
-    wandb.termlog(f"\n\n{pprint.pformat(launch_spec)}\n\n")
     public_api = public.Api()
     queued_job = public_api.queued_job(
         f"{entity}/{project}/{queue}/{res['runQueueItemId']}"

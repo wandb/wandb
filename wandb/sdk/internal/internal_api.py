@@ -1373,35 +1373,6 @@ class Api:
         return res["project"]["run"]["runInfo"]
 
     @normalize_exceptions
-    def get_run_state(self, entity, project, name):
-        query = gql(
-            """
-        query RunState($project: String!, $entity: String!, $name: String!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) {
-                    state
-                }
-            }
-        }
-        """
-        )
-        variable_values = {"project": project, "entity": entity, "name": name}
-        res = self.gql(query, variable_values)
-        if res.get("project") is None:
-            raise CommError(
-                "Error fetching run state for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
-                    entity, project, name
-                )
-            )
-        elif res["project"].get("run") is None:
-            raise CommError(
-                "Error fetching run state for {}/{}/{}. Check that this run id exists".format(
-                    entity, project, name
-                )
-            )
-        return res["project"]["run"]["state"]
-
-    @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
         """Generate temporary resumable upload urls
 
@@ -1841,7 +1812,6 @@ class Api:
         self,
         config,
         controller=None,
-        launch_scheduler=None,
         scheduler=None,
         obj_id=None,
         project=None,
@@ -1871,7 +1841,6 @@ class Api:
             $entityName: String,
             $projectName: String,
             $controller: JSONString,
-            $launch_scheduler: JSONString,
             $scheduler: JSONString,
             $state: String
         ) {
@@ -1882,7 +1851,6 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
-                launch_scheduler: $launch_scheduler,
                 scheduler: $scheduler,
                 state: $state
             }) {
@@ -1939,7 +1907,6 @@ class Api:
                         "entityName": entity or self.settings("entity"),
                         "projectName": project or self.settings("project"),
                         "controller": controller,
-                        "launch_scheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
                     check_retry_fn=no_retry_4xx,

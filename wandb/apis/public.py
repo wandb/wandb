@@ -1486,7 +1486,7 @@ class QueuedJob(Attrs):
                                 node {
                                     id
                                     state
-                                    associatedRunId
+                                    resultingRunId
                                 }
                             }
                         }
@@ -1506,7 +1506,7 @@ class QueuedJob(Attrs):
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
                     item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["associatedRunId"] is not None
+                    and item["node"]["resultingRunId"] is not None
                 ):
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
@@ -1514,9 +1514,9 @@ class QueuedJob(Attrs):
                             self.client,
                             self._entity,
                             self.project,
-                            item["node"]["associatedRunId"],
+                            item["node"]["resultingRunId"],
                         )
-                        self._run_id = item["node"]["associatedRunId"]
+                        self._run_id = item["node"]["resultingRunId"]
                         return
                     except ValueError:
                         continue

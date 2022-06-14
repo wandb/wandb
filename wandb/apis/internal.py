@@ -140,9 +140,6 @@ class Api:
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
 
-    def get_run_state(self, *args, **kwargs):
-        return self.api.get_run_state(*args, **kwargs)
-
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)
 
