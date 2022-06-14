@@ -332,8 +332,8 @@ def test_launch_resource_args(
 
 
 def test_launch_add_base(live_mock_server):
-    queuedJob = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
-    assert queuedJob.run_queue_item_id == "1"
+    queued_run = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
+    assert queued_run.run_queue_item_id == "1"
 
 
 @pytest.mark.skipif(
@@ -1398,3 +1398,34 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
         assert config.get("project") is None
+
+
+# def test_job_artifact(mock_server, api):
+#     config = {
+#         "name": "test",
+#         "lr": 0.02,
+#         "epochs": 10,
+#     }
+
+#     summary = {"_step": 10, "x": 10}
+#     input_shape = wandb.sdk.data_types._dtypes.TypeRegistry.type_of(config).to_json()
+#     summary_shape = wandb.sdk.data_types._dtypes.TypeRegistry.type_of(summary).to_json()
+#     job_source_info = {
+#         "_version": "v0",
+#         "source_type": "artifact",
+#         "artifact": "wandb-artifact://mock_server_entity/test/source-test_train.py",
+#         "entrypoint": ["python", "train.py"],
+#         "input_types": input_shape,
+#         "output_types": summary_shape,
+#     }
+#     job = api.job("test/test/test")
+#     assert job.name == "test"
+#     assert job.url == "https://wandb.ai/test/jobs/test"
+
+
+# def test_launch_job_repo():
+#     pass
+
+
+# def test_launch_job_container():
+#     pass

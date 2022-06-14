@@ -2087,7 +2087,7 @@ class QueuedRun(Attrs):
         self.client = client
         self._entity = entity
         self.project = project
-        self.queue_id = queue_id
+        self._queue_id = queue_id
         self.run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
@@ -2098,7 +2098,7 @@ class QueuedRun(Attrs):
 
     @property
     def queue_id(self):
-        return self.queue_id
+        return self._queue_id
 
     @property
     def state(self):
