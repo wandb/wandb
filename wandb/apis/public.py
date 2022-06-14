@@ -33,7 +33,7 @@ from wandb.data_types import WBValue
 from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
-from wandb.sdk.data_types._dtypes import InvalidType, Type
+from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
@@ -2077,43 +2077,28 @@ class Run(Attrs):
 
 class QueuedRun(Attrs):
     """
-    A single run associated with an entity and project.
-
-    Attributes:
-        tags ([str]): a list of tags associated with the run
-        url (str): the url of this run
-        id (str): unique identifier for the run (defaults to eight characters)
-        name (str): the name of the run
-        state (str): one of: running, finished, crashed, killed, preempting, preempted
-        config (dict): a dict of hyperparameters associated with the run
-        created_at (str): ISO timestamp when the run was started
-        system_metrics (dict): the latest system metrics recorded for the run
-        summary (dict): A mutable dict-like property that holds the current summary.
-                    Calling update will persist any changes.
-        project (str): the project associated with the run
-        entity (str): the name of the entity associated with the run
-        user (str): the name of the user who created the run
-        path (str): Unique identifier [entity]/[project]/[run_id]
-        notes (str): Notes about the run
-        read_only (boolean): Whether the run is editable
-        history_keys (str): Keys of the history metrics that have been logged
-            with `wandb.log({key: value})`
+    A single queued run associated with an entity and project. Call wait_until_finished method to get access to all run attributes
     """
 
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
+    _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbues"
+
+    def __init__(self, client, entity, project, queue_id, run_queue_item_id, attrs={}):
         super().__init__(dict(attrs))
         self.client = client
         self._entity = entity
         self.project = project
-        self.queue = queue
+        self.queue_id = queue_id
         self.run_queue_item_id = run_queue_item_id
         self.sweep = None
-        self._state = attrs.get("state", "not found")
         self._run = None
 
     @property
     def run(self):
         return self._run
+
+    @property
+    def queue_id(self):
+        return self.queue_id
 
     @property
     def state(self):
@@ -2142,13 +2127,17 @@ class QueuedRun(Attrs):
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue,
+            "runQueue": self.queue_id,
         }
         res = self.client.execute(query, variable_values)
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
             if item["node"]["id"] == self.run_queue_item_id:
                 return item["node"]["state"].lower()
-        raise ValueError("Could not find QueuedRun associated run_id")
+        raise ValueError(
+            "Could not find QueuedRun associated with id: {}".format(
+                self.run_queue_item_id
+            )
+        )
 
     @property
     def entity(self):
@@ -2171,24 +2160,18 @@ class QueuedRun(Attrs):
         # in self.storage_id and names in self.id.
         if self._run is not None:
             return self._run._attrs.get("id")
-        elif self._attrs.get("id"):
-            return self._attrs.get("id")
-
-        raise ValueError("Run not found")
+        raise ValueError(self._run_required_error_message)
 
     @property
     def id(self):
         if self._run is not None:
             return self._run._attrs.get("name")
-        elif self._attrs.get("name"):
-            return self._attrs.get("name")
-
-        raise ValueError("Run not found")
+        return self.run_queue_item_id
 
     @id.setter
     def id(self, new_id):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
 
         attrs = self._run._attrs
         attrs["name"] = new_id
@@ -2197,19 +2180,19 @@ class QueuedRun(Attrs):
     @property
     def name(self):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run._attrs.get("displayName")
 
     @name.setter
     def name(self, new_name):
         if self._run is None:
-            raise ValueError("Run not found")
-        self._run._attrs["displayName"] = new_name
+            raise ValueError(self._run_required_error_message)
+        self._run.name = new_name
         return new_name
 
     def load(self, force=False):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         query = gql(
             """
         query Run($project: String!, $entity: String!, $name: String!) {
@@ -2281,8 +2264,9 @@ class QueuedRun(Attrs):
         """
         Persists changes to the run object to the wandb backend.
         """
+        # TODO: allow users to update run queue items using queued run
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         else:
             self._run.update()
 
@@ -2306,7 +2290,7 @@ class QueuedRun(Attrs):
             self.client.execute(
                 mutation,
                 variable_values={
-                    "queueID": self.queue,
+                    "queueID": self.queue_id,
                     "runQueueItemID": self.run_queue_item_id,
                 },
             )
@@ -2315,13 +2299,13 @@ class QueuedRun(Attrs):
 
     def save(self):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         self._run.save()
 
     @property
     def json_config(self):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.json_config
 
     def _exec(self, query, **kwargs):
@@ -2344,12 +2328,12 @@ class QueuedRun(Attrs):
 
     def _sampled_history(self, keys, x_axis="_step", samples=500):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         self._run._sampled_history(keys, x_axis, samples)
 
     def _full_history(self, samples=500, stream="default"):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run._full_history(samples, stream)
 
     @normalize_exceptions
@@ -2363,7 +2347,7 @@ class QueuedRun(Attrs):
             A `Files` object, which is an iterator over `File` objects.
         """
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         self._run.files(names, per_page)
 
     @normalize_exceptions
@@ -2376,7 +2360,7 @@ class QueuedRun(Attrs):
             A `File` matching the name argument.
         """
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.file(name)
 
     @normalize_exceptions
@@ -2392,7 +2376,7 @@ class QueuedRun(Attrs):
             A `File` matching the name argument.
         """
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.upload_file(path, root)
 
     @normalize_exceptions
@@ -2415,7 +2399,7 @@ class QueuedRun(Attrs):
             If pandas=False returns a list of dicts of history metrics.
         """
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.history(samples, keys, x_axis, pandas, stream)
 
     @normalize_exceptions
@@ -2441,7 +2425,7 @@ class QueuedRun(Attrs):
             An iterable collection over history records (dict).
         """
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.scan_history(
             keys=keys, page_size=page_size, min_step=min_step, max_step=max_step
         )
@@ -2449,13 +2433,13 @@ class QueuedRun(Attrs):
     @normalize_exceptions
     def logged_artifacts(self, per_page=100):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.logged_artifacts(per_page=per_page)
 
     @normalize_exceptions
     def used_artifacts(self, per_page=100):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.used_artifacts(per_page=per_page)
 
     @normalize_exceptions
@@ -2474,8 +2458,8 @@ class QueuedRun(Attrs):
             A `Artifact` object.
         """
         if self._run is None:
-            raise ValueError("Run not found")
-        self._run.use_artifact(artifact, use_as=use_as)
+            raise ValueError(self._run_required_error_message)
+        return self._run.use_artifact(artifact, use_as=use_as)
 
     @normalize_exceptions
     def log_artifact(self, artifact, aliases=None):
@@ -2489,37 +2473,37 @@ class QueuedRun(Attrs):
             A `Artifact` object.
         """
         if self._run is None:
-            raise ValueError("Run not found")
-        self._run.log_artifact(artifact, aliases=aliases)
+            raise ValueError(self._run_required_error_message)
+        return self._run.log_artifact(artifact, aliases=aliases)
 
     @property
     def summary(self):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.summary
 
     @property
     def path(self):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.path
 
     @property
     def url(self):
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.url
 
     @property
     def lastHistoryStep(self):  # noqa: N802
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.lastHistoryStep
 
     def to_html(self, height=420, hidden=False):
         """Generate HTML containing an iframe displaying this run"""
         if self._run is None:
-            raise ValueError("Run not found")
+            raise ValueError(self._run_required_error_message)
         return self._run.to_html(height, hidden)
 
     @normalize_exceptions
@@ -2548,7 +2532,7 @@ class QueuedRun(Attrs):
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
-            "runQueue": self.queue,
+            "runQueue": self.queue_id,
         }
 
         while True:
@@ -2578,7 +2562,7 @@ class QueuedRun(Attrs):
 
     def __repr__(self):
         if self._run is None:
-            return f"<QueuedRun {self.run_queue_item_id} ({self.queue})"
+            return f"<QueuedRun {self.run_queue_item_id} ({self.queue_id})"
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 
@@ -3956,7 +3940,6 @@ class Artifact(artifacts.Artifact):
                 )
 
             artifact._load_dependent_manifests()
-
             return artifact
 
     def __init__(self, client, entity, project, name, attrs=None):
@@ -4893,8 +4876,8 @@ class Job(Media):
     _log_type = "job"
 
     _name: str
-    _input_type: Type
-    _output_type: Type
+    _input_types: Type
+    _output_types: Type
     _entity: str
     _project: str
     _entrypoint: List[str]
@@ -4910,15 +4893,14 @@ class Job(Media):
         self._name = name
         self._client = client
         self._entity = client.default_entity
+
         with open(os.path.join(self._fpath, "source_info.json")) as f:
             self._source_info = json.load(f)
         self._entrypoint = self._source_info.get("entrypoint")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
-        print(self._source_info.get("input_types"))
-        self._input_types = wandb.sdk.data_types._dtypes.TypeRegistry.type_from_dict(
+        self._input_types = TypeRegistry.type_from_dict(
             self._source_info.get("input_types")
         )
-        # TODO: remove?
         self._output_types = self._source_info.get("output_types")
 
         if self._source_info.get("source_type") == "artifact":
@@ -4927,6 +4909,10 @@ class Job(Media):
             self._set_configure_launch_project(self._configure_launch_project_repo)
         if self._source_info.get("source_type") == "image":
             self._set_configure_launch_project(self._configure_launch_project_container)
+
+    @property
+    def name(self):
+        return self._name
 
     def _set_configure_launch_project(self, func):
         self.configure_launch_project = func
@@ -4937,8 +4923,7 @@ class Job(Media):
         if code_artifact is None:
             raise LaunchError("No code artifact found")
         code_artifact.download(launch_project.project_dir)
-        frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
-        shutil.copy(frozen_requirements_path, launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
 
     def _configure_launch_project_repo(self, launch_project):
@@ -4950,9 +4935,7 @@ class Job(Media):
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):
             with open(os.path.join(self._fpath, "diff.patch")) as f:
                 apply_patch(f.read(), launch_project.project_dir)
-        launch_project.build_image = True
-        frozen_requirements_path = os.path.join(self._fpath, "requirements.frozen.txt")
-        shutil.copy(frozen_requirements_path, launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
 
     def _configure_launch_project_container(self, launch_project):

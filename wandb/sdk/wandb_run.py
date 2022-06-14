@@ -2007,6 +2007,7 @@ class Run:
             f"{i.key}=={i.version}" for i in installed_packages
         )
         if has_repo:
+            print("MAKING REPO JOB")
             artifact = self._create_repo_job(
                 input_types, output_types, installed_packages_list
             )
@@ -2068,9 +2069,10 @@ class Run:
         assert self._code_artifact is not None
         assert self._run_obj is not None
 
-        ca = self._code_artifact.wait()
-        aname, tag = ca.name.split(":")
-        name = f"job_{aname}"
+        self._code_artifact.wait()
+        sequence_name = self._code_artifact.name.split(":")[0]
+        tag = self._code_artifact.version
+        name = f"job_{sequence_name}"
         job_artifact = wandb.Artifact(name, type="job")
 
         with job_artifact.new_file("requirements.frozen.txt") as f:
@@ -2079,7 +2081,7 @@ class Run:
         source_info = {
             "_version": "v0",
             "source_type": "artifact",
-            "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{aname}:{tag}",
+            "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{sequence_name}:{tag}",
             "entrypoint": [
                 sys.executable.split("/")[-1],
                 self._settings.program_relpath,
