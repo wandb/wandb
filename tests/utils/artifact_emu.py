@@ -36,6 +36,7 @@ class ArtifactEmulator:
             "labels": [],
             "aliases": aliases,
             "artifactSequence": art_seq,
+            "versionIndex": 0,
             "currentManifest": dict(file=dict(directUrl=direct_url)),
         }
 
