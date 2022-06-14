@@ -1841,7 +1841,6 @@ class Api:
         self,
         config,
         controller=None,
-        launch_scheduler=None,
         scheduler=None,
         obj_id=None,
         project=None,
@@ -1871,7 +1870,6 @@ class Api:
             $entityName: String,
             $projectName: String,
             $controller: JSONString,
-            $launch_scheduler: JSONString,
             $scheduler: JSONString,
             $state: String
         ) {
@@ -1882,7 +1880,6 @@ class Api:
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
-                launch_scheduler: $launch_scheduler,
                 scheduler: $scheduler,
                 state: $state
             }) {
@@ -1939,7 +1936,6 @@ class Api:
                         "entityName": entity or self.settings("entity"),
                         "projectName": project or self.settings("project"),
                         "controller": controller,
-                        "launch_scheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
                     check_retry_fn=no_retry_4xx,
