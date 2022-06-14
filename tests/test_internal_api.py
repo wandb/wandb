@@ -12,6 +12,6 @@ def test_agent_heartbeat_with_no_agent_id_fails(test_settings):
 def test_run_state(test_settings):
     _api = internal.Api()
     with pytest.raises(CommError):
-        _api.get_run_state("test", "foo_project", "test")
+        _api.get_run_state("test_entity", None, "test_run")
     with pytest.raises(CommError):
-        _api.get_run_state("test", "test", "foo_run")
+        _api.get_run_state("test_entity", "test_project", None)
