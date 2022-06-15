@@ -1445,61 +1445,63 @@ def server():
 @click.option("--output", default=None, help="Debug bundle destination")
 @display_error
 def debug(host, output):
-    # wandb.login(host=host)
-    api = wandb.Api()
-    # print(api.api_key)
-    host = "https://ethan.wandb.ml/"
-    if host != None:
-        print(f"Gathering information about instance on {host}")
-        env_url = f"{host}/system-admin/api/env"
-        env_response = requests.get(env_url).json()
-        user_settings = env_response["userSettings"]
+    api = _get_cling_api()
+    reinit = False
+    if host is None:
+        host = api.settings("base_url")
+        print(f"Default host selected: {host}")
+    elif host != api.settings("base_url"):
+        reinit = True
+
+    if reinit:
+        api = _get_cling_api(reset=True)
+
+    print(f"Gathering information about: {host}")
+    env_url = f"{host}/system-admin/api/env"
+    env_response = requests.get(env_url)
+    if (
+        env_response.status_code == 200
+        and env_response.headers.get("Content-Type") == "application/json"
+    ):
+        env_data = env_response.json()
+        user_settings = env_data["userSettings"]
 
         license = user_settings["license"]["value"]
-        local_version = env_response["buildInfo"]["version"]
+        local_version = env_data["buildInfo"]["version"]
         sso_enabled = user_settings["ssoEnable"]["value"]
+        file_storage_bucket = user_settings["fileStorageBucket"]["value"]
 
-        print("Finding deployment id: ".ljust(72, "."), end="\n")
         decode_data = jwt.decode(
-            "eyJhbGciOiJSUzI1NiIsImtpZCI6InUzaHgyQjQyQWhEUXM1M0xQY09yNnZhaTdoSlduYnF1bTRZTlZWd1VwSWM9In0.eyJjb25jdXJyZW50QWdlbnRzIjoxMCwiZGVwbG95bWVudElkIjoiY2E5MTFjZDAtMDcyNS00ZmEwLTljNTEtODZmYzgzNGFlYzNjIiwibWF4VXNlcnMiOjEwMCwibWF4U3RvcmFnZUdiIjoxMDAsIm1heFRlYW1zIjoxMDAsImV4cGlyZXNBdCI6IjIwMjItMDYtMjBUMDY6NTk6NTkuOTk5WiIsImZsYWdzIjpbIlNDQUxBQkxFIiwibXlzcWwiLCJzMyIsInJlZGlzIiwiTk9USUZJQ0FUSU9OUyIsInNsYWNrIiwibm90aWZpY2F0aW9ucyIsIk1BTkFHRU1FTlQiLCJvcmdfZGFzaCIsImF1dGgwIl0sInRyaWFsIjpmYWxzZSwiYWNjZXNzS2V5IjoiZTJkZTA5YjUtMGEwMS00YTkxLTgxMmEtMTQwYmJlOWIzYjRlIiwic2VhdHMiOjEwMCwidGVhbXMiOjEwMCwic3RvcmFnZUdpZ3MiOjEwMCwiZXhwIjoxNjU1NzA4Mzk5fQ.C7Xr5T-wsLXWLV-qCut4lLkSixVUDS0y1xUA2l4bsDgAQYByx4GOQNoZTgAkzv3WAmSNHL-f_x_IKy9iYxnYDGNTtwIiitvk-yarvBPNvyAARvktAINTx8PLviU3H5xKM5qNAkPouh9QbNLfUVWLW0D7rLoU7w3sLICqRpVCK6xahpxMQIZdrqecn_hcYYLjxNb8gn8ne3HCG-rg29WNoR7RGiggjGCG8ERqzrNBFdbv4n2r93ixuBECnTi-nq7kkei7e_WiMacZAK9gNkhdeASTo0jjX9_3QXFhYdop-VHyGNbb8906zJ4J2Czc6HMGvx28d97kELvwgG-lWKrVwg",
+            license,
             options={"verify_signature": False},
             algorithms=["RS256"],
         )
         deployment_id = decode_data["deploymentId"]
-        print(
-            f"Find your deployement at https://deploy.wandb.ai/{deployment_id}".ljust(
-                72, "."
-            ),
-            end="\n",
-        )
+        print(f"Find deployment details at: https://deploy.wandb.ai/{deployment_id}")
 
-        print("Version: ".ljust(72, "."), end="")
-        print(local_version)
-        # print("License: ".ljust(72, "."), end="")
-        # print(license)
-        # print("Deployment ID: ".ljust(72, "."), end="")
-        # print(deployment_id)
-        print("SSO enabled: ".ljust(72, "."), end="")
-        print(sso_enabled)
+        bucket_type = file_storage_bucket.split(":")[0]
+        deployment_type = ""
+        if bucket_type == "gs":
+            deployment_type = "GCP"
+        elif bucket_type == "s3":
+            deployment_type = "AWS"
 
-        # query = """query Deployment($id: ID!) {\n  deployment(id: $id) {\n    id\n    type\n    name\n    creatorId\n    organizationId\n    description\n    terraformWorkspaceId\n    createdAt\n    licenses(first: 5) {\n      nodes {\n        id\n        license\n        trial\n        deploymentId\n        maxStorageGb\n        maxTeams\n        maxUsers\n        createdAt\n        expiresAt\n        flags {\n          flag\n          name\n          description\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    releases {\n      id\n      message\n      createdAt\n      canceledAt\n      refresh\n      status\n      statusTimestamps {\n        appliedAt\n        erroredAt\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"""
-        # variables = {"id": deployment_id}
-        # print("Finding details from deployer".ljust(72, "."), end="\n")
-        # deployer_url = "https://deploy.wandb.ai/api/graphql"
-        # deployer_request = requests.post(
-        #     deployer_url, json={"query": query, "variables": variables}
-        # )
-        # print(deployer_request.text)
-
-        print("Downloading debug files".ljust(72, "."), end="\n")
-        debug_url = f"{host}/system-admin/api/debug"
-        debug_request = requests.get(debug_url, stream=True)
-        output = "output/debug.zip"
-        with open(output, "wb") as fd:
-            fd.write(debug_request.content)
-        print("Download complete".ljust(72, "."), end="\n")
+        print(f"Version: {local_version}")
+        print(f"SSO enabled: {sso_enabled}")
+        print(f"Deployment type: {deployment_type}")
     else:
-        print("No host provided.")
+        print("Could not retrieve environment information!")
+
+    print("Downloading debug files...")
+    debug_url = f"{host}/system-admin/api/debug"
+    debug_request = requests.get(debug_url, stream=True)
+
+    if output is None:
+        output = os.getcwd()
+    output = os.path.join(output, "debug.zip")
+    with open(output, "wb") as fd:
+        fd.write(debug_request.content)
+    print(f"Download complete. Find the files at {output}")
 
 
 @server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
