@@ -595,7 +595,7 @@ def test_run_wait_until_finished(runner, mock_server, api, capsys):
 def test_queued_job(runner, mock_server, api):
     queued_job = api.queued_job("test/test/test/test")
     queued_job.wait_until_running()
-    assert queued_job._run_id == "test"
+    assert queued_job._run_id == "1"
 
 
 def test_query_team(mock_server, api):
