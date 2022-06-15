@@ -13,8 +13,6 @@ from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.apis.internal import Api
-
-from wandb.apis.public import Api as PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
 from wandb.errors import CommError, Error as ExecutionError, LaunchError
