@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.runner.local import LocalSubmittedRun
+from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
@@ -165,7 +165,7 @@ class LaunchAgent:
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, self._api)
         _logger.info("Fetching resource...")
-        resource = launch_spec.get("resource") or "local"
+        resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
