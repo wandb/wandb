@@ -6,24 +6,22 @@ import datetime
 from functools import wraps
 import getpass
 import json
-import jwt
 import logging
 import os
-import requests
 import shlex
 import shutil
-import io
 import subprocess
 import sys
 import tempfile
 import textwrap
 import time
 import traceback
-import zipfile
 
 
 import click
 from click.exceptions import ClickException
+import jwt
+import requests
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
