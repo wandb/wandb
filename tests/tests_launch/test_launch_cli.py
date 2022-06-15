@@ -310,11 +310,11 @@ def test_launch_supplied_docker_image(
         return cmd  # noop
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local.pull_docker_image",
+        "wandb.sdk.launch.runner.local_container.pull_docker_image",
         lambda docker_image: None,
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
     with runner.isolated_filesystem():
