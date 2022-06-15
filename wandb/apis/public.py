@@ -2082,7 +2082,7 @@ class Run(Attrs):
 
 class QueuedRun(Attrs):
     """
-    A single queued run associated with an entity and project. Call wait_until_finished method to get access to all run attributes
+    A single queued run associated with an entity and project. Call `wait_until_running` or `wait_until_finished` methods to get access to all run attributes
     """
 
     _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbutes"

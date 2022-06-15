@@ -350,40 +350,10 @@ def test_launch_add_base_queued_run(live_mock_server):
     assert queued_run.entity == "mock_server_entity"
     assert queued_run.project == "tests"
     assert queued_run.username == "mock_server_entity"
-    with pytest.raises(ValueError):
-        queued_run._sampled_history(keys=["x"])
-
-    with pytest.raises(ValueError):
-        queued_run._full_history()
-
-    with pytest.raises(CommError):
-        queued_run.history()
-
-    with pytest.raises(CommError):
-        queued_run.scan_history()
-
-    with pytest.raises(CommError):
-        queued_run.logged_artifacts()
-
-    with pytest.raises(CommError):
-        queued_run.use_artifact()
-
-    with pytest.raises(ValueError):
-        queued_run.json_config
-
-    with pytest.raises(CommError):
-        queued_run.files()
-
-    with pytest.raises(CommError):
-        queued_run.file("file.txt")
-
-    with pytest.raises(CommError):
-        queued_run.upload_file("file.txt")
 
     live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
     queued_run.wait_until_finished()
     assert queued_run.run is not None
-    assert queued_run.state == "finished"
     assert queued_run.entity == queued_run._run.entity
     queued_run.id = "new-id"
     assert queued_run._run._attrs["name"] == "new-id"
