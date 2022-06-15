@@ -45,11 +45,8 @@ lp = LaunchProject(**kwargs)
 
 job.configure_launch_project(lp)
 if platform.system() == "Windows":
-    print(lp.get_single_entry_point().compute_command({}))
-    assert lp.get_single_entry_point().compute_command({}) == [
-        "python",
-        to_forward_slash_path(".script\artifact_job_generator.py"),
-    ]
+    assert lp.get_single_entry_point().compute_command({})[1] == to_forward_slash_path(".script\artifact_job_generator.py"),
+    
 else:
     assert lp.get_single_entry_point().compute_command({}) == [
         "python",
