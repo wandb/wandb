@@ -21,7 +21,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Optional
+from typing import List, Optional
 import urllib
 
 import requests
@@ -33,7 +33,10 @@ from wandb.data_types import WBValue
 from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
+from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
+from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.interface import artifacts
+from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
@@ -733,12 +736,19 @@ class Api:
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
-    def queued_job(self, path=""):
+    def queued_run(self, path="", container_job=False):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
         """
         entity, project, queue, run_queue_item_id = path.split("/")
-        return QueuedJob(self.client, entity, project, queue, run_queue_item_id)
+        return QueuedRun(
+            self.client,
+            entity,
+            project,
+            queue,
+            run_queue_item_id,
+            container_job=container_job,
+        )
 
     @normalize_exceptions
     def sweep(self, path=""):
@@ -798,6 +808,12 @@ class Api:
                 f"type {type} specified but this artifact is of type {artifact.type}"
             )
         return artifact
+
+    @normalize_exceptions
+    def job(self, name, path=None):
+        if name is None:
+            raise ValueError("You must specify name= to fetch a job.")
+        return Job(self, name, path)
 
 
 class Attrs:
@@ -1468,71 +1484,6 @@ class Runs(Paginator):
         return f"<Runs {self.entity}/{self.project}>"
 
 
-class QueuedJob(Attrs):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs=None):
-        super().__init__(dict(attrs or {}))
-        self.client = client
-        self._entity = entity
-        self.project = project
-        self._queue = queue
-        self._run_queue_item_id = run_queue_item_id
-        self._run_id = None
-
-    @normalize_exceptions
-    def wait_until_running(self):
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    associatedRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        variable_values = {
-            "projectName": self.project,
-            "entityName": self._entity,
-            "runQueue": self._queue,
-        }
-
-        while True:
-            res = self.client.execute(query, variable_values)
-            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-                if (
-                    item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["associatedRunId"] is not None
-                ):
-                    # TODO: this should be changed once the ack occurs within the docker container.
-                    try:
-                        Run(
-                            self.client,
-                            self._entity,
-                            self.project,
-                            item["node"]["associatedRunId"],
-                        )
-                        self._run_id = item["node"]["associatedRunId"]
-                        return
-                    except ValueError:
-                        continue
-            time.sleep(5)
-
-    @property
-    def run(self):
-        if self._run_id is None:
-            raise LaunchError("Tried to fetch run without having run_id")
-        return Run(self.client, self._entity, self.project, self._run_id)
-
-
 class Run(Attrs):
     """
     A single run associated with an entity and project.
@@ -2133,6 +2084,458 @@ class Run(Attrs):
         return self.to_html()
 
     def __repr__(self):
+        return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+
+class QueuedRun(Attrs):
+    """
+    A single queued run associated with an entity and project. Call `wait_until_running` or `wait_until_finished` methods to get access to all run attributes
+    """
+
+    _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbutes"
+
+    def __init__(
+        self,
+        client,
+        entity,
+        project,
+        queue_id,
+        run_queue_item_id,
+        attrs=None,
+        container_job=False,
+    ):
+        super().__init__(dict(attrs or {}))
+        self.client = client
+        self._entity = entity
+        self.project = project
+        self._queue_id = queue_id
+        self.run_queue_item_id = run_queue_item_id
+        self.sweep = None
+        self._run = None
+        self.container_job = container_job
+
+    @property
+    def run(self):
+        return self._run
+
+    @property
+    def queue_id(self):
+        return self._queue_id
+
+    @property
+    def state(self):
+        if self._run:
+            return self._run.state
+
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+        }
+        res = self.client.execute(query, variable_values)
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            if item["node"]["id"] == self.run_queue_item_id:
+                return item["node"]["state"].lower()
+        raise ValueError(
+            "Could not find QueuedRun associated with id: {}".format(
+                self.run_queue_item_id
+            )
+        )
+
+    @property
+    def entity(self):
+        if self._run:
+            return self._run.entity
+        return self._entity
+
+    @property
+    def username(self):
+        wandb.termwarn(
+            "QueuedRun.username is deprecated. Please use Run.entity instead."
+        )
+        if self._run:
+            return self._run.entity
+        return self._entity
+
+    @property
+    def storage_id(self):
+        # For compatibility with wandb.Run, which has storage IDs
+        # in self.storage_id and names in self.id.
+        if self._run is not None:
+            return self._run._attrs.get("id")
+        raise ValueError(f"{self._run_required_error_message}")
+
+    @property
+    def id(self):
+        if self._run is not None:
+            return self._run._attrs.get("name")
+        return self.run_queue_item_id
+
+    @id.setter
+    def id(self, new_id):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+
+        attrs = self._run._attrs
+        attrs["name"] = new_id
+        return new_id
+
+    @property
+    def name(self):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run._attrs.get("displayName")
+
+    @name.setter
+    def name(self, new_name):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        self._run.name = new_name
+        return new_name
+
+    def load(self, force=False):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.load(force=force)
+
+    @normalize_exceptions
+    def wait_until_finished(self):
+        if not self._run:
+            self.wait_until_running()
+
+        self._run.wait_until_finished()
+        # refetch run to get updated summary
+        self._run.load(force=True)
+        return self._run
+
+    @normalize_exceptions
+    def update(self):
+        """
+        Persists changes to the run object to the wandb backend.
+        """
+        # TODO: allow users to update run queue items using queued run
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        else:
+            self._run.update()
+
+    @normalize_exceptions
+    def delete(self, delete_artifacts=False):
+        """
+        Deletes the given run from the wandb backend.
+        """
+        if self._run is None:
+            mutation = gql(
+                """
+                mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
+                {
+                    deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+                        success
+                        clientMutationId
+                    }
+                }
+                """
+            )
+            self.client.execute(
+                mutation,
+                variable_values={
+                    "queueID": self.queue_id,
+                    "runQueueItemID": self.run_queue_item_id,
+                },
+            )
+        else:
+            self._run.delete(delete_artifacts=delete_artifacts)
+
+    def save(self):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        self._run.save()
+
+    @property
+    def json_config(self):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.json_config
+
+    def _exec(self, query, **kwargs):
+        """Execute a query against the cloud backend"""
+        if self._run is not None:
+            variables = {
+                "entity": self._run.entity,
+                "project": self._run.project,
+                "name": self._run.id,
+            }
+            variables.update(kwargs)
+        else:
+            variables = {
+                "entity": self.entity,
+                "project": self.project,
+            }
+            variables.update(kwargs)
+
+        return self.client.execute(query, variable_values=variables)
+
+    def _sampled_history(self, keys, x_axis="_step", samples=500):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        self._run._sampled_history(keys, x_axis, samples)
+
+    def _full_history(self, samples=500, stream="default"):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run._full_history(samples, stream)
+
+    @normalize_exceptions
+    def files(self, names=None, per_page=50):
+        """
+        Arguments:
+            names (list): names of the requested files, if empty returns all files
+            per_page (int): number of results per page
+
+        Returns:
+            A `Files` object, which is an iterator over `File` objects.
+        """
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        self._run.files(names or [], per_page)
+
+    @normalize_exceptions
+    def file(self, name):
+        """
+        Arguments:
+            name (str): name of requested file.
+
+        Returns:
+            A `File` matching the name argument.
+        """
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.file(name)
+
+    @normalize_exceptions
+    def upload_file(self, path, root="."):
+        """
+        Arguments:
+            path (str): name of file to upload.
+            root (str): the root path to save the file relative to.  i.e.
+                If you want to have the file saved in the run as "my_dir/file.txt"
+                and you're currently in "my_dir" you would set root to "../"
+
+        Returns:
+            A `File` matching the name argument.
+        """
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.upload_file(path, root)
+
+    @normalize_exceptions
+    def history(
+        self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
+    ):
+        """
+        Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
+        the history records being sampled.
+
+        Arguments:
+            samples (int, optional): The number of samples to return
+            pandas (bool, optional): Return a pandas dataframe
+            keys (list, optional): Only return metrics for specific keys
+            x_axis (str, optional): Use this metric as the xAxis defaults to _step
+            stream (str, optional): "default" for metrics, "system" for machine metrics
+
+        Returns:
+            If pandas=True returns a `pandas.DataFrame` of history metrics.
+            If pandas=False returns a list of dicts of history metrics.
+        """
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.history(samples, keys, x_axis, pandas, stream)
+
+    @normalize_exceptions
+    def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
+        """
+        Returns an iterable collection of all history records for a run.
+
+        Example:
+            Export all the loss values for an example run
+
+            ```python
+            run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
+            history = run.scan_history(keys=["Loss"])
+            losses = [row["Loss"] for row in history]
+            ```
+
+
+        Arguments:
+            keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
+            page_size (int, optional): size of pages to fetch from the api
+
+        Returns:
+            An iterable collection over history records (dict).
+        """
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.scan_history(
+            keys=keys, page_size=page_size, min_step=min_step, max_step=max_step
+        )
+
+    @normalize_exceptions
+    def logged_artifacts(self, per_page=100):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.logged_artifacts(per_page=per_page)
+
+    @normalize_exceptions
+    def used_artifacts(self, per_page=100):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.used_artifacts(per_page=per_page)
+
+    @normalize_exceptions
+    def use_artifact(self, artifact, use_as=None):
+        """Declare an artifact as an input to a run.
+
+        Arguments:
+            artifact (`Artifact`): An artifact returned from
+                `wandb.Api().artifact(name)`
+            use_as (string, optional): A string identifying
+                how the artifact is used in the script. Used
+                to easily differentiate artifacts used in a
+                run, when using the beta wandb launch
+                feature's artifact swapping functionality.
+        Returns:
+            A `Artifact` object.
+        """
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.use_artifact(artifact, use_as=use_as)
+
+    @normalize_exceptions
+    def log_artifact(self, artifact, aliases=None):
+        """Declare an artifact as output of a run.
+
+        Arguments:
+            artifact (`Artifact`): An artifact returned from
+                `wandb.Api().artifact(name)`
+            aliases (list, optional): Aliases to apply to this artifact
+        Returns:
+            A `Artifact` object.
+        """
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.log_artifact(artifact, aliases=aliases)
+
+    @property
+    def summary(self):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.summary
+
+    @property
+    def path(self):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.path
+
+    @property
+    def url(self):
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.url
+
+    @property
+    def lastHistoryStep(self):  # noqa: N802
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.lastHistoryStep
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this run"""
+        if self._run is None:
+            raise ValueError(f"{self._run_required_error_message}")
+        return self._run.to_html(height, hidden)
+
+    @normalize_exceptions
+    def wait_until_running(self):
+        if self._run is not None:
+            return self._run
+        if self.container_job:
+            raise LaunchError("Container jobs cannot be waited on")
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+        }
+
+        while True:
+            res = self.client.execute(query, variable_values)
+            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+                if (
+                    item["node"]["id"] == self.run_queue_item_id
+                    and item["node"]["associatedRunId"] is not None
+                ):
+                    # sleep here to hide an ugly warning
+                    time.sleep(2)
+                    # TODO: this should be changed once the ack occurs within the docker container.
+                    try:
+                        self._run = Run(
+                            self.client,
+                            self._entity,
+                            self.project,
+                            item["node"]["associatedRunId"],
+                            None,
+                        )
+                        self._run_id = item["node"]["associatedRunId"]
+                        return self._run
+                    except ValueError as e:
+                        print(e)
+
+            time.sleep(5)
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
+
+    def __repr__(self):
+        if self._run is None:
+            return f"<QueuedRun {self.run_queue_item_id} ({self.queue_id})"
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 
@@ -4441,3 +4844,120 @@ class ArtifactFiles(Paginator):
 
     def __repr__(self):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
+
+
+class Job(Media):
+    _log_type = "job"
+
+    _name: str
+    _input_types: Type
+    _output_types: Type
+    _entity: str
+    _project: str
+    _entrypoint: List[str]
+
+    def __init__(self, client: Api, name, path: str = None) -> None:
+
+        self._job_artifact = client.artifact(name, type="job")
+        if path:
+            self._fpath = path
+            self._job_artifact.download(root=path)
+        else:
+            self._fpath = self._job_artifact.download()
+        self._name = name
+        self._client = client
+        self._entity = client.default_entity
+
+        with open(os.path.join(self._fpath, "source_info.json")) as f:
+            self._source_info = json.load(f)
+        self._entrypoint = self._source_info.get("entrypoint")
+        self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
+        self._input_types = TypeRegistry.type_from_dict(
+            self._source_info.get("input_types")
+        )
+        self._output_types = TypeRegistry.type_from_dict(
+            self._source_info.get("output_types")
+        )
+
+        if self._source_info.get("source_type") == "artifact":
+            self._set_configure_launch_project(self._configure_launch_project_artifact)
+        if self._source_info.get("source_type") == "repo":
+            self._set_configure_launch_project(self._configure_launch_project_repo)
+        if self._source_info.get("source_type") == "image":
+            self._set_configure_launch_project(self._configure_launch_project_container)
+
+    @property
+    def name(self):
+        return self._name
+
+    def _set_configure_launch_project(self, func):
+        self.configure_launch_project = func
+
+    def _configure_launch_project_repo(self, launch_project):
+        _fetch_git_repo(
+            launch_project.project_dir,
+            self._source_info["remote"],
+            self._source_info["commit"],
+        )
+        if os.path.exists(os.path.join(self._fpath, "diff.patch")):
+            with open(os.path.join(self._fpath, "diff.patch")) as f:
+                apply_patch(f.read(), launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
+
+    def _configure_launch_project_artifact(self, launch_project):
+        artifact_name = self._source_info.get("artifact")[len("wandb-artiact://") + 1 :]
+        code_artifact = self._client.artifact(artifact_name, type="code")
+        if code_artifact is None:
+            raise LaunchError("No code artifact found")
+        code_artifact.download(launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
+
+    def _configure_launch_project_container(self, launch_project):
+        launch_project.docker_image = self._source_info.get("image")
+        if self._entrypoint:
+            launch_project.add_entry_point(self._entrypoint)
+
+    def set_default_input(self, key, val):
+        self._job_artifact.metadata["config_defaults"][key] = val
+        self._job_artifact.save()
+
+    def _config_defaults(self):
+        return self._job_artifact.metadata["config_defaults"]
+
+    def set_entrypoint(self, entrypoint: List[str]):
+        self._entrypoint = entrypoint
+
+    def call(
+        self,
+        config,
+        project=None,
+        entity=None,
+        queue=None,
+        resource="local-container",
+        resource_args=None,
+        cuda=False,
+    ):
+        from wandb.sdk.launch import launch_add
+
+        run_config = self._config_defaults().copy()
+
+        run_config.update(config)
+        assigned_config_type = self._input_types.assign(run_config)
+        if isinstance(assigned_config_type, InvalidType):
+            raise TypeError(self._input_types.explain(run_config))
+
+        queued_run = launch_add.launch_add(
+            job=self._name,
+            config={"overrides": {"run_config": run_config}},
+            project=project or self._project,
+            entity=entity or self._entity,
+            queue=queue,
+            resource=resource,
+            resource_args=resource_args,
+            cuda=cuda,
+        )
+        return queued_run

@@ -401,6 +401,7 @@ def test_build_image_success(
         builder = KanikoBuilder(build_config)
         project = LaunchProject(
             "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
             api,
             {},
             "mock_server_entity",

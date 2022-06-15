@@ -17,7 +17,8 @@ def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
 
 
 def launch_add(
-    uri: str,
+    uri: Optional[str] = None,
+    job: Optional[str] = None,
     config: Optional[Union[str, Dict[str, Any]]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -28,11 +29,16 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
-) -> "public.QueuedJob":
+    resource_args: Optional[Dict[str, Any]] = None,
+    cuda: Optional[bool] = None,
+) -> "public.QueuedRun":
+
     api = Api()
+
     return _launch_add(
         api,
         uri,
+        job,
         config,
         project,
         entity,
@@ -43,12 +49,15 @@ def launch_add(
         version,
         docker_image,
         params,
+        resource_args,
+        cuda,
     )
 
 
 def _launch_add(
     api: Api,
-    uri: str,
+    uri: Optional[str],
+    job: Optional[str],
     config: Optional[Union[str, Dict[str, Any]]],
     project: Optional[str],
     entity: Optional[str],
@@ -61,7 +70,7 @@ def _launch_add(
     params: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
-) -> "public.QueuedJob":
+) -> "public.QueuedRun":
 
     resource = resource or "local"
     if config is not None:
@@ -78,6 +87,7 @@ def _launch_add(
 
     launch_spec = construct_launch_spec(
         uri,
+        job,
         api,
         name,
         project,
@@ -91,14 +101,28 @@ def _launch_add(
         launch_config,
         cuda,
     )
-
+    if (
+        launch_spec.get("uri") is None
+        and launch_spec.get("job") is None
+        and launch_spec.get("docker", {}).get("docker_image") is None
+    ):
+        raise ValueError("Must specify either uri or job or docker_image")
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:
         raise Exception("Error adding run to queue")
     wandb.termlog(f"Added run to queue {queue}")
     public_api = public.Api()
-    queued_job = public_api.queued_job(
-        f"{entity}/{project}/{queue}/{res['runQueueItemId']}"
+    queued_run_entity = launch_spec.get("entity")
+    queued_run_project = launch_spec.get("project")
+    container_job = False
+    if job:
+        job_artifact = public_api.job(job)
+        if job_artifact._source_info.get("source_type") == "image":
+            container_job = True
+
+    queued_run = public_api.queued_run(
+        f"{queued_run_entity}/{queued_run_project}/{queue}/{res['runQueueItemId']}",
+        container_job,
     )
-    return queued_job  # type: ignore
+    return queued_run  # type: ignore
