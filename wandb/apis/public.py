@@ -1686,7 +1686,6 @@ class Run(Attrs):
                 print(f"Run finished with status: {state}")
                 self._attrs["state"] = state
                 self._state = state
-                self.load()
                 return
             time.sleep(5)
 
