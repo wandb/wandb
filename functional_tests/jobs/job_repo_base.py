@@ -48,7 +48,8 @@ kwargs = {
 lp = LaunchProject(**kwargs)
 
 job.configure_launch_project(lp)
-assert lp.get_single_entry_point().compute_command({})[1] == to_forward_slash_path(
-    "functional_tests/jobs/script/repo_job_generator.py"
+assert (
+    to_forward_slash_path(lp.get_single_entry_point().compute_command({})[1])
+    == "functional_tests/jobs/script/repo_job_generator.py"
 )
 assert "requirements.frozen.txt" in os.listdir(lp.project_dir)
