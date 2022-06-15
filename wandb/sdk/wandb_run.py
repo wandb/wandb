@@ -2052,6 +2052,7 @@ class Run:
             ],
             "input_types": input_types,
             "output_types": output_types,
+            "runtime": self._settings._python,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
@@ -2067,7 +2068,6 @@ class Run:
     ) -> "Artifact":
         assert self._code_artifact is not None
         assert self._run_obj is not None
-
         self._code_artifact.wait()
         sequence_name = self._code_artifact.name.split(":")[0]
         tag = self._code_artifact.version
@@ -2087,6 +2087,7 @@ class Run:
             ],
             "input_types": input_types,
             "output_types": output_types,
+            "runtime": self._settings._python,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
@@ -2106,6 +2107,7 @@ class Run:
             "image": os.getenv("WANDB_DOCKER"),
             "input_types": input_types,
             "output_types": output_types,
+            "runtime": self._settings._python,
         }
         with job_artifact.new_file("source_info.json") as f:
             f.write(json.dumps(source_info))
