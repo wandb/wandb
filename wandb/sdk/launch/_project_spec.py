@@ -92,7 +92,7 @@ class LaunchProject:
         self.cuda = cuda
         self._runtime: Optional[str] = None
         self.run_id = generate_id()
-        self._image_tag = self.run_id
+        self._image_tag = self._initialize_image_job_tag() or self.run_id
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -162,7 +162,14 @@ class LaunchProject:
         else:
             # this will always pass since one of these 3 is required
             assert self.job is not None
-            return wandb.util.make_docker_image_name_safe(self.job)
+            print(self.job, wandb.util.make_docker_image_name_safe(self.job))
+            return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
+
+    def _initialize_image_job_tag(self) -> str:
+        if self.job is not None:
+            _, alias = self.job.split(":")
+            self._image_tag = alias
+            return alias
 
     @property
     def image_uri(self) -> str:
@@ -265,6 +272,8 @@ class LaunchProject:
                             self.cuda_version, original_cuda_version, self.cuda_version
                         )
                     )
+            # Specify the python runtime for jupyter2docker
+            self.python_version = run_info.get("python", "3")
 
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -332,8 +341,6 @@ class LaunchProject:
                 self.project_dir,
             )
 
-            # Specify the python runtime for jupyter2docker
-            self.python_version = run_info.get("python", "3")
             if not self._entry_points:
                 _, ext = os.path.splitext(program_name)
                 if ext == ".py":
