@@ -58,6 +58,10 @@ class TypeRegistry:
         if py_obj.__class__ == float and math.isnan(py_obj):  # type: ignore
             return NoneType()
 
+        # TODO: generalize this to handle other config input types
+        if _is_artifact_representation(py_obj):
+            return PythonObjectType("Artifact")
+
         class_handler = TypeRegistry.types_by_class().get(py_obj.__class__)
         _type = None
         if class_handler:
@@ -112,7 +116,6 @@ class TypeRegistry:
                 wbtype = UnionType([TypeRegistry.type_from_dtype(dt) for dt in dtype])
 
         # The dtype is a dict, then we resolve the dict notation
-        # TODO: Im a very hot code path, don't mess with me
         elif isinstance(dtype, dict):
             wbtype = TypedDictType(
                 {key: TypeRegistry.type_from_dtype(dtype[key]) for key in dtype}
@@ -205,9 +208,6 @@ class Type:
         Returns:
             Type: an instance of a subclass of the Type class.
         """
-        # TODO: generalize this to handle other config input types
-        if _is_artifact_representation(py_obj):
-            return self.assign_type(PythonObjectType("Artifact"))
         return self.assign_type(TypeRegistry.type_of(py_obj))
 
     def assign_type(self, wb_type: "Type") -> "Type":
