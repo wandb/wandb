@@ -6,8 +6,7 @@ import logging
 
 import wandb
 from wandb.util import (
-    _is_artifact,
-    _is_artifact_string,
+    _is_artifact_representation,
     check_dict_contains_nested_artifact,
     json_friendly_val,
 )
@@ -233,12 +232,14 @@ class Config:
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
+        if isinstance(val, wandb.sdk.data_types.base_types.media.Media):
+            raise ValueError("Media objects cannot be added to the run config")
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        if _is_artifact_string(val) or _is_artifact(val):
+        if _is_artifact_representation(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
         if not (
@@ -246,8 +247,6 @@ class Config:
             or isinstance(val, wandb.apis.public.Artifact)
         ):
             val = json_friendly_val(val)
-        elif isinstance(val, wandb.sdk.data_types.base_types.media.Media):
-            raise ValueError("Media objects are not allowed in the config.")
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(

@@ -736,7 +736,7 @@ class Api:
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
-    def queued_job(self, path=""):
+    def queued_run(self, path=""):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
         """
@@ -4952,7 +4952,7 @@ class Job(Media):
         self._job_artifact.metadata["config_defaults"][key] = val
         self._job_artifact.save()
 
-    def _config_defaults(self): 
+    def _config_defaults(self):
         return self._job_artifact.metadata["config_defaults"]
 
     def set_entrypoint(self, entrypoint: List[str]):

@@ -2,9 +2,11 @@ import os
 import subprocess
 import wandb
 import pytest
+from wandb.apis.internal import InternalApi
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.apis.internal import InternalApi
+from wandb.util import to_forward_slash_path
+
 
 # this test is kind of hacky, it piggy backs off of the existing wandb/client git repo to construct the job
 # should probably have it use wandb_examples or something
@@ -47,6 +49,6 @@ lp = LaunchProject(**kwargs)
 job.configure_launch_project(lp)
 assert lp.get_single_entry_point().compute_command({}) == [
     "python",
-    "functional_tests/jobs/script/repo_job_generator.py",
+    to_forward_slash_path("functional_tests/jobs/script/repo_job_generator.py"),
 ]
 assert "requirements.frozen.txt" in os.listdir(lp.project_dir)

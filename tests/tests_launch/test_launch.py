@@ -331,9 +331,14 @@ def test_launch_resource_args(
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
-def test_launch_add_base(live_mock_server):
+def test_launch_add_base_queued_run(live_mock_server):
     queued_run = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
+    assert queued_run.state == "pending"
     assert queued_run.run_queue_item_id == "1"
+    live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
+    queued_run.wait_until_finished()
+    assert queued_run._run is not None
+    assert queued_run.state == "finished"
 
 
 @pytest.mark.skipif(
@@ -1422,7 +1427,7 @@ def test_launch_url_and_job(
         assert "Cannot specify both uri and job" in str(e)
 
 
-def _launch_no_url_job_or_docker_image(
+def test_launch_no_url_job_or_docker_image(
     live_mock_server,
     test_settings,
 ):

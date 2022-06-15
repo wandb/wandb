@@ -78,7 +78,7 @@ def default_ctx():
         "emulate_artifacts": None,
         "emulate_azure": False,
         "run_state": "running",
-        "run_queue_item_check_count": 0,
+        "run_queue_item_return_type": "queued",
         "run_script_type": "python",
         "alerts": [],
         "gorilla_supports_launch_agents": True,
@@ -95,7 +95,7 @@ def default_ctx():
         "run_cuda_version": None,
         # relay mode, keep track of upsert runs for validation
         "relay_run_info": {},
-        "latest_arti_id": None
+        "latest_arti_id": None,
     }
 
 
@@ -1056,12 +1056,14 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation LinkArtifact(" in body["query"]:
             if ART_EMU:
-                ctx["latest_arti_id"] = body["variables"].get("artifactID") or body["variables"].get("clientID")
-                return  ART_EMU.link(variables=body["variables"])
-                
+                ctx["latest_arti_id"] = body["variables"].get("artifactID") or body[
+                    "variables"
+                ].get("clientID")
+                return ART_EMU.link(variables=body["variables"])
+
         if "mutation CreateArtifact(" in body["query"]:
             if ART_EMU:
-                res =  ART_EMU.create(variables=body["variables"])
+                res = ART_EMU.create(variables=body["variables"])
                 ctx["latest_arti_id"] = res["data"]["createArtifact"]["artifact"]["id"]
                 return res
 
@@ -1072,8 +1074,7 @@ def create_app(user_ctx=None):
                 collection_name, []
             )
             ctx["artifacts"][collection_name].append(body["variables"])
-            
-            
+
             _id = body.get("variables", {}).get("digest", "")
             if _id != "":
                 ctx.get("artifacts_by_id")[_id] = body["variables"]
@@ -1303,7 +1304,7 @@ def create_app(user_ctx=None):
                     )
                     artifact_response = None
                     if res["data"].get("project") is not None:
-                        artifact_response =  res["data"]["project"]["artifact"]
+                        artifact_response = res["data"]["project"]["artifact"]
                     else:
                         artifact_response = res["data"]["artifact"]
                     if artifact_response:
@@ -1348,7 +1349,7 @@ def create_app(user_ctx=None):
                 res = ART_EMU.query(
                     variables=body.get("variables", {}), query=body.get("query")
                 )
-                ctx["latest_arti_id"] =  res["data"]["artifact"]["id"]
+                ctx["latest_arti_id"] = res["data"]["artifact"]["id"]
             art = artifact(ctx)
             art["currentManifest"] = {
                 "id": 1,
@@ -1386,8 +1387,7 @@ def create_app(user_ctx=None):
                 return json.dumps({"data": {"project": {"runQueues": []}}})
 
         if "query GetRunQueueItem" in body["query"]:
-            ctx["run_queue_item_check_count"] += 1
-            if ctx["run_queue_item_check_count"] > 1:
+            if ctx["run_queue_item_return_type"] == "claimed":
                 return json.dumps(
                     {
                         "data": {
@@ -1397,8 +1397,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
-                                                    "associatedRunId": "test",
+                                                    "id": "1",
+                                                    "associatedRunId": "1",
+                                                    "state": "CLAIMED",
                                                 }
                                             }
                                         ]
@@ -1418,8 +1419,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
+                                                    "id": "1",
                                                     "associatedRunId": None,
+                                                    "state": "PENDING",
                                                 }
                                             }
                                         ]

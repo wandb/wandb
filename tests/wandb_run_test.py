@@ -669,6 +669,13 @@ def test_wandb_artifact_config_update(
         }
 
 
+def test_media_in_config(runner, live_mock_server, test_settings, parse_ctx):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        with pytest.raises(ValueError):
+            run.config["image"] = wandb.Image(np.random.randint(0, 255, (100, 100, 3)))
+
+
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(
         config_include_keys=("lol",),
