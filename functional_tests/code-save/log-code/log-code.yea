@@ -2,6 +2,8 @@ id: 0.code-save.3-log_code
 plugin:
   - wandb
 var:
+  - src0:
+    source-test-.log_code.py
   - runline0:
       :fn:concat:
       - RUN_ID=
@@ -18,4 +20,4 @@ assert:
     - code/functional_tests/code-save/log-code/log-code.py
   - :op:contains:
     - :wandb:artifacts
-    - source-test-.log_code.py
+    - :src0
