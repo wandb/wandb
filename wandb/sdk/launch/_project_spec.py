@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 import wandb
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
+from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
 from wandb.errors import CommError, Error as ExecutionError, LaunchError
 from wandb.sdk.lib.runid import generate_id
@@ -65,6 +66,7 @@ class LaunchProject:
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
+        self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
@@ -207,6 +209,7 @@ class LaunchProject:
         except CommError:
             raise LaunchError(f"Job {self.job} not found")
         job.configure_launch_project(self)
+        self._job_artifact = job._job_artifact
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""

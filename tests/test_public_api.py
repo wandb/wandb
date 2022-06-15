@@ -592,12 +592,6 @@ def test_run_wait_until_finished(runner, mock_server, api, capsys):
     assert f"Run finished with status: {status}" in out
 
 
-def test_queued_run(runner, mock_server, api):
-    queued_run = api.queued_run("test/test/test/test")
-    queued_run.wait_until_running()
-    assert queued_run._run_id == "test"
-
-
 def test_query_team(mock_server, api):
     t = api.team("test")
     assert t.name == "test"

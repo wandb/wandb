@@ -338,20 +338,19 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
 
 
 def validate_wandb_python_deps(
-    entity: str, project: str, run_name: str, api: Api, dir: str
+    requirements_file: Optional[str],
+    dir: str,
 ) -> None:
     """Warns if local python dependencies differ from wandb requirements.txt"""
-
-    _requirements_file = download_wandb_python_deps(entity, project, run_name, api, dir)
-    if _requirements_file is not None:
-        _requirements_file = os.path.join(dir, _requirements_file)
-        with open(_requirements_file) as f:
+    if requirements_file is not None:
+        requirements_file = os.path.join(dir, requirements_file)
+        with open(requirements_file) as f:
             wandb_python_deps: List[str] = f.read().splitlines()
 
-        _requirements_file = get_local_python_deps(dir)
-        if _requirements_file is not None:
-            _requirements_file = os.path.join(dir, _requirements_file)
-            with open(_requirements_file) as f:
+        _local_python_deps = get_local_python_deps(dir)
+        if _local_python_deps is not None:
+            local_python_deps = os.path.join(dir, _local_python_deps)
+            with open(local_python_deps) as f:
                 local_python_deps: List[str] = f.read().splitlines()
 
             diff_pip_requirements(wandb_python_deps, local_python_deps)

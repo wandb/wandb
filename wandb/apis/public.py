@@ -1642,28 +1642,23 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-        self._attrs["summaryMetrics"] = (
-            json.loads(self._attrs["summaryMetrics"])
-            if self._attrs.get("summaryMetrics")
-            else {}
-        )
-        self._attrs["systemMetrics"] = (
-            json.loads(self._attrs["systemMetrics"])
-            if self._attrs.get("systemMetrics")
-            else {}
-        )
-        if self._attrs.get("user"):
-            self.user = User(self.client, self._attrs["user"])
-        config_user, config_raw = {}, {}
-        for key, value in json.loads(self._attrs.get("config") or "{}").items():
-            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
-            if isinstance(value, dict) and "value" in value:
-                config[key] = value["value"]
-            else:
-                config[key] = value
-        config_raw.update(config_user)
-        self._attrs["config"] = config_user
-        self._attrs["rawconfig"] = config_raw
+            self._attrs["summaryMetrics"] = (
+                json.loads(self._attrs["summaryMetrics"])
+                if self._attrs.get("summaryMetrics")
+                else {}
+            )
+            if self._attrs.get("user"):
+                self.user = User(self.client, self._attrs["user"])
+            config_user, config_raw = {}, {}
+            for key, value in json.loads(self._attrs.get("config") or "{}").items():
+                config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
+                if isinstance(value, dict) and "value" in value:
+                    config[key] = value["value"]
+                else:
+                    config[key] = value
+            config_raw.update(config_user)
+            self._attrs["config"] = config_user
+            self._attrs["rawconfig"] = config_raw
         return self._attrs
 
     @normalize_exceptions
@@ -1686,6 +1681,7 @@ class Run(Attrs):
                 print(f"Run finished with status: {state}")
                 self._attrs["state"] = state
                 self._state = state
+                self.load()
                 return
             time.sleep(5)
 
@@ -2198,69 +2194,13 @@ class QueuedRun(Attrs):
     def load(self, force=False):
         if self._run is None:
             raise ValueError(self._run_required_error_message)
-        query = gql(
-            """
-        query Run($project: String!, $entity: String!, $name: String!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) {
-                    ...RunFragment
-                }
-            }
-        }
-        %s
-        """
-            % RUN_FRAGMENT
-        )
-        if force or not self._run._attrs:
-            response = self._exec(query)
-            if (
-                response is None
-                or response.get("project") is None
-                or response["project"].get("run") is None
-            ):
-                raise ValueError("Could not find run %s" % self)
-            self._attrs = response["project"]["run"]
-            self._state = self._attrs["state"]
-
-            if self._run.sweep_name and not self._run.sweep:
-                # There may be a lot of runs. Don't bother pulling them all
-                # just for the sake of this one.
-                self._run.sweep = Sweep.get(
-                    self.client,
-                    self.entity,
-                    self.project,
-                    self.sweep_name,
-                    withRuns=False,
-                )
-
-        self._run._attrs["summaryMetrics"] = (
-            json.loads(self._run._attrs["summaryMetrics"])
-            if self._run._attrs.get("summaryMetrics")
-            else {}
-        )
-        self._run._attrs["systemMetrics"] = (
-            json.loads(self._run._attrs["systemMetrics"])
-            if self._run._attrs.get("systemMetrics")
-            else {}
-        )
-        if self._run._attrs.get("user"):
-            self._run.user = User(self.client, self._run._attrs["user"])
-        config_user, config_raw = {}, {}
-        for key, value in json.loads(self._run._attrs.get("config") or "{}").items():
-            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
-            if isinstance(value, dict) and "value" in value:
-                config[key] = value["value"]
-            else:
-                config[key] = value
-        config_raw.update(config_user)
-        self._run._attrs["config"] = config_user
-        self._run._attrs["rawconfig"] = config_raw
-        return self._run._attrs
+        return self._run.load(force=force)
 
     @normalize_exceptions
     def wait_until_finished(self):
         if not self._run:
             self.wait_until_running()
+
         self._run.wait_until_finished()
         return self._run
 
@@ -2554,6 +2494,7 @@ class QueuedRun(Attrs):
                             self._entity,
                             self.project,
                             item["node"]["associatedRunId"],
+                            None,
                         )
                         self._run_id = item["node"]["associatedRunId"]
                         return self._run
@@ -4922,15 +4863,6 @@ class Job(Media):
     def _set_configure_launch_project(self, func):
         self.configure_launch_project = func
 
-    def _configure_launch_project_artifact(self, launch_project):
-        artifact_name = self._source_info.get("artifact")[len("wandb-artiact://") + 1 :]
-        code_artifact = self._client.artifact(artifact_name, type="code")
-        if code_artifact is None:
-            raise LaunchError("No code artifact found")
-        code_artifact.download(launch_project.project_dir)
-        shutil.copy(self._requirements_file, launch_project.project_dir)
-        launch_project.add_entry_point(self._entrypoint)
-
     def _configure_launch_project_repo(self, launch_project):
         _fetch_git_repo(
             launch_project.project_dir,
@@ -4940,6 +4872,15 @@ class Job(Media):
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):
             with open(os.path.join(self._fpath, "diff.patch")) as f:
                 apply_patch(f.read(), launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+
+    def _configure_launch_project_artifact(self, launch_project):
+        artifact_name = self._source_info.get("artifact")[len("wandb-artiact://") + 1 :]
+        code_artifact = self._client.artifact(artifact_name, type="code")
+        if code_artifact is None:
+            raise LaunchError("No code artifact found")
+        code_artifact.download(launch_project.project_dir)
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
 

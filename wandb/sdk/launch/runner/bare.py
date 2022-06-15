@@ -10,6 +10,7 @@ from .local import _run_entry_point
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
+    download_wandb_python_deps,
     parse_wandb_uri,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
@@ -55,17 +56,23 @@ class LocalProcessRunner(AbstractRunner):
             source_entity, source_project, run_name = parse_wandb_uri(
                 launch_project.uri
             )
-            validate_wandb_python_deps(
+            run_requirements_file = download_wandb_python_deps(
                 source_entity,
                 source_project,
                 run_name,
                 self._api,
                 launch_project.project_dir,
             )
-        else:
-            # TODO: validate deps
-            pass
-
+            validate_wandb_python_deps(
+                run_requirements_file,
+                launch_project.project_dir,
+            )
+        elif launch_project.job:
+            assert launch_project._job_artifact is not None
+            validate_wandb_python_deps(
+                "requirements.frozen.txt",
+                launch_project.project_dir,
+            )
         env_vars = get_env_vars_dict(launch_project, None, self._api)
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]

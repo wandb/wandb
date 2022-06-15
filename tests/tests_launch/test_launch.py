@@ -335,10 +335,16 @@ def test_launch_add_base_queued_run(live_mock_server):
     queued_run = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
     assert queued_run.state == "pending"
     assert queued_run.run_queue_item_id == "1"
+    assert queued_run.entity == "mock_server_entity"
+    assert queued_run.project == "tests"
+    assert queued_run.username == "mock_server_entity"
     live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
     queued_run.wait_until_finished()
-    assert queued_run._run is not None
+    assert queued_run.run is not None
     assert queued_run.state == "finished"
+    assert queued_run.entity == queued_run._run.entity
+    queued_run.id = "new-id"
+    assert queued_run._run._attrs["name"] == "new-id"
 
 
 @pytest.mark.skipif(
