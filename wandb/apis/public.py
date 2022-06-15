@@ -4904,6 +4904,7 @@ class Job(Media):
                 apply_patch(f.read(), launch_project.project_dir)
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_name = self._source_info.get("artifact")[len("wandb-artiact://") + 1 :]
@@ -4913,6 +4914,7 @@ class Job(Media):
         code_artifact.download(launch_project.project_dir)
         shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._source_info.get("image")
