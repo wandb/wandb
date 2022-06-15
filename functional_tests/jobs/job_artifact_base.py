@@ -1,7 +1,9 @@
 import os
 import subprocess
+import platform
 import wandb
 import pytest
+from wandb.util import to_forward_slash_path
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.apis.internal import InternalApi
@@ -42,8 +44,15 @@ kwargs = {
 lp = LaunchProject(**kwargs)
 
 job.configure_launch_project(lp)
-assert lp.get_single_entry_point().compute_command({}) == [
-    "python",
-    "./script/artifact_job_generator.py",
-]
+if platform.system() == "Windows":
+    print(lp.get_single_entry_point().compute_command({}))
+    assert lp.get_single_entry_point().compute_command({}) == [
+        "python",
+        to_forward_slash_path(".script\artifact_job_generator.py"),
+    ]
+else:
+    assert lp.get_single_entry_point().compute_command({}) == [
+        "python",
+        "./script/artifact_job_generator.py",
+    ]
 assert "requirements.frozen.txt" in os.listdir(lp.project_dir)

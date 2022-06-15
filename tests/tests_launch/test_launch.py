@@ -1447,6 +1447,28 @@ def _launch_no_url_job_or_docker_image(
         )
 
 
+def test_fetch_job_fail(api):
+
+    launch_project = _project_spec.LaunchProject(
+        None,
+        "test:v0",
+        api,
+        {},
+        "live_mock_server_entity",
+        "Test_project",
+        None,
+        {},
+        {},
+        {},
+        "local",
+        {},
+        None,
+    )
+    with pytest.raises(LaunchError) as e_info:
+        launch_project._fetch_job()
+    assert "Job test:v0 not found" in str(e_info.value)
+
+
 # def test_job_artifact(mock_server, api):
 #     config = {
 #         "name": "test",

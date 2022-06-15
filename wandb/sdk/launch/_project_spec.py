@@ -15,7 +15,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 import wandb.docker as docker
-from wandb.errors import Error as ExecutionError, LaunchError
+from wandb.errors import CommError, Error as ExecutionError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -184,8 +184,9 @@ class LaunchProject:
     def _fetch_job(self) -> None:
         public_api = PublicApi()
         job_dir = tempfile.mkdtemp()
-        job = public_api.job(self.job, path=job_dir)
-        if not job:
+        try:
+            job = public_api.job(self.job, path=job_dir)
+        except CommError:
             raise LaunchError(f"Job {self.job} not found")
         job.configure_launch_project(self)
 
