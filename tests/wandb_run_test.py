@@ -148,8 +148,6 @@ def test_log_code_settings(live_mock_server, test_settings):
     run.finish()
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
-    print(f"source-{run._project}-{run._settings.program}")
-    print(artifact_name)
     assert artifact_name == wandb.util.make_artifact_name_safe(
         f"source-{run._project}-{run._settings.program}"
     )

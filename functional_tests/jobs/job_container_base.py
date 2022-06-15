@@ -7,7 +7,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch._project_spec import LaunchProject
 
 
-cmd = ["python", "./script/container_job_generator.py"]
+cmd = ["python", "job_container_creation.py"]
 
 subprocess.check_call(cmd)
 
