@@ -20,10 +20,6 @@ from wandb.util import add_import_hook
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
-from tensorflow.python.framework.convert_to_constants import (
-    convert_variables_to_constants_v2_as_graph,
-)
-
 
 def _check_keras_version():
     from keras import __version__ as keras_version
@@ -1027,6 +1023,10 @@ class WandbCallback(tf.keras.callbacks.Callback):
         Calculate FLOPs for tf.keras.Model or tf.keras.Sequential
         in inference mode. It uses tf.compat.v1.profiler under the hood.
         """
+        from tensorflow.python.framework.convert_to_constants import (
+            convert_variables_to_constants_v2_as_graph,
+        )
+
         if not isinstance(
             self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
         ):
