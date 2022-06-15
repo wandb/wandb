@@ -861,3 +861,26 @@ def test_table_typing_pandas():
     table.add_data("42")
     table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
     table.add_data(True)
+
+
+def test_artifact_type():
+    artifact = wandb.Artifact("name", type="dataset")
+    assert TypeRegistry.type_of(artifact).assign(artifact) == PythonObjectType(
+        "Artifact"
+    )
+    artifact_string = "wandb-artifact://test/project/astring:latest"
+    assert TypeRegistry.type_of(artifact).assign(artifact_string) == PythonObjectType(
+        "Artifact"
+    )
+
+    artifact_config_shape = {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": artifact.id,
+        "version": "v0",
+        "sequenceName": artifact.name.split(":")[0],
+        "usedAs": "test_reference_download",
+    }
+    assert TypeRegistry.type_of(artifact).assign(
+        artifact_config_shape
+    ) == PythonObjectType("Artifact")

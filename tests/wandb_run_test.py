@@ -651,14 +651,13 @@ def test_wandb_artifact_config_update(
         artifact.add_reference(
             "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
         )
-        run = wandb.init(settings=test_settings)
-        run.config.update({"test_reference_download": artifact})
+        with wandb.init(settings=test_settings) as run:
+            run.config.update({"test_reference_download": artifact})
 
-        assert run.config.test_reference_download == artifact
-        run.finish()
+            assert run.config.test_reference_download == artifact
 
         ctx = parse_ctx(live_mock_server.get_ctx())
-        assert ctx.config_user["test_reference_download"] == {
+        config_art = {
             "_type": "artifactVersion",
             "_version": "v0",
             "id": artifact.id,
@@ -666,6 +665,11 @@ def test_wandb_artifact_config_update(
             "sequenceName": artifact.name.split(":")[0],
             "usedAs": "test_reference_download",
         }
+        assert ctx.config_user["test_reference_download"] == config_art
+
+        with wandb.init(settings=test_settings) as run:
+            run.config.update({"test_reference_download": config_art})
+            assert run.config.test_reference_download.id == artifact.id
 
 
 def test_media_in_config(runner, live_mock_server, test_settings, parse_ctx):

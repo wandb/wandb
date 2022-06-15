@@ -46,8 +46,6 @@ class LocalProcessRunner(AbstractRunner):
 
         cmd: List[Any] = []
 
-        if launch_project.uri is None and launch_project.job is None:
-            raise LaunchError("Launch LocalProcessRunner received empty project uri")
         if launch_project.project_dir is None:
             raise LaunchError("Launch LocalProcessRunner received empty project dir")
 

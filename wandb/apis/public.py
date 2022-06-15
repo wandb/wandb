@@ -2085,7 +2085,7 @@ class QueuedRun(Attrs):
     A single queued run associated with an entity and project. Call wait_until_finished method to get access to all run attributes
     """
 
-    _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbues"
+    _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbutes"
 
     def __init__(
         self, client, entity, project, queue_id, run_queue_item_id, attrs=None
@@ -2167,7 +2167,7 @@ class QueuedRun(Attrs):
         # in self.storage_id and names in self.id.
         if self._run is not None:
             return self._run._attrs.get("id")
-        raise ValueError(self._run_required_error_message)
+        raise ValueError(f"{self._run_required_error_message}")
 
     @property
     def id(self):
@@ -2178,7 +2178,7 @@ class QueuedRun(Attrs):
     @id.setter
     def id(self, new_id):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
 
         attrs = self._run._attrs
         attrs["name"] = new_id
@@ -2187,19 +2187,19 @@ class QueuedRun(Attrs):
     @property
     def name(self):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run._attrs.get("displayName")
 
     @name.setter
     def name(self, new_name):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         self._run.name = new_name
         return new_name
 
     def load(self, force=False):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.load(force=force)
 
     @normalize_exceptions
@@ -2217,7 +2217,7 @@ class QueuedRun(Attrs):
         """
         # TODO: allow users to update run queue items using queued run
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         else:
             self._run.update()
 
@@ -2250,13 +2250,13 @@ class QueuedRun(Attrs):
 
     def save(self):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         self._run.save()
 
     @property
     def json_config(self):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.json_config
 
     def _exec(self, query, **kwargs):
@@ -2279,12 +2279,12 @@ class QueuedRun(Attrs):
 
     def _sampled_history(self, keys, x_axis="_step", samples=500):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         self._run._sampled_history(keys, x_axis, samples)
 
     def _full_history(self, samples=500, stream="default"):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run._full_history(samples, stream)
 
     @normalize_exceptions
@@ -2298,7 +2298,7 @@ class QueuedRun(Attrs):
             A `Files` object, which is an iterator over `File` objects.
         """
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         self._run.files(names or [], per_page)
 
     @normalize_exceptions
@@ -2311,7 +2311,7 @@ class QueuedRun(Attrs):
             A `File` matching the name argument.
         """
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.file(name)
 
     @normalize_exceptions
@@ -2327,7 +2327,7 @@ class QueuedRun(Attrs):
             A `File` matching the name argument.
         """
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.upload_file(path, root)
 
     @normalize_exceptions
@@ -2350,7 +2350,7 @@ class QueuedRun(Attrs):
             If pandas=False returns a list of dicts of history metrics.
         """
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.history(samples, keys, x_axis, pandas, stream)
 
     @normalize_exceptions
@@ -2376,7 +2376,7 @@ class QueuedRun(Attrs):
             An iterable collection over history records (dict).
         """
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.scan_history(
             keys=keys, page_size=page_size, min_step=min_step, max_step=max_step
         )
@@ -2384,13 +2384,13 @@ class QueuedRun(Attrs):
     @normalize_exceptions
     def logged_artifacts(self, per_page=100):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.logged_artifacts(per_page=per_page)
 
     @normalize_exceptions
     def used_artifacts(self, per_page=100):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.used_artifacts(per_page=per_page)
 
     @normalize_exceptions
@@ -2409,7 +2409,7 @@ class QueuedRun(Attrs):
             A `Artifact` object.
         """
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.use_artifact(artifact, use_as=use_as)
 
     @normalize_exceptions
@@ -2424,37 +2424,37 @@ class QueuedRun(Attrs):
             A `Artifact` object.
         """
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.log_artifact(artifact, aliases=aliases)
 
     @property
     def summary(self):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.summary
 
     @property
     def path(self):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.path
 
     @property
     def url(self):
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.url
 
     @property
     def lastHistoryStep(self):  # noqa: N802
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.lastHistoryStep
 
     def to_html(self, height=420, hidden=False):
         """Generate HTML containing an iframe displaying this run"""
         if self._run is None:
-            raise ValueError(self._run_required_error_message)
+            raise ValueError(f"{self._run_required_error_message}")
         return self._run.to_html(height, hidden)
 
     @normalize_exceptions
