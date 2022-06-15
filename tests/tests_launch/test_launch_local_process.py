@@ -19,7 +19,7 @@ from .test_launch import (
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions < 3.5",
 )
-def test_launch_bare_base_case(
+def test_launch_local_process_base_case(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
@@ -39,7 +39,7 @@ def test_launch_bare_base_case(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
-        "resource": "bare",
+        "resource": "local-process",
     }
     run = launch.run(**kwargs)
     run.wait()
