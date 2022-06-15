@@ -2,7 +2,7 @@
 Internal utility for converting arguments from a launch spec or call to wandb launch
 into a runnable wandb launch script
 """
-
+import binascii
 import enum
 import json
 import logging
@@ -28,6 +28,7 @@ DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 # need to make user root for sagemaker, so users have access to /opt/ml directories
 # that let users create artifacts and access input data
 RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
+IMAGE_TAG_MAX_LENGTH = 32
 
 
 class LaunchSource(enum.IntEnum):
@@ -90,10 +91,11 @@ class LaunchProject:
         self.cuda = cuda
         self._runtime: Optional[str] = None
         self.run_id = generate_id()
+        self._image_tag = self.run_id
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if overrides.get("entry_point") is not None:
+        if overrides.get("entry_point"):
             _logger.info("Adding override entry point")
             self.override_entrypoint = self.add_entry_point(
                 overrides.get("entry_point")  # type: ignore
@@ -148,10 +150,26 @@ class LaunchProject:
 
     @property
     def image_name(self) -> str:
-        """Returns {PROJECT}_launch the ultimate version will
-        be tagged with a sha of the git repo"""
-        # TODO: this should likely be source_project when we have it...
-        return f"{self.target_project}_launch"
+        # return f"{self.target_project}_launch"
+        if self.job is not None:
+            return wandb.util.make_docker_image_name_safe(self.job)
+        elif self.uri is not None:
+            cleaned_uri = self.uri.replace("https://", "/")
+            first_sep = cleaned_uri.find("/")
+            shortened_uri = cleaned_uri[first_sep:]
+            return wandb.util.make_docker_image_name_safe(shortened_uri)
+        elif self.docker_image is not None:
+            return self.docker_image
+
+    @property
+    def image_uri(self) -> str:
+        if self.docker_image:
+            return self.docker_image
+        return f"{self.image_name}:{self.image_tag}"
+
+    @property
+    def image_tag(self) -> str:
+        return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the override run config values if a matching key exists in the override arguments."""
@@ -236,8 +254,11 @@ class LaunchProject:
                 internal_api,
                 self.project_dir,
             )
-
-            if not downloaded_code_artifact:
+            if downloaded_code_artifact:
+                self._image_tag = binascii.hexlify(
+                    downloaded_code_artifact.digest.encode()
+                ).decode()
+            else:
                 if not run_info["git"]:
                     raise ExecutionError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
@@ -253,6 +274,12 @@ class LaunchProject:
 
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
+
+                tag_string = (
+                    run_info["git"]["remote"] + run_info["git"]["commit"] + patch
+                )
+                self._image_tag = binascii.hexlify(tag_string.encode()).decode()
+
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):
                     downloaded_entrypoint = utils.download_entry_point(

@@ -4968,7 +4968,7 @@ class Job(Media):
         if isinstance(assigned_config_type, InvalidType):
             raise TypeError(self._input_types.explain(run_config))
 
-        queued_job = launch_add.launch_add(
+        queued_run = launch_add.launch_add(
             job=self._name,
             config={"overrides": {"run_config": run_config}},
             project=project or self._project,
@@ -4976,4 +4976,4 @@ class Job(Media):
             queue=queue,
             resource=resource,
         )
-        return queued_job
+        return queued_run

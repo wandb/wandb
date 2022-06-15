@@ -564,6 +564,7 @@ def test_launch_code_artifact(
     code_artifact = mock.MagicMock()
     code_artifact.type = "code"
     code_artifact.download = download_func
+    code_artifact.digest = "abc123"
 
     run_with_artifacts.logged_artifacts.return_value = [code_artifact]
     monkeypatch.setattr(

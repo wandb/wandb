@@ -109,7 +109,7 @@ def _launch_add(
         raise Exception("Error adding run to queue")
     wandb.termlog(f"Added run to queue {queue}")
     public_api = public.Api(overrides=dict(project=project, entity=entity))
-    queued_job = public_api.queued_run(
+    queued_run = public_api.queued_run(
         f"{entity}/{project}/{queue}/{res['runQueueItemId']}"
     )
-    return queued_job  # type: ignore
+    return queued_run  # type: ignore

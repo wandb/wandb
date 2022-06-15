@@ -5,12 +5,15 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, ExecutionError, LaunchError
+
+if TYPE_CHECKING:  # pragma: no cover
+    from wandb.apis.public import Artifact as PublicArtifact
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -449,7 +452,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> bool:
+) -> "PublicArtifact":
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -461,9 +464,9 @@ def check_and_download_code_artifacts(
     for artifact in run_artifacts:
         if hasattr(artifact, "type") and artifact.type == "code":
             artifact.download(project_dir)
-            return True
+            return artifact
 
-    return False
+    return None
 
 
 def to_camel_case(maybe_snake_str: str) -> str:
