@@ -160,7 +160,6 @@ def test_log_code_settings(live_mock_server, test_settings):
 @pytest.mark.parametrize("save_code", [True, False])
 def test_log_code_env(live_mock_server, test_settings, save_code):
     # test for WB-7468
-
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
         with open("test.py", "w") as f:
             f.write('print("test")')

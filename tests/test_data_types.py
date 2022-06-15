@@ -23,7 +23,6 @@ data = np.random.randint(255, size=(1000))
 
 
 def test_wb_value(live_mock_server, test_settings):
-
     run = wandb.init(settings=test_settings)
     local_art = wandb.Artifact("N", "T")
     public_art = run.use_artifact("N:latest")

@@ -445,6 +445,7 @@ def fetch_and_validate_project(
         launch_project._fetch_job()
     else:
         launch_project._fetch_project_local(internal_api=api)
+
     assert launch_project.project_dir is not None
     # this prioritizes pip, and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs

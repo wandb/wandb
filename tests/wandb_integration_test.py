@@ -74,6 +74,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         )
         for run, files in live_mock_server.get_ctx()["storage"].items():
             print("Files from server", files)
+            # artifacts are stored in the server storage as well so ignore them
             if run == "unknown":
                 continue
             num_runs += 1

@@ -3742,6 +3742,7 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
             cache_path = manifest.storage_policy.load_file(
                 self._parent_artifact, self.name, manifest.entries[self.name]
             )
+
         return self.copy(cache_path, os.path.join(root, self.name))
 
     def ref_target(self):
@@ -3891,6 +3892,7 @@ class Artifact(artifacts.Artifact):
                 )
 
             artifact._load_dependent_manifests()
+
             return artifact
 
     def __init__(self, client, entity, project, name, attrs=None):
@@ -4513,6 +4515,7 @@ class Artifact(artifacts.Artifact):
                     "name": self._artifact_name,
                 },
             )
+
             index_file_url = response["project"]["artifact"]["currentManifest"]["file"][
                 "directUrl"
             ]

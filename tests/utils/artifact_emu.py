@@ -151,7 +151,6 @@ class ArtifactEmulator:
         fname = request.args.get("file")
         if arti_id is None:
             arti_id = "unknown_id"
-        print("STORAGE REQUEST", arti_id, fname, request.method)
         if request.method == "PUT":
             data = request.get_data(as_text=True)
             if self._files.get(arti_id) is None:
@@ -160,5 +159,4 @@ class ArtifactEmulator:
         data = ""
         if request.method == "GET":
             data = self._files[arti_id][fname]
-            print("GOT FILES", self._files)
         return data, 200
