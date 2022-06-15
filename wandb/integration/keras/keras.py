@@ -34,6 +34,17 @@ def _check_keras_version():
         )
 
 
+def _check_can_compute_flops():
+    """
+    Since FLOPs computation is dependent on tf.compat.v1, restricting this feature for
+    TF 2.x.
+    """
+    from tensorflow import __version__ as tf_version
+
+    if parse_version(tf_version) > parse_version("2.0.0"):
+        return True
+
+
 if "keras" in sys.modules:
     _check_keras_version()
 else:
@@ -451,7 +462,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.class_colors = np.array(class_colors) if class_colors is not None else None
         self.log_batch_frequency = log_batch_frequency
         self.log_best_prefix = log_best_prefix
-        self.compute_flops = True
 
         self._prediction_batch_size = None
 
@@ -689,9 +699,11 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     + str(e)
                 )
 
-        if self.compute_flops:
-            flops = self.get_flops()
-            wandb.summary["FLOPs (Giga)"] = flops
+        if _check_can_compute_flops():
+            try:
+                wandb.summary["GigaFLOPs"] = self.get_flops()
+            except Exception as e:
+                wandb.termwarn("Unable to compute FLOPs for this model.")
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
@@ -1016,11 +1028,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         in inference mode. It uses tf.compat.v1.profiler under the hood.
         """
         if not isinstance(
-            self.model,
-            (
-                tf.keras.models.Sequential,
-                tf.keras.models.Model
-            )
+            self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
         ):
             raise KeyError(
                 "model arguments must be tf.keras.Model or tf.keras.Sequential instanse"
@@ -1029,18 +1037,23 @@ class WandbCallback(tf.keras.callbacks.Callback):
         # Compute FLOPs for one sample
         batch_size = 1
         inputs = [
-            tf.TensorSpec([batch_size] + inp.shape[1:], inp.dtype) for inp in self.model.inputs
+            tf.TensorSpec([batch_size] + inp.shape[1:], inp.dtype)
+            for inp in self.model.inputs
         ]
 
-        # convert tf.keras model into frozen graph to count FLOPs about operations used at inference        
+        # convert tf.keras model into frozen graph to count FLOPs about operations used at inference
         real_model = tf.function(self.model).get_concrete_function(inputs)
         frozen_func, _ = convert_variables_to_constants_v2_as_graph(real_model)
 
         # Calculate FLOPs with tf.profiler
         run_meta = tf.compat.v1.RunMetadata()
-        opts = tf.compat.v1.profiler.ProfileOptionBuilder(
-            tf.compat.v1.profiler.ProfileOptionBuilder().float_operation()
-        ).with_empty_output().build()
+        opts = (
+            tf.compat.v1.profiler.ProfileOptionBuilder(
+                tf.compat.v1.profiler.ProfileOptionBuilder().float_operation()
+            )
+            .with_empty_output()
+            .build()
+        )
 
         flops = tf.compat.v1.profiler.profile(
             graph=frozen_func.graph, run_meta=run_meta, cmd="scope", options=opts
@@ -1048,4 +1061,4 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         tf.compat.v1.reset_default_graph()
 
-        return (flops.total_float_ops/1e9)/2
+        return (flops.total_float_ops / 1e9) / 2
