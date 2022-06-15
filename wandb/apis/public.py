@@ -2208,6 +2208,8 @@ class QueuedRun(Attrs):
             self.wait_until_running()
 
         self._run.wait_until_finished()
+        # refetch run to get updated summary
+        self._run.load(force=True)
         return self._run
 
     @normalize_exceptions
@@ -2493,6 +2495,8 @@ class QueuedRun(Attrs):
                     item["node"]["id"] == self.run_queue_item_id
                     and item["node"]["associatedRunId"] is not None
                 ):
+                    # sleep here to hide an ugly warning
+                    time.sleep(2)
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
                         self._run = Run(
