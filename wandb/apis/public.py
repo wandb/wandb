@@ -736,12 +736,19 @@ class Api:
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
-    def queued_run(self, path=""):
+    def queued_run(self, path="", container_job=False):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
         """
         entity, project, queue, run_queue_item_id = path.split("/")
-        return QueuedRun(self.client, entity, project, queue, run_queue_item_id)
+        return QueuedRun(
+            self.client,
+            entity,
+            project,
+            queue,
+            run_queue_item_id,
+            container_job=container_job,
+        )
 
     @normalize_exceptions
     def sweep(self, path=""):
@@ -2088,7 +2095,14 @@ class QueuedRun(Attrs):
     _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbutes"
 
     def __init__(
-        self, client, entity, project, queue_id, run_queue_item_id, attrs=None
+        self,
+        client,
+        entity,
+        project,
+        queue_id,
+        run_queue_item_id,
+        attrs=None,
+        container_job=False,
     ):
         super().__init__(dict(attrs or {}))
         self.client = client
@@ -2098,6 +2112,7 @@ class QueuedRun(Attrs):
         self.run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
+        self.container_job = container_job
 
     @property
     def run(self):
@@ -2463,6 +2478,8 @@ class QueuedRun(Attrs):
     def wait_until_running(self):
         if self._run is not None:
             return self._run
+        if self.container_job:
+            raise LaunchError("Container jobs cannot be waited on")
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -4912,7 +4929,16 @@ class Job(Media):
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint
 
-    def call(self, config, project=None, entity=None, queue=None, resource="local"):
+    def call(
+        self,
+        config,
+        project=None,
+        entity=None,
+        queue=None,
+        resource="local-container",
+        resource_args=None,
+        cuda=False,
+    ):
         from wandb.sdk.launch import launch_add
 
         run_config = self._config_defaults().copy()
@@ -4929,5 +4955,7 @@ class Job(Media):
             entity=entity or self._entity,
             queue=queue,
             resource=resource,
+            resource_args=resource_args,
+            cuda=cuda,
         )
         return queued_run

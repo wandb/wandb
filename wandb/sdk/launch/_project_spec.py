@@ -71,14 +71,12 @@ class LaunchProject:
         self.target_entity = target_entity
         self.target_project = target_project.lower()
         self.name = name
+        self.resource = resource
+        self.resource_args = resource_args
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
-        if self.docker_image is not None and resource == "local-process":
-            raise LaunchError(
-                "Cannot specify docker image with local-process resource runner"
-            )
         uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
@@ -90,8 +88,6 @@ class LaunchProject:
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
         self.override_entrypoint: Optional[EntryPoint] = None
-        self.resource = resource
-        self.resource_args = resource_args
         self.deps_type: Optional[str] = None
         self.cuda = cuda
         self._runtime: Optional[str] = None
@@ -100,6 +96,7 @@ class LaunchProject:
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
+
         if overrides.get("entry_point"):
             _logger.info("Adding override entry point")
             self.override_entrypoint = self.add_entry_point(
@@ -155,8 +152,8 @@ class LaunchProject:
 
     @property
     def image_name(self) -> str:
-        if self.job is not None:
-            return wandb.util.make_docker_image_name_safe(self.job)
+        if self.docker_image is not None:
+            return self.docker_image
         elif self.uri is not None:
             cleaned_uri = self.uri.replace("https://", "/")
             first_sep = cleaned_uri.find("/")
@@ -164,8 +161,8 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(shortened_uri)
         else:
             # this will always pass since one of these 3 is required
-            assert self.docker_image is not None
-            return self.docker_image
+            assert self.job is not None
+            return wandb.util.make_docker_image_name_safe(self.job)
 
     @property
     def image_uri(self) -> str:
@@ -176,6 +173,15 @@ class LaunchProject:
     @property
     def image_tag(self) -> str:
         return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
+
+    @property
+    def docker_image(self) -> Optional[str]:
+        return self._docker_image
+
+    @docker_image.setter
+    def docker_image(self, value: str) -> None:
+        self._docker_image = value
+        self._ensure_not_docker_image_and_local_process()
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the override run config values if a matching key exists in the override arguments."""
@@ -204,6 +210,12 @@ class LaunchProject:
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
+
+    def _ensure_not_docker_image_and_local_process(self) -> None:
+        if self.docker_image is not None and self.resource == "local-process":
+            raise LaunchError(
+                "Cannot specify docker image with local-process resource runner"
+            )
 
     def _fetch_job(self) -> None:
         public_api = wandb.apis.public.Api()

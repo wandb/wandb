@@ -29,6 +29,8 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
+    resource_args: Optional[Dict[str, Any]] = None,
+    cuda: Optional[bool] = None,
 ) -> "public.QueuedRun":
 
     api = Api()
@@ -47,6 +49,8 @@ def launch_add(
         version,
         docker_image,
         params,
+        resource_args,
+        cuda,
     )
 
 
@@ -111,7 +115,14 @@ def _launch_add(
     public_api = public.Api()
     queued_run_entity = launch_spec.get("entity")
     queued_run_project = launch_spec.get("project")
+    container_job = False
+    if job:
+        job_artifact = public_api.job(job)
+        if job_artifact._source_info.get("source_type") == "image":
+            container_job = True
+
     queued_run = public_api.queued_run(
-        f"{queued_run_entity}/{queued_run_project}/{queue}/{res['runQueueItemId']}"
+        f"{queued_run_entity}/{queued_run_project}/{queue}/{res['runQueueItemId']}",
+        container_job,
     )
     return queued_run  # type: ignore

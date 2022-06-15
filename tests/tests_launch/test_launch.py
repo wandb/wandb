@@ -258,6 +258,7 @@ def check_project_spec(
         with open(os.path.join(project_spec.project_dir, "patch.txt")) as fp:
             contents = fp.read()
             assert contents == "testing"
+    assert project_spec.image_name is not None
 
 
 def check_backend_config(config, expected_backend_config):
