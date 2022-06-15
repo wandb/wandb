@@ -52,5 +52,5 @@ def test_diff_pip_requirements():
 
 
 def test_parse_wandb_uri_invalid_uri():
-    e, p, n = parse_wandb_uri("invalid_uri")
-    assert (e, p, n) == ("", "", ""), "Invalid URI should return empty strings"
+    with pytest.raises(LaunchError):
+        parse_wandb_uri("invalid_uri")
