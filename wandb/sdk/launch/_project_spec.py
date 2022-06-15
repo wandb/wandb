@@ -92,7 +92,7 @@ class LaunchProject:
         self.cuda = cuda
         self._runtime: Optional[str] = None
         self.run_id = generate_id()
-        self._image_tag = self._initialize_image_job_tag() or self.run_id
+        self._image_tag: str = self._initialize_image_job_tag() or self.run_id
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -162,14 +162,14 @@ class LaunchProject:
         else:
             # this will always pass since one of these 3 is required
             assert self.job is not None
-            print(self.job, wandb.util.make_docker_image_name_safe(self.job))
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
-    def _initialize_image_job_tag(self) -> str:
+    def _initialize_image_job_tag(self) -> Optional[str]:
         if self.job is not None:
             _, alias = self.job.split(":")
             self._image_tag = alias
             return alias
+        return None
 
     @property
     def image_uri(self) -> str:
