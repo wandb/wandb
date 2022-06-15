@@ -123,7 +123,6 @@ def construct_launch_spec(
         launch_spec["uri"] = uri
     if job is not None:
         launch_spec["job"] = job
-        launch_spec.pop("uri", None)
     project, entity = set_project_entity_defaults(
         uri,
         api,

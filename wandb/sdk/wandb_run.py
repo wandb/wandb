@@ -2125,7 +2125,7 @@ class Run:
         if (
             self._has_job_reqs()
             and not self._settings._offline
-            and not self._settings.disable_job_creation
+            and self._settings.enable_job_creation
         ):
             self._create_job()
 

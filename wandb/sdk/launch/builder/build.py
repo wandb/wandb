@@ -337,7 +337,6 @@ def generate_dockerfile(
             else "continuumio/miniconda:latest"
         )
     requirements_section = get_requirements_section(launch_project, builder_type)
-    print("REQUIREMENTS SECTION", requirements_section)
     # ----- stage 2: base -----
     python_base_setup = get_base_setup(launch_project, py_version, py_major)
 

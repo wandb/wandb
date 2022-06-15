@@ -1,7 +1,7 @@
 import wandb
 
 settings = wandb.Settings()
-settings.update({"disable_git": True})
+settings.update({"disable_git": True, "enable_job_creation": True})
 run = wandb.init(
     project="test-job", config={"foo": "bar", "lr": 0.1, "epochs": 5}, settings=settings
 )

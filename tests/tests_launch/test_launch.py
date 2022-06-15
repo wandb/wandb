@@ -1400,6 +1400,53 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         assert config.get("project") is None
 
 
+def test_launch_url_and_job(
+    live_mock_server,
+    test_settings,
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    api.get_run_info = MagicMock(
+        return_value=None, side_effect=wandb.CommError("test comm error")
+    )
+    try:
+        launch.run(
+            api=api,
+            uri="https://wandb.ai/mock_server_entity/test/runs/1",
+            job="test-job:v0",
+            project="new-test",
+        )
+    except wandb.errors.LaunchError as e:
+        assert "Cannot specify both uri and job" in str(e)
+
+
+def _launch_no_url_job_or_docker_image(
+    live_mock_server,
+    test_settings,
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    api.get_run_info = MagicMock(
+        return_value=None, side_effect=wandb.CommError("test comm error")
+    )
+    try:
+        launch.run(
+            api=api,
+            uri=None,
+            job=None,
+            project="new-test",
+        )
+    except wandb.errors.LaunchError as e:
+        assert (
+            "Project must have at least one of uri, job, or docker_image specified."
+            in str(e)
+        )
+
+
 # def test_job_artifact(mock_server, api):
 #     config = {
 #         "name": "test",

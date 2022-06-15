@@ -161,9 +161,6 @@ def test_log_code_settings(live_mock_server, test_settings):
 def test_log_code_env(live_mock_server, test_settings, save_code):
     # test for WB-7468
 
-    # disable job creation here, to test the code artifact creation specifically
-    test_settings.update({"disable_job_creation": True})
-
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
         with open("test.py", "w") as f:
             f.write('print("test")')
