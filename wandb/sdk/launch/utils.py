@@ -343,14 +343,14 @@ def validate_wandb_python_deps(
 ) -> None:
     """Warns if local python dependencies differ from wandb requirements.txt"""
     if requirements_file is not None:
-        requirements_file = os.path.join(dir, requirements_file)
-        with open(requirements_file) as f:
+        requirements_path = os.path.join(dir, requirements_file)
+        with open(requirements_path) as f:
             wandb_python_deps: List[str] = f.read().splitlines()
 
-        _local_python_deps = get_local_python_deps(dir)
-        if _local_python_deps is not None:
-            local_python_deps = os.path.join(dir, _local_python_deps)
-            with open(local_python_deps) as f:
+        local_python_file = get_local_python_deps(dir)
+        if local_python_file is not None:
+            local_python_deps_path = os.path.join(dir, local_python_file)
+            with open(local_python_deps_path) as f:
                 local_python_deps: List[str] = f.read().splitlines()
 
             diff_pip_requirements(wandb_python_deps, local_python_deps)
@@ -451,7 +451,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> "PublicArtifact":
+) -> Optional["PublicArtifact"]:
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -463,7 +463,7 @@ def check_and_download_code_artifacts(
     for artifact in run_artifacts:
         if hasattr(artifact, "type") and artifact.type == "code":
             artifact.download(project_dir)
-            return artifact
+            return artifact  # type: ignore
 
     return None
 

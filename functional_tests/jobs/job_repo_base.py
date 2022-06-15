@@ -1,7 +1,8 @@
 import os
 import subprocess
-import wandb
+
 import pytest
+import wandb
 from wandb.apis.internal import InternalApi
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch._project_spec import LaunchProject

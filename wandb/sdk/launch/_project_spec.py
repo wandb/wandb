@@ -152,7 +152,6 @@ class LaunchProject:
 
     @property
     def image_name(self) -> str:
-        # return f"{self.target_project}_launch"
         if self.job is not None:
             return wandb.util.make_docker_image_name_safe(self.job)
         elif self.uri is not None:
@@ -162,6 +161,7 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(shortened_uri)
         elif self.docker_image is not None:
             return self.docker_image
+        raise LaunchError("No image name available")
 
     @property
     def image_uri(self) -> str:

@@ -1,5 +1,6 @@
-import wandb
 import os
+
+import wandb
 
 os.environ["WANDB_DOCKER"] = "my-test-container:dummy"
 

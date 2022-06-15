@@ -1,12 +1,13 @@
 import os
-import subprocess
 import platform
-import wandb
+import subprocess
+
 import pytest
-from wandb.util import to_forward_slash_path
+import wandb
+from wandb.apis.internal import InternalApi
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.apis.internal import InternalApi
+from wandb.util import to_forward_slash_path
 
 cmd = ["python", "./script/artifact_job_generator.py"]
 

@@ -1642,23 +1642,28 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-            self._attrs["summaryMetrics"] = (
-                json.loads(self._attrs["summaryMetrics"])
-                if self._attrs.get("summaryMetrics")
-                else {}
-            )
-            if self._attrs.get("user"):
-                self.user = User(self.client, self._attrs["user"])
-            config_user, config_raw = {}, {}
-            for key, value in json.loads(self._attrs.get("config") or "{}").items():
-                config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
-                if isinstance(value, dict) and "value" in value:
-                    config[key] = value["value"]
-                else:
-                    config[key] = value
-            config_raw.update(config_user)
-            self._attrs["config"] = config_user
-            self._attrs["rawconfig"] = config_raw
+        self._attrs["summaryMetrics"] = (
+            json.loads(self._attrs["summaryMetrics"])
+            if self._attrs.get("summaryMetrics")
+            else {}
+        )
+        self._attrs["systemMetrics"] = (
+            json.loads(self._attrs["systemMetrics"])
+            if self._attrs.get("systemMetrics")
+            else {}
+        )
+        if self._attrs.get("user"):
+            self.user = User(self.client, self._attrs["user"])
+        config_user, config_raw = {}, {}
+        for key, value in json.loads(self._attrs.get("config") or "{}").items():
+            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
+            if isinstance(value, dict) and "value" in value:
+                config[key] = value["value"]
+            else:
+                config[key] = value
+        config_raw.update(config_user)
+        self._attrs["config"] = config_user
+        self._attrs["rawconfig"] = config_raw
         return self._attrs
 
     @normalize_exceptions
@@ -2083,8 +2088,10 @@ class QueuedRun(Attrs):
 
     _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbues"
 
-    def __init__(self, client, entity, project, queue_id, run_queue_item_id, attrs={}):
-        super().__init__(dict(attrs))
+    def __init__(
+        self, client, entity, project, queue_id, run_queue_item_id, attrs=None
+    ):
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -2282,7 +2289,7 @@ class QueuedRun(Attrs):
         return self._run._full_history(samples, stream)
 
     @normalize_exceptions
-    def files(self, names=[], per_page=50):
+    def files(self, names=None, per_page=50):
         """
         Arguments:
             names (list): names of the requested files, if empty returns all files
@@ -2293,7 +2300,7 @@ class QueuedRun(Attrs):
         """
         if self._run is None:
             raise ValueError(self._run_required_error_message)
-        self._run.files(names, per_page)
+        self._run.files(names or [], per_page)
 
     @normalize_exceptions
     def file(self, name):
