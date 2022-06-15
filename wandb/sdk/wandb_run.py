@@ -2104,7 +2104,6 @@ class Run:
             "_version": "v0",
             "source_type": "image",
             "image": os.getenv("WANDB_DOCKER"),
-            "entrypoint": self._settings.program_relpath,
             "input_types": input_types,
             "output_types": output_types,
         }

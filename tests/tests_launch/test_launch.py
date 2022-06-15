@@ -10,6 +10,7 @@ import pytest
 import wandb
 from wandb.apis import PublicApi
 from wandb.errors import CommError, LaunchError
+
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 import wandb.sdk.launch.launch as launch
@@ -178,6 +179,15 @@ def mock_cuda_run_info(monkeypatch):
     )
 
 
+def code_download_func(dst_dir):
+    with open(os.path.join(dst_dir, "train.py"), "w") as f:
+        f.write(fixture_open("train.py").read())
+    with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+        f.write(fixture_open("requirements.txt").read())
+    with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+        f.write("testing")
+
+
 def mock_download_url(*args, **kwargs):
     if args[1] == "wandb-metadata.json":
         return {"url": "urlForCodePath"}
@@ -216,6 +226,7 @@ def check_project_spec(
     project_spec,
     api,
     uri=None,
+    job=None,
     project=None,
     entity=None,
     config=None,
@@ -224,6 +235,7 @@ def check_project_spec(
     docker_image=None,
 ):
     assert project_spec.uri == uri
+    assert project_spec.job == job
     expected_project = project or uri.split("/")[4]
     assert project_spec.target_project == expected_project
     expected_target_entity = entity or api.default_entity
@@ -588,18 +600,11 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
 def test_launch_code_artifact(
     runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
 ):
-    def download_func(dst_dir):
-        with open(os.path.join(dst_dir, "train.py"), "w") as f:
-            f.write(fixture_open("train.py").read())
-        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
-        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
-            f.write("testing")
 
     run_with_artifacts = mock.MagicMock()
     code_artifact = mock.MagicMock()
     code_artifact.type = "code"
-    code_artifact.download = download_func
+    code_artifact.download = code_download_func
     code_artifact.digest = "abc123"
 
     run_with_artifacts.logged_artifacts.return_value = [code_artifact]
@@ -1487,56 +1492,3 @@ def test_launch_no_url_job_or_docker_image(
             "Project must have at least one of uri, job, or docker_image specified."
             in str(e)
         )
-
-
-def test_fetch_job_fail(api):
-
-    launch_project = _project_spec.LaunchProject(
-        None,
-        "test:v0",
-        api,
-        {},
-        "live_mock_server_entity",
-        "Test_project",
-        None,
-        {},
-        {},
-        {},
-        "local",
-        {},
-        None,
-    )
-    with pytest.raises(LaunchError) as e_info:
-        launch_project._fetch_job()
-    assert "Job test:v0 not found" in str(e_info.value)
-
-
-# def test_job_artifact(mock_server, api):
-#     config = {
-#         "name": "test",
-#         "lr": 0.02,
-#         "epochs": 10,
-#     }
-
-#     summary = {"_step": 10, "x": 10}
-#     input_shape = wandb.sdk.data_types._dtypes.TypeRegistry.type_of(config).to_json()
-#     summary_shape = wandb.sdk.data_types._dtypes.TypeRegistry.type_of(summary).to_json()
-#     job_source_info = {
-#         "_version": "v0",
-#         "source_type": "artifact",
-#         "artifact": "wandb-artifact://mock_server_entity/test/source-test_train.py",
-#         "entrypoint": ["python", "train.py"],
-#         "input_types": input_shape,
-#         "output_types": summary_shape,
-#     }
-#     job = api.job("test/test/test")
-#     assert job.name == "test"
-#     assert job.url == "https://wandb.ai/test/jobs/test"
-
-
-# def test_launch_job_repo():
-#     pass
-
-
-# def test_launch_job_container():
-#     pass

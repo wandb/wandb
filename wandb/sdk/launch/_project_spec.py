@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.apis.internal import Api
+
 from wandb.apis.public import Api as PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
@@ -207,7 +208,7 @@ class LaunchProject:
         return new_entrypoint
 
     def _fetch_job(self) -> None:
-        public_api = PublicApi()
+        public_api = wandb.apis.public.Api()
         job_dir = tempfile.mkdtemp()
         try:
             job = public_api.job(self.job, path=job_dir)
