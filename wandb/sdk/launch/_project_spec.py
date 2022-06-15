@@ -160,7 +160,7 @@ class LaunchProject:
             first_sep = cleaned_uri.find("/")
             shortened_uri = cleaned_uri[first_sep:]
             return wandb.util.make_docker_image_name_safe(shortened_uri)
-        else
+        else:
             return self.docker_image
 
     @property
