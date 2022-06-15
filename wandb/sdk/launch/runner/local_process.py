@@ -6,7 +6,7 @@ import wandb
 from wandb.errors import LaunchError
 
 from .abstract import AbstractRun, AbstractRunner
-from .local import _run_entry_point
+from .local_container import _run_entry_point
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
@@ -72,7 +72,7 @@ class LocalProcessRunner(AbstractRunner):
 
         command_str = " ".join(cmd).strip()
         wandb.termlog(
-            "Launching run on bare machine with command: {}".format(
+            "Launching run as a local process with command: {}".format(
                 sanitize_wandb_api_key(command_str)
             )
         )
