@@ -76,6 +76,10 @@ class LaunchProject:
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
+        if self.docker_image is not None and resource == "local-process":
+            raise LaunchError(
+                "Cannot specify docker image with local-process resource runner"
+            )
         uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
@@ -152,7 +156,6 @@ class LaunchProject:
 
     @property
     def image_name(self) -> str:
-        assert self.job or self.uri or self.docker_image
         if self.job is not None:
             return wandb.util.make_docker_image_name_safe(self.job)
         elif self.uri is not None:
@@ -161,6 +164,8 @@ class LaunchProject:
             shortened_uri = cleaned_uri[first_sep:]
             return wandb.util.make_docker_image_name_safe(shortened_uri)
         else:
+            # this will always pass since one of these 3 is required
+            assert self.docker_image is not None
             return self.docker_image
 
     @property
