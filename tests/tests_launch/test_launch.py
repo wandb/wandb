@@ -1060,7 +1060,7 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         "wandb.sdk.launch.builder.build.docker_image_exists", lambda x: True
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, project_dir: (cmd, project_dir),
     )
     api = wandb.sdk.internal.internal_api.Api(
@@ -1193,7 +1193,7 @@ def test_launch_local_cuda_command(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
@@ -1217,7 +1217,7 @@ def test_launch_local_cuda_config(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
@@ -1245,7 +1245,7 @@ def test_launch_cuda_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
@@ -1272,7 +1272,7 @@ def test_launch_cuda_false_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
@@ -1299,7 +1299,7 @@ def test_launch_cuda_config_false_prev_run_cuda(
     mock_cuda_run_info,
 ):
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local._run_entry_point",
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, _: cmd,
     )
     api = wandb.sdk.internal.internal_api.Api(
@@ -1383,7 +1383,7 @@ def test_launch_build_config_file(
     runner, mocked_fetchable_git_repo, test_settings, monkeypatch
 ):
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.local.LocalContainerRunner,
+        wandb.sdk.launch.runner.local_container.LocalContainerRunner,
         "run",
         lambda *args, **kwargs: (args, kwargs),
     )

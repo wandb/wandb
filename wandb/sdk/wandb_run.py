@@ -381,19 +381,30 @@ class Run:
     _is_attached: bool
     _settings: Settings
 
+    _launch_artifacts: Optional[Dict[str, Any]]
+
     def __init__(
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
+        sweep_config: Optional[Dict[str, Any]] = None,
+        launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._init(settings=settings, config=config)
+        self._init(
+            settings=settings,
+            config=config,
+            sweep_config=sweep_config,
+            launch_config=launch_config,
+        )
 
     def _init(
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
+        sweep_config: Optional[Dict[str, Any]] = None,
+        launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
 
         self._settings = settings
@@ -487,10 +498,22 @@ class Run:
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
+        self._launch_artifact_mapping: Dict[str, Any] = {}
+        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if self._settings.save_code and self._settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", self._settings.program_relpath)
             )
+        if sweep_config:
+            self._config.update_locked(
+                sweep_config, user="sweep", _allow_val_change=True
+            )
+
+        if launch_config:
+            self._config.update_locked(
+                launch_config, user="launch", _allow_val_change=True
+            )
+
         self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
@@ -506,38 +529,22 @@ class Run:
         if self._settings._require_service:
             self._attach_id = self._settings.run_id
 
-    def _populate_sweep_or_launch_config(
-        self, sweep_config: Optional[Dict[str, Any]]
-    ) -> None:
-        self._launch_artifact_mapping: Dict[str, Any] = {}
-        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
-        if sweep_config:
-            self._config.update_locked(
-                sweep_config, user="sweep", _allow_val_change=True
-            )
+    def _set_iface_pid(self, iface_pid: int) -> None:
+        self._iface_pid = iface_pid
 
-        if self._settings.launch and (
-            os.environ.get("WANDB_CONFIG") is not None
-            or os.environ.get("WANDB_ARTIFACTS") is not None
-        ):
-            if os.environ.get("WANDB_CONFIG") is not None:
-                try:
-                    new_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
-                    self._config.update_locked(
-                        new_config, user="launch", _allow_val_change=True
-                    )
-                except (ValueError, SyntaxError):
-                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
-            if os.environ.get("WANDB_ARTIFACTS") is not None:
-                try:
-                    artifacts: Dict[str, Any] = json.loads(
-                        os.environ.get("WANDB_ARTIFACTS", "{}")
-                    )
-                    self._initialize_launch_artifact_maps(artifacts)
-                except (ValueError, SyntaxError):
-                    wandb.termwarn(
-                        "Malformed WANDB_ARTIFACTS, using original artifacts"
-                    )
+    def _set_iface_port(self, iface_port: int) -> None:
+        self._iface_port = iface_port
+
+    def _handle_launch_artifact_overrides(self) -> None:
+        if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
+            try:
+                artifacts: Dict[str, Any] = json.loads(
+                    os.environ.get("WANDB_ARTIFACTS", "{}")
+                )
+            except (ValueError, SyntaxError):
+                wandb.termwarn("Malformed WANDB_ARTIFACTS, using original artifacts")
+            else:
+                self._initialize_launch_artifact_maps(artifacts)
 
         elif (
             self._settings.launch
@@ -550,18 +557,6 @@ class Run:
             if launch_config.get("overrides", {}).get("artifacts") is not None:
                 artifacts = launch_config.get("overrides").get("artifacts")
                 self._initialize_launch_artifact_maps(artifacts)
-
-            launch_run_config = launch_config.get("overrides", {}).get("run_config")
-            if launch_run_config:
-                self._config.update_locked(
-                    launch_run_config, user="launch", _allow_val_change=True
-                )
-
-    def _set_iface_pid(self, iface_pid: int) -> None:
-        self._iface_pid = iface_pid
-
-    def _set_iface_port(self, iface_port: int) -> None:
-        self._iface_port = iface_port
 
     def _initialize_launch_artifact_maps(self, artifacts: Dict[str, Any]) -> None:
         for key, item in artifacts.items():
