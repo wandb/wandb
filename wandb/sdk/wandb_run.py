@@ -2032,7 +2032,7 @@ class Run:
     ) -> "Artifact":
         """Create a job version artifact from a repo."""
         name = wandb.util.make_artifact_name_safe(
-            f"job_{self._remote_url}_{self._settings.program}"
+            f"job-{self._remote_url}_{self._settings.program}"
         )
         job_artifact = wandb.Artifact(name, type="job")
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
@@ -2071,7 +2071,7 @@ class Run:
         self._code_artifact.wait()
         sequence_name = self._code_artifact.name.split(":")[0]
         tag = self._code_artifact.version
-        name = f"job_{sequence_name}"
+        name = f"job-{sequence_name}"
         job_artifact = wandb.Artifact(name, type="job")
 
         with job_artifact.new_file("requirements.frozen.txt") as f:
@@ -2097,7 +2097,7 @@ class Run:
     def _create_container_job(
         self, input_types: Dict[str, Any], output_types: Dict[str, Any]
     ) -> "Artifact":
-        name = wandb.util.make_artifact_name_safe(f"job_{os.getenv('WANDB_DOCKER')}")
+        name = wandb.util.make_artifact_name_safe(f"job-{os.getenv('WANDB_DOCKER')}")
         job_artifact = wandb.Artifact(name, type="job")
 
         source_info = {

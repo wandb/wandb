@@ -10,10 +10,10 @@ cmd = ["python", "./script/container_job_generator.py"]
 subprocess.check_call(cmd)
 
 api = wandb.Api()
-job = api.job("job_my-test-containerdummy:v0")
+job = api.job("job-my-test-containerdummy:v0")
 
 assert job._job_artifact is not None
-assert job.name == "job_my-test-containerdummy:v0"
+assert job.name == "job-my-test-containerdummy:v0"
 assert job._source_info["source_type"] == "image"
 assert job._input_types == TypeRegistry.type_of({"foo": "bar", "lr": 0.1, "epochs": 5})
 
@@ -25,7 +25,7 @@ with pytest.raises(TypeError):
 internal_api = InternalApi()
 kwargs = {
     "uri": None,
-    "job": "job_my-test-containerdummy:v0",
+    "job": "job-my-test-containerdummy:v0",
     "api": internal_api,
     "launch_spec": {},
     "target_entity": api.default_entity,
