@@ -1376,7 +1376,10 @@ class Api:
     def get_run_state(self, entity, project, name):
         query = gql(
             """
-        query RunState($project: String!, $entity: String!, $name: String!) {
+        query RunState(
+            $project: String!,
+            $entity: String!,
+            $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
                     state
