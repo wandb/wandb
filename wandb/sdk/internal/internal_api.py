@@ -1388,7 +1388,11 @@ class Api:
         }
         """
         )
-        variable_values = {"project": project, "entity": entity, "name": name}
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "name": name,
+        }
         res = self.gql(query, variable_values)
         if res.get("project") is None or res["project"].get("run") is None:
             raise CommError(f"Error fetching run state for {entity}/{project}/{name}.")
