@@ -40,4 +40,3 @@ rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.mac
 .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
 cloudpickle
-pyjwt
