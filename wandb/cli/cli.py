@@ -20,11 +20,12 @@ import traceback
 
 import click
 from click.exceptions import ClickException
-import jwt
-import requests
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
+import jwt
+import requests
+
 import wandb
 from wandb import Config
 from wandb import env, util
