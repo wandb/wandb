@@ -44,6 +44,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.util import (
+    _is_artifact_dict,
     _is_artifact_string,
     _is_py_path,
     add_import_hook,
@@ -61,6 +62,7 @@ from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
+from .data_types._dtypes import TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
@@ -76,6 +78,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
+from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
@@ -455,6 +458,7 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
+        self._code_artifact: Optional["Artifact"] = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -927,7 +931,7 @@ class Run:
         Arguments:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
             name: (str, optional) The name of our code artifact. By default, we'll name
-                the artifact `source-$RUN_ID`. There may be scenarios where you want
+                the artifact `source-$PROJECT_ID-$ENTRYPOINT`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
@@ -949,7 +953,13 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name or "{}-{}".format("source", self._run_id)
+        name = name
+
+        if name is None:
+            name_string = wandb.util.make_artifact_name_safe(
+                f"{self._project}-{self._settings.program}"
+            )
+            name = f"source-{name_string}"
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -967,7 +977,10 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        return self._log_artifact(art)
+
+        code_art = self._log_artifact(art)
+        self._code_artifact = code_art
+        return code_art
 
     def get_url(self) -> Optional[str]:
         """Returns the url for the W&B run, if there is one.
@@ -1133,9 +1146,14 @@ class Run:
             self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
-        self, key: str, val: Union[str, Artifact]
+        self, key: str, val: Union[str, Artifact, dict]
     ) -> Union[Artifact, public.Artifact]:
-        if _is_artifact_string(val):
+        if _is_artifact_dict(val):
+            assert isinstance(val, dict)
+            public_api = self._public_api()
+            artifact = public.Artifact.from_id(val["id"], public_api.client)
+            return self.use_artifact(artifact, use_as=key)
+        elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
             artifact_string, base_url = parse_artifact_string(val)
@@ -1959,15 +1977,153 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+    def _has_job_reqs(self) -> bool:
+        """Returns True if the run has job requirements."""
+        has_repo = self._remote_url is not None and self._last_commit is not None
+        return (
+            (has_repo and wandb.util.has_main_file(self._settings.program))
+            or (
+                bool(self._code_artifact)
+                and wandb.util.has_main_file(self._settings.program)
+            )
+            or os.environ.get("WANDB_DOCKER") is not None
+        )
+
+    def _create_job(self) -> None:
+        artifact = None
+        has_repo = self._remote_url is not None and self._last_commit is not None
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
+        import pkg_resources
+
+        installed_packages = [d for d in iter(pkg_resources.working_set)]
+        installed_packages_list = sorted(
+            f"{i.key}=={i.version}" for i in installed_packages
+        )
+        if has_repo:
+            artifact = self._create_repo_job(
+                input_types, output_types, installed_packages_list
+            )
+        elif self._code_artifact:
+            artifact = self._create_artifact_job(
+                input_types, output_types, installed_packages_list
+            )
+        elif os.environ.get("WANDB_DOCKER"):
+            artifact = self._create_container_job(input_types, output_types)
+
+        if artifact:
+            artifact.wait()
+            metadata = artifact.metadata
+            if not metadata:
+                artifact.metadata["config_defaults"] = self.config.as_dict()
+                artifact.save()
+
+    def _create_repo_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Artifact":
+        """Create a job version artifact from a repo."""
+        name = wandb.util.make_artifact_name_safe(
+            f"job-{self._remote_url}_{self._settings.program}"
+        )
+        job_artifact = wandb.Artifact(name, type="job")
+        patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
+        if os.path.exists(patch_path):
+            job_artifact.add_file(patch_path, "diff.patch")
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
+
+        source_info = {
+            "_version": "v0",
+            "source_type": "repo",
+            "remote": self._remote_url,
+            "commit": self._last_commit,
+            "entrypoint": [
+                sys.executable.split("/")[-1],
+                self._settings.program_relpath,
+            ],
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_info))
+
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
+    def _create_artifact_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Artifact":
+        assert self._code_artifact is not None
+        assert self._run_obj is not None
+        self._code_artifact.wait()
+        sequence_name = self._code_artifact.name.split(":")[0]
+        tag = self._code_artifact.version
+        name = f"job-{sequence_name}"
+        job_artifact = wandb.Artifact(name, type="job")
+
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
+
+        source_info = {
+            "_version": "v0",
+            "source_type": "artifact",
+            "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{sequence_name}:{tag}",
+            "entrypoint": [
+                sys.executable.split("/")[-1],
+                self._settings.program,
+            ],
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_info))
+
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
+    def _create_container_job(
+        self, input_types: Dict[str, Any], output_types: Dict[str, Any]
+    ) -> "Artifact":
+        name = wandb.util.make_artifact_name_safe(f"job-{os.getenv('WANDB_DOCKER')}")
+        job_artifact = wandb.Artifact(name, type="job")
+
+        source_info = {
+            "_version": "v0",
+            "source_type": "image",
+            "image": os.getenv("WANDB_DOCKER"),
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_info))
+
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
     def _on_finish(self) -> None:
         trigger.call("on_finished")
-
         # populate final import telemetry
         with telemetry.context(run=self) as tel:
             self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
+        if (
+            self._has_job_reqs()
+            and not self._settings._offline
+            and self._settings.enable_job_creation
+        ):
+            self._create_job()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 

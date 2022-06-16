@@ -401,6 +401,7 @@ class Settings:
     console: str
     deployment: str
     disable_code: bool
+    enable_job_creation: bool
     disable_git: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
@@ -530,6 +531,7 @@ class Settings:
             },
             disable_code={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
+            enable_job_creation={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
