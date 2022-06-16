@@ -32,7 +32,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-import wandb.sdk.data_types._dtypes as _dtypes
+from  .data_types._dtypes import Type, TypeRegistry
 
 from . import lib as wandb_lib
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
@@ -2030,9 +2030,9 @@ class WBLocalArtifactHandler(StorageHandler):
         ]
 
 
-class _ArtifactVersionType(_dtypes.Type):
+class _ArtifactVersionType(Type):
     name = "artifactVersion"
     types = [Artifact, PublicArtifact]
 
 
-_dtypes.TypeRegistry.add(_ArtifactVersionType)
+TypeRegistry.add(_ArtifactVersionType)
