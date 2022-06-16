@@ -11,7 +11,7 @@ def test_agent_heartbeat_with_no_agent_id_fails(test_settings):
 
 
 def test_get_run_state_invalid_kwargs():
-    with pytest.raises(CommError):
+    with pytest.raises(CommError) as e:
         _api = internal.Api()
 
         def _mock_gql(*args, **kwargs):
@@ -19,6 +19,8 @@ def test_get_run_state_invalid_kwargs():
 
         _api.api.gql = _mock_gql
         _api.get_run_state("test_entity", None, "test_run")
+
+    assert "Error fetching run state" in str(e.value)
 
 
 def test_get_run_state(test_settings):
