@@ -865,13 +865,11 @@ def test_table_typing_pandas():
 
 def test_artifact_type():
     artifact = wandb.Artifact("name", type="dataset")
-    assert TypeRegistry.type_of(artifact).assign(artifact) == PythonObjectType(
-        "Artifact"
-    )
+    target_type = TypeRegistry.types_by_name().get("artifactVersion")()
+    type_of_artifact = TypeRegistry.type_of(artifact)
+
     artifact_string = "wandb-artifact://test/project/astring:latest"
-    assert TypeRegistry.type_of(artifact).assign(artifact_string) == PythonObjectType(
-        "Artifact"
-    )
+    type_of_artifact_string = TypeRegistry.type_of(artifact)
 
     artifact_config_shape = {
         "_type": "artifactVersion",
@@ -881,6 +879,11 @@ def test_artifact_type():
         "sequenceName": artifact.name.split(":")[0],
         "usedAs": "test_reference_download",
     }
-    assert TypeRegistry.type_of(artifact).assign(
-        artifact_config_shape
-    ) == PythonObjectType("Artifact")
+    type_of_artifact_dict = TypeRegistry.type_of(artifact_config_shape)
+
+    assert type_of_artifact.assign(artifact_string) == target_type
+    assert type_of_artifact.assign(artifact_config_shape) == target_type
+    assert type_of_artifact_dict.assign(artifact) == target_type
+    assert type_of_artifact_dict.assign(artifact_string) == target_type
+    assert type_of_artifact_string.assign(artifact_config_shape) == target_type
+    assert type_of_artifact_string.assign(artifact) == target_type

@@ -3,7 +3,7 @@ import math
 import sys
 import typing as t
 
-from wandb.util import _is_artifact_representation, get_module, is_numpy_array
+from wandb.util import _is_artifact_string, get_module, is_numpy_array
 
 np = get_module("numpy")  # intentionally not required
 
@@ -59,8 +59,8 @@ class TypeRegistry:
             return NoneType()
 
         # TODO: generalize this to handle other config input types
-        if _is_artifact_representation(py_obj):
-            return PythonObjectType("Artifact")
+        if _is_artifact_string(py_obj):
+            return TypeRegistry.types_by_name().get("artifactVersion")()  # what?
 
         class_handler = TypeRegistry.types_by_class().get(py_obj.__class__)
         _type = None
