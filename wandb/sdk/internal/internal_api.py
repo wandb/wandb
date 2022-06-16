@@ -1614,8 +1614,8 @@ class Api:
         """Uploads a file to W&B with failure resumption
 
         Arguments:
-            url (str): The url to download
-            file (str): The path to the file you want to upload
+            url (str): The url to upload to
+            file (File): The file object to upload
             callback (func, optional): A callback which is passed the number of
             bytes uploaded since the last time it was called, used to report progress
 

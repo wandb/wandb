@@ -2,6 +2,7 @@ import collections
 import logging
 import os
 import threading
+import gzip
 
 import wandb
 
@@ -123,6 +124,8 @@ class UploadJob(threading.Thread):
                 upload_url = f"{self._api.api_url}{upload_url}"
             try:
                 with open(self.save_path, "rb") as f:
+                    if extra_headers.get("Content-Encoding") == "gzip":
+                        f = gzip.GzipFile(fileobj=f)
                     self._api.upload_file_retry(
                         upload_url,
                         f,
