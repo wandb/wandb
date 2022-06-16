@@ -1695,3 +1695,13 @@ def ensure_text(
         return string
     else:
         raise TypeError(f"not expecting type '{type(string)}'")
+
+
+def make_artifact_name_safe(name: str) -> str:
+    """Make an artifact name safe for use in artifacts"""
+    return re.sub(r"[^a-zA-Z0-9_\-.]", "", name)
+
+
+def make_docker_image_name_safe(name: str) -> str:
+    """Make a docker image name safe for use in artifacts"""
+    return re.sub(r"[^a-z0-9_\-.]", "", name)
