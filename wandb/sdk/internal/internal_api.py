@@ -137,6 +137,7 @@ class Api:
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
         try:
+            print(f'HERE')
             return self.client.execute(*args, **kwargs)
         except requests.exceptions.HTTPError as err:
             res = err.response
@@ -1386,7 +1387,9 @@ class Api:
         """
         )
         variable_values = {"project": project, "entity": entity, "name": name}
+        print(f" variable_values {variable_values} ")
         res = self.gql(query, variable_values)
+        print(f" RES {res} ")
         if res.get("project") is None:
             raise CommError(
                 "Error fetching run state for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
