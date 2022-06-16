@@ -32,7 +32,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-from  .data_types._dtypes import Type, TypeRegistry
+from .data_types._dtypes import Type, TypeRegistry
 
 from . import lib as wandb_lib
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
