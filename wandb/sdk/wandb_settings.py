@@ -401,11 +401,11 @@ class Settings:
     console: str
     deployment: str
     disable_code: bool
-    enable_job_creation: bool
     disable_git: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
+    enable_job_creation: bool
     entity: str
     files_dir: str
     force: bool
@@ -531,8 +531,8 @@ class Settings:
             },
             disable_code={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
-            enable_job_creation={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
+            enable_job_creation={"preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(

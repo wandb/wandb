@@ -764,7 +764,7 @@ def test_attach_same_process(test_settings):
 
 def test_init_with_settings(live_mock_server, test_settings):
     # test that when calling `wandb.init(settings=wandb.Settings(...))`,
-    # the settings are passed with Source.INIT as the sourceπwa
+    # the settings are passed with Source.INIT as the source
     test_settings.update(_disable_stats=True)
     run = wandb.init(settings=test_settings)
     assert run.settings._disable_stats

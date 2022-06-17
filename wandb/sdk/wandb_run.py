@@ -953,7 +953,6 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name
 
         if name is None:
             name_string = wandb.util.make_artifact_name_safe(
@@ -978,9 +977,8 @@ class Run:
         if not files_added:
             return None
 
-        code_art = self._log_artifact(art)
-        self._code_artifact = code_art
-        return code_art
+        self._code_artifact = self._log_artifact(art)
+        return self._code_artifact
 
     def get_url(self) -> Optional[str]:
         """Returns the url for the W&B run, if there is one.
@@ -1148,6 +1146,9 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact, dict]
     ) -> Union[Artifact, public.Artifact]:
+        # artifacts can look like dicts as they are passed into the run config
+        # since the run config stores them on the backend as a dict with fields shown
+        # in wandb.util.artifact_to_json
         if _is_artifact_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
@@ -1980,14 +1981,11 @@ class Run:
     def _has_job_reqs(self) -> bool:
         """Returns True if the run has job requirements."""
         has_repo = self._remote_url is not None and self._last_commit is not None
-        return (
-            (has_repo and wandb.util.has_main_file(self._settings.program))
-            or (
-                bool(self._code_artifact)
-                and wandb.util.has_main_file(self._settings.program)
-            )
-            or os.environ.get("WANDB_DOCKER") is not None
-        )
+        has_main_file = wandb.util.has_main_file(self._settings.program)
+        has_code_artifact = bool(self._code_artifact)
+        return ((has_repo or has_code_artifact) and has_main_file) or os.environ.get(
+            "WANDB_DOCKER"
+        ) is not None
 
     def _create_job(self) -> None:
         artifact = None
@@ -1997,9 +1995,8 @@ class Run:
 
         import pkg_resources
 
-        installed_packages = [d for d in iter(pkg_resources.working_set)]
         installed_packages_list = sorted(
-            f"{i.key}=={i.version}" for i in installed_packages
+            [f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)]
         )
         if has_repo:
             artifact = self._create_repo_job(
