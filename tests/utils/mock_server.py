@@ -1193,7 +1193,6 @@ def create_app(user_ctx=None):
         if "mutation UseArtifact(" in body["query"]:
             used_name = body.get("variables", {}).get("usedAs", None)
             ctx["used_artifact_info"] = {"used_name": used_name}
-            # ctx[]
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
         if "query ProjectArtifactType(" in body["query"]:
             return {
@@ -1344,7 +1343,6 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 5, "name": "job"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
-            # TODO: use emulator here
             if ART_EMU:
                 res = ART_EMU.query(
                     variables=body.get("variables", {}), query=body.get("query")
