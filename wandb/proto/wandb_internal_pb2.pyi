@@ -1201,7 +1201,7 @@ global___AlertResult = AlertResult
 
 class Request(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    STOP_STATUS_FIELD_NUMBER: builtins.int
+    RUN_STATUS_FIELD_NUMBER: builtins.int
     NETWORK_STATUS_FIELD_NUMBER: builtins.int
     DEFER_FIELD_NUMBER: builtins.int
     GET_SUMMARY_FIELD_NUMBER: builtins.int
@@ -1220,10 +1220,11 @@ class Request(google.protobuf.message.Message):
     SHUTDOWN_FIELD_NUMBER: builtins.int
     ATTACH_FIELD_NUMBER: builtins.int
     STATUS_FIELD_NUMBER: builtins.int
+    RUN_EVENT_STATUS_FIELD_NUMBER: builtins.int
     TEST_INJECT_FIELD_NUMBER: builtins.int
 
     @property
-    def stop_status(self) -> global___StopStatusRequest: ...
+    def run_status(self) -> global___RunStatusRequest: ...
 
     @property
     def network_status(self) -> global___NetworkStatusRequest: ...
@@ -1280,11 +1281,14 @@ class Request(google.protobuf.message.Message):
     def status(self) -> global___StatusRequest: ...
 
     @property
+    def run_event_status(self) -> global___RunEventStatusRequest: ...
+
+    @property
     def test_inject(self) -> global___TestInjectRequest: ...
 
     def __init__(self,
         *,
-        stop_status : typing.Optional[global___StopStatusRequest] = ...,
+        run_status : typing.Optional[global___RunStatusRequest] = ...,
         network_status : typing.Optional[global___NetworkStatusRequest] = ...,
         defer : typing.Optional[global___DeferRequest] = ...,
         get_summary : typing.Optional[global___GetSummaryRequest] = ...,
@@ -1303,16 +1307,17 @@ class Request(google.protobuf.message.Message):
         shutdown : typing.Optional[global___ShutdownRequest] = ...,
         attach : typing.Optional[global___AttachRequest] = ...,
         status : typing.Optional[global___StatusRequest] = ...,
+        run_event_status : typing.Optional[global___RunEventStatusRequest] = ...,
         test_inject : typing.Optional[global___TestInjectRequest] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"request_type",b"request_type"]) -> typing_extensions.Literal["stop_status","network_status","defer","get_summary","login","pause","resume","poll_exit","sampled_history","partial_history","run_start","check_version","log_artifact","artifact_send","artifact_poll","artifact_done","shutdown","attach","status","test_inject"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_event_status",b"run_event_status",u"run_start",b"run_start",u"run_status",b"run_status",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"test_inject",b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_event_status",b"run_event_status",u"run_start",b"run_start",u"run_status",b"run_status",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"test_inject",b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"request_type",b"request_type"]) -> typing_extensions.Literal["run_status","network_status","defer","get_summary","login","pause","resume","poll_exit","sampled_history","partial_history","run_start","check_version","log_artifact","artifact_send","artifact_poll","artifact_done","shutdown","attach","status","run_event_status","test_inject"]: ...
 global___Request = Request
 
 class Response(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    STOP_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
+    RUN_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
     NETWORK_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
     LOGIN_RESPONSE_FIELD_NUMBER: builtins.int
     GET_SUMMARY_RESPONSE_FIELD_NUMBER: builtins.int
@@ -1326,10 +1331,11 @@ class Response(google.protobuf.message.Message):
     SHUTDOWN_RESPONSE_FIELD_NUMBER: builtins.int
     ATTACH_RESPONSE_FIELD_NUMBER: builtins.int
     STATUS_RESPONSE_FIELD_NUMBER: builtins.int
+    RUN_EVENT_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
     TEST_INJECT_RESPONSE_FIELD_NUMBER: builtins.int
 
     @property
-    def stop_status_response(self) -> global___StopStatusResponse: ...
+    def run_status_response(self) -> global___RunStatusResponse: ...
 
     @property
     def network_status_response(self) -> global___NetworkStatusResponse: ...
@@ -1371,11 +1377,14 @@ class Response(google.protobuf.message.Message):
     def status_response(self) -> global___StatusResponse: ...
 
     @property
+    def run_event_status_response(self) -> global___RunEventStatusResponse: ...
+
+    @property
     def test_inject_response(self) -> global___TestInjectResponse: ...
 
     def __init__(self,
         *,
-        stop_status_response : typing.Optional[global___StopStatusResponse] = ...,
+        run_status_response : typing.Optional[global___RunStatusResponse] = ...,
         network_status_response : typing.Optional[global___NetworkStatusResponse] = ...,
         login_response : typing.Optional[global___LoginResponse] = ...,
         get_summary_response : typing.Optional[global___GetSummaryResponse] = ...,
@@ -1389,11 +1398,12 @@ class Response(google.protobuf.message.Message):
         shutdown_response : typing.Optional[global___ShutdownResponse] = ...,
         attach_response : typing.Optional[global___AttachResponse] = ...,
         status_response : typing.Optional[global___StatusResponse] = ...,
+        run_event_status_response : typing.Optional[global___RunEventStatusResponse] = ...,
         test_inject_response : typing.Optional[global___TestInjectResponse] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"artifact_poll_response",b"artifact_poll_response",u"artifact_send_response",b"artifact_send_response",u"attach_response",b"attach_response",u"check_version_response",b"check_version_response",u"get_summary_response",b"get_summary_response",u"log_artifact_response",b"log_artifact_response",u"login_response",b"login_response",u"network_status_response",b"network_status_response",u"poll_exit_response",b"poll_exit_response",u"response_type",b"response_type",u"run_start_response",b"run_start_response",u"sampled_history_response",b"sampled_history_response",u"shutdown_response",b"shutdown_response",u"status_response",b"status_response",u"stop_status_response",b"stop_status_response",u"test_inject_response",b"test_inject_response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_poll_response",b"artifact_poll_response",u"artifact_send_response",b"artifact_send_response",u"attach_response",b"attach_response",u"check_version_response",b"check_version_response",u"get_summary_response",b"get_summary_response",u"log_artifact_response",b"log_artifact_response",u"login_response",b"login_response",u"network_status_response",b"network_status_response",u"poll_exit_response",b"poll_exit_response",u"response_type",b"response_type",u"run_start_response",b"run_start_response",u"sampled_history_response",b"sampled_history_response",u"shutdown_response",b"shutdown_response",u"status_response",b"status_response",u"stop_status_response",b"stop_status_response",u"test_inject_response",b"test_inject_response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"response_type",b"response_type"]) -> typing_extensions.Literal["stop_status_response","network_status_response","login_response","get_summary_response","poll_exit_response","sampled_history_response","run_start_response","check_version_response","log_artifact_response","artifact_send_response","artifact_poll_response","shutdown_response","attach_response","status_response","test_inject_response"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"artifact_poll_response",b"artifact_poll_response",u"artifact_send_response",b"artifact_send_response",u"attach_response",b"attach_response",u"check_version_response",b"check_version_response",u"get_summary_response",b"get_summary_response",u"log_artifact_response",b"log_artifact_response",u"login_response",b"login_response",u"network_status_response",b"network_status_response",u"poll_exit_response",b"poll_exit_response",u"response_type",b"response_type",u"run_event_status_response",b"run_event_status_response",u"run_start_response",b"run_start_response",u"run_status_response",b"run_status_response",u"sampled_history_response",b"sampled_history_response",u"shutdown_response",b"shutdown_response",u"status_response",b"status_response",u"test_inject_response",b"test_inject_response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_poll_response",b"artifact_poll_response",u"artifact_send_response",b"artifact_send_response",u"attach_response",b"attach_response",u"check_version_response",b"check_version_response",u"get_summary_response",b"get_summary_response",u"log_artifact_response",b"log_artifact_response",u"login_response",b"login_response",u"network_status_response",b"network_status_response",u"poll_exit_response",b"poll_exit_response",u"response_type",b"response_type",u"run_event_status_response",b"run_event_status_response",u"run_start_response",b"run_start_response",u"run_status_response",b"run_status_response",u"sampled_history_response",b"sampled_history_response",u"shutdown_response",b"shutdown_response",u"status_response",b"status_response",u"test_inject_response",b"test_inject_response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"response_type",b"response_type"]) -> typing_extensions.Literal["run_status_response","network_status_response","login_response","get_summary_response","poll_exit_response","sampled_history_response","run_start_response","check_version_response","log_artifact_response","artifact_send_response","artifact_poll_response","shutdown_response","attach_response","status_response","run_event_status_response","test_inject_response"]: ...
 global___Response = Response
 
 class DeferRequest(google.protobuf.message.Message):
@@ -1565,7 +1575,32 @@ class StatusResponse(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal[u"run_should_stop",b"run_should_stop"]) -> None: ...
 global___StatusResponse = StatusResponse
 
-class StopStatusRequest(google.protobuf.message.Message):
+class RunEventStatusRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    _INFO_FIELD_NUMBER: builtins.int
+    ID_FIELD_NUMBER: builtins.int
+    id: typing.Text = ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
+
+    def __init__(self,
+        *,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+        id : typing.Text = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"id",b"id"]) -> None: ...
+global___RunEventStatusRequest = RunEventStatusRequest
+
+class RunEventStatusResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___RunEventStatusResponse = RunEventStatusResponse
+
+class RunStatusRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     _INFO_FIELD_NUMBER: builtins.int
 
@@ -1578,19 +1613,24 @@ class StopStatusRequest(google.protobuf.message.Message):
         ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
-global___StopStatusRequest = StopStatusRequest
+global___RunStatusRequest = RunStatusRequest
 
-class StopStatusResponse(google.protobuf.message.Message):
+class RunStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     RUN_SHOULD_STOP_FIELD_NUMBER: builtins.int
+    EXTRA_FIELD_NUMBER: builtins.int
     run_should_stop: builtins.bool = ...
+
+    @property
+    def extra(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ExtraItem]: ...
 
     def __init__(self,
         *,
         run_should_stop : builtins.bool = ...,
+        extra : typing.Optional[typing.Iterable[global___ExtraItem]] = ...,
         ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"run_should_stop",b"run_should_stop"]) -> None: ...
-global___StopStatusResponse = StopStatusResponse
+    def ClearField(self, field_name: typing_extensions.Literal[u"extra",b"extra",u"run_should_stop",b"run_should_stop"]) -> None: ...
+global___RunStatusResponse = RunStatusResponse
 
 class NetworkStatusRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

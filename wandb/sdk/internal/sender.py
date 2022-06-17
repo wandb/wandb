@@ -300,19 +300,33 @@ class SendManager:
         )
         self._respond_result(result)
 
-    def send_request_stop_status(self, record: "Record") -> None:
+    def send_request_run_status(self, record: "Record") -> None:
         assert record.control.req_resp
 
         result = proto_util._result_from_record(record)
-        status_resp = result.response.stop_status_response
+        status_resp = result.response.run_status_response
         status_resp.run_should_stop = False
         if self._entity and self._project and self._run and self._run.run_id:
             try:
-                status_resp.run_should_stop = self._api.check_stop_requested(
+                stop, extra = self._api.check_status_requested(
                     self._project, self._entity, self._run.run_id
                 )
+                status_resp.run_should_stop = stop
+                for e in extra:
+                    proto_extra = status_resp.extra.add()
+                    proto_extra.key = e["key"]
+                    proto_extra.value_json = e["value_json"]
             except Exception as e:
                 logger.warning("Failed to check stop requested status: %s", e)
+        self._respond_result(result)
+
+    def send_request_run_event_status(self, record: "Record") -> None:
+        assert record.control.req_resp
+
+        result = proto_util._result_from_record(record)
+        res = self._api.ack_run_queue_item(
+            record.request.run_event_status.id, self._run.run_id
+        )
         self._respond_result(result)
 
     def debounce(self) -> None:

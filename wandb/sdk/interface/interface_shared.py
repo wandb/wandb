@@ -96,7 +96,8 @@ class InterfaceShared(InterfaceBase):
         pause: pb.PauseRequest = None,
         resume: pb.ResumeRequest = None,
         status: pb.StatusRequest = None,
-        stop_status: pb.StopStatusRequest = None,
+        run_status: pb.RunStatusRequest = None,
+        run_event_status: pb.RunEventStatusRequest = None,
         network_status: pb.NetworkStatusRequest = None,
         poll_exit: pb.PollExitRequest = None,
         partial_history: pb.PartialHistoryRequest = None,
@@ -121,8 +122,10 @@ class InterfaceShared(InterfaceBase):
             request.resume.CopyFrom(resume)
         elif status:
             request.status.CopyFrom(status)
-        elif stop_status:
-            request.stop_status.CopyFrom(stop_status)
+        elif run_status:
+            request.run_status.CopyFrom(run_status)
+        elif run_event_status:
+            request.run_event_status.CopyFrom(run_event_status)
         elif network_status:
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
@@ -388,15 +391,25 @@ class InterfaceShared(InterfaceBase):
         assert resp.response.status_response
         return resp.response.status_response
 
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
-        req = self._make_request(stop_status=status)
+    def _communicate_run_event_status(
+        self, status: pb.RunEventStatusRequest
+    ) -> Optional[pb.RunEventStatusResponse]:
+        req = self._make_request(run_event_status=status)
         resp = self._communicate(req, local=True)
         if resp is None:
             return None
-        assert resp.response.stop_status_response
-        return resp.response.stop_status_response
+        assert resp.response.run_event_status_response
+        return resp.response.run_event_status_response
+
+    def _communicate_run_status(
+        self, status: pb.RunStatusRequest
+    ) -> Optional[pb.RunStatusResponse]:
+        req = self._make_request(run_status=status)
+        resp = self._communicate(req, local=True)
+        if resp is None:
+            return None
+        assert resp.response.run_status_response
+        return resp.response.run_status_response
 
     def _communicate_network_status(
         self, status: pb.NetworkStatusRequest
