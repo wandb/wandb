@@ -45,20 +45,18 @@ assert:
 
 
 # import allennlp  # noqa: F401
+# import avalanche
+# import dalle_pytorch
+# import deeppavlov
+# import detectron
+
 import autogluon  # noqa: F401
 import autokeras  # noqa: F401
-
-# import avalanche
 import catalyst  # noqa: F401
 import catboost  # noqa: F401
-
-# import dalle_pytorch
 import datasets  # noqa: F401
 import deepchem  # noqa: F401
 import deepctr  # noqa: F401
-
-# import deeppavlov
-# import detectron
 import wandb
 
 run = wandb.init()
