@@ -261,7 +261,7 @@ class KubernetesRunner(AbstractRunner):
             job_dict = {"apiVersion": "batch/v1", "kind": "Job"}
 
         # extract job spec component parts for convenience
-        job_metadata = job_dict.get("metadata", {})
+        job_metadata: Dict[str, Any] = job_dict.get("metadata", {})
         job_spec = job_dict.get("spec", {})
         pod_template = job_spec.get("template", {})
         pod_metadata = pod_template.get("metadata", {})
@@ -271,14 +271,16 @@ class KubernetesRunner(AbstractRunner):
 
         # begin pulling resource arg overrides. all of these are optional
 
-        # allow top-level namespace override, otherwise take namespace specified at the job level, or default in current context
-        default = (
-            context["context"].get("namespace", "default") if context else "default"
-        )
-        namespace = resource_args.get(
-            "namespace",
-            job_metadata.get("namespace", default),
-        )
+        # # allow top-level namespace override, otherwise take namespace specified at the job level, or default in current context
+        # default = (
+        #     context["context"].get("namespace", "default") if context else "default"
+        # )
+        # namespace = resource_args.get(
+        #     "namespace",
+        #     job_metadata.get("namespace", default),
+        # )
+
+        job_namespace = self.get_job_namespace(context, job_metadata)
 
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
@@ -348,7 +350,7 @@ class KubernetesRunner(AbstractRunner):
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             secret = maybe_create_imagepull_secret(
-                core_api, registry_config, launch_project.run_id, namespace
+                core_api, registry_config, launch_project.run_id, job_namespace
             )
 
             containers[0]["image"] = image_uri
@@ -374,22 +376,30 @@ class KubernetesRunner(AbstractRunner):
             return None
 
         job_response = kubernetes.utils.create_from_yaml(
-            api_client, yaml_objects=[job_dict], namespace=namespace
+            api_client, yaml_objects=[job_dict], namespace=job_namespace
         )[0][
             0
         ]  # create_from_yaml returns a nested list of k8s objects
         job_name = job_response.metadata.labels["job-name"]
 
-        pod_names = self.wait_job_launch(job_name, namespace, core_api)
+        pod_names = self.wait_job_launch(job_name, job_namespace, core_api)
 
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, pod_names, namespace, secret
+            batch_api, core_api, job_name, pod_names, job_namespace, secret
         )
 
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             submitted_job.wait()
 
         return submitted_job
+
+    def get_job_namespace(self, context: Any, job_metadata: Dict[str, Any]) -> str:
+        job_namespace = self.backend_config["runner"].get("namespace")
+        if context and job_namespace is None:
+            job_namespace = context["context"].get("namespace")
+        if job_namespace is None:
+            job_namespace = job_metadata.get("namespace", "wandb")
+        return job_namespace
 
 
 def maybe_create_imagepull_secret(
