@@ -17,6 +17,7 @@ assert:
   - :wandb:runs[0][summary]:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
+  # todo: once allennlp fixes their deps conflict, uncomment this
   #- :op:contains:
   #  - :wandb:runs[0][telemetry][1]  # imports init
   #  - 14  # allennlp
