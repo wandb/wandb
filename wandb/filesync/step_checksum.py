@@ -11,14 +11,14 @@ import wandb.util
 
 if TYPE_CHECKING:
     import tempfile
-    from wandb.filesync import stats
+    from wandb.filesync import dir_watcher, stats
     from wandb.sdk.interface import artifacts
     from wandb.sdk.internal import artifacts as internal_artifacts, internal_api
 
 
 class RequestUpload(NamedTuple):
     path: str
-    save_name: str
+    save_name: "dir_watcher.SaveName"
     artifact_id: Optional[str]
     copy: bool
     use_prepare_flow: bool
@@ -123,7 +123,7 @@ class StepChecksum:
                         self._output_queue.put(
                             step_upload.RequestUpload(
                                 entry.local_path,
-                                entry.path,
+                                dir_watcher.SaveName(entry.path),
                                 req.artifact_id,
                                 entry.digest,
                                 False,

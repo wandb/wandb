@@ -6,9 +6,7 @@ import time
 from typing import Mapping, Optional, Tuple, TYPE_CHECKING
 
 import wandb
-from wandb.filesync import stats
-from wandb.filesync import step_checksum
-from wandb.filesync import step_upload
+from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
 import wandb.util
 
 if TYPE_CHECKING:
@@ -138,7 +136,13 @@ class FilePusher:
 
         save_name = wandb.util.to_forward_slash_path(save_name)
         event = step_checksum.RequestUpload(
-            path, save_name, artifact_id, copy, use_prepare_flow, save_fn, digest
+            path,
+            dir_watcher.SaveName(save_name),
+            artifact_id,
+            copy,
+            use_prepare_flow,
+            save_fn,
+            digest,
         )
         self._incoming_queue.put(event)
 

@@ -1,4 +1,4 @@
-from typing import IO, TYPE_CHECKING, Iterable, Mapping, Optional, Union
+from typing import IO, TYPE_CHECKING, Any, Iterable, Mapping, Optional, Union
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -2597,7 +2597,7 @@ class Api:
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
-    ):
+    ) -> Mapping[str, Mapping[str, Any]]:
         mutation = gql(
             """
         mutation CreateArtifactFiles(

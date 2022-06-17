@@ -43,7 +43,7 @@ SaveFn = Callable[["progress.ProgressFn"], Any]
 
 class RequestUpload(NamedTuple):
     path: str
-    save_name: str
+    save_name: "dir_watcher.SaveName"
     artifact_id: Optional[str]
     md5: Optional[str]
     copied: bool
@@ -172,7 +172,7 @@ class StepUpload:
         else:
             raise Exception("Programming error: unhandled event: %s" % str(event))
 
-    def _start_upload_job(self, event):
+    def _start_upload_job(self, event: Event) -> None:
         if not isinstance(event, RequestUpload):
             raise Exception("Programming error: invalid event")
 
@@ -201,15 +201,16 @@ class StepUpload:
         self._running_jobs[event.save_name] = job
         job.start()
 
-    def _init_artifact(self, artifact_id):
+    def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
+            "finalize": False,
             "pending_count": 0,
             "commit_requested": False,
             "pre_commit_callbacks": set(),
             "post_commit_callbacks": set(),
         }
 
-    def _maybe_commit_artifact(self, artifact_id):
+    def _maybe_commit_artifact(self, artifact_id: str) -> None:
         artifact_status = self._artifacts[artifact_id]
         if (
             artifact_status["pending_count"] == 0
@@ -222,12 +223,15 @@ class StepUpload:
             for callback in artifact_status["post_commit_callbacks"]:
                 callback()
 
-    def start(self):
+    def start(self) -> None:
         self._thread.start()
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         return self._thread.is_alive()
 
-    def shutdown(self):
+    def finish(self) -> None:
+        self._finished = True
+
+    def shutdown(self) -> None:
         self.finish()
         self._thread.join()

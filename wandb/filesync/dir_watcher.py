@@ -5,7 +5,15 @@ import logging
 import os
 import queue
 import time
-from typing import Mapping, MutableMapping, MutableSet, NewType, Optional, TYPE_CHECKING
+from typing import (
+    Any,
+    Mapping,
+    MutableMapping,
+    MutableSet,
+    NewType,
+    Optional,
+    TYPE_CHECKING,
+)
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
@@ -33,8 +41,8 @@ class FileEventHandler(abc.ABC):
         file_path: PathStr,
         save_name: SaveName,
         file_pusher: "FilePusher",
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         self.file_path = file_path
         # Convert windows paths to unix paths
@@ -112,8 +120,8 @@ class PolicyLive(FileEventHandler):
         save_name: SaveName,
         file_pusher: "FilePusher",
         settings: Optional["wandb_settings.Settings"] = None,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ):
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time: Optional[float] = None
@@ -174,7 +182,7 @@ class PolicyLive(FileEventHandler):
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
-    def finish(self):
+    def finish(self) -> None:
         self.on_modified(force=True)
 
     @property
@@ -210,7 +218,7 @@ class DirWatcher:
     @property
     def emitter(self) -> Optional["wd_api.EventEmitter"]:
         try:
-            return next(iter(self._file_observer.emitters))
+            return next(iter(self._file_observer.emitters))  # type: ignore
         except StopIteration:
             return None
 

@@ -2,7 +2,7 @@ import collections
 import logging
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 import wandb
 
@@ -18,19 +18,19 @@ logger = logging.getLogger(__name__)
 class UploadJob(threading.Thread):
     def __init__(
         self,
-        done_queue: "queue.Queue[EventJobDone]",
+        done_queue: "queue.Queue",
         stats: "stats.Stats",
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
         silent: bool,
         save_name: "dir_watcher.SaveName",
         path: "dir_watcher.PathStr",
-        artifact_id: str,
-        md5: str,
+        artifact_id: Optional[str],
+        md5: Optional[str],
         copied: bool,
-        save_fn,
-        digest: str,
-    ):
+        save_fn: Any,
+        digest: Optional[str],
+    ) -> None:
         """A file upload thread.
 
         Arguments:
@@ -56,7 +56,7 @@ class UploadJob(threading.Thread):
         self.digest = digest
         super().__init__()
 
-    def run(self):
+    def run(self) -> None:
         success = False
         try:
             success = self.push()
@@ -67,7 +67,7 @@ class UploadJob(threading.Thread):
             if success:
                 self._file_stream.push_success(self.artifact_id, self.save_name)
 
-    def push(self):
+    def push(self) -> bool:
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
@@ -81,7 +81,7 @@ class UploadJob(threading.Thread):
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
                 if hasattr(e, "response"):
-                    message = e.response.content
+                    message = e.response.content  # type: ignore
                 wandb.termerror(
                     'Error uploading "{}": {}, {}'.format(
                         self.save_path, type(e).__name__, message
@@ -149,5 +149,5 @@ class UploadJob(threading.Thread):
                 return False
         return True
 
-    def progress(self, total_bytes):
+    def progress(self, total_bytes: int) -> None:
         self._stats.update_uploaded_file(self.save_name, total_bytes)

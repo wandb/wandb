@@ -493,10 +493,10 @@ class FileStreamApi:
         with open(path) as f:
             self._send([Chunk(name, line) for line in f])
 
-    def enqueue_preempting(self):
+    def enqueue_preempting(self) -> None:
         self._queue.put(self.Preempting())
 
-    def push(self, filename, data):
+    def push(self, filename, data) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
         Arguments:
@@ -506,7 +506,7 @@ class FileStreamApi:
         """
         self._queue.put(Chunk(filename, data))
 
-    def push_success(self, artifact_id, save_name):
+    def push_success(self, artifact_id, save_name) -> None:
         """Notification that a file upload has been successfully completed
 
         Arguments:
@@ -515,7 +515,7 @@ class FileStreamApi:
         """
         self._queue.put(self.PushSuccess(artifact_id, save_name))
 
-    def finish(self, exitcode):
+    def finish(self, exitcode) -> None:
         """Cleans up.
 
         Anything pushed after finish will be dropped.
