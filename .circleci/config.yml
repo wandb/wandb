@@ -382,6 +382,12 @@ jobs:
     parameters:
       toxenv:
         type: string
+      notify_on_failure:
+        type: boolean
+        default: true
+      notify_on_success:
+        type: boolean
+        default: false
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
@@ -433,6 +439,24 @@ jobs:
           command: |
             tox -v -e << parameters.toxenv >>
           no_output_timeout: 25m
+      # conditionally post a notification to slack if the job failed/succeeded
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+      - when:
+          condition: << parameters.notify_on_success >>
+          steps:
+            - slack/notify:
+                event: pass
+                template: basic_success_1
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
       - save-kfp-cache
       - save-test-results
 
@@ -803,6 +827,7 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
       # stanalone tests on gke
       #
