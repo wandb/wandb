@@ -797,6 +797,15 @@ workflows:
             - << pipeline.schedule.name >>
             - "nightly"
     jobs:
+      #
+      # kfp tests
+      #
+      - kfp:
+          name: "mach-kubeflow"
+          toxenv: "func-s_kfp-py37"
+      #
+      # stanalone tests on gke
+      #
       - slack_notify:
           name: "slack-notify-on-start"
           context: slack-secrets
@@ -963,12 +972,6 @@ workflows:
       - launch:
           name: "mach-launch"
           toxenv: "pylaunch,covercircle"
-      #
-      # kfp tests
-      #
-      - kfp:
-          name: "mach-kubeflow"
-          toxenv: "func-s_kfp-py37"
       #
       # sharded unittests
       #
