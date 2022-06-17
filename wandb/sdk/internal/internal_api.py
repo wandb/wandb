@@ -1376,7 +1376,10 @@ class Api:
     def get_run_state(self, entity, project, name):
         query = gql(
             """
-        query RunState($project: String!, $entity: String!, $name: String!) {
+        query RunState(
+            $project: String!,
+            $entity: String!,
+            $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
                     state
@@ -1385,20 +1388,14 @@ class Api:
         }
         """
         )
-        variable_values = {"project": project, "entity": entity, "name": name}
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "name": name,
+        }
         res = self.gql(query, variable_values)
-        if res.get("project") is None:
-            raise CommError(
-                "Error fetching run state for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
-                    entity, project, name
-                )
-            )
-        elif res["project"].get("run") is None:
-            raise CommError(
-                "Error fetching run state for {}/{}/{}. Check that this run id exists".format(
-                    entity, project, name
-                )
-            )
+        if res.get("project") is None or res["project"].get("run") is None:
+            raise CommError(f"Error fetching run state for {entity}/{project}/{name}.")
         return res["project"]["run"]["state"]
 
     @normalize_exceptions
