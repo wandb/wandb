@@ -34,6 +34,7 @@ from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
 from . import lib as wandb_lib
+from .data_types._dtypes import Type, TypeRegistry
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
@@ -2027,3 +2028,11 @@ class WBLocalArtifactHandler(StorageHandler):
                 digest=target_entry.digest,
             )
         ]
+
+
+class _ArtifactVersionType(Type):
+    name = "artifactVersion"
+    types = [Artifact, PublicArtifact]
+
+
+TypeRegistry.add(_ArtifactVersionType)
