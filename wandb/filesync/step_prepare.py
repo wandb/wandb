@@ -72,7 +72,7 @@ class StepPrepare:
         batch_time: float,
         inter_event_time: float,
         max_batch_size: int,
-    ):
+    ) -> None:
         self._api = api
         self._inter_event_time = inter_event_time
         self._batch_time = batch_time

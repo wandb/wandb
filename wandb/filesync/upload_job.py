@@ -2,13 +2,13 @@ import collections
 import logging
 import os
 import threading
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 import wandb
 
 if TYPE_CHECKING:
     import queue
-    from wandb.filesync import dir_watcher, stats
+    from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
 
 EventJobDone = collections.namedtuple("EventJobDone", ("job", "success"))
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class UploadJob(threading.Thread):
     def __init__(
         self,
-        done_queue: "queue.Queue",
+        done_queue: "queue.Queue[step_upload.Event]",
         stats: "stats.Stats",
         api: "internal_api.Api",
         file_stream: "file_stream.FileStreamApi",
@@ -28,7 +28,7 @@ class UploadJob(threading.Thread):
         artifact_id: Optional[str],
         md5: Optional[str],
         copied: bool,
-        save_fn: Any,
+        save_fn: Optional["step_upload.SaveFn"],
         digest: Optional[str],
     ) -> None:
         """A file upload thread.
@@ -81,7 +81,7 @@ class UploadJob(threading.Thread):
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
                 if hasattr(e, "response"):
-                    message = e.response.content  # type: ignore
+                    message = e.response.content  # type: ignore[attr-defined]
                 wandb.termerror(
                     'Error uploading "{}": {}, {}'.format(
                         self.save_path, type(e).__name__, message

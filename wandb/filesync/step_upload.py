@@ -76,7 +76,7 @@ class StepUpload:
         max_jobs: int,
         file_stream: "file_stream.FileStreamApi",
         silent: bool = False,
-    ):
+    ) -> None:
         self._api = api
         self._stats = stats
         self._event_queue = event_queue

@@ -24,7 +24,9 @@ class Progress:
 
     ITER_BYTES = 1024 * 1024
 
-    def __init__(self, file: IO[bytes], callback: Optional["ProgressFn"] = None):
+    def __init__(
+        self, file: IO[bytes], callback: Optional["ProgressFn"] = None
+    ) -> None:
         self.file = file
         if callback is None:
 

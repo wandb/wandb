@@ -114,7 +114,7 @@ class FilePusher:
 
     def file_changed(
         self,
-        save_name: str,
+        save_name: dir_watcher.SaveName,
         path: str,
         artifact_id: Optional[str] = None,
         copy: bool = True,
@@ -134,7 +134,7 @@ class FilePusher:
         if os.path.getsize(path) == 0:
             return
 
-        save_name = wandb.util.to_forward_slash_path(save_name)
+        save_name = dir_watcher.SaveName(wandb.util.to_forward_slash_path(save_name))
         event = step_checksum.RequestUpload(
             path,
             dir_watcher.SaveName(save_name),

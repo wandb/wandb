@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class RequestUpload(NamedTuple):
     path: str
-    save_name: "dir_watcher.SaveName"
+    save_name: dir_watcher.SaveName
     artifact_id: Optional[str]
     copy: bool
     use_prepare_flow: bool
@@ -56,7 +56,7 @@ class StepChecksum:
         request_queue: "queue.Queue[Event]",
         output_queue: "queue.Queue[step_upload.Event]",
         stats: "stats.Stats",
-    ):
+    ) -> None:
         self._api = api
         self._tempdir = tempdir
         self._request_queue = request_queue
@@ -123,7 +123,7 @@ class StepChecksum:
                         self._output_queue.put(
                             step_upload.RequestUpload(
                                 entry.local_path,
-                                dir_watcher.SaveName(entry.path),
+                                dir_watcher.SaveName(entry.path),  # typecast might not be legit
                                 req.artifact_id,
                                 entry.digest,
                                 False,

@@ -1634,7 +1634,7 @@ class Api:
         file: IO[bytes],
         callback: Optional["ProgressFn"] = None,
         extra_headers: Mapping[str, Union[str, bytes]] = {},
-    ):
+    ) -> requests.Response:
         """Uploads a file to W&B with failure resumption
 
         Arguments:

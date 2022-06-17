@@ -101,7 +101,7 @@ class ArtifactManifest:
         artifact,
         storage_policy: "wandb_artifacts.WandbStoragePolicy",
         entries=None,
-    ):
+    ) -> None:
         self.artifact = artifact
         self.storage_policy = storage_policy
         self.entries = entries or {}

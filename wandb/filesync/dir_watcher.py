@@ -122,7 +122,7 @@ class PolicyLive(FileEventHandler):
         settings: Optional["wandb_settings.Settings"] = None,
         *args: Any,
         **kwargs: Any,
-    ):
+    ) -> None:
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
         self._last_uploaded_time: Optional[float] = None
         self._last_uploaded_size: int = 0
@@ -196,7 +196,7 @@ class DirWatcher:
         settings: "wandb_settings.Settings",
         file_pusher: "FilePusher",
         file_dir: Optional[PathStr] = None,
-    ):
+    ) -> None:
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
