@@ -3,26 +3,22 @@ import collections
 import itertools
 import logging
 import os
-import sys
 import queue
 import random
-import requests
+import sys
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+import requests
 import wandb
-from wandb import util
-from wandb import env
+from wandb import env, util
 
 from ..lib import file_stream_utils
 
 logger = logging.getLogger(__name__)
 
 Chunk = collections.namedtuple("Chunk", ("filename", "data"))
-
-if TYPE_CHECKING:
-    from typing import Any, List, Dict
 
 
 class DefaultFilePolicy:
@@ -604,7 +600,7 @@ def request_with_retry(func, *args, **kwargs):
         except requests.exceptions.RequestException as e:
             error_message = "unknown error"
             try:
-                error_message = response.json()["error"]  # XXX clean this up
+                error_message = response.json()["error"]  # todo: clean this up
             except Exception:
                 pass
             logger.error(f"requests_with_retry error: {error_message}")
