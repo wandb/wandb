@@ -6,7 +6,6 @@ catalyst
 catboost
 # dalle-pytorch
 datasets
-# pin deepchem to earlier version to requirments conflict
-deepchem<2.6.1
+deepchem
 deepctr
 # deeppavlov
