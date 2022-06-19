@@ -1,5 +1,5 @@
-from collections.abc import Iterable
-from functools import wraps
+from abc import ABC, abstractmethod
+from typing import Union
 
 LINEPLOT_STYLES = ["line", "stacked-area", "pct-area"]
 BARPLOT_STYLES = ["bar", "boxplot", "violin"]
@@ -14,90 +14,96 @@ SMOOTHING_TYPES = ["exponential", "gaussian", "average", "none"]
 CODE_COMPARE_DIFF = ["split", "unified"]
 
 
-def allow(option):
-    def deco(validator):
-        @wraps(validator)
-        def wrapper(*args, **kwargs):
-            args = [
-                (*arg, option) if isinstance(arg, Iterable) else (arg, option)
-                for arg in args
-            ]
-            return validator(*args, **kwargs)
+class Validator(ABC):
+    def __init__(self, how=None):
+        self.how = how
 
-        return wrapper
+    @abstractmethod
+    def call(self, attr_name, value):
+        pass
 
-    return deco
-
-
-@allow(type(None))
-def type_validate(attr_type, how=None):
-    def _type_validate(attr, value):
+    def __call__(self, attr, value):
         if value is None:
             return
-        for v in howify(value, how):
-            if not isinstance(v, attr_type):
-                raise TypeError(
-                    f"{attr.name!r} values must be of type {attr_type!r} (got {type(v)!r})"
-                )
 
-    return _type_validate
-
-
-@allow(None)
-def one_of(opts, how=None):
-    def _one_of(attr, value):
-        if value is None:
-            return
-        for v in howify(value, how):
-            if v not in opts:
-                raise ValueError(f"{attr.name!r} must be one of {opts!r} (got {v!r})")
-
-    return _one_of
+        attr_name = attr._name.__repr__()
+        if self.how == "keys":
+            attr_name += " keys"
+            for v in value:
+                self.call(attr_name, v)
+        elif self.how == "values":
+            attr_name += " values"
+            for v in value.values():
+                self.call(attr_name, v)
+        else:
+            attr_name += " object"
+            self.call(attr_name, value)
 
 
-def length(n):
-    def _expected_len(attr, value):
-        if value is None:
-            return
-        if len(value) > n:
-            raise ValueError(
-                f"{attr.name!r} must have a length of {n} (got len({attr.name!r})=={len(value)!r}"
+class TypeValidator(Validator):
+    def __init__(self, attr_type, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        try:
+            origin = attr_type.__origin__
+            subtypes = attr_type.__args__
+        except AttributeError:  # normal types
+            self.attr_type = attr_type
+        else:
+            if origin is Union:
+                self.attr_type = subtypes
+            else:
+                raise TypeError(f"{attr_type} is not currently supported.")
+        self.attr_type = (self.attr_type, type(None))
+
+    def call(self, attr_name, value):
+        if not isinstance(value, self.attr_type):
+            raise TypeError(
+                f"{attr_name} must be of type {self.attr_type!r} (got {type(value)!r})"
             )
 
-    return _expected_len
+
+class OneOf(Validator):
+    def __init__(self, options, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.options = (*options, None)
+
+    def call(self, attr_name, value):
+        if value not in self.options:
+            raise ValueError(
+                f"{attr_name} must be one of {self.options!r} (got {value!r})"
+            )
 
 
-@allow(type(None))
-def elem_types(attr_type, how=None):
-    def _elements_of_type(attr, value):
-        if value is None:
-            return
-        for v in howify(value, how):
-            if not isinstance(v, attr_type):
-                raise TypeError(
-                    f"{attr.name!r} elements must be of type {attr_type!r} (got {type(v)!r})"
-                )
+class Length(Validator):
+    def __init__(self, k, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.k = k
 
-    return _elements_of_type
+    def call(self, attr_name, value):
+        if len(value) != self.k:
+            raise ValueError(
+                f"{attr_name} must have exactly {self.k} elements (got {len(value)!r}, elems: {value!r})"
+            )
 
 
-def between(lb, ub, how=None):
-    def _between(attr, value):
-        if value is None:
-            return
-        for v in howify(value, how):
-            if not lb <= v <= ub:
-                raise ValueError(
-                    f"{attr.name!r} values must be between ({lb}, {ub}) (got {v})"
-                )
+class Between(Validator):
+    def __init__(self, lb, ub, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lb = lb
+        self.ub = ub
 
-    return _between
+    def call(self, attr_name, value):
+        if not self.lb <= value <= self.ub:
+            raise ValueError(
+                f"{attr_name} must be between [{self.lb}, {self.ub}] inclusive (got {value})"
+            )
 
 
-def howify(value, how=None):
-    if how == "keys":
-        return value.keys()
-    elif how == "values":
-        return value.values()
-    else:
-        return (value,)
+class OrderString(TypeValidator):
+    def call(self, attr_name, value):
+        super().call(attr_name, value)
+
+        if value[0] not in {"+", "-"}:
+            raise ValueError(
+                f'{attr_name} must be prefixed with "+" or "-" to indicate ascending or descending order'
+            )

@@ -1,18 +1,14 @@
-import json
+import inspect
+import os
+from dataclasses import dataclass
 
 import pytest
+
 import wandb
 import wandb.apis.reports as wb
-import os
-
+import wandb.apis.reports.util as util
 from tests.conftest import DUMMY_API_KEY
 from tests.utils.mock_server import mock_server
-
-
-@pytest.fixture
-def require_v5_reports(report):
-    assert report.spec.get("version", -1) == 5
-    yield
 
 
 @pytest.fixture
@@ -23,306 +19,41 @@ def require_report_editing():
 
 
 @pytest.fixture
-def api():
+def api(mock_server):
     wandb.login(key=DUMMY_API_KEY)
     yield wandb.Api()
 
 
 @pytest.fixture
-def report(api):
-    MOCK_ATTRS = {
-        "id": "VmlldzoxOTk3OTcx",
-        "type": "runs",
-        "name": "75guz82nsr",
-        "displayName": "Project about cool stuff",
-        "description": "Look at how descriptive this is!",
-        "project": {
-            "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
-            "name": "report-editing",
-            "entityName": "megatruong",
-        },
-        "createdAt": "2022-05-12T22:17:56",
-        "updatedAt": "2022-05-12T22:17:56",
-        "spec": json.dumps(
-            {
-                "version": 5,
-                "panelSettings": {},
-                "blocks": [
-                    {
-                        "type": "heading",
-                        "children": [{"text": "H1 Heading"}],
-                        "level": 1,
-                    },
-                    {"type": "paragraph", "children": [{"text": "Some text"}]},
-                    {
-                        "type": "panel-grid",
-                        "children": [{"text": ""}],
-                        "metadata": {
-                            "openViz": True,
-                            "panels": {
-                                "views": {
-                                    "0": {
-                                        "name": "Panels",
-                                        "defaults": [],
-                                        "config": [],
-                                    }
-                                },
-                                "tabs": ["0"],
-                            },
-                            "panelBankConfig": {
-                                "state": 0,
-                                "settings": {
-                                    "autoOrganizePrefix": 2,
-                                    "showEmptySections": False,
-                                    "sortAlphabetically": False,
-                                },
-                                "sections": [
-                                    {
-                                        "name": "Hidden Panels",
-                                        "isOpen": False,
-                                        "panels": [],
-                                        "type": "flow",
-                                        "flowConfig": {
-                                            "snapToColumns": True,
-                                            "columnsPerPage": 3,
-                                            "rowsPerPage": 2,
-                                            "gutterWidth": 16,
-                                            "boxWidth": 460,
-                                            "boxHeight": 300,
-                                        },
-                                        "sorted": 0,
-                                        "localPanelSettings": {
-                                            "xAxis": "_step",
-                                            "smoothingWeight": 0,
-                                            "smoothingType": "exponential",
-                                            "ignoreOutliers": False,
-                                            "xAxisActive": False,
-                                            "smoothingActive": False,
-                                        },
-                                    }
-                                ],
-                            },
-                            "panelBankSectionConfig": {
-                                "name": "Report Panels",
-                                "isOpen": False,
-                                "panels": [],
-                                "type": "grid",
-                                "flowConfig": {
-                                    "snapToColumns": True,
-                                    "columnsPerPage": 3,
-                                    "rowsPerPage": 2,
-                                    "gutterWidth": 16,
-                                    "boxWidth": 460,
-                                    "boxHeight": 300,
-                                },
-                                "sorted": 0,
-                                "localPanelSettings": {
-                                    "xAxis": "_step",
-                                    "smoothingWeight": 0,
-                                    "smoothingType": "exponential",
-                                    "ignoreOutliers": False,
-                                    "xAxisActive": False,
-                                    "smoothingActive": False,
-                                },
-                            },
-                            "customRunColors": {},
-                            "runSets": [
-                                {
-                                    "filters": {
-                                        "op": "OR",
-                                        "filters": [
-                                            {
-                                                "op": "AND",
-                                                "filters": [
-                                                    {
-                                                        "key": {
-                                                            "section": "run",
-                                                            "name": "state",
-                                                        },
-                                                        "op": "=",
-                                                        "value": "crashed",
-                                                    },
-                                                    {
-                                                        "key": {
-                                                            "section": "summary",
-                                                            "name": "team",
-                                                        },
-                                                        "op": "=",
-                                                        "value": "amazing team",
-                                                    },
-                                                ],
-                                            }
-                                        ],
-                                    },
-                                    "runFeed": {
-                                        "version": 2,
-                                        "columnVisible": {"run:name": False},
-                                        "columnPinned": {},
-                                        "columnWidths": {},
-                                        "columnOrder": [],
-                                        "pageSize": 10,
-                                        "onlyShowSelected": False,
-                                    },
-                                    "sort": {
-                                        "keys": [
-                                            {
-                                                "key": {
-                                                    "section": "run",
-                                                    "name": "createdAt",
-                                                },
-                                                "ascending": True,
-                                            },
-                                            {
-                                                "key": {
-                                                    "section": "run",
-                                                    "name": "duration",
-                                                },
-                                                "ascending": False,
-                                            },
-                                        ]
-                                    },
-                                    "enabled": True,
-                                    "name": "The report-editing run set",
-                                    "search": {"query": ""},
-                                    "grouping": [
-                                        {"section": "run", "name": "username"},
-                                        {"section": "summary", "name": "something"},
-                                    ],
-                                    "selections": {"root": 1, "bounds": [], "tree": []},
-                                    "expandedRowAddresses": [],
-                                    "project": {
-                                        "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
-                                        "name": "report-editing",
-                                        "entityName": "megatruong",
-                                    },
-                                    "id": "abcdef123",
-                                },
-                                {
-                                    "filters": {
-                                        "op": "OR",
-                                        "filters": [{"op": "AND", "filters": []}],
-                                    },
-                                    "runFeed": {
-                                        "version": 2,
-                                        "columnVisible": {"run:name": False},
-                                        "columnPinned": {},
-                                        "columnWidths": {},
-                                        "columnOrder": [],
-                                        "pageSize": 10,
-                                        "onlyShowSelected": False,
-                                    },
-                                    "sort": {
-                                        "keys": [
-                                            {
-                                                "key": {
-                                                    "section": "run",
-                                                    "name": "createdAt",
-                                                },
-                                                "ascending": False,
-                                            }
-                                        ]
-                                    },
-                                    "enabled": True,
-                                    "name": "Financial data runs",
-                                    "search": {"query": ""},
-                                    "grouping": [],
-                                    "selections": {"root": 1, "bounds": [], "tree": []},
-                                    "expandedRowAddresses": [],
-                                    "project": {
-                                        "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
-                                        "name": "finance-examples",
-                                        "entityName": "megatruong",
-                                    },
-                                    "id": "ghijklm456",
-                                },
-                            ],
-                            "openRunSet": 0,
-                            "name": "unused-name",
-                        },
-                    },
-                ],
-                "width": "readable",
-                "authors": [],
-                "discussionThreads": [],
-                "ref": {},
-            }
-        ),
-        "previewUrl": None,
-        "user": {
-            "name": "Andrew Truong",
-            "username": "megatruong",
-            "userInfo": {
-                "bio": "model-registry \ninstant replay\nweeave-plot\nweeave-report\nniight\n",
-                "company": "Weights and Biases",
-                "location": "San Francisco",
-                "githubUrl": "",
-                "twitterUrl": "",
-                "websiteUrl": "wandb.com",
-            },
-        },
-    }
-    yield wandb.apis.public.BetaReport(
-        client=api.client,
-        attrs=MOCK_ATTRS,
-        entity=MOCK_ATTRS["project"]["entityName"],
-        project=MOCK_ATTRS["project"]["name"],
-    )
-
-
-@pytest.fixture
-def panel_grid(report):
-    yield report.panel_grids[0]
-
-
-@pytest.fixture
-def run_set(panel_grid):
-    yield panel_grid.run_sets[0]
-
-
-@pytest.fixture
-def run(run_set):
-    yield run_set.runs[0]
-
-
-@pytest.fixture
-def run_set_modified(run_set):
-    assert not run_set.modified
-    yield
-    assert run_set.modified
-
-
-@pytest.fixture
-def panel_grid_modified(panel_grid):
-    assert not panel_grid.modified
-    yield
-    assert panel_grid.modified
-
-
-@pytest.fixture
-def report_modified(report):
-    assert not report.modified
-    yield
-    assert report.modified
-
-
-@pytest.mark.usefixtures("require_report_editing", "require_v5_reports", "mock_server")
-class TestPublicAPIReportCreation:
-    @pytest.mark.parametrize(
-        "project,entity,result",
-        [
-            (None, None, ValueError),
-            (None, "entity", ValueError),
-            ("project", None, "valid"),
-            ("project", "entity", "valid"),
+def report(mock_server):
+    yield wb.Report(
+        project="amazing-project",
+        blocks=[
+            wb.H1("An interesting heading"),
+            wb.P("special text"),
+            wb.PanelGrid(panels=[wb.LinePlot(), wb.BarPlot(), wb.ScalarChart()]),
         ],
     )
-    def test_create_report(self, api, project, entity, result):
-        if result == "valid":
-            report = api.create_report(entity, project)
-            assert isinstance(report, wandb.apis.public.BetaReport)
-        else:
-            with pytest.raises(result):
-                report = api.create_report(entity, project)
+
+
+@pytest.fixture
+def runset(mock_server):
+    yield wb.RunSet()
+
+
+@pytest.fixture
+def panel_grid(mock_server):
+    yield wb.PanelGrid()
+
+
+@pytest.mark.usefixtures("require_report_editing")
+class TestPublicAPI:
+    def test_create_report(self, api):
+        report = api.create_report(project="something")
+        assert isinstance(report, wb.Report)
+
+        with pytest.raises(TypeError):
+            report = api.create_report()  # User must always define a project
 
     @pytest.mark.parametrize(
         "path,result",
@@ -334,541 +65,84 @@ class TestPublicAPIReportCreation:
             ("VmlldzoxOTcxMzI2", ValueError),
         ],
     )
-    def test_get_report(self, api, path, result):
+    def test_load_report(self, api, path, result):
         if result == "valid":
-            report = api.report(path)
-            assert isinstance(report, wandb.apis.public.BetaReport)
+            report = api.load_report(path)
+            assert isinstance(report, wb.Report)
         else:
             with pytest.raises(result):
-                report = api.report(path)
-
-    # @pytest.mark.parametrize("clone", [True, False])
-    # def test_save_report(self, report, clone):
-    #     report2 = report.save(clone=clone)
-    #     if clone:
-    #         assert report.id != report2.id
-    #     else:
-    #         assert report.id == report2.id
-    #     assert report.entity == report2.entity
-    #     assert report.project == report2.project
-    #     assert report.description == report2.description
-    #     assert report.title == report2.title
-
-    #     for b1, b2 in zip(report.blocks, report2.blocks):
-    #         if not isinstance(b1, wandb.apis.public.PanelGrid):
-    #             assert b1 == b2
+                report = api.load_report(path)
 
 
-@pytest.mark.usefixtures("require_report_editing", "require_v5_reports")
-class TestReportGetters:
+@pytest.mark.usefixtures("require_report_editing", "mock_server")
+class TestReport:
+    def test_instantiate_report(self):
+        report = wb.Report(project="something")
+        with pytest.raises(TypeError):
+            report = wb.Report()
+
+    @pytest.mark.parametrize("clone", [True, False])
+    def test_save_report(self, report, clone):
+        report2 = report.save(clone=clone)
+
+        if clone:
+            assert report2 is not report
+        else:
+            assert report2 is report
+
     @pytest.mark.parametrize(
-        "property,path",
+        "new_blocks",
         [
-            ("updated_at", ["updatedAt"]),
-            ("title", ["displayName"]),
-            ("description", ["description"]),
-            ("width", ["spec", "width"]),
-        ],
-    )
-    def test_basic_property_getters(self, report, property, path):
-        def value_getter(d, keys):
-            if len(keys) == 0:
-                return d
-            return value_getter(d[keys[0]], keys[1:])
-
-        assert getattr(report, property) == value_getter(report._attrs, path)
-
-    def test_get_blocks(self, report):
-        assert report.spec["blocks"] == [block.spec for block in report.blocks]
-
-    def test_get_panel_grids(self, report):
-        assert all([isinstance(pg, wb.PanelGrid) for pg in report.panel_grids])
-
-    def test_get_run_sets(self, report):
-        all([isinstance(rs, wb.RunSet) for pg in report.run_sets for rs in pg])
-
-
-@pytest.mark.usefixtures(
-    "require_report_editing", "require_v5_reports", "report_modified"
-)
-class TestReportSetters:
-    @pytest.mark.parametrize(
-        "blocks_args_kwargs,blockspec",
-        [
-            (
-                [
-                    (wb.TableOfContents, (), {}),
-                    (
-                        wb.H1,
-                        (),
-                        {"text": "An example of programmatic report editing"},
-                    ),
-                    (wb.P, ("Look at what we can do!",), {}),
-                ],
-                [
-                    {"type": "table-of-contents", "children": [{"text": ""}]},
-                    {
-                        "type": "heading",
-                        "children": [
-                            {"text": "An example of programmatic report editing"}
-                        ],
-                        "level": 1,
-                    },
-                    {
-                        "type": "paragraph",
-                        "children": [{"text": "Look at what we can do!"}],
-                    },
-                ],
-            ),
-            (
-                [
-                    (wb.H1, ("Heading1",), {}),
-                    (wb.H2, ("Heading2",), {}),
-                    (wb.H3, ("Heading3",), {}),
-                    (wb.P, ("Paragraph",), {}),
-                    (wb.HorizontalRule, (), {}),
-                    (
-                        wb.Image,
-                        (
-                            "https://i.kym-cdn.com/entries/icons/original/000/006/428/637738.jpg",
-                        ),
-                        {},
-                    ),
-                ],
-                [
-                    {"type": "heading", "children": [{"text": "Heading1"}], "level": 1},
-                    {"type": "heading", "children": [{"text": "Heading2"}], "level": 2},
-                    {"type": "heading", "children": [{"text": "Heading3"}], "level": 3},
-                    {"type": "paragraph", "children": [{"text": "Paragraph"}]},
-                    {"type": "horizontal-rule", "children": [{"text": ""}]},
-                    {
-                        "type": "image",
+            [wb.H1("Heading"), wb.P("Paragraph"), wb.PanelGrid()],
+            [
+                wb.Video(url="https://www.youtube.com/embed/6riDJMI-Y8U"),
+                wb.Spotify(spotify_id="5cfUlsdrdUE4dLMK7R9CFd"),
+                wb.SoundCloud(url="https://api.soundcloud.com/tracks/1076901103"),
+                wb.Twitter(
+                    embed_html='<blockquote class="twitter-tweet"><p lang="en" dir="ltr">The voice of an angel, truly. <a href="https://twitter.com/hashtag/MassEffect?src=hash&amp;ref_src=twsrc%5Etfw">#MassEffect</a> <a href="https://t.co/nMev97Uw7F">pic.twitter.com/nMev97Uw7F</a></p>&mdash; Mass Effect (@masseffect) <a href="https://twitter.com/masseffect/status/1428748886655569924?ref_src=twsrc%5Etfw">August 20, 2021</a></blockquote>\n'
+                ),
+                wb.P(text="Normal paragraph"),
+                wb.H1(text="Heading 1"),
+                wb.H2(text="Heading 2"),
+                wb.H3(text="Heading 3"),
+                wb.UnorderedList(items=["Bullet 1", "Bullet 2"]),
+                wb.OrderedList(items=["Ordered 1", "Ordered 2"]),
+                wb.CheckedList(items=["Unchecked", "Checked"], checked=[False, True]),
+                wb.BlockQuote(text="Block Quote 1\nBlock Quote 2\nBlock Quote 3"),
+                wb.CalloutBlock(text=["Callout 1", "Callout 2", "Callout 3"]),
+                wb.CodeBlock(
+                    code=["# python code block", "for x in range(10):", "  pass"],
+                    language="python",
+                ),
+                wb.HorizontalRule(),
+                wb.CodeBlock(
+                    code=["this:", "- is", "- a", "cool:", "- yaml", "- file"],
+                    language="yaml",
+                ),
+                wb.MarkdownBlock(
+                    text="Markdown cell with *italics* and **bold** and $e=mc^2$"
+                ),
+                wb.Image(
+                    url="https://api.wandb.ai/files/megatruong/images/projects/918598/350382db.gif",
+                    caption="It's a me, Pikachu",
+                ),
+                wb.LaTeXInline(before="", latex="y=ax^2 +bx+c", after=""),
+                wb.LaTeXBlock(
+                    text="\\gamma^2+\\theta^2=\\omega^2\n\\\\ a^2 + b^2 = c^2"
+                ),
+                wb.Gallery(ids=[]),
+                wb.PanelGrid(),
+                wb.WeaveBlock(
+                    spec={
+                        "type": "weave-panel",
                         "children": [{"text": ""}],
-                        "url": "https://i.kym-cdn.com/entries/icons/original/000/006/428/637738.jpg",
-                    },
-                ],
-            ),
-            (
-                [
-                    (wb.LaTeXBlock, ("e=mc^2",), {}),
-                    (wb.OrderedList, (["one", "two", "three"],), {}),
-                    (wb.UnorderedList, (["alpha", "beta", "gamma"],), {}),
-                    (
-                        wb.CheckedList,
-                        (["done", "not done"],),
-                        {"checked": [True, False]},
-                    ),
-                    (wb.BlockQuote, ("Look at this amazing blockquote",), {}),
-                    (wb.CalloutBlock, ("This is also an amazing callout",), {}),
-                    (wb.CodeBlock, ("for x in range(10): pass",), {}),
-                ],
-                [
-                    {
-                        "type": "latex",
-                        "children": [{"text": ""}],
-                        "content": "e=mc^2",
-                        "block": True,
-                    },
-                    {
-                        "type": "list",
-                        "ordered": True,
-                        "children": [
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {"type": "paragraph", "children": [{"text": "one"}]}
-                                ],
-                                "ordered": True,
-                            },
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {"type": "paragraph", "children": [{"text": "two"}]}
-                                ],
-                                "ordered": True,
-                            },
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {
-                                        "type": "paragraph",
-                                        "children": [{"text": "three"}],
-                                    }
-                                ],
-                                "ordered": True,
-                            },
-                        ],
-                    },
-                    {
-                        "type": "list",
-                        "children": [
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {
-                                        "type": "paragraph",
-                                        "children": [{"text": "alpha"}],
-                                    }
-                                ],
-                            },
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {
-                                        "type": "paragraph",
-                                        "children": [{"text": "beta"}],
-                                    }
-                                ],
-                            },
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {
-                                        "type": "paragraph",
-                                        "children": [{"text": "gamma"}],
-                                    }
-                                ],
-                            },
-                        ],
-                    },
-                    {
-                        "type": "list",
-                        "children": [
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {
-                                        "type": "paragraph",
-                                        "children": [{"text": "done"}],
-                                    }
-                                ],
-                                "checked": True,
-                            },
-                            {
-                                "type": "list-item",
-                                "children": [
-                                    {
-                                        "type": "paragraph",
-                                        "children": [{"text": "not done"}],
-                                    }
-                                ],
-                                "checked": False,
-                            },
-                        ],
-                    },
-                    {
-                        "type": "block-quote",
-                        "children": [{"text": "Look at this amazing blockquote"}],
-                    },
-                    {
-                        "type": "callout-block",
-                        "children": [
-                            {
-                                "type": "callout-line",
-                                "children": [
-                                    {"text": "This is also an amazing callout"}
-                                ],
-                            }
-                        ],
-                    },
-                    {
-                        "type": "code-block",
-                        "children": [
-                            {
-                                "type": "code-line",
-                                "children": [{"text": "for x in range(10): pass"}],
-                                "language": "python",
-                            }
-                        ],
-                        "language": "python",
-                    },
-                ],
-            ),
-            (
-                [
-                    (wb.Gallery, (["url1", "url2", "url3"],), {}),
-                    (
-                        wb.LaTeXInline,
-                        (
-                            "before",
-                            "e=mc^2",
-                            "after",
-                        ),
-                        {},
-                    ),
-                    (wb.MarkdownBlock, ("This is **MARKDOWN!**",), {}),
-                ],
-                [
-                    {
-                        "type": "gallery",
-                        "children": [{"text": ""}],
-                        "ids": ["url1", "url2", "url3"],
-                    },
-                    {
-                        "type": "paragraph",
-                        "children": [
-                            {"text": "before"},
-                            {
-                                "type": "latex",
-                                "children": [{"text": ""}],
-                                "content": "e=mc^2",
-                            },
-                            {"text": "after"},
-                        ],
-                    },
-                    {
-                        "type": "markdown-block",
-                        "children": [{"text": ""}],
-                        "content": "This is **MARKDOWN!**",
-                    },
-                ],
-            ),
-        ],
-    )
-    def test_set_blocks(self, report, blocks_args_kwargs, blockspec):
-        blocks = [block(*args, **kwargs) for block, args, kwargs in blocks_args_kwargs]
-        report.blocks = blocks
-        assert report.spec["blocks"] == blockspec
-
-        # and also get blocks is equivalent
-        def spec_to_obj(spec):
-            Block = wandb.apis.reports._blocks.block_mapping[spec["type"]]  # noqa: N806
-            if spec["type"] == "panel-grid":
-                return wb.PanelGrid.from_json(report=self, spec=spec)
-            else:
-                return Block.from_json(spec=spec)
-
-        blocks_from_spec = [spec_to_obj(spec) for spec in blockspec]
-        assert blocks == blocks_from_spec
-
-        # and also the specs are the same
-        blockspec = [block.spec for block in blocks_from_spec]
-
-    def test_set_blocks_with_panel_grid(self, report):
-        print(os.environ)
-        report.blocks = [wb.PanelGrid(report)]
-        assert report.spec["blocks"] == [
-            {
-                "type": "panel-grid",
-                "children": [{"text": ""}],
-                "metadata": {
-                    "openViz": True,
-                    "panels": {
-                        "views": {
-                            "0": {"name": "Panels", "defaults": [], "config": []}
-                        },
-                        "tabs": ["0"],
-                    },
-                    "panelBankConfig": {
-                        "state": 0,
-                        "settings": {
-                            "autoOrganizePrefix": 2,
-                            "showEmptySections": False,
-                            "sortAlphabetically": False,
-                        },
-                        "sections": [
-                            {
-                                "name": "Hidden Panels",
-                                "isOpen": False,
-                                "panels": [],
-                                "type": "flow",
-                                "flowConfig": {
-                                    "snapToColumns": True,
-                                    "columnsPerPage": 3,
-                                    "rowsPerPage": 2,
-                                    "gutterWidth": 16,
-                                    "boxWidth": 460,
-                                    "boxHeight": 300,
-                                },
-                                "sorted": 0,
-                                "localPanelSettings": {
-                                    "xAxis": "_step",
-                                    "smoothingWeight": 0,
-                                    "smoothingType": "exponential",
-                                    "ignoreOutliers": False,
-                                    "xAxisActive": False,
-                                    "smoothingActive": False,
-                                },
-                            }
-                        ],
-                    },
-                    "panelBankSectionConfig": {
-                        "name": "Report Panels",
-                        "isOpen": False,
-                        "panels": [],
-                        "type": "grid",
-                        "flowConfig": {
-                            "snapToColumns": True,
-                            "columnsPerPage": 3,
-                            "rowsPerPage": 2,
-                            "gutterWidth": 16,
-                            "boxWidth": 460,
-                            "boxHeight": 300,
-                        },
-                        "sorted": 0,
-                        "localPanelSettings": {
-                            "xAxis": "_step",
-                            "smoothingWeight": 0,
-                            "smoothingType": "exponential",
-                            "ignoreOutliers": False,
-                            "xAxisActive": False,
-                            "smoothingActive": False,
-                        },
-                    },
-                    "customRunColors": {},
-                    "runSets": [
-                        {
-                            "filters": {
-                                "op": "OR",
-                                "filters": [{"op": "AND", "filters": []}],
-                            },
-                            "runFeed": {
-                                "version": 2,
-                                "columnVisible": {"run:name": False},
-                                "columnPinned": {},
-                                "columnWidths": {},
-                                "columnOrder": [],
-                                "pageSize": 10,
-                                "onlyShowSelected": False,
-                            },
-                            "sort": {
-                                "keys": [
-                                    {
-                                        "key": {"section": "run", "name": "createdAt"},
-                                        "ascending": False,
-                                    }
-                                ]
-                            },
-                            "enabled": True,
-                            "name": "Run set",
-                            "search": {"query": ""},
-                            "grouping": [],
-                            "selections": {"root": 1, "bounds": [], "tree": []},
-                            "expandedRowAddresses": [],
-                            "project": {
-                                "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
-                                "name": "report-editing",
-                                "entityName": "megatruong",
-                            },
-                        }
-                    ],
-                    "openRunSet": 0,
-                    "name": "unused-name",
-                },
-            }
-        ]
-
-    def test_set_blocks_with_weave(self, report):
-        report.blocks = [
-            wb.WeaveBlock(
-                {
-                    "type": "weave-panel",
-                    "children": [{"text": ""}],
-                    "config": {
-                        "panelConfig": {
-                            "exp": {
-                                "nodeType": "output",
-                                "type": {
-                                    "type": "tagged",
-                                    "tag": {
+                        "config": {
+                            "panelConfig": {
+                                "exp": {
+                                    "nodeType": "output",
+                                    "type": {
                                         "type": "tagged",
                                         "tag": {
-                                            "type": "typedDict",
-                                            "propertyTypes": {
-                                                "entityName": "string",
-                                                "projectName": "string",
-                                            },
-                                        },
-                                        "value": {
-                                            "type": "typedDict",
-                                            "propertyTypes": {
-                                                "project": "project",
-                                                "artifactName": "string",
-                                            },
-                                        },
-                                    },
-                                    "value": "artifact",
-                                },
-                                "fromOp": {
-                                    "name": "project-artifact",
-                                    "inputs": {
-                                        "project": {
-                                            "nodeType": "output",
-                                            "type": {
-                                                "type": "tagged",
-                                                "tag": {
-                                                    "type": "typedDict",
-                                                    "propertyTypes": {
-                                                        "entityName": "string",
-                                                        "projectName": "string",
-                                                    },
-                                                },
-                                                "value": "project",
-                                            },
-                                            "fromOp": {
-                                                "name": "root-project",
-                                                "inputs": {
-                                                    "entityName": {
-                                                        "nodeType": "const",
-                                                        "type": "string",
-                                                        "val": "megatruong",
-                                                    },
-                                                    "projectName": {
-                                                        "nodeType": "const",
-                                                        "type": "string",
-                                                        "val": "nvda-ngc",
-                                                    },
-                                                },
-                                            },
-                                        },
-                                        "artifactName": {
-                                            "nodeType": "const",
-                                            "type": "string",
-                                            "val": "my-artifact",
-                                        },
-                                    },
-                                },
-                            }
-                        }
-                    },
-                }
-            )
-        ]
-        assert report.spec["blocks"] == [
-            {
-                "type": "weave-panel",
-                "children": [{"text": ""}],
-                "config": {
-                    "panelConfig": {
-                        "exp": {
-                            "nodeType": "output",
-                            "type": {
-                                "type": "tagged",
-                                "tag": {
-                                    "type": "tagged",
-                                    "tag": {
-                                        "type": "typedDict",
-                                        "propertyTypes": {
-                                            "entityName": "string",
-                                            "projectName": "string",
-                                        },
-                                    },
-                                    "value": {
-                                        "type": "typedDict",
-                                        "propertyTypes": {
-                                            "project": "project",
-                                            "artifactName": "string",
-                                        },
-                                    },
-                                },
-                                "value": "artifact",
-                            },
-                            "fromOp": {
-                                "name": "project-artifact",
-                                "inputs": {
-                                    "project": {
-                                        "nodeType": "output",
-                                        "type": {
                                             "type": "tagged",
                                             "tag": {
                                                 "type": "typedDict",
@@ -877,211 +151,107 @@ class TestReportSetters:
                                                     "projectName": "string",
                                                 },
                                             },
-                                            "value": "project",
-                                        },
-                                        "fromOp": {
-                                            "name": "root-project",
-                                            "inputs": {
-                                                "entityName": {
-                                                    "nodeType": "const",
-                                                    "type": "string",
-                                                    "val": "megatruong",
-                                                },
-                                                "projectName": {
-                                                    "nodeType": "const",
-                                                    "type": "string",
-                                                    "val": "nvda-ngc",
+                                            "value": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {
+                                                    "project": "project",
+                                                    "artifactName": "string",
                                                 },
                                             },
                                         },
+                                        "value": "artifact",
                                     },
-                                    "artifactName": {
-                                        "nodeType": "const",
-                                        "type": "string",
-                                        "val": "my-artifact",
+                                    "fromOp": {
+                                        "name": "project-artifact",
+                                        "inputs": {
+                                            "project": {
+                                                "nodeType": "output",
+                                                "type": {
+                                                    "type": "tagged",
+                                                    "tag": {
+                                                        "type": "typedDict",
+                                                        "propertyTypes": {
+                                                            "entityName": "string",
+                                                            "projectName": "string",
+                                                        },
+                                                    },
+                                                    "value": "project",
+                                                },
+                                                "fromOp": {
+                                                    "name": "root-project",
+                                                    "inputs": {
+                                                        "entityName": {
+                                                            "nodeType": "const",
+                                                            "type": "string",
+                                                            "val": "megatruong",
+                                                        },
+                                                        "projectName": {
+                                                            "nodeType": "const",
+                                                            "type": "string",
+                                                            "val": "nvda-ngc",
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                            "artifactName": {
+                                                "nodeType": "const",
+                                                "type": "string",
+                                                "val": "my-artifact",
+                                            },
+                                        },
                                     },
-                                },
-                            },
-                        }
+                                }
+                            }
+                        },
                     }
-                },
-            }
-        ]
-
-
-@pytest.mark.usefixtures("require_report_editing")
-class TestPanelGridGetters:
-    @pytest.mark.parametrize(
-        "property,path",
-        [("open_run_set", ["metadata", "openRunSet"])],
+                ),
+                wb.P(text="Wowza"),
+            ],
+            [
+                wb.PanelGrid(
+                    panels=[
+                        cls()
+                        for _, cls in inspect.getmembers(wb.panels)
+                        if isinstance(cls, type)
+                    ]
+                )
+            ],
+            [
+                wb.PanelGrid(
+                    panels=[
+                        cls()
+                        for _, cls in inspect.getmembers(wb.panels)
+                        if isinstance(cls, type)
+                    ],
+                    runsets=[wb.RunSet() for _ in range(10)],
+                )
+            ],
+        ],
     )
-    def test_basic_property_getters(self, panel_grid, property, path):
-        def value_getter(d, keys):
-            if len(keys) == 0:
-                return d
-            return value_getter(d[keys[0]], keys[1:])
+    def test_assign_blocks_to_report(self, report, new_blocks):
+        report.blocks = new_blocks
 
-        assert getattr(panel_grid, property) == value_getter(panel_grid.spec, path)
+        for b, new_b in zip(report.blocks, new_blocks):
+            assert b.spec == new_b.spec
 
-    def test_get_panels(self, panel_grid):
+    def test_get_blocks(self, report):
         assert all(
-            [isinstance(p, wandb.apis.reports._panels.Panel) for p in panel_grid.panels]
+            isinstance(b, wandb.apis.reports.reports.Block) for b in report.blocks
+        )
+
+    def test_get_panel_grids(self, report):
+        assert all(isinstance(pg, wb.PanelGrid) for pg in report.panel_grids)
+
+    def test_get_runsets(self, report):
+        assert all(
+            isinstance(rs, wb.RunSet) for pg in report.panel_grids for rs in pg.runsets
         )
 
 
-@pytest.mark.usefixtures(
-    "require_report_editing", "panel_grid_modified", "report_modified"
-)
-class TestPanelGridSetters:
-    @pytest.mark.parametrize(
-        "case,result",
-        [(0, "success"), (1, "success"), (2, ValueError), ("abc", TypeError)],
-    )
-    def test_set_open_run_set(self, panel_grid, case, result):
-        if result == "success":
-            panel_grid.open_run_set = case
-            assert panel_grid.spec["metadata"]["openRunSet"] == case
-        else:
-            with pytest.raises(result):
-                panel_grid.open_run_set = case
-
-    def test_set_run_sets(self, panel_grid):
-        run_set1 = wb.RunSet(panel_grid)
-        run_set2 = wb.RunSet(panel_grid)
-        new_run_sets = [run_set1, run_set2]
-
-        panel_grid.run_sets = new_run_sets
-        assert panel_grid.spec["metadata"]["runSets"] == [
-            rs.spec for rs in new_run_sets
-        ]
-
-    def test_set_panel_layouts(self, panel_grid):
-        panels = [
-            wb.LinePlot(panel_grid),
-            wb.LinePlot(panel_grid),
-            wb.LinePlot(panel_grid),
-            wb.LinePlot(panel_grid),
-            wb.LinePlot(panel_grid),
-            wb.LinePlot(panel_grid),
-            wb.LinePlot(panel_grid),
-        ]
-        panel_grid.panels = panels
-
-        for i, p1 in enumerate(panels):
-            for p2 in panels[i:]:
-                assert wandb.apis.public.collides(p1, p2) is False
-
-
 @pytest.mark.usefixtures("require_report_editing")
-class TestRunSetGetters:
-    @pytest.mark.parametrize(
-        "property,path",
-        [
-            ("enabled", ["enabled"]),
-            ("entity", ["project", "entityName"]),
-            ("id", ["id"]),
-            ("name", ["name"]),
-            ("only_show_selected", ["runFeed", "onlyShowSelected"]),
-            ("project", ["project", "name"]),
-            ("query", ["search", "query"]),
-            ("show_all_runs", ["selections", "root"]),
-            ("visible", ["selections", "tree"]),
-        ],
-    )
-    def test_basic_property_getters(self, run_set, property, path):
-        def value_getter(d, keys):
-            if len(keys) == 0:
-                return d
-            return value_getter(d[keys[0]], keys[1:])
-
-        assert getattr(run_set, property) == value_getter(run_set.spec, path)
-
-    def test_get_filters(self, run_set):
-        mongo_filters = run_set.query_generator.mongo_to_filter(run_set.filters)
-        assert mongo_filters == run_set.spec["filters"]
-
-    def test_get_order(self, run_set):
-        assert run_set._cols_to_order(run_set.order) == run_set.spec["sort"]
-
-    def test_get_groupby(self, run_set):
-        assert run_set._cols_to_groupby(run_set.groupby) == run_set.spec["grouping"]
-
-
-@pytest.mark.usefixtures(
-    "require_report_editing",
-    "run_set_modified",
-    "panel_grid_modified",
-    "report_modified",
-)
-class TestRunSetSetters:
-    @pytest.mark.parametrize(
-        "cols,groupbyspec",
-        [
-            (
-                ["State", "Group"],
-                [
-                    {"section": "run", "name": "state"},
-                    {"section": "run", "name": "group"},
-                ],
-            ),
-            (
-                ["User", "something"],
-                [
-                    {"section": "run", "name": "username"},
-                    {"section": "summary", "name": "something"},
-                ],
-            ),
-        ],
-    )
-    def test_set_groupby(self, run_set, cols, groupbyspec):
-        run_set.groupby = cols
-        assert run_set.spec["grouping"] == groupbyspec
-
-    @pytest.mark.parametrize(
-        "cols,orderspec",
-        [
-            (
-                ["+User", "-State", "+other_col"],
-                {
-                    "keys": [
-                        {
-                            "key": {"section": "run", "name": "username"},
-                            "ascending": True,
-                        },
-                        {
-                            "key": {"section": "run", "name": "state"},
-                            "ascending": False,
-                        },
-                        {
-                            "key": {
-                                "section": "run",
-                                "name": "summary_metrics.other_col",
-                            },
-                            "ascending": True,
-                        },
-                    ]
-                },
-            ),
-            (
-                ["+CreatedTimestamp", "-Runtime"],
-                {
-                    "keys": [
-                        {
-                            "key": {"section": "run", "name": "createdAt"},
-                            "ascending": True,
-                        },
-                        {
-                            "key": {"section": "run", "name": "duration"},
-                            "ascending": False,
-                        },
-                    ]
-                },
-            ),
-        ],
-    )
-    def test_set_order(self, run_set, cols, orderspec):
-        run_set.order = cols
-        assert run_set.spec["sort"] == orderspec
+class TestRunSet:
+    def test_instantiate_runset(self):
+        rs = wb.RunSet()
 
     @pytest.mark.parametrize(
         "expr,filtermongo,filterspec",
@@ -1357,58 +527,133 @@ class TestRunSetSetters:
             ),
         ],
     )
-    def test_set_filters_with_python_expr(self, run_set, expr, filtermongo, filterspec):
-        run_set.set_filters_with_python_expr(expr)
+    def test_set_filters_with_python_expr(self, runset, expr, filtermongo, filterspec):
+        runset.set_filters_with_python_expr(expr)
         assert (
-            run_set.spec["filters"]
+            runset.spec["filters"]
             == filterspec
-            == run_set.query_generator.mongo_to_filter(run_set.filters)
+            == runset.query_generator.mongo_to_filter(runset.filters)
         )
-        assert run_set.query_generator.filter_to_mongo(filterspec) == filtermongo
+        assert runset.query_generator.filter_to_mongo(filterspec) == filtermongo
 
 
-# class TestPanels:
-#     def test_line_plot(self, panel_grid):
-#         p = wb.LinePlot(panel_grid)
+@pytest.mark.usefixtures("require_report_editing")
+class TestPanelGrid:
+    def test_instantiate_panel_grid(self):
+        pg = wb.PanelGrid()
+        assert pg.runsets != []
 
+    def test_assign_runsets_to_panel_grid(self, panel_grid):
+        new_runsets = [wb.RunSet() for _ in range(10)]
+        panel_grid.runsets = new_runsets
 
-class Misc:
-    def test_add_overrides(self, panel_grid, run_set, run):
-        metric = "abcdef"
+        for rs, new_rs in zip(panel_grid.runsets, new_runsets):
+            assert rs.spec == new_rs.spec
 
-        p1 = wb.LinePlot(panel_grid)
-        p1.groupby = "something"
-        p1.line_colors = {
-            wb.LineKey.from_run(run, metric): wb.RGBA(255, 255, 255, 1),
-            wb.LineKey.from_panel_agg(run_set, p1, metric): wb.RGBA(255, 255, 0, 1),
-            wb.LineKey.from_runset_agg(run_set, metric): wb.RGBA(255, 0, 0, 1),
-        }
-        p1.line_titles = {wb.LineKey.from_run(run, metric): "asdf"}
-        p1.line_widths = {wb.LineKey.from_run(run, metric): 1.5}
-        p1.line_marks = {wb.LineKey.from_run(run, metric): "dotdotdash"}
+    def test_assign_panels_to_panel_grid(self, panel_grid):
+        new_panels = [wb.LinePlot() for _ in range(10)]
+        panel_grid.panels = new_panels
 
-        p2 = wb.BarPlot(panel_grid)
+        for p, new_p in zip(panel_grid.panels, new_panels):
+            assert p.spec == new_p.spec
 
-        panels = [wb.BarPlot(panel_grid)]
-        panel_grid.panels = panels
+    def test_panels_dont_collide_after_assignment(self, panel_grid):
+        new_panels = [wb.LinePlot() for _ in range(10)]
+        panel_grid.panels = new_panels
 
-    def test_fix_bad_layouts(self, panel_grid):
-        xs = [0, 1, 2, 3, 5, 8, 13, 21]
-        ys = [0, 1, 2, 3, 5, 8, 13, 21]
-        ws = [4, 8, 12, 16]
-        hs = [4, 8, 12, 16]
-
-        panels = []
-        for x in xs:
-            for y in ys:
-                for w in ws:
-                    for h in hs:
-                        p = wb.LinePlot(panel_grid)
-                        p.spec["layout"] = dict(x=x, y=y, w=w, h=h)
-                        panels.append(p)
-
-        panel_grid.panels = panels
-
-        for i, p in enumerate(panel_grid.panels):
+        for i, p1 in enumerate(panel_grid.panels):
             for p2 in panel_grid.panels[i:]:
-                assert wandb.apis.public.collides(p, p2) is False
+                assert util.collides(p1, p2) is False
+
+
+@pytest.mark.usefixtures("require_report_editing")
+class TestPanels:
+    @pytest.mark.parametrize(
+        "cls",
+        [cls for _, cls in inspect.getmembers(wb.panels) if isinstance(cls, type)],
+    )
+    def test_instantiate_panel(self, cls):
+        # attrs = {k:v for k,v in inspect.getmembers(cls)}
+        Panel = cls()
+
+
+@pytest.mark.usefixtures("require_report_editing")
+class TestBlocks:
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            cls
+            for _, cls in inspect.getmembers(wb.blocks)
+            if isinstance(cls, type) and cls is not wb.PanelGrid
+        ],
+    )
+    def test_instantiate_block(self, cls):
+        # attrs = {k:v for k,v in inspect.getmembers(cls)}
+        Block = cls()
+
+
+class TestUtils:
+    def test_attr(self):
+        @dataclass
+        class Thing(util.Base):
+            a: int = util.Attr()
+
+        t = Thing()
+        t = Thing(1)
+
+    def test_required_attr(self):
+        @dataclass
+        class Thing(util.Base):
+            a: int = util.RequiredAttr()
+
+        t = Thing(1)
+        with pytest.raises(TypeError):
+            t = Thing()
+
+    def test_json_attr(self):
+        class Derived(util.Base):
+            def __new__(cls, *args, **kwargs):
+                obj = super().__new__(cls)
+                obj._spec = {
+                    "flat": 123,
+                    "nested": {"slightly": "four-five-six", "deeply": {"wow": True}},
+                }
+                return obj
+
+            @property
+            def spec(self):
+                return self._spec
+
+        @dataclass
+        class Thing(Derived):
+            a: int = util.JSONAttr("flat")
+            b: str = util.JSONAttr("nested.slightly")
+            c: bool = util.JSONAttr("nested.deeply.wow")
+
+        thing = Thing()
+        assert thing.a == 123
+        assert thing.b == "four-five-six"
+        assert thing.c is True
+
+    def test_basemeta_attr_has_per_instance_mutable_defaults(self):
+        @dataclass
+        class Thing(metaclass=util.BaseMeta):
+            a: list = util.Attr(default_factory=list)
+            b: dict = util.Attr(default_factory=dict)
+
+        t1 = Thing()
+        t2 = Thing()
+
+        assert t1.a is not t2.a
+        assert t1.b is not t2.b
+
+    def test_classes_using_descriptor_must_have_metaclass_basemeta(self):
+        with pytest.raises(RuntimeError):
+
+            class Thing:
+                a: int = util.Descriptor()
+
+        class Thing2(metaclass=util.BaseMeta):
+            a: int = util.Descriptor()
+
+        Thing2()

@@ -12,10 +12,8 @@ For more on using the Public API, check out [our guide](https://docs.wandb.com/g
 """
 import ast
 from collections import namedtuple
-from copy import deepcopy
-from dataclasses import dataclass, field
 import datetime
-from functools import partial, wraps
+from functools import partial
 import json
 import logging
 import os
@@ -24,7 +22,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Iterable, List, Optional
+from typing import Optional
 import urllib
 
 from pkg_resources import parse_version
@@ -39,10 +37,11 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
-from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
+from wandb.sdk.wandb_require_helpers import requires
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
+
 
 logger = logging.getLogger(__name__)
 
@@ -217,173 +216,6 @@ class RetryingClient:
             raise
 
 
-def _generate_name(length=12):
-    # This implementation roughly based this snippet in core
-    # https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
-
-    import numpy as np
-
-    rand = np.random.random()
-    rand = int(str(rand)[2:])
-    rand36 = np.base_repr(rand, 36)
-    return rand36.lower()[:length]
-
-
-def collides(p1, p2):
-    l1, l2 = p1.layout, p2.layout
-
-    if (
-        (p1.spec["__id__"] == p2.spec["__id__"])
-        or (l1["x"] + l1["w"] <= l2["x"])
-        or (l1["x"] >= l2["w"] + l2["x"])
-        or (l1["y"] + l1["h"] <= l2["y"])
-        or (l1["y"] >= l2["y"] + l2["h"])
-    ):
-        return False
-
-    return True
-
-
-def shift(p1, p2):
-    l1, l2 = p1.layout, p2.layout
-
-    x = l1["x"] + l1["w"] - l2["x"]
-    y = l1["y"] + l1["h"] - l2["y"]
-
-    return x, y
-
-
-def fix_collisions(panels):
-    x_max = 24
-
-    for i, p1 in enumerate(panels):
-        for p2 in panels[i:]:
-            if collides(p1, p2):
-
-                # try to move right
-                x, y = shift(p1, p2)
-                if p2.layout["x"] + p2.layout["w"] + x <= x_max:
-                    p2.layout["x"] += x
-
-                # if you hit right right bound, move down
-                else:
-                    p2.layout["y"] += y
-
-                    # then check if you can move left again to cleanup layout
-                    p2.layout["x"] = 0
-    return panels
-
-
-def base_fget(self, instance, default=None):
-    return instance.__dict__.get(self.name, default)
-
-
-def base_fset(self, instance, value):
-    instance.__dict__[self.name] = value
-
-
-UNDEFINED_TYPE = object()
-
-
-def allow(option):
-    def deco(validator):
-        @wraps(validator)
-        def wrapper(*args, **kwargs):
-            args = [
-                (*arg, option) if isinstance(arg, Iterable) else (arg, option)
-                for arg in args
-            ]
-            return validator(*args, **kwargs)
-
-        return wrapper
-
-    return deco
-
-
-def howify(value, how=None):
-    if how == "keys":
-        return value.keys()
-    elif how == "values":
-        return value.values()
-    else:
-        return (value,)
-
-
-@allow(type(None))
-def type_validate(attr_type, how=None):
-    def _type_validate(attr, value):
-        if value is None:
-            return
-        for v in howify(value, how):
-            if not isinstance(v, attr_type):
-                raise TypeError(
-                    f"{attr.name!r} values must be of type {attr_type!r} (got {type(v)!r})"
-                )
-
-    return _type_validate
-
-
-class Attr:
-    """
-    Like property, but with validators and optionally types.
-    """
-
-    def __init__(
-        self,
-        attr_type=UNDEFINED_TYPE,
-        default=None,
-        fget: callable = base_fget,
-        fset: callable = base_fset,
-        # fdel: callable = None,
-        doc: str = None,
-        validators: List[callable] = None,
-    ):
-        self.attr_type = attr_type
-        self.default = default
-        self.fget = fget
-        self.fset = fset
-        # self.fdel = fdel
-        if validators is None:
-            validators = []
-        if not isinstance(validators, list):
-            validators = [validators]
-        self.validators = validators
-        if self.attr_type is not UNDEFINED_TYPE:
-            self.validators = [type_validate(attr_type)] + self.validators
-        if doc is None and fget is not None:
-            doc = fget.__doc__
-        self.__doc__ = doc
-
-    def __get__(self, instance, owner):
-        if not instance:
-            return self
-        return self.fget(self, instance, self.default)
-
-    def __set__(self, instance, value):
-        if value is self:
-            value = self.default
-        if self.fset is None:
-            raise AttributeError("Unsettable attr")
-        self._validate(value)
-        self.fset(self, instance, value)
-
-    # def __delete__(self, instance):
-    #     if self.fdel is None:
-    #         raise AttributeError("Undeletable attr")
-    #     return self.fdel(self, instance)
-
-    def __set_name__(self, owner, name):
-        self.name = name
-
-    def _validate(self, value):
-        for validator in self.validators:
-            validator(self, value)
-
-
-def attr(*args, repr=True, **kwargs):
-    return field(default=Attr(*args, **kwargs), repr=repr)
-
-
 class Api:
     """
     Used for querying the wandb server.
@@ -401,111 +233,68 @@ class Api:
     _HTTP_TIMEOUT = env.get_http_timeout(9)
     VIEWER_QUERY = gql(
         """
-    query Viewer{
-        viewer {
-            id
-            flags
-            entity
-            username
-            email
-            admin
-            apiKeys {
-                edges {
-                    node {
-                        id
-                        name
-                        description
+        query Viewer{
+            viewer {
+                id
+                flags
+                entity
+                username
+                email
+                admin
+                apiKeys {
+                    edges {
+                        node {
+                            id
+                            name
+                            description
+                        }
                     }
                 }
-            }
-            teams {
-                edges {
-                    node {
-                        name
+                teams {
+                    edges {
+                        node {
+                            name
+                        }
                     }
                 }
             }
         }
-    }
-    """
+        """
     )
     USERS_QUERY = gql(
         """
-    query SearchUsers($query: String) {
-        users(query: $query) {
-            edges {
-                node {
-                    id
-                    flags
-                    entity
-                    admin
-                    email
-                    deletedAt
-                    username
-                    apiKeys {
-                        edges {
-                            node {
-                                id
-                                name
-                                description
+        query SearchUsers($query: String) {
+            users(query: $query) {
+                edges {
+                    node {
+                        id
+                        flags
+                        entity
+                        admin
+                        email
+                        deletedAt
+                        username
+                        apiKeys {
+                            edges {
+                                node {
+                                    id
+                                    name
+                                    description
+                                }
                             }
                         }
-                    }
-                    teams {
-                        edges {
-                            node {
-                                name
+                        teams {
+                            edges {
+                                node {
+                                    name
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
         """
-    )
-    CREATE_REPORT_MUTATION = gql(
-        """
-    mutation upsertView(
-            $id: ID
-            $entityName: String
-            $projectName: String
-            $type: String
-            $name: String
-            $displayName: String
-            $description: String
-            $spec: String!
-        ) {
-            upsertView(
-            input: {
-                id: $id
-                entityName: $entityName
-                projectName: $projectName
-                name: $name
-                displayName: $displayName
-                description: $description
-                type: $type
-                spec: $spec
-            }
-            ) {
-            view {
-                id
-                type
-                name
-                displayName
-                description
-                project {
-                    id
-                    name
-                    entityName
-                }
-                spec
-                updatedAt
-            }
-            inserted
-            }
-        }
-    """
     )
 
     VIEW_REPORT_QUERY = gql(
@@ -536,63 +325,23 @@ class Api:
         """
     )
 
-    CREATE_PROJECT_MUTATION = gql(
-        """
-        mutation upsertModel(
-            $description: String
-            $entityName: String
-            $id: String
-            $name: String
-            $framework: String
-            $access: String
-            $views: JSONString
-        ) {
-            upsertModel(
-            input: {
-                description: $description
-                entityName: $entityName
-                id: $id
-                name: $name
-                framework: $framework
-                access: $access
-                views: $views
-            }
-            ) {
-            project {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            model {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            inserted
-            }
-        }
-    """
-    )
-
     def __init__(
-        self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
+        self,
+        overrides=None,
+        timeout: Optional[int] = None,
+        api_key: Optional[str] = None,
     ):
         self.settings = InternalApi().settings()
         self._api_key = api_key
         if self.api_key is None:
             wandb.login()
-        self.settings.update(overrides)
-        if "username" in overrides and "entity" not in overrides:
+        _overrides = overrides or {}
+        self.settings.update(_overrides)
+        if "username" in _overrides and "entity" not in _overrides:
             wandb.termwarn(
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
-            self.settings["entity"] = overrides["username"]
+            self.settings["entity"] = _overrides["username"]
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
         self._viewer = None
@@ -622,73 +371,47 @@ class Api:
         return Run.create(self, **kwargs)
 
     @requires("report-editing:v0")
-    def create_project(self, name, entity=None):
-        if entity is None:
-            entity = self.default_entity
-        try:
-            r = self.client.execute(
-                self.CREATE_PROJECT_MUTATION, {"entityName": entity, "name": name}
-            )
-        except Exception:
-            pass
-
-        if not r["upsertModel"]["inserted"]:
-            wandb.termwarn(f"Project already exists at `{entity}/{name}`")
-        else:
-            wandb.termlog(f"Created new project at {entity}/{name}")
-
-    @requires("report-editing:v0")
     def create_report(
         self,
-        entity=None,
-        project=None,
-        description="",
-        title="Untitled Report",
-    ):
-        if entity is None and self.default_entity:
-            entity = self.default_entity
-
-        if project is None or entity is None:
-            raise ValueError(
-                f"Must provide entity and project that you have write access to! (got entity={entity}, project={project})"
-            )
-
-        # create project if not exists
-        r = self.client.execute(
-            self.CREATE_PROJECT_MUTATION, {"entityName": entity, "name": project}
+        project: str,
+        entity: Optional[str] = None,
+        title: Optional[str] = "Untitled Report",
+        description: Optional[str] = "",
+        width: Optional[str] = "readable",
+        blocks: "Optional[wandb.apis.reports.reports.Block]" = [],
+    ) -> "wandb.apis.reports.reports.Report":
+        return wandb.apis.reports.reports.Report(
+            project, entity, title, description, width, blocks
         )
 
-        if r["upsertModel"]["inserted"]:
-            wandb.termwarn(
-                f"Project did not exist: Created new project at {entity}/{project}"
+    @requires("report-editing:v0")
+    def load_report(self, path: str) -> "wandb.apis.reports.reports.Report":
+        """
+        Get report at a given path.
+
+        Arguments:
+            path: (str) Path to the target report in the form `entity/project/reports/reportId`.
+                You can get this by copy-pasting the URL after your wandb url.  For example:
+                `megatruong/report-editing/reports/My-fabulous-report-title--VmlldzoxOTc1Njk0`
+
+        Returns:
+            A `BetaReport` object which represents the report at `path`
+
+        Raises:
+            wandb.Error if path is invalid
+        """
+        try:
+            entity, project, *_, _report_id = path.split("/")
+            *_, report_id = _report_id.split("--")
+        except ValueError as e:
+            raise ValueError("path must be `entity/project/reports/reportId`") from e
+        else:
+            r = self.client.execute(
+                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
             )
-
-        minimal_spec = {
-            "version": 5,
-            "panelSettings": {},
-            "blocks": [],
-            "width": "readable",
-            "authors": [],
-            "discussionThreads": [],
-            "ref": {},
-        }
-
-        r = self.client.execute(
-            self.CREATE_REPORT_MUTATION,
-            variable_values={
-                "entityName": entity,
-                "projectName": project,
-                "description": description,
-                "name": _generate_name(),
-                "displayName": title,
-                "type": "runs",
-                "spec": json.dumps(minimal_spec),
-            },
-        )
-
-        report_id = r["upsertView"]["view"]["id"]
-
-        return self.report(f"{entity}/{project}/reports/{report_id}")
+            viewspec = r["view"]
+            viewspec["spec"] = json.loads(viewspec["spec"])
+            return wandb.apis.reports.reports.Report.from_viewspec(viewspec)
 
     def create_user(self, email, admin=False):
         """Creates a new user
@@ -823,7 +546,6 @@ class Api:
                     parts[0],
                     parts[1],
                 )
-
         raise wandb.Error(
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
         )
@@ -913,39 +635,6 @@ class Api:
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
         return Project(self.client, entity, name, {})
-
-    def report(self, path: str):
-        """
-        Get report at a given path.
-
-        Arguments:
-            path: (str) Path to the target report in the form `entity/project/reports/reportId`.
-                You can get this by copy-pasting the URL after your wandb url.  For example:
-                `megatruong/report-editing/reports/My-fabulous-report-title--VmlldzoxOTc1Njk0`
-
-        Returns:
-            A `BetaReport` object which represents the report at `path`
-
-        Raises:
-            wandb.Error if path is invalid
-        """
-        try:
-            entity, project, *_, _report_id = path.split("/")
-            *_, report_id = _report_id.split("--")
-        except ValueError as e:
-            raise ValueError("path must be `entity/project/reports/reportId`") from e
-        else:
-            r = self.client.execute(
-                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
-            )
-            attrs = r["view"]
-
-            return BetaReport(
-                self.client,
-                attrs,
-                entity=attrs["project"].get("entityName") or entity,
-                project=attrs["project"].get("name") or project,
-            )
 
     def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
@@ -1751,7 +1440,7 @@ class Project(Attrs):
         ]
 
 
-class Runs(Paginator, RequiresReportEditingMixin):
+class Runs(Paginator):
     """An iterable collection of runs associated with a project and optional filter.
     This is generally used indirectly via the `Api`.runs method
     """
@@ -1781,10 +1470,10 @@ class Runs(Paginator, RequiresReportEditingMixin):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters={}, order=None, per_page=50):
+    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
         self.entity = entity
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         self._sweeps = {}
         variables = {
@@ -1854,8 +1543,8 @@ class Runs(Paginator, RequiresReportEditingMixin):
 
 
 class QueuedJob(Attrs):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super().__init__(dict(attrs))
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs=None):
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1875,7 +1564,7 @@ class QueuedJob(Attrs):
                                 node {
                                     id
                                     state
-                                    resultingRunId
+                                    associatedRunId
                                 }
                             }
                         }
@@ -1895,7 +1584,7 @@ class QueuedJob(Attrs):
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
                     item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["resultingRunId"] is not None
+                    and item["node"]["associatedRunId"] is not None
                 ):
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
@@ -1903,9 +1592,9 @@ class QueuedJob(Attrs):
                             self.client,
                             self._entity,
                             self.project,
-                            item["node"]["resultingRunId"],
+                            item["node"]["associatedRunId"],
                         )
-                        self._run_id = item["node"]["resultingRunId"]
+                        self._run_id = item["node"]["associatedRunId"]
                         return
                     except ValueError:
                         continue
@@ -1943,11 +1632,12 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs={}):
+    def __init__(self, client, entity, project, run_id, attrs=None):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
-        super().__init__(dict(attrs))
+        _attrs = attrs or {}
+        super().__init__(dict(_attrs))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1961,9 +1651,9 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self._state = attrs.get("state", "not found")
+        self._state = _attrs.get("state", "not found")
 
-        self.load(force=not attrs)
+        self.load(force=not _attrs)
 
     @property
     def state(self):
@@ -2244,7 +1934,7 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=[], per_page=50):
+    def files(self, names=None, per_page=50):
         """
         Arguments:
             names (list): names of the requested files, if empty returns all files
@@ -2253,7 +1943,7 @@ class Run(Attrs):
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
-        return Files(self.client, self, names, per_page)
+        return Files(self.client, self, names or [], per_page)
 
     @normalize_exceptions
     def file(self, name):
@@ -2553,9 +2243,9 @@ class Sweep(Attrs):
     """
     )
 
-    def __init__(self, client, entity, project, sweep_id, attrs={}):
+    def __init__(self, client, entity, project, sweep_id, attrs=None):
         # TODO: Add agents / flesh this out.
-        super().__init__(dict(attrs))
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -2716,13 +2406,13 @@ class Files(Paginator):
         % FILE_FRAGMENT
     )
 
-    def __init__(self, client, run, names=[], per_page=50, upload=False):
+    def __init__(self, client, run, names=None, per_page=50, upload=False):
         self.run = run
         variables = {
             "project": run.project,
             "entity": run.entity,
             "name": run.id,
-            "fileNames": names,
+            "fileNames": names or [],
             "upload": upload,
         }
         super().__init__(client, variables, per_page)
@@ -3264,157 +2954,28 @@ class PythonMongoishQueryGenerator:
 class BetaReport(Attrs):
     """BetaReport is a class associated with reports created in wandb.
 
-    WARNING: this API will likely change in a future release.
-
-    Examples:
-
-        ```
-        api = wandb.Api()
-        report = api.report("team/username/Report-XXXXX")
-        run_set_named = report.run_sets["Run set 2"]
-        run_set_named.visible = ["XXXX", "YYYY"]
-
-        panel_grid = report.panel_grids[0]
-        panel_grid.open = False
-        run_set = panel_grid.run_sets[0]
-        run_set.runs = api.runs("vanpelt/foo", filters={"id": {"$in": [1,2,3,4]}})
-        run_set.enabled = False
-        run_set.open = True
-        report.save(draft=False, clone=False)
-        ```
+    WARNING: this API will likely change in a future release
 
     Attributes:
         name (string): report name
         description (string): report description;
         user (User): the user that created the report
-        spec (dict): the spec off the report
-        panel_grids (PanelGrid[]): The panel grid objects in a report
-        run_sets (dict): all run sets keyed by name in the report.
+        spec (dict): the spec off the report;
         updated_at (string): timestamp of last update
     """
-
-    mutation = gql(
-        """
-        mutation upsertView(
-            $id: ID
-            $entityName: String
-            $projectName: String
-            $type: String
-            $name: String
-            $displayName: String
-            $description: String
-            $spec: String!
-        ) {
-            upsertView(
-            input: {
-                id: $id
-                entityName: $entityName
-                projectName: $projectName
-                name: $name
-                displayName: $displayName
-                description: $description
-                type: $type
-                spec: $spec
-            }
-            ) {
-            view {
-                id
-                type
-                name
-                displayName
-                description
-                project {
-                    id
-                    name
-                    entityName
-                }
-                spec
-                updatedAt
-            }
-            inserted
-            }
-        }
-    """
-    )
 
     def __init__(self, client, attrs, entity=None, project=None):
         self.client = client
         self.project = project
         self.entity = entity
-        self.modified = False
-        # self._panel_grids = None
         self.query_generator = QueryGenerator()
         super().__init__(dict(attrs))
         self._attrs["spec"] = json.loads(self._attrs["spec"])
 
-    def top_callback(setter):  # noqa: N805
-        @wraps(setter)
-        def wrapper(self, *args, **kwargs):
-            self.modified = True
-            setter(self, *args, **kwargs)
-
-        return wrapper
-
-    @top_callback
-    def panel_grid_callback(self, panel_grid):
-        try:
-            self.panel_grids[panel_grid.offset] = panel_grid.spec
-        except IndexError:  # if you instantiate a new panel grid but have not assigned the report
-            pass  # there is nothing to callback on.
-
-    def __spec_to_obj(self, block):
-        Block = wandb.apis.reports._blocks.block_mapping[block["type"]]  # noqa: N806
-        if block["type"] == "panel-grid":
-            return PanelGrid.from_json(report=self, spec=block)
-        else:
-            return Block.from_json(spec=block)
-
     @property
-    def blocks(self):
-        _blocks = [self.__spec_to_obj(block) for block in self.spec["blocks"]]
-        return _blocks
-        # ignore the starting and ending padding P blocks
-        # return _blocks[1:-1]
+    def sections(self):
+        return self.spec["panelGroups"]
 
-    @blocks.setter
-    @top_callback
-    def blocks(self, outline):
-        if not isinstance(outline, list):
-            raise TypeError(
-                "`blocks` must be a list of wb blocks (see wandb.apis.reports)"
-            )
-        for block in outline:
-            if not isinstance(block, (wandb.apis.reports._blocks.Block, PanelGrid)):
-                raise TypeError(
-                    f"Must be a subclass of wandb.apis.reports.blocks.Block (got: {type(block)!r})"
-                )
-
-        # add starting and ending padding P blocks
-        # _blocks = [wandb.apis.reports.P("")] + outline + [wandb.apis.reports.P("")]
-        _blocks = outline
-
-        # Treat PanelGrid as special case for now
-        # self.spec["blocks"] = [
-        #     x.to_json() if not isinstance(x, PanelGrid) else x.spec for x in _blocks
-        # ]
-
-        self.spec["blocks"] = [x.spec for x in _blocks]
-
-        # TODO: If when assigning panel_grid, set its report to self.
-
-    @property
-    def panel_grids(self):
-        if self.spec.get("version", 0) != 5:
-            raise ValueError(
-                "Only newer reports are supported, clone this report to migrate to the latest version."
-            )
-        return [block for block in self.blocks if isinstance(block, PanelGrid)]
-
-    @property
-    def run_sets(self):
-        return [panel_grid.run_sets for panel_grid in self.panel_grids]
-
-    # this may be confusing to report editors, but I am afraid to remove it...
     def runs(self, section, per_page=50, only_selected=True):
         run_set_idx = section.get("openRunSet", 0)
         run_set = section["runSets"][run_set_idx]
@@ -3443,38 +3004,6 @@ class BetaReport(Attrs):
         return self._attrs["updatedAt"]
 
     @property
-    def title(self):
-        return self._attrs["displayName"]
-
-    @title.setter
-    @top_callback
-    def title(self, x):
-        assert isinstance(x, str), "`title` must be a string"
-        self._attrs["displayName"] = x
-
-    @property
-    def description(self):
-        return self._attrs["description"]
-
-    @description.setter
-    @top_callback
-    def description(self, x):
-        assert isinstance(x, str), "`description` must be a string"
-        self._attrs["description"] = x
-
-    @property
-    def width(self):
-        return self.spec["width"]
-
-    @width.setter
-    @top_callback
-    def width(self, new_width):
-        valid_widths = ["readable", "fixed", "fluid"]
-        if new_width not in valid_widths:
-            raise ValueError(f"width must be one of {valid_widths}")
-        self.spec["width"] = new_width
-
-    @property
     def url(self):
         return self.client.app_url + "/".join(
             [
@@ -3500,584 +3029,8 @@ class BetaReport(Attrs):
             prefix = ipython.toggle_button("report")
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
-    def save(
-        self,
-        title=None,
-        description=None,
-        draft=False,
-        clone=False,
-        project=None,
-        entity=None,
-    ):
-        if not self.modified:
-            wandb.termwarn("Report hasn't been modified")
-
-        entity = entity or self.entity
-        project = project or self.project
-        description = description or self.description
-        title = title or self.display_name
-        view_type = "runs/draft" if draft else "runs"
-
-        r = self.client.execute(
-            self.mutation,
-            variable_values={
-                "id": None if clone else self.id,
-                "entityName": entity,
-                "projectName": project,
-                "description": description,
-                "name": _generate_name() if clone else self.name,
-                "displayName": title,
-                "type": view_type,
-                "spec": json.dumps(self.spec),
-            },
-        )
-
-        return BetaReport(
-            self.client, r["upsertView"]["view"], entity=entity, project=project
-        )
-
     def _repr_html_(self) -> str:
         return self.to_html()
-
-
-def _generate_default_panel_grid_spec():
-    return {
-        "type": "panel-grid",
-        "children": [{"text": ""}],
-        "metadata": {
-            "openViz": True,
-            "panels": {
-                "views": {"0": {"name": "Panels", "defaults": [], "config": []}},
-                "tabs": ["0"],
-            },
-            "panelBankConfig": {
-                "state": 0,
-                "settings": {
-                    "autoOrganizePrefix": 2,
-                    "showEmptySections": False,
-                    "sortAlphabetically": False,
-                },
-                "sections": [
-                    {
-                        "name": "Hidden Panels",
-                        "isOpen": False,
-                        "panels": [],
-                        "type": "flow",
-                        "flowConfig": {
-                            "snapToColumns": True,
-                            "columnsPerPage": 3,
-                            "rowsPerPage": 2,
-                            "gutterWidth": 16,
-                            "boxWidth": 460,
-                            "boxHeight": 300,
-                        },
-                        "sorted": 0,
-                        "localPanelSettings": {
-                            "xAxis": "_step",
-                            "smoothingWeight": 0,
-                            "smoothingType": "exponential",
-                            "ignoreOutliers": False,
-                            "xAxisActive": False,
-                            "smoothingActive": False,
-                        },
-                    }
-                ],
-            },
-            "panelBankSectionConfig": {
-                "name": "Report Panels",
-                "isOpen": False,
-                "panels": [],
-                "type": "grid",
-                "flowConfig": {
-                    "snapToColumns": True,
-                    "columnsPerPage": 3,
-                    "rowsPerPage": 2,
-                    "gutterWidth": 16,
-                    "boxWidth": 460,
-                    "boxHeight": 300,
-                },
-                "sorted": 0,
-                "localPanelSettings": {
-                    "xAxis": "_step",
-                    "smoothingWeight": 0,
-                    "smoothingType": "exponential",
-                    "ignoreOutliers": False,
-                    "xAxisActive": False,
-                    "smoothingActive": False,
-                },
-            },
-            "customRunColors": {},
-            "runSets": [],
-            "openRunSet": 0,
-            "name": "unused-name",
-        },
-    }
-
-
-@dataclass
-class PanelGrid(RequiresReportEditingMixin):
-    report: ... = attr(BetaReport)
-    spec: ... = attr(dict, default=_generate_default_panel_grid_spec(), repr=False)
-    offset: ... = attr(int, default=0, repr=False)
-
-    def __post_init__(self):
-        self.modified = False
-
-    # def __init__(self, report, spec=None, offset=0):
-    #     self.report = report
-    #     self.spec = spec
-    #     if self.spec is None:
-    #         self.spec = self.__generate_default_panel_grid_spec()
-    #     self.offset = offset
-    #     self.modified = False
-
-    def __repr__(self):
-        return f"<PanelGrid with {len(self.run_sets)} run set(s) and {len(self.panels)} panel(s)>"
-
-    def __generate_default_panel_grid_spec(self):
-        default = {
-            "type": "panel-grid",
-            "children": [{"text": ""}],
-            "metadata": {
-                "openViz": True,
-                "panels": {
-                    "views": {"0": {"name": "Panels", "defaults": [], "config": []}},
-                    "tabs": ["0"],
-                },
-                "panelBankConfig": {
-                    "state": 0,
-                    "settings": {
-                        "autoOrganizePrefix": 2,
-                        "showEmptySections": False,
-                        "sortAlphabetically": False,
-                    },
-                    "sections": [
-                        {
-                            "name": "Hidden Panels",
-                            "isOpen": False,
-                            "panels": [],
-                            "type": "flow",
-                            "flowConfig": {
-                                "snapToColumns": True,
-                                "columnsPerPage": 3,
-                                "rowsPerPage": 2,
-                                "gutterWidth": 16,
-                                "boxWidth": 460,
-                                "boxHeight": 300,
-                            },
-                            "sorted": 0,
-                            "localPanelSettings": {
-                                "xAxis": "_step",
-                                "smoothingWeight": 0,
-                                "smoothingType": "exponential",
-                                "ignoreOutliers": False,
-                                "xAxisActive": False,
-                                "smoothingActive": False,
-                            },
-                        }
-                    ],
-                },
-                "panelBankSectionConfig": {
-                    "name": "Report Panels",
-                    "isOpen": False,
-                    "panels": [],
-                    "type": "grid",
-                    "flowConfig": {
-                        "snapToColumns": True,
-                        "columnsPerPage": 3,
-                        "rowsPerPage": 2,
-                        "gutterWidth": 16,
-                        "boxWidth": 460,
-                        "boxHeight": 300,
-                    },
-                    "sorted": 0,
-                    "localPanelSettings": {
-                        "xAxis": "_step",
-                        "smoothingWeight": 0,
-                        "smoothingType": "exponential",
-                        "ignoreOutliers": False,
-                        "xAxisActive": False,
-                        "smoothingActive": False,
-                    },
-                },
-                "customRunColors": {},
-                "runSets": [RunSet(self).spec],
-                "openRunSet": 0,
-                "name": "unused-name",
-            },
-        }
-        return deepcopy(default)
-
-    @classmethod
-    def from_json(cls, report, spec):
-        return cls(report, spec)
-
-    def report_callback(setter):  # noqa: N805
-        @wraps(setter)
-        def wrapper(self, *args, **kwargs):
-            self.modified = True
-            self.report.panel_grid_callback(self)
-            setter(self, *args, **kwargs)
-
-        return wrapper
-
-    @report_callback
-    def run_set_callback(self, run_set):
-        self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
-
-    @report_callback
-    def panel_callback(self, panel):
-        try:
-            self.panels[panel.offset] = panel.spec
-        except IndexError:
-            pass
-
-    @property
-    def run_sets(self):
-        return [
-            RunSet(self, spec, offset=i)
-            for i, spec in enumerate(self.spec["metadata"]["runSets"])
-        ]
-
-    @run_sets.setter
-    @report_callback
-    def run_sets(self, new_run_sets):
-        for rs in new_run_sets:
-            if not isinstance(rs, RunSet):
-                raise TypeError(
-                    f"All objects must be of type wb.RunSet (got {type(rs)!r})"
-                )
-        self.spec["metadata"]["runSets"] = [rs.spec for rs in new_run_sets]
-
-        # TODO: If when assigning run_set, set its panel_grid to self.
-
-    def __spec_to_obj(self, spec, offset):
-        Panel = wandb.apis.reports._panels.panel_mapping[spec["viewType"]]  # noqa: N806
-        return Panel(self, spec, offset)
-
-    @property
-    def panels(self):
-        panel_specs = self.spec["metadata"]["panelBankSectionConfig"]["panels"]
-        return [self.__spec_to_obj(spec, i) for i, spec in enumerate(panel_specs)]
-
-    @panels.setter
-    @report_callback
-    def panels(self, new_panels):
-        new_panel_specs = []
-        for p in fix_collisions(new_panels):
-            p.panel_grid = self
-            p.disable_callbacks = False
-            new_panel_specs.append(p.spec)
-        self.spec["metadata"]["panelBankSectionConfig"]["panels"] = new_panel_specs
-
-    @property
-    def open_run_set(self):
-        return self.spec["metadata"]["openRunSet"]
-
-    @open_run_set.setter
-    @report_callback
-    def open_run_set(self, idx):
-        total_run_sets = len(self.run_sets)
-        if not isinstance(idx, int):
-            raise TypeError(f"`idx` must be an int < {total_run_sets}")
-        if idx >= total_run_sets:
-            raise ValueError(
-                f"`idx` must be less than the total number of run sets ({total_run_sets})"
-            )
-        self.spec["metadata"]["openRunSet"] = idx
-
-
-def _generate_default_run_set_spec():
-    return {
-        "filters": {
-            "op": "OR",
-            "filters": [{"op": "AND", "filters": []}],
-        },
-        "runFeed": {
-            "version": 2,
-            "columnVisible": {"run:name": False},
-            "columnPinned": {},
-            "columnWidths": {},
-            "columnOrder": [],
-            "pageSize": 10,
-            "onlyShowSelected": False,
-        },
-        "sort": {
-            "keys": [
-                {
-                    "key": {"section": "run", "name": "createdAt"},
-                    "ascending": False,
-                }
-            ]
-        },
-        "enabled": True,
-        "name": "Run set",
-        "search": {"query": ""},
-        "grouping": [],
-        "selections": {"root": 1, "bounds": [], "tree": []},
-        "expandedRowAddresses": [],
-    }
-
-
-@dataclass
-class RunSet(RequiresReportEditingMixin):
-    panel_grid: ... = attr(PanelGrid)
-    spec: ... = attr(dict, default=_generate_default_run_set_spec(), repr=False)
-    offset: ... = attr(int, default=0, repr=False)
-
-    def __post_init__(self):
-        self.query_generator = QueryGenerator()
-        self.pm_query_generator = PythonMongoishQueryGenerator(self)
-        self.modified = False
-
-    # def __init__(self, panel_grid, spec=None, offset=0):
-    #     self.panel_grid = panel_grid
-    #     self.spec = spec
-    #     if self.spec is None:  # or spec is malformed?
-    #         self.spec = self.__generate_default_run_set_spec()
-    #     if "project" not in self.spec:
-    #         self.spec["project"] = deepcopy(self.panel_grid.report._attrs["project"])
-    #     self.query_generator = QueryGenerator()
-    #     self.pm_query_generator = PythonMongoishQueryGenerator(self)
-    #     self.offset = offset
-    #     self.modified = False
-
-    def __repr__(self):
-        return f"<RunSet {self.entity}/{self.project}>"
-
-    # def __generate_default_run_set_spec(self):
-    #     default = {
-    #         "filters": {
-    #             "op": "OR",
-    #             "filters": [{"op": "AND", "filters": []}],
-    #         },
-    #         "runFeed": {
-    #             "version": 2,
-    #             "columnVisible": {"run:name": False},
-    #             "columnPinned": {},
-    #             "columnWidths": {},
-    #             "columnOrder": [],
-    #             "pageSize": 10,
-    #             "onlyShowSelected": False,
-    #         },
-    #         "sort": {
-    #             "keys": [
-    #                 {
-    #                     "key": {"section": "run", "name": "createdAt"},
-    #                     "ascending": False,
-    #                 }
-    #             ]
-    #         },
-    #         "enabled": True,
-    #         "name": "Run set",
-    #         "search": {"query": ""},
-    #         "grouping": [],
-    #         "selections": {"root": 1, "bounds": [], "tree": []},
-    #         "expandedRowAddresses": [],
-    #     }
-    #     return deepcopy(default)
-
-    def panel_grid_callback(setter):  # noqa: N805
-        @wraps(setter)
-        def wrapper(self, *args, **kwargs):
-            self.modified = True
-            self.panel_grid.run_set_callback(self)
-            setter(self, *args, **kwargs)
-
-        return wrapper
-
-    @property
-    def name(self):
-        return self.spec["name"]
-
-    @name.setter
-    @panel_grid_callback
-    def name(self, new_name):
-        if not isinstance(new_name, str):
-            raise TypeError("Name must be a string")
-        self.spec["name"] = new_name
-
-    @property
-    def id(self):
-        return self.spec["id"]
-
-    @property
-    def entity(self):
-        if "project" in self.spec:
-            return self.spec["project"]["entityName"]
-        else:
-            return None
-
-    @entity.setter
-    @panel_grid_callback
-    def entity(self, new_entity):
-        self.spec["project"]["entityName"] = new_entity
-
-    @property
-    def project(self):
-        if "project" in self.spec:
-            return self.spec["project"]["name"]
-        else:
-            return None
-
-    @project.setter
-    @panel_grid_callback
-    def project(self, new_project):
-        self.spec["project"]["name"] = new_project
-
-    @property
-    def query(self):
-        return self.spec["search"]["query"]
-
-    @query.setter
-    def query(self, q):
-        self.spec["search"]["query"] = q
-
-    @property
-    def _runs_config(self):
-        # there must be a better way to do this...
-        config = {}
-        for run in Runs(self.panel_grid.report.client, self.entity, self.project):
-            config.update(run.config)
-        return config
-
-    @property
-    def _order_str(self):
-        return ",".join(
-            [k[0] + self.pm_query_generator.front_to_back(k[1:]) for k in self.order]
-        )
-
-    @property
-    def runs(self, per_page=50):
-        return Runs(
-            self.panel_grid.report.client,
-            self.entity,
-            self.project,
-            filters=self.filters,
-            order=self._order_str,
-            per_page=per_page,
-        )
-
-    @property
-    def visible(self):
-        return self.spec["selections"]["tree"]
-
-    # TODO: handle wild sub selection madness?
-    @visible.setter
-    @panel_grid_callback
-    def visible(self, run_ids):
-        for run_id in run_ids:
-            if not isinstance(run_id, str):
-                raise TypeError("`run_ids` must be a valid list of run ids")
-            if len(run_id) != 8:
-                raise ValueError("valid run id must have 8 alphanumeric characters")
-
-        self.spec["selections"]["tree"] = run_ids
-
-    @property
-    def enabled(self):
-        return self.spec["enabled"]
-
-    @enabled.setter
-    @panel_grid_callback
-    def enabled(self, is_enabled):
-        if not isinstance(is_enabled, bool):
-            raise TypeError("Setting must be boolean")
-        self.spec["enabled"] = is_enabled
-
-    @property
-    def only_show_selected(self):
-        return self.spec["runFeed"]["onlyShowSelected"]
-
-    @only_show_selected.setter
-    @panel_grid_callback
-    def only_show_selected(self, is_only_show_selected):
-        if not isinstance(is_only_show_selected, bool):
-            raise TypeError("Setting must be boolean")
-        self.spec["runFeed"]["onlyShowSelected"] = is_only_show_selected
-
-    @property
-    def show_all_runs(self):
-        return bool(self.spec["selections"]["root"])
-
-    @show_all_runs.setter
-    @panel_grid_callback
-    def show_all_runs(self, flag):
-        if not isinstance(flag, bool):
-            raise TypeError("Setting must be boolean")
-        self.spec["selections"]["root"] = 1 if flag else 0
-
-    @property
-    def filters(self):
-        return self.query_generator.filter_to_mongo(self.spec["filters"])
-
-    def __validate_mongo_filters(self, mongo_filters):
-        # TODO: Validate if the col exists in this project
-        pass
-
-    @filters.setter
-    @panel_grid_callback
-    def filters(self, mongo_filters):
-        self.__validate_mongo_filters(mongo_filters)
-        self.spec["filters"] = self.query_generator.mongo_to_filter(mongo_filters)
-
-    def set_filters_with_python_expr(self, expr):
-        mongo = self.pm_query_generator.python_to_mongo(expr)
-        self.filters = mongo
-
-    @property
-    def order(self):
-        return self._order_to_cols()
-
-    @order.setter
-    @panel_grid_callback
-    def order(self, cols):
-        if not isinstance(cols, list):
-            raise TypeError("`order` must be a list of columns prefixed with +/-")
-        for col in cols:
-            # TODO: Validate if the col exists in this project
-            if not isinstance(col, str):
-                raise TypeError("columns must be strings")
-            if col[0] not in {"+", "-"}:
-                raise ValueError(
-                    'columns must be prefixed with "+" or "-" to indicate ascending or descending'
-                )
-        self.spec["sort"] = self._cols_to_order(cols)
-
-    @property
-    def groupby(self):
-        return self._groupby_to_cols()
-
-    @groupby.setter
-    @panel_grid_callback
-    def groupby(self, cols):
-        if not isinstance(cols, list):
-            raise TypeError("`groupby` must be a list of cols")
-        for col in cols:
-            # TODO: Validate if the col exists in this project
-            if not isinstance(col, str):
-                raise TypeError("cols must be string")
-        self.spec["grouping"] = self._cols_to_groupby(cols)
-
-    def _cols_to_order(self, cols):
-        _cols = [
-            col[0] + self.pm_query_generator.front_to_back(col[1:]) for col in cols
-        ]
-        return self.query_generator.order_to_keys(_cols)
-
-    def _order_to_cols(self):
-        cols = self.query_generator.keys_to_order(self.spec["sort"])
-        return [col[0] + self.pm_query_generator.back_to_front(col[1:]) for col in cols]
-
-    def _cols_to_groupby(self, cols):
-        _cols = [self.pm_query_generator.front_to_back(col) for col in cols]
-        return [self.query_generator.server_path_to_key(k) for k in _cols]
-
-    def _groupby_to_cols(self):
-        cols = [
-            self.query_generator.key_to_server_path(k) for k in self.spec["grouping"]
-        ]
-        return [self.pm_query_generator.back_to_front(col) for col in cols]
 
 
 class HistoryScan:
@@ -5629,7 +4582,7 @@ class ArtifactVersions(Paginator):
         project,
         collection_name,
         type,
-        filters={},
+        filters=None,
         order=None,
         per_page=50,
     ):
@@ -5637,7 +4590,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         variables = {
             "project": self.project,

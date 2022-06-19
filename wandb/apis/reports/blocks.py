@@ -1,3 +1,27 @@
 # flake8: noqa
 
-from ._blocks import *
+from .reports import (
+    H1,
+    H2,
+    H3,
+    BlockQuote,
+    CalloutBlock,
+    CheckedList,
+    CodeBlock,
+    Gallery,
+    HorizontalRule,
+    Image,
+    LaTeXBlock,
+    LaTeXInline,
+    MarkdownBlock,
+    OrderedList,
+    P,
+    PanelGrid,
+    SoundCloud,
+    Spotify,
+    TableOfContents,
+    Twitter,
+    UnorderedList,
+    Video,
+    WeaveBlock,
+)
