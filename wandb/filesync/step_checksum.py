@@ -6,12 +6,12 @@ import shutil
 import threading
 from typing import cast, NamedTuple, Optional, TYPE_CHECKING, Union
 
-from wandb.filesync import step_upload
+from wandb.filesync import dir_watcher, step_upload
 import wandb.util
 
 if TYPE_CHECKING:
     import tempfile
-    from wandb.filesync import dir_watcher, stats
+    from wandb.filesync import stats
     from wandb.sdk.interface import artifacts
     from wandb.sdk.internal import artifacts as internal_artifacts, internal_api
 
@@ -123,7 +123,9 @@ class StepChecksum:
                         self._output_queue.put(
                             step_upload.RequestUpload(
                                 entry.local_path,
-                                dir_watcher.SaveName(entry.path),  # typecast might not be legit
+                                dir_watcher.SaveName(
+                                    entry.path
+                                ),  # typecast might not be legit
                                 req.artifact_id,
                                 entry.digest,
                                 False,
