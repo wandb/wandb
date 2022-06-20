@@ -715,7 +715,6 @@ message SampledHistoryResponse {
  */
 message RunStartRequest {
   RunRecord run = 1;
-  int64 user_pid = 2;
   _RequestInfo _info = 200;
 }
 

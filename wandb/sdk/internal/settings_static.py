@@ -11,6 +11,7 @@ class SettingsStatic:
     _offline: Optional[bool]
     _disable_stats: Optional[bool]
     _disable_meta: Optional[bool]
+    _setup_pid: int
     _start_time: float
     _start_datetime: str
     files_dir: str

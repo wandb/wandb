@@ -386,6 +386,7 @@ class Settings:
     _runqueue_item_id: str
     _save_requirements: bool
     _service_transport: str
+    _setup_pid: int  # (internal) base pid for run
     _start_datetime: datetime
     _start_time: float
     _stats_sample_rate_seconds: float
@@ -393,7 +394,6 @@ class Settings:
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
-    _user_pid: int
     _windows: bool
     allow_val_change: bool
     anonymous: str
@@ -1247,6 +1247,11 @@ class Settings:
             if k == "ignore_globs":
                 config[k] = config[k].split(",")
         return config
+
+    def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
+        if _logger is not None:
+            _logger.info(f"Configure settings pid to {pid}")
+        self.update({"_setup_pid": pid}, source=Source.SETUP)
 
     def _apply_config_files(self, _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): permit setting of config in system and workspace

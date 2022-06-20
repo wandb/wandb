@@ -708,8 +708,7 @@ class _WandbInit:
 
         assert backend.interface
         assert run_obj
-        user_pid = os.getpid()
-        _ = backend.interface.communicate_run_start(run_obj, user_pid=user_pid)
+        _ = backend.interface.communicate_run_start(run_obj)
 
         self._wl._global_run_stack.append(run)
         self.run = run

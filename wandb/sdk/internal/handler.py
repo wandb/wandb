@@ -662,9 +662,9 @@ class HandleManager:
             self._accumulate_time = 0
 
         if not self._settings._disable_stats:
-            user_pid = run_start.user_pid
+            setup_pid = self._settings._setup_pid
             self._system_stats = stats.SystemStats(
-                pid=user_pid, interface=self._interface
+                pid=setup_pid, interface=self._interface
             )
             self._system_stats.start()
 
