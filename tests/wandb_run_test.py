@@ -74,8 +74,7 @@ def test_run_sweep():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
-    run._populate_sweep_or_launch_config(sweep_config=sw)
+    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=4, param3=9)
 
 
@@ -83,8 +82,7 @@ def test_run_sweep_overlap():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param2=8, param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
-    run._populate_sweep_or_launch_config(sweep_config=sw)
+    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=8, param3=9)
 
 

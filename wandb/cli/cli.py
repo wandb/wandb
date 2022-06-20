@@ -8,6 +8,7 @@ import getpass
 import json
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1074,6 +1075,9 @@ def launch(
     else:
         resource_args = {}
 
+    if entry_point is not None:
+        entry_point = shlex.split(entry_point)
+
     if config is not None:
         config = util.load_json_yaml_dict(config)
         if config is None:
@@ -1084,7 +1088,7 @@ def launch(
     if resource is None and config.get("resource") is not None:
         resource = config.get("resource")
     elif resource is None:
-        resource = "local"
+        resource = "local-container"
 
     if (
         uri is None
@@ -1403,7 +1407,9 @@ def docker(
 
 
 @cli.command(
-    context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)"
+    context_settings=RUN_CONTEXT,
+    help="Start a local W&B container (deprecated, see wandb server --help)",
+    hidden=True,
 )
 @click.pass_context
 @click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
@@ -1417,10 +1423,42 @@ def docker(
     "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version"
 )
 @click.option(
-    "--edge", is_flag=True, default=False, help="Run the bleading edge", hidden=True
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
 )
 @display_error
-def local(ctx, port, env, daemon, upgrade, edge):
+def local(ctx, *args, **kwargs):
+    wandb.termwarn("`wandb local` has been replaced with `wandb server start`.")
+    ctx.invoke(start, *args, **kwargs)
+
+
+@cli.group(help="Commands for operating a local W&B server")
+def server():
+    pass
+
+
+@server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
+@click.pass_context
+@click.option(
+    "--port", "-p", default="8080", help="The host port to bind W&B server on"
+)
+@click.option(
+    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+)
+@click.option(
+    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+)
+@click.option(
+    "--upgrade",
+    is_flag=True,
+    default=False,
+    help="Upgrade to the most recent version",
+    hidden=True,
+)
+@click.option(
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+)
+@display_error
+def start(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
     if not find_executable("docker"):
         raise ClickException("Docker not installed, install it from https://docker.com")
@@ -1433,7 +1471,7 @@ def local(ctx, port, env, daemon, upgrade, edge):
             subprocess.call(["docker", "pull", "wandb/local"])
         else:
             wandb.termlog(
-                "A new version of W&B local is available, upgrade by calling `wandb local --upgrade`"
+                "A new version of the W&B server is available, upgrade by calling `wandb server start --upgrade`"
             )
     running = subprocess.check_output(
         ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
@@ -1490,6 +1528,13 @@ def local(ctx, port, env, daemon, upgrade, edge):
                 # Let the server start before potentially launching a browser
                 time.sleep(2)
                 ctx.invoke(login, host=host)
+
+
+@server.command(context_settings=RUN_CONTEXT, help="Stop a local W&B server")
+def stop():
+    if not find_executable("docker"):
+        raise ClickException("Docker not installed, install it from https://docker.com")
+    subprocess.call(["docker", "stop", "wandb-local"])
 
 
 @cli.group(help="Commands for interacting with artifacts")

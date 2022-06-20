@@ -108,7 +108,7 @@ def construct_launch_spec(
     entity: Optional[str],
     docker_image: Optional[str],
     resource: Optional[str],
-    entry_point: Optional[str],
+    entry_point: Optional[List[str]],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
@@ -183,7 +183,10 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     stripped_uri = re.sub(
         _WANDB_QA_URI_REGEX, "", stripped_uri
     )  # also for testing just run it twice
-    entity, project, _, name = stripped_uri.split("/")[1:]
+    try:
+        entity, project, _, name = stripped_uri.split("/")[1:]
+    except ValueError as e:
+        raise LaunchError(f"Trouble parsing wandb uri {uri}: {e}")
     return entity, project, name
 
 

@@ -382,6 +382,12 @@ jobs:
     parameters:
       toxenv:
         type: string
+      notify_on_failure:
+        type: boolean
+        default: true
+      notify_on_success:
+        type: boolean
+        default: false
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
@@ -433,6 +439,24 @@ jobs:
           command: |
             tox -v -e << parameters.toxenv >>
           no_output_timeout: 25m
+      # conditionally post a notification to slack if the job failed/succeeded
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+      - when:
+          condition: << parameters.notify_on_success >>
+          steps:
+            - slack/notify:
+                event: pass
+                template: basic_success_1
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
       - save-kfp-cache
       - save-test-results
 
@@ -797,6 +821,16 @@ workflows:
             - << pipeline.schedule.name >>
             - "nightly"
     jobs:
+      #
+      # kfp tests
+      #
+      - kfp:
+          name: "mach-kubeflow"
+          toxenv: "func-s_kfp-py37"
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+      #
+      # stanalone tests on gke
+      #
       - slack_notify:
           name: "slack-notify-on-start"
           context: slack-secrets
@@ -887,16 +921,15 @@ workflows:
       - test:
           name: "unit-s_base-lin-py38"
           image: "python:3.8"
-          toxenv: "py38"
+          toxenv: "py38,covercircle"
       - test:
           name: "unit-s_base-lin-py39"
           image: "python:3.9"
           toxenv: "py39"
-# Enable when circle offers python 3.10 image
-#      - test:
-#         name: "unit-s_base-lin-py310"
-#         image: "python:3.10"
-#         toxenv: "py310"
+      - test:
+          name: "unit-s_base-lin-py310"
+          image: "python:3.10"
+          toxenv: "py310"
       #
       # functional linux tests
       #
@@ -934,6 +967,10 @@ workflows:
                 - "imports5"
                 - "imports6"
                 - "imports7"
+                - "imports8"
+                - "imports9"
+                - "imports10"
+                - "imports11"
           name: "func-s_<<matrix.shard>>-lin-py37"
           image: "python:3.7"
           toxenv: "func-s_<<matrix.shard>>-py37"
@@ -960,12 +997,6 @@ workflows:
       - launch:
           name: "mach-launch"
           toxenv: "pylaunch,covercircle"
-      #
-      # kfp tests
-      #
-      - kfp:
-          name: "mach-kubeflow"
-          toxenv: "func-s_kfp-py37"
       #
       # sharded unittests
       #
@@ -1031,6 +1062,16 @@ workflows:
   manual_nightly:
     when: << pipeline.parameters.manual_nightly >>
     jobs:
+      #
+      # kfp tests
+      #
+      - kfp:
+          name: "mach-kubeflow"
+          toxenv: "func-s_kfp-py37"
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+      #
+      # stanalone tests on gke
+      #
       - slack_notify:
           name: "slack-notify-on-start"
           context: slack-secrets

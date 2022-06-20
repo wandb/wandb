@@ -2,62 +2,51 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.01-batch1
+id: 0.imports.11-batch11
 tag:
-  shard: imports1
+  shard: imports11
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
-    - "-r 01-batch1-requirements.txt"
+    - "-r 11-batch11-requirements.txt"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
   - :wandb:runs[0][summary]:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
-  # todo: once allennlp fixes their deps conflict, uncomment this
-  #- :op:contains:
-  #  - :wandb:runs[0][telemetry][1]  # imports init
-  #  - 14  # allennlp
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 15  # autogluon
+    - 73  # nanodet
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 16  # autokeras
+    - 74  # segmentation_models_pytorch
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 18  # catalyst
+    - 75  # sentence_transformers
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 7  # catboost
+    - 76  # dgl
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 51  # datasets
+    - 78  # jina
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 21  # deepchem
+    - 79  # kornia
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 22  # deepctr
+    - 80  # albumentations
 """
 
-
-# import allennlp  # noqa: F401
-# import avalanche
-# import dalle_pytorch
-# import deeppavlov
-# import detectron
-
-import autogluon  # noqa: F401
-import autokeras  # noqa: F401
-import catalyst  # noqa: F401
-import catboost  # noqa: F401
-import datasets  # noqa: F401
-import deepchem  # noqa: F401
-import deepctr  # noqa: F401
+import albumentations  # noqa: F401
+import dgl  # noqa: F401
+import jina  # noqa: F401
+import kornia  # noqa: F401
+import nanodet  # noqa: F401
+import segmentation_models_pytorch  # noqa: F401
+import sentence_transformers  # noqa: F401
 import wandb
 
 run = wandb.init()
