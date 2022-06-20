@@ -234,7 +234,7 @@ class Config:
     def _sanitize(self, key, val, allow_val_change=None):
         # refuse all WBValues which is all Media and Histograms
         if isinstance(val, wandb.sdk.data_types.base_types.wb_value.WBValue):
-            raise ValueError("Media objects cannot be added to the run config")
+            raise ValueError("WBValue objects cannot be added to the run config")
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
