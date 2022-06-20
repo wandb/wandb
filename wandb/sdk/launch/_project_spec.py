@@ -98,13 +98,13 @@ class LaunchProject:
                 raise LaunchError("Run requires a URI or a docker image")
             self.source = LaunchSource.DOCKER
             self.project_dir = None
-        elif utils._is_wandb_uri(self.uri):
-            _logger.info(f"URI {self.uri} indicates a wandb uri")
-            self.source = LaunchSource.WANDB
-            self.project_dir = tempfile.mkdtemp()
         elif utils._is_git_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
+            self.project_dir = tempfile.mkdtemp()
+        elif utils._is_wandb_uri(self.uri):
+            _logger.info(f"URI {self.uri} indicates a wandb uri")
+            self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
         else:
             _logger.info(f"URI {self.uri} indicates a local uri")
@@ -178,7 +178,7 @@ class LaunchProject:
         assert isinstance(self.uri, str)
         assert self.project_dir is not None
         _logger.info("Fetching project locally...")
-        if utils._is_wandb_uri(self.uri):
+        if self.source == LaunchSource.WANDB:
             source_entity, source_project, source_run_name = utils.parse_wandb_uri(
                 self.uri
             )
