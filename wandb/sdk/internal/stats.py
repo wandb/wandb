@@ -11,6 +11,7 @@ from wandb import util
 from wandb.vendor.pynvml import pynvml
 
 from . import tpu
+from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import telemetry
 
@@ -56,17 +57,19 @@ class SystemStats:
     _interface: InterfaceQueue
     sampler: SamplerDict
     samples: int
+    _settings: SettingsStatic
     _thread: Optional[threading.Thread]
     gpu_count: int
 
-    def __init__(self, pid: int, interface: InterfaceQueue) -> None:
+    def __init__(self, settings: SettingsStatic, interface: InterfaceQueue) -> None:
         try:
             pynvml.nvmlInit()
             self.gpu_count = pynvml.nvmlDeviceGetCount()
         except pynvml.NVMLError:
             self.gpu_count = 0
         # self.run = run
-        self._pid = pid
+        self._settings = settings
+        self._pid = settings._stats_pid
         self._interface = interface
         self.sampler = {}
         self.samples = 0
@@ -106,14 +109,16 @@ class SystemStats:
     @property
     def sample_rate_seconds(self) -> float:
         """Sample system stats every this many seconds, defaults to 2, min is 0.5"""
-        return 2
-        # return max(0.5, self._api.dynamic_settings["system_sample_seconds"])
+        sample_rate = self._settings._stats_sample_rate_seconds
+        # TODO: handle self._api.dynamic_settings["system_sample_seconds"]
+        return max(0.5, sample_rate)
 
     @property
     def samples_to_average(self) -> int:
         """The number of samples to average before pushing, defaults to 15 valid range (2:30)"""
-        return 15
-        # return min(30, max(2, self._api.dynamic_settings["system_samples"]))
+        samples = self._settings._stats_samples_to_average
+        # TODO: handle self._api.dynamic_settings["system_samples"]
+        return min(30, max(2, samples))
 
     def _thread_body(self) -> None:
         while True:
