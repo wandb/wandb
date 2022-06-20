@@ -157,7 +157,10 @@ class Config:
     __setattr__ = __setitem__
 
     def __getattr__(self, key):
-        return self.__getitem__(key)
+        try:
+            return self.__getitem__(key)
+        except KeyError as ke:
+            raise AttributeError(f"'{self.__class__}' object has no attribute '{key}'") from ke
 
     def __contains__(self, key):
         return key in self._items
