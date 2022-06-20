@@ -1014,11 +1014,7 @@ def image_from_docker_args(args: List[str]) -> Optional[str]:
 
 
 def load_yaml(file: Any) -> Any:
-    """If pyyaml > 5.1 use full_load to avoid warning"""
-    if hasattr(yaml, "full_load"):
-        return yaml.full_load(file)
-    else:
-        return yaml.load(file)
+    return yaml.safe_load(file)
 
 
 def image_id_from_k8s() -> Optional[str]:
