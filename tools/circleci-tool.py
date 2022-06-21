@@ -148,23 +148,30 @@ def trigger(args):
 
 def trigger_nightly(args):
     url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
-    default_shards = "cpu,gpu,tpu,local"
 
-    default_shards_set = set(default_shards.split(","))
-    requested_shards_set = (
-        set(args.shards.split(",")) if args.shards else default_shards_set
-    )
+    default_shards = {
+        "standalone-cpu",
+        "standalone-gpu",
+        "standalone-tpu",
+        "standalone-local",
+        "kfp",
+    }
+    shards = {
+        f"manual_nightly_execute_shard_{shard.replace('-', '_')}": False
+        for shard in default_shards
+    }
+
+    requested_shards = set(args.shards.split(",")) if args.shards else default_shards
 
     # check that all requested shards are valid and that there is at least one
-    if not requested_shards_set.issubset(default_shards_set):
+    if not requested_shards.issubset(default_shards):
         raise ValueError(
-            f"Requested invalid shards: {requested_shards_set}. "
-            f"Valid shards are: {default_shards_set}"
+            f"Requested invalid shards: {requested_shards}. "
+            f"Valid shards are: {default_shards}"
         )
     # flip the requested shards to True
-    shards = {
-        f"manual_nightly_execute_shard_{shard}": True for shard in requested_shards_set
-    }
+    for shard in requested_shards:
+        shards[f"manual_nightly_execute_shard_{shard.replace('-', '_')}"] = True
 
     payload = {
         "branch": args.branch,
@@ -306,7 +313,15 @@ def process_args():
         "--slack-notify", action="store_true", help="post notifications to slack"
     )
     parse_trigger_nightly.add_argument(
-        "--shards", help="comma-separated shards (cpu,gpu,tpu,local)"
+        "--shards",
+        default=(
+            "standalone-cpu,"
+            "standalone-gpu,"
+            "standalone-tpu,"
+            "standalone-local,"
+            "kfp"
+        ),
+        help="comma-separated shards (standalone-{cpu,gpu,tpu,local},kfp)",
     )
     parse_trigger_nightly.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"
