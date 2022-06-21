@@ -176,7 +176,7 @@ def construct_launch_spec(
     return launch_spec
 
 
-def validate_launch_spec_source(launch_spec: Dict[str, Any])-> None:
+def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
     uri = launch_spec.get("uri")
     job = launch_spec.get("job")
     docker_image = launch_spec.get("docker", {}).get("docker_image")
