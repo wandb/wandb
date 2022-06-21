@@ -896,12 +896,12 @@ def sweep(
                         "local-process",  # resource,
                         [
                             "wandb",
-                            "launch-scheduler",
-                            _sweep_id_placeholder,
-                            "-p",
-                            project,
-                            "-q",
+                            "launch-agent",
                             queue,
+                            "--sweep_id",
+                            _sweep_id_placeholder,
+                            "--project",
+                            project,
                         ],  # entry_point,
                         None,  # version,
                         None,  # params,
@@ -1237,11 +1237,11 @@ def launch(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
 @click.option(
-    "--scheduler", "-s", default=None, help="(Experimental) Run a Launch Sweep Scheduler instead of a launch-agent"
+    "--sweep_id", "-s", default=None, help="(Experimental) Run launch scheduler instead of a launch-agent on the specified sweep."
 )
 @display_error
 def launch_agent(
-    ctx, project=None, entity=None, queues=None, max_jobs=None, config=None, scheduler=None
+    ctx, project=None, entity=None, queues=None, max_jobs=None, config=None, sweep_id=None
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1263,12 +1263,15 @@ def launch_agent(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
 
-    if scheduler is not None:
-        wandb.termlog("Starting a 🚀 Launch Scheduler ")
+    if sweep_id is not None:
+        # TODO: This is not the final resting place for this (do not worry)
+        # the launch scheduler will become a type of Job (Launch Jobs API)
+        # until then this felt like the least worst way to start launch schedulers.
+        wandb.termlog("Starting a Launch Scheduler 🚀")
         from wandb.sdk.launch.sweeps import load_scheduler
 
         _scheduler = load_scheduler("sweep")(
-            api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
+            api, entity=entity, project=project, queue=queues[0], sweep_id=sweep_id
         )
         _scheduler.start()
     else:
