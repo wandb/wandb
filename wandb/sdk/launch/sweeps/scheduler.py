@@ -79,15 +79,15 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
 
     @abstractmethod
-    def _start(self):
+    def _start(self) -> None:
         pass
 
     @abstractmethod
-    def _run(self):
+    def _run(self) -> None:
         pass
 
     @abstractmethod
-    def _exit(self):
+    def _exit(self) -> None:
         pass
 
     @property
@@ -100,15 +100,6 @@ class Scheduler(ABC):
         logger.debug(f"Changing Scheduler state from {self.state.name} to {value.name}")
         self._state = value
 
-    def start(self):
-        _msg = "Scheduler starting."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
-        self._state = SchedulerState.STARTING
-        self._start()
-        # TODO(hupo): Should start call run?
-        self.run()
-
     def is_alive(self) -> bool:
         if self.state in [
             SchedulerState.COMPLETED,
@@ -118,7 +109,16 @@ class Scheduler(ABC):
             return False
         return True
 
-    def run(self):
+    def start(self) -> None:
+        _msg = "Scheduler starting."
+        logger.debug(_msg)
+        wandb.termlog(_msg)
+        self._state = SchedulerState.STARTING
+        self._start()
+        # TODO(hupo): Should start call run?
+        self.run()
+
+    def run(self) -> None:
         _msg = "Scheduler Running."
         logger.debug(_msg)
         wandb.termlog(_msg)
@@ -127,7 +127,7 @@ class Scheduler(ABC):
             while True:
                 if not self.is_alive():
                     break
-                self.update_run_states()
+                self._update_run_states()
                 self._run()
         except KeyboardInterrupt:
             _msg = "Scheduler received KeyboardInterrupt. Exiting."
@@ -150,69 +150,59 @@ class Scheduler(ABC):
             self.state = SchedulerState.COMPLETED
             self.exit()
 
-    def _add_to_launch_queue(self, launch_spec: Dict[str, Any]):
+    def exit(self) -> None:
+        for run_id in self._runs.keys():
+            self._stop_run(run_id)
+        self._exit()
+
+    def _update_run_states(self) -> None:
+        for run_id, run in self._runs.items():
+            try:
+                _state = self._api.get_run_state(self._entity, self._project, run_id)
+                if _state == "running":
+                    run.state = RunState.RUNNING
+                elif _state == "error":
+                    run.state = RunState.ERRORED
+                elif _state == "done":
+                    run.state = RunState.DONE
+            except Exception as e:
+                breakpoint()
+                run.state = RunState.UNKNOWN
+
+    def _add_to_launch_queue(
+        self,
+        uri: str = None,
+        resource: str = None,
+        entry_point: str = None,
+        run_id: str = None,
+    ) -> "public.QueuedJob":
         """Add a launch job to the Launch RunQueue."""
-        run_id: str = launch_spec.get("run_id", generate_id())
+        run_id = run_id or generate_id()
         job = launch_add(
-            launch_spec.get("uri", None),
-            launch_spec.get("config", None),
-            project=launch_spec.get("project", None) or self._project,
-            entity=launch_spec.get("entity", None) or self._entity,
-            queue=launch_spec.get("queue", None) or self._launch_queue,
-            resource=launch_spec.get("resource", None),
-            entry_point=launch_spec.get("entry_point", None),
+            uri,
+            project=self._project,
+            entity=self._entity,
+            queue=self._launch_queue,
+            resource=resource,
+            entry_point=entry_point,
             run_id=run_id,
+            # config: Optional[Union[str, Dict[str, Any]]] = None,
             # name: Optional[str] = None,
             # version: Optional[str] = None,
             # docker_image: Optional[str] = None,
             # params: Optional[Dict[str, Any]] = None,
         )
         self._runs[run_id].launch_job = job
-        _msg = f"Added job to Launch RunQueue (RunID:{run_id})."
+        _msg = f"Added job to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
+        return job
 
-    def update_run_states(self):
-        for run_id, run in self._runs.items():
-            try:
-                _state = self._api.get_run_state(self._entity, self._project, run_id)
-            except Exception as e:
-                breakpoint()
-                pass
-            if _state == "running":
-                run.state = RunState.RUNNING
-            elif _state == "error":
-                run.state = RunState.ERRORED
-            elif _state == "done":
-                run.state = RunState.DONE
-            else:
-                run.state = RunState.UNKNOWN
-
-    def _stop_run(self, run_id):
+    def _stop_run(self, run_id) -> None:
         _msg = f"Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
         run = self._runs.get(run_id, None)
         if run is not None:
-            # TODO(hupo): Can you upsert a run state?
+            # TODO: Can you upsert a run state?
             run.state = RunState.STOPPED
-
-    def exit(self):
-        for run_id in self._runs.keys():
-            self._stop_run(run_id)
-        self._exit()
-
-    # def __iter__(self):
-    #     # returning __iter__ object
-    #     return self
-
-    # @abstractmethod
-    # def suggest() -> Dict[str, Any]:
-    #     """ Returns the next suggestion for the sweep. """
-    #     pass
-
-    # def __next__(self):
-    #     try:
-    #         return self.next_suggestion()
-    #     except LaunchError as e:
-    #         raise StopIteration

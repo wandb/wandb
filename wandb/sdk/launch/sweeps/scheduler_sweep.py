@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import os
 import logging
 import pprint
@@ -47,16 +46,19 @@ class SweepScheduler(Scheduler):
         # TODO(hupo): Get command from sweep config? (if no local kwarg is provided?)
         # TODO(hupo): Look for sweep config in upserted sweep?
         self._sweep_config = sweep_config
-        self._heartbeat_thread_sleep = heartbeat_thread_sleep
-        self._heartbeat_queue_timeout = heartbeat_queue_timeout
-        self._main_thread_sleep = main_thread_sleep
+        # TODO: Tune these different sleeps and timeouts
+        self._heartbeat_thread_sleep: int = heartbeat_thread_sleep
+        self._heartbeat_queue_timeout: int = heartbeat_queue_timeout
+        self._main_thread_sleep: int = main_thread_sleep
 
-    def _start(self):
-        # TODO(hupo): socket hostname is probably a shitty name, we can do better
+    def _start(self) -> None:
         self._heartbeat_agent = self._api.register_agent(
-            socket.gethostname(), sweep_id=self._sweep_id
+            socket.gethostname(),  # host
+            sweep_id=self._sweep_id,
+            project_name=self._project,
+            entity=self._entity,
         )
-        self._heartbeat_agent = self._heartbeat_agent["id"]
+        self._heartbeat_agent_id = self._heartbeat_agent["id"]
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue
@@ -65,7 +67,7 @@ class SweepScheduler(Scheduler):
         self._heartbeat_thread.daemon = True
         self._heartbeat_thread.start()
 
-    def _heartbeat(self):
+    def _heartbeat(self) -> None:
         while True:
             if not self.is_alive():
                 return
@@ -76,12 +78,14 @@ class SweepScheduler(Scheduler):
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
-            wandb.termlog(_msg)
-            commands = self._api.agent_heartbeat(self._heartbeat_agent, {}, _run_states)
+            wandb.termlog(_msg)  # TODO: Remove
+            commands = self._api.agent_heartbeat(
+                self._heartbeat_agent_id, {}, _run_states
+            )
             if commands:
                 _msg = f"AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
                 logger.debug(_msg)
-                wandb.termlog(_msg)
+                wandb.termlog(_msg)  # TODO: Remove
                 for command in commands:
                     _type = command.get("type")
                     run = SweepRun(
@@ -101,7 +105,7 @@ class SweepScheduler(Scheduler):
                         continue
             time.sleep(self._heartbeat_thread_sleep)
 
-    def _run(self):
+    def _run(self) -> None:
         try:
             run: SweepRun = self._heartbeat_queue.get(
                 timeout=self._heartbeat_queue_timeout
@@ -112,29 +116,17 @@ class SweepScheduler(Scheduler):
             wandb.termlog(_msg)
             time.sleep(self._main_thread_sleep)
             return
-
         # If run is already stopped just ignore the request
         if run.state in [
-            RunState.STOPPED,
             RunState.STOPPED,
             RunState.ERRORED,
             RunState.DONE,
             RunState.UNKNOWN,
         ]:
             return
-
         _msg = f"Converting Sweep Run (RunID:{run.id}) to Launch Job"
         logger.debug(_msg)
         wandb.termlog(_msg)
-
-        # TODO(hupo): Command replacement logic
-        # sweep_command = self._sweep_command or [
-        #     "${env}",
-        #     "${interpreter}",
-        #     "${program}",
-        #     "${args}",
-        # ]
-
         # This is actually what populates the wandb config
         # since it is used in wandb.init()
         sweep_param_path = os.path.join(
@@ -145,24 +137,15 @@ class SweepScheduler(Scheduler):
         )
         wandb.termlog(f"Saving params to {sweep_param_path}")
         wandb_lib.config_util.save_config_file_from_dict(sweep_param_path, run.args)
-
-        entry_point = ["python", run.program]
-
         command_args = LegacySweepAgent._create_command_args({"args": run.args})
-        entry_point += command_args["args"]
-
-        # TODO: Entrypoint is now an object right?
+        entry_point = ["python", run.program] + command_args["args"]
         entry_point_str = " ".join(entry_point)
-        self._add_to_launch_queue(
-            {
-                "uri": os.getcwd(),
-                "resource": "local-process",
-                "entry_point": entry_point_str,
-                "run_id": run.id,
-            }
+        _ = self._add_to_launch_queue(
+            uri=os.getcwd(),
+            resource="local-process",
+            entry_point=entry_point_str,
+            run_id=run.id,
         )
-
-        # TODO(hupo): Flapping logic
 
     def _exit(self):
         pass

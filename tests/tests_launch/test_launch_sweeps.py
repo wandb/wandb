@@ -7,12 +7,12 @@ from wandb.sdk.launch.sweeps import load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import Scheduler, SchedulerState
 
 
-def test_launch_sweeps_load_unknown_scheduler():
+def test_launch_sweeps_init_load_unknown_scheduler():
     with pytest.raises(ValueError):
         load_scheduler("unknown")
 
 
-def test_launch_sweeps_load_tune_scheduler():
+def test_launch_sweeps_init_load_tune_scheduler():
     from wandb.sdk.launch.sweeps.scheduler_tune import TuneScheduler
 
     _scheduler = load_scheduler("tune")
@@ -21,7 +21,7 @@ def test_launch_sweeps_load_tune_scheduler():
     ), f'load_scheduler("tune") should return Scheduler of type TuneScheduler'
 
 
-def test_launch_sweeps_load_sweeps_scheduler():
+def test_launch_sweeps_init_load_sweeps_scheduler():
     from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
 
     _scheduler = load_scheduler("sweep")
