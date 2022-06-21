@@ -73,6 +73,9 @@ parameters:
   manual_nightly_execute_shard_standalone_local:
     type: boolean
     default: false
+  manual_nightly_execute_shard_kfp:
+    type: boolean
+    default: false
 
 
 commands:
