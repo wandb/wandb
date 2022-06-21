@@ -159,17 +159,16 @@ class Scheduler(ABC):
         for run_id, run in self._runs.items():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
-                _msg = f"UPDATERUNSTATES: RUN {run_id} STATE {_state}"
                 if _state == "running":
                     run.state = RunState.RUNNING
                 elif _state in ["error", "crashed", "failed"]:
                     run.state = RunState.ERRORED
                 elif _state in ["done", "finished"]:
                     run.state = RunState.DONE
+            except Exception as e:
+                _msg = f"Issue when getting RunState for Run {run_id}: {e}"
                 logger.debug(_msg)
                 wandb.termlog(_msg)
-            except Exception as e:
-                breakpoint()
                 run.state = RunState.UNKNOWN
 
     def _add_to_launch_queue(

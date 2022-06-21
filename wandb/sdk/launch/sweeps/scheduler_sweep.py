@@ -68,9 +68,6 @@ class SweepScheduler(Scheduler):
             # AgentHeartbeat wants dict of runs which are running or queued
             _run_states = {}
             for run_id, run in self._runs.items():
-                _msg = f"HEARTBEAT: RUN {run_id} STATE {run.state}"
-                logger.debug(_msg)
-                wandb.termlog(_msg)
                 if run.state in [RunState.RUNNING, RunState.QUEUED]:
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
