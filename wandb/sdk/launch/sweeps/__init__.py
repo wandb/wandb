@@ -33,7 +33,7 @@ _WANDB_SCHEDULERS: Dict[str, Callable] = {
 }
 
 
-def load_scheduler(scheduler_name: str, *args, **kwargs) -> Scheduler:
+def load_scheduler(scheduler_name: str) -> Scheduler:
 
     scheduler_name = scheduler_name.lower()
     if scheduler_name not in _WANDB_SCHEDULERS:
@@ -44,7 +44,7 @@ def load_scheduler(scheduler_name: str, *args, **kwargs) -> Scheduler:
 
     log.warn(f"Loading dependencies for Scheduler of type: {scheduler_name}")
     import_func = _WANDB_SCHEDULERS[scheduler_name]
-    return import_func()(*args, **kwargs)
+    return import_func()
 
 
 __all__ = [

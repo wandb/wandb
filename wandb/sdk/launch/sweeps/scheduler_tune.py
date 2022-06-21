@@ -13,3 +13,12 @@ class TuneScheduler(Scheduler):
     # understand the future context and resulting design choices
 
     pass
+
+    def _start(self) -> None:
+        pass
+
+    def _run(self) -> None:
+        pass
+
+    def _exit(self) -> None:
+        pass

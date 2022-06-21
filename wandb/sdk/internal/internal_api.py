@@ -956,7 +956,10 @@ class Api:
             for q in queues_found
             if q["name"] == queue_name
             # ensure user has access to queue
-            and (q["access"] in ["PROJECT", "USER"] or q["createdBy"] == self.default_entity)
+            and (
+                q["access"] in ["PROJECT", "USER"]
+                or q["createdBy"] == self.default_entity
+            )
         ]
         if not matching_queues:
             # in the case of a missing default queue. create it

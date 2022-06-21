@@ -1293,8 +1293,8 @@ def launch_scheduler(ctx, project, entity, sweep_id, queue):
     wandb.termlog("Starting a 🚀 Launch Scheduler ")
     from wandb.sdk.launch.sweeps import load_scheduler
 
-    scheduler = load_scheduler(
-        "sweep", api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
+    scheduler = load_scheduler("sweep")(
+        api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
     )
     scheduler.start()
 

@@ -16,8 +16,8 @@ def test_launch_sweeps_init_load_tune_scheduler():
     from wandb.sdk.launch.sweeps.scheduler_tune import TuneScheduler
 
     _scheduler = load_scheduler("tune")
-    assert isinstance(
-        _scheduler, TuneScheduler
+    assert (
+        _scheduler == TuneScheduler
     ), f'load_scheduler("tune") should return Scheduler of type TuneScheduler'
 
 
@@ -25,8 +25,8 @@ def test_launch_sweeps_init_load_sweeps_scheduler():
     from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
 
     _scheduler = load_scheduler("sweep")
-    assert isinstance(
-        _scheduler, SweepScheduler
+    assert (
+        _scheduler == SweepScheduler
     ), f'load_scheduler("sweep") should return Scheduler of type SweepScheduler'
 
 
