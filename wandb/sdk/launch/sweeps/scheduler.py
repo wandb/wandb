@@ -159,13 +159,13 @@ class Scheduler(ABC):
         for run_id, run in self._runs.items():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
+                _msg = f"UPDATERUNSTATES: RUN {run_id} STATE {_state}"
                 if _state == "running":
                     run.state = RunState.RUNNING
-                elif _state == "error":
+                elif _state in ["error", "crashed", "failed"]:
                     run.state = RunState.ERRORED
-                elif _state == "done":
+                elif _state in ["done", "finished"]:
                     run.state = RunState.DONE
-                _msg = f"UPDATERUNSTATES: RUN {run_id} STATE {run.state}"
                 logger.debug(_msg)
                 wandb.termlog(_msg)
             except Exception as e:
