@@ -973,7 +973,6 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
-
         if name is None:
             name_string = wandb.util.make_artifact_name_safe(
                 f"{self._project}-{self._settings.program}"
