@@ -58,8 +58,6 @@ class LaunchProject:
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
     ):
-        if uri is not None and job is not None:
-            raise LaunchError("Cannot specify both uri and job")
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
             _logger.info(f"Updating uri with base uri: {uri}")
@@ -101,10 +99,6 @@ class LaunchProject:
             _logger.info("Adding override entry point")
             self.override_entrypoint = self.add_entry_point(
                 overrides.get("entry_point")  # type: ignore
-            )
-        if self.job is None and self.uri is None and self.docker_image is None:
-            raise LaunchError(
-                "Project must have at least one of uri, job, or docker_image specified."
             )
         if self.docker_image is not None:
             self.source = LaunchSource.DOCKER

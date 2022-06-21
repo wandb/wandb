@@ -17,6 +17,7 @@ from .utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     resolve_build_and_registry_config,
+    validate_launch_spec_source,
 )
 
 _logger = logging.getLogger(__name__)
@@ -127,6 +128,7 @@ def _run(
         launch_config,
         cuda,
     )
+    validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
     launch_project = fetch_and_validate_project(launch_project, api)
 

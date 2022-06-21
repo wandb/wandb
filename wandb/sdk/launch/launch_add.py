@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
-from wandb.sdk.launch.utils import construct_launch_spec
+from wandb.sdk.launch.utils import construct_launch_spec, validate_launch_spec_source
 
 
 def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
@@ -32,7 +32,47 @@ def launch_add(
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
 ) -> "public.QueuedRun":
+    """Enqueue a W&B launch experiment.
 
+    Arguments:
+    uri: URI of experiment to run. A wandb run uri or a Git repository URI.
+    job: string reference to a wandb.Job eg: wandb/test/my-job:latest
+    config: A dictionary containing the configuration for the run. May also contain
+        resource specific arguments under the key "resource_args"
+    project: Target project to send launched run to
+    entity: Target entity to send launched run to
+    queue: the name of the queue to enqueue the run to
+    resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    entry_point: Entry point to run within the project. Defaults to using the entry point used
+        in the original run for wandb URIs, or main.py for git repository URIs.
+    name: Name run under which to launch the run.
+    version: For Git-based projects, either a commit hash or a branch name.
+    docker_image: The name of the docker image to use for the run.
+    params: Parameters (dictionary) for the entry point command. Defaults to using the
+        the parameters used to run the original run.
+    resource_args: Resource related arguments for launching runs onto a remote backend.
+        Will be stored on the constructed launch config under ``resource_args``.
+    cuda: Whether to build a CUDA-enabled docker image or not
+
+
+    Example:
+        import wandb
+        project_uri = "https://github.com/wandb/examples"
+        params = {"alpha": 0.5, "l1_ratio": 0.01}
+        # Run W&B project and create a reproducible docker environment
+        # on a local host
+        api = wandb.apis.internal.Api()
+        wandb.launch_add(uri=project_uri, parameters=params)
+
+
+    Returns:
+        an instance of`wandb.api.public.QueuedRun` which gives information about the
+        queued run, or if `wait_until_started` or `wait_until_finished` are called, gives access
+        to the underlying Run information.
+
+    Raises:
+        `wandb.exceptions.LaunchError` if unsuccessful
+    """
     api = Api()
 
     return _launch_add(
@@ -101,12 +141,7 @@ def _launch_add(
         launch_config,
         cuda,
     )
-    if (
-        launch_spec.get("uri") is None
-        and launch_spec.get("job") is None
-        and launch_spec.get("docker", {}).get("docker_image") is None
-    ):
-        raise ValueError("Must specify either uri or job or docker_image")
+    validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:

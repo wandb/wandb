@@ -350,7 +350,6 @@ def test_launch_add_base_queued_run(live_mock_server):
     assert queued_run.run_queue_item_id == "1"
     assert queued_run.entity == "mock_server_entity"
     assert queued_run.project == "tests"
-    assert queued_run.username == "mock_server_entity"
 
     live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
     queued_run.wait_until_finished()
@@ -1429,15 +1428,14 @@ def test_launch_url_and_job(
     api.get_run_info = MagicMock(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
-    try:
+    with pytest.raises(wandb.errors.LaunchError) as e_info:
         launch.run(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             job="test-job:v0",
             project="new-test",
         )
-    except wandb.errors.LaunchError as e:
-        assert "Cannot specify both uri and job" in str(e)
+    assert "Must specify exactly one of uri, job or image" in str(e_info)
 
 
 def test_launch_no_url_job_or_docker_image(
@@ -1459,7 +1457,4 @@ def test_launch_no_url_job_or_docker_image(
             project="new-test",
         )
     except wandb.errors.LaunchError as e:
-        assert (
-            "Project must have at least one of uri, job, or docker_image specified."
-            in str(e)
-        )
+        assert "Must specify a uri, job or docker image" in str(e)
