@@ -30,7 +30,11 @@ def gpu_in_use_by_this_process(gpu_handle: GPUHandle, pid: int) -> bool:
     if not psutil:
         return False
 
-    base_process = psutil.Process(pid=pid)
+    try:
+        base_process = psutil.Process(pid=pid)
+    except psutil.NoSuchProcess:
+        # do not report any gpu metrics if the base process cant be found
+        return False
 
     our_processes = base_process.children(recursive=True)
     our_processes.append(base_process)
