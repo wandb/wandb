@@ -172,6 +172,7 @@ def trigger_nightly(args):
             **{
                 "manual": True,
                 "manual_nightly": True,
+                "manual_nightly_git_branch": args.branch,
                 "manual_nightly_slack_notify": args.slack_notify or False,
             },
             **shards,
