@@ -8,3 +8,10 @@ assert:
       m1: 1
       m2: 2
   - :wandb:runs[0][exitcode]: 0
+  - :op:>:
+    - :op:len:
+      - :wandb:runs[0][stats]
+    - 0
+  - :op:>=:
+    - :wandb:runs[0][stats][0][system.cpu]:
+    - 0
