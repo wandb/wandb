@@ -2019,11 +2019,16 @@ class Run:
             )
             if artifact:
                 artifact.wait()
+                print(artifact.name)
                 metadata = artifact.metadata
                 if not metadata:
                     artifact.metadata["config_defaults"] = self.config.as_dict()
                     artifact.save()
                 break
+            else:
+                logger.info(
+                    f"Failed to create job using {job_creation_function.__name__}"
+                )
 
     def _create_repo_job(
         self,

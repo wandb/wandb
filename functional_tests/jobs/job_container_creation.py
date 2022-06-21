@@ -11,3 +11,4 @@ run = wandb.init(
 )
 for i in range(1, run.config["epochs"]):
     wandb.log({"loss": i})
+run.finish()

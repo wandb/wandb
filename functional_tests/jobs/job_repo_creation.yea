@@ -4,5 +4,5 @@ plugin:
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:artifacts[job-gitgithub.comwandbclient.git_.job_repo_creation.py][type]: job
+  - :wandb:artifacts[job-gitgithub.comwandbclient.git_functional_testsjobsjob_repo_creation.py][type]: job
   - :yea:exit: 0
