@@ -80,7 +80,6 @@ def test_launch_sweeps_base_scheduler_add_to_launch_queue(
 
 
 def test_launch_sweeps_sweeps_scheduler_happy_path(
-    live_mock_server,
     test_settings,
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -93,3 +92,10 @@ def test_launch_sweeps_sweeps_scheduler_happy_path(
     # self._api.agent_heartbeat?
     # self._api.sweep
     # self._api.register_agent
+
+    # mock internal api upsert sweep to add json spec looks correct
+
+    # test_launch_cli.py
+    # test_cli.py
+
+    # Skip mock server and just emulate api directly
