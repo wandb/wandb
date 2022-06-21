@@ -31,7 +31,7 @@ def main():
 
     # set up wandb
     config = dict(some_hparam="Logged Before Trainer starts DDP")
-    wandb_logger = WandbLogger(log_model=True, config=config, save_code=True)
+    wandb_logger = WandbLogger(log_model=True, config=config, save_code=True, name=__file__)
 
     # Initialize a trainer
     trainer = Trainer(
