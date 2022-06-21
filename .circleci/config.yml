@@ -1068,10 +1068,10 @@ workflows:
       #
       # kfp tests
       #
-#      - kfp:
-#          name: "mach-kubeflow"
-#          toxenv: "func-s_kfp-py37"
-#          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+      - kfp:
+          name: "mach-kubeflow"
+          toxenv: "func-s_kfp-py37"
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
       # stanalone tests on gke
       #
