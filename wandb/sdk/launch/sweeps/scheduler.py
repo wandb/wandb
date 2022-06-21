@@ -148,6 +148,11 @@ class Scheduler(ABC):
             self.exit()
 
     def exit(self) -> None:
+        if not self.state in [
+            SchedulerState.COMPLETED,
+            SchedulerState.CANCELLED,
+        ]:
+            self.state = SchedulerState.FAILED
         for run_id in self._runs.keys():
             self._stop_run(run_id)
         self._exit()
