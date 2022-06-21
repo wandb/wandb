@@ -114,21 +114,16 @@ if TYPE_CHECKING:
         remote: str
         commit: str
 
-    JobSourceDict = TypedDict(
-        "JobSourceDict",
-        {
-            "_version": str,
-            "source_type": str,
-            "git": Optional[GitSourceDict],
-            "artifact": Optional[str],
-            "image": Optional[str],
-            "entrypoint": Optional[List[str]],
-            "input_types": Dict[str, Any],
-            "output_types": Dict[str, Any],
-            "runtime": Optional[str],
-        },
-        total=False,
-    )
+    class JobSourceDict(TypedDict, total=False):
+        _version: str
+        source_type: str
+        git: Optional[GitSourceDict]
+        artifact: Optional[str]
+        image: Optional[str]
+        entrypoint: Optional[List[str]]
+        input_types: Dict[str, Any]
+        output_types: Dict[str, Any]
+        runtime: Optional[str]
 
 
 logger = logging.getLogger("wandb")
@@ -2011,7 +2006,7 @@ class Run:
         import pkg_resources
 
         installed_packages_list = sorted(
-            [f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)]
+            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
         )
 
         for job_creation_function in [
