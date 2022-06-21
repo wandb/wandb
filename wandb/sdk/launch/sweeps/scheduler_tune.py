@@ -8,4 +8,8 @@ class TuneScheduler(Scheduler):
 
     """
 
+    # NOTE: This file will not be included with this PR,
+    # I kept this here so that reviewers would better
+    # understand the future context and resulting design choices
+
     pass

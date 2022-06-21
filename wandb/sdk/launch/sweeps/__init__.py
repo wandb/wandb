@@ -18,6 +18,10 @@ def _import_sweep_scheduler() -> Scheduler:
 def _import_tune_scheduler() -> Scheduler:
     from .scheduler_tune import TuneScheduler
 
+    # NOTE: The Ray Tune scheduler will not be included with this PR,
+    # I kept it here so that reviewers would better
+    # understand the future context and resulting design choices
+
     # TODO: Load dependencies for TuneScheduler
     # pip install ray[tune]
     return TuneScheduler
