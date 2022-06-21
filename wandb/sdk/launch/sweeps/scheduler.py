@@ -165,6 +165,9 @@ class Scheduler(ABC):
                     run.state = RunState.ERRORED
                 elif _state == "done":
                     run.state = RunState.DONE
+                _msg = f"UPDATERUNSTATES: RUN {run_id} STATE {run.state}"
+                logger.debug(_msg)
+                wandb.termlog(_msg)
             except Exception as e:
                 breakpoint()
                 run.state = RunState.UNKNOWN

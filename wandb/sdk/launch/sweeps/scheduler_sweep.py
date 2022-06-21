@@ -26,7 +26,6 @@ class SweepScheduler(Scheduler):
         self,
         *args,
         sweep_id: Optional[str] = None,
-        sweep_config: Optional[Dict[str, Any]] = None,
         heartbeat_thread_sleep: int = 3,
         heartbeat_queue_timeout: int = 3,
         main_thread_sleep: int = 3,
@@ -42,11 +41,6 @@ class SweepScheduler(Scheduler):
                 f"Could not find sweep {self._entity}/{self._project}/{sweep_id}"
             )
         self._sweep_id = sweep_id
-        # TODO(hupo): Sweep config can also come in through init kwarg? (python usecase)
-        # TODO(hupo): Get command from sweep config? (if no local kwarg is provided?)
-        # TODO(hupo): Look for sweep config in upserted sweep?
-        self._sweep_config = sweep_config
-        # TODO: Tune these different sleeps and timeouts
         self._heartbeat_thread_sleep: int = heartbeat_thread_sleep
         self._heartbeat_queue_timeout: int = heartbeat_queue_timeout
         self._main_thread_sleep: int = main_thread_sleep
@@ -74,6 +68,9 @@ class SweepScheduler(Scheduler):
             # AgentHeartbeat wants dict of runs which are running or queued
             _run_states = {}
             for run_id, run in self._runs.items():
+                _msg = f"HEARTBEAT: RUN {run_id} STATE {run.state}"
+                logger.debug(_msg)
+                wandb.termlog(_msg)
                 if run.state in [RunState.RUNNING, RunState.QUEUED]:
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
