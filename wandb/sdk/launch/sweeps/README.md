@@ -2,7 +2,7 @@
 
 _Using Launch to run a sweep._
 
-Create the sweep as you would normally, but specify a `queue`. Here we specify the default queue
+Create the sweep as you would normally, but specify a `queue`. Here we specify the default queue.
 
 ```
 WANDB_BASE_URL=https://api.wandb.test wandb sweep sweep-bayes.yaml --queue my_cool_sweep --entity hupo
