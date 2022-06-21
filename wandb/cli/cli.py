@@ -897,6 +897,7 @@ def sweep(
                         [
                             "wandb",
                             "launch-agent",
+                            "--queues",
                             queue,
                             "--sweep_id",
                             _sweep_id_placeholder,
