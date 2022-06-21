@@ -2,8 +2,7 @@ id: 0.mp.06-5-share-child-non-service
 plugin:
   - wandb
 tag:
-  skips:
-    - platform: win
+  skip: true
 parametrize:
   permute:
     - :yea:start_method:
