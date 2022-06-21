@@ -58,6 +58,9 @@ parameters:
   manual_nightly:
     type: boolean
     default: false
+  manual_nightly_git_branch:
+    type: string
+    default: master
   manual_nightly_slack_notify:
     type: boolean
     default: false
@@ -1101,6 +1104,7 @@ workflows:
       - sdk_docker:
           name: "build-cpu-docker-image"
           description: "SDK Docker image for CPU testing"
+          git_branch: << pipeline.parameters.manual_nightly_git_branch >>
           path: "./standalone_tests/shards/gke_cpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
@@ -1109,6 +1113,7 @@ workflows:
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
+          git_branch: << pipeline.parameters.manual_nightly_git_branch >>
           path: "./standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
