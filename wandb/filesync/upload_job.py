@@ -125,7 +125,7 @@ class UploadJob(threading.Thread):
             try:
                 with open(self.save_path, "rb") as f:
                     if extra_headers.get("Content-Encoding") == "gzip":
-                        f = gzip.GzipFile(fileobj=f)
+                        f = gzip.GzipFile(fileobj=f, compresslevel=5)
                     self._api.upload_file_retry(
                         upload_url,
                         f,
