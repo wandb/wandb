@@ -1,10 +1,11 @@
 id: 0.lightning.ddp.gpu
-plugin:
-  - wandb
 tag:
   shard: standalone-gpu
-command:
-  program: train-gpu-ddp.py
+  platforms:
+    - linux
+    - mac
+plugin:
+  - wandb
 depend:
   requirements:
     - pytorch-lightning
