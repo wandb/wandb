@@ -137,13 +137,13 @@ class SweepScheduler(Scheduler):
         )
         wandb.termlog(f"Saving params to {sweep_param_path}")
         wandb_lib.config_util.save_config_file_from_dict(sweep_param_path, run.args)
-        command_args = LegacySweepAgent._create_command_args({"args": run.args})
-        entry_point = ["python", run.program] + command_args["args"]
-        entry_point_str = " ".join(entry_point)
+        # Construct entry point using legacy sweeps utilities
+        command_args = LegacySweepAgent._create_command_args({"args": run.args})["args"]
+        entry_point = ["python", run.program] + command_args
         _ = self._add_to_launch_queue(
             uri=os.getcwd(),
             resource="local-process",
-            entry_point=entry_point_str,
+            entry_point=entry_point,
             run_id=run.id,
         )
 

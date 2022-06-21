@@ -173,7 +173,7 @@ class Scheduler(ABC):
         self,
         uri: str = None,
         resource: str = None,
-        entry_point: str = None,
+        entry_point: List[str] = None,
         run_id: str = None,
     ) -> "public.QueuedJob":
         """Add a launch job to the Launch RunQueue."""
