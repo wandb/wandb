@@ -25,19 +25,16 @@ class SchedulerState(Enum):
     CANCELLED = 5
 
 
-class RunState(Enum):
-    QUEUED = 0
-    RUNNING = 1
-    STOPPED = 2
-    ERRORED = 3
-    DONE = 4
-    UNKNOWN = 5
+class SimpleRunState(Enum):
+    ALIVE = 0
+    DEAD = 1
+    UNKNOWN = 3
 
 
 @dataclass
 class SweepRun:
     id: str
-    state: str = RunState.QUEUED
+    state: str = SimpleRunState.ALIVE
     launch_job: public.QueuedJob = None
     args: Dict[str, Any] = None
     logs: List[str] = None
@@ -159,17 +156,25 @@ class Scheduler(ABC):
         for run_id, run in self._runs.items():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
-                if _state == "running":
-                    run.state = RunState.RUNNING
-                elif _state in ["error", "crashed", "failed"]:
-                    run.state = RunState.ERRORED
-                elif _state in ["done", "finished"]:
-                    run.state = RunState.DONE
+                if _state is None or _state in [
+                    "crashed",
+                    "failed",
+                    "killed",
+                    "finished",
+                ]:
+                    run.state = SimpleRunState.DEAD
+                elif _state in [
+                    "running",
+                    "pending",
+                    "preempted",
+                    "preempting",
+                ]:
+                    run.state = SimpleRunState.ALIVE
             except Exception as e:
                 _msg = f"Issue when getting RunState for Run {run_id}: {e}"
                 logger.debug(_msg)
                 wandb.termlog(_msg)
-                run.state = RunState.UNKNOWN
+                run.state = SimpleRunState.UNKNOWN
 
     def _add_to_launch_queue(
         self,
@@ -206,5 +211,4 @@ class Scheduler(ABC):
         wandb.termlog(_msg)
         run = self._runs.get(run_id, None)
         if run is not None:
-            # TODO: Can you upsert a run state?
-            run.state = RunState.STOPPED
+            run.state = SimpleRunState.DEAD

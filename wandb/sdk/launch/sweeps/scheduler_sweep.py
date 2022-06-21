@@ -7,7 +7,7 @@ import time
 import threading
 from typing import Any, Dict, Optional
 
-from .scheduler import Scheduler, SweepRun, RunState
+from .scheduler import Scheduler, SweepRun, SimpleRunState, SchedulerState
 import wandb
 from wandb import wandb_lib
 from wandb.errors import SweepError
@@ -68,7 +68,7 @@ class SweepScheduler(Scheduler):
             # AgentHeartbeat wants dict of runs which are running or queued
             _run_states = {}
             for run_id, run in self._runs.items():
-                if run.state in [RunState.RUNNING, RunState.QUEUED]:
+                if run.state == SimpleRunState.ALIVE:
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
@@ -95,7 +95,8 @@ class SweepScheduler(Scheduler):
                         self._stop_run(run.id)
                         continue
                     elif _type == "exit":
-                        self._exit()
+                        self.state = SchedulerState.COMPLETED
+                        self.exit()
                         continue
             time.sleep(self._heartbeat_thread_sleep)
 
@@ -112,10 +113,8 @@ class SweepScheduler(Scheduler):
             return
         # If run is already stopped just ignore the request
         if run.state in [
-            RunState.STOPPED,
-            RunState.ERRORED,
-            RunState.DONE,
-            RunState.UNKNOWN,
+            SimpleRunState.DEAD,
+            SimpleRunState.UNKNOWN,
         ]:
             return
         _msg = f"Converting Sweep Run (RunID:{run.id}) to Launch Job"
