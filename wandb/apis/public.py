@@ -30,7 +30,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import LaunchError
+from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
@@ -736,16 +736,17 @@ class Api:
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
-    def queued_run(self, path="", container_job=False):
+    def queued_run(
+        self, entity, project, queue_id, run_queue_item_id, container_job=False
+    ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
         """
-        entity, project, queue, run_queue_item_id = path.split("/")
         return QueuedRun(
             self.client,
             entity,
             project,
-            queue,
+            queue_id,
             run_queue_item_id,
             container_job=container_job,
         )
@@ -2241,7 +2242,7 @@ class QueuedRun(Attrs):
     @normalize_exceptions
     def delete(self, delete_artifacts=False):
         """
-        Deletes the given run from the wandb backend.
+        Deletes the given queued run from the wandb backend.
         """
         if self._run is None:
             mutation = gql(
@@ -4846,8 +4847,7 @@ class ArtifactFiles(Paginator):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
 
 
-class Job(Media):
-    _log_type = "job"
+class Job:
 
     _name: str
     _input_types: Type
@@ -4856,17 +4856,19 @@ class Job(Media):
     _project: str
     _entrypoint: List[str]
 
-    def __init__(self, client: Api, name, path: str = None) -> None:
-
-        self._job_artifact = client.artifact(name, type="job")
+    def __init__(self, api: Api, name, path: str = None) -> None:
+        try:
+            self._job_artifact = api.artifact(name, type="job")
+        except CommError:
+            raise ValueError(f"Could not find job with name {name}")
         if path:
             self._fpath = path
             self._job_artifact.download(root=path)
         else:
             self._fpath = self._job_artifact.download()
         self._name = name
-        self._client = client
-        self._entity = client.default_entity
+        self._api = api
+        self._entity = api.default_entity
 
         with open(os.path.join(self._fpath, "source_info.json")) as f:
             self._source_info = json.load(f)
@@ -4896,8 +4898,8 @@ class Job(Media):
     def _configure_launch_project_repo(self, launch_project):
         _fetch_git_repo(
             launch_project.project_dir,
-            self._source_info["remote"],
-            self._source_info["commit"],
+            self._source_info.get("source")["remote"],
+            self._source_info.get("source")["commit"],
         )
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):
             with open(os.path.join(self._fpath, "diff.patch")) as f:
@@ -4907,8 +4909,14 @@ class Job(Media):
         launch_project.python_version = self._source_info.get("runtime")
 
     def _configure_launch_project_artifact(self, launch_project):
-        artifact_name = self._source_info.get("artifact")[len("wandb-artiact://") + 1 :]
-        code_artifact = self._client.artifact(artifact_name, type="code")
+        artifact_string = self._source_info.get("source", {}).get("artifact")
+        if artifact_string is None:
+            raise LaunchError(f"Job {self.name} had no source artifact")
+        artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
+        if is_id:
+            code_artifact = Artifact.from_id(artifact_string, self._api._client)
+        else:
+            code_artifact = self._api.artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
         code_artifact.download(launch_project.project_dir)
@@ -4917,7 +4925,11 @@ class Job(Media):
         launch_project.python_version = self._source_info.get("runtime")
 
     def _configure_launch_project_container(self, launch_project):
-        launch_project.docker_image = self._source_info.get("image")
+        launch_project.docker_image = self._source_info.get("source", {}).get("image")
+        if launch_project.docker_image is None:
+            raise LaunchError(
+                "Job had malformed source dictionary without an image key"
+            )
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
 
