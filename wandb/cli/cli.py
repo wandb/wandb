@@ -1218,7 +1218,7 @@ def launch(
     "--project",
     "-p",
     default=None,
-    help="Name of the target project which the new run will be sent to. "
+    help="Name of the project which the agent will watch. "
     "If passed in, will override the project value passed in using a config file.",
 )
 @click.option(

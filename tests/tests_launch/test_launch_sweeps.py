@@ -53,6 +53,9 @@ def test_launch_sweeps_base_scheduler_state(
     _scheduler = Scheduler(api, entity="foo", project="bar")
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() == True
+    _scheduler.start()
+    assert _scheduler.state == SchedulerState.RUNNING
+    assert _scheduler.is_alive() == True
     _scheduler.exit()
     assert _scheduler.is_alive() == False
     assert _scheduler.state == SchedulerState.FAILED

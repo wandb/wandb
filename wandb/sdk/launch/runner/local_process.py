@@ -51,7 +51,7 @@ class LocalProcessRunner(AbstractRunner):
         if launch_project.project_dir is None:
             raise LaunchError("Launch LocalProcessRunner received empty project dir")
 
-        # If URI is not a wandb run, heck to make sure local python dependencies match run's requirement.txt
+        # If URI is not a wandb run, check to make sure local python dependencies match run's requirement.txt
         if _is_wandb_uri(launch_project.uri):
             source_entity, source_project, run_name = parse_wandb_uri(
                 launch_project.uri

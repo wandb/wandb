@@ -63,7 +63,7 @@ class LaunchProject:
         self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project.lower()
-        self.name = name
+        self.name = name  # TODO: replace with run_id
         self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
