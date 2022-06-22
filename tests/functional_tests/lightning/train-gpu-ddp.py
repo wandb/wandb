@@ -14,9 +14,7 @@ def main():
     wandb.require(experiment="service")
 
     # boost stats logging frequency for testing
-    stats_settings = dict(
-        _stats_sample_rate_seconds=0.5, _stats_samples_to_average=2
-    )
+    stats_settings = dict(_stats_sample_rate_seconds=0.5, _stats_samples_to_average=2)
     wandb.setup(settings=stats_settings)
 
     print("User process PID:", os.getpid())
@@ -31,7 +29,9 @@ def main():
 
     # set up wandb
     config = dict(some_hparam="Logged Before Trainer starts DDP")
-    wandb_logger = WandbLogger(log_model=True, config=config, save_code=True, name=__file__)
+    wandb_logger = WandbLogger(
+        log_model=True, config=config, save_code=True, name=__file__
+    )
 
     # Initialize a trainer
     trainer = Trainer(
