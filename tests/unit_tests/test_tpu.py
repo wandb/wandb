@@ -21,13 +21,13 @@ class MockTPUProfiler:
         return self.utilization
 
 
-def test_tpu_system_stats(monkeypatch, fake_interface):
+def test_tpu_system_stats(monkeypatch, fake_interface, test_settings):
 
     monkeypatch.setattr(wandb.sdk.internal.stats.tpu, "is_tpu_available", lambda: True)
     monkeypatch.setattr(
         wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
     )
-    stats = SystemStats(pid=os.getpid(), interface=fake_interface)
+    stats = SystemStats(settings=test_settings, interface=fake_interface)
     # stats.start()
     # time.sleep(1)
     # stats.shutdown()
