@@ -990,8 +990,8 @@ workflows:
       # functional win tests
       #
       - win:
-          name: "func-s_base-win-py37"
-          toxenv: "func-s_base-py37"
+          name: "func-s_base-win-py39"
+          toxenv: "func-s_base-py39"
           parallelism: 1
           xdist: 1
       #
