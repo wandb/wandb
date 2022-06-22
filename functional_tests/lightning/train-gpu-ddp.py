@@ -12,7 +12,14 @@ import wandb
 def main():
     # Use concurrency experiment
     wandb.require(experiment="service")
-    print("PIDPID", os.getpid())
+
+    # boost stats logging frequency for testing
+    stats_settings = dict(
+        _stats_sample_rate_seconds=0.5, _stats_samples_to_average=2
+    )
+    wandb.setup(settings=stats_settings)
+
+    print("User process PID:", os.getpid())
 
     # Set up data
     num_samples = 100000
@@ -24,11 +31,11 @@ def main():
 
     # set up wandb
     config = dict(some_hparam="Logged Before Trainer starts DDP")
-    wandb_logger = WandbLogger(log_model=True, config=config, save_code=True)
+    wandb_logger = WandbLogger(log_model=True, config=config, save_code=True, name=__file__)
 
     # Initialize a trainer
     trainer = Trainer(
-        max_epochs=1,
+        max_epochs=2,
         gpus=2,
         strategy="ddp",
         logger=wandb_logger,
@@ -36,7 +43,7 @@ def main():
 
     # Train the model
     trainer.fit(model, train, val)
-    trainer.test(test_dataloaders=test)
+    trainer.test(dataloaders=test)
 
 
 if __name__ == "__main__":
