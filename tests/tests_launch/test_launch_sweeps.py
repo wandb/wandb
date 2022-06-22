@@ -1,6 +1,6 @@
 import pytest
 import wandb
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from wandb.errors import SweepError
 from wandb.sdk.launch.sweeps import load_scheduler
@@ -144,17 +144,39 @@ def test_launch_sweeps_base_scheduler_run_state(
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 def test_launch_sweeps_base_scheduler_add_to_launch_queue(
-    test_settings,
+    test_settings, monkeypatch
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+    def mock_launch_add(*args, **kwargs):
+        return Mock(spec=wandb.apis.public.QueuedJob)
 
-    def mock_push_to_run_queue(entity, project, run_id):
-        pass
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch_add.launch_add",
+        mock_launch_add,
+    )
 
-    api.push_to_run_queue = mock_push_to_run_queue
+    def mock_run_add_to_launch_queue(self, *args, **kwargs):
+        self._runs["foo_run"] = SweepRun(id="foo_run", state=SimpleRunState.ALIVE)
+        self._add_to_launch_queue(run_id="foo_run")
+        self.state = SchedulerState.COMPLETED
+        self.exit()
 
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_add_to_launch_queue,
+    )
+
+    _scheduler = Scheduler(api, entity="foo", project="bar")
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive() == True
+    _scheduler.start()
+    assert _scheduler.state == SchedulerState.COMPLETED
+    assert _scheduler.is_alive() == False
+    assert len(_scheduler._runs) == 1
+    assert isinstance(_scheduler._runs["foo_run"].launch_job, wandb.apis.public.QueuedJob)
+    assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
 
 def test_launch_sweeps_sweeps_scheduler(
     test_settings,
