@@ -1,3 +1,10 @@
+## 0.12.19 (June 22, 2022)
+
+#### :bug: Bug Fix
+* Fix regression in s3 reference upload for folders by @jlzhao27 in https://github.com/wandb/client/pull/3825
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.18...v0.12.19
+
 ## 0.12.18 (June 9, 2022)
 
 #### :nail_care: Enhancement
