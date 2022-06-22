@@ -5,7 +5,6 @@ import json
 import logging
 import math
 import numbers
-import os
 from queue import Queue
 from threading import Event
 import time
@@ -663,8 +662,9 @@ class HandleManager:
             self._accumulate_time = 0
 
         if not self._settings._disable_stats:
-            pid = os.getpid()
-            self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
+            self._system_stats = stats.SystemStats(
+                settings=self._settings, interface=self._interface
+            )
             self._system_stats.start()
 
         if not self._settings._disable_meta and not run_start.run.resumed:
