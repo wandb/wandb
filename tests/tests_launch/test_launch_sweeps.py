@@ -142,6 +142,17 @@ def test_launch_sweeps_scheduler_base_run_state(
     for run_id, _state in mock_run_states.items():
         assert _scheduler._runs[run_id].state == _state[1]
 
+    def mock_get_run_state_raise_exception(*args, **kwargs):
+        raise Exception("Generic Exception")
+
+    api.get_run_state = mock_get_run_state_raise_exception
+    _scheduler = Scheduler(api, entity="foo", project="bar")
+    _scheduler._runs["foo_run_1"] = SweepRun(id="foo_run_1", state=SimpleRunState.ALIVE)
+    _scheduler._runs["foo_run_2"] = SweepRun(id="foo_run_2", state=SimpleRunState.ALIVE)
+    _scheduler._update_run_states()
+    assert _scheduler._runs["foo_run_1"].state == SimpleRunState.UNKNOWN
+    assert _scheduler._runs["foo_run_2"].state == SimpleRunState.UNKNOWN
+
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 def test_launch_sweeps_scheduler_base_add_to_launch_queue(test_settings, monkeypatch):

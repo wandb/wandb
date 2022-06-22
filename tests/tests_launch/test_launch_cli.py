@@ -296,26 +296,25 @@ def test_launch_no_docker_exec(
 
 
 def test_sweep_launch_scheduler(runner, mock_server, test_settings):
-    with runner.isolated_filesystem():
-        sweep_id = wandb.sweep(
-            {
-                "name": "My Sweep",
-                "method": "grid",
-                "parameters": {"parameter1": {"values": [1, 2, 3]}},
-            }
-        )
-        assert sweep_id == "test"
-        result = runner.invoke(
-            cli.sweep,
-            [
-                sweep_id,
-                "--queue",
-                "default",
-                "--entity",
-                "mock_server_entity",
-            ],
-        )
-        assert result.exit_code == 0
+    sweep_id = wandb.sweep(
+        {
+            "name": "My Sweep",
+            "method": "grid",
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+    )
+    assert sweep_id == "test"
+    result = runner.invoke(
+        cli.sweep,
+        [
+            sweep_id,
+            "--queue",
+            "default",
+            "--entity",
+            "mock_server_entity",
+        ],
+    )
+    assert result.exit_code == 0
 
 
 @pytest.mark.timeout(320)

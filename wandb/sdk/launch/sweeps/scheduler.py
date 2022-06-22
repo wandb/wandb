@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
-from wandb.errors import SweepError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
 
@@ -62,14 +61,9 @@ class Scheduler(ABC):
             or api.settings("entity")
             or api.default_entity
         )
-        if self._entity is None:
-            raise SweepError("Sweep Scheduler could not resolve entity.")
-
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
-        if self._project is None:
-            raise SweepError("Sweep Scheduler could not resolve project.")
 
         self._state: SchedulerState = SchedulerState.PENDING
         self._runs: Dict[str, SweepRun] = {}
@@ -177,6 +171,7 @@ class Scheduler(ABC):
                 logger.debug(_msg)
                 wandb.termlog(_msg)
                 run.state = SimpleRunState.UNKNOWN
+                continue
 
     def _add_to_launch_queue(
         self,
