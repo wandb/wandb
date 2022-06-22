@@ -1,8 +1,8 @@
-from dataclasses import dataclass
-import os
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 import wandb
@@ -11,7 +11,6 @@ import wandb.apis.public as public
 from wandb.errors import SweepError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +33,11 @@ class SimpleRunState(Enum):
 @dataclass
 class SweepRun:
     id: str
-    state: str = SimpleRunState.ALIVE
-    launch_job: public.QueuedJob = None
-    args: Dict[str, Any] = None
-    logs: List[str] = None
-    program: str = None
+    state: SimpleRunState = SimpleRunState.ALIVE
+    launch_job: Optional[public.QueuedJob] = None
+    args: Optional[Dict[str, Any]] = None
+    logs: Optional[List[str]] = None
+    program: Optional[str] = None
 
 
 class Scheduler(ABC):
@@ -49,11 +48,11 @@ class Scheduler(ABC):
     def __init__(
         self,
         api: Api,
-        *args,
+        *args: Any,
         entity: Optional[str] = None,
         project: Optional[str] = None,
         queue: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         self._api = api
         self._launch_queue = queue
@@ -140,14 +139,14 @@ class Scheduler(ABC):
             self.exit()
             raise e
         else:
-            _msg = f"Scheduler completed."
+            _msg = "Scheduler completed."
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.exit()
 
     def exit(self) -> None:
         self._exit()
-        if not self.state in [
+        if self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.CANCELLED,
         ]:
@@ -181,15 +180,15 @@ class Scheduler(ABC):
 
     def _add_to_launch_queue(
         self,
-        uri: str = None,
-        resource: str = None,
-        entry_point: List[str] = None,
-        run_id: str = None,
+        uri: Optional[str] = None,
+        resource: Optional[str] = None,
+        entry_point: Optional[List[str]] = None,
+        run_id: Optional[str] = None,
     ) -> "public.QueuedJob":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
         job = launch_add(
-            uri,
+            uri or f"{self._entity}/{self._project}",
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,
@@ -208,7 +207,7 @@ class Scheduler(ABC):
         wandb.termlog(_msg)
         return job
 
-    def _stop_run(self, run_id) -> None:
+    def _stop_run(self, run_id: str) -> None:
         _msg = f"Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)

@@ -1,7 +1,8 @@
-import pytest
-import wandb
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
+import pytest
+
+import wandb
 from wandb.errors import SweepError
 from wandb.sdk.launch.sweeps import load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import (

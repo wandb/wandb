@@ -1,18 +1,18 @@
-import os
 import logging
+import os
 import pprint
 import queue
 import socket
-import time
 import threading
-from typing import Any, Dict, Optional
+import time
+from typing import Any, Optional
 
-from .scheduler import Scheduler, SweepRun, SimpleRunState, SchedulerState
 import wandb
-from wandb import wandb_lib
+from wandb import wandb_lib  # type: ignore
 from wandb.errors import SweepError
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
+from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +24,14 @@ class SweepScheduler(Scheduler):
 
     def __init__(
         self,
-        *args,
-        sweep_id: str = None,
+        *args: Any,
+        sweep_id: Optional[str] = None,
         heartbeat_thread_sleep: int = 3,
         heartbeat_queue_timeout: int = 3,
         main_thread_sleep: int = 3,
-        **kwargs,
+        **kwargs: Any,
     ):
-        super(SweepScheduler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         # Make sure the provided sweep_id corresponds to a valid sweep
         found = self._api.sweep(
             sweep_id, "{}", entity=self._entity, project=self._project
@@ -140,5 +140,5 @@ class SweepScheduler(Scheduler):
             run_id=run.id,
         )
 
-    def _exit(self):
+    def _exit(self) -> None:
         self.state = SchedulerState.COMPLETED

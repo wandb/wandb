@@ -1,19 +1,17 @@
 import logging
-from typing import Callable, Dict
-
-from .scheduler import Scheduler
+from typing import Any, Callable, Dict
 
 
 log = logging.getLogger(__name__)
 
 
-def _import_sweep_scheduler() -> Scheduler:
+def _import_sweep_scheduler() -> Any:
     from .scheduler_sweep import SweepScheduler
 
     return SweepScheduler
 
 
-def _import_tune_scheduler() -> Scheduler:
+def _import_tune_scheduler() -> Any:
     from .scheduler_tune import TuneScheduler
 
     # NOTE: The Ray Tune scheduler will not be included with this PR,
@@ -28,7 +26,7 @@ _WANDB_SCHEDULERS: Dict[str, Callable] = {
 }
 
 
-def load_scheduler(scheduler_name: str) -> Scheduler:
+def load_scheduler(scheduler_name: str) -> Any:
 
     scheduler_name = scheduler_name.lower()
     if scheduler_name not in _WANDB_SCHEDULERS:
