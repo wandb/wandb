@@ -154,7 +154,6 @@ class Scheduler(ABC):
             self.state = SchedulerState.FAILED
         for run_id in self._runs.keys():
             self._stop_run(run_id)
-        
 
     def _update_run_states(self) -> None:
         for run_id, run in self._runs.items():

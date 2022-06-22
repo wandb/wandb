@@ -37,7 +37,7 @@ def test_launch_sweeps_init_load_sweeps_scheduler():
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-def test_launch_sweeps_base_scheduler_state(test_settings, monkeypatch):
+def test_launch_sweeps_scheduler_base_state(test_settings, monkeypatch):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -112,7 +112,7 @@ def test_launch_sweeps_base_scheduler_state(test_settings, monkeypatch):
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-def test_launch_sweeps_base_scheduler_run_state(
+def test_launch_sweeps_scheduler_base_run_state(
     test_settings,
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -143,12 +143,11 @@ def test_launch_sweeps_base_scheduler_run_state(
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-def test_launch_sweeps_base_scheduler_add_to_launch_queue(
-    test_settings, monkeypatch
-):
+def test_launch_sweeps_scheduler_base_add_to_launch_queue(test_settings, monkeypatch):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
+
     def mock_launch_add(*args, **kwargs):
         return Mock(spec=wandb.apis.public.QueuedJob)
 
@@ -175,18 +174,40 @@ def test_launch_sweeps_base_scheduler_add_to_launch_queue(
     assert _scheduler.state == SchedulerState.COMPLETED
     assert _scheduler.is_alive() == False
     assert len(_scheduler._runs) == 1
-    assert isinstance(_scheduler._runs["foo_run"].launch_job, wandb.apis.public.QueuedJob)
+    assert isinstance(
+        _scheduler._runs["foo_run"].launch_job, wandb.apis.public.QueuedJob
+    )
     assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
 
-def test_launch_sweeps_sweeps_scheduler(
-    test_settings,
-):
+
+def test_launch_sweeps_scheduler_sweeps(test_settings, monkeypatch):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
 
     def mock_agent_heartbeat(agent_id, metrics, run_states):
-        pass
+        for command in [
+            {
+                "type": "run",
+                "run_id": "foo_run_1",
+                "args": {"foo_arg": 1, "bar_arg": 2},
+                "program": "train.py",
+            },
+            {
+                "type": "stop",
+                "run_id": "foo_run_1",
+            },
+            {
+                "type": "resume",
+                "run_id": "foo_run_1",
+                "args": {"foo_arg": 1, "bar_arg": 2},
+                "program": "train.py",
+            },
+            {
+                "type": "exit",
+            },
+        ]:
+            yield command
 
     def mock_sweep(sweep_id, specs, entity=None, project=None):
         if sweep_id == "404sweep":
@@ -194,12 +215,32 @@ def test_launch_sweeps_sweeps_scheduler(
         return True
 
     def mock_register_agent(host, sweep_id=None, project_name=None, entity=None):
-        pass
+        return {"id": "foo_agent_pid"}
 
     api.agent_heartbeat = mock_agent_heartbeat
     api.sweep = mock_sweep
     api.register_agent = mock_register_agent
 
+    def mock_add_to_launch_queue(self, *args, **kwargs):
+        assert "entrypoint" in kwargs
+        assert kwargs["entrypoint"] == [
+            "python",
+            "train.py",
+            "--foo_arg=1",
+            "--bar_arg=2",
+        ]
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._add_to_launch_queue",
+        mock_add_to_launch_queue,
+    )
+
     with pytest.raises(SweepError) as e:
         SweepScheduler(api, sweep_id="404sweep")
     assert "Could not find sweep" in str(e.value)
+
+    _scheduler = SweepScheduler(api, sweep_id="foo_sweep")
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive() == True
+    # _scheduler.start()
+    # assert _scheduler._heartbeat_thread.is_alive()
