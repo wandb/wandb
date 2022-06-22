@@ -160,6 +160,7 @@ def sentry_exc(
             sentry_hub.capture_exception(Exception(exc))  # type: ignore
         else:
             sentry_hub.capture_exception(exc)  # type: ignore
+        sentry_finish()
     if delay:
         time.sleep(2)
     return None
@@ -176,6 +177,13 @@ def sentry_reraise(exc: Any) -> None:
     # this will messily add this "reraise" function to the stack trace
     # but hopefully it's not too bad
     raise exc.with_traceback(sys.exc_info()[2])
+
+
+def sentry_finish() -> None:
+    if not error_reporting_enabled():
+        return None
+    print("SENTRY: END_SESSION")
+    sentry_hub.end_session()
 
 
 def sentry_set_scope(
@@ -211,6 +219,8 @@ def sentry_set_scope(
     def get(key: str) -> Any:
         return getattr(s, key, None)
 
+    print("SENTRY: START_SESSION")
+    sentry_hub.start_session()
     with sentry_hub.configure_scope() as scope:  # type: ignore
         scope.set_tag("platform", get_platform_name())
 
