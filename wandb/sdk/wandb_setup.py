@@ -82,12 +82,13 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
     _manager: Optional[wandb_manager._Manager]
+    _pid: int
 
     def __init__(
         self,
+        pid: int,
         settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         environ: Optional[Dict[str, Any]] = None,
-        pid: Optional[int] = None,
     ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
@@ -122,6 +123,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         early_logger: Optional[_EarlyLogger] = None,
     ):
         s = wandb_settings.Settings()
+        s._apply_base(pid=self._pid, _logger=early_logger)
         s._apply_config_files(_logger=early_logger)
         s._apply_env_vars(self._environ, _logger=early_logger)
 
