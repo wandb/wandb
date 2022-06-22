@@ -52,12 +52,14 @@ def blocks_get(attr, report):
     for block in report.spec["blocks"]:
         cls = block_mapping[block["type"]]  # noqa: N806
         blocks.append(cls.from_json(spec=block))
-    return blocks[1:-1]  # ignore the padding P blocks
+    return blocks
 
 
 def blocks_set(attr, report, new_blocks):
-    # Add padding P blocks
-    report.spec["blocks"] = [P().spec] + [b.spec for b in new_blocks] + [P().spec]
+    for b in new_blocks:
+        if isinstance(b, (InlineCode, InlineLaTeX)):
+            raise TypeError("Inline blocks must be inside a P block!")
+    report.spec["blocks"] = [b.spec for b in new_blocks]
 
 
 @dataclass(repr=False)
@@ -883,24 +885,52 @@ class H3(Block, Heading):
 
 
 @dataclass(repr=False)
+class InlineLaTeX(Block):
+    latex: str = Attr()
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
+
+
+@dataclass(repr=False)
+class InlineCode(Block):
+    code: str = Attr()
+
+    @property
+    def spec(self) -> dict:
+        return {"text": self.code, "inlineCode": True}
+
+
+@dataclass(repr=False)
 class P(Block):
-    text: str = Attr()
+    text: Union[str, InlineLaTeX, InlineCode, list] = Attr()
 
     @classmethod
-    def from_json(cls, spec: dict) -> "P":
-        # Edge case: Inline LaTeX, not Paragraph
-        if len(spec["children"]) == 3 and spec["children"][1]["type"] == "latex":
-            return LaTeXInline.from_json(spec)
-
-        text = spec["children"][0]["text"]
+    def from_json(cls, spec):
+        if isinstance(spec["children"], str):
+            text = spec["children"]
+        else:
+            text = []
+            for elem in spec["children"]:
+                if elem.get("type") == "latex":
+                    text.append(InlineLaTeX(elem["content"]))
+                elif elem.get("inlineCode"):
+                    text.append(InlineCode(elem["text"]))
+                else:
+                    text.append(elem["text"])
         return cls(text)
 
     @property
     def spec(self) -> dict:
-        return {
-            "type": "paragraph",
-            "children": [{"text": self.text}],
-        }
+        if isinstance(self.text, list):
+            content = [
+                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
+            ]
+        else:
+            content = self.text
+
+        return {"type": "paragraph", "children": content}
 
 
 @dataclass(repr=False)
@@ -995,37 +1025,37 @@ class MarkdownBlock(Block):
         }
 
 
-@dataclass(repr=False)
-class LaTeXInline(Block):
-    before: Union[str, list] = Attr()
-    latex: Union[str, list] = Attr()
-    after: Union[str, list] = Attr()
+# @dataclass(repr=False)
+# class LaTeXInline(Block):
+#     before: Union[str, list] = Attr()
+#     latex: Union[str, list] = Attr()
+#     after: Union[str, list] = Attr()
 
-    def __post_init__(self) -> None:
-        if isinstance(self.before, list):
-            self.before = "\n".join(self.before)
-        if isinstance(self.latex, list):
-            self.latex = "\n".join(self.latex)
-        if isinstance(self.after, list):
-            self.after = "\n".join(self.after)
+#     def __post_init__(self) -> None:
+#         if isinstance(self.before, list):
+#             self.before = "\n".join(self.before)
+#         if isinstance(self.latex, list):
+#             self.latex = "\n".join(self.latex)
+#         if isinstance(self.after, list):
+#             self.after = "\n".join(self.after)
 
-    @classmethod
-    def from_json(cls, spec: dict) -> "LaTeXInline":
-        before = spec["children"][0]["text"]
-        latex = spec["children"][1]["content"]
-        after = spec["children"][2]["text"]
-        return cls(before, latex, after)
+#     @classmethod
+#     def from_json(cls, spec: dict) -> "LaTeXInline":
+#         before = spec["children"][0]["text"]
+#         latex = spec["children"][1]["content"]
+#         after = spec["children"][2]["text"]
+#         return cls(before, latex, after)
 
-    @property
-    def spec(self) -> dict:
-        return {
-            "type": "paragraph",
-            "children": [
-                {"text": self.before},
-                {"type": "latex", "children": [{"text": ""}], "content": self.latex},
-                {"text": self.after},
-            ],
-        }
+#     @property
+#     def spec(self) -> dict:
+#         return {
+#             "type": "paragraph",
+#             "children": [
+#                 {"text": self.before},
+#                 {"type": "latex", "children": [{"text": ""}], "content": self.latex},
+#                 {"text": self.after},
+#             ],
+#         }
 
 
 @dataclass(repr=False)
@@ -1053,7 +1083,7 @@ class LaTeXBlock(Block):
 
 @dataclass(repr=False)
 class Gallery(Block):
-    ids: list = Attr()
+    ids: list = Attr(default_factory=list)
 
     @classmethod
     def from_json(cls, spec: dict) -> "Gallery":

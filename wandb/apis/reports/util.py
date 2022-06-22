@@ -195,7 +195,7 @@ def generate_name(length: int = 12) -> str:
     import numpy as np
 
     rand = np.random.random()
-    rand = int(str(rand)[2:])
+    rand = int(float(str(rand)[2:]))
     rand36 = np.base_repr(rand, 36)
     return rand36.lower()[:length]
 

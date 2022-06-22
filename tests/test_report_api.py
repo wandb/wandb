@@ -126,7 +126,14 @@ class TestReport:
                     url="https://api.wandb.ai/files/megatruong/images/projects/918598/350382db.gif",
                     caption="It's a me, Pikachu",
                 ),
-                wb.LaTeXInline(before="", latex="y=ax^2 +bx+c", after=""),
+                wb.P(
+                    text=[
+                        "here is some text, followed by",
+                        wb.InlineCode("select * from code in line"),
+                        "and then latex",
+                        wb.InlineLaTeX("e=mc^2"),
+                    ]
+                ),
                 wb.LaTeXBlock(
                     text="\\gamma^2+\\theta^2=\\omega^2\n\\\\ a^2 + b^2 = c^2"
                 ),
@@ -233,6 +240,26 @@ class TestReport:
 
         for b, new_b in zip(report.blocks, new_blocks):
             assert b.spec == new_b.spec
+
+    @pytest.mark.parametrize(
+        "new_blocks,result",
+        [
+            ([wb.P(["abc", wb.InlineLaTeX("e=mc^2")])], "success"),
+            ([wb.P(["abc", wb.InlineCode("for x in range(10): pass")])], "success"),
+            (
+                [wb.P(["abc", wb.InlineLaTeX("e=mc^2"), wb.InlineLaTeX("e=mc^2")])],
+                "success",
+            ),
+            ([wb.P("abc"), wb.InlineLaTeX("e=mc^2")], TypeError),
+            ([wb.P("abc"), wb.InlineCode("for x in range(10): pass")], TypeError),
+        ],
+    )
+    def test_inline_blocks_must_be_inside_p_block(self, report, new_blocks, result):
+        if result == "success":
+            report.blocks = new_blocks
+        else:
+            with pytest.raises(result):
+                report.blocks = new_blocks
 
     def test_get_blocks(self, report):
         assert all(
