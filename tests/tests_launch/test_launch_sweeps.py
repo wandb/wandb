@@ -37,9 +37,7 @@ def test_launch_sweeps_init_load_sweeps_scheduler():
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-def test_launch_sweeps_base_scheduler_state(
-    test_settings,
-):
+def test_launch_sweeps_base_scheduler_state(test_settings, monkeypatch):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -50,15 +48,67 @@ def test_launch_sweeps_base_scheduler_state(
     # with pytest.raises(SweepError):
     #     Scheduler(api, project="foo")
 
+    def mock_run_complete_scheduler(self, *args, **kwargs):
+        self.state = SchedulerState.COMPLETED
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_complete_scheduler,
+    )
+
     _scheduler = Scheduler(api, entity="foo", project="bar")
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() == True
     _scheduler.start()
-    assert _scheduler.state == SchedulerState.RUNNING
-    assert _scheduler.is_alive() == True
-    _scheduler.exit()
+    assert _scheduler.state == SchedulerState.COMPLETED
     assert _scheduler.is_alive() == False
+
+    def mock_run_raise_keyboard_interupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_raise_keyboard_interupt,
+    )
+
+    _scheduler = Scheduler(api, entity="foo", project="bar")
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive() == True
+    _scheduler.start()
+    assert _scheduler.state == SchedulerState.CANCELLED
+    assert _scheduler.is_alive() == False
+
+    def mock_run_raise_exception(*args, **kwargs):
+        raise Exception("Generic exception")
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_raise_exception,
+    )
+
+    _scheduler = Scheduler(api, entity="foo", project="bar")
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive() == True
+    with pytest.raises(Exception) as e:
+        _scheduler.start()
+    assert "Generic exception" in str(e.value)
     assert _scheduler.state == SchedulerState.FAILED
+    assert _scheduler.is_alive() == False
+
+    def mock_run_exit(self, *args, **kwargs):
+        self.exit()
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_exit,
+    )
+
+    _scheduler = Scheduler(api, entity="foo", project="bar")
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive() == True
+    _scheduler.start()
+    assert _scheduler.state == SchedulerState.FAILED
+    assert _scheduler.is_alive() == False
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())

@@ -143,10 +143,10 @@ class Scheduler(ABC):
             _msg = f"Scheduler completed."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self.state = SchedulerState.COMPLETED
             self.exit()
 
     def exit(self) -> None:
+        self._exit()
         if not self.state in [
             SchedulerState.COMPLETED,
             SchedulerState.CANCELLED,
@@ -154,7 +154,7 @@ class Scheduler(ABC):
             self.state = SchedulerState.FAILED
         for run_id in self._runs.keys():
             self._stop_run(run_id)
-        self._exit()
+        
 
     def _update_run_states(self) -> None:
         for run_id, run in self._runs.items():

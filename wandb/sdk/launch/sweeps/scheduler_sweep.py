@@ -141,4 +141,4 @@ class SweepScheduler(Scheduler):
         )
 
     def _exit(self):
-        pass
+        self.state = SchedulerState.COMPLETED
