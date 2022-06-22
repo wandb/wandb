@@ -1,8 +1,8 @@
-id: 4.jobs.artifact-creation
+id: 1.jobs.artifact-creation
 plugin:
   - wandb
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:artifacts[job-source-test-.job_artifact_creation.py][type]: job
+  - :wandb:artifacts[job-source-test-._job_artifact_creation.py][type]: job
   - :yea:exit: 0

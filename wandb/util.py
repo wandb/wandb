@@ -1704,7 +1704,7 @@ def ensure_text(
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
-    return re.sub(r"[^a-zA-Z0-9_\-.]", "", name)
+    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
 
 
 def has_main_file(path: str) -> bool:

@@ -2018,9 +2018,7 @@ class Run:
             )
             if artifact:
                 artifact.wait()
-                print(artifact.name)
-                metadata = artifact.metadata
-                if not metadata:
+                if not artifact.metadata:
                     artifact.metadata["config_defaults"] = self.config.as_dict()
                     artifact.save()
                 break
@@ -2202,46 +2200,6 @@ class Run:
             settings=self._settings,
             printer=self._printer,
         )
-
-    def _save_job_spec(self) -> None:
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
-        varsdict = {"WANDB_DISABLE_CODE": "True"}
-        source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
-        )
-        execdict = dict(
-            program="train.py",
-            directory="keras-cnn-fashion",
-            envvars=varsdict,
-            args=[],
-        )
-        configdict = (dict(self._config),)
-        artifactsdict = dict(
-            dataset="v1",
-        )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
-        job_spec = {
-            "kind": "WandbJob",
-            "version": "v0",
-            "environment": envdict,
-            "source": source,
-            "exec": execdict,
-            "input": inputdict,
-        }
-
-        s = json.dumps(job_spec, indent=4)
-        spec_filename = filenames.JOBSPEC_FNAME
-        with open(spec_filename, "w") as f:
-            print(s, file=f)
-        self._save(spec_filename)
 
     @_run_decorator._attach
     def define_metric(
