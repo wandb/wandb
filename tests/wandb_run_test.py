@@ -816,4 +816,4 @@ def test_container_job_creation(live_mock_server, test_settings):
         run.finish()
         ctx = live_mock_server.get_ctx()
         artifact_name = list(ctx["artifacts"].keys())[0]
-        assert artifact_name == "job-dummy-containerv0"
+        assert artifact_name == "job-dummy-container_v0"
