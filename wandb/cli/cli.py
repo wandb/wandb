@@ -1238,11 +1238,20 @@ def launch(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
 @click.option(
-    "--sweep_id", "-s", default=None, help="(Experimental) Run launch scheduler instead of a launch-agent on the specified sweep."
+    "--sweep_id",
+    "-s",
+    default=None,
+    help="(Experimental) Run launch scheduler instead of a launch-agent on the specified sweep.",
 )
 @display_error
 def launch_agent(
-    ctx, project=None, entity=None, queues=None, max_jobs=None, config=None, sweep_id=None
+    ctx,
+    project=None,
+    entity=None,
+    queues=None,
+    max_jobs=None,
+    config=None,
+    sweep_id=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="

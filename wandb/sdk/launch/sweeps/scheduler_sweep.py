@@ -25,7 +25,7 @@ class SweepScheduler(Scheduler):
     def __init__(
         self,
         *args,
-        sweep_id: Optional[str] = None,
+        sweep_id: str = None,
         heartbeat_thread_sleep: int = 3,
         heartbeat_queue_timeout: int = 3,
         main_thread_sleep: int = 3,

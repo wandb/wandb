@@ -112,7 +112,6 @@ class Scheduler(ABC):
         wandb.termlog(_msg)
         self._state = SchedulerState.STARTING
         self._start()
-        # TODO(hupo): Should start call run?
         self.run()
 
     def run(self) -> None:

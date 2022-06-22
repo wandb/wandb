@@ -10,8 +10,6 @@ log = logging.getLogger(__name__)
 def _import_sweep_scheduler() -> Scheduler:
     from .scheduler_sweep import SweepScheduler
 
-    # TODO: Load dependencies for SweepScheduler
-    # pip install wandb[sweeps]
     return SweepScheduler
 
 
@@ -21,9 +19,6 @@ def _import_tune_scheduler() -> Scheduler:
     # NOTE: The Ray Tune scheduler will not be included with this PR,
     # I kept it here so that reviewers would better
     # understand the future context and resulting design choices
-
-    # TODO: Load dependencies for TuneScheduler
-    # pip install ray[tune]
     return TuneScheduler
 
 

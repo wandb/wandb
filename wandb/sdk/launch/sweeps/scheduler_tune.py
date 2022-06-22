@@ -12,8 +12,6 @@ class TuneScheduler(Scheduler):
     # I kept this here so that reviewers would better
     # understand the future context and resulting design choices
 
-    pass
-
     def _start(self) -> None:
         pass
 

@@ -4,7 +4,12 @@ from unittest.mock import patch
 
 from wandb.errors import SweepError
 from wandb.sdk.launch.sweeps import load_scheduler
-from wandb.sdk.launch.sweeps.scheduler import Scheduler, SchedulerState, SimpleRunState
+from wandb.sdk.launch.sweeps.scheduler import (
+    Scheduler,
+    SchedulerState,
+    SimpleRunState,
+    SweepRun,
+)
 from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
 
 
@@ -33,7 +38,6 @@ def test_launch_sweeps_init_load_sweeps_scheduler():
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 def test_launch_sweeps_base_scheduler_state(
-    live_mock_server,
     test_settings,
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -46,7 +50,6 @@ def test_launch_sweeps_base_scheduler_state(
     # with pytest.raises(SweepError):
     #     Scheduler(api, project="foo")
 
-    # State management
     _scheduler = Scheduler(api, entity="foo", project="bar")
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() == True
@@ -57,45 +60,71 @@ def test_launch_sweeps_base_scheduler_state(
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 def test_launch_sweeps_base_scheduler_run_state(
-    live_mock_server,
     test_settings,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-
     # Mock api.get_run_state() to return crashed and running runs
+    mock_run_states = {
+        "run1": ("crashed", SimpleRunState.DEAD),
+        "run2": ("failed", SimpleRunState.DEAD),
+        "run3": ("killed", SimpleRunState.DEAD),
+        "run4": ("finished", SimpleRunState.DEAD),
+        "run5": ("running", SimpleRunState.ALIVE),
+        "run6": ("pending", SimpleRunState.ALIVE),
+        "run7": ("preempted", SimpleRunState.ALIVE),
+        "run8": ("preempting", SimpleRunState.ALIVE),
+    }
+
+    def mock_get_run_state(entity, project, run_id):
+        return mock_run_states[run_id][0]
+
+    api.get_run_state = mock_get_run_state
+    _scheduler = Scheduler(api, entity="foo", project="bar")
+    for run_id in mock_run_states.keys():
+        _scheduler._runs[run_id] = SweepRun(id=run_id, state=SimpleRunState.ALIVE)
+    _scheduler._update_run_states()
+    for run_id, _state in mock_run_states.items():
+        assert _scheduler._runs[run_id].state == _state[1]
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 def test_launch_sweeps_base_scheduler_add_to_launch_queue(
-    live_mock_server,
     test_settings,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
 
-    # Verify adding to launch run queue
+    def mock_push_to_run_queue(entity, project, run_id):
+        pass
+
+    api.push_to_run_queue = mock_push_to_run_queue
 
 
-def test_launch_sweeps_sweeps_scheduler_happy_path(
+def test_launch_sweeps_sweeps_scheduler(
     test_settings,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
 
-    SweepScheduler(api)
+    def mock_agent_heartbeat(agent_id, metrics, run_states):
+        pass
 
-    # Mock the API?
-    # self._api.agent_heartbeat?
-    # self._api.sweep
-    # self._api.register_agent
+    def mock_sweep(sweep_id, specs, entity=None, project=None):
+        if sweep_id == "404sweep":
+            return False
+        return True
 
-    # mock internal api upsert sweep to add json spec looks correct
+    def mock_register_agent(host, sweep_id=None, project_name=None, entity=None):
+        pass
 
-    # test_launch_cli.py
-    # test_cli.py
+    api.agent_heartbeat = mock_agent_heartbeat
+    api.sweep = mock_sweep
+    api.register_agent = mock_register_agent
 
-    # Skip mock server and just emulate api directly
+    with pytest.raises(SweepError) as e:
+        SweepScheduler(api, sweep_id="404sweep")
+    assert "Could not find sweep" in str(e.value)
