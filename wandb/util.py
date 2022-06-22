@@ -1635,7 +1635,7 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
     return aliases
 
 
-def _is_artifact(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> bool:
     return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
 
 
@@ -1643,15 +1643,19 @@ def _is_artifact_string(v: Any) -> bool:
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def _is_artifact_dict(v: Any) -> bool:
+def _is_artifact_version_weave_dict(v: Any) -> bool:
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
 def _is_artifact_representation(v: Any) -> bool:
-    return _is_artifact(v) or _is_artifact_string(v) or _is_artifact_dict(v)
+    return (
+        _is_artifact_object(v)
+        or _is_artifact_string(v)
+        or _is_artifact_version_weave_dict(v)
+    )
 
 
-def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
+def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
     if not v.startswith("wandb-artifact://"):
         raise ValueError(f"Invalid artifact string: {v}")
     parsed_v = v[len("wandb-artifact://") :]
@@ -1666,7 +1670,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
         # for now can't fetch paths but this will be supported in the future
         # when we allow passing typed media objects, this can be extended
         # to include paths
-        return parts[1], base_uri
+        return parts[1], base_uri, True
 
     if len(parts) < 3:
         raise ValueError(f"Invalid artifact string: {v}")
@@ -1675,7 +1679,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     # when we allow passing typed media objects, this can be extended
     # to include paths
     entity, project, name_and_alias_or_version = parts[:3]
-    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
+    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri, False
 
 
 def _get_max_cli_version() -> Union[str, None]:
