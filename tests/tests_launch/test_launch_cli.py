@@ -172,6 +172,48 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
     assert "Shutting down, active jobs" in result.output
 
 
+def test_agent_launch_sweep_scheduler(runner, test_settings, live_mock_server):
+    # Create a test sweep
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config)
+    assert sweep_id == "test"
+    # Create the default queue
+    result = runner.invoke(
+        cli.launch,
+        [
+            "https://wandb.ai/mock_server_entity/test_project/runs/run",
+            "--project",
+            "test_project",
+            "--entity",
+            "mock_server_entity",
+            "--queue",
+            "default",
+        ],
+    )
+    assert result.exit_code == 0
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["run_queues"]["1"]) == 1
+    # Run the launch sweep scheduler CLI command
+    result = runner.invoke(
+        cli.launch_agent,
+        [
+            "--project",
+            "test_project",
+            "--entity",
+            "mock_server_entity",
+            "--queues",
+            "default",
+            "--sweep_id",
+            sweep_id,
+        ],
+    )
+    assert result.exit_code == 0
+
+
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)
@@ -247,6 +289,29 @@ def test_launch_no_docker_exec(
     )
     assert result.exit_code == 1
     assert "Could not find Docker executable" in str(result.exception)
+
+
+def test_sweep_launch_scheduler(runner, mock_server, test_settings):
+    with runner.isolated_filesystem():
+        sweep_id = wandb.sweep(
+            {
+                "name": "My Sweep",
+                "method": "grid",
+                "parameters": {"parameter1": {"values": [1, 2, 3]}},
+            }
+        )
+        assert sweep_id == "test"
+        result = runner.invoke(
+            cli.sweep,
+            [
+                sweep_id,
+                "--queue",
+                "default",
+                "--entity",
+                "mock_server_entity",
+            ],
+        )
+        assert result.exit_code == 0
 
 
 @pytest.mark.timeout(320)
