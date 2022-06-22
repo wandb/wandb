@@ -38,6 +38,12 @@ class _Requires:
         wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
 
     def require_service(self) -> None:
+        disable_service = os.environ.get("WANDB_DISABLE_SERVICE")
+        if disable_service:
+            if "WANDB_REQUIRE_SERVICE" in os.environ:
+                del os.environ["WANDB_REQUIRE_SERVICE"]
+            return
+
         self._require_service()
 
     def apply(self) -> None:
