@@ -44,8 +44,9 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.util import (
-    _is_artifact_dict,
+    _is_artifact_object,
     _is_artifact_string,
+    _is_artifact_version_weave_dict,
     _is_py_path,
     add_import_hook,
     parse_artifact_string,
@@ -113,14 +114,19 @@ if TYPE_CHECKING:
     class GitSourceDict(TypedDict):
         remote: str
         commit: str
+        entrypoint: List[str]
+
+    class ArtifactSourceDict(TypedDict):
+        artifact: str
+        entrypoint: List[str]
+
+    class ImageSourceDict(TypedDict):
+        image: str
 
     class JobSourceDict(TypedDict, total=False):
         _version: str
         source_type: str
-        git: Optional[GitSourceDict]
-        artifact: Optional[str]
-        image: Optional[str]
-        entrypoint: Optional[List[str]]
+        source: Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
         input_types: Dict[str, Any]
         output_types: Dict[str, Any]
         runtime: Optional[str]
@@ -478,7 +484,7 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
-        self._code_artifact: Optional["Artifact"] = None
+        self._code_artifact_info: Optional[Dict[str, str]] = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -951,7 +957,7 @@ class Run:
         Arguments:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
             name: (str, optional) The name of our code artifact. By default, we'll name
-                the artifact `source-$PROJECT_ID-$ENTRYPOINT`. There may be scenarios where you want
+                the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
@@ -975,7 +981,7 @@ class Run:
         """
         if name is None:
             name_string = wandb.util.make_artifact_name_safe(
-                f"{self._project}-{self._settings.program}"
+                f"{self._project}-{self._settings.program_relpath}"
             )
             name = f"source-{name_string}"
         art = wandb.Artifact(name, "code")
@@ -995,9 +1001,9 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
+        self._code_artifact_info = {"name": name, "client_id": art._client_id}
 
-        self._code_artifact = self._log_artifact(art)
-        return self._code_artifact
+        return self._log_artifact(art)
 
     def get_url(self) -> Optional[str]:
         """Returns the url for the W&B run, if there is one.
@@ -1168,7 +1174,7 @@ class Run:
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
         # in wandb.util.artifact_to_json
-        if _is_artifact_dict(val):
+        if _is_artifact_version_weave_dict(val):
             assert isinstance(val, dict)
             public_api = self._public_api()
             artifact = public.Artifact.from_id(val["id"], public_api.client)
@@ -1176,21 +1182,28 @@ class Run:
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
-            artifact_string, base_url = parse_artifact_string(val)
+            artifact_string, base_url, is_id = parse_artifact_string(val)
             overrides = {}
             if base_url is not None:
                 overrides = {"base_url": base_url}
                 public_api = public.Api(overrides)
             else:
                 public_api = self._public_api()
-            artifact = public_api.artifact(name=artifact_string)
+            if is_id:
+                artifact = public.Artifact.from_id(artifact_string, public_api._client)
+            else:
+                artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
             # different instances of wandb. simplest way to do that is
             # likely to convert the retrieved public.Artifact to a wandb.Artifact
 
             return self.use_artifact(artifact, use_as=key)
-        else:
+        elif _is_artifact_object(val):
             return self.use_artifact(val, use_as=key)
+        else:
+            raise ValueError(
+                f"Cannot call _config_artifact_callback on type {type(val)}"
+            )
 
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
@@ -2017,15 +2030,28 @@ class Run:
                 input_types, output_types, installed_packages_list
             )
             if artifact:
-                artifact.wait()
-                if not artifact.metadata:
-                    artifact.metadata["config_defaults"] = self.config.as_dict()
-                    artifact.save()
                 break
             else:
                 logger.info(
                     f"Failed to create job using {job_creation_function.__name__}"
                 )
+
+    def _construct_job_artifact(
+        self,
+        name: str,
+        source_dict: "JobSourceDict",
+        installed_packages_list: List[str],
+        patch_path: Optional[os.PathLike] = None,
+    ) -> "Artifact":
+        job_artifact = wandb.Artifact(name, type="job")
+        if patch_path and os.path.exists(patch_path):
+            job_artifact.add_file(patch_path, "diff.patch")
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_dict))
+        job_artifact.metadata["config_defaults"] = self.config.as_dict()
+        return job_artifact
 
     def _create_repo_job(
         self,
@@ -2043,31 +2069,29 @@ class Run:
         name = wandb.util.make_artifact_name_safe(
             f"job-{self._remote_url}_{program_relpath}"
         )
-        job_artifact = wandb.Artifact(name, type="job")
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
-        if os.path.exists(patch_path):
-            job_artifact.add_file(patch_path, "diff.patch")
-        with job_artifact.new_file("requirements.frozen.txt") as f:
-            f.write("\n".join(installed_packages_list))
 
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "repo",
-            "git": {
-                "remote": self._remote_url,
-                "commit": self._last_commit,
+            "source": {
+                "git": {
+                    "remote": self._remote_url,
+                    "commit": self._last_commit,
+                },
+                "entrypoint": [
+                    sys.executable.split("/")[-1],
+                    program_relpath,
+                ],
             },
-            "entrypoint": [
-                sys.executable.split("/")[-1],
-                program_relpath,
-            ],
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
         }
-        with job_artifact.new_file("source_info.json") as f:
-            f.write(json.dumps(source_info))
 
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list, patch_path
+        )
         artifact = self.log_artifact(job_artifact)
         return artifact
 
@@ -2078,35 +2102,31 @@ class Run:
         installed_packages_list: List[str],
     ) -> "Optional[Artifact]":
         if (
-            self._code_artifact is None
+            self._code_artifact_info is None
             or self._run_obj is None
-            or self._settings.program is None
+            or self._settings.program_relpath is None
         ):
             return None
-        self._code_artifact.wait()
-        sequence_name = self._code_artifact.name.split(":")[0]
-        tag = self._code_artifact.version
-        name = f"job-{sequence_name}"
-        job_artifact = wandb.Artifact(name, type="job")
-
-        with job_artifact.new_file("requirements.frozen.txt") as f:
-            f.write("\n".join(installed_packages_list))
+        artifact_client_id = self._code_artifact_info.get("client_id")
+        name = f"job-{self._code_artifact_info['name']}"
 
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "artifact",
-            "artifact": f"wandb-artifact://{self._run_obj.entity}/{self._run_obj.project}/{sequence_name}:{tag}",
-            "entrypoint": [
-                sys.executable.split("/")[-1],
-                self._settings.program,
-            ],
+            "source": {
+                "artifact": f"wandb-artifact://_id/{artifact_client_id}",
+                "entrypoint": [
+                    sys.executable.split("/")[-1],
+                    self._settings.program_relpath,
+                ],
+            },
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
         }
-        with job_artifact.new_file("source_info.json") as f:
-            f.write(json.dumps(source_info))
-
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list
+        )
         artifact = self.log_artifact(job_artifact)
         return artifact
 
@@ -2120,22 +2140,18 @@ class Run:
         if docker_image_name is None:
             return None
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
-        job_artifact = wandb.Artifact(name, type="job")
-
-        with job_artifact.new_file("requirements.frozen.txt") as f:
-            f.write("\n".join(installed_packages_list))
 
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "image": docker_image_name,
+            "source": {"image": docker_image_name},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
         }
-        with job_artifact.new_file("source_info.json") as f:
-            f.write(json.dumps(source_info))
-
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list
+        )
         artifact = self.log_artifact(job_artifact)
         return artifact
 

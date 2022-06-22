@@ -4,5 +4,5 @@ plugin:
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:artifacts[job-source-test-._job_artifact_creation.py][type]: job
+  - :wandb:artifacts[job-source-test-functional_tests_jobs_job_artifact_creation.py][type]: job
   - :yea:exit: 0

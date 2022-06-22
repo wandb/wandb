@@ -232,6 +232,7 @@ class Config:
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
+        # TODO: enable WBValues in the config in the future
         # refuse all WBValues which is all Media and Histograms
         if isinstance(val, wandb.sdk.data_types.base_types.wb_value.WBValue):
             raise ValueError("WBValue objects cannot be added to the run config")

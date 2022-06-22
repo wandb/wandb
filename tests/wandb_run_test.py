@@ -796,17 +796,20 @@ def test_artifact_job_creation(live_mock_server, test_settings, runner):
     with runner.isolated_filesystem():
         with open("test.py", "w") as f:
             f.write('print("test")')
-        test_settings.update({"enable_job_creation": True, "disable_git": True})
-        with mock.patch.dict("os.environ", WANDB_PROGRAM="test_program.py"):
-            run = wandb.init(settings=test_settings)
-            run.log_code()
-            run.finish()
-            ctx = live_mock_server.get_ctx()
-            artifact_name = list(ctx["artifacts"].keys())[1]
-            sequence_name = run._code_artifact.name.split(":")[0]
-            assert artifact_name == wandb.util.make_artifact_name_safe(
-                f"job-{sequence_name}"
-            )
+        test_settings.update(
+            {
+                "enable_job_creation": True,
+                "disable_git": True,
+                "program_relpath": "./blah/test_program.py",
+            }
+        )
+        run = wandb.init(settings=test_settings)
+        run.log_code()
+        run.finish()
+        ctx = live_mock_server.get_ctx()
+        code_artifact_name = list(ctx["artifacts"].keys())[0]
+        job_artifact_name = list(ctx["artifacts"].keys())[1]
+        assert job_artifact_name == f"job-{code_artifact_name}"
 
 
 def test_container_job_creation(live_mock_server, test_settings):
@@ -816,4 +819,4 @@ def test_container_job_creation(live_mock_server, test_settings):
         run.finish()
         ctx = live_mock_server.get_ctx()
         artifact_name = list(ctx["artifacts"].keys())[0]
-        assert artifact_name == "job-dummy-containerv0"
+        assert artifact_name == "job-dummy-container_v0"
