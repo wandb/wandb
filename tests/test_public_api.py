@@ -81,10 +81,10 @@ def test_parse_path_user_proj(mock_server, api):
 
 
 def test_parse_path_proj(mock_server, api):
-    u, p, r = api._parse_path("proj")
+    u, p, r = api._parse_path("run")
     assert u == "mock_server_entity"
-    assert p == "proj"
-    assert r == "proj"
+    assert p == "test"
+    assert r == "run"
 
 
 def test_from_path(mock_server, api):
