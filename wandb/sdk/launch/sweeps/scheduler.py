@@ -188,18 +188,13 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
         job = launch_add(
-            uri or f"{self._entity}/{self._project}",
+            uri or os.environ.get(wandb.env.DIR, os.getcwd()) or "",
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,
             resource=resource,
             entry_point=entry_point,
             run_id=run_id,
-            # config: Optional[Union[str, Dict[str, Any]]] = None,
-            # name: Optional[str] = None,
-            # version: Optional[str] = None,
-            # docker_image: Optional[str] = None,
-            # params: Optional[Dict[str, Any]] = None,
         )
         self._runs[run_id].launch_job = job
         _msg = f"Added job to Launch RunQueue: {self._launch_queue} RunID:{run_id}."

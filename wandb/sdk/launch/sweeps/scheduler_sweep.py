@@ -82,6 +82,7 @@ class SweepScheduler(Scheduler):
                 wandb.termlog(_msg)  # TODO: Remove
                 for command in commands:
                     _type = command.get("type")
+                    # type can be one of "run", "resume", "stop", "exit"
                     if _type == "exit":
                         self.state = SchedulerState.COMPLETED
                         self.exit()
@@ -134,7 +135,7 @@ class SweepScheduler(Scheduler):
         command_args = LegacySweepAgent._create_command_args({"args": run.args})["args"]
         entry_point = ["python", run.program] + command_args
         _ = self._add_to_launch_queue(
-            uri=os.getcwd(),
+            uri=os.environ.get(wandb.env.DIR, os.getcwd()),
             resource="local-process",
             entry_point=entry_point,
             run_id=run.id,

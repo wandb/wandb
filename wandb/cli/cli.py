@@ -954,7 +954,7 @@ def sweep(
 
     if queue is not None:
         wandb.termlog(
-            "Run launch agent with: {}".format(
+            "If no launch agent is running, run launch agent with: {}".format(
                 click.style(f"wandb launch-agent -q {queue} -p {project}", fg="yellow")
             )
         )

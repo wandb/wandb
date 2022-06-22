@@ -1300,6 +1300,7 @@ def test_launch_entrypoint(test_settings):
         "local",
         {},
         None,
+        None,  # run_id
     )
     launch_project.add_entry_point(entry_point)
     calced_ep = launch_project.get_single_entry_point().compute_command({"blah": 2})
