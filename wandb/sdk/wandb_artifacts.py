@@ -9,7 +9,6 @@ import tempfile
 import time
 from typing import (
     Any,
-    Callable,
     Dict,
     Generator,
     IO,
@@ -32,6 +31,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
+from wandb.sdk.internal import progress
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
@@ -764,7 +764,7 @@ class ArtifactManifestV1(ArtifactManifest):
     def __init__(
         self,
         artifact: ArtifactInterface,
-        storage_policy: StoragePolicy,
+        storage_policy: "WandbStoragePolicy",
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
     ) -> None:
         super().__init__(artifact, storage_policy, entries=entries)
@@ -966,7 +966,7 @@ class WandbStoragePolicy(StoragePolicy):
         artifact_manifest_id: str,
         entry: ArtifactEntry,
         preparer: "StepPrepare",
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
         # write-through cache
         cache_path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -1441,6 +1441,11 @@ class S3Handler(StorageHandler):
         multi = False
         try:
             objs[0].load()
+            # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
+            # trigger a recursive upload.
+            # we should check the object's metadata says it is a directory and do a multi file upload if it is
+            if "x-directory" in objs[0].content_type:
+                multi = True
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 multi = True
@@ -1449,11 +1454,6 @@ class S3Handler(StorageHandler):
                     "Unable to connect to S3 (%s): %s"
                     % (e.response["Error"]["Code"], e.response["Error"]["Message"])
                 )
-        # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-        # trigger a recursive upload.
-        # we should check the object's metadata says it is a directory and do a multi file upload if it is
-        if "x-directory" in objs[0].content_type:
-            multi = True
         if multi:
             start_time = time.time()
             termlog(
