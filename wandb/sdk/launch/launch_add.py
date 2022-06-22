@@ -32,7 +32,7 @@ def launch_add(
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
 ) -> "public.QueuedRun":
-    """Enqueue a W&B launch experiment.
+    """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
     Arguments:
     uri: URI of experiment to run. A wandb run uri or a Git repository URI.
