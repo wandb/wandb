@@ -80,11 +80,17 @@ def test_parse_path_user_proj(mock_server, api):
     assert r == "run"
 
 
-def test_parse_path_proj(mock_server, api):
-    u, p, r = api._parse_path("proj")
+def test_parse_path_run(mock_server, api):
+    u, p, r = api._parse_path("run")
     assert u == "mock_server_entity"
-    assert p == "proj"
-    assert r == "proj"
+    assert p == "test"
+    assert r == "run"
+
+
+def test_parse_path_run_no_proj(mock_server, api):
+    api.settings["project"] = None
+    with pytest.assert_raises(ValueError):
+        api._parse_path("run")
 
 
 def test_from_path(mock_server, api):
