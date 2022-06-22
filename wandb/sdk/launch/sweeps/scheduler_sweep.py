@@ -82,6 +82,10 @@ class SweepScheduler(Scheduler):
                 wandb.termlog(_msg)  # TODO: Remove
                 for command in commands:
                     _type = command.get("type")
+                    if _type == "exit":
+                        self.state = SchedulerState.COMPLETED
+                        self.exit()
+                        return
                     run = SweepRun(
                         id=command.get("run_id"),
                         args=command.get("args"),
@@ -93,10 +97,6 @@ class SweepScheduler(Scheduler):
                         self._heartbeat_queue.put(run)
                     elif _type == "stop":
                         self._stop_run(run.id)
-                        continue
-                    elif _type == "exit":
-                        self.state = SchedulerState.COMPLETED
-                        self.exit()
                         continue
             time.sleep(self._heartbeat_thread_sleep)
 

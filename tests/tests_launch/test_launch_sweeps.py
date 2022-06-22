@@ -185,29 +185,37 @@ def test_launch_sweeps_scheduler_sweeps(test_settings, monkeypatch):
         default_settings=test_settings, load_settings=False
     )
 
-    def mock_agent_heartbeat(agent_id, metrics, run_states):
-        for command in [
-            {
-                "type": "run",
-                "run_id": "foo_run_1",
-                "args": {"foo_arg": 1, "bar_arg": 2},
-                "program": "train.py",
-            },
-            {
-                "type": "stop",
-                "run_id": "foo_run_1",
-            },
-            {
-                "type": "resume",
-                "run_id": "foo_run_1",
-                "args": {"foo_arg": 1, "bar_arg": 2},
-                "program": "train.py",
-            },
-            {
-                "type": "exit",
-            },
-        ]:
-            yield command
+    api.agent_heartbeat = Mock(
+        side_effect=[
+            [
+                {
+                    "type": "run",
+                    "run_id": "foo_run_1",
+                    "args": {"foo_arg": {"value": 1}},
+                    "program": "train.py",
+                }
+            ],
+            [
+                {
+                    "type": "stop",
+                    "run_id": "foo_run_1",
+                }
+            ],
+            [
+                {
+                    "type": "resume",
+                    "run_id": "foo_run_1",
+                    "args": {"foo_arg": {"value": 1}},
+                    "program": "train.py",
+                }
+            ],
+            [
+                {
+                    "type": "exit",
+                }
+            ],
+        ]
+    )
 
     def mock_sweep(sweep_id, specs, entity=None, project=None):
         if sweep_id == "404sweep":
@@ -217,17 +225,15 @@ def test_launch_sweeps_scheduler_sweeps(test_settings, monkeypatch):
     def mock_register_agent(host, sweep_id=None, project_name=None, entity=None):
         return {"id": "foo_agent_pid"}
 
-    api.agent_heartbeat = mock_agent_heartbeat
     api.sweep = mock_sweep
     api.register_agent = mock_register_agent
 
     def mock_add_to_launch_queue(self, *args, **kwargs):
-        assert "entrypoint" in kwargs
-        assert kwargs["entrypoint"] == [
+        assert "entry_point" in kwargs
+        assert kwargs["entry_point"] == [
             "python",
             "train.py",
             "--foo_arg=1",
-            "--bar_arg=2",
         ]
 
     monkeypatch.setattr(
@@ -239,8 +245,18 @@ def test_launch_sweeps_scheduler_sweeps(test_settings, monkeypatch):
         SweepScheduler(api, sweep_id="404sweep")
     assert "Could not find sweep" in str(e.value)
 
-    _scheduler = SweepScheduler(api, sweep_id="foo_sweep")
+    _scheduler = SweepScheduler(
+        api,
+        sweep_id="foo_sweep",
+        # Faster sleeps for tests
+        heartbeat_thread_sleep=1,
+        heartbeat_queue_timeout=1,
+        main_thread_sleep=1,
+    )
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() == True
-    # _scheduler.start()
-    # assert _scheduler._heartbeat_thread.is_alive()
+    _scheduler.start()
+    assert not _scheduler._heartbeat_thread.is_alive()
+    assert _scheduler.state == SchedulerState.COMPLETED
+    assert len(_scheduler._runs) == 1
+    assert _scheduler._runs["foo_run_1"].state == SimpleRunState.DEAD
