@@ -4945,7 +4945,15 @@ class Job(Media):
 
         run_config = self._config_defaults().copy()
 
+        for key, item in config.items():
+
+            if util._is_artifact(item):
+                if isinstance(item, wandb.Artifact) and item.id is None:
+                    raise ValueError("Cannot queue jobs with unlogged artifacts")
+                run_config[key] = util.artifact_to_json(item)
+
         run_config.update(config)
+
         assigned_config_type = self._input_types.assign(run_config)
         if isinstance(assigned_config_type, InvalidType):
             raise TypeError(self._input_types.explain(run_config))

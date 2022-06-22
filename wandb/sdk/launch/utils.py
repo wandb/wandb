@@ -176,6 +176,17 @@ def construct_launch_spec(
     return launch_spec
 
 
+def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
+    uri = launch_spec.get("uri")
+    job = launch_spec.get("job")
+    docker_image = launch_spec.get("docker", {}).get("docker_image")
+
+    if not bool(uri) and not bool(job) and not bool(docker_image):
+        raise LaunchError("Must specify a uri, job or docker image")
+    elif sum(map(bool, [uri, job, docker_image])) > 1:
+        raise LaunchError("Must specify exactly one of uri, job or image")
+
+
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     """Parses wandb uri to retrieve entity, project and run name."""
     uri = uri.split("?")[0]  # remove any possible query params (eg workspace)

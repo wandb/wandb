@@ -102,10 +102,6 @@ class LaunchProject:
             self.override_entrypoint = self.add_entry_point(
                 overrides.get("entry_point")  # type: ignore
             )
-        if self.job is None and self.uri is None and self.docker_image is None:
-            raise LaunchError(
-                "Project must have at least one of uri, job, or docker_image specified."
-            )
         if self.docker_image is not None:
             self.source = LaunchSource.DOCKER
             self.project_dir = None

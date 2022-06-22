@@ -1098,16 +1098,6 @@ def launch(
     elif resource is None:
         resource = "local-container"
 
-    if (
-        uri is None
-        and docker_image is None
-        and job is None
-        and config.get("uri") is None
-        and config.get("job") is None
-        and config.get("docker", {}).get("docker_image") is None
-    ):
-        raise LaunchError("Must pass a URI, job or a docker image to launch.")
-
     if queue is None:
         # direct launch
         try:
