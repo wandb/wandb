@@ -1,8 +1,8 @@
-id: 6.jobs.repo-creation
+id: 3.jobs.repo-creation
 plugin:
   - wandb
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:artifacts[job-gitgithub.comwandbclient.git_.job_repo_creation.py][type]: job
+  - :wandb:artifacts[job-git_github.com_wandb_client.git_functional_tests_jobs_job_repo_creation.py][type]: job
   - :yea:exit: 0

@@ -1014,11 +1014,7 @@ def image_from_docker_args(args: List[str]) -> Optional[str]:
 
 
 def load_yaml(file: Any) -> Any:
-    """If pyyaml > 5.1 use full_load to avoid warning"""
-    if hasattr(yaml, "full_load"):
-        return yaml.full_load(file)
-    else:
-        return yaml.load(file)
+    return yaml.safe_load(file)
 
 
 def image_id_from_k8s() -> Optional[str]:
@@ -1708,7 +1704,7 @@ def ensure_text(
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
-    return re.sub(r"[^a-zA-Z0-9_\-.]", "", name)
+    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
 
 
 def make_docker_image_name_safe(name: str) -> str:

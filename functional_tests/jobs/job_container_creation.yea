@@ -1,8 +1,8 @@
-id: 5.jobs.container-creation
+id: 2.jobs.container-creation
 plugin:
   - wandb
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:artifacts[job-my-test-containerdummy][type]: job
+  - :wandb:artifacts[job-my-test-container_dummy][type]: job
   - :yea:exit: 0

@@ -147,7 +147,6 @@ class ArtifactEmulator:
         return "ARTIFACT %s" % digest, 200
 
     def storage(self, request, arti_id=None):
-
         fname = request.args.get("file")
         if arti_id is None:
             arti_id = "unknown_id"

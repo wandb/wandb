@@ -1344,7 +1344,6 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 5, "name": "job"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
-            # TODO: use emulator here
             if ART_EMU:
                 res = ART_EMU.query(
                     variables=body.get("variables", {}), query=body.get("query")
@@ -2195,6 +2194,12 @@ class ParseCTX:
         fs_files = self.get_filestream_file_items()
         history = fs_files.get("wandb-history.jsonl")
         return history
+
+    @property
+    def stats(self):
+        fs_files = self.get_filestream_file_items()
+        stats = fs_files.get("wandb-events.jsonl")
+        return stats
 
     @property
     def output(self):
