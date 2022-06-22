@@ -238,10 +238,7 @@ def link_model(
 
     """
 
-    if aliases is None:
-        aliases = ["latest"]
-    elif isinstance(aliases, str):
-        aliases = [aliases]
+    aliases = wandb.util._resolve_aliases(aliases)
 
     if wandb.run:
         run = wandb.run
