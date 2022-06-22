@@ -1,4 +1,4 @@
-id: 1.jobs.artifact-creation
+id: 0.jobs.artifact-creation
 plugin:
   - wandb
 assert:

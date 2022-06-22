@@ -1,4 +1,4 @@
-id: 0.jobs.artifact-base
+id: 3.jobs.artifact-base
 plugin:
   - wandb
 assert:

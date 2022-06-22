@@ -1,4 +1,4 @@
-id: 3.jobs.repo-creation
+id: 2.jobs.repo-creation
 plugin:
   - wandb
 assert:
