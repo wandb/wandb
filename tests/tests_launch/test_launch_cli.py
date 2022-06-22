@@ -34,7 +34,7 @@ def test_launch_add_default(runner, test_settings, live_mock_server):
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--project=test_project",
         "--entity=mock_server_entity",
-        "--queue",
+        "--queue=default",
     ]
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
@@ -47,7 +47,7 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--project=test_project",
         "--entity=mock_server_entity",
-        "--queue",
+        "--queue=default",
     ]
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
@@ -94,6 +94,7 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -112,6 +113,7 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -140,6 +142,7 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -163,6 +166,7 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -358,6 +362,7 @@ def test_launch_queue_error(runner):
                 "train.py",
                 "--async",
                 "--queue",
+                "default",
             ],
         )
 
@@ -478,6 +483,7 @@ def test_launch_agent_launch_error_continue(
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",

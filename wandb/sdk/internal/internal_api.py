@@ -975,6 +975,7 @@ class Api:
             if q["name"] == queue_name
             # ensure user has access to queue
             and (
+                # TODO: User created queues in the UI have USER access
                 q["access"] in ["PROJECT", "USER"]
                 or q["createdBy"] == self.default_entity
             )
