@@ -1441,6 +1441,11 @@ class S3Handler(StorageHandler):
         multi = False
         try:
             objs[0].load()
+            # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
+            # trigger a recursive upload.
+            # we should check the object's metadata says it is a directory and do a multi file upload if it is
+            if "x-directory" in objs[0].content_type:
+                multi = True
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 multi = True
@@ -1449,11 +1454,6 @@ class S3Handler(StorageHandler):
                     "Unable to connect to S3 (%s): %s"
                     % (e.response["Error"]["Code"], e.response["Error"]["Message"])
                 )
-        # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-        # trigger a recursive upload.
-        # we should check the object's metadata says it is a directory and do a multi file upload if it is
-        if "x-directory" in objs[0].content_type:
-            multi = True
         if multi:
             start_time = time.time()
             termlog(
