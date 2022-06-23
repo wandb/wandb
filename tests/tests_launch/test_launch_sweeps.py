@@ -43,12 +43,6 @@ def test_launch_sweeps_scheduler_base_state(test_settings, monkeypatch):
         default_settings=test_settings, load_settings=False
     )
 
-    # # Raise errors on bad entity/project
-    # with pytest.raises(SweepError):
-    #     Scheduler(api, entity="foo")
-    # with pytest.raises(SweepError):
-    #     Scheduler(api, project="foo")
-
     def mock_run_complete_scheduler(self, *args, **kwargs):
         self.state = SchedulerState.COMPLETED
 

@@ -11,17 +11,7 @@ def _import_sweep_scheduler() -> Any:
     return SweepScheduler
 
 
-def _import_tune_scheduler() -> Any:
-    from .scheduler_tune import TuneScheduler
-
-    # NOTE: The Ray Tune scheduler will not be included with this PR,
-    # I kept it here so that reviewers would better
-    # understand the future context and resulting design choices
-    return TuneScheduler
-
-
 _WANDB_SCHEDULERS: Dict[str, Callable] = {
-    "tune": _import_tune_scheduler,
     "sweep": _import_sweep_scheduler,
 }
 

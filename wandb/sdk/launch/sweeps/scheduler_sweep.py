@@ -72,14 +72,12 @@ class SweepScheduler(Scheduler):
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
-            wandb.termlog(_msg)  # TODO: Remove
             commands = self._api.agent_heartbeat(
                 self._heartbeat_agent_id, {}, _run_states
             )
             if commands:
                 _msg = f"AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
                 logger.debug(_msg)
-                wandb.termlog(_msg)  # TODO: Remove
                 for command in commands:
                     _type = command.get("type")
                     # type can be one of "run", "resume", "stop", "exit"
@@ -139,6 +137,7 @@ class SweepScheduler(Scheduler):
             resource="local-process",
             entry_point=entry_point,
             run_id=run.id,
+            params=run.args,
         )
 
     def _exit(self) -> None:
