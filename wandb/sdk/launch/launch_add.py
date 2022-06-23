@@ -141,16 +141,7 @@ def _launch_add(
         launch_config,
         cuda,
     )
-<<<<<<< HEAD
-    if (
-        launch_spec.get("uri") is None
-        and launch_spec.get("job") is None
-        and launch_spec.get("docker", {}).get("docker_image") is None
-    ):
-        raise ValueError("Must specify either uri or job or docker_image")
-=======
     validate_launch_spec_source(launch_spec)
->>>>>>> feature/launch-job-handling
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:

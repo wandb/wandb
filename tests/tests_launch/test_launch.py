@@ -351,10 +351,6 @@ def test_launch_add_base_queued_run(live_mock_server):
     assert queued_run.id == 1
     assert queued_run.entity == "mock_server_entity"
     assert queued_run.project == "tests"
-<<<<<<< HEAD
-    assert queued_run.username == "mock_server_entity"
-=======
->>>>>>> feature/launch-job-handling
 
     live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
     run = queued_run.wait_until_finished()
