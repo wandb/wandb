@@ -388,6 +388,9 @@ class Settings:
     _service_transport: str
     _start_datetime: datetime
     _start_time: float
+    _stats_pid: int  # (internal) base pid for system stats
+    _stats_sample_rate_seconds: float
+    _stats_samples_to_average: int
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -508,6 +511,8 @@ class Settings:
             },
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
+            _stats_sample_rate_seconds={"value": 2.0},
+            _stats_samples_to_average={"value": 15},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -1244,6 +1249,11 @@ class Settings:
             if k == "ignore_globs":
                 config[k] = config[k].split(",")
         return config
+
+    def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
+        if _logger is not None:
+            _logger.info(f"Configure stats pid to {pid}")
+        self.update({"_stats_pid": pid}, source=Source.SETUP)
 
     def _apply_config_files(self, _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): permit setting of config in system and workspace
