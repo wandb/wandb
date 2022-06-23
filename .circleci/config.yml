@@ -299,6 +299,7 @@ jobs:
         type: integer
         default: 3
     executor: win/default
+    resource_class: large
     parallelism: << parameters.parallelism >>
     steps:
       - checkout
