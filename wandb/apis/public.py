@@ -2237,6 +2237,7 @@ class QueuedRun:
 
         while True:
             res = self.client.execute(query, variable_values)
+            # TODO: add fetch run queue by item end point
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
                     item["node"]["id"] == self.id

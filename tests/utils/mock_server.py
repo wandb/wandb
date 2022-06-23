@@ -1395,8 +1395,8 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "1",
-                                                    "associatedRunId": "1",
+                                                    "id": 1,
+                                                    "associatedRunId": 1,
                                                     "state": "CLAIMED",
                                                 }
                                             }
@@ -1417,7 +1417,7 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "1",
+                                                    "id": 1,
                                                     "associatedRunId": None,
                                                     "state": "PENDING",
                                                 }
