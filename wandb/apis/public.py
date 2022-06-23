@@ -2155,7 +2155,7 @@ class QueuedRun:
         }
         res = self.client.execute(query, variable_values)
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-            if item["node"]["id"] == self.id:
+            if str(item["node"]["id"]) == str(self.id):
                 return item["node"]["state"].lower()
         raise ValueError(
             f"Could not find QueuedRun associated with id: {self.id} on queue id {self.queue_id}"
@@ -4581,10 +4581,7 @@ class Job:
     _entrypoint: List[str]
 
     def __init__(self, api: Api, name, path: str = None) -> None:
-        try:
-            self._job_artifact = api.artifact(name, type="job")
-        except CommError:
-            raise ValueError(f"Could not find job with name {name}")
+        self._job_artifact = api.artifact(name, type="job")
         if path:
             self._fpath = path
             self._job_artifact.download(root=path)

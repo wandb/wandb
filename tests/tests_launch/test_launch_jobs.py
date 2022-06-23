@@ -21,10 +21,10 @@ from .test_launch import (
 
 from ..utils import fixture_open
 
-input_types = TypeRegistry.type_of(
+INPUT_TYPES = TypeRegistry.type_of(
     {"epochs": 2, "heavy": False, "sleep_every": 0}
 ).to_json()
-output_types = TypeRegistry.type_of({"loss": 0.2, "cool": True}).to_json()
+OUTPUT_TYPES = TypeRegistry.type_of({"loss": 0.2, "cool": True}).to_json()
 
 
 @pytest.fixture
@@ -96,10 +96,12 @@ def test_launch_job_artifact(
             source = {
                 "_version": "v0",
                 "source_type": "artifact",
-                "artifact": "wandb-artifact://mock_server_entity/test/runs/1/artifacts/test-artifact",
+                "source": {
+                    "artifact": "wandb-artifact://mock_server_entity/test/runs/1/artifacts/test-artifact"
+                },
                 "entrypoint": ["python", "train.py"],
-                "input_types": input_types,
-                "output_types": output_types,
+                "input_types": INPUT_TYPES,
+                "output_types": OUTPUT_TYPES,
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
@@ -131,21 +133,19 @@ def test_launch_job_repo(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    input_types = TypeRegistry.type_of(
-        {"epochs": 2, "heavy": False, "sleep_every": 0}
-    ).to_json()
-    output_types = TypeRegistry.type_of({"loss": 0.2, "cool": True}).to_json()
 
     def job_download_func(root):
         with open(os.path.join(root, "source_info.json"), "w") as f:
             source = {
                 "_version": "v0",
                 "source_type": "repo",
-                "remote": "https://github.com/test/remote",
-                "commit": "asdasdasdasd",
+                "source": {
+                    "remote": "https://github.com/test/remote",
+                    "commit": "asdasdasdasd",
+                },
                 "entrypoint": ["python", "train.py"],
-                "input_types": input_types,
-                "output_types": output_types,
+                "input_types": INPUT_TYPES,
+                "output_types": OUTPUT_TYPES,
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
@@ -183,9 +183,9 @@ def test_launch_job_container(
             source = {
                 "_version": "v0",
                 "source_type": "image",
-                "image": "my-test-image:latest",
-                "input_types": input_types,
-                "output_types": output_types,
+                "source": {"image": "my-test-image:latest"},
+                "input_types": INPUT_TYPES,
+                "output_types": OUTPUT_TYPES,
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
@@ -214,9 +214,9 @@ def test_launch_add_container_queued_run(live_mock_server, mocked_public_artifac
             source = {
                 "_version": "v0",
                 "source_type": "image",
-                "image": "my-test-image:latest",
-                "input_types": input_types,
-                "output_types": output_types,
+                "source": {"image": "my-test-image:latest"},
+                "input_types": INPUT_TYPES,
+                "output_types": OUTPUT_TYPES,
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:

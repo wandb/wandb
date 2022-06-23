@@ -1138,14 +1138,17 @@ class Run:
         if _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
-            artifact_string, base_url = parse_artifact_string(val)
+            artifact_string, base_url, is_id = parse_artifact_string(val)
             overrides = {}
             if base_url is not None:
                 overrides = {"base_url": base_url}
                 public_api = public.Api(overrides)
             else:
                 public_api = self._public_api()
-            artifact = public_api.artifact(name=artifact_string)
+            if is_id:
+                artifact = public.Artifact.from_id(artifact_string, public_api._client)
+            else:
+                artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
             # different instances of wandb. simplest way to do that is
             # likely to convert the retrieved public.Artifact to a wandb.Artifact
