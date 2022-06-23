@@ -298,7 +298,9 @@ jobs:
       xdist:
         type: integer
         default: 3
-    executor: win/default
+    executor:
+      name: win/default
+      size: "large"
     parallelism: << parameters.parallelism >>
     steps:
       - checkout
@@ -334,6 +336,7 @@ jobs:
         default: 3
     macos:
       xcode: 11.4.1
+    resource_class: large
     parallelism: << parameters.parallelism >>
     steps:
       - checkout
@@ -861,14 +864,14 @@ workflows:
       - sdk_docker:
           name: "build-cpu-docker-image"
           description: "SDK Docker image for CPU testing"
-          path: "./standalone_tests/shards/gke_cpu"
+          path: "./tests/standalone_tests/shards/gke_cpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
-          path: "./standalone_tests/shards/gke_gpu"
+          path: "./tests/standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
@@ -885,7 +888,7 @@ workflows:
           requires:
             - "build-cpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_cpu"
+          path: "./tests/standalone_tests/shards/gke_cpu"
           pod_name: "cpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
@@ -896,7 +899,7 @@ workflows:
           requires:
             - "build-gpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_gpu"
+          path: "./tests/standalone_tests/shards/gke_gpu"
           pod_name: "gpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
@@ -1105,7 +1108,7 @@ workflows:
           name: "build-cpu-docker-image"
           description: "SDK Docker image for CPU testing"
           git_branch: << pipeline.parameters.manual_nightly_git_branch >>
-          path: "./standalone_tests/shards/gke_cpu"
+          path: "./tests/standalone_tests/shards/gke_cpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
@@ -1114,7 +1117,7 @@ workflows:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
           git_branch: << pipeline.parameters.manual_nightly_git_branch >>
-          path: "./standalone_tests/shards/gke_gpu"
+          path: "./tests/standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
@@ -1132,7 +1135,7 @@ workflows:
           requires:
             - "build-cpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_cpu"
+          path: "./tests/standalone_tests/shards/gke_cpu"
           pod_name: "cpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
@@ -1144,7 +1147,7 @@ workflows:
           requires:
             - "build-gpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_gpu"
+          path: "./tests/standalone_tests/shards/gke_gpu"
           pod_name: "gpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
