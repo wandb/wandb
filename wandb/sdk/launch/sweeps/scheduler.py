@@ -190,7 +190,7 @@ class Scheduler(ABC):
             queue=self._launch_queue,
             resource=resource,
             entry_point=entry_point,
-            params=params,
+            # params=params,
             run_id=run_id,
         )
         self._runs[run_id].launch_job = job
