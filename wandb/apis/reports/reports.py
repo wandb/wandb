@@ -244,7 +244,7 @@ class RunSet(RunSetBase, ShortReprMixin):
     entity: str = JSONAttr("project.entityName")
     project: str = JSONAttr("project.name")
     name: str = JSONAttr("name")
-    query: str = JSONAttr("search.query")
+    query: str = JSONAttr("search.query", default="")
     filters: dict = JSONAttr("filters", fget=rs_filter_get, fset=rs_filter_set)
     groupby: list = JSONAttr(
         "grouping", fget=rs_groupby_get, fset=rs_groupby_set, default_factory=list
@@ -775,8 +775,8 @@ class List(Dispatcher):
 
 @dataclass(repr=False)
 class CheckedList(Block, List):
-    items: list = Attr()
-    checked: list = Attr()
+    items: list = RequiredAttr()
+    checked: list = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -795,7 +795,7 @@ class CheckedList(Block, List):
 
 @dataclass(repr=False)
 class OrderedList(Block, List):
-    items: list = Attr()
+    items: list = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -815,7 +815,7 @@ class OrderedList(Block, List):
 
 @dataclass(repr=False)
 class UnorderedList(Block, List):
-    items: list = Attr()
+    items: list = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -847,7 +847,7 @@ class Heading(Dispatcher):
 
 @dataclass(repr=False)
 class H1(Block, Heading):
-    text: str = Attr()
+    text: str = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -860,7 +860,7 @@ class H1(Block, Heading):
 
 @dataclass(repr=False)
 class H2(Block, Heading):
-    text: str = Attr()
+    text: str = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -873,7 +873,7 @@ class H2(Block, Heading):
 
 @dataclass(repr=False)
 class H3(Block, Heading):
-    text: str = Attr()
+    text: str = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -886,7 +886,7 @@ class H3(Block, Heading):
 
 @dataclass(repr=False)
 class InlineLaTeX(Block):
-    latex: str = Attr()
+    latex: str = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -895,7 +895,7 @@ class InlineLaTeX(Block):
 
 @dataclass(repr=False)
 class InlineCode(Block):
-    code: str = Attr()
+    code: str = RequiredAttr()
 
     @property
     def spec(self) -> dict:
@@ -904,7 +904,7 @@ class InlineCode(Block):
 
 @dataclass(repr=False)
 class P(Block):
-    text: Union[str, InlineLaTeX, InlineCode, list] = Attr()
+    text: Union[str, InlineLaTeX, InlineCode, list] = RequiredAttr()
 
     @classmethod
     def from_json(cls, spec):
@@ -919,6 +919,9 @@ class P(Block):
                     text.append(InlineCode(elem["text"]))
                 else:
                     text.append(elem["text"])
+                    
+        if not isinstance(text, list):
+            text = [text]
         return cls(text)
 
     @property
@@ -935,7 +938,7 @@ class P(Block):
 
 @dataclass(repr=False)
 class BlockQuote(Block):
-    text: str = Attr()
+    text: str = RequiredAttr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "BlockQuote":
@@ -949,7 +952,7 @@ class BlockQuote(Block):
 
 @dataclass(repr=False)
 class CalloutBlock(Block):
-    text: Union[str, list] = Attr()
+    text: Union[str, list] = RequiredAttr()
 
     def __post_init__(self) -> None:
         if isinstance(self.text, str):
@@ -973,7 +976,7 @@ class CalloutBlock(Block):
 
 @dataclass(repr=False)
 class CodeBlock(Block):
-    code: Union[str, list] = Attr()
+    code: Union[str, list] = RequiredAttr()
     language: str = Attr(default="python")
 
     def __post_init__(self) -> None:
@@ -1005,7 +1008,7 @@ class CodeBlock(Block):
 
 @dataclass(repr=False)
 class MarkdownBlock(Block):
-    text: Union[str, list] = Attr()
+    text: Union[str, list] = RequiredAttr()
 
     def __post_init__(self) -> None:
         if isinstance(self.text, list):
@@ -1060,7 +1063,7 @@ class MarkdownBlock(Block):
 
 @dataclass(repr=False)
 class LaTeXBlock(Block):
-    text: Union[str, list] = Attr()
+    text: Union[str, list] = RequiredAttr()
 
     def __post_init__(self) -> None:
         if isinstance(self.text, list):
@@ -1083,7 +1086,7 @@ class LaTeXBlock(Block):
 
 @dataclass(repr=False)
 class Gallery(Block):
-    ids: list = Attr(default_factory=list)
+    ids: list = RequiredAttr(default_factory=list)
 
     @classmethod
     def from_json(cls, spec: dict) -> "Gallery":
@@ -1102,7 +1105,7 @@ class Gallery(Block):
 
 @dataclass(repr=False)
 class Image(Block):
-    url: str = Attr()
+    url: str = RequiredAttr()
     caption: str = Attr()
 
     @classmethod
@@ -1126,7 +1129,7 @@ class Image(Block):
 
 @dataclass(repr=False)
 class WeaveBlock(Block):
-    spec: dict = Attr()
+    spec: dict = RequiredAttr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "WeaveBlock":
@@ -1157,7 +1160,7 @@ class TableOfContents(Block):
 
 @dataclass(repr=False)
 class SoundCloud(Block):
-    url: str = Attr()
+    url: str = RequiredAttr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "SoundCloud":
@@ -1177,7 +1180,7 @@ class SoundCloud(Block):
 
 @dataclass(repr=False)
 class Twitter(Block):
-    embed_html: str = Attr()
+    embed_html: str = RequiredAttr()
 
     def __post_init__(self) -> None:
         # remove script tag
@@ -1197,7 +1200,7 @@ class Twitter(Block):
 
 @dataclass(repr=False)
 class Spotify(Block):
-    spotify_id: str = Attr()
+    spotify_id: str = RequiredAttr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Spotify":
@@ -1220,7 +1223,7 @@ class Spotify(Block):
 
 @dataclass(repr=False)
 class Video(Block):
-    url: str = Attr()
+    url: str = RequiredAttr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Video":

@@ -12,7 +12,6 @@ from .reports import (
     HorizontalRule,
     Image,
     LaTeXBlock,
-    # LaTeXInline,
     InlineLaTeX,
     InlineCode,
     MarkdownBlock,

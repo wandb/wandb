@@ -378,7 +378,7 @@ def _generate_default_runset_spec():
         "enabled": True,
         "name": "Run set",
         "search": {"query": ""},
-        "project": {"entityName": "", "name": ""},
+        "project": {"entityName": "megatruong", "name": "report-editing"},
         "grouping": [],
         "selections": {"root": 1, "bounds": [], "tree": []},
         "expandedRowAddresses": [],
