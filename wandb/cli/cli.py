@@ -16,6 +16,7 @@ import tempfile
 import textwrap
 import time
 import traceback
+import zipfile
 
 
 import click
@@ -23,7 +24,6 @@ from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
-import jwt
 import requests
 
 import wandb
@@ -1441,9 +1441,8 @@ def server():
 
 @server.command(context_settings=RUN_CONTEXT, help="Debug a local W&B server")
 @click.option("--host", default=None, help="Debug a specific instance of W&B")
-@click.option("--output", default=None, help="Debug bundle destination")
 @display_error
-def debug(host, output):
+def debug(host):
     api = _get_cling_api()
     reinit = False
     if host is None:
@@ -1456,27 +1455,28 @@ def debug(host, output):
         api = _get_cling_api(reset=True)
 
     print(f"Gathering information about: {host}")
-    env_url = f"{host}/system-admin/api/env"
-    env_response = requests.get(env_url)
-    if (
-        env_response.status_code == 200
-        and env_response.headers.get("Content-Type") == "application/json"
-    ):
-        env_data = env_response.json()
-        user_settings = env_data["userSettings"]
+    print("Downloading debug files...")
 
-        license = user_settings["license"]["value"]
+    debug_url = f"{host}/system-admin/api/debug"
+    debug_request = requests.get(debug_url, stream=True)
+
+    tmp_dir = tempfile.mkdtemp()
+    print("Find detailed logs for this test at: {}".format(os.path.join(tmp_dir)))
+    os.chdir(tmp_dir)
+    output_path = os.path.join(tmp_dir, "debug.zip")
+    with open(output_path, "wb") as debug_file:
+        debug_file.write(debug_request.content)
+    print("Download complete.")
+    if zipfile.is_zipfile(output_path):
+        with zipfile.ZipFile(output_path, "r") as zip_obj:
+            zip_obj.extractall()
+        json_file = open(os.path.join(tmp_dir, "debug/instance-state.json"))
+        env_data = json.load(json_file)
+
+        user_settings = env_data["userSettings"]
         local_version = env_data["buildInfo"]["version"]
         sso_enabled = user_settings["ssoEnable"]["value"]
         file_storage_bucket = user_settings["fileStorageBucket"]["value"]
-
-        decode_data = jwt.decode(
-            license,
-            options={"verify_signature": False},
-            algorithms=["RS256"],
-        )
-        deployment_id = decode_data["deploymentId"]
-        print(f"Find deployment details at: https://deploy.wandb.ai/{deployment_id}")
 
         bucket_type = file_storage_bucket.split(":")[0]
         deployment_type = ""
@@ -1489,18 +1489,7 @@ def debug(host, output):
         print(f"SSO enabled: {sso_enabled}")
         print(f"Deployment type: {deployment_type}")
     else:
-        print("Could not retrieve environment information!")
-
-    print("Downloading debug files...")
-    debug_url = f"{host}/system-admin/api/debug"
-    debug_request = requests.get(debug_url, stream=True)
-
-    if output is None:
-        output = os.getcwd()
-    output = os.path.join(output, "debug.zip")
-    with open(output, "wb") as fd:
-        fd.write(debug_request.content)
-    print(f"Download complete. Find the files at {output}")
+        print("Could not download debug bundle.")
 
 
 @server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
