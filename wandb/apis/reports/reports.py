@@ -931,7 +931,7 @@ class P(Block):
                 t.spec if not isinstance(t, str) else {"text": t} for t in self.text
             ]
         else:
-            content = self.text
+            content = [{'text': self.text}]
 
         return {"type": "paragraph", "children": content}
 
