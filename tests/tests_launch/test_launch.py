@@ -9,6 +9,7 @@ import yaml
 import pytest
 import wandb
 from wandb.apis import PublicApi
+from wandb.apis.public import Run
 from wandb.errors import CommError, LaunchError
 
 from wandb.sdk.launch.agent.agent import LaunchAgent
@@ -347,7 +348,7 @@ def test_launch_resource_args(
 def test_launch_add_base_queued_run(live_mock_server):
     queued_run = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
     assert queued_run.state == "pending"
-    assert queued_run.run_queue_item_id == "1"
+    assert queued_run.id == 1
     assert queued_run.entity == "mock_server_entity"
     assert queued_run.project == "tests"
 <<<<<<< HEAD
@@ -356,11 +357,8 @@ def test_launch_add_base_queued_run(live_mock_server):
 >>>>>>> feature/launch-job-handling
 
     live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
-    queued_run.wait_until_finished()
-    assert queued_run.run is not None
-    assert queued_run.entity == queued_run._run.entity
-    queued_run.id = "new-id"
-    assert queued_run._run._attrs["name"] == "new-id"
+    run = queued_run.wait_until_finished()
+    assert isinstance(run, Run)
 
 
 @pytest.mark.skipif(

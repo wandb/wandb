@@ -34,7 +34,6 @@ from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
-from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
@@ -2088,12 +2087,10 @@ class Run(Attrs):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 
-class QueuedRun(Attrs):
+class QueuedRun:
     """
-    A single queued run associated with an entity and project. Call `wait_until_running` or `wait_until_finished` methods to get access to all run attributes
+    A single queued run associated with an entity and project. Call `run = wait_until_running()` or `run = wait_until_finished()` methods to access the run
     """
-
-    _run_required_error_message = "Associated run not found. Call `wait_until_running` or `wait_until_finished` methods to access run attritbutes"
 
     def __init__(
         self,
@@ -2102,32 +2099,35 @@ class QueuedRun(Attrs):
         project,
         queue_id,
         run_queue_item_id,
-        attrs=None,
         container_job=False,
     ):
-        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
-        self.project = project
+        self._project = project
         self._queue_id = queue_id
-        self.run_queue_item_id = run_queue_item_id
+        self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
         self.container_job = container_job
-
-    @property
-    def run(self):
-        return self._run
 
     @property
     def queue_id(self):
         return self._queue_id
 
     @property
-    def state(self):
-        if self._run:
-            return self._run.state
+    def id(self):
+        return self._run_queue_item_id
 
+    @property
+    def project(self):
+        return self._project
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def state(self):
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -2154,69 +2154,20 @@ class QueuedRun(Attrs):
         }
         res = self.client.execute(query, variable_values)
         for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-            if item["node"]["id"] == self.run_queue_item_id:
+            if str(item["node"]["id"]) == str(self.id):
                 return item["node"]["state"].lower()
         raise ValueError(
-            "Could not find QueuedRun associated with id: {}".format(
-                self.run_queue_item_id
-            )
+            f"Could not find QueuedRun associated with id: {self.id} on queue id {self.queue_id}"
         )
 
-    @property
-    def entity(self):
-        if self._run:
-            return self._run.entity
-        return self._entity
-
-    @property
-    def username(self):
-        wandb.termwarn(
-            "QueuedRun.username is deprecated. Please use Run.entity instead."
-        )
-        if self._run:
-            return self._run.entity
-        return self._entity
-
-    @property
-    def storage_id(self):
-        # For compatibility with wandb.Run, which has storage IDs
-        # in self.storage_id and names in self.id.
-        if self._run is not None:
-            return self._run._attrs.get("id")
-        raise ValueError(f"{self._run_required_error_message}")
-
-    @property
-    def id(self):
-        if self._run is not None:
-            return self._run._attrs.get("name")
-        return self.run_queue_item_id
-
-    @id.setter
-    def id(self, new_id):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-
-        attrs = self._run._attrs
-        attrs["name"] = new_id
-        return new_id
-
-    @property
-    def name(self):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run._attrs.get("displayName")
-
-    @name.setter
-    def name(self, new_name):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        self._run.name = new_name
-        return new_name
-
-    def load(self, force=False):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.load(force=force)
+    def _exec(self, query, **kwargs):
+        """Execute a query against the cloud backend"""
+        variables = {
+            "entity": self.entity,
+            "project": self.project,
+        }
+        variables.update(kwargs)
+        return self.client.execute(query, variable_values=variables)
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -2229,251 +2180,28 @@ class QueuedRun(Attrs):
         return self._run
 
     @normalize_exceptions
-    def update(self):
-        """
-        Persists changes to the run object to the wandb backend.
-        """
-        # TODO: allow users to update run queue items using queued run
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        else:
-            self._run.update()
-
-    @normalize_exceptions
     def delete(self, delete_artifacts=False):
         """
         Deletes the given queued run from the wandb backend.
         """
-        if self._run is None:
-            mutation = gql(
-                """
-                mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
-                {
-                    deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
-                        success
-                        clientMutationId
-                    }
+        mutation = gql(
+            """
+            mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
+            {
+                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+                    success
+                    clientMutationId
                 }
-                """
-            )
-            self.client.execute(
-                mutation,
-                variable_values={
-                    "queueID": self.queue_id,
-                    "runQueueItemID": self.run_queue_item_id,
-                },
-            )
-        else:
-            self._run.delete(delete_artifacts=delete_artifacts)
-
-    def save(self):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        self._run.save()
-
-    @property
-    def json_config(self):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.json_config
-
-    def _exec(self, query, **kwargs):
-        """Execute a query against the cloud backend"""
-        if self._run is not None:
-            variables = {
-                "entity": self._run.entity,
-                "project": self._run.project,
-                "name": self._run.id,
             }
-            variables.update(kwargs)
-        else:
-            variables = {
-                "entity": self.entity,
-                "project": self.project,
-            }
-            variables.update(kwargs)
-
-        return self.client.execute(query, variable_values=variables)
-
-    def _sampled_history(self, keys, x_axis="_step", samples=500):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        self._run._sampled_history(keys, x_axis, samples)
-
-    def _full_history(self, samples=500, stream="default"):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run._full_history(samples, stream)
-
-    @normalize_exceptions
-    def files(self, names=None, per_page=50):
-        """
-        Arguments:
-            names (list): names of the requested files, if empty returns all files
-            per_page (int): number of results per page
-
-        Returns:
-            A `Files` object, which is an iterator over `File` objects.
-        """
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        self._run.files(names or [], per_page)
-
-    @normalize_exceptions
-    def file(self, name):
-        """
-        Arguments:
-            name (str): name of requested file.
-
-        Returns:
-            A `File` matching the name argument.
-        """
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.file(name)
-
-    @normalize_exceptions
-    def upload_file(self, path, root="."):
-        """
-        Arguments:
-            path (str): name of file to upload.
-            root (str): the root path to save the file relative to.  i.e.
-                If you want to have the file saved in the run as "my_dir/file.txt"
-                and you're currently in "my_dir" you would set root to "../"
-
-        Returns:
-            A `File` matching the name argument.
-        """
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.upload_file(path, root)
-
-    @normalize_exceptions
-    def history(
-        self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
-    ):
-        """
-        Returns sampled history metrics for a run.  This is simpler and faster if you are ok with
-        the history records being sampled.
-
-        Arguments:
-            samples (int, optional): The number of samples to return
-            pandas (bool, optional): Return a pandas dataframe
-            keys (list, optional): Only return metrics for specific keys
-            x_axis (str, optional): Use this metric as the xAxis defaults to _step
-            stream (str, optional): "default" for metrics, "system" for machine metrics
-
-        Returns:
-            If pandas=True returns a `pandas.DataFrame` of history metrics.
-            If pandas=False returns a list of dicts of history metrics.
-        """
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.history(samples, keys, x_axis, pandas, stream)
-
-    @normalize_exceptions
-    def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
-        """
-        Returns an iterable collection of all history records for a run.
-
-        Example:
-            Export all the loss values for an example run
-
-            ```python
-            run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
-            history = run.scan_history(keys=["Loss"])
-            losses = [row["Loss"] for row in history]
-            ```
-
-
-        Arguments:
-            keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
-            page_size (int, optional): size of pages to fetch from the api
-
-        Returns:
-            An iterable collection over history records (dict).
-        """
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.scan_history(
-            keys=keys, page_size=page_size, min_step=min_step, max_step=max_step
+            """
         )
-
-    @normalize_exceptions
-    def logged_artifacts(self, per_page=100):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.logged_artifacts(per_page=per_page)
-
-    @normalize_exceptions
-    def used_artifacts(self, per_page=100):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.used_artifacts(per_page=per_page)
-
-    @normalize_exceptions
-    def use_artifact(self, artifact, use_as=None):
-        """Declare an artifact as an input to a run.
-
-        Arguments:
-            artifact (`Artifact`): An artifact returned from
-                `wandb.Api().artifact(name)`
-            use_as (string, optional): A string identifying
-                how the artifact is used in the script. Used
-                to easily differentiate artifacts used in a
-                run, when using the beta wandb launch
-                feature's artifact swapping functionality.
-        Returns:
-            A `Artifact` object.
-        """
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.use_artifact(artifact, use_as=use_as)
-
-    @normalize_exceptions
-    def log_artifact(self, artifact, aliases=None):
-        """Declare an artifact as output of a run.
-
-        Arguments:
-            artifact (`Artifact`): An artifact returned from
-                `wandb.Api().artifact(name)`
-            aliases (list, optional): Aliases to apply to this artifact
-        Returns:
-            A `Artifact` object.
-        """
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.log_artifact(artifact, aliases=aliases)
-
-    @property
-    def summary(self):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.summary
-
-    @property
-    def path(self):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.path
-
-    @property
-    def url(self):
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.url
-
-    @property
-    def lastHistoryStep(self):  # noqa: N802
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.lastHistoryStep
-
-    def to_html(self, height=420, hidden=False):
-        """Generate HTML containing an iframe displaying this run"""
-        if self._run is None:
-            raise ValueError(f"{self._run_required_error_message}")
-        return self._run.to_html(height, hidden)
+        self.client.execute(
+            mutation,
+            variable_values={
+                "queueID": self.queue_id,
+                "runQueueItemID": self._run_queue_item_id,
+            },
+        )
 
     @normalize_exceptions
     def wait_until_running(self):
@@ -2508,9 +2236,10 @@ class QueuedRun(Attrs):
 
         while True:
             res = self.client.execute(query, variable_values)
+            # TODO: add fetch run queue by item end point
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
-                    item["node"]["id"] == self.run_queue_item_id
+                    item["node"]["id"] == self.id
                     and item["node"]["associatedRunId"] is not None
                 ):
                     # sleep here to hide an ugly warning
@@ -2531,13 +2260,8 @@ class QueuedRun(Attrs):
 
             time.sleep(5)
 
-    def _repr_html_(self) -> str:
-        return self.to_html()
-
     def __repr__(self):
-        if self._run is None:
-            return f"<QueuedRun {self.run_queue_item_id} ({self.queue_id})"
-        return "<Run {} ({})>".format("/".join(self.path), self.state)
+        return f"<QueuedRun {self.queue_id} ({self.id})"
 
 
 class Sweep(Attrs):
@@ -4860,7 +4584,7 @@ class Job:
         try:
             self._job_artifact = api.artifact(name, type="job")
         except CommError:
-            raise ValueError(f"Could not find job with name {name}")
+            raise CommError(f"Job artifact {name} not found")
         if path:
             self._fpath = path
             self._job_artifact.download(root=path)

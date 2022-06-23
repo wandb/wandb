@@ -166,7 +166,10 @@ def _launch_add(
             container_job = True
 
     queued_run = public_api.queued_run(
-        f"{queued_run_entity}/{queued_run_project}/{queue}/{res['runQueueItemId']}",
+        queued_run_entity,
+        queued_run_project,
+        queue,
+        res["runQueueItemId"],
         container_job,
     )
     return queued_run  # type: ignore
