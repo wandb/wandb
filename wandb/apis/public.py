@@ -34,7 +34,6 @@ from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
-from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
@@ -4582,7 +4581,10 @@ class Job:
     _entrypoint: List[str]
 
     def __init__(self, api: Api, name, path: str = None) -> None:
-        self._job_artifact = api.artifact(name, type="job")
+        try:
+            self._job_artifact = api.artifact(name, type="job")
+        except CommError:
+            raise CommError(f"Job artifact {name} not found")
         if path:
             self._fpath = path
             self._job_artifact.download(root=path)
