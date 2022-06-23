@@ -176,7 +176,7 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
     assert "Shutting down, active jobs" in result.output
 
 
-def test_agent_launch_sweep_scheduler(runner, test_settings, live_mock_server):
+def test_launch_sweep_scheduler(runner, test_settings, live_mock_server):
     # Create a test sweep
     sweep_config = {
         "name": "My Sweep",
@@ -203,15 +203,14 @@ def test_agent_launch_sweep_scheduler(runner, test_settings, live_mock_server):
     assert len(ctx["run_queues"]["1"]) == 1
     # Run the launch sweep scheduler CLI command
     result = runner.invoke(
-        cli.launch_agent,
+        cli.scheduler,
         [
             "--project",
             "test_project",
             "--entity",
             "mock_server_entity",
-            "--queues",
+            "--queue",
             "default",
-            "--sweep_id",
             sweep_id,
         ],
     )

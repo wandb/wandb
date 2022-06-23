@@ -896,11 +896,10 @@ def sweep(
                         "local-process",  # resource,
                         [
                             "wandb",
-                            "launch-agent",
-                            "--queues",
-                            queue,
-                            "--sweep_id",
+                            "scheduler",
                             _sweep_id_placeholder,
+                            "--queue",
+                            queue,
                             "--project",
                             project,
                         ],  # entry_point,
@@ -1237,12 +1236,6 @@ def launch(
 @click.option(
     "--config", "-c", default=None, help="path to the agent config yaml to use"
 )
-@click.option(
-    "--sweep_id",
-    "-s",
-    default=None,
-    help="(Experimental) Run launch scheduler instead of a launch-agent on the specified sweep.",
-)
 @display_error
 def launch_agent(
     ctx,
@@ -1251,7 +1244,6 @@ def launch_agent(
     queues=None,
     max_jobs=None,
     config=None,
-    sweep_id=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1273,20 +1265,8 @@ def launch_agent(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
 
-    if sweep_id is not None:
-        # TODO: This is not the final resting place for this (do not worry)
-        # the launch scheduler will become a type of Job (Launch Jobs API)
-        # until then this felt like the least worst way to start launch schedulers.
-        wandb.termlog("Starting a Launch Scheduler 🚀")
-        from wandb.sdk.launch.sweeps import load_scheduler
-
-        _scheduler = load_scheduler("sweep")(
-            api, entity=entity, project=project, queue=queues[0], sweep_id=sweep_id
-        )
-        _scheduler.start()
-    else:
-        wandb.termlog("Starting launch agent ✨")
-        wandb_launch.create_and_run_agent(api, agent_config)
+    wandb.termlog("Starting launch agent ✨")
+    wandb_launch.create_and_run_agent(api, agent_config)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1311,6 +1291,53 @@ def agent(ctx, project, entity, count, sweep_id):
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})
+
+
+@cli.command(
+    context_settings=CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
+)
+@click.pass_context
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    help="Name of the project which the agent will watch. "
+    "If passed in, will override the project value passed in using a config file.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
+@click.option(
+    "--queue",
+    "-q",
+    default=None,
+    help="The queue to push sweep jobs to.",
+)
+@click.argument("sweep_id")
+@display_error
+def scheduler(
+    ctx,
+    project,
+    entity,
+    queue,
+    sweep_id,
+):
+    api = _get_cling_api()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep scheduler feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    wandb.termlog("Starting a Launch Scheduler 🚀")
+    from wandb.sdk.launch.sweeps import load_scheduler
+
+    _scheduler = load_scheduler("sweep")(
+        api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
+    )
+    _scheduler.start()
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
