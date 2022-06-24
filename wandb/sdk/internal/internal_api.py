@@ -157,14 +157,11 @@ class Api:
         try:
             return self.client.execute(*args, **kwargs)
         except requests.exceptions.HTTPError as err:
-            self.log_http_error(err)
+            res = err.response
+            logger.error("%s response executing GraphQL." % res.status_code)
+            logger.error(res.text)
+            self.display_gorilla_error_if_found(res)
             raise
-
-    def log_http_error(self, err: requests.exceptions.HTTPError) -> None:
-        res = err.response
-        logger.error(f"{res.status_code} response executing GraphQL.")
-        logger.error(res.text)
-        self.display_gorilla_error_if_found(res)
 
     def display_gorilla_error_if_found(self, res):
         try:
@@ -2468,17 +2465,12 @@ class Api:
                 return True
             return False
 
-        execute = retry.Retry(
-            self.client.execute,
+        response = self.gql(
+            mutation,
+            variable_values={"artifactID": artifact_id},
             check_retry_fn=check_retry,
             retry_timedelta=datetime.timedelta(minutes=2),
-            retryable_exceptions=(RetryError, requests.RequestException),
         )
-        try:
-            response = execute(mutation, variable_values={"artifactID": artifact_id})
-        except requests.exceptions.HTTPError as err:
-            self.log_http_error(err)
-            raise
         return response
 
     def create_artifact_manifest(
