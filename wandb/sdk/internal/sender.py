@@ -885,9 +885,11 @@ class SendManager:
             self._output_queues[stream] = queue.Queue()
             self._output_emulators[stream] = redirect.TerminalEmulator()
             self._output_readers[stream] = threading.Thread(
-                    target=self._output_reader_thread, kwargs=dict(stream=stream))
+                target=self._output_reader_thread, kwargs=dict(stream=stream)
+            )
             self._output_writers[stream] = threading.Thread(
-                    target=self._output_writer_thread, kwargs=dict(stream=stream))
+                target=self._output_writer_thread, kwargs=dict(stream=stream)
+            )
             self._output_writers[stream].daemon = True
             self._output_readers[stream].daemon = True
             self._output_writers[stream].start()
@@ -928,7 +930,9 @@ class SendManager:
                 pass
 
     def _output_reader_thread(self, stream) -> None:
-        while not (self._output_stopped.is_set() and self._output_queues[stream].empty()):
+        while not (
+            self._output_stopped.is_set() and self._output_queues[stream].empty()
+        ):
             self._output_flush(stream)
             time.sleep(_OUTPUT_MIN_CALLBACK_INTERVAL)
 
