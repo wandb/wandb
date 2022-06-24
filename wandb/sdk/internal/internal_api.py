@@ -1924,11 +1924,11 @@ class Api:
         mutation_4 = gql(
             mutation_str.replace(
                 "$controller: JSONString,",
-                "$controller: JSONString,$launchScheduler: JSONString,"
-                ).replace(
+                "$controller: JSONString,$launchScheduler: JSONString,",
+            ).replace(
                 "controller: $controller,",
-                "controller: $controller,launchScheduler: $launchScheduler,"
-                )
+                "controller: $controller,launchScheduler: $launchScheduler,",
+            )
         )
 
         # mutation 3 maps to backend that can support CLI version of at least 0.10.31
