@@ -162,7 +162,7 @@ class Api:
 
     def log_http_error(self, err: requests.exceptions.HTTPError) -> None:
         res = err.response
-        logger.error("%s response executing GraphQL." % res.status_code)
+        logger.error(f"{res.status_code} response executing GraphQL.")
         logger.error(res.text)
         self.display_gorilla_error_if_found(res)
 
