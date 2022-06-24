@@ -1,4 +1,4 @@
-"""redirect tests"""
+"""retry tests"""
 
 from unittest import mock
 
