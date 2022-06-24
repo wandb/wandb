@@ -40,11 +40,11 @@ def roc_curve(
     )
     sklearn_metrics = util.get_module(
         "sklearn.metrics",
-        "roc requires the scikit library, install with `pip install scikit-learn`",
+        "roc requires the scikit-learn library, install with `pip install scikit-learn`",
     )
     sklearn_utils = util.get_module(
         "sklearn.utils",
-        "roc requires the scikit library, install with `pip install scikit-learn`",
+        "roc requires the scikit-learn library, install with `pip install scikit-learn`",
     )
 
     y_true = np.array(y_true)
