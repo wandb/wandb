@@ -5,8 +5,9 @@ env:
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
 on: # Whenever a release is published,
-  release:
-    types: [published]
+  push
+  #release:
+  #  types: [published]
 
 jobs: # update the docs.
   update-docs:
