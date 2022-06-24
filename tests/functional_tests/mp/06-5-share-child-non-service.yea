@@ -3,6 +3,9 @@ plugin:
   - wandb
 env:
   - WANDB_DISABLE_SERVICE: "true"
+tag:
+  skips:
+    - platform: win
 parametrize:
   permute:
     - :yea:start_method:
