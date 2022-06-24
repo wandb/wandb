@@ -2461,7 +2461,6 @@ class Api:
             if hasattr(e, "exception"):
                 e = e.exception
             if isinstance(e, requests.HTTPError) and e.response.status_code == 409:
-                logger.error("conflict when trying to commit artifact; retrying")
                 return True
             return False
 
