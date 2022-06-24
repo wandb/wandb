@@ -10,6 +10,7 @@ import logging
 import os
 import queue
 from queue import Queue
+import threading
 import time
 from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 from typing import cast, TYPE_CHECKING
@@ -20,6 +21,7 @@ import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.sdk.lib import redirect
 
 from . import artifacts
 from . import file_stream
@@ -50,6 +52,8 @@ logger = logging.getLogger(__name__)
 
 DictWithValues = NewType("DictWithValues", Dict[str, Any])
 DictNoValues = NewType("DictNoValues", Dict[str, Any])
+
+_OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
 def _framework_priority(
@@ -175,6 +179,14 @@ class SendManager:
         self._partial_output = dict()
 
         self._exit_code = 0
+
+        # dict of queues
+        self._output_stopped = threading.Event()
+        self._output_streams = ("stdout", "stderr")
+        self._output_queues = dict()
+        self._output_emulators = dict()
+        self._output_writers = dict()
+        self._output_readers = dict()
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
@@ -425,6 +437,7 @@ class SendManager:
             else:
                 transition_state()
         elif state == defer.FLUSH_FS:
+            self._output_finish()
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
@@ -814,6 +827,7 @@ class SendManager:
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
+        self._output_start()
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
@@ -863,16 +877,85 @@ class SendManager:
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 
+    def _output_start(self) -> None:
+        for stream in self._output_streams:
+            self._output_queues[stream] = queue.Queue()
+            self._output_emulators[stream] = redirect.TerminalEmulator()
+            self._output_readers[stream] = threading.Thread(
+                    target=self._output_reader_thread, kwargs=dict(stream=stream))
+            self._output_writers[stream] = threading.Thread(
+                    target=self._output_writer_thread, kwargs=dict(stream=stream))
+            self._output_writers[stream].daemon = True
+            self._output_readers[stream].daemon = True
+            self._output_writers[stream].start()
+            self._output_readers[stream].start()
+
+    def _output_finish(self) -> None:
+        self._output_stopped.set()
+        for stream in self._output_streams:
+            if self._output_writers[stream]:
+                self._output_writers[stream].join(timeout=5)
+                if self._output_writers[stream].is_alive():
+                    print("processing output...")
+                    self._output_writers[stream].join()
+                self._output_writers[stream] = None
+            if self._output_readers[stream]:
+                self._output_readers[stream].join()
+                self._output_readers[stream] = None
+            self._output_flush(stream)
+
+    def _output_writer_thread(self, stream) -> None:
+        while True:
+            if self._output_queues[stream].empty():
+                if self._output_stopped.is_set():
+                    return
+                time.sleep(0.5)
+                continue
+            data = []
+            while not self._output_queues[stream].empty():
+                data.append(self._output_queues[stream].get())
+            if self._output_stopped.is_set() and sum(map(len, data)) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self._output_flush(stream)
+                [self._output_flush(stream, line.encode("utf-8")) for line in data]
+                return
+            try:
+                self._output_emulators[stream].write("".join(data))
+            except Exception:
+                pass
+
+    def _output_reader_thread(self, stream) -> None:
+        while not (self._output_stopped.is_set() and self._output_queues[stream].empty()):
+            self._output_flush(stream)
+            time.sleep(_OUTPUT_MIN_CALLBACK_INTERVAL)
+
+    def _output_flush(self, stream, data=None):
+        if data is None:
+            try:
+                # data = self._output_emulators[stream].read().encode("utf-8")
+                data = self._output_emulators[stream].read()
+            except Exception:
+                pass
+        if data:
+            self._send_output_line(stream, data)
+
     def send_output(self, record: "Record") -> None:
         if not self._fs:
             return
         out = record.output
-        prepend = ""
         stream = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
-            prepend = "ERROR "
         line = out.line
+        self._send_output(stream, line)
+
+    def _send_output(self, stream, data) -> None:
+        self._output_queues[stream].put(data)
+
+    def _send_output_line(self, stream, line) -> None:
+        prepend = ""
+        if stream == "stderr":
+            prepend = "ERROR "
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             if line.startswith("\r"):
@@ -1111,6 +1194,7 @@ class SendManager:
         logger.info("shutting down sender")
         # if self._tb_watcher:
         #     self._tb_watcher.finish()
+        self._output_finish()
         if self._dir_watcher:
             self._dir_watcher.finish()
             self._dir_watcher = None
