@@ -15,16 +15,17 @@ def test_retry_respects_num_retries():
     func = mock.Mock()
     func.side_effect = ValueError
 
+    num_retries = 7
     retrier = retry.Retry(
         func,
-        num_retries=7,
+        num_retries=num_retries,
         retryable_exceptions=(ValueError,),
         sleep_fn_for_testing=noop_sleep,
     )
     with pytest.raises(ValueError):
         retrier()
 
-    assert func.call_count == 7 + 1
+    assert func.call_count == num_retries + 1
 
 
 def test_retry_call_num_retries_overrides_default_num_retries():
@@ -33,23 +34,24 @@ def test_retry_call_num_retries_overrides_default_num_retries():
 
     retrier = retry.Retry(
         func,
-        num_retries=7,
         retryable_exceptions=(ValueError,),
         sleep_fn_for_testing=noop_sleep,
     )
+    num_retries = 4
     with pytest.raises(ValueError):
-        retrier(num_retries=4)
+        retrier(num_retries=num_retries)
 
-    assert func.call_count == 4 + 1
+    assert func.call_count == num_retries + 1
 
 
 def test_retry_respects_num_retries_across_multiple_calls():
     func = mock.Mock()
     func.side_effect = ValueError
 
+    num_retries = 7
     retrier = retry.Retry(
         func,
-        num_retries=7,
+        num_retries=num_retries,
         retryable_exceptions=(ValueError,),
         sleep_fn_for_testing=noop_sleep,
     )
@@ -58,7 +60,7 @@ def test_retry_respects_num_retries_across_multiple_calls():
     with pytest.raises(ValueError):
         retrier()
 
-    assert func.call_count == 2 * (7 + 1)
+    assert func.call_count == 2 * (num_retries + 1)
 
 
 def test_retry_respects_retryable_exceptions():
