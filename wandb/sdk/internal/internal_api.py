@@ -2455,19 +2455,10 @@ class Api:
         """
         )
 
-        def check_retry(e: Any) -> bool:
-            if util.no_retry_auth(e):
-                return True
-            if hasattr(e, "exception"):
-                e = e.exception
-            if isinstance(e, requests.HTTPError) and e.response.status_code == 409:
-                return True
-            return False
-
         response = self.gql(
             mutation,
             variable_values={"artifactID": artifact_id},
-            check_retry_fn=check_retry,
+            check_retry_fn=util.check_retry_commit_artifact,
             retry_timedelta=datetime.timedelta(minutes=2),
         )
         return response
