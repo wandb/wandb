@@ -1,11 +1,12 @@
 import dataclasses
-from dataclasses import dataclass
 import inspect
-from typing import List, Any, Callable, Mapping, Optional, TypeVar, overload
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Callable, Mapping, Optional, TypeVar, overload
+
 import wandb
 
-from .validators import TypeValidator, LayoutDict, UNDEFINED_TYPE
+from .validators import UNDEFINED_TYPE, LayoutDict, TypeValidator
 
 
 class SubclassOnlyABC:
@@ -94,16 +95,24 @@ class Attr:
         return func
 
     def setter(self, func: Func) -> Func:
-        self.fset = func
-        return func
+        field = self.field
+
+        def wrapper(owner, value):
+            validators = field.metadata.get("validators", [])
+            validators = [TypeValidator(field.type)] + validators
+
+            for validator in validators:
+                validator(field.name, value)
+            return func(owner, value)
+
+        self.fset = wrapper
+        return wrapper
 
     def __set_name__(self, owner, name):
         field = self.field
         path_or_name = field.metadata.get("json_path", name)
-        validators = field.metadata.get("validators", [])
 
         self.type = owner.__annotations__.get(name, UNDEFINED_TYPE)
-        validators = [TypeValidator(self.type)] + validators
         if self.fget is None:
 
             def _fget(self):
@@ -114,13 +123,11 @@ class Attr:
                 else:
                     raise TypeError(f"Unexpected type for path {type(path_or_name)!r}")
 
-            self.fget = _fget
+            self.fget = self.getter(_fget)
         if self.fset is None:
 
             def fset(self, value):
                 def _fset(self, value):
-                    for validator in validators:
-                        validator(name, value)
                     if isinstance(path_or_name, str):
                         nested_set(self, path_or_name, value)
                     elif isinstance(path_or_name, list):
@@ -134,7 +141,7 @@ class Attr:
                 setattr(owner, field.name, getattr(owner, field.name).setter(_fset))
                 setattr(self, field.name, value)
 
-            self.fset = fset
+            self.fset = self.setter(fset)
 
         class Property(property):
             if field.default is not dataclasses.MISSING:
@@ -217,7 +224,7 @@ class Base(SubclassOnlyABC, ShortReprMixin):
         return obj
 
     def __post_init__(self):
-        # self.update_sig()
+        self.update_sig()
         pass
 
     @classmethod
@@ -233,13 +240,15 @@ class Base(SubclassOnlyABC, ShortReprMixin):
         sig = inspect.signature(self.__class__)
         new_params = [
             inspect.Parameter(
-                v.name, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v.annotation
+                v.name,
+                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=v.annotation,
             )
             for v in sig.parameters.values()
             if not v.name.startswith("_")
         ]
         new_sig = sig.replace(parameters=new_params)
-        setattr(self.__class__.__init__, "__signature__", new_sig)
+        setattr(self.__class__, "__signature__", new_sig)
         # setattr(self.__class__, '__doc__', str(new_sig))
 
     def _get_path(self, var):

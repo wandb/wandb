@@ -1,13 +1,10 @@
-import dataclasses
-import inspect
 import json
 import re
 import urllib
-from collections.abc import Mapping
 from copy import deepcopy
-from dataclasses import MISSING, dataclass, field
-from functools import wraps
-from typing import Any, Callable, List, Optional, TypeVar, Union, cast, overload
+from dataclasses import MISSING, dataclass
+from typing import List as LList
+from typing import Optional, Union
 
 import wandb
 from wandb.sdk.lib import ipython
@@ -257,7 +254,7 @@ class LinePlot(Panel):
             ],
         },
     )
-    
+
     @attr(x).getter
     def _(self):
         json_path = self._get_path("x")
@@ -269,19 +266,21 @@ class LinePlot(Panel):
         json_path = self._get_path("x")
         value = self.panel_metrics_helper.front_to_back(value)
         nested_set(self, json_path, value)
-        
+
     @attr(y).getter
     def _(self):
-        json_paths = self._get_path("y")
-        value = [nested_get(self, p) for p in json_paths]
+        json_path = self._get_path("y")
+        value = nested_get(self, json_path)
+        if value is None:
+            return value
         return [self.panel_metrics_helper.back_to_front(v) for v in value]
 
     @attr(y).setter
     def _(self, value):
-        json_paths = self._get_path("y")        
-        value = [self.panel_metrics_helper.front_to_back(v) for v in value]
-        for p, v in zip(json_paths, value):
-            nested_set(self, p, v)
+        json_path = self._get_path("y")
+        if value is not None:
+            value = [self.panel_metrics_helper.front_to_back(v) for v in value]
+        nested_set(self, json_path, value)
 
     @property
     def view_type(self):
@@ -370,43 +369,45 @@ class ScatterPlot(Panel):
         },
     )
     # attr(default=None, metadata={"json_path":"spec.config.yAxisLineSmoothingWeight"})
-    regression: Optional[bool] = attr(default=None, metadata={'json_path': 'spec.config.showLinearRegression'})
-    
-    # @attr(x).getter
-    # def _(self):
-    #     json_path = self._get_path("x")
-    #     value = nested_get(self, json_path)
-    #     return self.panel_metrics_helper.scatter_back_to_front(value)
+    regression: Optional[bool] = attr(
+        default=None, metadata={"json_path": "spec.config.showLinearRegression"}
+    )
 
-    # @attr(x).setter
-    # def _(self, value):
-    #     json_path = self._get_path("x")
-    #     value = self.panel_metrics_helper.scatter_front_to_back(value)
-    #     nested_set(self, json_path, value)
-        
-    # @attr(y).getter
-    # def _(self):
-    #     json_path = self._get_path("y")
-    #     value = nested_get(self, json_path)
-    #     return self.panel_metrics_helper.scatter_back_to_front(value)
+    @attr(x).getter
+    def _(self):
+        json_path = self._get_path("x")
+        value = nested_get(self, json_path)
+        return self.panel_metrics_helper.special_back_to_front(value)
 
-    # @attr(y).setter
-    # def _(self, value):
-    #     json_path = self._get_path("y")
-    #     value = self.panel_metrics_helper.scatter_front_to_back(value)
-    #     nested_set(self, json_path, value)
-        
-    # @attr(z).getter
-    # def _(self):
-    #     json_path = self._get_path("z")
-    #     value = nested_get(self, json_path)
-    #     return self.panel_metrics_helper.scatter_back_to_front(value)
+    @attr(x).setter
+    def _(self, value):
+        json_path = self._get_path("x")
+        value = self.panel_metrics_helper.special_front_to_back(value)
+        nested_set(self, json_path, value)
 
-    # @attr(z).setter
-    # def _(self, value):
-    #     json_path = self._get_path("z")
-    #     value = self.panel_metrics_helper.scatter_front_to_back(value)
-    #     nested_set(self, json_path, value)
+    @attr(y).getter
+    def _(self):
+        json_path = self._get_path("y")
+        value = nested_get(self, json_path)
+        return self.panel_metrics_helper.special_back_to_front(value)
+
+    @attr(y).setter
+    def _(self, value):
+        json_path = self._get_path("y")
+        value = self.panel_metrics_helper.special_front_to_back(value)
+        nested_set(self, json_path, value)
+
+    @attr(z).getter
+    def _(self):
+        json_path = self._get_path("z")
+        value = nested_get(self, json_path)
+        return self.panel_metrics_helper.special_back_to_front(value)
+
+    @attr(z).setter
+    def _(self, value):
+        json_path = self._get_path("z")
+        value = self.panel_metrics_helper.special_front_to_back(value)
+        nested_set(self, json_path, value)
 
     @property
     def view_type(self) -> str:
@@ -509,17 +510,18 @@ class BarPlot(Panel):
 
     @attr(metrics).getter
     def _(self):
-        json_paths = self._get_path("metrics")
-        value = [nested_get(self, p) for p in json_paths]
+        json_path = self._get_path("metrics")
+        value = nested_get(self, json_path)
+        if value is None:
+            return value
         return [self.panel_metrics_helper.back_to_front(v) for v in value]
 
     @attr(metrics).setter
     def _(self, value):
-        json_paths = self._get_path("metrics")
-        value = [self.panel_metrics_helper.front_to_back(v) for v in value]
-        for p, v in zip(json_paths, value):
-            nested_set(self, p, v)
-
+        json_path = self._get_path("metrics")
+        if value is not None:
+            value = [self.panel_metrics_helper.front_to_back(v) for v in value]
+        nested_set(self, json_path, value)
 
     @property
     def view_type(self) -> str:
@@ -576,7 +578,6 @@ class ScalarChart(Panel):
         new_metrics = self.panel_metrics_helper.front_to_back(new_metrics)
         nested_set(self, json_path, [new_metrics])
 
-
     @property
     def view_type(self) -> str:
         return "Scalar Chart"
@@ -601,19 +602,43 @@ class CodeComparer(Panel):
 class PCColumn(Base):
     metric: str = attr(metadata={"json_path": "spec.accessor"})
     name: Optional[str] = attr(default=None, metadata={"json_path": "spec.displayName"})
-    ascending: Optional[bool] = attr(default=None, metadata={"json_path": "spec.inverted"})
+    ascending: Optional[bool] = attr(
+        default=None, metadata={"json_path": "spec.inverted"}
+    )
     log_scale: Optional[bool] = attr(default=None, metadata={"json_path": "spec.log"})
-    
+
+    def __new__(cls, *args, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        obj.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
+        return obj
+
+    # @attr(metric).getter
+    # def _(self):
+    #     json_path = self._get_path("metric")
+    #     value = nested_get(self, json_path)
+    #     return self.panel_metrics_helper.special_back_to_front(value)
+
+    # @attr(metric).setter
+    # def _(self, value):
+    #     json_path = self._get_path("metric")
+    #     value = self.panel_metrics_helper.special_front_to_back(value)
+    #     nested_set(self, json_path, value)
+
     @classmethod
     def from_json(cls, spec):
-        obj = cls(metric=spec['accessor'])
+        obj = cls(metric=spec["accessor"])
         obj._spec = spec
         return obj
+
 
 @dataclass(repr=False)
 class ParallelCoordinatesPlot(Panel):
     columns: list = attr(
-        default_factory=list, metadata={"json_path": "spec.config.columns", 'validators': [TypeValidator(PCColumn, how='keys')]}
+        default_factory=list,
+        metadata={
+            "json_path": "spec.config.columns",
+            "validators": [TypeValidator(PCColumn, how="keys")],
+        },
     )
     title: Optional[str] = attr(
         default=None, metadata={"json_path": "spec.config.chartTitle"}
@@ -633,7 +658,7 @@ class ParallelCoordinatesPlot(Panel):
 
     @attr(columns).getter
     def _(self):
-        json_path = self._get_path('columns')
+        json_path = self._get_path("columns")
         specs = nested_get(self, json_path)
         return [PCColumn.from_json(cspec) for cspec in specs]
 
@@ -642,9 +667,7 @@ class ParallelCoordinatesPlot(Panel):
         json_path = self._get_path("columns")
         specs = [c.spec for c in new_columns]
         nested_set(self, json_path, specs)
-        
 
-        
     @property
     def view_type(self) -> str:
         return "Parallel Coordinates Plot"
@@ -655,7 +678,7 @@ class ParameterImportancePlot(Panel):
     with_respect_to: str = attr(
         default="Created Timestamp", metadata={"json_path": "spec.config.targetKey"}
     )
-    
+
     @attr(with_respect_to).getter
     def _(self):
         json_path = self._get_path("with_respect_to")
@@ -834,165 +857,6 @@ class P(Block):
         return {"type": "paragraph", "children": content}
 
 
-def _default_runsets():
-    return [RunSet()]
-
-
-@dataclass(repr=False)
-class PanelGrid(Block):
-    """
-    Panel grids are containers for panels and runsets.
-    Each panel grid may contain multiple panels and multiple runsets.
-    The runsets determine what data available to visualize, and the panels will try to visualize that data.
-    https://docs.wandb.ai/guides/reports/reports-walkthrough#panel-grids
-    """
-
-    runsets: list = attr(
-        default_factory=_default_runsets,
-        metadata={"json_path": "spec.metadata.runSets"},
-    )
-    panels: list = attr(
-        default_factory=list,
-        metadata={"json_path": "spec.metadata.panelBankSectionConfig.panels"},
-    )
-
-    @attr(panels).getter
-    def _(self):
-        json_path = self._get_path("panels")
-        specs = nested_get(self, json_path)
-        panels = []
-        for pspec in specs:
-            cls = panel_mapping[pspec["viewType"]]
-            panels.append(cls.from_json(pspec))
-        return panels
-
-    @attr(panels).setter
-    def _(self, new_panels):
-        json_path = self._get_path("panels")
-
-        # For PC and Scatter, we need to use more specific values, so update if possible.
-        # This only happens on set, and only when assigned to a panel grid because that is
-        # the earliest time that we have a runset to check what kind of metric is being assigned
-        new_panels = self._get_specific_keys_for_certain_plots(new_panels, setting=True)
-
-        new_specs = [p.spec for p in new_panels]
-        nested_set(self, json_path, new_specs)
-
-    @attr(runsets).getter
-    def _(self):
-        json_path = self._get_path("runsets")
-        specs = nested_get(self, json_path)
-        return [RunSet.from_json(spec) for spec in specs]
-
-    @attr(runsets).setter
-    def _(self, new_runsets):
-        json_path = self._get_path("runsets")
-        new_specs = [rs.spec for rs in new_runsets]
-        nested_set(self, json_path, new_specs)
-
-    def _get_specific_keys_for_certain_plots(self, panels, setting=False):
-        """
-        Helper function to map names for certain plots
-        """
-        gen = self.runsets[0].pm_query_generator
-        transform = gen.front_to_back if setting else gen.back_to_front
-        for p in panels:
-            if isinstance(p, ScatterPlot):
-                for param in ["x", "y", "z"]:
-                    value = getattr(p, param)
-                    if (
-                        value is not None
-                        and (not value.startswith(".config") and not ".value" in value)
-                        and not value.startswith("summary_metrics.")
-                    ):
-                        setattr(p, param, transform(value))
-            elif isinstance(p, ParallelCoordinatesPlot):
-                if p.columns:
-                    for col in p.columns:
-                        col.metric = transform(col.metric)
-        return panels
-
-    def __new__(cls, *args, **kwargs):
-        def _generate_default_panel_grid_spec():
-            return {
-                "type": "panel-grid",
-                "children": [{"text": ""}],
-                "metadata": {
-                    "openViz": True,
-                    "panels": {
-                        "views": {
-                            "0": {"name": "Panels", "defaults": [], "config": []}
-                        },
-                        "tabs": ["0"],
-                    },
-                    "panelBankConfig": {
-                        "state": 0,
-                        "settings": {
-                            "autoOrganizePrefix": 2,
-                            "showEmptySections": False,
-                            "sortAlphabetically": False,
-                        },
-                        "sections": [
-                            {
-                                "name": "Hidden Panels",
-                                "isOpen": False,
-                                "panels": [],
-                                "type": "flow",
-                                "flowConfig": {
-                                    "snapToColumns": True,
-                                    "columnsPerPage": 3,
-                                    "rowsPerPage": 2,
-                                    "gutterWidth": 16,
-                                    "boxWidth": 460,
-                                    "boxHeight": 300,
-                                },
-                                "sorted": 0,
-                                "localPanelSettings": {
-                                    "xAxis": "_step",
-                                    "smoothingWeight": 0,
-                                    "smoothingType": "exponential",
-                                    "ignoreOutliers": False,
-                                    "xAxisActive": False,
-                                    "smoothingActive": False,
-                                },
-                            }
-                        ],
-                    },
-                    "panelBankSectionConfig": {
-                        "name": "Report Panels",
-                        "isOpen": False,
-                        "panels": [],
-                        "type": "grid",
-                        "flowConfig": {
-                            "snapToColumns": True,
-                            "columnsPerPage": 3,
-                            "rowsPerPage": 2,
-                            "gutterWidth": 16,
-                            "boxWidth": 460,
-                            "boxHeight": 300,
-                        },
-                        "sorted": 0,
-                        "localPanelSettings": {
-                            "xAxis": "_step",
-                            "smoothingWeight": 0,
-                            "smoothingType": "exponential",
-                            "ignoreOutliers": False,
-                            "xAxisActive": False,
-                            "smoothingActive": False,
-                        },
-                    },
-                    "customRunColors": {},
-                    "runSets": [],
-                    "openRunSet": 0,
-                    "name": "unused-name",
-                },
-            }
-
-        obj = super().__new__(cls)
-        obj._spec = _generate_default_panel_grid_spec()
-        return obj
-
-
 def _default_filters():
     return {"$or": [{"$and": []}]}
 
@@ -1019,13 +883,13 @@ class RunSet(Base):
     project: str = attr(default="", metadata={"json_path": "spec.project.name"})
     name: str = attr(default="Run set", metadata={"json_path": "spec.name"})
     query: str = attr(default="", metadata={"json_path": "spec.search.query"})
-    filters: str = attr(
+    filters: dict = attr(
         default_factory=_default_filters, metadata={"json_path": "spec.filters"}
     )
-    groupby: str = attr(
+    groupby: list = attr(
         default_factory=_default_groupby, metadata={"json_path": "spec.grouping"}
     )
-    order: str = attr(
+    order: list = attr(
         default_factory=_default_order, metadata={"json_path": "spec.sort"}
     )
 
@@ -1115,6 +979,165 @@ class RunSet(Base):
         return wandb.apis.public.Runs(api.client, self.entity, self.project)
 
 
+def _default_runsets():
+    return [RunSet()]
+
+
+@dataclass(repr=False)
+class PanelGrid(Block):
+    """
+    Panel grids are containers for panels and runsets.
+    Each panel grid may contain multiple panels and multiple runsets.
+    The runsets determine what data available to visualize, and the panels will try to visualize that data.
+    https://docs.wandb.ai/guides/reports/reports-walkthrough#panel-grids
+    """
+
+    runsets: list = attr(
+        default_factory=_default_runsets,
+        metadata={
+            "json_path": "spec.metadata.runSets",
+            "validators": [TypeValidator(RunSet, how="keys")],
+        },
+    )
+    panels: list = attr(
+        default_factory=list,
+        metadata={
+            "json_path": "spec.metadata.panelBankSectionConfig.panels",
+            "validators": [TypeValidator(Panel, how="keys")],
+        },
+    )
+
+    @attr(panels).getter
+    def _(self):
+        json_path = self._get_path("panels")
+        specs = nested_get(self, json_path)
+        panels = []
+        for pspec in specs:
+            cls = panel_mapping[pspec["viewType"]]
+            panels.append(cls.from_json(pspec))
+        return panels
+
+    @attr(panels).setter
+    def _(self, new_panels):
+        json_path = self._get_path("panels")
+
+        # For PC and Scatter, we need to use slightly different values, so update if possible.
+        # This only happens on set, and only when assigned to a panel grid because that is
+        # the earliest time that we have a runset to check what kind of metric is being assigned.
+        new_panels = self._get_specific_keys_for_certain_plots(new_panels, setting=True)
+
+        new_specs = [p.spec for p in new_panels]
+        nested_set(self, json_path, new_specs)
+
+    @attr(runsets).getter
+    def _(self):
+        json_path = self._get_path("runsets")
+        specs = nested_get(self, json_path)
+        return [RunSet.from_json(spec) for spec in specs]
+
+    @attr(runsets).setter
+    def _(self, new_runsets):
+        json_path = self._get_path("runsets")
+        new_specs = [rs.spec for rs in new_runsets]
+        nested_set(self, json_path, new_specs)
+
+    def _get_specific_keys_for_certain_plots(self, panels, setting=False):
+        """
+        Helper function to map names for certain plots
+        """
+        gen = self.runsets[0].pm_query_generator
+        for p in panels:
+            if isinstance(p, ParallelCoordinatesPlot):
+                wandb.termlog(
+                    "INFO: PCColumn metrics will be have special naming applied -- no change from you is required."
+                )
+                transform = gen.pc_front_to_back if setting else gen.pc_back_to_front
+                if p.columns:
+                    for col in p.columns:
+                        col.metric = transform(col.metric)
+        return panels
+
+    def __new__(cls, *args, **kwargs):
+        def _generate_default_panel_grid_spec():
+            return {
+                "type": "panel-grid",
+                "children": [{"text": ""}],
+                "metadata": {
+                    "openViz": True,
+                    "panels": {
+                        "views": {
+                            "0": {"name": "Panels", "defaults": [], "config": []}
+                        },
+                        "tabs": ["0"],
+                    },
+                    "panelBankConfig": {
+                        "state": 0,
+                        "settings": {
+                            "autoOrganizePrefix": 2,
+                            "showEmptySections": False,
+                            "sortAlphabetically": False,
+                        },
+                        "sections": [
+                            {
+                                "name": "Hidden Panels",
+                                "isOpen": False,
+                                "panels": [],
+                                "type": "flow",
+                                "flowConfig": {
+                                    "snapToColumns": True,
+                                    "columnsPerPage": 3,
+                                    "rowsPerPage": 2,
+                                    "gutterWidth": 16,
+                                    "boxWidth": 460,
+                                    "boxHeight": 300,
+                                },
+                                "sorted": 0,
+                                "localPanelSettings": {
+                                    "xAxis": "_step",
+                                    "smoothingWeight": 0,
+                                    "smoothingType": "exponential",
+                                    "ignoreOutliers": False,
+                                    "xAxisActive": False,
+                                    "smoothingActive": False,
+                                },
+                            }
+                        ],
+                    },
+                    "panelBankSectionConfig": {
+                        "name": "Report Panels",
+                        "isOpen": False,
+                        "panels": [],
+                        "type": "grid",
+                        "flowConfig": {
+                            "snapToColumns": True,
+                            "columnsPerPage": 3,
+                            "rowsPerPage": 2,
+                            "gutterWidth": 16,
+                            "boxWidth": 460,
+                            "boxHeight": 300,
+                        },
+                        "sorted": 0,
+                        "localPanelSettings": {
+                            "xAxis": "_step",
+                            "smoothingWeight": 0,
+                            "smoothingType": "exponential",
+                            "ignoreOutliers": False,
+                            "xAxisActive": False,
+                            "smoothingActive": False,
+                        },
+                    },
+                    "customRunColors": {},
+                    "runSets": [],
+                    "openRunSet": 0,
+                    "name": "unused-name",
+                },
+            }
+
+        obj = super().__new__(cls)
+        obj._spec = _generate_default_panel_grid_spec()
+        return obj
+
+
 @dataclass(repr=False)
 class Report(Base):
     project: str = attr(metadata={"json_path": "viewspec.project.name"})
@@ -1126,8 +1149,20 @@ class Report(Base):
         default="Untitled Report", metadata={"json_path": "viewspec.displayName"}
     )
     description: str = attr(default="", metadata={"json_path": "viewspec.description"})
-    width: str = attr(default="readable", metadata={"json_path": "viewspec.spec.width"})
-    blocks: list = attr(default_factory=list, metadata={"json_path": "spec.blocks"})
+    width: str = attr(
+        default="readable",
+        metadata={
+            "json_path": "viewspec.spec.width",
+            "validators": [OneOf(["readable", "fixed", "fluid"])],
+        },
+    )
+    blocks: list = attr(
+        default_factory=list,
+        metadata={
+            "json_path": "spec.blocks",
+            "validators": [TypeValidator(Block, how="keys")],
+        },
+    )
 
     def __new__(cls, *args, **kwargs):
         def _generate_default_viewspec():
@@ -1170,7 +1205,9 @@ class Report(Base):
     @attr(blocks).setter
     def _(self, new_blocks):
         json_path = self._get_path("blocks")
-        new_block_specs = [P('').spec] + [b.spec for b in new_blocks] + [P('').spec]  # hidden p blocks
+        new_block_specs = (
+            [P("").spec] + [b.spec for b in new_blocks] + [P("").spec]
+        )  # hidden p blocks
         nested_set(self, json_path, new_block_specs)
 
     @property
@@ -1198,11 +1235,11 @@ class Report(Base):
         return self._viewspec["name"]
 
     @property
-    def panel_grids(self) -> "List[PanelGrid]":
+    def panel_grids(self) -> "LList[PanelGrid]":
         return [b for b in self.blocks if isinstance(b, PanelGrid)]
 
     @property
-    def runsets(self) -> "List[RunSet]":
+    def runsets(self) -> "LList[RunSet]":
         return [pg.runset for pg in self.panel_grids]
 
     @property
@@ -1262,25 +1299,482 @@ class Report(Base):
         return self.to_html()
 
 
+class List(Base):
+    @classmethod
+    def from_json(cls, spec: dict) -> "Union[CheckedList, OrderedList, UnorderedList]":
+        items = [
+            item["children"][0]["children"][0]["text"] for item in spec["children"]
+        ]
+        checked = [item.get("checked") for item in spec["children"]]
+        ordered = spec.get("ordered")
+
+        # NAND: Either checked or ordered or neither (unordered), never both
+        if all(x is None for x in checked):
+            checked = None
+        if checked is not None and ordered is not None:
+            raise ValueError(
+                "Lists can be checked, ordered or neither (unordered), but not both!"
+            )
+
+        if checked:
+            return CheckedList(items, checked)
+        elif ordered:
+            return OrderedList(items)
+        else:
+            return UnorderedList(items)
+
+
+@dataclass(repr=False)
+class CheckedList(Block, List):
+    items: list = attr()
+    checked: list = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "list",
+            "children": [
+                {
+                    "type": "list-item",
+                    "children": [{"type": "paragraph", "children": [{"text": item}]}],
+                    "checked": check,
+                }
+                for item, check in zip(self.items, self.checked)
+            ],
+        }
+
+
+@dataclass(repr=False)
+class OrderedList(Block, List):
+    items: list = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "list",
+            "ordered": True,
+            "children": [
+                {
+                    "type": "list-item",
+                    "children": [{"type": "paragraph", "children": [{"text": item}]}],
+                    "ordered": True,
+                }
+                for item in self.items
+            ],
+        }
+
+
+@dataclass(repr=False)
+class UnorderedList(Block, List):
+    items: list = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "list",
+            "children": [
+                {
+                    "type": "list-item",
+                    "children": [{"type": "paragraph", "children": [{"text": item}]}],
+                }
+                for item in self.items
+            ],
+        }
+
+
+class Heading(Base):
+    @classmethod
+    def from_json(cls, spec: dict) -> "Union[H1,H2,H3]":
+        level = spec["level"]
+        text = spec["children"][0]["text"]
+
+        level_mapping = {1: H1, 2: H2, 3: H3}
+
+        if level not in level_mapping:
+            raise ValueError(f"`level` must be one of {list(level_mapping.keys())}")
+
+        return level_mapping[level](text)
+
+
+@dataclass(repr=False)
+class H1(Block, Heading):
+    text: str = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "heading",
+            "children": [{"text": self.text}],
+            "level": 1,
+        }
+
+
+@dataclass(repr=False)
+class H2(Block, Heading):
+    text: str = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "heading",
+            "children": [{"text": self.text}],
+            "level": 2,
+        }
+
+
+@dataclass(repr=False)
+class H3(Block, Heading):
+    text: str = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "heading",
+            "children": [{"text": self.text}],
+            "level": 3,
+        }
+
+
+@dataclass(repr=False)
+class InlineLaTeX(Block):
+    latex: str = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
+
+
+@dataclass(repr=False)
+class InlineCode(Block):
+    code: str = attr()
+
+    @property
+    def spec(self) -> dict:
+        return {"text": self.code, "inlineCode": True}
+
+
+@dataclass(repr=False)
+class P(Block):
+    text: Union[str, InlineLaTeX, InlineCode, list] = attr()
+
+    @classmethod
+    def from_json(cls, spec):
+        if isinstance(spec["children"], str):
+            text = spec["children"]
+        else:
+            text = []
+            for elem in spec["children"]:
+                if elem.get("type") == "latex":
+                    text.append(InlineLaTeX(elem["content"]))
+                elif elem.get("inlineCode"):
+                    text.append(InlineCode(elem["text"]))
+                else:
+                    text.append(elem["text"])
+
+        if not isinstance(text, list):
+            text = [text]
+        return cls(text)
+
+    @property
+    def spec(self) -> dict:
+        if isinstance(self.text, list):
+            content = [
+                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
+            ]
+        else:
+            content = [{"text": self.text}]
+
+        return {"type": "paragraph", "children": content}
+
+
+@dataclass(repr=False)
+class BlockQuote(Block):
+    text: str = attr()
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "BlockQuote":
+        text = spec["children"][0]["text"]
+        return cls(text)
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "block-quote", "children": [{"text": self.text}]}
+
+
+@dataclass(repr=False)
+class CalloutBlock(Block):
+    text: Union[str, list] = attr()
+
+    def __post_init__(self) -> None:
+        if isinstance(self.text, str):
+            self.text = self.text.split("\n")
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "CalloutBlock":
+        text = [child["children"][0]["text"] for child in spec["children"]]
+        return cls(text)
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "callout-block",
+            "children": [
+                {"type": "callout-line", "children": [{"text": text}]}
+                for text in self.text
+            ],
+        }
+
+
+@dataclass(repr=False)
+class CodeBlock(Block):
+    code: Union[str, list] = attr()
+    language: str = attr(default="python")
+
+    def __post_init__(self) -> None:
+        if isinstance(self.code, str):
+            self.code = self.code.split("\n")
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "CodeBlock":
+        code = [child["children"][0]["text"] for child in spec["children"]]
+        language = spec.get("language", "python")
+        return cls(code, language)
+
+    @property
+    def spec(self) -> dict:
+        language = self.language.lower()
+        return {
+            "type": "code-block",
+            "children": [
+                {
+                    "type": "code-line",
+                    "children": [{"text": text}],
+                    "language": language,
+                }
+                for text in self.code
+            ],
+            "language": language,
+        }
+
+
+@dataclass(repr=False)
+class MarkdownBlock(Block):
+    text: Union[str, list] = attr()
+
+    def __post_init__(self) -> None:
+        if isinstance(self.text, list):
+            self.text = "\n".join(self.text)
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "MarkdownBlock":
+        text = spec["content"]
+        return cls(text)
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "markdown-block",
+            "children": [{"text": ""}],
+            "content": self.text,
+        }
+
+
+@dataclass(repr=False)
+class LaTeXBlock(Block):
+    text: Union[str, list] = attr()
+
+    def __post_init__(self) -> None:
+        if isinstance(self.text, list):
+            self.text = "\n".join(self.text)
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "LaTeXBlock":
+        text = spec["content"]
+        return cls(text)
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "latex",
+            "children": [{"text": ""}],
+            "content": self.text,
+            "block": True,
+        }
+
+
+@dataclass(repr=False)
+class Gallery(Block):
+    ids: list = attr(default_factory=list)
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "Gallery":
+        ids = spec["ids"]
+        return cls(ids)
+
+    @classmethod
+    def from_report_urls(cls, urls: LList[str]) -> "Gallery":
+        ids = [url.split("--")[-1] for url in urls]
+        return cls(ids)
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "gallery", "children": [{"text": ""}], "ids": self.ids}
+
+
+@dataclass(repr=False)
+class Image(Block):
+    url: str = attr()
+    caption: str = attr()
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "Image":
+        url = spec["url"]
+        caption = spec["children"][0]["text"] if spec.get("hasCaption") else None
+        return cls(url, caption)
+
+    @property
+    def spec(self) -> dict:
+        if self.caption:
+            return {
+                "type": "image",
+                "children": [{"text": self.caption}],
+                "url": self.url,
+                "hasCaption": True,
+            }
+        else:
+            return {"type": "image", "children": [{"text": ""}], "url": self.url}
+
+
+@dataclass(repr=False)
+class WeaveBlock(Block):
+    spec: dict = attr()
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "WeaveBlock":
+        return cls(spec)
+
+
+@dataclass(repr=False)
+class HorizontalRule(Block):
+    @classmethod
+    def from_json(cls, spec: dict) -> "HorizontalRule":
+        return cls()
+
+    @property
+    def spec(self):
+        return {"type": "horizontal-rule", "children": [{"text": ""}]}
+
+
+@dataclass(repr=False)
+class TableOfContents(Block):
+    @classmethod
+    def from_json(cls, spec: dict) -> "TableOfContents":
+        return cls()
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "table-of-contents", "children": [{"text": ""}]}
+
+
+@dataclass(repr=False)
+class SoundCloud(Block):
+    url: str = attr()
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "SoundCloud":
+        quoted_url = spec["html"].split("url=")[-1].split("&show_artwork")[0]
+        url = urllib.parse.unquote(quoted_url)
+        return cls(url)
+
+    @property
+    def spec(self) -> dict:
+        quoted_url = urllib.parse.quote(self.url)
+        return {
+            "type": "soundcloud",
+            "html": f'<iframe width="100%" height="400" scrolling="no" frameborder="no" src="https://w.soundcloud.com/player/?visual=true&url={quoted_url}&show_artwork=true"></iframe>',
+            "children": [{"text": ""}],
+        }
+
+
+@dataclass(repr=False)
+class Twitter(Block):
+    embed_html: str = attr()
+
+    def __post_init__(self) -> None:
+        # remove script tag
+        if self.embed_html:
+            pattern = r" <script[\s\S]+?/script>"
+            self.embed_html = re.sub(pattern, "\n", self.embed_html)
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "Twitter":
+        embed_html = spec["html"]
+        return cls(embed_html)
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "twitter", "html": self.embed_html, "children": [{"text": ""}]}
+
+
+@dataclass(repr=False)
+class Spotify(Block):
+    spotify_id: str = attr()
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "Spotify":
+        return cls(spec["spotifyID"])
+
+    @classmethod
+    def from_url(cls, url: str) -> "Spotify":
+        spotify_id = url.split("/")[-1].split("?")[0]
+        return cls(spotify_id)
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "spotify",
+            "spotifyType": "track",
+            "spotifyID": self.spotify_id,
+            "children": [{"text": ""}],
+        }
+
+
+@dataclass(repr=False)
+class Video(Block):
+    url: str = attr()
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "Video":
+        return cls(spec["url"])
+
+    @property
+    def spec(self) -> dict:
+        return {
+            "type": "video",
+            "url": self.url,
+            "children": [{"text": ""}],
+        }
+
+
 block_mapping = {
-    # "block-quote": BlockQuote,
-    # "callout-block": CalloutBlock,
-    # "code-block": CodeBlock,
-    # "gallery": Gallery,
-    # "heading": Heading,
-    # "horizontal-rule": HorizontalRule,
-    # "image": Image,
-    # "latex": LaTeXBlock,
-    # "list": List,
-    # "markdown-block": MarkdownBlock,
+    "block-quote": BlockQuote,
+    "callout-block": CalloutBlock,
+    "code-block": CodeBlock,
+    "gallery": Gallery,
+    "heading": Heading,
+    "horizontal-rule": HorizontalRule,
+    "image": Image,
+    "latex": LaTeXBlock,
+    "list": List,
+    "markdown-block": MarkdownBlock,
     "panel-grid": PanelGrid,
     "paragraph": P,
-    # "table-of-contents": TableOfContents,
-    # "weave-panel": WeaveBlock,
-    # "video": Video,
-    # "spotify": Spotify,
-    # "twitter": Twitter,
-    # "soundcloud": SoundCloud,
+    "table-of-contents": TableOfContents,
+    "weave-panel": WeaveBlock,
+    "video": Video,
+    "spotify": Spotify,
+    "twitter": Twitter,
+    "soundcloud": SoundCloud,
 }
 
 panel_mapping = {

@@ -13,7 +13,9 @@ TIMESTEPS = ["seconds", "minutes", "hours", "days"]
 SMOOTHING_TYPES = ["exponential", "gaussian", "average", "none"]
 CODE_COMPARE_DIFF = ["split", "unified"]
 
-UNDEFINED_TYPE = object()
+
+class UNDEFINED_TYPE:
+    pass
 
 
 class Validator(ABC):

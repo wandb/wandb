@@ -2822,6 +2822,7 @@ class QueryGenerator:
 class PythonMongoishQueryGenerator:
     def __init__(self, run_set):
         self.run_set = run_set
+        self.panel_metrics_helper = PanelMetricsHelper()
 
     FRONTEND_NAME_MAPPING = {
         "ID": "name",
@@ -2954,6 +2955,41 @@ class PythonMongoishQueryGenerator:
         wandb.termerror(f"Unknown token: {name}")
         return name
 
+    # These are only used for ParallelCoordinatesPlot because it has weird backend names...
+    def pc_front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        if name is None:
+            return None
+        elif name in self.panel_metrics_helper.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.panel_metrics_helper.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config:{name}.value{rest}"
+        else:  # assume summary metrics
+            return f"summary:{name}{rest}"
+
+    def pc_back_to_front(self, name):
+        if name is None:
+            return None
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.panel_metrics_helper.FRONTEND_NAME_MAPPING_REVERSED.get(
+                name, name
+            )
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif name.startswith("config:") and ".value" in name:
+            return name.replace("config:", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        return name
+
 
 class PanelMetricsHelper:
     FRONTEND_NAME_MAPPING = {
@@ -2977,23 +3013,24 @@ class PanelMetricsHelper:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
         return name
 
-    # ScatterPlot has weird conventions
-    def scatter_front_to_back(self, name):
+    # ScatterPlot and ParallelCoords have weird conventions
+    def special_front_to_back(self, name):
         if name is None:
             return name
-        if name in self.FRONTEND_NAME_MAPPING:
-
-            return "summary:" + self.FRONTEND_NAME_MAPPING[name]
         elif name in self.RUN_MAPPING:
             return "run:" + self.RUN_MAPPING[name]
-        return name
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.FRONTEND_NAME_MAPPING[name]
+        elif name == "Index":
+            return name
+        return "summary:" + name
 
-    def scatter_back_to_front(self, name):
+    def special_back_to_front(self, name):
         if name is None:
             return name
         elif "summary:" in name:
             name = name.replace("summary:", "")
-            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+            return self.FRONTEND_NAME_MAPPING_REVERSED.get(name, name)
         elif "run:" in name:
             name = name.replace("run:", "")
             return self.RUN_MAPPING_REVERSED[name]
