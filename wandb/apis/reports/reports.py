@@ -14,7 +14,7 @@ from .util import (
     Base,
     Block,
     Panel,
-    _,
+    __,
     attr,
     generate_name,
     nested_get,
@@ -255,19 +255,19 @@ class LinePlot(Panel):
         },
     )
 
-    @attr(x).getter
+    @__(attr(x).getter)
     def _(self):
         json_path = self._get_path("x")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.back_to_front(value)
 
-    @attr(x).setter
+    @__(attr(x).setter)
     def _(self, value):
         json_path = self._get_path("x")
         value = self.panel_metrics_helper.front_to_back(value)
         nested_set(self, json_path, value)
 
-    @attr(y).getter
+    @__(attr(y).getter)
     def _(self):
         json_path = self._get_path("y")
         value = nested_get(self, json_path)
@@ -275,7 +275,7 @@ class LinePlot(Panel):
             return value
         return [self.panel_metrics_helper.back_to_front(v) for v in value]
 
-    @attr(y).setter
+    @__(attr(y).setter)
     def _(self, value):
         json_path = self._get_path("y")
         if value is not None:
@@ -373,37 +373,37 @@ class ScatterPlot(Panel):
         default=None, metadata={"json_path": "spec.config.showLinearRegression"}
     )
 
-    @attr(x).getter
+    @__(attr(x).getter)
     def _(self):
         json_path = self._get_path("x")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.special_back_to_front(value)
 
-    @attr(x).setter
+    @__(attr(x).setter)
     def _(self, value):
         json_path = self._get_path("x")
         value = self.panel_metrics_helper.special_front_to_back(value)
         nested_set(self, json_path, value)
 
-    @attr(y).getter
+    @__(attr(y).getter)
     def _(self):
         json_path = self._get_path("y")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.special_back_to_front(value)
 
-    @attr(y).setter
+    @__(attr(y).setter)
     def _(self, value):
         json_path = self._get_path("y")
         value = self.panel_metrics_helper.special_front_to_back(value)
         nested_set(self, json_path, value)
 
-    @attr(z).getter
+    @__(attr(z).getter)
     def _(self):
         json_path = self._get_path("z")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.special_back_to_front(value)
 
-    @attr(z).setter
+    @__(attr(z).setter)
     def _(self, value):
         json_path = self._get_path("z")
         value = self.panel_metrics_helper.special_front_to_back(value)
@@ -508,7 +508,7 @@ class BarPlot(Panel):
         },
     )
 
-    @attr(metrics).getter
+    @__(attr(metrics).getter)
     def _(self):
         json_path = self._get_path("metrics")
         value = nested_get(self, json_path)
@@ -516,7 +516,7 @@ class BarPlot(Panel):
             return value
         return [self.panel_metrics_helper.back_to_front(v) for v in value]
 
-    @attr(metrics).setter
+    @__(attr(metrics).setter)
     def _(self, value):
         json_path = self._get_path("metrics")
         if value is not None:
@@ -566,13 +566,13 @@ class ScalarChart(Panel):
         },
     )
 
-    @attr(metric).getter
+    @__(attr(metric).getter)
     def _(self):
         json_path = self._get_path("metric")
         value = nested_get(self, json_path)[0]
         return self.panel_metrics_helper.back_to_front(value)
 
-    @attr(metric).setter
+    @__(attr(metric).setter)
     def _(self, new_metrics):
         json_path = self._get_path("metric")
         new_metrics = self.panel_metrics_helper.front_to_back(new_metrics)
@@ -612,13 +612,13 @@ class PCColumn(Base):
         obj.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
         return obj
 
-    # @attr(metric).getter
+    # _( @attr(metric).getter)
     # def _(self):
     #     json_path = self._get_path("metric")
     #     value = nested_get(self, json_path)
     #     return self.panel_metrics_helper.special_back_to_front(value)
 
-    # @attr(metric).setter
+    # _( @attr(metric).setter)
     # def _(self, value):
     #     json_path = self._get_path("metric")
     #     value = self.panel_metrics_helper.special_front_to_back(value)
@@ -656,13 +656,13 @@ class ParallelCoordinatesPlot(Panel):
         },
     )
 
-    @attr(columns).getter
+    @__(attr(columns).getter)
     def _(self):
         json_path = self._get_path("columns")
         specs = nested_get(self, json_path)
         return [PCColumn.from_json(cspec) for cspec in specs]
 
-    @attr(columns).setter
+    @__(attr(columns).setter)
     def _(self, new_columns):
         json_path = self._get_path("columns")
         specs = [c.spec for c in new_columns]
@@ -679,13 +679,13 @@ class ParameterImportancePlot(Panel):
         default="Created Timestamp", metadata={"json_path": "spec.config.targetKey"}
     )
 
-    @attr(with_respect_to).getter
+    @__(attr(with_respect_to).getter)
     def _(self):
         json_path = self._get_path("with_respect_to")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.back_to_front(value)
 
-    @attr(with_respect_to).setter
+    @__(attr(with_respect_to).setter)
     def _(self, value):
         json_path = self._get_path("with_respect_to")
         value = self.panel_metrics_helper.front_to_back(value)
@@ -916,13 +916,13 @@ class RunSet(Base):
         obj.pm_query_generator = wandb.apis.public.PythonMongoishQueryGenerator(obj)
         return obj
 
-    @attr(filters).getter
+    @__(attr(filters).getter)
     def _(self):
         json_path = self._get_path("filters")
         filter_specs = nested_get(self, json_path)
         return self.query_generator.filter_to_mongo(filter_specs)
 
-    @attr(filters).setter
+    @__(attr(filters).setter)
     def _(self, new_filters):
         json_path = self._get_path("filters")
         new_filter_specs = self.query_generator.mongo_to_filter(new_filters)
@@ -942,28 +942,28 @@ class RunSet(Base):
         self.filters = self.pm_query_generator.python_to_mongo(expr)
         return self
 
-    @attr(groupby).getter
+    @__(attr(groupby).getter)
     def _(self):
         json_path = self._get_path("groupby")
         groupby_specs = nested_get(self, json_path)
         cols = [self.query_generator.key_to_server_path(k) for k in groupby_specs]
         return [self.pm_query_generator.back_to_front(c) for c in cols]
 
-    @attr(groupby).setter
+    @__(attr(groupby).setter)
     def _(self, new_groupby):
         json_path = self._get_path("groupby")
         cols = [self.pm_query_generator.front_to_back(g) for g in new_groupby]
         new_groupby_specs = [self.query_generator.server_path_to_key(c) for c in cols]
         nested_set(self, json_path, new_groupby_specs)
 
-    @attr(order).getter
+    @__(attr(order).getter)
     def _(self):
         json_path = self._get_path("order")
         order_specs = nested_get(self, json_path)
         cols = self.query_generator.keys_to_order(order_specs)
         return [c[0] + self.pm_query_generator.back_to_front(c[1:]) for c in cols]
 
-    @attr(order).setter
+    @__(attr(order).setter)
     def _(self, new_orders):
         json_path = self._get_path("order")
         cols = [o[0] + self.pm_query_generator.front_to_back(o[1:]) for o in new_orders]
@@ -1007,7 +1007,7 @@ class PanelGrid(Block):
         },
     )
 
-    @attr(panels).getter
+    @__(attr(panels).getter)
     def _(self):
         json_path = self._get_path("panels")
         specs = nested_get(self, json_path)
@@ -1017,7 +1017,7 @@ class PanelGrid(Block):
             panels.append(cls.from_json(pspec))
         return panels
 
-    @attr(panels).setter
+    @__(attr(panels).setter)
     def _(self, new_panels):
         json_path = self._get_path("panels")
 
@@ -1029,13 +1029,13 @@ class PanelGrid(Block):
         new_specs = [p.spec for p in new_panels]
         nested_set(self, json_path, new_specs)
 
-    @attr(runsets).getter
+    @__(attr(runsets).getter)
     def _(self):
         json_path = self._get_path("runsets")
         specs = nested_get(self, json_path)
         return [RunSet.from_json(spec) for spec in specs]
 
-    @attr(runsets).setter
+    @__(attr(runsets).setter)
     def _(self, new_runsets):
         json_path = self._get_path("runsets")
         new_specs = [rs.spec for rs in new_runsets]
@@ -1192,7 +1192,7 @@ class Report(Base):
         obj._orig_viewspec = deepcopy(obj._viewspec)
         return obj
 
-    @attr(blocks).getter
+    @__(attr(blocks).getter)
     def _(self):
         json_path = self._get_path("blocks")
         block_specs = nested_get(self, json_path)
@@ -1202,7 +1202,7 @@ class Report(Base):
             blocks.append(cls.from_json(b))
         return blocks[1:-1]  # accounts for hidden p blocks
 
-    @attr(blocks).setter
+    @__(attr(blocks).setter)
     def _(self, new_blocks):
         json_path = self._get_path("blocks")
         new_block_specs = (

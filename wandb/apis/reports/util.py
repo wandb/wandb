@@ -330,14 +330,14 @@ def generate_name(length: int = 12) -> str:
     return rand36.lower()[:length]
 
 
-def _(x):
+def __(x):
     """
     Identity function hack for decorators.
     This can be removed in py39 when decorators support more flexible grammar
     https://peps.python.org/pep-0614/
 
     Attr usage today:
-        @_(attr(blocks).getter)
+        @__(attr(blocks).getter)
         def _(self):
             ...
 
