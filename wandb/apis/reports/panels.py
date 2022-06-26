@@ -3,7 +3,6 @@
 from .reports import (
     BarPlot,
     CodeComparer,
-    ConfusionMatrix,
     LinePlot,
     MarkdownPanel,
     MediaBrowser,
@@ -12,6 +11,7 @@ from .reports import (
     RunComparer,
     ScalarChart,
     ScatterPlot,
+    # ConfusionMatrix,
     # DataFrames,
     # MultiRunTable,
     # Vega,

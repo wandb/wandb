@@ -411,7 +411,7 @@ class Api:
             )
             viewspec = r["view"]
             viewspec["spec"] = json.loads(viewspec["spec"])
-            return wandb.apis.reports.reports.Report.from_viewspec(viewspec)
+            return wandb.apis.reports.reports.Report.from_json(viewspec)
 
     def create_user(self, email, admin=False):
         """Creates a new user
@@ -2837,6 +2837,10 @@ class PythonMongoishQueryGenerator:
         "Hostname": "host",
         "UsingArtifact": "inputArtifacts",
         "OutputtingArtifact": "outputArtifacts",
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp"
         # "GroupedRuns": "__wb_group_by_all"
     }
     FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
@@ -2948,6 +2952,51 @@ class PythonMongoishQueryGenerator:
         elif name.startswith("summary_metrics."):
             return name.replace("summary_metrics.", "")
         wandb.termerror(f"Unknown token: {name}")
+        return name
+
+
+class PanelMetricsHelper:
+    FRONTEND_NAME_MAPPING = {
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp",
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+
+    RUN_MAPPING = {"Created Timestamp": "createdAt", "Latest Timestamp": "heartbeatAt"}
+    RUN_MAPPING_REVERSED = {v: k for k, v in RUN_MAPPING.items()}
+
+    def front_to_back(self, name):
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        return name
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        return name
+
+    # ScatterPlot has weird conventions
+    def scatter_front_to_back(self, name):
+        if name is None:
+            return name
+        if name in self.FRONTEND_NAME_MAPPING:
+
+            return "summary:" + self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.RUN_MAPPING:
+            return "run:" + self.RUN_MAPPING[name]
+        return name
+
+    def scatter_back_to_front(self, name):
+        if name is None:
+            return name
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif "run:" in name:
+            name = name.replace("run:", "")
+            return self.RUN_MAPPING_REVERSED[name]
         return name
 
 

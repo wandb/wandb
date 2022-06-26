@@ -13,6 +13,8 @@ TIMESTEPS = ["seconds", "minutes", "hours", "days"]
 SMOOTHING_TYPES = ["exponential", "gaussian", "average", "none"]
 CODE_COMPARE_DIFF = ["split", "unified"]
 
+UNDEFINED_TYPE = object()
+
 
 class Validator(ABC):
     def __init__(self, how=None):
@@ -22,11 +24,9 @@ class Validator(ABC):
     def call(self, attr_name, value):
         pass
 
-    def __call__(self, attr, value):
+    def __call__(self, attr_name, value):
         if value is None:
             return
-
-        attr_name = attr._name.__repr__()
         if self.how == "keys":
             attr_name += " keys"
             for v in value:
@@ -53,7 +53,7 @@ class TypeValidator(Validator):
                 self.attr_type = subtypes
             else:
                 raise TypeError(f"{attr_type} is not currently supported.")
-        self.attr_type = (self.attr_type, type(None))
+        self.attr_type = attr_type
 
     def call(self, attr_name, value):
         if not isinstance(value, self.attr_type):
@@ -65,7 +65,7 @@ class TypeValidator(Validator):
 class OneOf(Validator):
     def __init__(self, options, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.options = (*options, None)
+        self.options = options
 
     def call(self, attr_name, value):
         if value not in self.options:
@@ -107,3 +107,16 @@ class OrderString(TypeValidator):
             raise ValueError(
                 f'{attr_name} must be prefixed with "+" or "-" to indicate ascending or descending order'
             )
+
+
+class LayoutDict(Validator):
+    def call(self, attr_name, value):
+        if set(value.keys()) != {"x", "y", "w", "h"}:
+            raise ValueError(
+                f"{attr_name} must be a dict containing exactly the keys `x`, y`, `w`, `h`"
+            )
+        for k, v in value.items():
+            if not isinstance(v, int):
+                raise ValueError(
+                    f"{attr_name} key `{k}` must be of type {int} (got {type(v)!r})"
+                )
