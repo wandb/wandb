@@ -2,7 +2,7 @@ import json
 import re
 import urllib
 from copy import deepcopy
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import List as LList
 from typing import Optional, Union
 
@@ -16,6 +16,7 @@ from .util import (
     Panel,
     __,
     attr,
+    fix_collisions,
     generate_name,
     nested_get,
     nested_set,
@@ -1026,7 +1027,7 @@ class PanelGrid(Block):
         # the earliest time that we have a runset to check what kind of metric is being assigned.
         new_panels = self._get_specific_keys_for_certain_plots(new_panels, setting=True)
 
-        new_specs = [p.spec for p in new_panels]
+        new_specs = [p.spec for p in fix_collisions(new_panels)]
         nested_set(self, json_path, new_specs)
 
     @__(attr(runsets).getter)
@@ -1277,7 +1278,7 @@ class Report(Base):
         viewspec = r["upsertView"]["view"]
         viewspec["spec"] = json.loads(viewspec["spec"])
         if clone:
-            return Report.from_viewspec(viewspec)
+            return Report.from_json(viewspec)
         else:
             self._viewspec = viewspec
             return self
@@ -1436,7 +1437,7 @@ class H3(Block, Heading):
 
 
 @dataclass(repr=False)
-class InlineLaTeX(Block):
+class InlineLaTeX(Base):
     latex: str = attr()
 
     @property
@@ -1445,7 +1446,7 @@ class InlineLaTeX(Block):
 
 
 @dataclass(repr=False)
-class InlineCode(Block):
+class InlineCode(Base):
     code: str = attr()
 
     @property

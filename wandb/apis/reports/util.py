@@ -2,7 +2,7 @@ import dataclasses
 import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Optional, TypeVar, overload
+from typing import Any, Callable, List, Mapping, Optional, Tuple, TypeVar, overload
 
 import wandb
 
@@ -282,6 +282,7 @@ class Panel(Base, ABC):
     def __new__(cls, *args, **kwargs):
         obj = super().__new__(cls, *args, **kwargs)
         obj._spec["viewType"] = obj.view_type
+        obj._spec["__id__"] = generate_name()
         obj.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
         return obj
 
@@ -354,3 +355,54 @@ def tuple_factory(value=None, size=1):
         return tuple(value for _ in range(size))
 
     return _tuple_factory
+
+
+def collides(
+    p1: "wandb.apis.reports.reports.Panel", p2: "wandb.apis.reports.reports.Panel"
+) -> bool:
+    l1, l2 = p1.layout, p2.layout
+
+    if (
+        (p1.spec["__id__"] == p2.spec["__id__"])
+        or (l1["x"] + l1["w"] <= l2["x"])
+        or (l1["x"] >= l2["w"] + l2["x"])
+        or (l1["y"] + l1["h"] <= l2["y"])
+        or (l1["y"] >= l2["y"] + l2["h"])
+    ):
+        return False
+
+    return True
+
+
+def shift(
+    p1: "wandb.apis.reports.reports.Panel", p2: "wandb.apis.reports.reports.Panel"
+) -> "Tuple[wandb.apis.reports.reports.Panel, wandb.apis.reports.reports.Panel]":
+    l1, l2 = p1.layout, p2.layout
+
+    x = l1["x"] + l1["w"] - l2["x"]
+    y = l1["y"] + l1["h"] - l2["y"]
+
+    return x, y
+
+
+def fix_collisions(
+    panels: "List[wandb.apis.reports.reports.Panel]",
+) -> "List[wandb.apis.reports.reports.Panel]":
+    x_max = 24
+
+    for i, p1 in enumerate(panels):
+        for p2 in panels[i:]:
+            if collides(p1, p2):
+
+                # try to move right
+                x, y = shift(p1, p2)
+                if p2.layout["x"] + p2.layout["w"] + x <= x_max:
+                    p2.layout["x"] += x
+
+                # if you hit right right bound, move down
+                else:
+                    p2.layout["y"] += y
+
+                    # then check if you can move left again to cleanup layout
+                    p2.layout["x"] = 0
+    return panels

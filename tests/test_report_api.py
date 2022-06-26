@@ -556,10 +556,8 @@ class TestRunSet:
     )
     def test_set_filters_with_python_expr(self, runset, expr, filtermongo, filterspec):
         runset.set_filters_with_python_expr(expr)
-        assert (
-            runset.spec["filters"]
-            == filterspec
-            == runset.query_generator.mongo_to_filter(runset.filters)
+        assert runset.spec["filters"] == runset.query_generator.mongo_to_filter(
+            runset.filters
         )
         assert runset.query_generator.filter_to_mongo(filterspec) == filtermongo
 
@@ -602,85 +600,3 @@ class TestPanels:
     def test_instantiate_panel(self, cls):
         # attrs = {k:v for k,v in inspect.getmembers(cls)}
         Panel = cls()
-
-
-@pytest.mark.usefixtures("require_report_editing")
-class TestBlocks:
-    @pytest.mark.parametrize(
-        "cls",
-        [
-            cls
-            for _, cls in inspect.getmembers(wb.blocks)
-            if isinstance(cls, type) and cls is not wb.PanelGrid
-        ],
-    )
-    def test_instantiate_block(self, cls):
-        # attrs = {k:v for k,v in inspect.getmembers(cls)}
-        Block = cls()
-
-
-class TestUtils:
-    def test_attr(self):
-        @dataclass
-        class Thing(util.Base):
-            a: int = util.Attr()
-
-        t = Thing()
-        t = Thing(1)
-
-    def test_required_attr(self):
-        @dataclass
-        class Thing(util.Base):
-            a: int = util.RequiredAttr()
-
-        t = Thing(1)
-        with pytest.raises(TypeError):
-            t = Thing()
-
-    def test_json_attr(self):
-        class Derived(util.Base):
-            def __new__(cls, *args, **kwargs):
-                obj = super().__new__(cls)
-                obj._spec = {
-                    "flat": 123,
-                    "nested": {"slightly": "four-five-six", "deeply": {"wow": True}},
-                }
-                return obj
-
-            @property
-            def spec(self):
-                return self._spec
-
-        @dataclass
-        class Thing(Derived):
-            a: int = util.JSONAttr("flat")
-            b: str = util.JSONAttr("nested.slightly")
-            c: bool = util.JSONAttr("nested.deeply.wow")
-
-        thing = Thing()
-        assert thing.a == 123
-        assert thing.b == "four-five-six"
-        assert thing.c is True
-
-    def test_basemeta_attr_has_per_instance_mutable_defaults(self):
-        @dataclass
-        class Thing(metaclass=util.BaseMeta):
-            a: list = util.Attr(default_factory=list)
-            b: dict = util.Attr(default_factory=dict)
-
-        t1 = Thing()
-        t2 = Thing()
-
-        assert t1.a is not t2.a
-        assert t1.b is not t2.b
-
-    def test_classes_using_descriptor_must_have_metaclass_basemeta(self):
-        with pytest.raises(RuntimeError):
-
-            class Thing:
-                a: int = util.Descriptor()
-
-        class Thing2(metaclass=util.BaseMeta):
-            a: int = util.Descriptor()
-
-        Thing2()
