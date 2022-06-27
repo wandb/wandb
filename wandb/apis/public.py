@@ -378,8 +378,10 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.reports.Block]" = [],
+        blocks: "Optional[wandb.apis.reports.reports.Block]" = None,
     ) -> "wandb.apis.reports.reports.Report":
+        if blocks is None:
+            blocks = []
         return wandb.apis.reports.reports.Report(
             project, entity, title, description, width, blocks
         )
