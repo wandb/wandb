@@ -96,8 +96,10 @@ def prompt_api_key(  # noqa: C901
 
     api_ask = (
         f"{log_string}: Paste an API key from your profile and hit enter, "
-        "or press ctrl+c to quit: "
+        "or press ctrl+c to quit"
     )
+    if input_callback is getpass.getpass:
+        api_ask += ": "
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
