@@ -15,4 +15,5 @@ URLS = Literal[
     "upgrade_local",
     "multiprocess",
     "wandb_init",
+    "wandb_server",
 ]
