@@ -33,6 +33,7 @@ from urllib.parse import quote, urlencode, urlparse, urlsplit
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
+import wandb.env
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -1317,7 +1318,7 @@ class Settings:
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
 
-        settings: Dict[str, Union[bool, str, Sequence]] = dict()
+        settings: Dict[str, Union[bool, str, Sequence, None]] = dict()
         # disable symlinks if on windows (requires admin or developer setup)
         settings["symlink"] = True
         if self._windows:
