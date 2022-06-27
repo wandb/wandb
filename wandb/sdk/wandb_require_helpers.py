@@ -42,7 +42,7 @@ class RequiresMixin:
         """
         self._check_if_requirements_met()
 
-    def _check_if_requirements_met(self):
+    def _check_if_requirements_met(self) -> None:
         env_var = requirement_env_var_mapping[self.requirement]
         if not os.getenv(env_var):
             raise Exception(

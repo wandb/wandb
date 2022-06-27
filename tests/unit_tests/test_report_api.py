@@ -9,8 +9,7 @@ import pytest
 import wandb
 import wandb.apis.reports as wb
 import wandb.apis.reports.util as util
-from tests.conftest import DUMMY_API_KEY
-from tests.utils.mock_server import mock_server
+
 from wandb.apis.reports.validators import (
     Between,
     LayoutDict,
@@ -28,14 +27,16 @@ def require_report_editing():
     del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
 
 
-@pytest.fixture
-def api(mock_server):
-    wandb.login(key=DUMMY_API_KEY)
-    yield wandb.Api()
+# @pytest.fixture
+# def api(mock_server):
+#     wandb.login(key=DUMMY_API_KEY)
+#     yield wandb.Api()
 
 
 @pytest.fixture
 def report(mock_server, all_blocks):
+    # TODO: mock_server works, but live_mock_server does not??
+
     yield wb.Report(
         project="amazing-project",
         title="An amazing title",
@@ -186,16 +187,23 @@ def panel_grid(mock_server):
 @pytest.mark.usefixtures("require_report_editing")
 class TestPublicAPI:
     @pytest.mark.parametrize(
-        "project,result", [(None, TypeError), ("something", "success")]
+        "project,entity,blocks,result",
+        [
+            (None, None, None, TypeError),
+            ("project", None, None, "success"),
+            ("project", "entity", [], "success"),
+        ],
     )
-    def test_create_report(self, api, project, result):
+    def test_create_report(self, api, project, entity, blocks, result):
         if result == "success":
             # User must always define a project
-            report = api.create_report(project=project)
+            report = api.create_report(project=project, entity=entity, blocks=blocks)
             assert isinstance(report, wb.Report)
         else:
-            with pytest.raises(TypeError):
-                report = api.create_report(project=project)
+            with pytest.raises(result):
+                report = api.create_report(
+                    project=project, entity=entity, blocks=blocks
+                )
 
     @pytest.mark.parametrize(
         "path,result",
@@ -207,7 +215,7 @@ class TestPublicAPI:
             ("VmlldzoxOTcxMzI2", ValueError),
         ],
     )
-    def test_load_report(self, api, path, result):
+    def test_load_report(self, live_mock_server, api, path, result):
         if result == "valid":
             report = api.load_report(path)
             assert isinstance(report, wb.Report)
@@ -704,6 +712,13 @@ class TestRunSet:
         assert runset.query_generator.filter_to_mongo(filterspec) == filtermongo
 
 
+class TestQueryGenerators:
+    def test_pm_query_generator(self, runset):
+        from wandb.apis.public import PythonMongoishQueryGenerator
+
+        gen = PythonMongoishQueryGenerator(runset)
+
+
 @pytest.mark.usefixtures("require_report_editing")
 class TestPanelGrid:
     def test_instantiate_panel_grid(self):
@@ -941,3 +956,28 @@ class TestMisc:
         wandb.require("report-editing:v0")
         assert thing.required() == 123
         assert Thing2()
+
+    def test_nested_get(self):
+        # obj =
+        ...
+
+    def test_nested_set(self):
+        ...
+
+
+class TestABC:
+    def test_base(self):
+        from wandb.apis.reports.util import Base
+
+        class Derived(Base):
+            pass
+
+        derived = Derived()
+
+    def test_panel(self):
+        from wandb.apis.reports.util import Panel
+
+        class Derived(Panel):
+            @property
+            def view_type(self):
+                return "New View"
