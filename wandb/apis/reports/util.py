@@ -1,12 +1,12 @@
-import dataclasses
-import inspect
 from abc import ABC, abstractmethod
+import dataclasses
 from dataclasses import dataclass
-from typing import Any, Callable, List, Mapping, Optional, Tuple, TypeVar, overload
+import inspect
+from typing import Any, Callable, List, Mapping, Optional, overload, Tuple, TypeVar
 
 import wandb
 
-from .validators import UNDEFINED_TYPE, LayoutDict, TypeValidator
+from .validators import LayoutDict, TypeValidator, UNDEFINED_TYPE
 
 
 class SubclassOnlyABC:
@@ -108,7 +108,7 @@ class Attr:
         self.fset = wrapper
         return wrapper
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner, name):  # noqa: C901
         field = self.field
         path_or_name = field.metadata.get("json_path", name)
 
@@ -145,7 +145,10 @@ class Attr:
 
         class Property(property):
             if field.default is not dataclasses.MISSING:
-                _default_factory = lambda default=field.default: default
+
+                def _default_factory(default=field.default):  # noqa: N805
+                    return default
+
             elif field.default_factory is not dataclasses.MISSING:
                 _default_factory = field.default_factory
             else:
@@ -248,8 +251,7 @@ class Base(SubclassOnlyABC, ShortReprMixin):
             if not v.name.startswith("_")
         ]
         new_sig = sig.replace(parameters=new_params)
-        setattr(self.__class__, "__signature__", new_sig)
-        # setattr(self.__class__, '__doc__', str(new_sig))
+        self.__class__.__signature__ = new_sig
 
     def _get_path(self, var):
         """
@@ -331,7 +333,7 @@ def generate_name(length: int = 12) -> str:
     return rand36.lower()[:length]
 
 
-def __(x):
+def __(x):  # noqa: N807
     """
     Identity function hack for decorators.
     This can be removed in py39 when decorators support more flexible grammar

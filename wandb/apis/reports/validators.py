@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import TypeVar, Union
 
 LINEPLOT_STYLES = ["line", "stacked-area", "pct-area"]
 BARPLOT_STYLES = ["bar", "boxplot", "violin"]
@@ -14,8 +14,7 @@ SMOOTHING_TYPES = ["exponential", "gaussian", "average", "none"]
 CODE_COMPARE_DIFF = ["split", "unified"]
 
 
-class UNDEFINED_TYPE:
-    pass
+UNDEFINED_TYPE = TypeVar("UNDEFINED_TYPE")
 
 
 class Validator(ABC):

@@ -1,39 +1,39 @@
-import json
-import re
-import urllib
 from copy import deepcopy
 from dataclasses import dataclass
+import json
+import re
 from typing import List as LList
 from typing import Optional, Union
+import urllib
 
 import wandb
 from wandb.sdk.lib import ipython
 
 from .mutations import CREATE_PROJECT, UPSERT_VIEW
 from .util import (
-    Base,
-    Block,
-    Panel,
     __,
     attr,
+    Base,
+    Block,
     fix_collisions,
     generate_name,
     nested_get,
     nested_set,
+    Panel,
     tuple_factory,
 )
 from .validators import (
     AGGFUNCS,
+    Between,
     CODE_COMPARE_DIFF,
     FONT_SIZES,
     LEGEND_POSITIONS,
+    Length,
     LINEPLOT_STYLES,
     MARKS,
+    OneOf,
     RANGEFUNCS,
     SMOOTHING_TYPES,
-    Between,
-    Length,
-    OneOf,
     TypeValidator,
 )
 
@@ -1434,58 +1434,6 @@ class H3(Block, Heading):
             "children": [{"text": self.text}],
             "level": 3,
         }
-
-
-@dataclass(repr=False)
-class InlineLaTeX(Base):
-    latex: str = attr()
-
-    @property
-    def spec(self) -> dict:
-        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
-
-
-@dataclass(repr=False)
-class InlineCode(Base):
-    code: str = attr()
-
-    @property
-    def spec(self) -> dict:
-        return {"text": self.code, "inlineCode": True}
-
-
-@dataclass(repr=False)
-class P(Block):
-    text: Union[str, InlineLaTeX, InlineCode, list] = attr()
-
-    @classmethod
-    def from_json(cls, spec):
-        if isinstance(spec["children"], str):
-            text = spec["children"]
-        else:
-            text = []
-            for elem in spec["children"]:
-                if elem.get("type") == "latex":
-                    text.append(InlineLaTeX(elem["content"]))
-                elif elem.get("inlineCode"):
-                    text.append(InlineCode(elem["text"]))
-                else:
-                    text.append(elem["text"])
-
-        if not isinstance(text, list):
-            text = [text]
-        return cls(text)
-
-    @property
-    def spec(self) -> dict:
-        if isinstance(self.text, list):
-            content = [
-                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
-            ]
-        else:
-            content = [{"text": self.text}]
-
-        return {"type": "paragraph", "children": content}
 
 
 @dataclass(repr=False)
