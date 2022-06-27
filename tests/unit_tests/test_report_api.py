@@ -34,7 +34,7 @@ def require_report_editing():
 
 
 @pytest.fixture
-def report(mock_server, all_blocks):
+def report(mock_server, api, all_blocks):
     # TODO: mock_server works, but live_mock_server does not??
 
     yield wb.Report(
@@ -47,7 +47,7 @@ def report(mock_server, all_blocks):
 
 
 @pytest.fixture
-def all_panels():
+def all_panels(mock_server, api):
     yield [
         wb.MediaBrowser(media_keys="img"),  # This panel can be flakey
         wb.MarkdownPanel(
@@ -130,7 +130,7 @@ def all_panels():
 
 
 @pytest.fixture
-def all_blocks(all_panels, runset):
+def all_blocks(mock_server, api, all_panels, runset):
     yield [
         wb.PanelGrid(
             panels=all_panels,
@@ -175,12 +175,18 @@ def all_blocks(all_panels, runset):
 
 
 @pytest.fixture
-def runset(mock_server):
+def runset(
+    mock_server,
+    api,
+):
     yield wb.RunSet()
 
 
 @pytest.fixture
-def panel_grid(mock_server):
+def panel_grid(
+    mock_server,
+    api,
+):
     yield wb.PanelGrid()
 
 

@@ -882,7 +882,7 @@ class RunSet(Base):
     """
 
     entity: str = attr(
-        default="megatruong",
+        default=wandb.Api().default_entity,
         metadata={"json_path": "spec.project.entityName"},
     )
     project: str = attr(default="", metadata={"json_path": "spec.project.name"})
@@ -1147,7 +1147,7 @@ class PanelGrid(Block):
 class Report(Base):
     project: str = attr(metadata={"json_path": "viewspec.project.name"})
     entity: str = attr(
-        default="megatruong",
+        default=wandb.Api().default_entity,
         metadata={"json_path": "viewspec.project.entityName"},
     )
     title: str = attr(
