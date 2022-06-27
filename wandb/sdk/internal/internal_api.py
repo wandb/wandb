@@ -2471,7 +2471,13 @@ class Api:
         }
         """
         )
-        response = self.gql(mutation, variable_values={"artifactID": artifact_id})
+
+        response = self.gql(
+            mutation,
+            variable_values={"artifactID": artifact_id},
+            check_retry_fn=util.check_retry_commit_artifact,
+            retry_timedelta=datetime.timedelta(minutes=2),
+        )
         return response
 
     def create_artifact_manifest(
