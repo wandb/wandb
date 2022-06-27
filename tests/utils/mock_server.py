@@ -78,7 +78,7 @@ def default_ctx():
         "emulate_artifacts": None,
         "emulate_azure": False,
         "run_state": "running",
-        "run_queue_item_check_count": 0,
+        "run_queue_item_return_type": "queued",
         "run_script_type": "python",
         "alerts": [],
         "gorilla_supports_launch_agents": True,
@@ -97,6 +97,7 @@ def default_ctx():
         "relay_run_info": {},
         "server_settings": False,
         "server_messages": None,
+        "latest_arti_id": None,
     }
 
 
@@ -1069,10 +1070,16 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation LinkArtifact(" in body["query"]:
             if ART_EMU:
+                ctx["latest_arti_id"] = body["variables"].get("artifactID") or body[
+                    "variables"
+                ].get("clientID")
                 return ART_EMU.link(variables=body["variables"])
+
         if "mutation CreateArtifact(" in body["query"]:
             if ART_EMU:
-                return ART_EMU.create(variables=body["variables"])
+                res = ART_EMU.create(variables=body["variables"])
+                ctx["latest_arti_id"] = res["data"]["createArtifact"]["artifact"]["id"]
+                return res
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
             app.logger.info(f"Creating artifact {collection_name}")
@@ -1081,6 +1088,7 @@ def create_app(user_ctx=None):
                 collection_name, []
             )
             ctx["artifacts"][collection_name].append(body["variables"])
+
             _id = body.get("variables", {}).get("digest", "")
             if _id != "":
                 ctx.get("artifacts_by_id")[_id] = body["variables"]
@@ -1098,6 +1106,11 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation updateArtifact" in body["query"]:
+            id = body["variables"]["artifactID"]
+            ctx["latest_arti_id"] = id
+            ctx.get("artifacts_by_id")[id] = body["variables"]
+            return {"data": {"updateArtifact": {"artifact": id}}}
         if "mutation DeleteArtifact(" in body["query"]:
             id = body["variables"]["artifactID"]
             delete_aliases = body["variables"]["deleteAliases"]
@@ -1299,9 +1312,17 @@ def create_app(user_ctx=None):
         ]:
             if f"query {query_name}(" in body["query"]:
                 if ART_EMU:
-                    return ART_EMU.query(
+                    res = ART_EMU.query(
                         variables=body.get("variables", {}), query=body.get("query")
                     )
+                    artifact_response = None
+                    if res["data"].get("project") is not None:
+                        artifact_response = res["data"]["project"]["artifact"]
+                    else:
+                        artifact_response = res["data"]["artifact"]
+                    if artifact_response:
+                        ctx["latest_arti_id"] = artifact_response.get("id")
+                    return res
                 art = artifact(
                     ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
                 )
@@ -1332,8 +1353,15 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 4, "name": "run_table"}
                 if "wb_validation_data" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                if "job" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 5, "name": "job"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
+            if ART_EMU:
+                res = ART_EMU.query(
+                    variables=body.get("variables", {}), query=body.get("query")
+                )
+                ctx["latest_arti_id"] = res["data"]["artifact"]["id"]
             art = artifact(ctx)
             art["currentManifest"] = {
                 "id": 1,
@@ -1371,8 +1399,7 @@ def create_app(user_ctx=None):
                 return json.dumps({"data": {"project": {"runQueues": []}}})
 
         if "query GetRunQueueItem" in body["query"]:
-            ctx["run_queue_item_check_count"] += 1
-            if ctx["run_queue_item_check_count"] > 1:
+            if ctx["run_queue_item_return_type"] == "claimed":
                 return json.dumps(
                     {
                         "data": {
@@ -1382,8 +1409,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
-                                                    "resultingRunId": "test",
+                                                    "id": "1",
+                                                    "associatedRunId": "1",
+                                                    "state": "CLAIMED",
                                                 }
                                             }
                                         ]
@@ -1403,8 +1431,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
-                                                    "resultingRunId": None,
+                                                    "id": "1",
+                                                    "associatedRunId": None,
+                                                    "state": "PENDING",
                                                 }
                                             }
                                         ]
@@ -1478,7 +1507,7 @@ def create_app(user_ctx=None):
             return {"data": {"deleteApiKey": {"success": True}}}
         if "mutation GenerateApiKey" in body["query"]:
             return {
-                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Z" * 40}}}
             }
         if "mutation DeleteInvite" in body["query"]:
             return {"data": {"deleteInvite": {"success": True}}}
@@ -1682,7 +1711,8 @@ def create_app(user_ctx=None):
                 c["file_bytes"].setdefault(file, 0)
                 c["file_bytes"][file] += request.content_length
         if ART_EMU:
-            return ART_EMU.storage(request=request)
+            res = ART_EMU.storage(request=request, arti_id=ctx["latest_arti_id"])
+            return res
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
@@ -2177,6 +2207,12 @@ class ParseCTX:
         fs_files = self.get_filestream_file_items()
         history = fs_files.get("wandb-history.jsonl")
         return history
+
+    @property
+    def stats(self):
+        fs_files = self.get_filestream_file_items()
+        stats = fs_files.get("wandb-events.jsonl")
+        return stats
 
     @property
     def output(self):
