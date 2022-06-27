@@ -374,12 +374,14 @@ class Api:
     def create_report(
         self,
         project: str,
-        entity: Optional[str] = None,
+        entity: str = None,
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
         blocks: "Optional[wandb.apis.reports.reports.Block]" = None,
     ) -> "wandb.apis.reports.reports.Report":
+        if entity is None:
+            entity = self.default_entity
         if blocks is None:
             blocks = []
         return wandb.apis.reports.reports.Report(

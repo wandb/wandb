@@ -1,6 +1,8 @@
 import inspect
+from itertools import filterfalse
 import os
 from dataclasses import dataclass
+from typing import Optional, Union
 
 import pytest
 
@@ -9,6 +11,14 @@ import wandb.apis.reports as wb
 import wandb.apis.reports.util as util
 from tests.conftest import DUMMY_API_KEY
 from tests.utils.mock_server import mock_server
+from wandb.apis.reports.validators import (
+    Between,
+    LayoutDict,
+    Length,
+    OneOf,
+    OrderString,
+    TypeValidator,
+)
 
 
 @pytest.fixture
@@ -25,15 +35,142 @@ def api(mock_server):
 
 
 @pytest.fixture
-def report(mock_server):
+def report(mock_server, all_blocks):
     yield wb.Report(
         project="amazing-project",
-        blocks=[
-            wb.H1("An interesting heading"),
-            wb.P("special text"),
-            wb.PanelGrid(panels=[wb.LinePlot(), wb.BarPlot(), wb.ScalarChart()]),
-        ],
+        title="An amazing title",
+        description="A descriptive description",
+        width="fixed",
+        blocks=all_blocks,
     )
+
+
+@pytest.fixture
+def all_panels():
+    yield [
+        wb.MediaBrowser(media_keys="img"),  # This panel can be flakey
+        wb.MarkdownPanel(
+            markdown="Hello *italic* **bold** $e=mc^2$ `something` # True"
+        ),  # This panel can be flakey
+        wb.LinePlot(
+            title="line title",
+            x="x",
+            y=["y"],
+            range_x=[0, 100],
+            range_y=[0, 100],
+            log_x=True,
+            log_y=True,
+            title_x="x axis title",
+            title_y="y axis title",
+            ignore_outliers=True,
+            groupby="hyperparam1",
+            groupby_aggfunc="mean",
+            groupby_rangefunc="minmax",
+            smoothing_factor=0.5,
+            smoothing_type="gaussian",
+            smoothing_show_original=True,
+            max_runs_to_show=10,
+            plot_type="stacked-area",
+            font_size="large",
+            legend_position="west",
+        ),
+        wb.ScatterPlot(
+            title="scatter title",
+            x="y",
+            y="y",
+            # z='x',
+            range_x=[0, 0.0005],
+            range_y=[0, 0.0005],
+            # range_z=[0,1],
+            log_x=False,
+            log_y=False,
+            # log_z=True,
+            running_ymin=True,
+            running_ymean=True,
+            running_ymax=True,
+            font_size="small",
+            regression=True,
+        ),
+        wb.BarPlot(
+            title="bar title",
+            metrics=["x"],
+            vertical=True,
+            range_x=[0, 100],
+            title_x="x axis title",
+            title_y="y axis title",
+            groupby="hyperparam1",
+            groupby_aggfunc="median",
+            groupby_rangefunc="stddev",
+            max_runs_to_show=20,
+            max_bars_to_show=3,
+            font_size="auto",
+        ),
+        wb.ScalarChart(
+            title="scalar title",
+            metric="x",
+            groupby_aggfunc="max",
+            groupby_rangefunc="stderr",
+            font_size="large",
+        ),
+        wb.CodeComparer(diff="split"),
+        wb.ParallelCoordinatesPlot(
+            columns=[
+                wb.reports.PCColumn("Step"),
+                wb.reports.PCColumn("hyperparam1"),
+                wb.reports.PCColumn("hyperparam2"),
+                wb.reports.PCColumn("x"),
+                wb.reports.PCColumn("y"),
+                wb.reports.PCColumn("z"),
+            ],
+        ),
+        wb.ParameterImportancePlot(with_respect_to="hyperparam1"),
+        wb.RunComparer(diff_only="split"),
+    ]
+
+
+@pytest.fixture
+def all_blocks(all_panels, runset):
+    yield [
+        wb.PanelGrid(
+            panels=all_panels,
+            runsets=[runset],
+        ),
+        wb.Video(url="https://www.youtube.com/embed/6riDJMI-Y8U"),
+        wb.Spotify(spotify_id="5cfUlsdrdUE4dLMK7R9CFd"),
+        wb.SoundCloud(url="https://api.soundcloud.com/tracks/1076901103"),
+        wb.Twitter(
+            embed_html='<blockquote class="twitter-tweet"><p lang="en" dir="ltr">The voice of an angel, truly. <a href="https://twitter.com/hashtag/MassEffect?src=hash&amp;ref_src=twsrc%5Etfw">#MassEffect</a> <a href="https://t.co/nMev97Uw7F">pic.twitter.com/nMev97Uw7F</a></p>&mdash; Mass Effect (@masseffect) <a href="https://twitter.com/masseffect/status/1428748886655569924?ref_src=twsrc%5Etfw">August 20, 2021</a></blockquote>\n'
+        ),
+        wb.P(text="Normal paragraph"),
+        wb.H1(text="Heading 1"),
+        wb.H2(text="Heading 2"),
+        wb.H3(text="Heading 3"),
+        wb.UnorderedList(items=["Bullet 1", "Bullet 2"]),
+        wb.OrderedList(items=["Ordered 1", "Ordered 2"]),
+        wb.CheckedList(items=["Unchecked", "Checked"], checked=[False, True]),
+        wb.BlockQuote(text="Block Quote 1\nBlock Quote 2\nBlock Quote 3"),
+        wb.CalloutBlock(text=["Callout 1", "Callout 2", "Callout 3"]),
+        wb.HorizontalRule(),
+        wb.CodeBlock(
+            code=["this:", "- is", "- a", "cool:", "- yaml", "- file"],
+            language="yaml",
+        ),
+        wb.MarkdownBlock(text="Markdown cell with *italics* and **bold** and $e=mc^2$"),
+        wb.Image(
+            url="https://api.wandb.ai/files/megatruong/images/projects/918598/350382db.gif",
+            caption="It's a me, Pikachu",
+        ),
+        wb.P(
+            text=[
+                "here is some text, followed by",
+                wb.InlineCode("select * from code in line"),
+                "and then latex",
+                wb.InlineLaTeX("e=mc^2"),
+            ]
+        ),
+        wb.LaTeXBlock(text="\\gamma^2+\\theta^2=\\omega^2\n\\\\ a^2 + b^2 = c^2"),
+        wb.Gallery(ids=[]),
+    ]
 
 
 @pytest.fixture
@@ -48,12 +185,17 @@ def panel_grid(mock_server):
 
 @pytest.mark.usefixtures("require_report_editing")
 class TestPublicAPI:
-    def test_create_report(self, api):
-        report = api.create_report(project="something")
-        assert isinstance(report, wb.Report)
-
-        with pytest.raises(TypeError):
-            report = api.create_report()  # User must always define a project
+    @pytest.mark.parametrize(
+        "project,result", [(None, TypeError), ("something", "success")]
+    )
+    def test_create_report(self, api, project, result):
+        if result == "success":
+            # User must always define a project
+            report = api.create_report(project=project)
+            assert isinstance(report, wb.Report)
+        else:
+            with pytest.raises(TypeError):
+                report = api.create_report(project=project)
 
     @pytest.mark.parametrize(
         "path,result",
@@ -600,3 +742,202 @@ class TestPanels:
     def test_instantiate_panel(self, cls):
         # attrs = {k:v for k,v in inspect.getmembers(cls)}
         Panel = cls()
+
+
+class TestValidators:
+    # Note: https://stackoverflow.com/questions/37888620/comparing-boolean-and-int-using-isinstance
+    @pytest.mark.parametrize(
+        "typ,inputs,results",
+        [
+            (type(None), [1, 1.0, True, None], [False, False, False, True]),
+            (int, [1, 1.0, True, None], [True, False, True, False]),
+            (float, [1, 1.0, True, None], [False, True, False, False]),
+            (Optional[int], [1, 1.0, True, None], [True, False, True, True]),
+            ((int, float), [1, 1.0, True, None], [True, True, True, False]),
+            (Union[int, float], [1, 1.0, True, None], [True, True, True, False]),
+            (
+                Optional[Union[int, float]],
+                [1, 1.0, True, None],
+                [True, True, True, True],
+            ),
+        ],
+    )
+    def test_type_validator(self, typ, inputs, results):
+        v = TypeValidator(typ)
+        for input, valid in zip(inputs, results):
+            if valid:
+                v("attr_name", input)
+            else:
+                with pytest.raises(TypeError):
+                    v("attr_name", input)
+
+    @pytest.mark.parametrize(
+        "obj,success",
+        [
+            (None, True),
+            ({"a": 1, "b": 2}, True),
+            ({1: 1, "b": 2}, False),
+            ({"a": "a", "b": "b"}, False),
+        ],
+    )
+    def test_composed_type_validator(self, obj, success):
+        validators = [
+            TypeValidator(Optional[dict]),
+            TypeValidator(str, how="keys"),
+            TypeValidator(int, how="values"),
+        ]
+
+        if success:
+            for validator in validators:
+                validator("attr_name", obj)
+        else:
+            with pytest.raises(TypeError):
+                for validator in validators:
+                    validator("attr_name", obj)
+
+    @pytest.mark.parametrize(
+        "options,inputs,results",
+        [
+            (
+                ["a", "b", "c"],
+                ["a", "b", "c", "ab", "abc", 1],
+                [True, True, True, False, False, False],
+            ),
+            (
+                [1, None],
+                [1, 1.0, True, False, None],
+                [True, True, True, False, True],
+            ),
+        ],
+    )
+    def test_oneof_validator(self, options, inputs, results):
+        v = OneOf(options)
+        for input, valid in zip(inputs, results):
+            if valid:
+                v("attr_name", input)
+            else:
+                with pytest.raises(ValueError):
+                    v("attr_name", input)
+
+    @pytest.mark.parametrize(
+        "length,inputs,results",
+        [
+            (
+                2,
+                [
+                    ["a", "b"],
+                    [
+                        1,
+                        2,
+                    ],
+                    ["a", "b", "c"],
+                    ["ab"],
+                ],
+                [True, True, False, False],
+            ),
+            (
+                3,
+                [
+                    ["a", "b"],
+                    [
+                        1,
+                        2,
+                    ],
+                    ["a", "b", "c"],
+                    ["ab"],
+                ],
+                [False, False, True, False],
+            ),
+        ],
+    )
+    def test_length_validator(self, length, inputs, results):
+        v = Length(length)
+        for input, valid in zip(inputs, results):
+            if valid:
+                v("attr_name", input)
+            else:
+                with pytest.raises(ValueError):
+                    v("attr_name", input)
+
+    @pytest.mark.parametrize(
+        "lb,ub,inputs,results",
+        [
+            (0, 1, [-1, 0, 0.5, 1, 2], [False, True, True, True, False]),
+            (1, 10, [0, 1, 5, 10, 20], [False, True, True, True, False]),
+        ],
+    )
+    def test_between_validator(self, lb, ub, inputs, results):
+        v = Between(lb, ub)
+        for input, valid in zip(inputs, results):
+            if valid:
+                v("attr_name", input)
+            else:
+                with pytest.raises(ValueError):
+                    v("attr_name", input)
+
+    @pytest.mark.parametrize(
+        "input,valid",
+        [
+            ("col", False),
+            ("+col", True),
+            ("-col", True),
+            (" col", False),
+            (" +col", False),
+            (" -col", False),
+        ],
+    )
+    def test_orderstring_validator(self, input, valid):
+        v = OrderString()
+        if valid:
+            v("attr_name", input)
+        else:
+            with pytest.raises(ValueError):
+                v("attr_name", input)
+
+    @pytest.mark.parametrize(
+        "input,valid",
+        [
+            ({"x": 0, "y": 0, "w": 1, "h": 1}, True),
+            ({"x": 5, "y": 10, "w": 7, "h": 12}, True),
+            ({"x": 0, "y": 0}, False),
+            ({"w": 1, "h": 1}, False),
+            ({}, False),
+        ],
+    )
+    def test_layoutdict_validator(self, input, valid):
+        v = LayoutDict()
+        if valid:
+            v("attr_name", input)
+        else:
+            with pytest.raises(ValueError):
+                v("attr_name", input)
+
+
+class TestMisc:
+    def test_requirements(self):
+        from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
+
+        @dataclass
+        class Thing:
+            @requires("report-editing:v0")
+            def required(self):
+                return 123
+
+            def not_required(self):
+                return 456
+
+        @dataclass
+        class Thing2(RequiresReportEditingMixin):
+            pass
+
+        thing = Thing()
+        assert thing.not_required() == 456
+        with pytest.raises(Exception):
+            thing.requried()
+
+        with pytest.raises(Exception):
+            thing2 = Thing2()
+
+        wandb.require("report-editing:v0")
+        assert thing.required() == 123
+        assert Thing2()

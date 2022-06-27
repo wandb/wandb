@@ -1,17 +1,17 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Union
 
-LINEPLOT_STYLES = ["line", "stacked-area", "pct-area"]
-BARPLOT_STYLES = ["bar", "boxplot", "violin"]
-FONT_SIZES = ["small", "medium", "large", "auto"]
-LEGEND_POSITIONS = ["north", "south", "east", "west"]
-LEGEND_ORIENTATIONS = ["horizontal", "vertical"]
-AGGFUNCS = ["mean", "min", "max", "median", "sum", "samples"]
-RANGEFUNCS = ["minmax", "stddev", "stderr", "none", "samples"]
-MARKS = ["solid", "dashed", "dotted", "dotdash", "dotdotdash"]
-TIMESTEPS = ["seconds", "minutes", "hours", "days"]
-SMOOTHING_TYPES = ["exponential", "gaussian", "average", "none"]
-CODE_COMPARE_DIFF = ["split", "unified"]
+LINEPLOT_STYLES = ["line", "stacked-area", "pct-area", None]
+BARPLOT_STYLES = ["bar", "boxplot", "violin", None]
+FONT_SIZES = ["small", "medium", "large", "auto", None]
+LEGEND_POSITIONS = ["north", "south", "east", "west", None]
+LEGEND_ORIENTATIONS = ["horizontal", "vertical", None]
+AGGFUNCS = ["mean", "min", "max", "median", "sum", "samples", None]
+RANGEFUNCS = ["minmax", "stddev", "stderr", "none", "samples", None]
+MARKS = ["solid", "dashed", "dotted", "dotdash", "dotdotdash", None]
+TIMESTEPS = ["seconds", "minutes", "hours", "days", None]
+SMOOTHING_TYPES = ["exponential", "gaussian", "average", "none", None]
+CODE_COMPARE_DIFF = ["split", "unified", None]
 
 
 UNDEFINED_TYPE = TypeVar("UNDEFINED_TYPE")
@@ -26,7 +26,7 @@ class Validator(ABC):
         pass
 
     def __call__(self, attr_name, value):
-        if value is None:
+        if value is None and self.how in {"keys", "values"}:
             return
         if self.how == "keys":
             attr_name += " keys"
@@ -49,7 +49,7 @@ class TypeValidator(Validator):
             origin = attr_type.__origin__
             subtypes = attr_type.__args__
         except AttributeError:  # normal types
-            self.attr_type = attr_type
+            self.attr_type = (attr_type,)
         else:
             if origin is Union:
                 self.attr_type = subtypes
@@ -101,6 +101,9 @@ class Between(Validator):
 
 
 class OrderString(TypeValidator):
+    def __init__(self):
+        super().__init__(attr_type=str)
+
     def call(self, attr_name, value):
         super().call(attr_name, value)
 

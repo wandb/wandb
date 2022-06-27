@@ -30,7 +30,19 @@ def requires(requirement: str) -> FuncT:
 class RequiresMixin:
     requirement = ""
 
+    def __init__(self) -> None:
+        """
+        This hook for normal classes
+        """
+        self._check_if_requirements_met()
+
     def __post_init__(self) -> None:
+        """
+        This hook added for dataclasses
+        """
+        self._check_if_requirements_met()
+
+    def _check_if_requirements_met(self):
         env_var = requirement_env_var_mapping[self.requirement]
         if not os.getenv(env_var):
             raise Exception(

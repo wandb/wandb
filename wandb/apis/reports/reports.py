@@ -807,7 +807,7 @@ class WeavePanel(Panel):
 
 
 @dataclass(repr=False)
-class InlineLaTeX(Block):
+class InlineLaTeX(Base):
     latex: str = attr()
 
     @property
@@ -816,7 +816,7 @@ class InlineLaTeX(Block):
 
 
 @dataclass(repr=False)
-class InlineCode(Block):
+class InlineCode(Base):
     code: str = attr()
 
     @property
