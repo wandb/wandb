@@ -37,7 +37,8 @@ from .validators import (
     TypeValidator,
 )
 
-api = wandb.Api()
+
+# api = wandb.Api()
 
 
 class LineKey:
@@ -879,7 +880,8 @@ class RunSet(Base):
     """
 
     entity: str = attr(
-        default=api.default_entity, metadata={"json_path": "spec.project.entityName"}
+        default=wandb.Api().default_entity,
+        metadata={"json_path": "spec.project.entityName"},
     )
     project: str = attr(default="", metadata={"json_path": "spec.project.name"})
     name: str = attr(default="Run set", metadata={"json_path": "spec.name"})
@@ -977,7 +979,7 @@ class RunSet(Base):
 
     @property
     def runs(self) -> wandb.apis.public.Runs:
-        return wandb.apis.public.Runs(api.client, self.entity, self.project)
+        return wandb.apis.public.Runs(wandb.Api().client, self.entity, self.project)
 
 
 def _default_runsets():
@@ -1143,7 +1145,7 @@ class PanelGrid(Block):
 class Report(Base):
     project: str = attr(metadata={"json_path": "viewspec.project.name"})
     entity: str = attr(
-        default=api.default_entity,
+        default=wandb.Api().default_entity,
         metadata={"json_path": "viewspec.project.entityName"},
     )
     title: str = attr(
@@ -1225,7 +1227,7 @@ class Report(Base):
 
     @property
     def client(self) -> wandb.apis.public.RetryingClient:
-        return api.client
+        return wandb.Api().client
 
     @property
     def id(self) -> str:
