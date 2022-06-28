@@ -632,7 +632,7 @@ def test_docker_digest(runner, docker):
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_default(runner, docker, local_settings):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.local)
+        result = runner.invoke(cli.server, ["start"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         user = getpass.getuser()
@@ -657,7 +657,7 @@ def test_local_default(runner, docker, local_settings):
 
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_port(runner, docker, local_settings):
-    result = runner.invoke(cli.local, ["-p", "3030"])
+    result = runner.invoke(cli.server, ["start", "-p", "3030"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
@@ -682,7 +682,7 @@ def test_local_custom_port(runner, docker, local_settings):
 
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_env(runner, docker, local_settings):
-    result = runner.invoke(cli.local, ["-e", b"FOO=bar"])
+    result = runner.invoke(cli.server, ["start", "-e", b"FOO=bar"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
