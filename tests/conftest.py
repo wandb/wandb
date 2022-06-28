@@ -264,7 +264,7 @@ def runner(monkeypatch, mocker):
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
-    mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
+    mocker.patch("wandb.wandb_lib.apikey.getpass", lambda x: DUMMY_API_KEY)
     return CliRunner()
 
 

@@ -4,7 +4,6 @@ account.
 """
 
 import enum
-from functools import partial
 import os
 import sys
 from typing import Any, Dict, Optional, Tuple, Union
@@ -196,13 +195,11 @@ class _WandbLogin:
 
     def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
         api = Api(self._settings)
-        input_callback = partial(click.prompt, hide_input=True, err=True)
         while True:
             try:
                 key = apikey.prompt_api_key(
                     self._settings,
                     api=api,
-                    input_callback=input_callback,
                     no_offline=self._settings.force if self._settings else None,
                     no_create=self._settings.force if self._settings else None,
                 )

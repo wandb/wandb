@@ -2,13 +2,14 @@
 apikey util.
 """
 
-import getpass
+from functools import partial
 import os
 import stat
 import sys
 import textwrap
 from urllib.parse import urlparse
 
+import click
 import requests
 import wandb
 from wandb.apis import InternalApi
@@ -29,6 +30,9 @@ LOGIN_CHOICES = [
     LOGIN_CHOICE_EXISTS,
     LOGIN_CHOICE_DRYRUN,
 ]
+
+
+getpass = partial(click.prompt, hide_input=True, err=True)
 
 
 def _fixup_anon_mode(default):
@@ -55,7 +59,7 @@ def prompt_api_key(  # noqa: C901
         None - if dryrun is selected
         False - if unconfigured (notty)
     """
-    input_callback = input_callback or getpass.getpass
+    input_callback = input_callback or getpass
     log_string = term.LOG_STRING
     api = api or InternalApi(settings)
     anon_mode = _fixup_anon_mode(settings.anonymous)
@@ -98,8 +102,6 @@ def prompt_api_key(  # noqa: C901
         f"{log_string}: Paste an API key from your profile and hit enter, "
         "or press ctrl+c to quit"
     )
-    if input_callback is getpass.getpass:
-        api_ask += ": "
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
