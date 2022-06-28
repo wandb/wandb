@@ -42,6 +42,10 @@ launch_requirements = [
     "kubernetes",
 ]
 
+model_registry_requirements = [
+    "cloudpickle"
+]
+
 
 setup(
     name="wandb",
@@ -95,6 +99,7 @@ setup(
         "media": media_requirements,
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
+        "model_registry": model_registry_requirements,
     },
 )
 
