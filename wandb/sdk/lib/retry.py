@@ -167,6 +167,6 @@ def retriable(*args: Any, **kargs: Any) -> Callable[[_F], _F]:
         def wrapped_fn(*args: Any, **kargs: Any) -> Any:
             return retrier(*args, **kargs)
 
-        return wrapped_fn
+        return wrapped_fn  # type: ignore
 
     return decorator
