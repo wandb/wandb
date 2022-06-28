@@ -141,18 +141,31 @@ server_hint_plain = [
 @pytest.mark.parametrize(
     "server_messages", [server_hint_utf, server_hint_plain, [], None]
 )
+@pytest.mark.parametrize(
+    "disable_hints",
+    [
+        True,
+        False,
+    ],
+)
 def test_footer_hint(
-    live_mock_server, test_settings, capsys, server_settings, server_messages
+    live_mock_server,
+    test_settings,
+    capsys,
+    server_settings,
+    server_messages,
+    disable_hints,
 ):
     live_mock_server.set_ctx({"server_settings": server_settings})
     live_mock_server.set_ctx({"server_messages": server_messages})
 
+    test_settings.update({"disable_hints": disable_hints})
     with wandb.init(settings=test_settings) as run:
         run.log(dict(d=2))
 
     lines = capsys.readouterr().err.splitlines()
 
-    if server_settings and server_messages:
+    if not disable_hints and server_settings and server_messages:
         assert (
             server_messages[0].get("utfText")
             or server_messages[0].get("plainText") in lines[-1]
