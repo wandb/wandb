@@ -100,10 +100,11 @@ class Api:
             "base_url": "https://api.wandb.ai",
         }
         self.retry_timedelta = retry_timedelta
-        self.default_settings.update(dict(default_settings or {}))
+        # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
+        self.default_settings.update(default_settings or {})  # type: ignore
         self.retry_uploads = 10
         self._settings = Settings(
-            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
+            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")  # type: ignore
         )
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
@@ -142,7 +143,7 @@ class Api:
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
-        self._client_id_mapping = {}
+        self._client_id_mapping: Dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
 

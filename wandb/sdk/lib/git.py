@@ -2,13 +2,18 @@ import configparser
 import logging
 import os
 from urllib.parse import urlparse, urlunparse
-
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 class GitRepo:
-    def __init__(self, root=None, remote="origin", lazy=True):
+    def __init__(
+        self,
+        root: Optional[str] = None,
+        remote: str = "origin",
+        lazy: bool = True,
+    ) -> None:
         self.remote_name = remote
         self._root = root
         self._repo = None
@@ -16,7 +21,7 @@ class GitRepo:
             self.repo
 
     @property
-    def repo(self):
+    def repo(self) -> Optional["Repo", bool]:
         if self._repo is None:
             if self.remote_name is None:
                 self._repo = False
@@ -30,29 +35,29 @@ class GitRepo:
                     self._repo = False
         return self._repo
 
-    def is_untracked(self, file_name):
+    def is_untracked(self, file_name: str) -> bool:
         if not self.repo:
             return True
         return file_name in self.repo.untracked_files
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return bool(self.repo)
 
     @property
-    def root(self):
+    def root(self) -> Optional[str, bool]:
         if not self.repo:
             return False
         return self.repo.git.rev_parse("--show-toplevel")
 
     @property
-    def dirty(self):
+    def dirty(self) -> bool:
         if not self.repo:
             return False
         return self.repo.is_dirty()
 
     @property
-    def email(self):
+    def email(self) -> Optional[str]:
         if not self.repo:
             return None
         try:
@@ -78,7 +83,7 @@ class GitRepo:
             return None
 
     @property
-    def branch(self):
+    def branch(self) -> Optional[str]:
         if not self.repo:
             return None
         return self.repo.head.ref.name
@@ -95,7 +100,7 @@ class GitRepo:
     # the --submodule=diff option doesn't exist in pre-2.11 versions of git (november 2016)
     # https://stackoverflow.com/questions/10757091/git-list-of-all-changed-files-including-those-in-submodules
     @property
-    def has_submodule_diff(self):
+    def has_submodule_diff(self) -> bool:
         if not self.repo:
             return False
         return self.repo.git.version_info >= (2, 11, 0)
