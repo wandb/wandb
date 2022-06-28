@@ -1,6 +1,6 @@
-import os
-
 import configparser
+import os
+from typing import Optional
 
 from wandb import util
 from wandb.old import core
@@ -14,7 +14,9 @@ class Settings:
 
     _UNSET = object()
 
-    def __init__(self, load_settings=True, root_dir=None):
+    def __init__(
+        self, load_settings: bool = True, root_dir: Optional[str] = None
+    ) -> None:
         self._global_settings = Settings._settings()
         self._local_settings = Settings._settings()
         self.root_dir = root_dir

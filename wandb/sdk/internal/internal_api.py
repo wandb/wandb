@@ -1,4 +1,15 @@
-from typing import IO, TYPE_CHECKING, Any, Iterable, Mapping, Optional, Union
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Union,
+)
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -73,12 +84,14 @@ class Api:
 
     def __init__(
         self,
-        default_settings=None,
-        load_settings=True,
-        retry_timedelta=datetime.timedelta(days=7),
-        environ=os.environ,
-        retry_callback=None,
-    ):
+        default_settings: Optional[
+            Union[wandb.sdk.wandb_settings.Settings, Settings, dict]
+        ] = None,
+        load_settings: bool = True,
+        retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),
+        environ: MutableMapping = os.environ,
+        retry_callback: Optional[Callable[[int, str], Any]] = None,
+    ) -> None:
         self._environ = environ
         self.default_settings = {
             "section": "default",
@@ -87,7 +100,7 @@ class Api:
             "base_url": "https://api.wandb.ai",
         }
         self.retry_timedelta = retry_timedelta
-        self.default_settings.update(default_settings or {})
+        self.default_settings.update(dict(default_settings or {}))
         self.retry_uploads = 10
         self._settings = Settings(
             load_settings=load_settings, root_dir=self.default_settings.get("root_dir")
@@ -144,11 +157,11 @@ class Api:
         )
         self._max_cli_version = None
 
-    def reauth(self):
+    def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = ("api", self.api_key or "")
 
-    def relocate(self):
+    def relocate(self) -> None:
         """Ensures the current api points to the right server"""
         self.client.transport.url = "%s/graphql" % self.settings("base_url")
 
@@ -163,7 +176,7 @@ class Api:
             self.display_gorilla_error_if_found(res)
             raise
 
-    def display_gorilla_error_if_found(self, res):
+    def display_gorilla_error_if_found(self, res) -> None:
         try:
             data = res.json()
         except ValueError:
@@ -183,19 +196,19 @@ class Api:
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)
 
-    def set_current_run_id(self, run_id):
+    def set_current_run_id(self, run_id) -> None:
         self._current_run_id = run_id
 
     @property
-    def current_run_id(self):
+    def current_run_id(self) -> Optional[str]:
         return self._current_run_id
 
     @property
-    def user_agent(self):
+    def user_agent(self) -> str:
         return "W&B Internal Client %s" % __version__
 
     @property
-    def api_key(self):
+    def api_key(self) -> Optional[str]:
         auth = requests.utils.get_netrc_auth(self.api_url)
         key = None
         if auth:
@@ -208,18 +221,18 @@ class Api:
         return env_key or key or sagemaker_key or default_key
 
     @property
-    def api_url(self):
+    def api_url(self) -> str:
         return self.settings("base_url")
 
     @property
-    def app_url(self):
+    def app_url(self) -> str:
         return wandb.util.app_url(self.api_url)
 
     @property
-    def default_entity(self):
+    def default_entity(self) -> str:
         return self.viewer().get("entity")
 
-    def settings(self, key=None, section=None):
+    def settings(self, key=None, section=None) -> Any:
         """The settings overridden from the wandb/settings file.
 
         Arguments:
@@ -277,12 +290,12 @@ class Api:
 
         return result if key is None else result[key]
 
-    def clear_setting(self, key, globally=False, persist=False):
+    def clear_setting(self, key, globally=False, persist=False) -> None:
         self._settings.clear(
             Settings.DEFAULT_SECTION, key, globally=globally, persist=persist
         )
 
-    def set_setting(self, key, value, globally=False, persist=False):
+    def set_setting(self, key, value, globally=False, persist=False) -> None:
         self._settings.set(
             Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
         )
@@ -377,7 +390,7 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
-    def viewer(self):
+    def viewer(self) -> Dict[str, Any]:
         query = gql(
             """
         query Viewer{
@@ -532,7 +545,7 @@ class Api:
         ]
 
     @normalize_exceptions
-    def sweep(self, sweep, specs, project=None, entity=None):
+    def sweep(self, sweep, specs, project=None, entity=None) -> Dict[str, Any]:
         """Retrieve sweep.
 
         Arguments:
