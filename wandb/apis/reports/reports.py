@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
+import inspect
 import json
 import re
 from typing import List as LList
@@ -88,6 +89,13 @@ class RGBA(Base):
             "color": f"rgb({self.r}, {self.g}, {self.b})",
             "transparentColor": f"rgba({self.r}, {self.g}, {self.b}, {self.a})",
         }
+
+
+@dataclass(repr=False)
+class UnknownPanel(Panel):
+    @property
+    def view_type(self):
+        return "Unknown Panel"
 
 
 @dataclass(repr=False)
@@ -823,6 +831,15 @@ class InlineCode(Base):
 
 
 @dataclass(repr=False)
+class UnknownBlock(Block):
+    spec: dict = attr(default_factory=dict)
+
+    @classmethod
+    def from_json(cls, spec: dict) -> "UnknownBlock":
+        return cls()
+
+
+@dataclass(repr=False)
 class P(Block):
     text: Union[str, InlineLaTeX, InlineCode, list] = attr()
 
@@ -1019,7 +1036,18 @@ class PanelGrid(Block):
         specs = nested_get(self, json_path)
         panels = []
         for pspec in specs:
-            cls = panel_mapping[pspec["viewType"]]
+            cls = panel_mapping.get(pspec["viewType"], UnknownPanel)
+            if cls is UnknownPanel:
+                wandb.termwarn(
+                    inspect.cleandoc(
+                        f"""
+                        UNKNOWN PANEL DETECTED
+                            This can happen if we have added new panels, but you are using an older version of the SDK.
+                            If your report is loading normally, you can safely ignore this message (but we recommend not touching UnknownPanel)
+                            If you think this is an error, please file a bug report including your SDK version ({wandb.__version__}) and this spec ({pspec})
+                        """
+                    )
+                )
             panels.append(cls.from_json(pspec))
         return panels
 
@@ -1211,7 +1239,18 @@ class Report(Base):
         block_specs = nested_get(self, json_path)
         blocks = []
         for b in block_specs:
-            cls = block_mapping[b["type"]]
+            cls = block_mapping.get(b["type"], UnknownBlock)
+            if cls is UnknownBlock:
+                wandb.termwarn(
+                    inspect.cleandoc(
+                        f"""
+                        UNKNOWN BLOCK DETECTED
+                            This can happen if we have added new blocks, but you are using an older version of the SDK.
+                            If your report is loading normally, you can safely ignore this message (but we recommend not touching UnknownBlock)
+                            If you think this is an error, please file a bug report including your SDK version ({wandb.__version__}) and this spec ({b})
+                        """
+                    )
+                )
             blocks.append(cls.from_json(b))
         return blocks[1:-1]  # accounts for hidden p blocks
 
