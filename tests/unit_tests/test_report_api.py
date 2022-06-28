@@ -1,5 +1,4 @@
 import inspect
-from itertools import filterfalse
 import os
 from dataclasses import dataclass
 from typing import Optional, Union
@@ -25,12 +24,6 @@ def require_report_editing():
     wandb.require("report-editing")
     yield
     del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
-
-
-# @pytest.fixture
-# def api(mock_server):
-#     wandb.login(key=DUMMY_API_KEY)
-#     yield wandb.Api()
 
 
 @pytest.fixture
@@ -193,23 +186,20 @@ def panel_grid(
 @pytest.mark.usefixtures("require_report_editing")
 class TestPublicAPI:
     @pytest.mark.parametrize(
-        "project,entity,blocks,result",
+        "project,result",
         [
-            (None, None, None, TypeError),
-            ("project", None, None, "success"),
-            ("project", "entity", [], "success"),
+            (None, TypeError),
+            ("project", "success"),
         ],
     )
-    def test_create_report(self, api, project, entity, blocks, result):
+    def test_create_report(self, api, project, result):
         if result == "success":
             # User must always define a project
-            report = api.create_report(project=project, entity=entity, blocks=blocks)
+            report = api.create_report(project=project)
             assert isinstance(report, wb.Report)
         else:
             with pytest.raises(result):
-                report = api.create_report(
-                    project=project, entity=entity, blocks=blocks
-                )
+                report = api.create_report(project=project)
 
     @pytest.mark.parametrize(
         "path,result",

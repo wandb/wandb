@@ -38,11 +38,6 @@ from .validators import (
 )
 
 
-# api = wandb.Api()
-def _api_factory():
-    return wandb.Api()
-
-
 class LineKey:
     def __init__(self, key) -> None:
         self.key = key
@@ -882,7 +877,7 @@ class RunSet(Base):
     """
 
     entity: str = attr(
-        default="megatruong",
+        default=wandb.Api().default_entity,
         metadata={"json_path": "spec.project.entityName"},
     )
     project: str = attr(default="", metadata={"json_path": "spec.project.name"})
@@ -897,6 +892,11 @@ class RunSet(Base):
     order: list = attr(
         default_factory=_default_order, metadata={"json_path": "spec.sort"}
     )
+
+    # def __post_init__(self):
+    #     if self.entity is "":
+    #         self.entity = wandb.Api().default_entity
+    #         # self.entity = "megatruong"
 
     def __new__(cls, *args, **kwargs):
         def _generate_default_runset_spec():
@@ -1145,9 +1145,11 @@ class PanelGrid(Block):
 
 @dataclass(repr=False)
 class Report(Base):
-    project: str = attr(metadata={"json_path": "viewspec.project.name"})
+    project: str = attr(
+        metadata={"json_path": "viewspec.project.name"},
+    )
     entity: str = attr(
-        default="megatruong",
+        default=wandb.Api().default_entity,
         metadata={"json_path": "viewspec.project.entityName"},
     )
     title: str = attr(
@@ -1168,6 +1170,11 @@ class Report(Base):
             "validators": [TypeValidator(Block, how="keys")],
         },
     )
+
+    # def __post_init__(self):
+    #     if self.entity is "":
+    #         self.entity = wandb.Api().default_entity
+    #         # self.entity = "megatruong"
 
     def __new__(cls, *args, **kwargs):
         def _generate_default_viewspec():
