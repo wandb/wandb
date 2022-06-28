@@ -126,7 +126,7 @@ class SendManager:
     _resume_state: ResumeState
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
-    _server_messages: Optional[List[Dict[str, Any]]]
+    _server_messages: List[Dict[str, Any]]
 
     def __init__(
         self,
@@ -164,7 +164,7 @@ class SendManager:
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
-        self._server_messages = None
+        self._server_messages = []
 
         # State updated by resuming
         self._resume_state = ResumeState()
@@ -487,16 +487,15 @@ class SendManager:
                 self.get_local_info()
             )
             result.response.poll_exit_response.done = True
-            if self._server_messages:
-                for message in self._server_messages:
-                    message_record = wandb_internal_pb2.ServerMessage(
-                        utf_text=message.get("utfText", ""),
-                        plain_text=message.get("plainText", ""),
-                        html_text=message.get("htmlText", ""),
-                    )
-                    result.response.poll_exit_response.server_messages.item.append(
-                        message_record
-                    )
+            for message in self._server_messages:
+                message_record = wandb_internal_pb2.ServerMessage(
+                    utf_text=message.get("utfText", ""),
+                    plain_text=message.get("plainText", ""),
+                    html_text=message.get("htmlText", ""),
+                )
+                result.response.poll_exit_response.server_messages.item.append(
+                    message_record
+                )
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -754,7 +753,7 @@ class SendManager:
             repo=run.git.remote_url or None,
             commit=run.git.last_commit or None,
         )
-        self._server_messages = server_messages
+        self._server_messages = server_messages or []
         self._run = run
         if self._resume_state.resumed:
             self._run.resumed = True
