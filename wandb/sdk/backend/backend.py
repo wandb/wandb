@@ -10,6 +10,7 @@ import multiprocessing
 import os
 import sys
 import threading
+from types import ModuleType
 from typing import Any, Callable, Dict, Optional
 from typing import cast
 from typing import TYPE_CHECKING
@@ -107,7 +108,7 @@ class Backend:
         main_module = sys.modules["__main__"]
         main_mod_spec = getattr(main_module, "__spec__", None)
         main_mod_path = getattr(main_module, "__file__", None)
-        if main_mod_spec is None:  # hack for pdb
+        if main_mod_spec is None and type(main_module) is ModuleType:  # hack for pdb
             # Note: typing has trouble with BuiltinImporter
             loader: "Loader" = importlib.machinery.BuiltinImporter  # type: ignore # noqa: F821
             main_mod_spec = importlib.machinery.ModuleSpec(
