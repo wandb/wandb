@@ -10,7 +10,7 @@ init_count = 1
 
 
 def get_init_count():
-    nonlocal init_count
+    global init_count
     current_count = init_count
     init_count += 1
     return current_count
