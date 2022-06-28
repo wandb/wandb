@@ -987,23 +987,17 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         )
 
 
-def test_cli_login_reprompts_when_no_key_specified(
-    mocker, runner, empty_netrc, local_netrc
-):
+def test_cli_login_reprompts_when_no_key_specified(runner, empty_netrc, local_netrc):
     with runner.isolated_filesystem():
-        mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", input)
-        # this first gives login an empty API key, which should cause
-        # it to reprompt.  this is what we are testing.  we then give
-        # it a valid API key (the dummy API key with a different final
-        # letter to check that our monkeypatch input is working as
-        # expected) to terminate the prompt finally we grep for the
-        # Error: No API key specified to assert that the reprompt
-        # happened
-        result = runner.invoke(cli.login, input=f"\n{DUMMY_API_KEY[:-1]}q\n")
+        # this first gives login an empty API key twice, which should
+        # iun both cases cause it to re-prompt. this is what we are testing.
+        # we then give it a valid API key. finally, we grep for
+        # "Paste an API key" in the output, which should be there 3 times.
+        result = runner.invoke(cli.login, input=f"\n\n{DUMMY_API_KEY}\n")
         debug_result(result, "login")
         with open("netrc") as f:
             print(f.read())
-        assert "ERROR No API key specified." in result.output
+        assert result.output.count("Paste an API key") == 3
 
 
 def test_cli_debug_log_scoping(runner, mock_server, test_settings):
