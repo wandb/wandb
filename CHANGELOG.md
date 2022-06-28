@@ -1,3 +1,10 @@
+## 0.12.20 (June 29, 2022)
+
+#### :bug: Bug Fix
+* Retry `commit_artifact` on conflict-error by @speezepearson in https://github.com/wandb/client/pull/3843
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.19...v0.12.20
+
 ## 0.12.19 (June 22, 2022)
 
 #### :bug: Bug Fix
