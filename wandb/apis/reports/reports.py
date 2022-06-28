@@ -877,7 +877,8 @@ class RunSet(Base):
     """
 
     entity: str = attr(
-        default=wandb.Api().default_entity,
+        # default=wandb.Api().default_entity,
+        default="",
         metadata={"json_path": "spec.project.entityName"},
     )
     project: str = attr(default="", metadata={"json_path": "spec.project.name"})
@@ -893,10 +894,9 @@ class RunSet(Base):
         default_factory=_default_order, metadata={"json_path": "spec.sort"}
     )
 
-    # def __post_init__(self):
-    #     if self.entity is "":
-    #         self.entity = wandb.Api().default_entity
-    #         # self.entity = "megatruong"
+    def __post_init__(self):
+        if self.entity == "":
+            self.entity = wandb.Api().default_entity
 
     def __new__(cls, *args, **kwargs):
         def _generate_default_runset_spec():
@@ -977,6 +977,7 @@ class RunSet(Base):
 
     @property
     def _runs_config(self) -> dict:
+        # breakpoint()
         return {k: v for run in self.runs for k, v in run.config.items()}
 
     @property
@@ -1149,7 +1150,8 @@ class Report(Base):
         metadata={"json_path": "viewspec.project.name"},
     )
     entity: str = attr(
-        default=wandb.Api().default_entity,
+        # default=wandb.Api().default_entity,
+        default="",
         metadata={"json_path": "viewspec.project.entityName"},
     )
     title: str = attr(
@@ -1171,10 +1173,9 @@ class Report(Base):
         },
     )
 
-    # def __post_init__(self):
-    #     if self.entity is "":
-    #         self.entity = wandb.Api().default_entity
-    #         # self.entity = "megatruong"
+    def __post_init__(self):
+        if self.entity == "":
+            self.entity = wandb.Api().default_entity
 
     def __new__(cls, *args, **kwargs):
         def _generate_default_viewspec():

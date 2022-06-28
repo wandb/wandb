@@ -380,7 +380,7 @@ class Api:
         width: Optional[str] = "readable",
         blocks: "Optional[wandb.apis.reports.reports.Block]" = None,
     ) -> "wandb.apis.reports.reports.Report":
-        if entity is "":
+        if entity == "":
             entity = self.default_entity or ""
         if blocks is None:
             blocks = []

@@ -6,7 +6,8 @@ from typing import Optional, Union
 import pytest
 
 import wandb
-import wandb.apis.reports as wb
+
+# import wandb.apis.reports as wb
 import wandb.apis.reports.util as util
 
 from wandb.apis.reports.validators import (
@@ -17,6 +18,14 @@ from wandb.apis.reports.validators import (
     OrderString,
     TypeValidator,
 )
+from unittest.mock import patch
+
+
+@pytest.fixture
+def wb(api):
+    import wandb.apis.reports as wb_reports
+
+    yield wb_reports
 
 
 @pytest.fixture
@@ -27,9 +36,7 @@ def require_report_editing():
 
 
 @pytest.fixture
-def report(mock_server, api, all_blocks):
-    # TODO: mock_server works, but live_mock_server does not??
-
+def report(wb, all_blocks):
     yield wb.Report(
         project="amazing-project",
         title="An amazing title",
@@ -40,7 +47,7 @@ def report(mock_server, api, all_blocks):
 
 
 @pytest.fixture
-def all_panels(mock_server, api):
+def all_panels(wb):
     yield [
         wb.MediaBrowser(media_keys="img"),  # This panel can be flakey
         wb.MarkdownPanel(
@@ -123,7 +130,7 @@ def all_panels(mock_server, api):
 
 
 @pytest.fixture
-def all_blocks(mock_server, api, all_panels, runset):
+def all_blocks(wb, all_panels, runset):
     yield [
         wb.PanelGrid(
             panels=all_panels,
@@ -168,18 +175,12 @@ def all_blocks(mock_server, api, all_panels, runset):
 
 
 @pytest.fixture
-def runset(
-    mock_server,
-    api,
-):
+def runset(wb, mock_server):
     yield wb.RunSet()
 
 
 @pytest.fixture
-def panel_grid(
-    mock_server,
-    api,
-):
+def panel_grid(wb):
     yield wb.PanelGrid()
 
 
@@ -192,7 +193,7 @@ class TestPublicAPI:
             ("project", "success"),
         ],
     )
-    def test_create_report(self, api, project, result):
+    def test_create_report(self, wb, mock_server, api, project, result):
         if result == "success":
             # User must always define a project
             report = api.create_report(project=project)
@@ -211,24 +212,24 @@ class TestPublicAPI:
             ("VmlldzoxOTcxMzI2", ValueError),
         ],
     )
-    def test_load_report(self, live_mock_server, api, path, result):
+    def test_load_report(self, mock_server, api, path, result):
         if result == "valid":
             report = api.load_report(path)
-            assert isinstance(report, wb.Report)
+            assert isinstance(report, wandb.apis.reports.Report)
         else:
             with pytest.raises(result):
                 report = api.load_report(path)
 
 
-@pytest.mark.usefixtures("require_report_editing", "mock_server")
+@pytest.mark.usefixtures("require_report_editing")
 class TestReport:
-    def test_instantiate_report(self):
+    def test_instantiate_report(self, wb):
         report = wb.Report(project="something")
         with pytest.raises(TypeError):
             report = wb.Report()
 
     @pytest.mark.parametrize("clone", [True, False])
-    def test_save_report(self, report, clone):
+    def test_save_report(self, wb, mock_server, report, clone):
         report2 = report.save(clone=clone)
 
         if clone:
@@ -237,167 +238,50 @@ class TestReport:
             assert report2 is report
 
     @pytest.mark.parametrize(
-        "new_blocks",
-        [
-            [wb.H1("Heading"), wb.P("Paragraph"), wb.PanelGrid()],
-            [
-                wb.Video(url="https://www.youtube.com/embed/6riDJMI-Y8U"),
-                wb.Spotify(spotify_id="5cfUlsdrdUE4dLMK7R9CFd"),
-                wb.SoundCloud(url="https://api.soundcloud.com/tracks/1076901103"),
-                wb.Twitter(
-                    embed_html='<blockquote class="twitter-tweet"><p lang="en" dir="ltr">The voice of an angel, truly. <a href="https://twitter.com/hashtag/MassEffect?src=hash&amp;ref_src=twsrc%5Etfw">#MassEffect</a> <a href="https://t.co/nMev97Uw7F">pic.twitter.com/nMev97Uw7F</a></p>&mdash; Mass Effect (@masseffect) <a href="https://twitter.com/masseffect/status/1428748886655569924?ref_src=twsrc%5Etfw">August 20, 2021</a></blockquote>\n'
-                ),
-                wb.P(text="Normal paragraph"),
-                wb.H1(text="Heading 1"),
-                wb.H2(text="Heading 2"),
-                wb.H3(text="Heading 3"),
-                wb.UnorderedList(items=["Bullet 1", "Bullet 2"]),
-                wb.OrderedList(items=["Ordered 1", "Ordered 2"]),
-                wb.CheckedList(items=["Unchecked", "Checked"], checked=[False, True]),
-                wb.BlockQuote(text="Block Quote 1\nBlock Quote 2\nBlock Quote 3"),
-                wb.CalloutBlock(text=["Callout 1", "Callout 2", "Callout 3"]),
-                wb.CodeBlock(
-                    code=["# python code block", "for x in range(10):", "  pass"],
-                    language="python",
-                ),
-                wb.HorizontalRule(),
-                wb.CodeBlock(
-                    code=["this:", "- is", "- a", "cool:", "- yaml", "- file"],
-                    language="yaml",
-                ),
-                wb.MarkdownBlock(
-                    text="Markdown cell with *italics* and **bold** and $e=mc^2$"
-                ),
-                wb.Image(
-                    url="https://api.wandb.ai/files/megatruong/images/projects/918598/350382db.gif",
-                    caption="It's a me, Pikachu",
-                ),
-                wb.P(
-                    text=[
-                        "here is some text, followed by",
-                        wb.InlineCode("select * from code in line"),
-                        "and then latex",
-                        wb.InlineLaTeX("e=mc^2"),
-                    ]
-                ),
-                wb.LaTeXBlock(
-                    text="\\gamma^2+\\theta^2=\\omega^2\n\\\\ a^2 + b^2 = c^2"
-                ),
-                wb.Gallery(ids=[]),
-                wb.PanelGrid(),
-                wb.WeaveBlock(
-                    spec={
-                        "type": "weave-panel",
-                        "children": [{"text": ""}],
-                        "config": {
-                            "panelConfig": {
-                                "exp": {
-                                    "nodeType": "output",
-                                    "type": {
-                                        "type": "tagged",
-                                        "tag": {
-                                            "type": "tagged",
-                                            "tag": {
-                                                "type": "typedDict",
-                                                "propertyTypes": {
-                                                    "entityName": "string",
-                                                    "projectName": "string",
-                                                },
-                                            },
-                                            "value": {
-                                                "type": "typedDict",
-                                                "propertyTypes": {
-                                                    "project": "project",
-                                                    "artifactName": "string",
-                                                },
-                                            },
-                                        },
-                                        "value": "artifact",
-                                    },
-                                    "fromOp": {
-                                        "name": "project-artifact",
-                                        "inputs": {
-                                            "project": {
-                                                "nodeType": "output",
-                                                "type": {
-                                                    "type": "tagged",
-                                                    "tag": {
-                                                        "type": "typedDict",
-                                                        "propertyTypes": {
-                                                            "entityName": "string",
-                                                            "projectName": "string",
-                                                        },
-                                                    },
-                                                    "value": "project",
-                                                },
-                                                "fromOp": {
-                                                    "name": "root-project",
-                                                    "inputs": {
-                                                        "entityName": {
-                                                            "nodeType": "const",
-                                                            "type": "string",
-                                                            "val": "megatruong",
-                                                        },
-                                                        "projectName": {
-                                                            "nodeType": "const",
-                                                            "type": "string",
-                                                            "val": "nvda-ngc",
-                                                        },
-                                                    },
-                                                },
-                                            },
-                                            "artifactName": {
-                                                "nodeType": "const",
-                                                "type": "string",
-                                                "val": "my-artifact",
-                                            },
-                                        },
-                                    },
-                                }
-                            }
-                        },
-                    }
-                ),
-                wb.P(text="Wowza"),
-            ],
-            [
-                wb.PanelGrid(
-                    panels=[
-                        cls()
-                        for _, cls in inspect.getmembers(wb.panels)
-                        if isinstance(cls, type)
-                    ]
-                )
-            ],
-            [
-                wb.PanelGrid(
-                    panels=[
-                        cls()
-                        for _, cls in inspect.getmembers(wb.panels)
-                        if isinstance(cls, type)
-                    ],
-                    runsets=[wb.RunSet() for _ in range(10)],
-                )
-            ],
-        ],
-    )
-    def test_assign_blocks_to_report(self, report, new_blocks):
-        report.blocks = new_blocks
-
-        for b, new_b in zip(report.blocks, new_blocks):
-            assert b.spec == new_b.spec
-
-    @pytest.mark.parametrize(
         "new_blocks,result",
         [
-            ([wb.P(["abc", wb.InlineLaTeX("e=mc^2")])], "success"),
-            ([wb.P(["abc", wb.InlineCode("for x in range(10): pass")])], "success"),
             (
-                [wb.P(["abc", wb.InlineLaTeX("e=mc^2"), wb.InlineLaTeX("e=mc^2")])],
+                [
+                    wandb.apis.reports.P(
+                        ["abc", wandb.apis.reports.InlineLaTeX("e=mc^2")]
+                    )
+                ],
                 "success",
             ),
-            ([wb.P("abc"), wb.InlineLaTeX("e=mc^2")], TypeError),
-            ([wb.P("abc"), wb.InlineCode("for x in range(10): pass")], TypeError),
+            (
+                [
+                    wandb.apis.reports.P(
+                        [
+                            "abc",
+                            wandb.apis.reports.InlineCode("for x in range(10): pass"),
+                        ]
+                    )
+                ],
+                "success",
+            ),
+            (
+                [
+                    wandb.apis.reports.P(
+                        [
+                            "abc",
+                            wandb.apis.reports.InlineLaTeX("e=mc^2"),
+                            wandb.apis.reports.InlineLaTeX("e=mc^2"),
+                        ]
+                    )
+                ],
+                "success",
+            ),
+            (
+                [wandb.apis.reports.P("abc"), wandb.apis.reports.InlineLaTeX("e=mc^2")],
+                TypeError,
+            ),
+            (
+                [
+                    wandb.apis.reports.P("abc"),
+                    wandb.apis.reports.InlineCode("for x in range(10): pass"),
+                ],
+                TypeError,
+            ),
         ],
     )
     def test_inline_blocks_must_be_inside_p_block(self, report, new_blocks, result):
@@ -407,15 +291,13 @@ class TestReport:
             with pytest.raises(result):
                 report.blocks = new_blocks
 
-    def test_get_blocks(self, report):
-        assert all(
-            isinstance(b, wandb.apis.reports.reports.Block) for b in report.blocks
-        )
+    def test_get_blocks(self, wb, report):
+        assert all(isinstance(b, wb.reports.Block) for b in report.blocks)
 
-    def test_get_panel_grids(self, report):
+    def test_get_panel_grids(self, wb, report):
         assert all(isinstance(pg, wb.PanelGrid) for pg in report.panel_grids)
 
-    def test_get_runsets(self, report):
+    def test_get_runsets(self, wb, report):
         assert all(
             isinstance(rs, wb.RunSet) for pg in report.panel_grids for rs in pg.runsets
         )
@@ -423,7 +305,7 @@ class TestReport:
 
 @pytest.mark.usefixtures("require_report_editing")
 class TestRunSet:
-    def test_instantiate_runset(self):
+    def test_instantiate_runset(self, wb):
         rs = wb.RunSet()
 
     @pytest.mark.parametrize(
@@ -717,25 +599,25 @@ class TestQueryGenerators:
 
 @pytest.mark.usefixtures("require_report_editing")
 class TestPanelGrid:
-    def test_instantiate_panel_grid(self):
+    def test_instantiate_panel_grid(self, wb):
         pg = wb.PanelGrid()
         assert pg.runsets != []
 
-    def test_assign_runsets_to_panel_grid(self, panel_grid):
+    def test_assign_runsets_to_panel_grid(self, wb, panel_grid):
         new_runsets = [wb.RunSet() for _ in range(10)]
         panel_grid.runsets = new_runsets
 
         for rs, new_rs in zip(panel_grid.runsets, new_runsets):
             assert rs.spec == new_rs.spec
 
-    def test_assign_panels_to_panel_grid(self, panel_grid):
+    def test_assign_panels_to_panel_grid(self, wb, panel_grid):
         new_panels = [wb.LinePlot() for _ in range(10)]
         panel_grid.panels = new_panels
 
         for p, new_p in zip(panel_grid.panels, new_panels):
             assert p.spec == new_p.spec
 
-    def test_panels_dont_collide_after_assignment(self, panel_grid):
+    def test_panels_dont_collide_after_assignment(self, wb, panel_grid):
         new_panels = [wb.LinePlot() for _ in range(10)]
         panel_grid.panels = new_panels
 
@@ -748,7 +630,11 @@ class TestPanelGrid:
 class TestPanels:
     @pytest.mark.parametrize(
         "cls",
-        [cls for _, cls in inspect.getmembers(wb.panels) if isinstance(cls, type)],
+        [
+            cls
+            for _, cls in inspect.getmembers(wandb.apis.reports.panels)
+            if isinstance(cls, type)
+        ],
     )
     def test_instantiate_panel(self, cls):
         # attrs = {k:v for k,v in inspect.getmembers(cls)}
