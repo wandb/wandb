@@ -42,7 +42,7 @@ launch_requirements = [
     "kubernetes",
 ]
 
-model_registry_requirements = [
+models_requirements = [
     "cloudpickle"
 ]
 
@@ -99,7 +99,7 @@ setup(
         "media": media_requirements,
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
-        "model_registry": model_registry_requirements,
+        "models": models_requirements,
     },
 )
 
