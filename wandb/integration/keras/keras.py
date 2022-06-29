@@ -32,7 +32,7 @@ def _check_keras_version():
 
 def _check_can_compute_flops() -> bool:
     """
-    FLOPs computation is restricted to TF 2.x as it requires tf.compat.v1
+    FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1
     """
     if parse_version(tf.__version__) >= parse_version("2.0.0"):
         return True
