@@ -34,11 +34,8 @@ def test_roc(dummy_classifier, wandb_init_run):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     custom_chart_no_title = roc_curve(y_test, y_probas)
     assert custom_chart_no_title.string_fields["title"] == "ROC"
-    assert custom_chart_no_title.table.data[0] == [
-        0,
-        0.0,
-        0.0,
-    ], custom_chart_no_title.table.data[0]
+    first_row = custom_chart_no_title.table.data[0]
+    assert first_row == [0, 0.0, 0.0], first_row
     custom_chart_with_title = roc_curve(y_test, y_probas, title="New title")
     assert custom_chart_with_title.string_fields["title"] == "New title"
 
@@ -47,12 +44,8 @@ def test_pr(dummy_classifier, wandb_init_run):
     (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
     custom_chart_no_title = pr_curve(y_test, y_probas)
     assert custom_chart_no_title.string_fields["title"] == "Precision v. Recall"
-    # note: see https://github.com/wandb/client/pull/3735/ for context
-    sklearn_version = parse_version(sklearn.__version__)
-    pr = [0, 1.0, 1.0] if sklearn_version < parse_version("1.1") else [0, 0.5, 1.0]
-    assert custom_chart_no_title.table.data[0] == pr, custom_chart_no_title.table.data[
-        0
-    ]
+    first_row = custom_chart_no_title.table.data[0]
+    assert first_row == [0, 1.0, 1.0], first_row
     custom_chart_with_title = pr_curve(y_test, y_probas, title="New title")
     assert custom_chart_with_title.string_fields["title"] == "New title"
 
