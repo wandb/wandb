@@ -32,6 +32,7 @@ from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib import tracelog
 from ..lib.proto_util import message_to_dict
+from ..wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -808,7 +809,9 @@ class SendManager:
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
+        self._dir_watcher = DirWatcher(
+            cast(Settings, self._settings), self._pusher, file_dir
+        )
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,

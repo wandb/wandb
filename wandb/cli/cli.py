@@ -1088,7 +1088,7 @@ def launch(
     if resource is None and config.get("resource") is not None:
         resource = config.get("resource")
     elif resource is None:
-        resource = "local"
+        resource = "local-container"
 
     if (
         uri is None
