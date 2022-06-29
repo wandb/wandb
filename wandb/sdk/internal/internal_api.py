@@ -76,6 +76,7 @@ if TYPE_CHECKING:
         api_key: Optional[str]
 
     _Response = TypeVar("_Response", bound=MutableMapping)
+    _ArtifactVersion = TypeVar("_ArtifactVersion", bound=MutableMapping)
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
@@ -174,7 +175,7 @@ class Api:
             None,
             None,
         )
-        self._max_cli_version = None
+        self._max_cli_version: Optional[str] = None
 
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
@@ -325,7 +326,21 @@ class Api:
         elif key == "base_url":
             self.relocate()
 
-    def parse_slug(self, slug, project=None, run=None):
+    def parse_slug(
+        self, slug: str, project: Optional[str] = None, run: Optional[str] = None
+    ) -> Tuple[str, str]:
+        """Parses a slug into a project and run.
+
+        Arguments:
+            slug (str): The slug to parse
+            project (str, optional): The project to use, if not provided it will be
+            inferred from the slug
+            run (str, optional): The run to use, if not provided it will be inferred
+            from the slug
+
+        Returns:
+            A dict with the project and run
+        """
         if slug and "/" in slug:
             parts = slug.split("/")
             project = parts[0]
@@ -336,10 +351,10 @@ class Api:
                 raise CommError("No default project configured.")
             run = run or slug or self.current_run_id or env.get_run(env=self._environ)
             assert run, "run must be specified"
-        return (project, run)
+        return project, run
 
     @normalize_exceptions
-    def server_info_introspection(self):
+    def server_info_introspection(self) -> Tuple[List[str], List[str]]:
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
@@ -432,7 +447,7 @@ class Api:
         return res.get("viewer") or {}
 
     @normalize_exceptions
-    def max_cli_version(self):
+    def max_cli_version(self) -> str:
 
         if self._max_cli_version is not None:
             return self._max_cli_version
@@ -451,7 +466,7 @@ class Api:
         return self._max_cli_version
 
     @normalize_exceptions
-    def viewer_server_info(self):
+    def viewer_server_info(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         local_query = """
             latestLocalVersionInfo {
                 outOfDate
@@ -2469,7 +2484,7 @@ class Api:
         )
         return av, latest
 
-    def commit_artifact(self, artifact_id):
+    def commit_artifact(self, artifact_id: str) -> "_Response":
         mutation = gql(
             """
         mutation CommitArtifact(
@@ -2497,16 +2512,16 @@ class Api:
 
     def create_artifact_manifest(
         self,
-        name,
-        digest,
-        artifact_id,
-        base_artifact_id=None,
-        entity=None,
-        project=None,
-        run=None,
-        include_upload=True,
-        type="FULL",
-    ):
+        name: str,
+        digest: str,
+        artifact_id: str,
+        base_artifact_id: Optional[str] = None,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        run: Optional[str] = None,
+        include_upload: bool = True,
+        type: str = "FULL",
+    ) -> Tuple[str, Dict]:
         mutation = gql(
             """
         mutation CreateArtifactManifest(
