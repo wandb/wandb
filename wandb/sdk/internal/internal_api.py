@@ -5,8 +5,11 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    List,
     Mapping,
     MutableMapping,
+    Tuple,
+    TypeVar,
     Optional,
     Union,
 )
@@ -49,9 +52,9 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
-        from typing import TypedDict
+        from typing import Literal, TypedDict
     else:
-        from typing_extensions import TypedDict
+        from typing_extensions import Literal, TypedDict
 
     from .progress import ProgressFn
 
@@ -63,6 +66,18 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]
+
+    class DefaultSettings(TypedDict):
+        section: str
+        git_remote: str
+        ignore_globs: List[str]
+        base_url: str
+        root_dir: Optional[str]
+        api_key: Optional[str]
+
+    _Response = TypeVar("_Response", bound=MutableMapping)
+    SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
+    Number = Union[int, float]
 
 
 class Api:
@@ -93,18 +108,21 @@ class Api:
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:
         self._environ = environ
-        self.default_settings = {
+        self.default_settings: "DefaultSettings" = {
             "section": "default",
             "git_remote": "origin",
             "ignore_globs": [],
             "base_url": "https://api.wandb.ai",
+            "root_dir": None,
+            "api_key": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
         self.default_settings.update(default_settings or {})  # type: ignore
         self.retry_uploads = 10
         self._settings = Settings(
-            load_settings=load_settings, root_dir=self.default_settings.get("root_dir")  # type: ignore
+            load_settings=load_settings,
+            root_dir=self.default_settings.get("root_dir"),
         )
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
@@ -136,7 +154,7 @@ class Api:
             retryable_exceptions=(RetryError, requests.RequestException),
             retry_callback=retry_callback,
         )
-        self._current_run_id = None
+        self._current_run_id: Optional[str] = None
         self._file_stream_api = None
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
@@ -166,18 +184,18 @@ class Api:
         """Ensures the current api points to the right server"""
         self.client.transport.url = "%s/graphql" % self.settings("base_url")
 
-    def execute(self, *args, **kwargs):
+    def execute(self, *args: Any, **kwargs: Any) -> "_Response":
         """Wrapper around execute that logs in cases of failure."""
         try:
-            return self.client.execute(*args, **kwargs)
+            return self.client.execute(*args, **kwargs)  # type: ignore
         except requests.exceptions.HTTPError as err:
             res = err.response
-            logger.error("%s response executing GraphQL." % res.status_code)
+            logger.error(f"{res.status_code} response executing GraphQL.")
             logger.error(res.text)
             self.display_gorilla_error_if_found(res)
             raise
 
-    def display_gorilla_error_if_found(self, res) -> None:
+    def display_gorilla_error_if_found(self, res: requests.Response) -> None:
         try:
             data = res.json()
         except ValueError:
@@ -194,10 +212,10 @@ class Api:
                     "Error while calling W&B API: {} ({})".format(err["message"], res)
                 )
 
-    def disabled(self):
-        return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)
+    def disabled(self) -> Union[str, bool]:
+        return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)  # type: ignore
 
-    def set_current_run_id(self, run_id) -> None:
+    def set_current_run_id(self, run_id: str) -> None:
         self._current_run_id = run_id
 
     @property
@@ -206,7 +224,7 @@ class Api:
 
     @property
     def user_agent(self) -> str:
-        return "W&B Internal Client %s" % __version__
+        return f"W&B Internal Client {__version__}"
 
     @property
     def api_key(self) -> Optional[str]:
@@ -216,9 +234,9 @@ class Api:
             key = auth[-1]
 
         # Environment should take precedence
-        env_key = self._environ.get(env.API_KEY)
-        sagemaker_key = parse_sm_secrets().get(env.API_KEY)
-        default_key = self.default_settings.get("api_key")
+        env_key: Optional[str] = self._environ.get(env.API_KEY)
+        sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
+        default_key: Optional[str] = self.default_settings.get("api_key")
         return env_key or key or sagemaker_key or default_key
 
     @property
@@ -233,7 +251,7 @@ class Api:
     def default_entity(self) -> str:
         return self.viewer().get("entity")
 
-    def settings(self, key=None, section=None) -> Any:
+    def settings(self, key: Optional[str] = None, section: Optional[str] = None) -> Any:
         """The settings overridden from the wandb/settings file.
 
         Arguments:
@@ -350,7 +368,7 @@ class Api:
                 field.get("name", "")
                 for field in res.get("ServerInfoType", {}).get("fields", [{}])
             ]
-        return (self.query_types, self.server_info_types)
+        return self.query_types, self.server_info_types
 
     def server_use_artifact_input_introspection(self):
         query_string = """
@@ -435,10 +453,10 @@ class Api:
     @normalize_exceptions
     def viewer_server_info(self):
         local_query = """
-                latestLocalVersionInfo {
-                    outOfDate
-                    latestVersionString
-                }
+            latestLocalVersionInfo {
+                outOfDate
+                latestVersionString
+            }
         """
         cli_query = """
             serverInfo {
@@ -518,7 +536,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def project(self, project, entity=None):
+    def project(self, project: str, entity: Optional[str] = None) -> "_Response":
         """Retrieve project
 
         Arguments:
@@ -2560,11 +2578,11 @@ class Api:
 
     def update_artifact_manifest(
         self,
-        artifact_manifest_id,
-        base_artifact_id=None,
-        digest=None,
-        include_upload=True,
-    ):
+        artifact_manifest_id: str,
+        base_artifact_id: Optional[str] = None,
+        digest: Optional[str] = None,
+        include_upload: Optional[bool] = True,
+    ) -> Tuple[str, Dict]:
         mutation = gql(
             """
         mutation UpdateArtifactManifest(
@@ -2610,8 +2628,8 @@ class Api:
 
     def _resolve_client_id(
         self,
-        client_id,
-    ):
+        client_id: str,
+    ) -> Optional[str]:
 
         if client_id in self._client_id_mapping:
             return self._client_id_mapping[client_id]
@@ -2695,7 +2713,13 @@ class Api:
         return result
 
     @normalize_exceptions
-    def notify_scriptable_run_alert(self, title, text, level=None, wait_duration=None):
+    def notify_scriptable_run_alert(
+        self,
+        title: str,
+        text: str,
+        level: Optional[str] = None,
+        wait_duration: Optional["Number"] = None,
+    ) -> bool:
         mutation = gql(
             """
         mutation NotifyScriptableRunAlert(
@@ -2734,16 +2758,24 @@ class Api:
                 "waitDuration": wait_duration,
             },
         )
+        success: bool = response["notifyScriptableRunAlert"]["success"]
+        return success
 
-        return response["notifyScriptableRunAlert"]["success"]
+    def get_sweep_state(
+        self, sweep: str, entity: Optional[str] = None, project: Optional[str] = None
+    ) -> "SweepState":
+        state: "SweepState" = self.sweep(
+            sweep=sweep, entity=entity, project=project, specs="{}"
+        )["state"]
+        return state
 
-    def get_sweep_state(self, sweep, entity=None, project=None):
-        return self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")[
-            "state"
-        ]
-
-    def set_sweep_state(self, sweep, state, entity=None, project=None):
-        state = state.upper()
+    def set_sweep_state(
+        self,
+        sweep: str,
+        state: "SweepState",
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
         assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
@@ -2785,7 +2817,12 @@ class Api:
             },
         )
 
-    def stop_sweep(self, sweep, entity=None, project=None):
+    def stop_sweep(
+        self,
+        sweep: str,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
         """
         Finish the sweep to stop running new runs and let currently running runs finish.
         """
@@ -2793,7 +2830,12 @@ class Api:
             sweep=sweep, state="FINISHED", entity=entity, project=project
         )
 
-    def cancel_sweep(self, sweep, entity=None, project=None):
+    def cancel_sweep(
+        self,
+        sweep: str,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
         """
         Cancel the sweep to kill all running runs and stop running new runs.
         """
@@ -2801,7 +2843,12 @@ class Api:
             sweep=sweep, state="CANCELED", entity=entity, project=project
         )
 
-    def pause_sweep(self, sweep, entity=None, project=None):
+    def pause_sweep(
+        self,
+        sweep: str,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
         """
         Pause the sweep to temporarily stop running new runs.
         """
@@ -2809,7 +2856,12 @@ class Api:
             sweep=sweep, state="PAUSED", entity=entity, project=project
         )
 
-    def resume_sweep(self, sweep, entity=None, project=None):
+    def resume_sweep(
+        self,
+        sweep: str,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
         """
         Resume the sweep to continue running new runs.
         """
@@ -2817,13 +2869,13 @@ class Api:
             sweep=sweep, state="RUNNING", entity=entity, project=project
         )
 
-    def _status_request(self, url, length):
+    def _status_request(self, url: str, length: int) -> requests.Response:
         """Ask google how much we've uploaded"""
         return requests.put(
             url=url,
             headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
         )
 
-    def _flatten_edges(self, response):
+    def _flatten_edges(self, response: "_Response") -> list:
         """Return an array from the nested graphql relay structure"""
         return [node["node"] for node in response["edges"]]

@@ -1,6 +1,6 @@
 import configparser
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from wandb import util
 from wandb.old import core
@@ -27,7 +27,7 @@ class Settings:
             if os.path.isdir(core.wandb_dir(self.root_dir)):
                 self._local_settings.read([Settings._local_path(self.root_dir)])
 
-    def get(self, section, key, fallback=_UNSET):
+    def get(self, section: str, key: str, fallback: Any = _UNSET) -> Any:
         # Try the local settings first. If we can't find the key, then try the global settings.
         # If a fallback is provided, return it if we can't find the key in either the local or global
         # settings.

@@ -21,7 +21,7 @@ class GitRepo:
             self.repo
 
     @property
-    def repo(self) -> Optional["Repo", bool]:
+    def repo(self):
         if self._repo is None:
             if self.remote_name is None:
                 self._repo = False
