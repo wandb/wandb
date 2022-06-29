@@ -291,7 +291,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
     metrics collected by keras: loss and anything passed into `keras_model.compile()`.
 
     `WandbCallback` will set summary metrics for the run associated with the "best" training
-    step, where "best" is defined by the `monitor` and `mode` attribues.  This defaults
+    step, where "best" is defined by the `monitor` and `mode` attributes.  This defaults
     to the epoch with the minimum `val_loss`. `WandbCallback` will by default save the model
     associated with the best `epoch`.
 
@@ -336,10 +336,10 @@ class WandbCallback(tf.keras.callbacks.Callback):
             is 100.
         input_type: (string) type of the model input to help visualization. can be one of:
             (`image`, `images`, `segmentation_mask`, `auto`).
-        output_type: (string) type of the model output to help visualziation. can be one of:
+        output_type: (string) type of the model output to help visualization. can be one of:
             (`image`, `images`, `segmentation_mask`, `label`).
         log_evaluation: (boolean) if True, save a Table containing validation data and the
-            model's preditions at each epoch. See `validation_indexes`,
+            model's predictions at each epoch. See `validation_indexes`,
             `validation_row_processor`, and `output_row_processor` for additional details.
         class_colors: ([float, float, float]) if the input or output is a segmentation mask,
             an array containing an rgb tuple (range 0-1) for each class.
@@ -660,7 +660,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 elif self.generator:
                     if not self.validation_steps:
                         wandb.termwarn(
-                            "WandbCallback is unable to log validation data. When using a generator for validation_data, you must pass validation_steps"
+                            "WandbCallback is unable to log validation data. "
+                            "When using a generator for validation_data, you must pass validation_steps"
                         )
                     else:
                         x = None
@@ -677,7 +678,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
                         validation_data = (x, y_true)
                 else:
                     wandb.termwarn(
-                        "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data. Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
+                        "WandbCallback is unable to read validation_data from trainer "
+                        "and therefore cannot log validation data. Ensure Keras is properly "
+                        "patched by calling `from wandb.keras import WandbCallback` at the top of your script."
                     )
                 if validation_data:
                     self._validation_data_logger = ValidationDataLogger(
@@ -691,8 +694,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     )
             except Exception as e:
                 wandb.termwarn(
-                    "Error initializing ValidationDataLogger in WandbCallback. Skipping logging validation data. Error: "
-                    + str(e)
+                    "Error initializing ValidationDataLogger in WandbCallback. "
+                    f"Skipping logging validation data. Error: {str(e)}"
                 )
 
         if _can_compute_flops():
@@ -742,7 +745,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
             else:
                 if len(self.labels) != 0:
                     wandb.termwarn(
-                        'keras model is producing a single output, so labels should be a length two array: ["False label", "True label"].'
+                        "keras model is producing a single output, "
+                        'so labels should be a length two array: ["False label", "True label"].'
                     )
                 captions = [logit[0] for logit in logits]
         else:
@@ -938,7 +942,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         elif self.generator:
             if not self.validation_steps:
                 wandb.termwarn(
-                    "when using a generator for validation data with dataframes, you must pass validation_steps. skipping"
+                    "when using a generator for validation data with dataframes, "
+                    "you must pass validation_steps. skipping"
                 )
                 return None
 
