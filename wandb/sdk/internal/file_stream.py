@@ -3,26 +3,22 @@ import collections
 import itertools
 import logging
 import os
-import sys
 import queue
 import random
-import requests
+import sys
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+import requests
 import wandb
-from wandb import util
-from wandb import env
+from wandb import env, util
 
 from ..lib import file_stream_utils
 
 logger = logging.getLogger(__name__)
 
 Chunk = collections.namedtuple("Chunk", ("filename", "data"))
-
-if TYPE_CHECKING:
-    from typing import Any, List, Dict
 
 
 class DefaultFilePolicy:
@@ -493,10 +489,10 @@ class FileStreamApi:
         with open(path) as f:
             self._send([Chunk(name, line) for line in f])
 
-    def enqueue_preempting(self):
+    def enqueue_preempting(self) -> None:
         self._queue.put(self.Preempting())
 
-    def push(self, filename, data):
+    def push(self, filename, data) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
         Arguments:
@@ -506,7 +502,7 @@ class FileStreamApi:
         """
         self._queue.put(Chunk(filename, data))
 
-    def push_success(self, artifact_id, save_name):
+    def push_success(self, artifact_id, save_name) -> None:
         """Notification that a file upload has been successfully completed
 
         Arguments:
@@ -515,7 +511,7 @@ class FileStreamApi:
         """
         self._queue.put(self.PushSuccess(artifact_id, save_name))
 
-    def finish(self, exitcode):
+    def finish(self, exitcode) -> None:
         """Cleans up.
 
         Anything pushed after finish will be dropped.
@@ -604,7 +600,7 @@ def request_with_retry(func, *args, **kwargs):
         except requests.exceptions.RequestException as e:
             error_message = "unknown error"
             try:
-                error_message = response.json()["error"]  # XXX clean this up
+                error_message = response.json()["error"]  # todo: clean this up
             except Exception:
                 pass
             logger.error(f"requests_with_retry error: {error_message}")
