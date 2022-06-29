@@ -692,7 +692,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     + str(e)
                 )
 
-        if _check_can_compute_flops():
+        if _can_compute_flops():
             try:
                 wandb.summary["GFLOPS"] = self.get_flops()
             except Exception as e:
