@@ -17,9 +17,7 @@ def get_sequential_model():
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(10, activation="softmax"))
     model.compile(
-        optimizer="sgd",
-        loss="sparse_categorical_crossentropy",
-        metrics=["accuracy"]
+        optimizer="sgd", loss="sparse_categorical_crossentropy", metrics=["accuracy"]
     )
 
     return model

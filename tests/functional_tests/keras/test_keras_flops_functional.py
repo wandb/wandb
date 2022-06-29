@@ -13,16 +13,14 @@ run = wandb.init(project="keras")
 
 
 def get_functional_model():
-    inputs = tf.keras.layers.Input(shape=(28,28,1))
+    inputs = tf.keras.layers.Input(shape=(28, 28, 1))
     x = tf.keras.layers.Conv2D(3, 3, activation="relu")(inputs)
     x = tf.keras.layers.Flatten()(x)
     outputs = tf.keras.layers.Dense(10, activation="softmax")(x)
 
     model = tf.keras.models.Model(inputs, outputs)
     model.compile(
-        optimizer="sgd",
-        loss="sparse_categorical_crossentropy",
-        metrics=["accuracy"]
+        optimizer="sgd", loss="sparse_categorical_crossentropy", metrics=["accuracy"]
     )
 
     return model

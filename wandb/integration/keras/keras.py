@@ -30,15 +30,14 @@ def _check_keras_version():
         )
 
 
-def _check_can_compute_flops():
+def _check_can_compute_flops() -> bool:
     """
-    Since FLOPs computation is dependent on tf.compat.v1, restricting this feature for
-    TF 2.x.
+    FLOPs computation is restricted to TF 2.x as it requires tf.compat.v1
     """
-    from tensorflow import __version__ as tf_version
-
-    if parse_version(tf_version) > parse_version("2.0.0"):
+    if parse_version(tf.__version__) >= parse_version("2.0.0"):
         return True
+
+    return False
 
 
 if "keras" in sys.modules:
@@ -280,10 +279,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
     Example:
         ```python
-        model.fit(X_train,
-            y_train,
-            validation_data=(X_test, y_test),
-            callbacks=[WandbCallback()]
+        model.fit(
+            X_train, y_train, validation_data=(X_test, y_test), callbacks=[WandbCallback()]
         )
         ```
 
@@ -697,7 +694,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         if _check_can_compute_flops():
             try:
-                wandb.summary["GigaFLOPs"] = self.get_flops()
+                wandb.summary["GFLOPS"] = self.get_flops()
             except Exception as e:
                 wandb.termwarn("Unable to compute FLOPs for this model.")
 
@@ -1018,21 +1015,25 @@ class WandbCallback(tf.keras.callbacks.Callback):
         # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
         shutil.rmtree(self.filepath[:-3])
 
-    def get_flops(self) -> int:
+    def get_flops(self) -> float:
         """
-        Calculate FLOPs for tf.keras.Model or tf.keras.Sequential
+        Calculate FLOPS [GFLOPS] for a tf.keras.Model or tf.keras.Sequential model
         in inference mode. It uses tf.compat.v1.profiler under the hood.
         """
-        from tensorflow.python.framework.convert_to_constants import (
-            convert_variables_to_constants_v2_as_graph,
-        )
+        if not hasattr(self, "model"):
+            raise wandb.Error("self.model must be set before using this method.")
 
         if not isinstance(
             self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
         ):
-            raise KeyError(
-                "model arguments must be tf.keras.Model or tf.keras.Sequential instanse"
+            raise ValueError(
+                "Calculating FLOPS is only supported for "
+                "`tf.keras.Model` and `tf.keras.Sequential` instances."
             )
+
+        from tensorflow.python.framework.convert_to_constants import (
+            convert_variables_to_constants_v2_as_graph,
+        )
 
         # Compute FLOPs for one sample
         batch_size = 1
@@ -1061,4 +1062,5 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         tf.compat.v1.reset_default_graph()
 
+        # convert to GFLOPS
         return (flops.total_float_ops / 1e9) / 2
