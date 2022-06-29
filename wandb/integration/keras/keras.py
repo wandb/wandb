@@ -10,7 +10,6 @@ import os
 import sys
 
 from itertools import chain
-from pkg_resources import parse_version
 
 import wandb
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
@@ -23,6 +22,7 @@ import tensorflow.keras.backend as K
 
 def _check_keras_version():
     from keras import __version__ as keras_version
+    from pkg_resources import parse_version
 
     if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(
@@ -34,6 +34,8 @@ def _can_compute_flops() -> bool:
     """
     FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1
     """
+    from pkg_resources import parse_version
+
     if parse_version(tf.__version__) >= parse_version("2.0.0"):
         return True
 
@@ -76,12 +78,10 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():
-
+    from pkg_resources import parse_version
     from tensorflow.python.eager import context
 
-    from tensorflow import __version__ as tf_version
-
-    if parse_version(tf_version) >= parse_version("2.6.0"):
+    if parse_version(tf.__version__) >= parse_version("2.6.0"):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
