@@ -385,7 +385,7 @@ class Api:
             ]
         return self.query_types, self.server_info_types
 
-    def server_use_artifact_input_introspection(self):
+    def server_use_artifact_input_introspection(self) -> List[str]:
         query_string = """
            query ProbeServerUseArtifactInput {
                UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
@@ -409,7 +409,7 @@ class Api:
         return self.server_use_artifact_input_info
 
     @normalize_exceptions
-    def launch_agent_introspection(self):
+    def launch_agent_introspection(self) -> Optional[str]:
         query = gql(
             """
             query LaunchAgentIntrospection {
@@ -520,7 +520,7 @@ class Api:
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
-    def list_projects(self, entity=None):
+    def list_projects(self, entity: Optional[str] = None) -> List[str]:
         """Lists projects in W&B scoped by entity.
 
         Arguments:
@@ -544,11 +544,12 @@ class Api:
         }
         """
         )
-        return self._flatten_edges(
+        project_list: List[str] = self._flatten_edges(
             self.gql(
                 query, variable_values={"entity": entity or self.settings("entity")}
             )["models"]
         )
+        return project_list
 
     @normalize_exceptions
     def project(self, project: str, entity: Optional[str] = None) -> "_Response":
@@ -579,7 +580,13 @@ class Api:
         ]
 
     @normalize_exceptions
-    def sweep(self, sweep, specs, project=None, entity=None) -> Dict[str, Any]:
+    def sweep(
+        self,
+        sweep: str,
+        specs: str,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Retrieve sweep.
 
         Arguments:
@@ -650,7 +657,7 @@ class Api:
         return data
 
     @normalize_exceptions
-    def list_runs(self, project, entity=None):
+    def list_runs(self, project: str, entity: Optional[str] = None) -> List[str]:
         """Lists runs in W&B scoped by project.
 
         Arguments:
@@ -689,12 +696,17 @@ class Api:
         )
 
     @normalize_exceptions
-    def launch_run(self, command, project=None, entity=None, run_id=None):
+    def launch_run(
+        self,
+        command: str,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
+        run_id: Optional[str] = None,
+    ) -> "_Response":
         """Launch a run in the cloud.
 
         Arguments:
             command (str): The command to run
-            program (str): The file to run
             project (str): The project to scope the runs to
             entity (str, optional): The entity to scope this project to.  Defaults to public models
             run_id (str, optional): The run_id to scope to
@@ -730,7 +742,7 @@ class Api:
         cwd = "."
         if self.git.enabled:
             cwd = cwd + os.getcwd().replace(self.git.repo.working_dir, "")
-        return self.gql(
+        response: "_Response" = self.gql(
             query,
             variable_values={
                 "entity": entity or self.settings("entity"),
@@ -741,9 +753,12 @@ class Api:
                 "cwd": cwd,
             },
         )
+        return response
 
     @normalize_exceptions
-    def run_config(self, project, run=None, entity=None):
+    def run_config(
+        self, project: str, run: Optional[str] = None, entity: Optional[str] = None
+    ) -> Tuple[str, Dict[str, Any], Optional[str], Dict[str, Any]]:
         """Get the relevant configs for a run
 
         Arguments:
@@ -789,10 +804,10 @@ class Api:
             "includeConfig": True,
         }
 
-        commit = ""
-        config = {}
-        patch = None
-        metadata = {}
+        commit: str = ""
+        config: Dict[str, Any] = {}
+        patch: Optional[str] = None
+        metadata: Dict[str, Any] = {}
 
         # If we use the `names` parameter on the `files` node, then the server
         # will helpfully give us and 'open' file handle to the files that don't
@@ -825,16 +840,16 @@ class Api:
                     elif name == DIFF_FNAME:
                         patch = res.text
 
-        return (commit, config, patch, metadata)
+        return commit, config, patch, metadata
 
     @normalize_exceptions
-    def run_resume_status(self, entity, project_name, name):
+    def run_resume_status(self, entity: str, project_name: str, name: str) -> str:
         """Check if a run exists and get resume information.
 
         Arguments:
             entity (str): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
-            run (str): The run to download
+            name (str): The run to download
         """
         query = gql(
             """
@@ -884,7 +899,9 @@ class Api:
         return project["bucket"]
 
     @normalize_exceptions
-    def check_stop_requested(self, project_name, entity_name, run_id):
+    def check_stop_requested(
+        self, project_name: str, entity_name: str, run_id: str
+    ) -> bool:
         query = gql(
             """
         query RunStoppedStatus($projectName: String, $entityName: String, $runId: String!) {
@@ -913,13 +930,20 @@ class Api:
         if not run:
             return False
 
-        return run["stopped"]
+        status: bool = run["stopped"]
+        return status
 
-    def format_project(self, project):
+    def format_project(self, project: str) -> str:
         return re.sub(r"\W+", "-", project.lower()).strip("-_")
 
     @normalize_exceptions
-    def upsert_project(self, project, id=None, description=None, entity=None):
+    def upsert_project(
+        self,
+        project: str,
+        id: Optional[str] = None,
+        description: Optional[str] = None,
+        entity: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Create a new project
 
         Arguments:
@@ -2175,7 +2199,7 @@ class Api:
 
     def link_artifact(
         self, client_id, server_id, portfolio_name, entity, project, aliases
-    ):
+    ) -> Dict[str, Any]:
         template = """
                 mutation LinkArtifact(
                     $artifactPortfolioName: String!,
@@ -2225,12 +2249,12 @@ class Api:
 
     def use_artifact(
         self,
-        artifact_id,
-        entity_name=None,
-        project_name=None,
-        run_name=None,
-        use_as=None,
-    ):
+        artifact_id: str,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        run_name: Optional[str] = None,
+        use_as: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         query_template = """
         mutation UseArtifact(
             $entityName: String!,
@@ -2287,12 +2311,17 @@ class Api:
         )
 
         if response["useArtifact"]["artifact"]:
-            return response["useArtifact"]["artifact"]
+            artifact: Dict[str, Any] = response["useArtifact"]["artifact"]
+            return artifact
         return None
 
     def create_artifact_type(
-        self, artifact_type_name, entity_name=None, project_name=None, description=None
-    ):
+        self,
+        artifact_type_name: str,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[str]:
         mutation = gql(
             """
         mutation CreateArtifactType(
@@ -2325,27 +2354,28 @@ class Api:
                 "description": description,
             },
         )
-        return response["createArtifactType"]["artifactType"]["id"]
+        _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
+        return _id
 
     def create_artifact(
         self,
-        artifact_type_name,
-        artifact_collection_name,
-        digest,
-        client_id=None,
-        sequence_client_id=None,
-        entity_name=None,
-        project_name=None,
-        run_name=None,
-        description=None,
-        labels=None,
-        metadata=None,
-        aliases=None,
-        distributed_id=None,
-        is_user_created=False,
-        enable_digest_deduplication=False,
-        history_step=None,
-    ):
+        artifact_type_name: str,
+        artifact_collection_name: str,
+        digest: str,
+        client_id: Optional[str] = None,
+        sequence_client_id: Optional[str] = None,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        run_name: Optional[str] = None,
+        description: Optional[str] = None,
+        labels: Optional[str] = None,
+        metadata: Optional[str] = None,
+        aliases: List[str] = None,
+        distributed_id: Optional[str] = None,
+        is_user_created: Optional[bool] = False,
+        enable_digest_deduplication: Optional[bool] = False,
+        history_step: Optional[int] = None,
+    ) -> Tuple[Dict, Dict]:
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
@@ -2502,7 +2532,7 @@ class Api:
         """
         )
 
-        response = self.gql(
+        response: "_Response" = self.gql(  # type: ignore
             mutation,
             variable_values={"artifactID": artifact_id},
             check_retry_fn=util.check_retry_commit_artifact,
