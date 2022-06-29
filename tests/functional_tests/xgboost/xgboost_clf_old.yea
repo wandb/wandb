@@ -1,0 +1,26 @@
+id: 0.xgboost.01-old-xgboost
+tag:
+  skips:
+    - platform: win
+plugin:
+  - wandb
+command:
+    program: test_xgboost_clf_old.py
+depend:
+    requirements:
+        - xgboost>=1.3.0,<1.6.0
+
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][summary][validation_0-auc]: 1
+  - :wandb:runs[0][summary][validation_1-auc]: 1
+  - :op:>:
+    - :wandb:runs[0][summary][validation_0-mlogloss]
+    - 0.0
+  - :op:>:
+    - :wandb:runs[0][summary][validation_1-mlogloss]
+    - 0.0
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 32  # xgboost_old_wandb_callback

@@ -36,6 +36,7 @@ class ArtifactEmulator:
             "labels": [],
             "aliases": aliases,
             "artifactSequence": art_seq,
+            "versionIndex": 0,
             "currentManifest": dict(file=dict(directUrl=direct_url)),
         }
 
@@ -109,6 +110,7 @@ class ArtifactEmulator:
     def query(self, variables, query=None):
         public_api_query_str = "query Artifact($id: ID!) {"
         public_api_query_str2 = "query ArtifactWithCurrentManifest($id: ID!) {"
+        public_api_query_str3 = "query ArtifactManifest("
         art_id = variables.get("id")
         art_name = variables.get("name")
         assert art_id or art_name
@@ -116,6 +118,7 @@ class ArtifactEmulator:
         is_public_api_query = query and (
             query.startswith(public_api_query_str)
             or query.startswith(public_api_query_str2)
+            or query.startswith(public_api_query_str3)
         )
 
         if art_name:
@@ -143,14 +146,16 @@ class ArtifactEmulator:
         # TODO?
         return "ARTIFACT %s" % digest, 200
 
-    def storage(self, request):
+    def storage(self, request, arti_id=None):
         fname = request.args.get("file")
+        if arti_id is None:
+            arti_id = "unknown_id"
         if request.method == "PUT":
             data = request.get_data(as_text=True)
-            self._files.setdefault(fname, "")
-            # TODO: extend? instead of overwrite, possible to differentiate wandb_manifest.json artifactid?
-            self._files[fname] = data
+            if self._files.get(arti_id) is None:
+                self._files[arti_id] = {}
+            self._files[arti_id][fname] = data
         data = ""
         if request.method == "GET":
-            data = self._files[fname]
+            data = self._files[arti_id][fname]
         return data, 200
