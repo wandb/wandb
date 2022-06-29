@@ -887,6 +887,18 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
+def check_retry_commit_artifact(e: Any) -> bool:
+    if hasattr(e, "exception"):
+        e = e.exception
+    if (
+        isinstance(e, requests.HTTPError)
+        and e.response is not None
+        and e.response.status_code == 409
+    ):
+        return True
+    return no_retry_auth(e)
+
+
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
