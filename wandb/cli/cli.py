@@ -860,7 +860,6 @@ def sweep(
         or env.get("WANDB_ENTITY")
         or config.get("entity")
         or api.settings("entity")
-        or api.default_entity
     )
     project = (
         project
