@@ -280,7 +280,10 @@ class WandbCallback(tf.keras.callbacks.Callback):
     Example:
         ```python
         model.fit(
-            X_train, y_train, validation_data=(X_test, y_test), callbacks=[WandbCallback()]
+            X_train,
+            y_train,
+            validation_data=(X_test, y_test),
+            callbacks=[WandbCallback()],
         )
         ```
 
