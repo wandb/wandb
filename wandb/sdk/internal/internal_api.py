@@ -1,3 +1,4 @@
+from typing import IO, TYPE_CHECKING, Any, Iterable, Mapping, Optional, Union
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -34,6 +35,23 @@ from ..lib.git import GitRepo
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
+
+    from .progress import ProgressFn
+
+    class CreateArtifactFileSpecInput(TypedDict):
+        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
+
+        artifactID: str
+        name: str
+        md5: str
+        mimetype: Optional[str]
+        artifactManifestID: Optional[str]
 
 
 class Api:
@@ -1636,13 +1654,19 @@ class Api:
             else:
                 raise requests.exceptions.ConnectionError(e.message)
 
-    def upload_file(self, url, file, callback=None, extra_headers={}):
+    def upload_file(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Mapping[str, Union[str, bytes]] = {},
+    ) -> requests.Response:
         """Uploads a file to W&B with failure resumption
 
         Arguments:
-            url (str): The url to download
-            file (str): The path to the file you want to upload
-            callback (func, optional): A callback which is passed the number of
+            url: The url to download
+            file: The path to the file you want to upload
+            callback: A callback which is passed the number of
             bytes uploaded since the last time it was called, used to report progress
 
         Returns:
@@ -2430,7 +2454,13 @@ class Api:
         }
         """
         )
-        response = self.gql(mutation, variable_values={"artifactID": artifact_id})
+
+        response = self.gql(
+            mutation,
+            variable_values={"artifactID": artifact_id},
+            check_retry_fn=util.check_retry_commit_artifact,
+            retry_timedelta=datetime.timedelta(minutes=2),
+        )
         return response
 
     def create_artifact_manifest(
@@ -2597,7 +2627,9 @@ class Api:
         return server_id
 
     @normalize_exceptions
-    def create_artifact_files(self, artifact_files):
+    def create_artifact_files(
+        self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
+    ) -> Mapping[str, Mapping[str, Any]]:
         mutation = gql(
             """
         mutation CreateArtifactFiles(

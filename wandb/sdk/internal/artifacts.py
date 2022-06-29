@@ -1,20 +1,33 @@
 import json
 import os
+import sys
 import tempfile
 import threading
-from typing import Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import wandb
 from wandb import util
 import wandb.filesync.step_prepare
 
-from ..interface.artifacts import ArtifactManifest
+from ..interface.artifacts import ArtifactEntry, ArtifactManifest
 
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
+    from wandb.sdk.internal.progress import ProgressFn
     from .file_pusher import FilePusher
     from wandb.proto import wandb_internal_pb2
+
+    if sys.version_info >= (3, 8):
+        from typing import Protocol
+    else:
+        from typing_extensions import Protocol
+
+    class SaveFn(Protocol):
+        def __call__(
+            self, entry: ArtifactEntry, progress_callback: "ProgressFn"
+        ) -> Any:
+            pass
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
@@ -212,8 +225,12 @@ class ArtifactSaver:
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
-            with open(path, "rb") as fp:  # type: ignore
-                self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
+            with open(path, "rb") as fp2:
+                self._api.upload_file_retry(
+                    upload_url,
+                    fp2,
+                    extra_headers=extra_headers,
+                )
 
         def on_commit() -> None:
             if finalize and use_after_commit:
