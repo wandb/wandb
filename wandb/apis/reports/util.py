@@ -1,17 +1,13 @@
 from typing import (
     Any,
     Dict,
-    Generic,
-    Union,
     get_type_hints,
     List,
     Optional,
     Tuple,
-    Type,
     TypeVar,
+    Union,
 )
-
-from numpy import str_
 
 import wandb
 

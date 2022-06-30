@@ -7,9 +7,7 @@ import pytest
 
 import wandb
 
-# import wandb.apis.reports as wb
 import wandb.apis.reports.util as util
-
 from wandb.apis.reports.validators import (
     Between,
     LayoutDict,
@@ -18,7 +16,6 @@ from wandb.apis.reports.validators import (
     OrderString,
     TypeValidator,
 )
-from unittest.mock import patch
 
 
 @pytest.fixture
@@ -817,7 +814,7 @@ class TestValidators:
 
 class TestMisc:
     def test_requirements(self):
-        from wandb.sdk.wandb_require_helpers import requires, RequiresReportEditingMixin
+        from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin, requires
 
         @dataclass
         class Thing:

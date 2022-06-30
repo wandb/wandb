@@ -2,7 +2,7 @@ from copy import deepcopy
 import inspect
 import json
 import re
-from typing import List as LList
+from typing import Any, Dict, List as LList
 from typing import Optional, Union
 import urllib
 
@@ -38,7 +38,7 @@ from .validators import (
 
 
 class LineKey:
-    def __init__(self, key) -> None:
+    def __init__(self, key: str) -> None:
         self.key = key
 
     def __hash__(self) -> int:
@@ -73,7 +73,9 @@ class RGBA(Base):
     b: int = Attr(validators=[Between(0, 255)])
     a: Union[int, float] = Attr(validators=[Between(0, 1)])
 
-    def __init__(self, r, g, b, a=None, *args, **kwargs):
+    def __init__(
+        self, r: int, g: int, b: int, a: Union[int, float] = None, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.r = r
         self.g = g
@@ -81,14 +83,14 @@ class RGBA(Base):
         self.a = a
 
     @classmethod
-    def from_json(cls, d: dict) -> "RGBA":
+    def from_json(cls, d: Dict[str, Any]) -> "RGBA":
         color = d.get("transparentColor").replace(" ", "")
         r, g, b, a = re.split(r"\(|\)|,", color)[1:-1]
         r, g, b, a = int(r), int(g), int(b), float(a)
         return cls(r, g, b, a)
 
     @property
-    def spec(self) -> dict:
+    def spec(self) -> Dict[str, Any]:
         return {
             "color": f"rgb({self.r}, {self.g}, {self.b})",
             "transparentColor": f"rgba({self.r}, {self.g}, {self.b}, {self.a})",
@@ -104,34 +106,34 @@ class UnknownPanel(Panel):
 class LinePlot(Panel):
     def __init__(
         self,
-        title=None,
-        x=None,
-        y=None,
-        range_x=(None, None),
-        range_y=(None, None),
-        log_x=None,
-        log_y=None,
-        title_x=None,
-        title_y=None,
-        ignore_outliers=None,
-        groupby=None,
-        groupby_aggfunc=None,
-        groupby_rangefunc=None,
-        smoothing_factor=None,
-        smoothing_type=None,
-        smoothing_show_original=None,
-        max_runs_to_show=None,
-        custom_expressions=None,
-        plot_type=None,
-        font_size=None,
-        legend_position=None,
-        legend_template=None,
-        aggregate=None,
-        xaxis_expression=None,
-        line_titles=None,
-        line_marks=None,
-        line_colors=None,
-        line_widths=None,
+        title: Optional[str] = None,
+        x: Optional[str] = None,
+        y: Optional[list] = None,
+        range_x: Union[list, tuple] = (None, None),
+        range_y: Union[list, tuple] = (None, None),
+        log_x: Optional[bool] = None,
+        log_y: Optional[bool] = None,
+        title_x: Optional[str] = None,
+        title_y: Optional[str] = None,
+        ignore_outliers: Optional[bool] = None,
+        groupby: Optional[str] = None,
+        groupby_aggfunc: Optional[str] = None,
+        groupby_rangefunc: Optional[str] = None,
+        smoothing_factor: Optional[float] = None,
+        smoothing_type: Optional[str] = None,
+        smoothing_show_original: Optional[bool] = None,
+        max_runs_to_show: Optional[int] = None,
+        custom_expressions: Optional[str] = None,
+        plot_type: Optional[str] = None,
+        font_size: Optional[str] = None,
+        legend_position: Optional[str] = None,
+        legend_template: Optional[str] = None,
+        aggregate: Optional[bool] = None,
+        xaxis_expression: Optional[str] = None,
+        line_titles: Optional[dict] = None,
+        line_marks: Optional[dict] = None,
+        line_colors: Optional[dict] = None,
+        line_widths: Optional[dict] = None,
         *args,
         **kwargs,
     ):
@@ -816,7 +818,7 @@ class WeavePanel(Panel):
 class RunSet(Base):
     def __init__(
         self,
-        entity="",
+        entity=None,
         project="",
         name="Run set",
         query="",
@@ -831,7 +833,8 @@ class RunSet(Base):
         self.query_generator = wandb.apis.public.QueryGenerator()
         self.pm_query_generator = wandb.apis.public.PythonMongoishQueryGenerator(self)
 
-        self.entity = entity if entity != "" else wandb.Api().default_entity
+        # self.entity = entity if entity != "" else wandb.Api().default_entity
+        self.entity = coalesce(entity, wandb.Api().default_entity, "")
         self.project = project
         self.name = name
         self.query = query
@@ -1092,7 +1095,7 @@ class Report(Base):
     def __init__(
         self,
         project,
-        entity="",
+        entity=None,
         title="Untitled Report",
         description="",
         width="readable",
@@ -1105,7 +1108,7 @@ class Report(Base):
         self._orig_viewspec = deepcopy(self._viewspec)
 
         self.project = project
-        self.entity = entity if entity != "" else wandb.Api().default_entity
+        self.entity = coalesce(entity, wandb.Api().default_entity, "")
         self.title = title
         self.description = description
         self.width = width
