@@ -378,18 +378,18 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.reports.Block]" = None,
-    ) -> "wandb.apis.reports.reports.Report":
+        blocks: "Optional[wandb.apis.reports.Block]" = None,
+    ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
         if blocks is None:
             blocks = []
-        return wandb.apis.reports.reports.Report(
+        return wandb.apis.reports.Report(
             project, entity, title, description, width, blocks
         )
 
     @requires("report-editing:v0")
-    def load_report(self, path: str) -> "wandb.apis.reports.reports.Report":
+    def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """
         Get report at a given path.
 
@@ -416,7 +416,7 @@ class Api:
             # breakpoint()
             viewspec = r["view"]
             viewspec["spec"] = json.loads(viewspec["spec"])
-            return wandb.apis.reports.reports.Report.from_json(viewspec)
+            return wandb.apis.reports.Report.from_json(viewspec)
 
     def create_user(self, email, admin=False):
         """Creates a new user

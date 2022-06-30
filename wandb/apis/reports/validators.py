@@ -25,7 +25,8 @@ class Validator(ABC):
     def call(self, attr_name, value):
         pass
 
-    def __call__(self, attr_name, value):
+    def __call__(self, attr, value):
+        attr_name = attr.name
         if value is None and self.how in {"keys", "values"}:
             return
         if self.how == "keys":

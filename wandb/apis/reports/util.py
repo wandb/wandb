@@ -3,36 +3,37 @@ import dataclasses
 from dataclasses import dataclass
 import inspect
 from typing import Any, Callable, List, Mapping, Optional, overload, Tuple, TypeVar
+import typing
 
 import wandb
 
 from .validators import LayoutDict, TypeValidator, UNDEFINED_TYPE
 
 
-class SubclassOnlyABC:
-    def __new__(cls, *args, **kwargs):
-        if SubclassOnlyABC in cls.__bases__:
-            raise TypeError(f"Abstract class {cls.__name__} cannot be instantiated")
+def generate_name(length: int = 12) -> str:
+    """
+    Generate random name.
+    This implementation roughly based the following snippet in core:
+    https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
+    """
 
-        return super().__new__(cls)
+    import numpy as np
+
+    rand = np.random.random()
+    rand = int(float(str(rand)[2:]))
+    rand36 = np.base_repr(rand, 36)
+    return rand36.lower()[:length]
 
 
-def is_none(x: Any):
-    if isinstance(x, (list, tuple)):
-        return all(v is None for v in x)
-    return x is None or x == {}
+def tuple_factory(value=None, size=1):
+    def _tuple_factory():
+        return tuple(value for _ in range(size))
+
+    return _tuple_factory
 
 
-class ShortReprMixin:
-    def __repr__(self):
-        clas = self.__class__.__name__
-        props = {
-            k: getattr(self, k)
-            for k, v in self.__class__.__dict__.items()
-            if isinstance(v, property) and type(v) is not property
-        }
-        settings = [f"{k}={v!r}" for k, v in props.items() if not is_none(v)]
-        return "{}({})".format(clas, ", ".join(settings))
+def coalesce(*arg):
+    return next((a for a in arg if a is not None), None)
 
 
 def nested_get(json: dict, keys: str) -> Any:
@@ -78,225 +79,179 @@ def nested_set(json: dict, keys: str, value: Any) -> None:
         json[keys[-1]] = value
 
 
-Func = TypeVar("Func", bound=Callable)
+class Property:
+    def __init__(self, fget=None, fset=None):
+        self.fget = fget or self.default_fget
+        self.fset = fset or self.default_fset
+        self.name = ""
 
+    def __set_name__(self, owner, name):
+        self.name = name
 
-class Attr:
-    def __init__(self, field: dataclasses.Field):
-        self.field = field
-        self.fget: Optional[Callable] = None
-        self.fset: Optional[Callable] = None
-
-    def __call__(self, func: Func) -> Func:
-        return self.getter(func)
-
-    def getter(self, func: Func) -> Func:
-        self.fget = func
-        return func
-
-    def setter(self, func: Func) -> Func:
-        field = self.field
-
-        def wrapper(owner, value):
-            validators = field.metadata.get("validators", [])
-            validators = [TypeValidator(field.type)] + validators
-
-            for validator in validators:
-                validator(field.name, value)
-            return func(owner, value)
-
-        self.fset = wrapper
-        return wrapper
-
-    def __set_name__(self, owner, name):  # noqa: C901
-        field = self.field
-        path_or_name = field.metadata.get("json_path", name)
-
-        self.type = owner.__annotations__.get(name, UNDEFINED_TYPE)
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
         if self.fget is None:
+            raise AttributeError(f"unreadable attribute {self.name}")
+        return self.fget(obj)
 
-            def _fget(self):
-                if isinstance(path_or_name, str):
-                    return nested_get(self, path_or_name)
-                elif isinstance(path_or_name, list):
-                    return [nested_get(self, p) for p in path_or_name]
-                else:
-                    raise TypeError(f"Unexpected type for path {type(path_or_name)!r}")
-
-            self.fget = self.getter(_fget)
+    def __set__(self, obj, value):
         if self.fset is None:
+            raise AttributeError(f"can't set attribute {self.name}")
+        self.fset(obj, value)
 
-            def fset(self, value):
-                def _fset(self, value):
-                    if isinstance(path_or_name, str):
-                        nested_set(self, path_or_name, value)
-                    elif isinstance(path_or_name, list):
-                        for p, v in zip(path_or_name, value):
-                            nested_set(self, p, v)
-                    else:
-                        raise TypeError(
-                            f"Unexpected type for path {type(path_or_name)!r}"
-                        )
+    def getter(self, fget):
+        prop = type(self)(fget, self.fset)
+        prop.name = self.name
+        return prop
 
-                setattr(owner, field.name, getattr(owner, field.name).setter(_fset))
-                setattr(self, field.name, value)
+    def setter(self, fset):
+        prop = type(self)(self.fget, fset)
+        prop.name = self.name
+        return prop
 
-            self.fset = self.setter(fset)
+    def default_fget(self, obj):
+        return obj.__dict__[self.name]
 
-        class Property(property):
-            if field.default is not dataclasses.MISSING:
-
-                def _default_factory(default=field.default):  # noqa: N805
-                    return default
-
-            elif field.default_factory is not dataclasses.MISSING:
-                _default_factory = field.default_factory
-            else:
-
-                def _default_factory():
-                    raise TypeError(
-                        f"{owner.__name__}.__init__() missing parameter {field.name!r}"
-                    )
-
-            def setter(self, fset: Callable[[Any, Any], None]) -> "Property":
-                def handle_property_default(self, value):
-                    if isinstance(value, property):
-                        if Property._default_factory is None:
-                            raise TypeError(f"Missing parameter {field.name!r}")
-                        else:
-                            value = Property._default_factory()
-                    fset(self, value)
-
-                return super().setter(handle_property_default)
-
-        self.field.default = Property(self.fget).setter(self.fset)
-        self.field.default_factory = dataclasses.MISSING
-        setattr(owner, name, field)
+    def default_fset(self, obj, value):
+        obj.__dict__[self.name] = value
 
 
-@overload
-def attr(
-    *,
-    default: Any = ...,
-    default_factory: Callable[[], Any] = None,
-    init=True,
-    repr=True,
-    hash=None,
-    compare=True,
-    metadata: Mapping = None,
-) -> Any:
-    ...
+class Validated(Property):
+    def __init__(self, *args, validators=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if validators is None:
+            validators = []
+        self.validators = validators
+
+    def __set__(self, instance, value):
+        if not isinstance(value, type(self)):
+            for validator in self.validators:
+                validator(self, value)
+        super().__set__(instance, value)
 
 
-@overload
-def attr(field: Any) -> Attr:
-    ...
+class Typed(Validated):
+    def __set_name__(self, owner, name):
+        super().__set_name__(owner, name)
+        self.type = typing.get_type_hints(owner).get(name, UNDEFINED_TYPE)
+
+        if self.type is not UNDEFINED_TYPE:
+            self.validators = [TypeValidator(attr_type=self.type)] + self.validators
 
 
-def attr(field=None, **kwargs):
-    """
-    Similar to and accepts arguments for `dataclasses.field`.
+class JSONLinked(Property):
+    def __init__(self, *args, json_path=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path_or_name = json_path
 
-    Also behaves like:
-        - `property`, with getters and setters applied by default (overwritable)
-        - validation (includig automatic type validation) via metadata["validators"]
-        - JSON mapping via metadata["json_path"]
-    """
-    if field is None:
-        return Attr(dataclasses.field(**kwargs))
-    elif not isinstance(field, Attr):
-        raise ValueError(f"Invalid field property {field}")
-    else:
-        return field
+    def __set_name__(self, owner, name):
+        if self.path_or_name is None:
+            self.path_or_name = name
+        super().__set_name__(owner, name)
+
+    def getter(self, fget):
+        prop = type(self)(fget, self.fset, json_path=self.path_or_name)
+        prop.name = self.name
+        return prop
+
+    def setter(self, fset):
+        prop = type(self)(self.fget, fset, json_path=self.path_or_name)
+        prop.name = self.name
+        return prop
+
+    def default_fget(self, obj):
+        if isinstance(self.path_or_name, str):
+            return nested_get(obj, self.path_or_name)
+        elif isinstance(self.path_or_name, list):
+            return [nested_get(obj, p) for p in self.path_or_name]
+        else:
+            raise TypeError(f"Unexpected type for path {type(self.path_or_name)!r}")
+
+    def default_fset(self, obj, value):
+        if isinstance(self.path_or_name, str):
+            nested_set(obj, self.path_or_name, value)
+        elif isinstance(self.path_or_name, list):
+            for p, v in zip(self.path_or_name, value):
+                nested_set(obj, p, v)
+        else:
+            raise TypeError(f"Unexpected type for path {type(self.path_or_name)!r}")
+
+
+class Attr(Typed, JSONLinked):
+    def getter(self, fget):
+        prop = type(self)(
+            fget, self.fset, json_path=self.path_or_name, validators=self.validators
+        )
+        prop.name = self.name
+        return prop
+
+    def setter(self, fset):
+        prop = type(self)(
+            self.fget, fset, json_path=self.path_or_name, validators=self.validators
+        )
+        prop.name = self.name
+        return prop
+
+
+class SubclassOnlyABC:
+    def __new__(cls, *args, **kwargs):
+        if SubclassOnlyABC in cls.__bases__:
+            raise TypeError(f"Abstract class {cls.__name__} cannot be instantiated")
+
+        return super().__new__(cls)
+
+
+class ShortReprMixin:
+    def __repr__(self):
+        clas = self.__class__.__name__
+        props = {
+            k: getattr(self, k)
+            for k, v in self.__class__.__dict__.items()
+            if isinstance(v, Attr)
+        }
+        settings = [
+            f"{k}={v!r}" for k, v in props.items() if not self.is_interesting(v)
+        ]
+        return "{}({})".format(clas, ", ".join(settings))
+
+    @staticmethod
+    def is_interesting(x: Any):
+        if isinstance(x, (list, tuple)):
+            return all(v is None for v in x)
+        return x is None or x == {}
 
 
 class Base(SubclassOnlyABC, ShortReprMixin):
-    """
-    Base for most objects in the Report API.
-    Adds helpers for working with the `attr` function, including:
-        - Retrieving JSON paths
-        - Cleaning up function signatures
-    """
-
-    # We use `new` instead of `init`, otherwise the dataclass init becomes noisy.
-    def __new__(cls, *args, **kwargs):
-        if hasattr(cls, "_"):  # hide getter/setter func
-            delattr(cls, "_")
-        obj = super().__new__(cls, *args, **kwargs)
-        obj._spec = dict()
-        return obj
-
-    def __post_init__(self):
-        self.update_sig()
-        pass
-
-    @classmethod
-    def from_json(cls, spec):
-        obj = cls()
-        obj._spec = spec
-        return obj
-
-    def update_sig(self):
-        """
-        Overwrite function signatures to make them easier to read by removing noisy Property reprs
-        """
-        sig = inspect.signature(self.__class__)
-        new_params = [
-            inspect.Parameter(
-                v.name,
-                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=v.annotation,
-            )
-            for v in sig.parameters.values()
-            if not v.name.startswith("_")
-        ]
-        new_sig = sig.replace(parameters=new_params)
-        self.__class__.__signature__ = new_sig
-
-    def _get_path(self, var):
-        """
-        Helper function to get the json path for a variable
-        """
-        return type(self).__dataclass_fields__[var].metadata["json_path"]
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._spec = {}
 
     @property
     def spec(self):
         return self._spec
 
-
-def _default_panel_layout():
-    return {"x": 0, "y": 0, "w": 8, "h": 6}
-
-
-@dataclass(repr=False)
-class Panel(Base, ABC):
-    """
-    ABC for Panels.
-    All panels must inherit from this.
-    """
-
-    layout: dict = attr(
-        default_factory=_default_panel_layout,
-        metadata={"json_path": "spec.layout", "validators": [LayoutDict()]},
-    )
-
-    # We use `new` instead of `init`, otherwise the dataclass init becomes noisy.
-    def __new__(cls, *args, **kwargs):
-        obj = super().__new__(cls, *args, **kwargs)
-        obj._spec["viewType"] = obj.view_type
-        obj._spec["__id__"] = generate_name()
-        obj.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
-        return obj
-
     @classmethod
     def from_json(cls, spec):
-        # obj = super().__new__(cls)
         obj = cls()
         obj._spec = spec
         return obj
 
+    def _get_path(self, var):
+        return vars(type(self))[var].path_or_name
+
+
+class Panel(Base, SubclassOnlyABC):
+    layout: dict = Attr(json_path="spec.layout")
+
+    def __init__(self, layout=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._spec["viewType"] = self.view_type
+        self._spec["__id__"] = generate_name()
+        self.layout = coalesce(layout, self._default_panel_layout())
+        self.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
+
     @property
-    @abstractmethod
     def view_type(self):
         return "UNKNOWN PANEL"
 
@@ -304,87 +259,13 @@ class Panel(Base, ABC):
     def config(self):
         return self._spec["config"]
 
+    @staticmethod
+    def _default_panel_layout():
+        return {"x": 0, "y": 0, "w": 8, "h": 6}
+
 
 class Block(Base, SubclassOnlyABC):
-    """
-    ABC for Blocks.
-    All blocks must inherit from this.
-    """
-
-    @classmethod
-    def from_json(cls, spec):
-        obj = cls()
-        obj._spec = spec
-        return obj
-
-
-def generate_name(length: int = 12) -> str:
-    """
-    Generate random name.
-    This implementation roughly based the following snippet in core:
-    https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
-    """
-
-    import numpy as np
-
-    rand = np.random.random()
-    rand = int(float(str(rand)[2:]))
-    rand36 = np.base_repr(rand, 36)
-    return rand36.lower()[:length]
-
-
-def __(x):  # noqa: N807
-    """
-    Identity function hack for decorators.
-    This can be removed in py39 when decorators support more flexible grammar
-    https://peps.python.org/pep-0614/
-
-    Attr usage today:
-        @__(attr(blocks).getter)
-        def _(self):
-            ...
-
-    Attr usage in py39:
-        @attr(blocks).getter
-        def _(self):
-            ...
-    """
-    return x
-
-
-def tuple_factory(value=None, size=1):
-    def _tuple_factory():
-        return tuple(value for _ in range(size))
-
-    return _tuple_factory
-
-
-def collides(
-    p1: "wandb.apis.reports.reports.Panel", p2: "wandb.apis.reports.reports.Panel"
-) -> bool:
-    l1, l2 = p1.layout, p2.layout
-
-    if (
-        (p1.spec["__id__"] == p2.spec["__id__"])
-        or (l1["x"] + l1["w"] <= l2["x"])
-        or (l1["x"] >= l2["w"] + l2["x"])
-        or (l1["y"] + l1["h"] <= l2["y"])
-        or (l1["y"] >= l2["y"] + l2["h"])
-    ):
-        return False
-
-    return True
-
-
-def shift(
-    p1: "wandb.apis.reports.reports.Panel", p2: "wandb.apis.reports.reports.Panel"
-) -> "Tuple[wandb.apis.reports.reports.Panel, wandb.apis.reports.reports.Panel]":
-    l1, l2 = p1.layout, p2.layout
-
-    x = l1["x"] + l1["w"] - l2["x"]
-    y = l1["y"] + l1["h"] - l2["y"]
-
-    return x, y
+    pass
 
 
 def fix_collisions(
@@ -408,3 +289,33 @@ def fix_collisions(
                     # then check if you can move left again to cleanup layout
                     p2.layout["x"] = 0
     return panels
+
+
+def collides(
+    p1: "wandb.apis.reports.reports.Panel",
+    p2: "wandb.apis.reports.reports.Panel",
+) -> bool:
+    l1, l2 = p1.layout, p2.layout
+
+    if (
+        (p1.spec["__id__"] == p2.spec["__id__"])
+        or (l1["x"] + l1["w"] <= l2["x"])
+        or (l1["x"] >= l2["w"] + l2["x"])
+        or (l1["y"] + l1["h"] <= l2["y"])
+        or (l1["y"] >= l2["y"] + l2["h"])
+    ):
+        return False
+
+    return True
+
+
+def shift(
+    p1: "wandb.apis.reports.reports.Panel",
+    p2: "wandb.apis.reports.reports.Panel",
+) -> "Tuple[wandb.apis.reports.reports.Panel, wandb.apis.reports.reports.Panel]":
+    l1, l2 = p1.layout, p2.layout
+
+    x = l1["x"] + l1["w"] - l2["x"]
+    y = l1["y"] + l1["h"] - l2["y"]
+
+    return x, y

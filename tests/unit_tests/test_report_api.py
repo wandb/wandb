@@ -22,6 +22,11 @@ from unittest.mock import patch
 
 
 @pytest.fixture
+def attr():
+    yield util.Attr()
+
+
+@pytest.fixture
 def wb(api):
     import wandb.apis.reports as wb_reports
 
@@ -659,14 +664,14 @@ class TestValidators:
             ),
         ],
     )
-    def test_type_validator(self, typ, inputs, results):
+    def test_type_validator(self, typ, inputs, results, attr):
         v = TypeValidator(typ)
         for input, valid in zip(inputs, results):
             if valid:
-                v("attr_name", input)
+                v(attr, input)
             else:
                 with pytest.raises(TypeError):
-                    v("attr_name", input)
+                    v(attr, input)
 
     @pytest.mark.parametrize(
         "obj,success",
@@ -677,7 +682,7 @@ class TestValidators:
             ({"a": "a", "b": "b"}, False),
         ],
     )
-    def test_composed_type_validator(self, obj, success):
+    def test_composed_type_validator(self, obj, success, attr):
         validators = [
             TypeValidator(Optional[dict]),
             TypeValidator(str, how="keys"),
@@ -686,11 +691,11 @@ class TestValidators:
 
         if success:
             for validator in validators:
-                validator("attr_name", obj)
+                validator(attr, obj)
         else:
             with pytest.raises(TypeError):
                 for validator in validators:
-                    validator("attr_name", obj)
+                    validator(attr, obj)
 
     @pytest.mark.parametrize(
         "options,inputs,results",
@@ -707,14 +712,14 @@ class TestValidators:
             ),
         ],
     )
-    def test_oneof_validator(self, options, inputs, results):
+    def test_oneof_validator(self, options, inputs, results, attr):
         v = OneOf(options)
         for input, valid in zip(inputs, results):
             if valid:
-                v("attr_name", input)
+                v(attr, input)
             else:
                 with pytest.raises(ValueError):
-                    v("attr_name", input)
+                    v(attr, input)
 
     @pytest.mark.parametrize(
         "length,inputs,results",
@@ -747,14 +752,14 @@ class TestValidators:
             ),
         ],
     )
-    def test_length_validator(self, length, inputs, results):
+    def test_length_validator(self, length, inputs, results, attr):
         v = Length(length)
         for input, valid in zip(inputs, results):
             if valid:
-                v("attr_name", input)
+                v(attr, input)
             else:
                 with pytest.raises(ValueError):
-                    v("attr_name", input)
+                    v(attr, input)
 
     @pytest.mark.parametrize(
         "lb,ub,inputs,results",
@@ -763,14 +768,14 @@ class TestValidators:
             (1, 10, [0, 1, 5, 10, 20], [False, True, True, True, False]),
         ],
     )
-    def test_between_validator(self, lb, ub, inputs, results):
+    def test_between_validator(self, lb, ub, inputs, results, attr):
         v = Between(lb, ub)
         for input, valid in zip(inputs, results):
             if valid:
-                v("attr_name", input)
+                v(attr, input)
             else:
                 with pytest.raises(ValueError):
-                    v("attr_name", input)
+                    v(attr, input)
 
     @pytest.mark.parametrize(
         "input,valid",
@@ -783,13 +788,13 @@ class TestValidators:
             (" -col", False),
         ],
     )
-    def test_orderstring_validator(self, input, valid):
+    def test_orderstring_validator(self, input, valid, attr):
         v = OrderString()
         if valid:
-            v("attr_name", input)
+            v(attr, input)
         else:
             with pytest.raises(ValueError):
-                v("attr_name", input)
+                v(attr, input)
 
     @pytest.mark.parametrize(
         "input,valid",
@@ -801,13 +806,13 @@ class TestValidators:
             ({}, False),
         ],
     )
-    def test_layoutdict_validator(self, input, valid):
+    def test_layoutdict_validator(self, input, valid, attr):
         v = LayoutDict()
         if valid:
-            v("attr_name", input)
+            v(attr, input)
         else:
             with pytest.raises(ValueError):
-                v("attr_name", input)
+                v(attr, input)
 
 
 class TestMisc:
@@ -839,12 +844,27 @@ class TestMisc:
         assert thing.required() == 123
         assert Thing2()
 
-    def test_nested_get(self):
-        # obj =
-        ...
+    def test_attr_consistency(self, wb):
+        with pytest.raises(TypeError):
+            wb.LinePlot(xaxis_expression=123)
 
-    def test_nested_set(self):
-        ...
+        assert wb.LinePlot(xaxis_expression="valid")
+
+        with pytest.raises(TypeError):
+            wb.LinePlot(xaxis_expression=123)
+
+        assert wb.LinePlot(xaxis_expression="still_valid")
+
+    def test_attr_consistency2(self, wb):
+        with pytest.raises(TypeError):
+            wb.LinePlot(x=123)
+
+        assert wb.LinePlot(x="abc")
+
+        with pytest.raises(TypeError):
+            wb.LinePlot(x=123)
+
+        assert wb.LinePlot(x="def")
 
 
 class TestABC:

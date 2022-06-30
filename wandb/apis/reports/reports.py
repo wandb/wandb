@@ -1,40 +1,39 @@
-from copy import deepcopy
-from dataclasses import dataclass
 import inspect
 import json
 import re
-from typing import List as LList
-from typing import Optional, Union
 import urllib
+from copy import deepcopy
+from typing import List as LList
+from typing import Optional, Tuple, Union
 
 import wandb
 from wandb.sdk.lib import ipython
 
 from .mutations import CREATE_PROJECT, UPSERT_VIEW
 from .util import (
-    __,
-    attr,
+    Attr,
     Base,
     Block,
-    fix_collisions,
+    Panel,
+    coalesce,
     generate_name,
     nested_get,
     nested_set,
-    Panel,
     tuple_factory,
+    fix_collisions,
 )
 from .validators import (
     AGGFUNCS,
-    Between,
     CODE_COMPARE_DIFF,
     FONT_SIZES,
     LEGEND_POSITIONS,
-    Length,
     LINEPLOT_STYLES,
     MARKS,
-    OneOf,
     RANGEFUNCS,
     SMOOTHING_TYPES,
+    Between,
+    Length,
+    OneOf,
     TypeValidator,
 )
 
@@ -69,12 +68,18 @@ class LineKey:
         return cls(key)
 
 
-@dataclass(repr=False)
 class RGBA(Base):
-    r: int = attr(metadata={"validators": [Between(0, 255)]})
-    g: int = attr(metadata={"validators": [Between(0, 255)]})
-    b: int = attr(metadata={"validators": [Between(0, 255)]})
-    a: Union[int, float] = attr(default=None, metadata={"validators": [Between(0, 1)]})
+    r: int = Attr(validators=[Between(0, 255)])
+    g: int = Attr(validators=[Between(0, 255)])
+    b: int = Attr(validators=[Between(0, 255)])
+    a: Union[int, float] = Attr(validators=[Between(0, 1)])
+
+    def __init__(self, r, g, b, a=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
 
     @classmethod
     def from_json(cls, d: dict) -> "RGBA":
@@ -91,199 +96,198 @@ class RGBA(Base):
         }
 
 
-@dataclass(repr=False)
 class UnknownPanel(Panel):
     @property
-    def view_type(self):
-        return "Unknown Panel"
+    def view_type(self) -> str:
+        return "UNKNOWN PANEL"
 
 
-@dataclass(repr=False)
 class LinePlot(Panel):
-    title: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.chartTitle",
-        },
-    )
-    x: Optional[str] = attr(default=None, metadata={"json_path": "spec.config.xAxis"})
-    y: Optional[list] = attr(
-        default=None, metadata={"json_path": "spec.config.metrics"}
-    )
-    range_x: Union[list, tuple] = attr(
-        default_factory=tuple_factory(size=2),
-        metadata={
-            "json_path": ["spec.config.xAxisMin", "spec.config.xAxisMax"],
-            "validators": [
-                Length(2),
-                TypeValidator(Optional[Union[int, float]], how="keys"),
-            ],
-        },
-    )
-    range_y: Union[list, tuple] = attr(
-        default_factory=tuple_factory(size=2),
-        metadata={
-            "json_path": ["spec.config.yAxisMin", "spec.config.yAxisMax"],
-            "validators": [
-                Length(2),
-                TypeValidator(Optional[Union[int, float]], how="keys"),
-            ],
-        },
-    )
-    log_x: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.xLogScale"}
-    )
-    log_y: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.xLogScale"}
-    )
-    title_x: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.xAxisTitle"}
-    )
-    title_y: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.yAxisTitle"}
-    )
-    ignore_outliers: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.ignoreOutliers"}
-    )
-    groupby: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.groupBy"}
-    )
-    groupby_aggfunc: Optional[str] = attr(
-        default=None,
-        metadata={"json_path": "spec.config.groupAgg", "validators": [OneOf(AGGFUNCS)]},
-    )
-    groupby_rangefunc: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.groupArea",
-            "validators": [OneOf(RANGEFUNCS)],
-        },
-    )
-    smoothing_factor: Optional[float] = attr(
-        default=None, metadata={"json_path": "spec.config.smoothingWeight"}
-    )
-    smoothing_type: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.smoothingType",
-            "validators": [OneOf(SMOOTHING_TYPES)],
-        },
-    )
-    smoothing_show_original: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.showOriginalAfterSmoothing"}
-    )
-    max_runs_to_show: Optional[int] = attr(
-        default=None, metadata={"json_path": "spec.config.smoothingType"}
-    )
-    custom_expressions: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.expressions"}
-    )
-    plot_type: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.plotType",
-            "validators": [OneOf(LINEPLOT_STYLES)],
-        },
-    )
-    font_size: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.fontSize",
-            "validators": [OneOf(FONT_SIZES)],
-        },
-    )
-    legend_position: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.legendPosition",
-            "validators": [OneOf(LEGEND_POSITIONS)],
-        },
-    )
-    legend_template: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.legendTemplate"}
-    )
-    # attr(default=None, metadata={"json_path": "spec.config.startingXAxis"})
-    # attr(default=None, metadata={"json_path": "spec.config.useLocalSmoothing"})
-    # attr(default=None, metadata={"json_path": "spec.config.useGlobalSmoothingWeight"})
-    # attr(default=None, metadata={"json_path": "spec.config.legendFields"})
-    aggregate: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.aggregate"}
-    )
-    # attr(default=None, metadata={"json_path": "spec.config.aggregateMetrics"})
-    # attr(default=None, metadata={"json_path": "spec.config.metricRegex"})
-    # attr(default=None, metadata={"json_path": "spec.config.useMetricRegex"})
-    # attr(default=None, metadata={"json_path": "spec.config.yAxisAutoRange"})
-    # attr(default=None, metadata={"json_path": "spec.config.groupRunsLimit"})
-    xaxis_expression: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.xExpression"}
-    )
-    # attr(default=None, metadata={"json_path": "spec.config.colorEachMetricDifferently"})
-    # attr(default=None, metadata={"json_path": "spec.config.showLegend"})
+    def __init__(
+        self,
+        title=None,
+        x=None,
+        y=None,
+        range_x=(None, None),
+        range_y=(None, None),
+        log_x=None,
+        log_y=None,
+        title_x=None,
+        title_y=None,
+        ignore_outliers=None,
+        groupby=None,
+        groupby_aggfunc=None,
+        groupby_rangefunc=None,
+        smoothing_factor=None,
+        smoothing_type=None,
+        smoothing_show_original=None,
+        max_runs_to_show=None,
+        custom_expressions=None,
+        plot_type=None,
+        font_size=None,
+        legend_position=None,
+        legend_template=None,
+        aggregate=None,
+        xaxis_expression=None,
+        line_titles=None,
+        line_marks=None,
+        line_colors=None,
+        line_widths=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.x = x
+        self.y = y
+        self.range_x = range_x
+        self.range_y = range_y
+        self.log_x = log_x
+        self.log_y = log_y
+        self.title_x = title_x
+        self.title_y = title_y
+        self.ignore_outliers = ignore_outliers
+        self.groupby = groupby
+        self.groupby_aggfunc = groupby_aggfunc
+        self.groupby_rangefunc = groupby_rangefunc
+        self.smoothing_factor = smoothing_factor
+        self.smoothing_type = smoothing_type
+        self.smoothing_show_original = smoothing_show_original
+        self.max_runs_to_show = max_runs_to_show
+        self.custom_expressions = custom_expressions
+        self.plot_type = plot_type
+        self.font_size = font_size
+        self.legend_position = legend_position
+        self.legend_template = legend_template
+        self.aggregate = aggregate
+        self.xaxis_expression = xaxis_expression
+        self.line_titles = line_titles
+        self.line_marks = line_marks
+        self.line_colors = line_colors
+        self.line_widths = line_widths
 
-    line_titles: Optional[dict] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.overrideSeriesTitles",
-            "validators": [
-                TypeValidator(LineKey, how="keys"),
-                TypeValidator(str, how="values"),
-            ],
-        },
+    title: Optional[str] = Attr(
+        json_path="spec.config.chartTitle",
     )
-    line_marks: Optional[dict] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.overrideMarks",
-            "validators": [
-                TypeValidator(LineKey, how="keys"),
-                OneOf(MARKS, how="values"),
-            ],
-        },
+    x: Optional[str] = Attr(json_path="spec.config.xAxis")
+    y: Optional[list] = Attr(json_path="spec.config.metrics")
+    range_x: Union[list, tuple] = Attr(
+        json_path=["spec.config.xAxisMin", "spec.config.xAxisMax"],
+        validators=[
+            Length(2),
+            TypeValidator(Optional[Union[int, float]], how="keys"),
+        ],
     )
-    line_colors: Optional[dict] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.overrideColors",
-            "validators": [
-                TypeValidator(LineKey, how="keys"),
-                TypeValidator(RGBA, how="values"),
-            ],
-        },
+    range_y: Union[list, tuple] = Attr(
+        json_path=["spec.config.yAxisMin", "spec.config.yAxisMax"],
+        validators=[
+            Length(2),
+            TypeValidator(Optional[Union[int, float]], how="keys"),
+        ],
     )
-    line_widths: Optional[dict] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.overrideLineWidths",
-            "validators": [
-                TypeValidator(LineKey, how="keys"),
-                TypeValidator(Union[int, float], how="values"),
-                Between(0.5, 3.0, how="values"),
-            ],
-        },
+    log_x: Optional[bool] = Attr(json_path="spec.config.xLogScale")
+    log_y: Optional[bool] = Attr(json_path="spec.config.xLogScale")
+    title_x: Optional[str] = Attr(json_path="spec.config.xAxisTitle")
+    title_y: Optional[str] = Attr(json_path="spec.config.yAxisTitle")
+    ignore_outliers: Optional[bool] = Attr(json_path="spec.config.ignoreOutliers")
+    groupby: Optional[str] = Attr(json_path="spec.config.groupBy")
+    groupby_aggfunc: Optional[str] = Attr(
+        json_path="spec.config.groupAgg",
+        validators=[OneOf(AGGFUNCS)],
+    )
+    groupby_rangefunc: Optional[str] = Attr(
+        json_path="spec.config.groupArea",
+        validators=[OneOf(RANGEFUNCS)],
+    )
+    smoothing_factor: Optional[float] = Attr(json_path="spec.config.smoothingWeight")
+    smoothing_type: Optional[str] = Attr(
+        json_path="spec.config.smoothingType",
+        validators=[OneOf(SMOOTHING_TYPES)],
+    )
+    smoothing_show_original: Optional[bool] = Attr(
+        json_path="spec.config.showOriginalAfterSmoothing"
+    )
+    max_runs_to_show: Optional[int] = Attr(json_path="spec.config.smoothingType")
+    custom_expressions: Optional[str] = Attr(json_path="spec.config.expressions")
+    plot_type: Optional[str] = Attr(
+        json_path="spec.config.plotType",
+        validators=[OneOf(LINEPLOT_STYLES)],
+    )
+    font_size: Optional[str] = Attr(
+        json_path="spec.config.fontSize",
+        validators=[OneOf(FONT_SIZES)],
+    )
+    legend_position: Optional[str] = Attr(
+        json_path="spec.config.legendPosition",
+        validators=[OneOf(LEGEND_POSITIONS)],
+    )
+    legend_template: Optional[str] = Attr(json_path="spec.config.legendTemplate")
+    # Attr( json_path="spec.config.startingXAxis")
+    # Attr( json_path="spec.config.useLocalSmoothing")
+    # Attr( json_path="spec.config.useGlobalSmoothingWeight")
+    # Attr( json_path="spec.config.legendFields")
+    aggregate: Optional[bool] = Attr(json_path="spec.config.aggregate")
+    # Attr( json_path="spec.config.aggregateMetrics")
+    # Attr( json_path="spec.config.metricRegex")
+    # Attr( json_path="spec.config.useMetricRegex")
+    # Attr( json_path="spec.config.yAxisAutoRange")
+    # Attr( json_path="spec.config.groupRunsLimit")
+    xaxis_expression: Optional[str] = Attr(json_path="spec.config.xExpression")
+    # Attr( json_path="spec.config.colorEachMetricDifferently")
+    # Attr( json_path="spec.config.showLegend")
+
+    line_titles: Optional[dict] = Attr(
+        json_path="spec.config.overrideSeriesTitles",
+        validators=[
+            TypeValidator(LineKey, how="keys"),
+            TypeValidator(str, how="values"),
+        ],
+    )
+    line_marks: Optional[dict] = Attr(
+        json_path="spec.config.overrideMarks",
+        validators=[
+            TypeValidator(LineKey, how="keys"),
+            OneOf(MARKS, how="values"),
+        ],
+    )
+    line_colors: Optional[dict] = Attr(
+        json_path="spec.config.overrideColors",
+        validators=[
+            TypeValidator(LineKey, how="keys"),
+            TypeValidator(RGBA, how="values"),
+        ],
+    )
+    line_widths: Optional[dict] = Attr(
+        json_path="spec.config.overrideLineWidths",
+        validators=[
+            TypeValidator(LineKey, how="keys"),
+            TypeValidator(Union[int, float], how="values"),
+            Between(0.5, 3.0, how="values"),
+        ],
     )
 
-    @__(attr(x).getter)
-    def _(self):
+    @x.getter
+    def x(self):
         json_path = self._get_path("x")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.back_to_front(value)
 
-    @__(attr(x).setter)
-    def _(self, value):
+    @x.setter
+    def x(self, value):
         json_path = self._get_path("x")
         value = self.panel_metrics_helper.front_to_back(value)
         nested_set(self, json_path, value)
 
-    @__(attr(y).getter)
-    def _(self):
+    @y.getter
+    def y(self):
         json_path = self._get_path("y")
         value = nested_get(self, json_path)
         if value is None:
             return value
         return [self.panel_metrics_helper.back_to_front(v) for v in value]
 
-    @__(attr(y).setter)
-    def _(self, value):
+    @y.setter
+    def y(self, value):
         json_path = self._get_path("y")
         if value is not None:
             value = [self.panel_metrics_helper.front_to_back(v) for v in value]
@@ -294,124 +298,131 @@ class LinePlot(Panel):
         return "Run History Line Plot"
 
 
-@dataclass(repr=False)
 class ScatterPlot(Panel):
-    title: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.chartTitle"}
+    def __init__(
+        self,
+        title=None,
+        x=None,
+        y=None,
+        z=None,
+        range_x=(None, None),
+        range_y=(None, None),
+        range_z=(None, None),
+        log_x=None,
+        log_y=None,
+        log_z=None,
+        running_ymin=None,
+        running_ymax=None,
+        running_ymean=None,
+        legend_template=None,
+        gradient=None,
+        font_size=None,
+        regression=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.x = x
+        self.y = y
+        self.z = z
+        self.range_x = range_x
+        self.range_y = range_y
+        self.range_z = range_z
+        self.log_x = log_x
+        self.log_y = log_y
+        self.log_z = log_z
+        self.running_ymin = running_ymin
+        self.running_ymax = running_ymax
+        self.running_ymean = running_ymean
+        self.legend_template = legend_template
+        self.gradient = gradient
+        self.font_size = font_size
+        self.regression = regression
+
+    title: Optional[str] = Attr(json_path="spec.config.chartTitle")
+    x: Optional[str] = Attr(json_path="spec.config.xAxis")
+    y: Optional[str] = Attr(json_path="spec.config.yAxis")
+    z: Optional[str] = Attr(json_path="spec.config.zAxis")
+    range_x: Union[list, tuple] = Attr(
+        json_path=["spec.config.xAxisMin", "spec.config.xAxisMax"],
+        validators=[
+            Length(2),
+            TypeValidator(Optional[Union[int, float]], how="keys"),
+        ],
     )
-    x: Optional[str] = attr(default=None, metadata={"json_path": "spec.config.xAxis"})
-    y: Optional[str] = attr(default=None, metadata={"json_path": "spec.config.yAxis"})
-    z: Optional[str] = attr(default=None, metadata={"json_path": "spec.config.zAxis"})
-    range_x: Union[list, tuple] = attr(
-        default_factory=tuple_factory(size=2),
-        metadata={
-            "json_path": ["spec.config.xAxisMin", "spec.config.xAxisMax"],
-            "validators": [
-                Length(2),
-                TypeValidator(Optional[Union[int, float]], how="keys"),
-            ],
-        },
+    range_y: Union[list, tuple] = Attr(
+        json_path=["spec.config.yAxisMin", "spec.config.yAxisMax"],
+        validators=[
+            Length(2),
+            TypeValidator(Optional[Union[int, float]], how="keys"),
+        ],
     )
-    range_y: Union[list, tuple] = attr(
-        default_factory=tuple_factory(size=2),
-        metadata={
-            "json_path": ["spec.config.yAxisMin", "spec.config.yAxisMax"],
-            "validators": [
-                Length(2),
-                TypeValidator(Optional[Union[int, float]], how="keys"),
-            ],
-        },
+    range_z: Union[list, tuple] = Attr(
+        json_path=["spec.config.zAxisMin", "spec.config.zAxisMax"],
+        validators=[
+            Length(2),
+            TypeValidator(Optional[Union[int, float]], how="keys"),
+        ],
     )
-    range_z: Union[list, tuple] = attr(
-        default_factory=tuple_factory(size=2),
-        metadata={
-            "json_path": ["spec.config.zAxisMin", "spec.config.zAxisMax"],
-            "validators": [
-                Length(2),
-                TypeValidator(Optional[Union[int, float]], how="keys"),
-            ],
-        },
+    log_x: Optional[bool] = Attr(json_path="spec.config.xAxisLogScale")
+    log_y: Optional[bool] = Attr(json_path="spec.config.yAxisLogScale")
+    log_z: Optional[bool] = Attr(json_path="spec.config.zAxisLogScale")
+    running_ymin: Optional[bool] = Attr(json_path="spec.config.showMaxYAxisLine")
+    running_ymax: Optional[bool] = Attr(json_path="spec.config.showMinYAxisLine")
+    running_ymean: Optional[bool] = Attr(json_path="spec.config.showAvgYAxisLine")
+    legend_template: Optional[str] = Attr(json_path="spec.config.legendTemplate")
+    gradient: Optional[dict] = Attr(
+        json_path="spec.config.customGradient",
+        validators=[TypeValidator(RGBA, how="values")],
     )
-    log_x: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.xAxisLogScale"}
-    )
-    log_y: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.yAxisLogScale"}
-    )
-    log_z: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.zAxisLogScale"}
-    )
-    running_ymin: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.showMaxYAxisLine"}
-    )
-    running_ymax: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.showMinYAxisLine"}
-    )
-    running_ymean: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.showAvgYAxisLine"}
-    )
-    legend_template: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.legendTemplate"}
-    )
-    gradient: Optional[dict] = attr(
-        default_factory=dict,
-        metadata={
-            "json_path": "spec.config.customGradient",
-            "validators": [TypeValidator(RGBA, how="values")],
-        },
-    )
-    # color: ... = attr(default=None, metadata={"json_path":"spec.config.color"})
-    # range_color: ... = attr(default=None,
+    # color: ... = Attr(json_path="spec.config.color")
+    # range_color: ... = Attr(
     #     ["spec.config.minColor", "spec.config.maxColor"],
     #     (list, tuple),
-    #     "validators":[Length(2), TypeValidator((int, float), how='keys')],
+    #     validators=[Length(2), TypeValidator((int, float), how='keys')],
     # )
 
-    # attr(default=None, metadata={"json_path":"spec.config.legendFields"})
-    font_size: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.fontSize",
-            "validators": [OneOf(FONT_SIZES)],
-        },
+    # Attr(json_path="spec.config.legendFields")
+    font_size: Optional[str] = Attr(
+        json_path="spec.config.fontSize",
+        validators=[OneOf(FONT_SIZES)],
     )
-    # attr(default=None, metadata={"json_path":"spec.config.yAxisLineSmoothingWeight"})
-    regression: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.showLinearRegression"}
-    )
+    # Attr(json_path="spec.config.yAxisLineSmoothingWeight")
+    regression: Optional[bool] = Attr(json_path="spec.config.showLinearRegression")
 
-    @__(attr(x).getter)
-    def _(self):
+    @x.getter
+    def x(self):
         json_path = self._get_path("x")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.special_back_to_front(value)
 
-    @__(attr(x).setter)
-    def _(self, value):
+    @x.setter
+    def x(self, value):
         json_path = self._get_path("x")
         value = self.panel_metrics_helper.special_front_to_back(value)
         nested_set(self, json_path, value)
 
-    @__(attr(y).getter)
-    def _(self):
+    @y.getter
+    def y(self):
         json_path = self._get_path("y")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.special_back_to_front(value)
 
-    @__(attr(y).setter)
-    def _(self, value):
+    @y.setter
+    def y(self, value):
         json_path = self._get_path("y")
         value = self.panel_metrics_helper.special_front_to_back(value)
         nested_set(self, json_path, value)
 
-    @__(attr(z).getter)
-    def _(self):
+    @z.getter
+    def z(self):
         json_path = self._get_path("z")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.special_back_to_front(value)
 
-    @__(attr(z).setter)
-    def _(self, value):
+    @z.setter
+    def z(self, value):
         json_path = self._get_path("z")
         value = self.panel_metrics_helper.special_front_to_back(value)
         nested_set(self, json_path, value)
@@ -421,110 +432,112 @@ class ScatterPlot(Panel):
         return "Scatter Plot"
 
 
-@dataclass(repr=False)
 class BarPlot(Panel):
-    title: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.chartTitle"}
-    )
-    metrics: Optional[list] = attr(
-        default_factory=list,
-        metadata={
-            "json_path": "spec.config.metrics",
-            "validators": [TypeValidator(str, how="keys")],
-        },
-    )
-    vertical: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.config.vertical"}
-    )
-    range_x: Union[list, tuple] = attr(
-        default_factory=tuple_factory(size=2),
-        metadata={
-            "json_path": ["spec.config.xAxisMin", "spec.config.xAxisMax"],
-            "validators": [
-                Length(2),
-                TypeValidator(Optional[Union[int, float]], how="keys"),
-            ],
-        },
-    )
-    title_x: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.xAxisTitle"}
-    )
-    title_y: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.yAxisTitle"}
-    )
-    groupby: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.groupBy"}
-    )
-    groupby_aggfunc: Optional[str] = attr(
-        default=None,
-        metadata={"json_path": "spec.config.groupAgg", "validators": [OneOf(AGGFUNCS)]},
-    )
-    groupby_rangefunc: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.groupArea",
-            "validators": [OneOf(RANGEFUNCS)],
-        },
-    )
-    max_runs_to_show: Optional[int] = attr(
-        default=None, metadata={"json_path": "spec.config.limit"}
-    )
-    max_bars_to_show: Optional[int] = attr(
-        default=None, metadata={"json_path": "spec.config.barLimit"}
-    )
-    custom_expressions: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.expressions"}
-    )
-    legend_template: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.legendTemplate"}
-    )
-    font_size: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.fontSize",
-            "validators": [OneOf(FONT_SIZES)],
-        },
-    )
-    # attr(default=None, metadata={"json_path":"spec.config.limit"})
-    # attr(default=None, metadata={"json_path":"spec.config.barLimit"})
-    # attr(default=None, metadata={"json_path":"spec.config.aggregate"})
-    # attr(default=None, metadata={"json_path":"spec.config.aggregateMetrics"})
-    # attr(default=None, metadata={"json_path":"spec.config.groupRunsLimit"})
-    # attr(default=None, metadata={"json_path":"spec.config.plotStyle"})
-    # attr(default=None, metadata={"json_path":"spec.config.legendFields"})
-    # attr(default=None, metadata={"json_path":"spec.config.colorEachMetricDifferently"})
+    def __init__(
+        self,
+        title=None,
+        metrics=None,
+        vertical=None,
+        range_x=(None, None),
+        title_x=None,
+        title_y=None,
+        groupby=None,
+        groupby_aggfunc=None,
+        groupby_rangefunc=None,
+        max_runs_to_show=None,
+        max_bars_to_show=None,
+        custom_expressions=None,
+        legend_template=None,
+        font_size=None,
+        line_titles=None,
+        line_colors=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.metrics = metrics
+        self.vertical = vertical
+        self.range_x = range_x
+        self.title_x = title_x
+        self.title_y = title_y
+        self.groupby = groupby
+        self.groupby_aggfunc = groupby_aggfunc
+        self.groupby_rangefunc = groupby_rangefunc
+        self.max_runs_to_show = max_runs_to_show
+        self.max_bars_to_show = max_bars_to_show
+        self.custom_expressions = custom_expressions
+        self.legend_template = legend_template
+        self.font_size = font_size
+        self.line_titles = line_titles
+        self.line_colors = line_colors
 
-    line_titles: Optional[dict] = attr(
-        default_factory=dict,
-        metadata={
-            "json_path": "spec.config.overrideSeriesTitles",
-            "validators": [
-                TypeValidator(LineKey, how="keys"),
-                TypeValidator(str, how="values"),
-            ],
-        },
+    title: Optional[str] = Attr(json_path="spec.config.chartTitle")
+    metrics: Optional[list] = Attr(
+        json_path="spec.config.metrics",
+        validators=[TypeValidator(str, how="keys")],
     )
-    line_colors: Optional[dict] = attr(
-        default_factory=dict,
-        metadata={
-            "json_path": "spec.config.overrideColors",
-            "validators": [
-                TypeValidator(LineKey, how="keys"),
-                TypeValidator(RGBA, how="values"),
-            ],
-        },
+    vertical: Optional[bool] = Attr(json_path="spec.config.vertical")
+    range_x: Union[list, tuple] = Attr(
+        json_path=["spec.config.xAxisMin", "spec.config.xAxisMax"],
+        validators=[
+            Length(2),
+            TypeValidator(Optional[Union[int, float]], how="keys"),
+        ],
+    )
+    title_x: Optional[str] = Attr(json_path="spec.config.xAxisTitle")
+    title_y: Optional[str] = Attr(json_path="spec.config.yAxisTitle")
+    groupby: Optional[str] = Attr(json_path="spec.config.groupBy")
+    groupby_aggfunc: Optional[str] = Attr(
+        json_path="spec.config.groupAgg",
+        validators=[OneOf(AGGFUNCS)],
+    )
+    groupby_rangefunc: Optional[str] = Attr(
+        json_path="spec.config.groupArea",
+        validators=[OneOf(RANGEFUNCS)],
+    )
+    max_runs_to_show: Optional[int] = Attr(json_path="spec.config.limit")
+    max_bars_to_show: Optional[int] = Attr(json_path="spec.config.barLimit")
+    custom_expressions: Optional[str] = Attr(json_path="spec.config.expressions")
+    legend_template: Optional[str] = Attr(json_path="spec.config.legendTemplate")
+    font_size: Optional[str] = Attr(
+        json_path="spec.config.fontSize",
+        validators=[OneOf(FONT_SIZES)],
+    )
+    # Attr(json_path="spec.config.limit")
+    # Attr(json_path="spec.config.barLimit")
+    # Attr(json_path="spec.config.aggregate")
+    # Attr(json_path="spec.config.aggregateMetrics")
+    # Attr(json_path="spec.config.groupRunsLimit")
+    # Attr(json_path="spec.config.plotStyle")
+    # Attr(json_path="spec.config.legendFields")
+    # Attr(json_path="spec.config.colorEachMetricDifferently")
+
+    line_titles: Optional[dict] = Attr(
+        json_path="spec.config.overrideSeriesTitles",
+        validators=[
+            TypeValidator(LineKey, how="keys"),
+            TypeValidator(str, how="values"),
+        ],
+    )
+    line_colors: Optional[dict] = Attr(
+        json_path="spec.config.overrideColors",
+        validators=[
+            TypeValidator(LineKey, how="keys"),
+            TypeValidator(RGBA, how="values"),
+        ],
     )
 
-    @__(attr(metrics).getter)
-    def _(self):
+    @metrics.getter
+    def metrics(self):
         json_path = self._get_path("metrics")
         value = nested_get(self, json_path)
         if value is None:
             return value
         return [self.panel_metrics_helper.back_to_front(v) for v in value]
 
-    @__(attr(metrics).setter)
-    def _(self, value):
+    @metrics.setter
+    def metrics(self, value):
         json_path = self._get_path("metrics")
         if value is not None:
             value = [self.panel_metrics_helper.front_to_back(v) for v in value]
@@ -535,52 +548,60 @@ class BarPlot(Panel):
         return "Bar Chart"
 
 
-@dataclass(repr=False)
 class ScalarChart(Panel):
-    title: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.chartTitle"}
+    def __init__(
+        self,
+        title=None,
+        metric=None,
+        groupby_aggfunc=None,
+        groupby_rangefunc=None,
+        custom_expressions=None,
+        legend_template=None,
+        font_size=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.title = title
+        self.metric = coalesce(metric, "")
+        self.groupby_aggfunc = groupby_aggfunc
+        self.groupby_rangefunc = groupby_rangefunc
+        self.custom_expressions = custom_expressions
+        self.legend_template = legend_template
+        self.font_size = font_size
+
+    title: Optional[str] = Attr(json_path="spec.config.chartTitle")
+    metric: str = Attr(json_path="spec.config.metrics")
+    groupby_aggfunc: Optional[str] = Attr(
+        json_path="spec.config.groupAgg",
+        validators=[OneOf(AGGFUNCS)],
     )
-    metric: str = attr(default="", metadata={"json_path": "spec.config.metrics"})
-    groupby_aggfunc: Optional[str] = attr(
-        default=None,
-        metadata={"json_path": "spec.config.groupAgg", "validators": [OneOf(AGGFUNCS)]},
+    groupby_rangefunc: Optional[str] = Attr(
+        json_path="spec.config.groupArea",
+        validators=[OneOf(RANGEFUNCS)],
     )
-    groupby_rangefunc: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.groupArea",
-            "validators": [OneOf(RANGEFUNCS)],
-        },
-    )
-    custom_expressions: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.expressions"}
-    )
-    legend_template: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.legendTemplate"}
+    custom_expressions: Optional[str] = Attr(json_path="spec.config.expressions")
+    legend_template: Optional[str] = Attr(json_path="spec.config.legendTemplate")
+
+    # Attr(json_path="spec.config.aggregate")
+    # Attr(json_path="spec.config.aggregateMetrics")
+    # Attr(json_path="spec.config.groupBy")
+    # Attr(json_path="spec.config.groupRunsLimit")
+    # Attr(json_path="spec.config.legendFields")
+    # Attr(json_path="spec.config.showLegend")
+    font_size: Optional[str] = Attr(
+        json_path="spec.config.fontSize",
+        validators=[OneOf(FONT_SIZES)],
     )
 
-    # attr(metadata={"json_path": "spec.config.aggregate"})
-    # attr(metadata={"json_path": "spec.config.aggregateMetrics"})
-    # attr(metadata={"json_path": "spec.config.groupBy"})
-    # attr(metadata={"json_path": "spec.config.groupRunsLimit"})
-    # attr(metadata={"json_path": "spec.config.legendFields"})
-    # attr(metadata={"json_path": "spec.config.showLegend"})
-    font_size: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.fontSize",
-            "validators": [OneOf(FONT_SIZES)],
-        },
-    )
-
-    @__(attr(metric).getter)
-    def _(self):
+    @metric.getter
+    def metric(self):
         json_path = self._get_path("metric")
         value = nested_get(self, json_path)[0]
         return self.panel_metrics_helper.back_to_front(value)
 
-    @__(attr(metric).setter)
-    def _(self, new_metrics):
+    @metric.setter
+    def metric(self, new_metrics):
         json_path = self._get_path("metric")
         new_metrics = self.panel_metrics_helper.front_to_back(new_metrics)
         nested_set(self, json_path, [new_metrics])
@@ -590,14 +611,14 @@ class ScalarChart(Panel):
         return "Scalar Chart"
 
 
-@dataclass(repr=False)
 class CodeComparer(Panel):
-    diff: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.diff",
-            "validators": [OneOf(CODE_COMPARE_DIFF)],
-        },
+    def __init__(self, diff=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.diff = diff
+
+    diff: Optional[str] = Attr(
+        json_path="spec.config.diff",
+        validators=[OneOf(CODE_COMPARE_DIFF)],
     )
 
     @property
@@ -605,31 +626,20 @@ class CodeComparer(Panel):
         return "Code Comparer"
 
 
-@dataclass(repr=False)
 class PCColumn(Base):
-    metric: str = attr(metadata={"json_path": "spec.accessor"})
-    name: Optional[str] = attr(default=None, metadata={"json_path": "spec.displayName"})
-    ascending: Optional[bool] = attr(
-        default=None, metadata={"json_path": "spec.inverted"}
-    )
-    log_scale: Optional[bool] = attr(default=None, metadata={"json_path": "spec.log"})
+    def __init__(
+        self, metric, name=None, ascending=None, log_scale=None, *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.metric = metric
+        self.name = name
+        self.ascending = ascending
+        self.log_scale = log_scale
 
-    def __new__(cls, *args, **kwargs):
-        obj = super().__new__(cls, *args, **kwargs)
-        obj.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
-        return obj
-
-    # _( @attr(metric).getter)
-    # def _(self):
-    #     json_path = self._get_path("metric")
-    #     value = nested_get(self, json_path)
-    #     return self.panel_metrics_helper.special_back_to_front(value)
-
-    # _( @attr(metric).setter)
-    # def _(self, value):
-    #     json_path = self._get_path("metric")
-    #     value = self.panel_metrics_helper.special_front_to_back(value)
-    #     nested_set(self, json_path, value)
+    metric: str = Attr(json_path="spec.accessor")
+    name: Optional[str] = Attr(json_path="spec.displayName")
+    ascending: Optional[bool] = Attr(json_path="spec.inverted")
+    log_scale: Optional[bool] = Attr(json_path="spec.log")
 
     @classmethod
     def from_json(cls, spec):
@@ -638,39 +648,36 @@ class PCColumn(Base):
         return obj
 
 
-@dataclass(repr=False)
 class ParallelCoordinatesPlot(Panel):
-    columns: list = attr(
-        default_factory=list,
-        metadata={
-            "json_path": "spec.config.columns",
-            "validators": [TypeValidator(PCColumn, how="keys")],
-        },
+    def __init__(self, columns=None, title=None, font_size=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.columns = coalesce(columns, [])
+        self.title = title
+        self.font_size = font_size
+
+    columns: list = Attr(
+        json_path="spec.config.columns",
+        validators=[TypeValidator(PCColumn, how="keys")],
     )
-    title: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.chartTitle"}
+    title: Optional[str] = Attr(json_path="spec.config.chartTitle")
+
+    # Attr(json_path="spec.config.dimensions")
+    # Attr(json_path="spec.config.customGradient")
+    # Attr(json_path="spec.config.gradientColor")
+    # Attr(json_path="spec.config.legendFields")
+    font_size: Optional[str] = Attr(
+        json_path="spec.config.fontSize",
+        validators=[OneOf(FONT_SIZES)],
     )
 
-    # attr(metadata={"json_path": "spec.config.dimensions"})
-    # attr(metadata={"json_path": "spec.config.customGradient"})
-    # attr(metadata={"json_path": "spec.config.gradientColor"})
-    # attr(metadata={"json_path": "spec.config.legendFields"})
-    font_size: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.fontSize",
-            "validators": [OneOf(FONT_SIZES)],
-        },
-    )
-
-    @__(attr(columns).getter)
-    def _(self):
+    @columns.getter
+    def columns(self):
         json_path = self._get_path("columns")
         specs = nested_get(self, json_path)
         return [PCColumn.from_json(cspec) for cspec in specs]
 
-    @__(attr(columns).setter)
-    def _(self, new_columns):
+    @columns.setter
+    def columns(self, new_columns):
         json_path = self._get_path("columns")
         specs = [c.spec for c in new_columns]
         nested_set(self, json_path, specs)
@@ -680,20 +687,21 @@ class ParallelCoordinatesPlot(Panel):
         return "Parallel Coordinates Plot"
 
 
-@dataclass(repr=False)
 class ParameterImportancePlot(Panel):
-    with_respect_to: str = attr(
-        default="Created Timestamp", metadata={"json_path": "spec.config.targetKey"}
-    )
+    def __init__(self, with_respect_to=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.with_respect_to = coalesce(with_respect_to, "Created Timestamp")
 
-    @__(attr(with_respect_to).getter)
-    def _(self):
+    with_respect_to: str = Attr(json_path="spec.config.targetKey")
+
+    @with_respect_to.getter
+    def with_respect_to(self):
         json_path = self._get_path("with_respect_to")
         value = nested_get(self, json_path)
         return self.panel_metrics_helper.back_to_front(value)
 
-    @__(attr(with_respect_to).setter)
-    def _(self, value):
+    @with_respect_to.setter
+    def with_respect_to(self, value):
         json_path = self._get_path("with_respect_to")
         value = self.panel_metrics_helper.front_to_back(value)
         nested_set(self, json_path, value)
@@ -703,14 +711,14 @@ class ParameterImportancePlot(Panel):
         return "Parameter Importance"
 
 
-@dataclass(repr=False)
 class RunComparer(Panel):
-    diff_only: Optional[str] = attr(
-        default=None,
-        metadata={
-            "json_path": "spec.config.diffOnly",
-            "validators": [OneOf(["split", None])],
-        },
+    def __init__(self, diff_only=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.diff_only = diff_only
+
+    diff_only: Optional[str] = Attr(
+        json_path="spec.config.diffOnly",
+        validators=[OneOf(["split", None])],
     )
 
     @property
@@ -718,275 +726,167 @@ class RunComparer(Panel):
         return "Run Comparer"
 
 
-@dataclass(repr=False)
 class MediaBrowser(Panel):
-    num_columns: Optional[int] = attr(
-        default=None, metadata={"json_path": "spec.config.columnCount"}
-    )
-    media_keys: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.media_keys"}
-    )
+    def __init__(self, num_columns=None, media_keys=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_columns = num_columns
+        self.media_keys = media_keys
 
-    # attr(metadata={"json_path": "spec.config.chartTitle"})
-    # attr(metadata={"json_path": "spec.config.stepIndex"})
-    # attr(metadata={"json_path": "spec.config.mediaIndex"})
-    # attr(metadata={"json_path": "spec.config.actualSize"})
-    # attr(metadata={"json_path": "spec.config.fitToDimension"})
-    # attr(metadata={"json_path": "spec.config.pixelated"})
-    # attr(metadata={"json_path": "spec.config.mode"})
-    # attr(metadata={"json_path": "spec.config.gallerySettings"})
-    # attr(metadata={"json_path": "spec.config.gridSettings"})
-    # attr(metadata={"json_path": "spec.config.selection"})
-    # attr(metadata={"json_path": "spec.config.page"})
-    # attr(metadata={"json_path": "spec.config.tileLayout"})
-    # attr(metadata={"json_path": "spec.config.stepStrideLength"})
-    # attr(metadata={"json_path": "spec.config.snapToExistingStep"})
-    # attr(metadata={"json_path": "spec.config.maxGalleryItems"})
-    # attr(metadata={"json_path": "spec.config.maxYAxisCount"})
-    # attr(metadata={"json_path": "spec.config.moleculeConfig"})
-    # attr(metadata={"json_path": "spec.config.segmentationMaskConfig"})
-    # attr(metadata={"json_path": "spec.config.boundingBoxConfig"})
+    num_columns: Optional[int] = Attr(json_path="spec.config.columnCount")
+    media_keys: Optional[str] = Attr(json_path="spec.config.media_keys")
+
+    # Attr(json_path="spec.config.chartTitle")
+    # Attr(json_path="spec.config.stepIndex")
+    # Attr(json_path="spec.config.mediaIndex")
+    # Attr(json_path="spec.config.actualSize")
+    # Attr(json_path="spec.config.fitToDimension")
+    # Attr(json_path="spec.config.pixelated")
+    # Attr(json_path="spec.config.mode")
+    # Attr(json_path="spec.config.gallerySettings")
+    # Attr(json_path="spec.config.gridSettings")
+    # Attr(json_path="spec.config.selection")
+    # Attr(json_path="spec.config.page")
+    # Attr(json_path="spec.config.tileLayout")
+    # Attr(json_path="spec.config.stepStrideLength")
+    # Attr(json_path="spec.config.snapToExistingStep")
+    # Attr(json_path="spec.config.maxGalleryItems")
+    # Attr(json_path="spec.config.maxYAxisCount")
+    # Attr(json_path="spec.config.moleculeConfig")
+    # Attr(json_path="spec.config.segmentationMaskConfig")
+    # Attr(json_path="spec.config.boundingBoxConfig")
 
     @property
     def view_type(self) -> str:
         return "Media Browser"
 
 
-@dataclass(repr=False)
 class MarkdownPanel(Panel):
-    markdown: Optional[str] = attr(
-        default=None, metadata={"json_path": "spec.config.value"}
-    )
+    def __init__(self, markdown=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.markdown = markdown
+
+    markdown: Optional[str] = Attr(json_path="spec.config.value")
 
     @property
     def view_type(self) -> str:
         return "Markdown Panel"
 
 
-@dataclass(repr=False)
 class ConfusionMatrix(Panel):
     @property
     def view_type(self) -> str:
         return "Confusion Matrix"
 
 
-@dataclass(repr=False)
 class DataFrames(Panel):
     @property
     def view_type(self) -> str:
         return "Data Frame Table"
 
 
-@dataclass(repr=False)
 class MultiRunTable(Panel):
     @property
     def view_type(self) -> str:
         return "Multi Run Table"
 
 
-@dataclass(repr=False)
 class Vega(Panel):
     @property
     def view_type(self) -> str:
         return "Vega"
 
 
-@dataclass(repr=False)
 class Vega2(Panel):
     @property
     def view_type(self) -> str:
         return "Vega2"
 
 
-@dataclass(repr=False)
 class Vega3(Panel):
     @property
     def view_type(self) -> str:
         return "Vega3"
 
 
-@dataclass(repr=False)
 class WeavePanel(Panel):
     @property
     def view_type(self) -> str:
         return "Weave"
 
 
-@dataclass(repr=False)
-class InlineLaTeX(Base):
-    latex: str = attr()
-
-    @property
-    def spec(self) -> dict:
-        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
-
-
-@dataclass(repr=False)
-class InlineCode(Base):
-    code: str = attr()
-
-    @property
-    def spec(self) -> dict:
-        return {"text": self.code, "inlineCode": True}
-
-
-@dataclass(repr=False)
-class UnknownBlock(Block):
-    spec: dict = attr(default_factory=dict)
-
-    @classmethod
-    def from_json(cls, spec: dict) -> "UnknownBlock":
-        return cls()
-
-
-@dataclass(repr=False)
-class P(Block):
-    text: Union[str, InlineLaTeX, InlineCode, list] = attr()
-
-    @classmethod
-    def from_json(cls, spec):
-        if isinstance(spec["children"], str):
-            text = spec["children"]
-        else:
-            text = []
-            for elem in spec["children"]:
-                if elem.get("type") == "latex":
-                    text.append(InlineLaTeX(elem["content"]))
-                elif elem.get("inlineCode"):
-                    text.append(InlineCode(elem["text"]))
-                else:
-                    text.append(elem["text"])
-
-        if not isinstance(text, list):
-            text = [text]
-        return cls(text)
-
-    @property
-    def spec(self) -> dict:
-        if isinstance(self.text, list):
-            content = [
-                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
-            ]
-        else:
-            content = [{"text": self.text}]
-
-        return {"type": "paragraph", "children": content}
-
-
-def _default_filters():
-    return {"$or": [{"$and": []}]}
-
-
-def _default_groupby():
-    return []
-
-
-def _default_order():
-    return ["-CreatedTimestamp"]
-
-
-@dataclass(repr=False)
 class RunSet(Base):
-    """
-    Run sets are a collection of runs from a particular entity and project.
-    The run set supports filtering, grouping, and ordering, similar to a SQL Table or DataFrame.
-    https://docs.wandb.ai/guides/reports/reports-walkthrough#run-sets
-    """
+    def __init__(
+        self,
+        entity=wandb.Api().default_entity,
+        project="",
+        name="Run set",
+        query="",
+        filters=None,
+        groupby=None,
+        order=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self._spec = self._default_runset_spec()
+        self.query_generator = wandb.apis.public.QueryGenerator()
+        self.pm_query_generator = wandb.apis.public.PythonMongoishQueryGenerator(self)
 
-    entity: str = attr(
-        # default=wandb.Api().default_entity,
-        default="",
-        metadata={"json_path": "spec.project.entityName"},
-    )
-    project: str = attr(default="", metadata={"json_path": "spec.project.name"})
-    name: str = attr(default="Run set", metadata={"json_path": "spec.name"})
-    query: str = attr(default="", metadata={"json_path": "spec.search.query"})
-    filters: dict = attr(
-        default_factory=_default_filters, metadata={"json_path": "spec.filters"}
-    )
-    groupby: list = attr(
-        default_factory=_default_groupby, metadata={"json_path": "spec.grouping"}
-    )
-    order: list = attr(
-        default_factory=_default_order, metadata={"json_path": "spec.sort"}
-    )
+        self.entity = entity
+        self.project = project
+        self.name = name
+        self.query = query
+        self.filters = coalesce(filters, self._default_filters())
+        self.groupby = coalesce(groupby, self._default_groupby())
+        self.order = coalesce(order, self._default_order())
 
-    def __post_init__(self):
-        if self.entity == "":
-            self.entity = wandb.Api().default_entity
+    entity: str = Attr(json_path="spec.project.entityName")
+    project: str = Attr(json_path="spec.project.name")
+    name: str = Attr(json_path="spec.name")
+    query: str = Attr(json_path="spec.search.query")
+    filters: dict = Attr(json_path="spec.filters")
+    groupby: list = Attr(json_path="spec.grouping")
+    order: list = Attr(json_path="spec.sort")
 
-    def __new__(cls, *args, **kwargs):
-        def _generate_default_runset_spec():
-            return {
-                "runFeed": {
-                    "version": 2,
-                    "columnVisible": {"run:name": False},
-                    "columnPinned": {},
-                    "columnWidths": {},
-                    "columnOrder": [],
-                    "pageSize": 10,
-                    "onlyShowSelected": False,
-                },
-                "enabled": True,
-                "selections": {"root": 1, "bounds": [], "tree": []},
-                "expandedRowAddresses": [],
-            }
-
-        obj = super().__new__(cls)
-        obj._spec = _generate_default_runset_spec()
-        obj.query_generator = wandb.apis.public.QueryGenerator()
-        obj.pm_query_generator = wandb.apis.public.PythonMongoishQueryGenerator(obj)
-        return obj
-
-    @__(attr(filters).getter)
-    def _(self):
+    @filters.getter
+    def filters(self):
         json_path = self._get_path("filters")
         filter_specs = nested_get(self, json_path)
         return self.query_generator.filter_to_mongo(filter_specs)
 
-    @__(attr(filters).setter)
-    def _(self, new_filters):
+    @filters.setter
+    def filters(self, new_filters):
         json_path = self._get_path("filters")
         new_filter_specs = self.query_generator.mongo_to_filter(new_filters)
         nested_set(self, json_path, new_filter_specs)
 
-    def set_filters_with_python_expr(self, expr: str) -> None:
-        """
-        Helper function to make it easier to set filters using simple python expressions.
-        Syntax is similar to pandas `DataFrame.query` function.
-
-        Some examples you can do:
-        - x > 0 and x <= 10
-        - User == "Andrew"
-        - State != "Failed"
-        - Hyperparameter in ["alpha", "beta"]
-        """
+    def set_filters_with_python_expr(self, expr):
         self.filters = self.pm_query_generator.python_to_mongo(expr)
         return self
 
-    @__(attr(groupby).getter)
-    def _(self):
+    @groupby.getter
+    def groupby(self):
         json_path = self._get_path("groupby")
         groupby_specs = nested_get(self, json_path)
         cols = [self.query_generator.key_to_server_path(k) for k in groupby_specs]
         return [self.pm_query_generator.back_to_front(c) for c in cols]
 
-    @__(attr(groupby).setter)
-    def _(self, new_groupby):
+    @groupby.setter
+    def groupby(self, new_groupby):
         json_path = self._get_path("groupby")
         cols = [self.pm_query_generator.front_to_back(g) for g in new_groupby]
         new_groupby_specs = [self.query_generator.server_path_to_key(c) for c in cols]
         nested_set(self, json_path, new_groupby_specs)
 
-    @__(attr(order).getter)
-    def _(self):
+    @order.getter
+    def order(self):
         json_path = self._get_path("order")
         order_specs = nested_get(self, json_path)
         cols = self.query_generator.keys_to_order(order_specs)
         return [c[0] + self.pm_query_generator.back_to_front(c[1:]) for c in cols]
 
-    @__(attr(order).setter)
-    def _(self, new_orders):
+    @order.setter
+    def order(self, new_orders):
         json_path = self._get_path("order")
         cols = [o[0] + self.pm_query_generator.front_to_back(o[1:]) for o in new_orders]
         new_order_specs = self.query_generator.order_to_keys(cols)
@@ -1001,37 +901,64 @@ class RunSet(Base):
     def runs(self) -> wandb.apis.public.Runs:
         return wandb.apis.public.Runs(wandb.Api().client, self.entity, self.project)
 
+    @staticmethod
+    def _default_filters():
+        return {"$or": [{"$and": []}]}
 
-def _default_runsets():
-    return [RunSet()]
+    @staticmethod
+    def _default_groupby():
+        return []
+
+    @staticmethod
+    def _default_order():
+        return ["-CreatedTimestamp"]
+
+    @staticmethod
+    def _default_runset_spec():
+        return {
+            "runFeed": {
+                "version": 2,
+                "columnVisible": {"run:name": False},
+                "columnPinned": {},
+                "columnWidths": {},
+                "columnOrder": [],
+                "pageSize": 10,
+                "onlyShowSelected": False,
+            },
+            "enabled": True,
+            "selections": {"root": 1, "bounds": [], "tree": []},
+            "expandedRowAddresses": [],
+        }
 
 
-@dataclass(repr=False)
+class UnknownBlock(Block):
+    pass
+
+
 class PanelGrid(Block):
-    """
-    Panel grids are containers for panels and runsets.
-    Each panel grid may contain multiple panels and multiple runsets.
-    The runsets determine what data available to visualize, and the panels will try to visualize that data.
-    https://docs.wandb.ai/guides/reports/reports-walkthrough#panel-grids
-    """
+    def __init__(self, runsets=None, panels=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._spec = self._default_panel_grid_spec()
+        self.runsets = coalesce(runsets, self._default_runsets())
+        self.panels = coalesce(panels, self._default_panels())
 
-    runsets: list = attr(
-        default_factory=_default_runsets,
-        metadata={
-            "json_path": "spec.metadata.runSets",
-            "validators": [TypeValidator(RunSet, how="keys")],
-        },
-    )
-    panels: list = attr(
-        default_factory=list,
-        metadata={
-            "json_path": "spec.metadata.panelBankSectionConfig.panels",
-            "validators": [TypeValidator(Panel, how="keys")],
-        },
-    )
+    runsets: list = Attr(json_path="spec.metadata.runSets")
+    panels: list = Attr(json_path="spec.metadata.panelBankSectionConfig.panels")
 
-    @__(attr(panels).getter)
-    def _(self):
+    @runsets.getter
+    def runsets(self):
+        json_path = self._get_path("runsets")
+        specs = nested_get(self, json_path)
+        return [RunSet.from_json(spec) for spec in specs]
+
+    @runsets.setter
+    def runsets(self, new_runsets):
+        json_path = self._get_path("runsets")
+        new_specs = [rs.spec for rs in new_runsets]
+        nested_set(self, json_path, new_specs)
+
+    @panels.getter
+    def panels(self):
         json_path = self._get_path("panels")
         specs = nested_get(self, json_path)
         panels = []
@@ -1051,8 +978,8 @@ class PanelGrid(Block):
             panels.append(cls.from_json(pspec))
         return panels
 
-    @__(attr(panels).setter)
-    def _(self, new_panels):
+    @panels.setter
+    def panels(self, new_panels):
         json_path = self._get_path("panels")
 
         # For PC and Scatter, we need to use slightly different values, so update if possible.
@@ -1063,17 +990,87 @@ class PanelGrid(Block):
         new_specs = [p.spec for p in fix_collisions(new_panels)]
         nested_set(self, json_path, new_specs)
 
-    @__(attr(runsets).getter)
-    def _(self):
-        json_path = self._get_path("runsets")
-        specs = nested_get(self, json_path)
-        return [RunSet.from_json(spec) for spec in specs]
+    @staticmethod
+    def _default_panel_grid_spec():
+        return {
+            "type": "panel-grid",
+            "children": [{"text": ""}],
+            "metadata": {
+                "openViz": True,
+                "panels": {
+                    "views": {"0": {"name": "Panels", "defaults": [], "config": []}},
+                    "tabs": ["0"],
+                },
+                "panelBankConfig": {
+                    "state": 0,
+                    "settings": {
+                        "autoOrganizePrefix": 2,
+                        "showEmptySections": False,
+                        "sortAlphabetically": False,
+                    },
+                    "sections": [
+                        {
+                            "name": "Hidden Panels",
+                            "isOpen": False,
+                            "panels": [],
+                            "type": "flow",
+                            "flowConfig": {
+                                "snapToColumns": True,
+                                "columnsPerPage": 3,
+                                "rowsPerPage": 2,
+                                "gutterWidth": 16,
+                                "boxWidth": 460,
+                                "boxHeight": 300,
+                            },
+                            "sorted": 0,
+                            "localPanelSettings": {
+                                "xAxis": "_step",
+                                "smoothingWeight": 0,
+                                "smoothingType": "exponential",
+                                "ignoreOutliers": False,
+                                "xAxisActive": False,
+                                "smoothingActive": False,
+                            },
+                        }
+                    ],
+                },
+                "panelBankSectionConfig": {
+                    "name": "Report Panels",
+                    "isOpen": False,
+                    "panels": [],
+                    "type": "grid",
+                    "flowConfig": {
+                        "snapToColumns": True,
+                        "columnsPerPage": 3,
+                        "rowsPerPage": 2,
+                        "gutterWidth": 16,
+                        "boxWidth": 460,
+                        "boxHeight": 300,
+                    },
+                    "sorted": 0,
+                    "localPanelSettings": {
+                        "xAxis": "_step",
+                        "smoothingWeight": 0,
+                        "smoothingType": "exponential",
+                        "ignoreOutliers": False,
+                        "xAxisActive": False,
+                        "smoothingActive": False,
+                    },
+                },
+                "customRunColors": {},
+                "runSets": [],
+                "openRunSet": 0,
+                "name": "unused-name",
+            },
+        }
 
-    @__(attr(runsets).setter)
-    def _(self, new_runsets):
-        json_path = self._get_path("runsets")
-        new_specs = [rs.spec for rs in new_runsets]
-        nested_set(self, json_path, new_specs)
+    @staticmethod
+    def _default_runsets():
+        return [RunSet()]
+
+    @staticmethod
+    def _default_panels():
+        return []
 
     def _get_specific_keys_for_certain_plots(self, panels, setting=False):
         """
@@ -1091,176 +1088,91 @@ class PanelGrid(Block):
                         col.metric = transform(col.metric)
         return panels
 
-    def __new__(cls, *args, **kwargs):
-        def _generate_default_panel_grid_spec():
-            return {
-                "type": "panel-grid",
-                "children": [{"text": ""}],
-                "metadata": {
-                    "openViz": True,
-                    "panels": {
-                        "views": {
-                            "0": {"name": "Panels", "defaults": [], "config": []}
-                        },
-                        "tabs": ["0"],
-                    },
-                    "panelBankConfig": {
-                        "state": 0,
-                        "settings": {
-                            "autoOrganizePrefix": 2,
-                            "showEmptySections": False,
-                            "sortAlphabetically": False,
-                        },
-                        "sections": [
-                            {
-                                "name": "Hidden Panels",
-                                "isOpen": False,
-                                "panels": [],
-                                "type": "flow",
-                                "flowConfig": {
-                                    "snapToColumns": True,
-                                    "columnsPerPage": 3,
-                                    "rowsPerPage": 2,
-                                    "gutterWidth": 16,
-                                    "boxWidth": 460,
-                                    "boxHeight": 300,
-                                },
-                                "sorted": 0,
-                                "localPanelSettings": {
-                                    "xAxis": "_step",
-                                    "smoothingWeight": 0,
-                                    "smoothingType": "exponential",
-                                    "ignoreOutliers": False,
-                                    "xAxisActive": False,
-                                    "smoothingActive": False,
-                                },
-                            }
-                        ],
-                    },
-                    "panelBankSectionConfig": {
-                        "name": "Report Panels",
-                        "isOpen": False,
-                        "panels": [],
-                        "type": "grid",
-                        "flowConfig": {
-                            "snapToColumns": True,
-                            "columnsPerPage": 3,
-                            "rowsPerPage": 2,
-                            "gutterWidth": 16,
-                            "boxWidth": 460,
-                            "boxHeight": 300,
-                        },
-                        "sorted": 0,
-                        "localPanelSettings": {
-                            "xAxis": "_step",
-                            "smoothingWeight": 0,
-                            "smoothingType": "exponential",
-                            "ignoreOutliers": False,
-                            "xAxisActive": False,
-                            "smoothingActive": False,
-                        },
-                    },
-                    "customRunColors": {},
-                    "runSets": [],
-                    "openRunSet": 0,
-                    "name": "unused-name",
-                },
-            }
 
-        obj = super().__new__(cls)
-        obj._spec = _generate_default_panel_grid_spec()
-        return obj
-
-
-@dataclass(repr=False)
 class Report(Base):
-    project: str = attr(
-        metadata={"json_path": "viewspec.project.name"},
+    def __init__(
+        self,
+        project,
+        entity=wandb.Api().default_entity,
+        title="Untitled Report",
+        description="",
+        width="readable",
+        blocks=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self._viewspec = self._default_viewspec()
+        self._orig_viewspec = deepcopy(self._viewspec)
+
+        self.project = project
+        self.entity = entity
+        self.title = title
+        self.description = description
+        self.width = width
+        self.blocks = coalesce(blocks, [])
+
+    project: str = Attr(json_path="viewspec.project.name")
+    entity: str = Attr(json_path="viewspec.project.entityName")
+    title: str = Attr(json_path="viewspec.displayName")
+    description: str = Attr(json_path="viewspec.description")
+    width: str = Attr(
+        json_path="viewspec.spec.width",
+        validators=[OneOf(["readable", "fixed", "fluid"])],
     )
-    entity: str = attr(
-        # default=wandb.Api().default_entity,
-        default="",
-        metadata={"json_path": "viewspec.project.entityName"},
-    )
-    title: str = attr(
-        default="Untitled Report", metadata={"json_path": "viewspec.displayName"}
-    )
-    description: str = attr(default="", metadata={"json_path": "viewspec.description"})
-    width: str = attr(
-        default="readable",
-        metadata={
-            "json_path": "viewspec.spec.width",
-            "validators": [OneOf(["readable", "fixed", "fluid"])],
-        },
-    )
-    blocks: list = attr(
-        default_factory=list,
-        metadata={
-            "json_path": "spec.blocks",
-            "validators": [TypeValidator(Block, how="keys")],
-        },
+    blocks: list = Attr(
+        json_path="viewspec.spec.blocks",
+        validators=[TypeValidator(Block, how="keys")],
     )
 
-    def __post_init__(self):
-        if self.entity == "":
-            self.entity = wandb.Api().default_entity
-
-    def __new__(cls, *args, **kwargs):
-        def _generate_default_viewspec():
-            return {
-                "id": None,
-                "name": None,
-                "spec": {
-                    "version": 5,
-                    "panelSettings": {},
-                    "blocks": [],
-                    "width": "readable",
-                    "authors": [],
-                    "discussionThreads": [],
-                    "ref": {},
-                },
-            }
-
-        obj = super().__new__(cls)
-        obj._viewspec = _generate_default_viewspec()
-        obj._orig_viewspec = deepcopy(obj._viewspec)
-        return obj
-
-    @classmethod
-    def from_json(cls, viewspec):
-        obj = cls(project=viewspec["project"]["name"])
-        obj._viewspec = viewspec
-        obj._orig_viewspec = deepcopy(obj._viewspec)
-        return obj
-
-    @__(attr(blocks).getter)
-    def _(self):
+    @blocks.getter
+    def blocks(self):
         json_path = self._get_path("blocks")
         block_specs = nested_get(self, json_path)
         blocks = []
-        for b in block_specs:
-            cls = block_mapping.get(b["type"], UnknownBlock)
+        for bspec in block_specs:
+            cls = block_mapping.get(bspec["type"], UnknownBlock)
             if cls is UnknownBlock:
                 wandb.termwarn(
                     inspect.cleandoc(
                         f"""
                         UNKNOWN BLOCK DETECTED
                             This can happen if we have added new blocks, but you are using an older version of the SDK.
-                            If your report is loading normally, you can safely ignore this message (but we recommend not touching UnknownBlock)
-                            If you think this is an error, please file a bug report including your SDK version ({wandb.__version__}) and this spec ({b})
+                            If your report is loading normally, you can safely ignore this message (but we recommend not touching UnknownPanel)
+                            If you think this is an error, please file a bug report including your SDK version ({wandb.__version__}) and this spec ({bspec})
                         """
                     )
                 )
-            blocks.append(cls.from_json(b))
+            blocks.append(cls.from_json(bspec))
         return blocks[1:-1]  # accounts for hidden p blocks
 
-    @__(attr(blocks).setter)
-    def _(self, new_blocks):
+    @blocks.setter
+    def blocks(self, new_blocks):
         json_path = self._get_path("blocks")
         new_block_specs = (
             [P("").spec] + [b.spec for b in new_blocks] + [P("").spec]
         )  # hidden p blocks
         nested_set(self, json_path, new_block_specs)
+
+    @staticmethod
+    def _default_viewspec():
+        return {
+            "id": None,
+            "name": None,
+            "spec": {
+                "version": 5,
+                "panelSettings": {},
+                "blocks": [],
+                "width": "readable",
+                "authors": [],
+                "discussionThreads": [],
+                "ref": {},
+            },
+        }
+
+    @classmethod
+    def from_json(cls, viewspec):
+        return cls(project=viewspec["project"]["name"])
 
     @property
     def viewspec(self):
@@ -1321,7 +1233,7 @@ class Report(Base):
                 "description": self.description,
                 "displayName": self.title,
                 "type": "runs/draft" if draft else "runs",
-                # "createdUsing": "WANDB_SDK",
+                "createdUsing": "WANDB_SDK",
                 "spec": json.dumps(self.spec),
             },
         )
@@ -1376,10 +1288,14 @@ class List(Base):
             return UnorderedList(items)
 
 
-@dataclass(repr=False)
 class CheckedList(Block, List):
-    items: list = attr()
-    checked: list = attr()
+    def __init__(self, items, checked, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.items = items
+        self.checked = checked
+
+    items: list = Attr()
+    checked: list = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1396,9 +1312,12 @@ class CheckedList(Block, List):
         }
 
 
-@dataclass(repr=False)
 class OrderedList(Block, List):
-    items: list = attr()
+    def __init__(self, items, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.items = items
+
+    items: list = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1416,9 +1335,12 @@ class OrderedList(Block, List):
         }
 
 
-@dataclass(repr=False)
 class UnorderedList(Block, List):
-    items: list = attr()
+    def __init__(self, items, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.items = items
+
+    items: list = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1448,9 +1370,12 @@ class Heading(Base):
         return level_mapping[level](text)
 
 
-@dataclass(repr=False)
 class H1(Block, Heading):
-    text: str = attr()
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+
+    text: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1461,9 +1386,12 @@ class H1(Block, Heading):
         }
 
 
-@dataclass(repr=False)
 class H2(Block, Heading):
-    text: str = attr()
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+
+    text: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1474,9 +1402,12 @@ class H2(Block, Heading):
         }
 
 
-@dataclass(repr=False)
 class H3(Block, Heading):
-    text: str = attr()
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+
+    text: str = Attr()
 
     @property
     def spec(self) -> dict:
@@ -1487,9 +1418,12 @@ class H3(Block, Heading):
         }
 
 
-@dataclass(repr=False)
 class BlockQuote(Block):
-    text: str = attr()
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+
+    text: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "BlockQuote":
@@ -1501,9 +1435,12 @@ class BlockQuote(Block):
         return {"type": "block-quote", "children": [{"text": self.text}]}
 
 
-@dataclass(repr=False)
 class CalloutBlock(Block):
-    text: Union[str, list] = attr()
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+
+    text: Union[str, list] = Attr()
 
     def __post_init__(self) -> None:
         if isinstance(self.text, str):
@@ -1525,10 +1462,14 @@ class CalloutBlock(Block):
         }
 
 
-@dataclass(repr=False)
 class CodeBlock(Block):
-    code: Union[str, list] = attr()
-    language: str = attr(default="python")
+    def __init__(self, code, language=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.code = code
+        self.language = coalesce(language, "python")
+
+    code: Union[str, list] = Attr()
+    language: str = Attr()
 
     def __post_init__(self) -> None:
         if isinstance(self.code, str):
@@ -1557,13 +1498,14 @@ class CodeBlock(Block):
         }
 
 
-@dataclass(repr=False)
 class MarkdownBlock(Block):
-    text: Union[str, list] = attr()
-
-    def __post_init__(self) -> None:
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
         if isinstance(self.text, list):
             self.text = "\n".join(self.text)
+
+    text: Union[str, list] = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "MarkdownBlock":
@@ -1579,13 +1521,14 @@ class MarkdownBlock(Block):
         }
 
 
-@dataclass(repr=False)
 class LaTeXBlock(Block):
-    text: Union[str, list] = attr()
-
-    def __post_init__(self) -> None:
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
         if isinstance(self.text, list):
             self.text = "\n".join(self.text)
+
+    text: Union[str, list] = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "LaTeXBlock":
@@ -1602,9 +1545,12 @@ class LaTeXBlock(Block):
         }
 
 
-@dataclass(repr=False)
 class Gallery(Block):
-    ids: list = attr(default_factory=list)
+    def __init__(self, ids, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ids = ids
+
+    ids: list = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Gallery":
@@ -1621,10 +1567,14 @@ class Gallery(Block):
         return {"type": "gallery", "children": [{"text": ""}], "ids": self.ids}
 
 
-@dataclass(repr=False)
 class Image(Block):
-    url: str = attr()
-    caption: str = attr()
+    def __init__(self, url, caption, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.url = url
+        self.caption = caption
+
+    url: str = Attr()
+    caption: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Image":
@@ -1645,16 +1595,18 @@ class Image(Block):
             return {"type": "image", "children": [{"text": ""}], "url": self.url}
 
 
-@dataclass(repr=False)
 class WeaveBlock(Block):
-    spec: dict = attr()
+    def __init__(self, spec, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.spec = spec
+
+    spec: dict = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "WeaveBlock":
         return cls(spec)
 
 
-@dataclass(repr=False)
 class HorizontalRule(Block):
     @classmethod
     def from_json(cls, spec: dict) -> "HorizontalRule":
@@ -1665,7 +1617,6 @@ class HorizontalRule(Block):
         return {"type": "horizontal-rule", "children": [{"text": ""}]}
 
 
-@dataclass(repr=False)
 class TableOfContents(Block):
     @classmethod
     def from_json(cls, spec: dict) -> "TableOfContents":
@@ -1676,9 +1627,12 @@ class TableOfContents(Block):
         return {"type": "table-of-contents", "children": [{"text": ""}]}
 
 
-@dataclass(repr=False)
 class SoundCloud(Block):
-    url: str = attr()
+    def __init__(self, url, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.url = url
+
+    url: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "SoundCloud":
@@ -1696,15 +1650,15 @@ class SoundCloud(Block):
         }
 
 
-@dataclass(repr=False)
 class Twitter(Block):
-    embed_html: str = attr()
-
-    def __post_init__(self) -> None:
-        # remove script tag
+    def __init__(self, embed_html, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.embed_html = embed_html
         if self.embed_html:
             pattern = r" <script[\s\S]+?/script>"
             self.embed_html = re.sub(pattern, "\n", self.embed_html)
+
+    embed_html: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Twitter":
@@ -1716,9 +1670,12 @@ class Twitter(Block):
         return {"type": "twitter", "html": self.embed_html, "children": [{"text": ""}]}
 
 
-@dataclass(repr=False)
 class Spotify(Block):
-    spotify_id: str = attr()
+    def __init__(self, spotify_id, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.spotify_id = spotify_id
+
+    spotify_id: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Spotify":
@@ -1739,9 +1696,12 @@ class Spotify(Block):
         }
 
 
-@dataclass(repr=False)
 class Video(Block):
-    url: str = attr()
+    def __init__(self, url, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.url = url
+
+    url: str = Attr()
 
     @classmethod
     def from_json(cls, spec: dict) -> "Video":
@@ -1754,6 +1714,67 @@ class Video(Block):
             "url": self.url,
             "children": [{"text": ""}],
         }
+
+
+class InlineLaTeX(Base):
+    def __init__(self, latex, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.latex = latex
+
+    latex: str = Attr()
+
+    @property
+    def spec(self) -> dict:
+        return {"type": "latex", "children": [{"text": ""}], "content": self.latex}
+
+
+class InlineCode(Base):
+    def __init__(self, code, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.code = code
+
+    code: str = Attr()
+
+    @property
+    def spec(self) -> dict:
+        return {"text": self.code, "inlineCode": True}
+
+
+class P(Block):
+    def __init__(self, text, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.text = text
+
+    text: Union[str, InlineLaTeX, InlineCode, list] = Attr()
+
+    @classmethod
+    def from_json(cls, spec):
+        if isinstance(spec["children"], str):
+            text = spec["children"]
+        else:
+            text = []
+            for elem in spec["children"]:
+                if elem.get("type") == "latex":
+                    text.append(InlineLaTeX(elem["content"]))
+                elif elem.get("inlineCode"):
+                    text.append(InlineCode(elem["text"]))
+                else:
+                    text.append(elem["text"])
+
+        if not isinstance(text, list):
+            text = [text]
+        return cls(text)
+
+    @property
+    def spec(self) -> dict:
+        if isinstance(self.text, list):
+            content = [
+                t.spec if not isinstance(t, str) else {"text": t} for t in self.text
+            ]
+        else:
+            content = [{"text": self.text}]
+
+        return {"type": "paragraph", "children": content}
 
 
 block_mapping = {
