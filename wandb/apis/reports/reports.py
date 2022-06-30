@@ -1,10 +1,10 @@
+from copy import deepcopy
 import inspect
 import json
 import re
-import urllib
-from copy import deepcopy
 from typing import List as LList
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
+import urllib
 
 import wandb
 from wandb.sdk.lib import ipython
@@ -14,26 +14,25 @@ from .util import (
     Attr,
     Base,
     Block,
-    Panel,
     coalesce,
+    fix_collisions,
     generate_name,
     nested_get,
     nested_set,
-    tuple_factory,
-    fix_collisions,
+    Panel,
 )
 from .validators import (
     AGGFUNCS,
+    Between,
     CODE_COMPARE_DIFF,
     FONT_SIZES,
     LEGEND_POSITIONS,
+    Length,
     LINEPLOT_STYLES,
     MARKS,
+    OneOf,
     RANGEFUNCS,
     SMOOTHING_TYPES,
-    Between,
-    Length,
-    OneOf,
     TypeValidator,
 )
 
@@ -817,7 +816,7 @@ class WeavePanel(Panel):
 class RunSet(Base):
     def __init__(
         self,
-        entity=wandb.Api().default_entity,
+        entity="",
         project="",
         name="Run set",
         query="",
@@ -832,7 +831,7 @@ class RunSet(Base):
         self.query_generator = wandb.apis.public.QueryGenerator()
         self.pm_query_generator = wandb.apis.public.PythonMongoishQueryGenerator(self)
 
-        self.entity = entity
+        self.entity = entity if entity != "" else wandb.Api().default_entity
         self.project = project
         self.name = name
         self.query = query
@@ -1093,7 +1092,7 @@ class Report(Base):
     def __init__(
         self,
         project,
-        entity=wandb.Api().default_entity,
+        entity="",
         title="Untitled Report",
         description="",
         width="readable",
@@ -1106,7 +1105,7 @@ class Report(Base):
         self._orig_viewspec = deepcopy(self._viewspec)
 
         self.project = project
-        self.entity = entity
+        self.entity = entity if entity != "" else wandb.Api().default_entity
         self.title = title
         self.description = description
         self.width = width

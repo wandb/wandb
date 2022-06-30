@@ -1,13 +1,26 @@
-from abc import ABC, abstractmethod
-import dataclasses
-from dataclasses import dataclass
-import inspect
-from typing import Any, Callable, List, Mapping, Optional, overload, Tuple, TypeVar
-import typing
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    Union,
+    get_type_hints,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+)
+
+from numpy import str_
 
 import wandb
 
-from .validators import LayoutDict, TypeValidator, UNDEFINED_TYPE
+from .validators import TypeValidator, UNDEFINED_TYPE, Validator
+
+
+Func = TypeVar("Func")
+T = TypeVar("T")
+V = TypeVar("V")
 
 
 def generate_name(length: int = 12) -> str:
@@ -25,14 +38,14 @@ def generate_name(length: int = 12) -> str:
     return rand36.lower()[:length]
 
 
-def tuple_factory(value=None, size=1):
+def tuple_factory(value=None, size=1) -> Func:
     def _tuple_factory():
         return tuple(value for _ in range(size))
 
     return _tuple_factory
 
 
-def coalesce(*arg):
+def coalesce(*arg: Any) -> Any:
     return next((a for a in arg if a is not None), None)
 
 
@@ -80,51 +93,55 @@ def nested_set(json: dict, keys: str, value: Any) -> None:
 
 
 class Property:
-    def __init__(self, fget=None, fset=None):
+    def __init__(
+        self, fget: Optional[Func] = None, fset: Optional[Func] = None
+    ) -> None:
         self.fget = fget or self.default_fget
         self.fset = fset or self.default_fset
         self.name = ""
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: Any, name: str) -> None:
         self.name = name
 
-    def __get__(self, obj, objtype=None):
+    def __get__(self, obj: Any, objtype: Optional[Any] = None) -> Any:
         if obj is None:
             return self
         if self.fget is None:
             raise AttributeError(f"unreadable attribute {self.name}")
         return self.fget(obj)
 
-    def __set__(self, obj, value):
+    def __set__(self, obj: Any, value: Any) -> None:
         if self.fset is None:
             raise AttributeError(f"can't set attribute {self.name}")
         self.fset(obj, value)
 
-    def getter(self, fget):
+    def getter(self, fget: Func) -> Func:
         prop = type(self)(fget, self.fset)
         prop.name = self.name
         return prop
 
-    def setter(self, fset):
+    def setter(self, fset: Func) -> Func:
         prop = type(self)(self.fget, fset)
         prop.name = self.name
         return prop
 
-    def default_fget(self, obj):
+    def default_fget(self, obj: Any) -> Any:
         return obj.__dict__[self.name]
 
-    def default_fset(self, obj, value):
+    def default_fset(self, obj: Any, value: Any) -> None:
         obj.__dict__[self.name] = value
 
 
 class Validated(Property):
-    def __init__(self, *args, validators=None, **kwargs):
+    def __init__(
+        self, *args: Func, validators: Optional[List[Validator]] = None, **kwargs: Func
+    ) -> None:
         super().__init__(*args, **kwargs)
         if validators is None:
             validators = []
         self.validators = validators
 
-    def __set__(self, instance, value):
+    def __set__(self, instance: Any, value: Any) -> None:
         if not isinstance(value, type(self)):
             for validator in self.validators:
                 validator(self, value)
@@ -132,35 +149,37 @@ class Validated(Property):
 
 
 class Typed(Validated):
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: Any, name: str) -> None:
         super().__set_name__(owner, name)
-        self.type = typing.get_type_hints(owner).get(name, UNDEFINED_TYPE)
+        self.type = get_type_hints(owner).get(name, UNDEFINED_TYPE)
 
         if self.type is not UNDEFINED_TYPE:
             self.validators = [TypeValidator(attr_type=self.type)] + self.validators
 
 
 class JSONLinked(Property):
-    def __init__(self, *args, json_path=None, **kwargs):
+    def __init__(
+        self, *args: Func, json_path: Optional[str] = None, **kwargs: Func
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.path_or_name = json_path
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: Any, name: str) -> None:
         if self.path_or_name is None:
             self.path_or_name = name
         super().__set_name__(owner, name)
 
-    def getter(self, fget):
+    def getter(self, fget: Func) -> Func:
         prop = type(self)(fget, self.fset, json_path=self.path_or_name)
         prop.name = self.name
         return prop
 
-    def setter(self, fset):
+    def setter(self, fset: Func) -> Func:
         prop = type(self)(self.fget, fset, json_path=self.path_or_name)
         prop.name = self.name
         return prop
 
-    def default_fget(self, obj):
+    def default_fget(self, obj: Any) -> Union[Any, List[Any]]:
         if isinstance(self.path_or_name, str):
             return nested_get(obj, self.path_or_name)
         elif isinstance(self.path_or_name, list):
@@ -168,7 +187,7 @@ class JSONLinked(Property):
         else:
             raise TypeError(f"Unexpected type for path {type(self.path_or_name)!r}")
 
-    def default_fset(self, obj, value):
+    def default_fset(self, obj: Any, value: Any) -> None:
         if isinstance(self.path_or_name, str):
             nested_set(obj, self.path_or_name, value)
         elif isinstance(self.path_or_name, list):
@@ -179,14 +198,14 @@ class JSONLinked(Property):
 
 
 class Attr(Typed, JSONLinked):
-    def getter(self, fget):
+    def getter(self, fget: Func) -> Func:
         prop = type(self)(
             fget, self.fset, json_path=self.path_or_name, validators=self.validators
         )
         prop.name = self.name
         return prop
 
-    def setter(self, fset):
+    def setter(self, fset: Func) -> Func:
         prop = type(self)(
             self.fget, fset, json_path=self.path_or_name, validators=self.validators
         )
@@ -195,7 +214,7 @@ class Attr(Typed, JSONLinked):
 
 
 class SubclassOnlyABC:
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> T:
         if SubclassOnlyABC in cls.__bases__:
             raise TypeError(f"Abstract class {cls.__name__} cannot be instantiated")
 
@@ -203,7 +222,7 @@ class SubclassOnlyABC:
 
 
 class ShortReprMixin:
-    def __repr__(self):
+    def __repr__(self) -> str:
         clas = self.__class__.__name__
         props = {
             k: getattr(self, k)
@@ -211,40 +230,42 @@ class ShortReprMixin:
             if isinstance(v, Attr)
         }
         settings = [
-            f"{k}={v!r}" for k, v in props.items() if not self.is_interesting(v)
+            f"{k}={v!r}" for k, v in props.items() if not self._is_interesting(v)
         ]
         return "{}({})".format(clas, ", ".join(settings))
 
     @staticmethod
-    def is_interesting(x: Any):
+    def _is_interesting(x: Any) -> bool:
         if isinstance(x, (list, tuple)):
             return all(v is None for v in x)
         return x is None or x == {}
 
 
 class Base(SubclassOnlyABC, ShortReprMixin):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._spec = {}
 
     @property
-    def spec(self):
+    def spec(self) -> Dict[str, Any]:
         return self._spec
 
     @classmethod
-    def from_json(cls, spec):
+    def from_json(cls, spec: Dict[str, Any]) -> T:
         obj = cls()
         obj._spec = spec
         return obj
 
-    def _get_path(self, var):
+    def _get_path(self, var: str) -> str:
         return vars(type(self))[var].path_or_name
 
 
 class Panel(Base, SubclassOnlyABC):
     layout: dict = Attr(json_path="spec.layout")
 
-    def __init__(self, layout=None, *args, **kwargs):
+    def __init__(
+        self, layout: Dict[str, int] = None, *args: Any, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._spec["viewType"] = self.view_type
         self._spec["__id__"] = generate_name()
@@ -252,15 +273,15 @@ class Panel(Base, SubclassOnlyABC):
         self.panel_metrics_helper = wandb.apis.public.PanelMetricsHelper()
 
     @property
-    def view_type(self):
+    def view_type(self) -> str:
         return "UNKNOWN PANEL"
 
     @property
-    def config(self):
+    def config(self) -> Dict[str, Any]:
         return self._spec["config"]
 
     @staticmethod
-    def _default_panel_layout():
+    def _default_panel_layout() -> Dict[str, int]:
         return {"x": 0, "y": 0, "w": 8, "h": 6}
 
 

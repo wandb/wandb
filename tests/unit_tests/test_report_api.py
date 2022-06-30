@@ -22,15 +22,15 @@ from unittest.mock import patch
 
 
 @pytest.fixture
-def attr():
-    yield util.Attr()
-
-
-@pytest.fixture
 def wb(api):
     import wandb.apis.reports as wb_reports
 
     yield wb_reports
+
+
+@pytest.fixture
+def attr():
+    yield util.Attr()
 
 
 @pytest.fixture
