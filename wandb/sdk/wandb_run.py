@@ -2873,7 +2873,7 @@ class Run:
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
         )
-        Run._footer_server_messages_info(
+        Run._footer_server_messages(
             poll_exit_response=poll_exit_response,
             quiet=quiet,
             settings=settings,
@@ -3187,7 +3187,7 @@ class Run:
                 )
 
     @staticmethod
-    def _footer_server_messages_info(
+    def _footer_server_messages(
         poll_exit_response: Optional[PollExitResponse] = None,
         quiet: Optional[bool] = None,
         *,

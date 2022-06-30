@@ -1339,11 +1339,13 @@ class Api:
 
         server_settings_string = (
             """
-        serverSDKSettings {
-                sdkMessages{
+        serverSettings {
+                serverMessages{
                     utfText
                     plainText
                     htmlText
+                    messageType
+                    messageLevel
                 }
          }
         """
@@ -1398,8 +1400,8 @@ class Api:
         if self._server_settings_type:
             server_messages = (
                 response["upsertBucket"]
-                .get("serverSDKSettings", {})
-                .get("sdkMessages", [])
+                .get("serverSettings", {})
+                .get("serverMessages", [])
             )
         return (
             response["upsertBucket"]["bucket"],

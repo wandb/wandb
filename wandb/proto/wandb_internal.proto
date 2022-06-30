@@ -620,6 +620,8 @@ message ServerMessage{
   string plain_text = 1;
   string utf_text = 2;
   string html_text = 3;
+  string type = 4;
+  int32 level = 5;
 }
 
 message FileCounts {

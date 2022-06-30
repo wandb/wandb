@@ -493,6 +493,8 @@ class SendManager:
                         utf_text=message.get("utfText", ""),
                         plain_text=message.get("plainText", ""),
                         html_text=message.get("htmlText", ""),
+                        type=message.get("messageType", ""),
+                        level=message.get("messageLevel", 0),
                     )
                 )
         self._respond_result(result)
