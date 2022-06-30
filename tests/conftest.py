@@ -270,9 +270,9 @@ def runner(monkeypatch, mocker):
 
 @pytest.fixture(autouse=True)
 def reset_setup():
-    wandb.teardown()
+    getattr(wandb, "teardown", lambda: None)()
     yield
-    wandb.teardown()
+    getattr(wandb, "teardown", lambda: None)()
 
 
 @pytest.fixture(autouse=True)
