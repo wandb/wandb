@@ -858,6 +858,18 @@ def test_sweep_pause(runner, mock_server, test_settings, stop_method):
             assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
 
 
+def test_sweep_scheduler(runner, mock_server, test_settings):
+    with runner.isolated_filesystem():
+        sweep_config = {
+            "name": "My Sweep",
+            "method": "grid",
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+        sweep_id = wandb.sweep(sweep_config)
+        assert sweep_id == "test"
+        assert runner.invoke(cli.sweep, ["--queue", "default", sweep_id]).exit_code == 0
+
+
 def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):

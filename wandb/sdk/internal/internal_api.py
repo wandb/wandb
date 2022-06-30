@@ -1045,7 +1045,11 @@ class Api:
             for q in queues_found
             if q["name"] == queue_name
             # ensure user has access to queue
-            and (q["access"] == "PROJECT" or q["createdBy"] == self.default_entity)
+            and (
+                # TODO: User created queues in the UI have USER access
+                q["access"] in ["PROJECT", "USER"]
+                or q["createdBy"] == self.default_entity
+            )
         ]
         if not matching_queues:
             # in the case of a missing default queue. create it
@@ -1933,6 +1937,7 @@ class Api:
         self,
         config,
         controller=None,
+        launch_scheduler=None,
         scheduler=None,
         obj_id=None,
         project=None,
@@ -1986,6 +1991,17 @@ class Api:
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
 
+        # launchScheduler was introduced in core v0.14.0
+        mutation_4 = gql(
+            mutation_str.replace(
+                "$controller: JSONString,",
+                "$controller: JSONString,$launchScheduler: JSONString,",
+            ).replace(
+                "controller: $controller,",
+                "controller: $controller,launchScheduler: $launchScheduler,",
+            )
+        )
+
         # mutation 3 maps to backend that can support CLI version of at least 0.10.31
         mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
         mutation_2 = gql(
@@ -2013,7 +2029,7 @@ class Api:
             raise UsageError(body["errors"][0]["message"])
 
         # TODO(dag): replace this with a query for protocol versioning
-        mutations = [mutation_3, mutation_2, mutation_1]
+        mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
 
         config = self._validate_config_and_fill_distribution(config)
 
@@ -2028,6 +2044,7 @@ class Api:
                         "entityName": entity or self.settings("entity"),
                         "projectName": project or self.settings("project"),
                         "controller": controller,
+                        "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
                     check_retry_fn=no_retry_4xx,
