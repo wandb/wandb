@@ -412,6 +412,7 @@ def test_build_image_success(
             "kubernetes",
             {},
             None,
+            None,  # run_id
         )
         entry_point = EntryPoint("main.py", ["python", "main.py"])
         image_uri = builder.build_image(project, "repository-url", entry_point, {})
