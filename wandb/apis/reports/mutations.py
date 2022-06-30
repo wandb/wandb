@@ -10,7 +10,6 @@ UPSERT_VIEW = gql(
         $name: String
         $displayName: String
         $description: String
-#        $createdUsing: String
         $spec: String!
     ) {
         upsertView(
@@ -22,7 +21,7 @@ UPSERT_VIEW = gql(
             displayName: $displayName
             description: $description
             type: $type
-#            createdUsing: $createdUsing
+            createdUsing: WANDB_SDK
             spec: $spec
         }
         ) {

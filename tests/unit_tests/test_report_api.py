@@ -18,11 +18,7 @@ from wandb.apis.reports.validators import (
 )
 
 
-@pytest.fixture
-def wb(api):
-    import wandb.apis.reports as wb_reports
-
-    yield wb_reports
+wandb.require("report-editing")
 
 
 @pytest.fixture
@@ -30,11 +26,25 @@ def attr():
     yield util.Attr()
 
 
+# @pytest.fixture
+# def require_report_editing():
+#     wandb.require("report-editing")
+#     yield
+#     del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
+
+
 @pytest.fixture
-def require_report_editing():
-    wandb.require("report-editing")
-    yield
+def disable_report_editing():
     del os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"]
+    yield
+    wandb.require("report-editing")
+
+
+@pytest.fixture
+def wb(api):
+    import wandb.apis.reports as wb_reports
+
+    yield wb_reports
 
 
 @pytest.fixture
@@ -186,7 +196,7 @@ def panel_grid(wb):
     yield wb.PanelGrid()
 
 
-@pytest.mark.usefixtures("require_report_editing")
+# @pytest.mark.usefixtures("require_report_editing")
 class TestPublicAPI:
     @pytest.mark.parametrize(
         "project,result",
@@ -223,7 +233,7 @@ class TestPublicAPI:
                 report = api.load_report(path)
 
 
-@pytest.mark.usefixtures("require_report_editing")
+# @pytest.mark.usefixtures("require_report_editing")
 class TestReport:
     def test_instantiate_report(self, wb):
         report = wb.Report(project="something")
@@ -305,7 +315,7 @@ class TestReport:
         )
 
 
-@pytest.mark.usefixtures("require_report_editing")
+# @pytest.mark.usefixtures("require_report_editing")
 class TestRunSet:
     def test_instantiate_runset(self, wb):
         rs = wb.RunSet()
@@ -599,7 +609,7 @@ class TestQueryGenerators:
         gen = PythonMongoishQueryGenerator(runset)
 
 
-@pytest.mark.usefixtures("require_report_editing")
+# @pytest.mark.usefixtures("require_report_editing")
 class TestPanelGrid:
     def test_instantiate_panel_grid(self, wb):
         pg = wb.PanelGrid()
@@ -628,7 +638,7 @@ class TestPanelGrid:
                 assert util.collides(p1, p2) is False
 
 
-@pytest.mark.usefixtures("require_report_editing")
+# @pytest.mark.usefixtures("require_report_editing")
 class TestPanels:
     @pytest.mark.parametrize(
         "cls",
@@ -813,6 +823,7 @@ class TestValidators:
 
 
 class TestMisc:
+    @pytest.mark.usefixtures("disable_report_editing")
     def test_requirements(self):
         from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin, requires
 
@@ -862,21 +873,3 @@ class TestMisc:
             wb.LinePlot(x=123)
 
         assert wb.LinePlot(x="def")
-
-
-class TestABC:
-    def test_base(self):
-        from wandb.apis.reports.util import Base
-
-        class Derived(Base):
-            pass
-
-        derived = Derived()
-
-    def test_panel(self):
-        from wandb.apis.reports.util import Panel
-
-        class Derived(Panel):
-            @property
-            def view_type(self):
-                return "New View"

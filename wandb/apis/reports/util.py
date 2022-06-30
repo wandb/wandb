@@ -10,6 +10,7 @@ from typing import (
 )
 
 import wandb
+from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
 from .validators import TypeValidator, UNDEFINED_TYPE, Validator
 
@@ -237,7 +238,7 @@ class ShortReprMixin:
         return x is None or x == {}
 
 
-class Base(SubclassOnlyABC, ShortReprMixin):
+class Base(SubclassOnlyABC, ShortReprMixin, RequiresReportEditingMixin):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._spec = {}

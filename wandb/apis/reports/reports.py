@@ -1174,7 +1174,10 @@ class Report(Base):
 
     @classmethod
     def from_json(cls, viewspec):
-        return cls(project=viewspec["project"]["name"])
+        obj = cls(project=viewspec["project"]["name"])
+        obj._viewspec = viewspec
+        obj._orig_viewspec = deepcopy(obj._viewspec)
+        return obj
 
     @property
     def viewspec(self):
@@ -1235,7 +1238,6 @@ class Report(Base):
                 "description": self.description,
                 "displayName": self.title,
                 "type": "runs/draft" if draft else "runs",
-                "createdUsing": "WANDB_SDK",
                 "spec": json.dumps(self.spec),
             },
         )
