@@ -178,7 +178,6 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
 def image_id_from_registry(image_name: str) -> Optional[str]:
     """Get the docker id from a public or private registry"""
     registry, repository, tag = parse(image_name)
-    print(registry, repository, tag, image_name)
     res = None
     try:
         token = auth_token(registry, repository).get("token")
