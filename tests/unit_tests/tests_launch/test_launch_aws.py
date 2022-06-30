@@ -388,6 +388,7 @@ def test_aws_get_region_file_success(runner, monkeypatch):
             overrides={},
             resource_args={},
             cuda=None,
+            run_id=None,
         )
         region = get_region(launch_project.resource_args)
         assert region == "us-east-1"
@@ -414,6 +415,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
             overrides={},
             resource_args={},
             cuda=None,
+            run_id=None,
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             get_region(launch_project.resource_args)
@@ -441,6 +443,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             overrides={},
             resource_args={},
             cuda=None,
+            run_id=None,
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             get_region(launch_project.resource_args)
