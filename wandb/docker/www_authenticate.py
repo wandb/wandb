@@ -1,7 +1,7 @@
 # Taken from: https://github.com/alexsdutton/www-authenticate
 from collections import OrderedDict
 import re
-from typing import Any, Optional
+from typing import Any
 
 _tokens = (
     ("token", re.compile(r"""^([!#$%&'*+\-.^_`|~\w/]+(?:={1,2}$)?)""")),
