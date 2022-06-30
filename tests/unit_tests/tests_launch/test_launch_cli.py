@@ -34,7 +34,7 @@ def test_launch_add_default(runner, test_settings, live_mock_server):
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--project=test_project",
         "--entity=mock_server_entity",
-        "--queue",
+        "--queue=default",
     ]
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
@@ -47,7 +47,7 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--project=test_project",
         "--entity=mock_server_entity",
-        "--queue",
+        "--queue=default",
     ]
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
@@ -94,6 +94,7 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -112,6 +113,7 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -140,6 +142,7 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -163,6 +166,7 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -170,6 +174,47 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         )
 
     assert "Shutting down, active jobs" in result.output
+
+
+def test_launch_sweep_scheduler(runner, test_settings, live_mock_server):
+    # Create a test sweep
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config)
+    assert sweep_id == "test"
+    # Create the default queue
+    result = runner.invoke(
+        cli.launch,
+        [
+            "https://wandb.ai/mock_server_entity/test_project/runs/run",
+            "--project",
+            "test_project",
+            "--entity",
+            "mock_server_entity",
+            "--queue",
+            "default",
+        ],
+    )
+    assert result.exit_code == 0
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["run_queues"]["1"]) == 1
+    # Run the launch sweep scheduler CLI command
+    result = runner.invoke(
+        cli.scheduler,
+        [
+            "--project",
+            "test_project",
+            "--entity",
+            "mock_server_entity",
+            "--queue",
+            "default",
+            sweep_id,
+        ],
+    )
+    assert result.exit_code == 0
 
 
 # this test includes building a docker container which can take some time.
@@ -249,6 +294,28 @@ def test_launch_no_docker_exec(
     assert "Could not find Docker executable" in str(result.exception)
 
 
+def test_sweep_launch_scheduler(runner, mock_server, test_settings):
+    sweep_id = wandb.sweep(
+        {
+            "name": "My Sweep",
+            "method": "grid",
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+    )
+    assert sweep_id == "test"
+    result = runner.invoke(
+        cli.sweep,
+        [
+            sweep_id,
+            "--queue",
+            "default",
+            "--entity",
+            "mock_server_entity",
+        ],
+    )
+    assert result.exit_code == 0
+
+
 @pytest.mark.timeout(320)
 def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
     with runner.isolated_filesystem():
@@ -293,6 +360,7 @@ def test_launch_queue_error(runner):
                 "train.py",
                 "--async",
                 "--queue",
+                "default",
             ],
         )
 
@@ -413,6 +481,7 @@ def test_launch_agent_launch_error_continue(
         result = runner.invoke(
             cli.launch_agent,
             [
+                "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
