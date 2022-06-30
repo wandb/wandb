@@ -1031,8 +1031,8 @@ def create_app(user_ctx=None):
                 }
             }
             if ctx["server_settings"]:
-                response["data"]["upsertBucket"]["serverSDKSettings"] = {
-                    "sdkMessages": ctx["server_messages"]
+                response["data"]["upsertBucket"]["serverSettings"] = {
+                    "serverMessages": ctx["server_messages"]
                 }
             if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
