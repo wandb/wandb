@@ -4,6 +4,7 @@ Implementation of launch agent.
 
 import logging
 import os
+import pprint
 import time
 from typing import Any, Dict, List, Optional, Union
 
@@ -144,9 +145,9 @@ class LaunchAgent:
 
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
-        # TODO: logger
-        wandb.termlog(f"agent: got job f{job}")
-        _logger.info(f"Agent job: {job}")
+        _msg = f"Launch agent received job:\n{pprint.pformat(job)}\n"
+        wandb.termlog(_msg)
+        _logger.info(_msg)
         # update agent status
         self.update_status(AGENT_RUNNING)
 
