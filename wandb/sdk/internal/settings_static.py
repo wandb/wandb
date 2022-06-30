@@ -13,6 +13,9 @@ class SettingsStatic:
     _disable_meta: Optional[bool]
     _start_time: float
     _start_datetime: str
+    _stats_pid: int
+    _stats_sample_rate_seconds: float
+    _stats_samples_to_average: int
     files_dir: str
     log_internal: str
     _internal_check_process: bool

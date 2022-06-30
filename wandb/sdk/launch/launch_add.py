@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, Optional, Union
+import pprint
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -23,11 +24,12 @@ def launch_add(
     entity: Optional[str] = None,
     queue: Optional[str] = None,
     resource: Optional[str] = None,
-    entry_point: Optional[str] = None,
+    entry_point: Optional[List[str]] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
+    run_id: Optional[str] = None,
 ) -> "public.QueuedJob":
     api = Api()
     return _launch_add(
@@ -43,6 +45,7 @@ def launch_add(
         version,
         docker_image,
         params,
+        run_id=run_id,
     )
 
 
@@ -54,13 +57,14 @@ def _launch_add(
     entity: Optional[str],
     queue: Optional[str],
     resource: Optional[str],
-    entry_point: Optional[str],
+    entry_point: Optional[List[str]],
     name: Optional[str],
     version: Optional[str],
     docker_image: Optional[str],
     params: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
+    run_id: Optional[str] = None,
 ) -> "public.QueuedJob":
 
     resource = resource or "local"
@@ -90,13 +94,15 @@ def _launch_add(
         resource_args,
         launch_config,
         cuda,
+        run_id,
     )
 
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:
         raise Exception("Error adding run to queue")
-    wandb.termlog(f"Added run to queue {queue}")
+    wandb.termlog(f"Added run to queue {queue}.")
+    wandb.termlog(f"Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     queued_job = public_api.queued_job(
         f"{entity}/{project}/{queue}/{res['runQueueItemId']}"

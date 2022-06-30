@@ -50,7 +50,6 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-from sentry_sdk import capture_exception, capture_message
 import shortuuid  # type: ignore
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
@@ -99,18 +98,22 @@ def get_platform_name() -> str:
 
 
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
-# side effect of loading a module.
+#  side effect of loading a module.
+sentry_client: Optional["sentry_sdk.client.Client"] = None
+sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
+sentry_default_dsn = (
+    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+)
 if error_reporting_enabled():
-    default_dsn = (
-        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
-    )
-    sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
-    sentry_sdk.init(
+    sentry_dsn = os.environ.get(SENTRY_DSN, sentry_default_dsn)
+    sentry_client = sentry_sdk.Client(
         dsn=sentry_dsn,
-        release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
+        release=wandb.__version__,
     )
+
+    sentry_hub = sentry_sdk.Hub(sentry_client)
 
 POW_10_BYTES = [
     ("B", 10**0),
@@ -135,7 +138,8 @@ POW_2_BYTES = [
 
 def sentry_message(message: str) -> None:
     if error_reporting_enabled():
-        capture_message(message)
+        sentry_hub.capture_message(message)  # type: ignore
+    return None
 
 
 def sentry_exc(
@@ -153,11 +157,12 @@ def sentry_exc(
 ) -> None:
     if error_reporting_enabled():
         if isinstance(exc, str):
-            capture_exception(Exception(exc))
+            sentry_hub.capture_exception(Exception(exc))  # type: ignore
         else:
-            capture_exception(exc)
-        if delay:
-            time.sleep(2)
+            sentry_hub.capture_exception(exc)  # type: ignore
+    if delay:
+        time.sleep(2)
+    return None
 
 
 def sentry_reraise(exc: Any) -> None:
@@ -182,8 +187,8 @@ def sentry_set_scope(
     ] = None,
     process_context: Optional[str] = None,
 ) -> None:
-    # Using GLOBAL_HUB means these tags will persist between threads.
-    # Normally there is one hub per thread.
+    if not error_reporting_enabled():
+        return None
 
     # Tags come from two places: settings and args passed into this func.
     args = dict(locals())
@@ -206,7 +211,7 @@ def sentry_set_scope(
     def get(key: str) -> Any:
         return getattr(s, key, None)
 
-    with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
+    with sentry_hub.configure_scope() as scope:  # type: ignore
         scope.set_tag("platform", get_platform_name())
 
         # apply settings tags
@@ -882,6 +887,18 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
+def check_retry_commit_artifact(e: Any) -> bool:
+    if hasattr(e, "exception"):
+        e = e.exception
+    if (
+        isinstance(e, requests.HTTPError)
+        and e.response is not None
+        and e.response.status_code == 409
+    ):
+        return True
+    return no_retry_auth(e)
+
+
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
@@ -1009,11 +1026,7 @@ def image_from_docker_args(args: List[str]) -> Optional[str]:
 
 
 def load_yaml(file: Any) -> Any:
-    """If pyyaml > 5.1 use full_load to avoid warning"""
-    if hasattr(yaml, "full_load"):
-        return yaml.full_load(file)
-    else:
-        return yaml.load(file)
+    return yaml.safe_load(file)
 
 
 def image_id_from_k8s() -> Optional[str]:

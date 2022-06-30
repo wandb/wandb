@@ -108,12 +108,13 @@ def construct_launch_spec(
     entity: Optional[str],
     docker_image: Optional[str],
     resource: Optional[str],
-    entry_point: Optional[str],
+    entry_point: Optional[List[str]],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     cuda: Optional[bool],
+    run_id: Optional[str],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -167,6 +168,9 @@ def construct_launch_spec(
     if cuda is not None:
         launch_spec["cuda"] = cuda
 
+    if run_id is not None:
+        launch_spec["run_id"] = run_id
+
     return launch_spec
 
 
@@ -183,7 +187,10 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     stripped_uri = re.sub(
         _WANDB_QA_URI_REGEX, "", stripped_uri
     )  # also for testing just run it twice
-    entity, project, _, name = stripped_uri.split("/")[1:]
+    try:
+        entity, project, _, name = stripped_uri.split("/")[1:]
+    except ValueError as e:
+        raise LaunchError(f"Trouble parsing wandb uri {uri}: {e}")
     return entity, project, name
 
 

@@ -24,7 +24,6 @@ import time
 from typing import Optional
 import urllib
 
-from dateutil.relativedelta import relativedelta
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -239,6 +238,15 @@ class Api:
             username
             email
             admin
+            apiKeys {
+                edges {
+                    node {
+                        id
+                        name
+                        description
+                    }
+                }
+            }
             teams {
                 edges {
                     node {
@@ -287,18 +295,22 @@ class Api:
     )
 
     def __init__(
-        self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
+        self,
+        overrides=None,
+        timeout: Optional[int] = None,
+        api_key: Optional[str] = None,
     ):
         self.settings = InternalApi().settings()
         self._api_key = api_key
         if self.api_key is None:
             wandb.login()
-        self.settings.update(overrides)
-        if "username" in overrides and "entity" not in overrides:
+        _overrides = overrides or {}
+        self.settings.update(_overrides)
+        if "username" in _overrides and "entity" not in _overrides:
             wandb.termwarn(
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
-            self.settings["entity"] = overrides["username"]
+            self.settings["entity"] = _overrides["username"]
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
         self._viewer = None
@@ -937,6 +949,14 @@ class User(Attrs):
     def __init__(self, client, attrs):
         super().__init__(attrs)
         self._client = client
+        self._user_api = None
+
+    @property
+    def user_api(self):
+        """An instance of the api using credentials from the user"""
+        if self._user_api is None and len(self.api_keys) > 0:
+            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        return self._user_api
 
     @classmethod
     def create(cls, api, email, admin=False):
@@ -994,10 +1014,13 @@ class User(Attrs):
             The new api key, or None on failure
         """
         try:
-            return self._client.execute(
+            # We must make this call using credentials from the original user
+            key = self.user_api.client.execute(
                 self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]["name"]
-        except requests.exceptions.HTTPError:
+            )["generateApiKey"]["apiKey"]
+            self._attrs["apiKeys"]["edges"].append({"node": key})
+            return key["name"]
+        except (requests.exceptions.HTTPError, AttributeError):
             return None
 
     def __repr__(self):
@@ -1373,10 +1396,10 @@ class Runs(Paginator):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters={}, order=None, per_page=50):
+    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
         self.entity = entity
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         self._sweeps = {}
         variables = {
@@ -1446,8 +1469,8 @@ class Runs(Paginator):
 
 
 class QueuedJob(Attrs):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super().__init__(dict(attrs))
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs=None):
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1467,7 +1490,7 @@ class QueuedJob(Attrs):
                                 node {
                                     id
                                     state
-                                    resultingRunId
+                                    associatedRunId
                                 }
                             }
                         }
@@ -1487,7 +1510,7 @@ class QueuedJob(Attrs):
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
                     item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["resultingRunId"] is not None
+                    and item["node"]["associatedRunId"] is not None
                 ):
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
@@ -1495,9 +1518,9 @@ class QueuedJob(Attrs):
                             self.client,
                             self._entity,
                             self.project,
-                            item["node"]["resultingRunId"],
+                            item["node"]["associatedRunId"],
                         )
-                        self._run_id = item["node"]["resultingRunId"]
+                        self._run_id = item["node"]["associatedRunId"]
                         return
                     except ValueError:
                         continue
@@ -1535,11 +1558,12 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs={}):
+    def __init__(self, client, entity, project, run_id, attrs=None):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
-        super().__init__(dict(attrs))
+        _attrs = attrs or {}
+        super().__init__(dict(_attrs))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1553,9 +1577,9 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self._state = attrs.get("state", "not found")
+        self._state = _attrs.get("state", "not found")
 
-        self.load(force=not attrs)
+        self.load(force=not _attrs)
 
     @property
     def state(self):
@@ -1836,7 +1860,7 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=[], per_page=50):
+    def files(self, names=None, per_page=50):
         """
         Arguments:
             names (list): names of the requested files, if empty returns all files
@@ -1845,7 +1869,7 @@ class Run(Attrs):
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
-        return Files(self.client, self, names, per_page)
+        return Files(self.client, self, names or [], per_page)
 
     @normalize_exceptions
     def file(self, name):
@@ -2145,9 +2169,9 @@ class Sweep(Attrs):
     """
     )
 
-    def __init__(self, client, entity, project, sweep_id, attrs={}):
+    def __init__(self, client, entity, project, sweep_id, attrs=None):
         # TODO: Add agents / flesh this out.
-        super().__init__(dict(attrs))
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -2308,13 +2332,13 @@ class Files(Paginator):
         % FILE_FRAGMENT
     )
 
-    def __init__(self, client, run, names=[], per_page=50, upload=False):
+    def __init__(self, client, run, names=None, per_page=50, upload=False):
         self.run = run
         variables = {
             "project": run.project,
             "entity": run.entity,
             "name": run.id,
-            "fileNames": names,
+            "fileNames": names or [],
             "upload": upload,
         }
         super().__init__(client, variables, per_page)
@@ -3870,9 +3894,13 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            delta = relativedelta(datetime.datetime.now() - start_time)
+            now = datetime.datetime.now()
+            delta = abs((now - start_time).total_seconds())
+            hours = int(delta // 3600)
+            minutes = int((delta - hours * 3600) // 60)
+            seconds = delta - hours * 3600 - minutes * 60
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
+                f"Done. {hours}:{minutes}:{seconds:.1f}",
                 prefix=False,
             )
         return dirpath
@@ -4275,7 +4303,7 @@ class ArtifactVersions(Paginator):
         project,
         collection_name,
         type,
-        filters={},
+        filters=None,
         order=None,
         per_page=50,
     ):
@@ -4283,7 +4311,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         variables = {
             "project": self.project,
