@@ -1,3 +1,4 @@
+from typing import IO, TYPE_CHECKING, Any, Iterable, Mapping, Optional, Union
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -34,6 +35,23 @@ from ..lib.git import GitRepo
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
+
+    from .progress import ProgressFn
+
+    class CreateArtifactFileSpecInput(TypedDict):
+        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
+
+        artifactID: str
+        name: str
+        md5: str
+        mimetype: Optional[str]
+        artifactManifestID: Optional[str]
 
 
 class Api:
@@ -956,7 +974,11 @@ class Api:
             for q in queues_found
             if q["name"] == queue_name
             # ensure user has access to queue
-            and (q["access"] == "PROJECT" or q["createdBy"] == self.default_entity)
+            and (
+                # TODO: User created queues in the UI have USER access
+                q["access"] in ["PROJECT", "USER"]
+                or q["createdBy"] == self.default_entity
+            )
         ]
         if not matching_queues:
             # in the case of a missing default queue. create it
@@ -1636,13 +1658,19 @@ class Api:
             else:
                 raise requests.exceptions.ConnectionError(e.message)
 
-    def upload_file(self, url, file, callback=None, extra_headers={}):
+    def upload_file(
+        self,
+        url: str,
+        file: IO[bytes],
+        callback: Optional["ProgressFn"] = None,
+        extra_headers: Mapping[str, Union[str, bytes]] = {},
+    ) -> requests.Response:
         """Uploads a file to W&B with failure resumption
 
         Arguments:
-            url (str): The url to download
-            file (str): The path to the file you want to upload
-            callback (func, optional): A callback which is passed the number of
+            url: The url to download
+            file: The path to the file you want to upload
+            callback: A callback which is passed the number of
             bytes uploaded since the last time it was called, used to report progress
 
         Returns:
@@ -1838,6 +1866,7 @@ class Api:
         self,
         config,
         controller=None,
+        launch_scheduler=None,
         scheduler=None,
         obj_id=None,
         project=None,
@@ -1891,6 +1920,17 @@ class Api:
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
 
+        # launchScheduler was introduced in core v0.14.0
+        mutation_4 = gql(
+            mutation_str.replace(
+                "$controller: JSONString,",
+                "$controller: JSONString,$launchScheduler: JSONString,",
+            ).replace(
+                "controller: $controller,",
+                "controller: $controller,launchScheduler: $launchScheduler,",
+            )
+        )
+
         # mutation 3 maps to backend that can support CLI version of at least 0.10.31
         mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
         mutation_2 = gql(
@@ -1918,7 +1958,7 @@ class Api:
             raise UsageError(body["errors"][0]["message"])
 
         # TODO(dag): replace this with a query for protocol versioning
-        mutations = [mutation_3, mutation_2, mutation_1]
+        mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
 
         config = self._validate_config_and_fill_distribution(config)
 
@@ -1933,6 +1973,7 @@ class Api:
                         "entityName": entity or self.settings("entity"),
                         "projectName": project or self.settings("project"),
                         "controller": controller,
+                        "launchScheduler": launch_scheduler,
                         "scheduler": scheduler,
                     },
                     check_retry_fn=no_retry_4xx,
@@ -2430,7 +2471,13 @@ class Api:
         }
         """
         )
-        response = self.gql(mutation, variable_values={"artifactID": artifact_id})
+
+        response = self.gql(
+            mutation,
+            variable_values={"artifactID": artifact_id},
+            check_retry_fn=util.check_retry_commit_artifact,
+            retry_timedelta=datetime.timedelta(minutes=2),
+        )
         return response
 
     def create_artifact_manifest(
@@ -2597,7 +2644,9 @@ class Api:
         return server_id
 
     @normalize_exceptions
-    def create_artifact_files(self, artifact_files):
+    def create_artifact_files(
+        self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
+    ) -> Mapping[str, Mapping[str, Any]]:
         mutation = gql(
             """
         mutation CreateArtifactFiles(
