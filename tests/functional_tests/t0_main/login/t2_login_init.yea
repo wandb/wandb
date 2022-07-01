@@ -4,8 +4,6 @@ plugin:
 tag:
   skips:
     - platform: win
-command:
-    program: 02-login-init.py
 assert:
   - :wandb:runs_len: 1
   - :yea:exit: 0

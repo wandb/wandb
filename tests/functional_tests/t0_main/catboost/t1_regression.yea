@@ -4,8 +4,6 @@ plugin:
 tag:
   skips:
     - platform: win
-command:
-    program: 01-regression.py
 depend:
     requirements:
         - catboost>=0.26

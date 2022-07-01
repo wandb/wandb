@@ -6,7 +6,5 @@ tag:
 depend:
   requirements:
     - pytest
-command:
-    program: 03-login-cloud-local-key.py
 assert:
   - :yea:exit: 0

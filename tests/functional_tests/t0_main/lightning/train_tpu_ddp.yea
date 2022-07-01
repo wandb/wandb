@@ -5,7 +5,7 @@ tag:
   shard: service
   skip: true
 command:
-  program: train-tpu-ddp.py
+  program: train_tpu_ddp.py
 depend:
   requirements:
     - torch
