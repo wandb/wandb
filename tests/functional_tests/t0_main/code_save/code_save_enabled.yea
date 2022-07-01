@@ -8,7 +8,7 @@ assert:
   - :wandb:runs[0][config]: {}
   - :wandb:runs[0][summary]: {}
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:runs[0][config_wandb][code_path]: code/tests/functional_tests/code-save/code-save.py
+  - :wandb:runs[0][config_wandb][code_path]: code/tests/functional_tests/t0_main/code_save/code_save.py
   - :op:contains:
     - :wandb:runs[0][files]
     - code/tests/functional_tests/t0_main/code_save/code_save.py
