@@ -415,6 +415,7 @@ def monitor(
         model.wandb_monitor.enable()
         # manually flush captured predictions
         model.wandb_monitor.flush()
+        ```
 
     Raises:
         AttributeError - If numpy isn't available or the decorated class doesn't have a
