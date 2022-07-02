@@ -1703,3 +1703,10 @@ def ensure_text(
         return string
     else:
         raise TypeError(f"not expecting type '{type(string)}'")
+
+
+def dict_factory() -> Callable[[], dict]:
+    def helper() -> dict:
+        return {}
+
+    return helper

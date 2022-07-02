@@ -8,6 +8,7 @@ from typing import (
     List,
     Mapping,
     MutableMapping,
+    Sequence,
     Tuple,
     TypeVar,
     Optional,
@@ -70,10 +71,12 @@ if TYPE_CHECKING:
     class DefaultSettings(TypedDict):
         section: str
         git_remote: str
-        ignore_globs: List[str]
-        base_url: str
+        ignore_globs: Optional[List[str]]
+        base_url: Optional[str]
         root_dir: Optional[str]
         api_key: Optional[str]
+        entity: Optional[str]
+        project: Optional[str]
 
     _Response = TypeVar("_Response", bound=MutableMapping)
     _ArtifactVersion = TypeVar("_ArtifactVersion", bound=MutableMapping)
@@ -101,7 +104,12 @@ class Api:
     def __init__(
         self,
         default_settings: Optional[
-            Union[wandb.sdk.wandb_settings.Settings, Settings, dict]
+            Union[
+                "wandb.sdk.wandb_settings.Settings",
+                "wandb.sdk.internal.settings_static.SettingsStatic",
+                Settings,
+                dict,
+            ]
         ] = None,
         load_settings: bool = True,
         retry_timedelta: datetime.timedelta = datetime.timedelta(days=7),
@@ -116,6 +124,8 @@ class Api:
             "base_url": "https://api.wandb.ai",
             "root_dir": None,
             "api_key": None,
+            "entity": None,
+            "project": None,
         }
         self.retry_timedelta = retry_timedelta
         # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
@@ -242,7 +252,7 @@ class Api:
 
     @property
     def api_url(self) -> str:
-        return self.settings("base_url")
+        return self.settings("base_url")  # type: ignore
 
     @property
     def app_url(self) -> str:
@@ -250,7 +260,7 @@ class Api:
 
     @property
     def default_entity(self) -> str:
-        return self.viewer().get("entity")
+        return self.viewer().get("entity")  # type: ignore
 
     def settings(self, key: Optional[str] = None, section: Optional[str] = None) -> Any:
         """The settings overridden from the wandb/settings file.
@@ -270,7 +280,7 @@ class Api:
                 }
         """
         result = self.default_settings.copy()
-        result.update(self._settings.items(section=section))
+        result.update(self._settings.items(section=section))  # type: ignore
         result.update(
             {
                 "entity": env.get_entity(
@@ -308,14 +318,18 @@ class Api:
             }
         )
 
-        return result if key is None else result[key]
+        return result if key is None else result[key]  # type: ignore
 
-    def clear_setting(self, key, globally=False, persist=False) -> None:
+    def clear_setting(
+        self, key: str, globally: bool = False, persist: bool = False
+    ) -> None:
         self._settings.clear(
             Settings.DEFAULT_SECTION, key, globally=globally, persist=persist
         )
 
-    def set_setting(self, key, value, globally=False, persist=False) -> None:
+    def set_setting(
+        self, key: str, value: Any, globally: bool = False, persist: bool = False
+    ) -> None:
         self._settings.set(
             Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
         )
@@ -843,7 +857,9 @@ class Api:
         return commit, config, patch, metadata
 
     @normalize_exceptions
-    def run_resume_status(self, entity: str, project_name: str, name: str) -> str:
+    def run_resume_status(
+        self, entity: str, project_name: str, name: str
+    ) -> Dict[str, Any]:
         """Check if a run exists and get resume information.
 
         Arguments:
@@ -1008,7 +1024,9 @@ class Api:
         return res["project"]["runQueues"]
 
     @normalize_exceptions
-    def create_run_queue(self, entity, project, queue_name, access):
+    def create_run_queue(
+        self, entity: str, project: str, queue_name: str, access: str
+    ) -> Optional[Dict[str, Any]]:
         query = gql(
             """
         mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
@@ -1246,7 +1264,7 @@ class Api:
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
     @normalize_exceptions
-    def get_launch_agent(self, agent_id, gorilla_agent_support):
+    def get_launch_agent(self, agent_id: str, gorilla_agent_support: bool) -> dict:
         if not gorilla_agent_support:
             return {
                 "id": None,
@@ -1303,15 +1321,21 @@ class Api:
             name (str, optional): The name of the run to create
             group (str, optional): Name of the group this run is a part of
             project (str, optional): The name of the project
+            host (str, optional): The name of the host
+            tags (list, optional): A list of tags to apply to the run
             config (dict, optional): The latest config params
             description (str, optional): A description of this project
             entity (str, optional): The entity to scope this project to.
+            display_name (str, optional): The display name of this project
+            notes (str, optional): Notes about this run
             repo (str, optional): Url of the program's repository.
             state (str, optional): State of the program.
             job_type (str, optional): Type of job, e.g 'train'.
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
+            sweep_name (str, optional): The name of the sweep this run is a part of
             summary_metrics (str, optional): The JSON summary metrics
+            num_retries (int, optional): Number of retries
         """
         mutation = gql(
             """
@@ -1492,7 +1516,14 @@ class Api:
         return res["project"]["run"]["state"]
 
     @normalize_exceptions
-    def upload_urls(self, project, files, run=None, entity=None, description=None):
+    def upload_urls(
+        self,
+        project: str,
+        files: Union[List[str], Dict[str, str]],
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, List[str], Dict[str, Dict[str, str]]]:
         """Generate temporary resumable upload urls
 
         Arguments:
@@ -1500,6 +1531,7 @@ class Api:
             files (list or dict): The filenames to upload
             run (str, optional): The run to upload to
             entity (str, optional): The entity to scope this project to.  Defaults to wandb models
+            description (str, optional): description
 
         Returns:
             (bucket_id, file_info)
@@ -1697,7 +1729,7 @@ class Api:
         return path, response
 
     def upload_file_azure(self, url, file, extra_headers):
-        from azure.core.exceptions import AzureError
+        from azure.core.exceptions import AzureError  # type: ignore
 
         # Configure the client without retries so our existing logic can handle them
         client = self._azure_blob_module.BlobClient.from_blob_url(
@@ -1734,7 +1766,7 @@ class Api:
         url: str,
         file: IO[bytes],
         callback: Optional["ProgressFn"] = None,
-        extra_headers: Mapping[str, Union[str, bytes]] = {},
+        extra_headers: Mapping[str, Union[str, bytes]] = util.dict_factory(),
     ) -> requests.Response:
         """Uploads a file to W&B with failure resumption
 
@@ -1743,6 +1775,7 @@ class Api:
             file: The path to the file you want to upload
             callback: A callback which is passed the number of
             bytes uploaded since the last time it was called, used to report progress
+            extra_headers: A dictionary of extra headers to send with the request
 
         Returns:
             The `requests` library response object
@@ -2089,12 +2122,15 @@ class Api:
         response = self.gql(mutation, variable_values={})
         return response["createAnonymousEntity"]["apiKey"]["name"]
 
-    def file_current(self, fname, md5):
+    @staticmethod
+    def file_current(fname: str, md5: str) -> bool:
         """Checksum a file and compare the md5 with the known md5"""
         return os.path.isfile(fname) and util.md5_file(fname) == md5
 
     @normalize_exceptions
-    def pull(self, project, run=None, entity=None):
+    def pull(
+        self, project: str, run: Optional[str] = None, entity: Optional[str] = None
+    ) -> "List[requests.Response]":
         """Download files from W&B
 
         Arguments:
@@ -2215,7 +2251,13 @@ class Api:
         return responses
 
     def link_artifact(
-        self, client_id, server_id, portfolio_name, entity, project, aliases
+        self,
+        client_id: str,
+        server_id: str,
+        portfolio_name: str,
+        entity: str,
+        project: str,
+        aliases: Sequence[str],
     ) -> Dict[str, Any]:
         template = """
                 mutation LinkArtifact(
@@ -2237,7 +2279,7 @@ class Api:
                     }
             """
 
-        def replace(a, b):
+        def replace(a: str, b: str) -> None:
             nonlocal template
             template = template.replace(a, b)
 
@@ -2262,7 +2304,8 @@ class Api:
 
         mutation = gql(template)
         response = self.gql(mutation, variable_values=variable_values)
-        return response["linkArtifact"]
+        link_artifact: Dict[str, Any] = response["linkArtifact"]
+        return link_artifact
 
     def use_artifact(
         self,
@@ -2385,9 +2428,9 @@ class Api:
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
         description: Optional[str] = None,
-        labels: Optional[str] = None,
-        metadata: Optional[str] = None,
-        aliases: List[str] = None,
+        labels: Optional[List[str]] = None,
+        metadata: Optional[Dict] = None,
+        aliases: List[Dict[str, str]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,
@@ -2561,14 +2604,14 @@ class Api:
         self,
         name: str,
         digest: str,
-        artifact_id: str,
+        artifact_id: Optional[str],
         base_artifact_id: Optional[str] = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
         run: Optional[str] = None,
         include_upload: bool = True,
         type: str = "FULL",
-    ) -> Tuple[str, Dict]:
+    ) -> Tuple[str, Dict[str, Any]]:
         mutation = gql(
             """
         mutation CreateArtifactManifest(
@@ -2632,7 +2675,6 @@ class Api:
                 "type": type,
             },
         )
-
         return (
             response["createArtifactManifest"]["artifactManifest"]["id"],
             response["createArtifactManifest"]["artifactManifest"]["file"],
@@ -2644,7 +2686,7 @@ class Api:
         base_artifact_id: Optional[str] = None,
         digest: Optional[str] = None,
         include_upload: Optional[bool] = True,
-    ) -> Tuple[str, Dict]:
+    ) -> Tuple[str, Dict[str, Any]]:
         mutation = gql(
             """
         mutation UpdateArtifactManifest(

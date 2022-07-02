@@ -89,8 +89,8 @@ class Meta:
             logger.warning("unable to save code -- program entry not found")
             return
 
-        root = self._git.root or os.getcwd()
-        program_relative = self._settings.program_relpath
+        root: str = self._git.root or os.getcwd()
+        program_relative: str = self._settings.program_relpath
         util.mkdir_exists_ok(
             os.path.join(
                 self._settings.files_dir, "code", os.path.dirname(program_relative)

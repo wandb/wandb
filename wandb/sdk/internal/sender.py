@@ -489,12 +489,13 @@ class SendManager:
         # TODO: This causes a race, we need to make the upsert atomically
         # only create or update depending on the resume config
         # we use the runs entity if set, otherwise fallback to users entity
+        # todo: ensure entity is not None as self._entity is Optional[str]
         entity = run.entity or self._entity
         logger.info(
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
         resume_status = self._api.run_resume_status(
-            entity=entity, project_name=run.project, name=run.run_id
+            entity=entity, project_name=run.project, name=run.run_id  # type: ignore
         )
 
         if not resume_status:

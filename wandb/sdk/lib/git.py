@@ -2,7 +2,7 @@ import configparser
 import logging
 import os
 from urllib.parse import urlparse, urlunparse
-from typing import Optional
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +45,9 @@ class GitRepo:
         return bool(self.repo)
 
     @property
-    def root(self) -> Optional[str, bool]:
+    def root(self) -> Optional[str]:
         if not self.repo:
-            return False
+            return None
         return self.repo.git.rev_parse("--show-toplevel")
 
     @property

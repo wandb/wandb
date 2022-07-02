@@ -100,7 +100,8 @@ class UploadJob(threading.Thread):
             # This is the new artifact manifest upload flow, in which we create the
             # database entry for the manifest file before creating it. This is used for
             # artifact L0 files. Which now is only artifact_manifest.json
-            response = self._api.create_artifact_manifest(
+            # TODO: FOUND THIS BUG, IS THIS RELEVANT?
+            _, response = self._api.create_artifact_manifest(
                 self.save_name, self.md5, self.artifact_id
             )
             upload_url = response["uploadUrl"]
