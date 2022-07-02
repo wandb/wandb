@@ -835,16 +835,16 @@ class Api:
         for filename in [DIFF_FNAME, METADATA_FNAME]:
             variable_values["pattern"] = filename
             response = self.gql(query, variable_values=variable_values)
-            if response["model"] == None:
+            if response["model"] is None:
                 raise CommError(f"Run {entity}/{project}/{run} not found")
-            run = response["model"]["bucket"]
+            run_obj: Dict = response["model"]["bucket"]
             # we only need to fetch this config once
             if variable_values["includeConfig"]:
-                commit = run["commit"]
-                config = json.loads(run["config"] or "{}")
+                commit = run_obj["commit"]
+                config = json.loads(run_obj["config"] or "{}")
                 variable_values["includeConfig"] = False
-            if run["files"] is not None:
-                for file_edge in run["files"]["edges"]:
+            if run_obj["files"] is not None:
+                for file_edge in run_obj["files"]["edges"]:
                     name = file_edge["node"]["name"]
                     url = file_edge["node"]["directUrl"]
                     res = requests.get(url)
@@ -1766,8 +1766,8 @@ class Api:
         url: str,
         file: IO[bytes],
         callback: Optional["ProgressFn"] = None,
-        extra_headers: Mapping[str, Union[str, bytes]] = util.dict_factory(),
-    ) -> requests.Response:
+        extra_headers: Optional[Dict[str, Union[str, bytes]]] = None,
+    ) -> Optional[requests.Response]:
         """Uploads a file to W&B with failure resumption
 
         Arguments:
@@ -1780,8 +1780,8 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        extra_headers = extra_headers.copy()
-        response = None
+        extra_headers = extra_headers.copy() if extra_headers else {}
+        response: Optional[requests.Response] = None
         progress = Progress(file, callback=callback)
         try:
             if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
