@@ -49,7 +49,7 @@ models_requirements = [
 
 setup(
     name="wandb",
-    version="0.13.0.dev2",
+    version="0.13.0rc5.dev2",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
