@@ -357,6 +357,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
             processors where appropriate.
         log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
             Set to 1 to log every epoch, 2 to log every other epoch, and so on. Has no effect when log_evaluation is False.
+        save_model_frequency: (int) Determines the frequency which model checkpoints will be logged. The models are logged if monitor
+            improves. Default to 1 (every epoch where monitor improves). Set to 5 to log every 5th epoch, and so on.
     """
 
     def __init__(
@@ -386,6 +388,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        save_model_frequency=1,
         **kwargs,
     ):
         if wandb.run is None:
@@ -497,6 +500,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self._infer_missing_processors = infer_missing_processors
         self._log_evaluation_frequency = log_evaluation_frequency
         self._model_trained_since_last_eval = False
+        self._save_model_frequency = save_model_frequency
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -597,10 +601,13 @@ class WandbCallback(tf.keras.callbacks.Callback):
             if self.save_model:
                 self._save_model(epoch)
 
-            if self.save_model_as_artifact:
-                self._save_model_as_artifact(epoch)
-
             self.best = self.current
+
+        if self.save_model_as_artifact and (
+            epoch % self._save_model_frequency == 0
+        ):
+            self._save_model_as_artifact(epoch)
+
 
     # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
