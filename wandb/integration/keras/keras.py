@@ -357,6 +357,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             processors where appropriate.
         log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
             Set to 1 to log every epoch, 2 to log every other epoch, and so on. Has no effect when log_evaluation is False.
+        save_best_only: (bool) Saves the model if the current model is the best so far based on the monitored metric.
         save_model_frequency: (int) Determines the frequency which model checkpoints will be logged. The models are logged if monitor
             improves. Default to 1 (every epoch where monitor improves). Set to 5 to log every 5th epoch, and so on.
     """
@@ -388,6 +389,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        save_best_only=True,
         save_model_frequency=1,
         **kwargs,
     ):
@@ -425,6 +427,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 ),
             )
 
+        self.save_best_only = save_best_only
         self.save_model_as_artifact = False
         self.log_weights = log_weights
         self.log_gradients = log_gradients
@@ -478,16 +481,20 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if mode == "min":
             self.monitor_op = operator.lt
             self.best = float("inf")
+            self._art_best = float("inf")
         elif mode == "max":
             self.monitor_op = operator.gt
             self.best = float("-inf")
+            self._art_best = float("-inf")
         else:
             if "acc" in self.monitor or self.monitor.startswith("fmeasure"):
                 self.monitor_op = operator.gt
                 self.best = float("-inf")
+                self._art_best = float("-inf")
             else:
                 self.monitor_op = operator.lt
                 self.best = float("inf")
+                self._art_best = float("inf")
         # Get the previous best metric for resumed runs
         previous_best = wandb.run.summary.get(f"{self.log_best_prefix}{self.monitor}")
         if previous_best is not None:
@@ -500,7 +507,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self._infer_missing_processors = infer_missing_processors
         self._log_evaluation_frequency = log_evaluation_frequency
         self._model_trained_since_last_eval = False
-        self._save_model_frequency = save_model_frequency
+        self.save_model_frequency = save_model_frequency
+        self._epochs_since_last_save = 0
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -603,11 +611,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
             self.best = self.current
 
-        if self.save_model_as_artifact and (
-            epoch % self._save_model_frequency == 0
-        ):
-            self._save_model_as_artifact(epoch)
-
+        if self.save_model_as_artifact:
+            self._epochs_since_last_save += 1
+            self._save_model_as_artifact(epoch, logs)
 
     # This is what keras used pre tensorflow.keras
     def on_batch_begin(self, batch, logs=None):
@@ -991,19 +997,44 @@ class WandbCallback(tf.keras.callbacks.Callback):
             self.save_model = False
             self.save_model_as_artifact = True
 
-    def _save_model_as_artifact(self, epoch):
+    def _save_model_as_artifact(self, epoch, logs):
         if wandb.run.disabled:
             return
 
-        # Save the model in the SavedModel format.
-        # TODO: Replace this manual artifact creation with the `log_model` method
-        # after `log_model` is released from beta.
-        self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
+        try:
+            if self.save_best_only:
+                current = logs.get(self.monitor)
+                if current is None:
+                    wandb.termwarn(
+                        f"Can save best model only with {self.monitor}"
+                        "available, skipping.")
+                else:
+                    if self.monitor_op(current, self._art_best):
+                        # TODO: Replace this manual artifact creation with the `log_model` method
+                        # after `log_model` is released from beta.
+                        aliases = ["latest", f"epoch_{epoch}", "best"]
+                        self._save_model_and_log_to_artifact(aliases)
+                        self._art_best = current
+            else:
+                if self._epochs_since_last_save >= self.save_model_frequency:
+                    self._epochs_since_last_save = 0
+                    aliases = ["latest", f"epoch_{epoch}"]
+                    self._save_model_and_log_to_artifact(aliases)
+        except Exception as e:
+            print(e)
+
+    def _save_model_and_log_to_artifact(self, aliases):
+        # Save the model
+        if self.save_weights_only:
+            self.model.save_weights(self.filepath[:-3], overwrite=True)
+        else:
+            self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
         # Log the model as artifact.
         model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
         model_artifact.add_dir(self.filepath[:-3])
-        wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
+        wandb.run.log_artifact(model_artifact, aliases=aliases)
 
         # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
         shutil.rmtree(self.filepath[:-3])
+        

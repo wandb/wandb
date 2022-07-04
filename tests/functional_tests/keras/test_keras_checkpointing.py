@@ -46,15 +46,5 @@ model.fit(
     y,
     epochs=config.epochs,
     validation_data=(x, y),
-    callbacks=[WandbCallback(save_model=True, save_model_frequency=config.save_model_frequency)],
+    callbacks=[WandbCallback(save_model=True, save_best_only=False, save_model_frequency=config.save_model_frequency)],
 )
-
-# Finishing the run to upload the artifact.
-# This is needed to test if the SavedModel model was logged.
-run.finish()
-
-api = wandb.Api()
-
-for i in range(config.epochs//config.save_model_frequency):
-    artifact = api.artifact(f"{run.project}/model-{run.name}:v{i}")
-    download_dir = artifact.download()
