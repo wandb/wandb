@@ -294,9 +294,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             `min` - save model when monitor is minimized
             `max` - save model when monitor is maximized
             `auto` - try to guess when to save the model (default).
-        save_model:
-            True - save a model when monitor beats all previous epochs
-            False - don't save models
+        save_model: (bool) If True, the model is saved either in HDF5 or SavedModel format.
         save_graph: (boolean) if True save model graph to wandb (default to True).
         save_weights_only: (boolean) if True, then only the model's weights will be
             saved (`model.save_weights(filepath)`), else the full model
@@ -357,9 +355,10 @@ class WandbCallback(tf.keras.callbacks.Callback):
             processors where appropriate.
         log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
             Set to 1 to log every epoch, 2 to log every other epoch, and so on. Has no effect when log_evaluation is False.
-        save_best_only: (bool) Saves the model if the current model is the best so far based on the monitored metric.
-        save_model_frequency: (int) Determines the frequency which model checkpoints will be logged. The models are logged if monitor
-            improves. Default to 1 (every epoch where monitor improves). Set to 5 to log every 5th epoch, and so on.
+        save_best_only: (bool) If `save_best_only=True`, save a model when monitor beats all previous epochs. This takes precedence over `save_model_frequency`.
+        save_model_frequency: (int) Saves the model in `SavedModel` format at interval determined by this argument.
+            Default to 0 (in favor of `save_best_only`). Do `save_best_only=False` and set to 1 to log every epoch, 5 to log every
+            5th epoch and so on.
     """
 
     def __init__(
@@ -390,7 +389,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         infer_missing_processors=True,
         log_evaluation_frequency=0,
         save_best_only=True,
-        save_model_frequency=1,
+        save_model_frequency=0,
         **kwargs,
     ):
         if wandb.run is None:
@@ -508,6 +507,13 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self._log_evaluation_frequency = log_evaluation_frequency
         self._model_trained_since_last_eval = False
         self.save_model_frequency = save_model_frequency
+        if self.save_model_frequency > 0 and self.save_best_only:
+            self.save_model_frequency = 0
+            wandb.termwarn(
+                "If you are trying to `save_best_only` model as W&B Artifacts, "
+                "the `save_model_frequency` will be 0 (default)."
+            )
+
         self._epochs_since_last_save = 0
 
     def _build_grad_accumulator_model(self):
@@ -1016,19 +1022,20 @@ class WandbCallback(tf.keras.callbacks.Callback):
                         self._save_model_and_log_to_artifact(aliases)
                         self._art_best = current
             else:
-                if self._epochs_since_last_save >= self.save_model_frequency:
+                if self.save_model_frequency > 0 and (
+                    self._epochs_since_last_save >= self.save_model_frequency):
                     self._epochs_since_last_save = 0
                     aliases = ["latest", f"epoch_{epoch}"]
                     self._save_model_and_log_to_artifact(aliases)
         except Exception as e:
-            print(e)
+            self.save_model_as_artifact = False
+            wandb.termerror(
+                f"The model in SavedModel format cannot be saved as W&B Artifacts: {e}"
+            )
 
     def _save_model_and_log_to_artifact(self, aliases):
         # Save the model
-        if self.save_weights_only:
-            self.model.save_weights(self.filepath[:-3], overwrite=True)
-        else:
-            self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
+        self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
         # Log the model as artifact.
         model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
@@ -1037,4 +1044,3 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
         shutil.rmtree(self.filepath[:-3])
-        
