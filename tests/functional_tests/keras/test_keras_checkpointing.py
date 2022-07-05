@@ -1,8 +1,10 @@
 import os
 
 import numpy as np
+
 np.random.seed(0)
 import tensorflow as tf
+
 tf.random.set_seed(0)
 
 import wandb
@@ -13,7 +15,8 @@ class config:
     epochs = 10
     save_model_frequency = 5
 
-config_dict = {k:v for k, v in vars(config).items() if '__' not in k}
+
+config_dict = {k: v for k, v in vars(config).items() if "__" not in k}
 
 x = np.random.randint(255, size=(100, 28, 28, 1)).astype(np.float32)
 y = np.random.randint(10, size=(100,)).astype(np.float32)
@@ -47,5 +50,11 @@ model.fit(
     y,
     epochs=config.epochs,
     validation_data=(x, y),
-    callbacks=[WandbCallback(save_model=True, save_best_only=True, save_model_frequency=config.save_model_frequency)],
+    callbacks=[
+        WandbCallback(
+            save_model=True,
+            save_best_only=True,
+            save_model_frequency=config.save_model_frequency,
+        )
+    ],
 )

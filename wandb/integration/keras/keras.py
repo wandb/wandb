@@ -1013,7 +1013,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 if current is None:
                     wandb.termwarn(
                         f"Can save best model only with {self.monitor}"
-                        "available, skipping.")
+                        "available, skipping."
+                    )
                 else:
                     if self.monitor_op(current, self._art_best):
                         # TODO: Replace this manual artifact creation with the `log_model` method
@@ -1023,7 +1024,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
                         self._art_best = current
             else:
                 if self.save_model_frequency > 0 and (
-                    self._epochs_since_last_save >= self.save_model_frequency):
+                    self._epochs_since_last_save >= self.save_model_frequency
+                ):
                     self._epochs_since_last_save = 0
                     aliases = ["latest", f"epoch_{epoch}"]
                     self._save_model_and_log_to_artifact(aliases)
