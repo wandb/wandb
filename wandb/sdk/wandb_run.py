@@ -2030,7 +2030,10 @@ class Run:
                 input_types, output_types, installed_packages_list
             )
             if artifact:
+                artifact.wait()
+                print(artifact.name)
                 break
+
             else:
                 logger.info(
                     f"Failed to create job using {job_creation_function.__name__}"
