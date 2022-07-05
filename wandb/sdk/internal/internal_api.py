@@ -53,9 +53,9 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
-        from typing import Literal, TypedDict
+        from typing import Literal, Protocol, TypedDict
     else:
-        from typing_extensions import Literal, TypedDict
+        from typing_extensions import Literal, Protocol, TypedDict
 
     from .progress import ProgressFn
 
@@ -82,6 +82,10 @@ if TYPE_CHECKING:
     _ArtifactVersion = TypeVar("_ArtifactVersion", bound=MutableMapping)
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
+
+    class _MappingSupportsCopy(Mapping, Protocol):
+        def copy(self) -> "_MappingSupportsCopy":
+            ...
 
 
 class Api:
@@ -1766,7 +1770,7 @@ class Api:
         url: str,
         file: IO[bytes],
         callback: Optional["ProgressFn"] = None,
-        extra_headers: Optional[Dict[str, Union[str, bytes]]] = None,
+        extra_headers: Optional[_MappingSupportsCopy[str, Union[str, bytes]]] = None,
     ) -> Optional[requests.Response]:
         """Uploads a file to W&B with failure resumption
 
@@ -2151,7 +2155,7 @@ class Api:
 
         return responses
 
-    def get_project(self):
+    def get_project(self) -> str:
         return self.settings("project")
 
     @normalize_exceptions
@@ -2164,7 +2168,7 @@ class Api:
         description=None,
         force=True,
         progress=False,
-    ):
+    ) -> "List[requests.Response]":
         """Uploads multiple files to W&B
 
         Arguments:
@@ -2178,7 +2182,7 @@ class Api:
                 total_bytes) as argument else if True, renders a progress bar to stream.
 
         Returns:
-            The `requests` library response object
+            A list of `requests.Response` objects
         """
         if project is None:
             project = self.get_project()
@@ -2230,7 +2234,7 @@ class Api:
                     with click.progressbar(
                         file=progress,
                         length=length,
-                        label="Uploading file: %s" % (file_name),
+                        label=f"Uploading file: {file_name}",
                         fill_char=click.style("&", fg="green"),
                     ) as bar:
                         responses.append(
