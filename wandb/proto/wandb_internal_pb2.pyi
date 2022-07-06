@@ -29,6 +29,7 @@ class Record(google.protobuf.message.Message):
     ALERT_FIELD_NUMBER: builtins.int
     TELEMETRY_FIELD_NUMBER: builtins.int
     METRIC_FIELD_NUMBER: builtins.int
+    OUTPUT_RAW_FIELD_NUMBER: builtins.int
     RUN_FIELD_NUMBER: builtins.int
     EXIT_FIELD_NUMBER: builtins.int
     FINAL_FIELD_NUMBER: builtins.int
@@ -77,6 +78,9 @@ class Record(google.protobuf.message.Message):
     def metric(self) -> global___MetricRecord: ...
 
     @property
+    def output_raw(self) -> global___OutputRawRecord: ...
+
+    @property
     def run(self) -> global___RunRecord: ...
 
     @property
@@ -120,6 +124,7 @@ class Record(google.protobuf.message.Message):
         alert : typing.Optional[global___AlertRecord] = ...,
         telemetry : typing.Optional[wandb.proto.wandb_telemetry_pb2.TelemetryRecord] = ...,
         metric : typing.Optional[global___MetricRecord] = ...,
+        output_raw : typing.Optional[global___OutputRawRecord] = ...,
         run : typing.Optional[global___RunRecord] = ...,
         exit : typing.Optional[global___RunExitRecord] = ...,
         final : typing.Optional[global___FinalRecord] = ...,
@@ -132,9 +137,9 @@ class Record(google.protobuf.message.Message):
         uuid : typing.Text = ...,
         _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","run","exit","final","header","footer","preempting","link_artifact","request"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","output_raw","run","exit","final","header","footer","preempting","link_artifact","request"]: ...
 global___Record = Record
 
 class Control(google.protobuf.message.Message):
@@ -599,6 +604,48 @@ class OutputResult(google.protobuf.message.Message):
     def __init__(self,
         ) -> None: ...
 global___OutputResult = OutputResult
+
+class OutputRawRecord(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    class _OutputType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputType.V], builtins.type):
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
+        STDERR = OutputRawRecord.OutputType.V(0)
+        STDOUT = OutputRawRecord.OutputType.V(1)
+    class OutputType(metaclass=_OutputType):
+        V = typing.NewType('V', builtins.int)
+    STDERR = OutputRawRecord.OutputType.V(0)
+    STDOUT = OutputRawRecord.OutputType.V(1)
+
+    OUTPUT_TYPE_FIELD_NUMBER: builtins.int
+    TIMESTAMP_FIELD_NUMBER: builtins.int
+    LINE_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    output_type: global___OutputRawRecord.OutputType.V = ...
+    line: typing.Text = ...
+
+    @property
+    def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
+    def __init__(self,
+        *,
+        output_type : global___OutputRawRecord.OutputType.V = ...,
+        timestamp : typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
+        line : typing.Text = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"timestamp",b"timestamp"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"line",b"line",u"output_type",b"output_type",u"timestamp",b"timestamp"]) -> None: ...
+global___OutputRawRecord = OutputRawRecord
+
+class OutputRawResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___OutputRawResult = OutputRawResult
 
 class MetricRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

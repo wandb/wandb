@@ -36,6 +36,7 @@ message Record {
     AlertRecord     alert = 10;
     TelemetryRecord telemetry = 11;
     MetricRecord    metric = 12;
+    OutputRawRecord output_raw = 13;
     // Higher numbers for less frequent data
     RunRecord       run = 17;
     RunExitRecord   exit = 18;
@@ -220,6 +221,23 @@ message OutputRecord {
 }
 
 message OutputResult {
+}
+
+/*
+ * OutputRawRecord: raw console output
+ */
+message OutputRawRecord {
+  enum OutputType {
+    STDERR = 0;
+    STDOUT = 1;
+  }
+  OutputType                output_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string                    line = 3;
+  _RecordInfo               _info = 200;
+}
+
+message OutputRawResult {
 }
 
 /*
