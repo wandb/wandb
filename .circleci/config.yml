@@ -335,7 +335,7 @@ jobs:
         type: integer
         default: 3
     macos:
-      xcode: 13.4.1
+      xcode: 12.5.1
     resource_class: large
     parallelism: << parameters.parallelism >>
     steps:
