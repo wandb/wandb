@@ -334,7 +334,7 @@ jobs:
         type: integer
         default: 3
     macos:
-      xcode: 11.4.1
+      xcode: 13.4.1
     resource_class: large
     parallelism: << parameters.parallelism >>
     steps:
@@ -1003,8 +1003,8 @@ workflows:
           name: "unit-s_base-win-py37"
           toxenv: "py37,wincovercircle -- --timeout 300"
       - mac:
-          name: "unit-s_base-mac-py37"
-          toxenv: "py37"
+          name: "unit-s_base-mac-py39"
+          toxenv: "py39"
       #
       # launch tests
       #
@@ -1025,8 +1025,8 @@ workflows:
           parallelism: 1
           xdist: 1
       - mac:
-          name: "unit-s_nb-mac-py37"
-          toxenv: "unit-s_nb-py37"
+          name: "unit-s_nb-mac-py39"
+          toxenv: "unit-s_nb-py39"
           parallelism: 1
           xdist: 1
       # s_kfp: kubeflow pipeline tests
@@ -1040,8 +1040,8 @@ workflows:
           parallelism: 1
           xdist: 1
       - mac:
-          name: "unit-s_kfp-mac-py37"
-          toxenv: "unit-s_kfp-py37"
+          name: "unit-s_kfp-mac-py39"
+          toxenv: "unit-s_kfp-py39"
           parallelism: 1
           xdist: 1
 
