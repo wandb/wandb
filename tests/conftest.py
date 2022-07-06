@@ -275,6 +275,7 @@ def reset_setup():
 
     getattr(wandb, "teardown", teardown)()
     yield
+    getattr(wandb, "teardown", lambda: None)()
 
 
 @pytest.fixture(autouse=True)
