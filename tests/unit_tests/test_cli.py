@@ -632,7 +632,7 @@ def test_docker_digest(runner, docker):
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_default(runner, docker, local_settings):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.local)
+        result = runner.invoke(cli.server, ["start"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         user = getpass.getuser()
@@ -657,7 +657,7 @@ def test_local_default(runner, docker, local_settings):
 
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_port(runner, docker, local_settings):
-    result = runner.invoke(cli.local, ["-p", "3030"])
+    result = runner.invoke(cli.server, ["start", "-p", "3030"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
@@ -682,7 +682,7 @@ def test_local_custom_port(runner, docker, local_settings):
 
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_env(runner, docker, local_settings):
-    result = runner.invoke(cli.local, ["-e", b"FOO=bar"])
+    result = runner.invoke(cli.server, ["start", "-e", b"FOO=bar"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
@@ -708,7 +708,7 @@ def test_local_custom_env(runner, docker, local_settings):
 
 
 def test_local_already_running(runner, docker, local_settings):
-    result = runner.invoke(cli.local)
+    result = runner.invoke(cli.server, ["start"])
     print(result.output)
     print(traceback.print_tb(result.exc_info[2]))
     assert "A container named wandb-local is already running" in result.output
@@ -858,6 +858,18 @@ def test_sweep_pause(runner, mock_server, test_settings, stop_method):
             assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
 
 
+def test_sweep_scheduler(runner, mock_server, test_settings):
+    with runner.isolated_filesystem():
+        sweep_config = {
+            "name": "My Sweep",
+            "method": "grid",
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+        sweep_id = wandb.sweep(sweep_config)
+        assert sweep_id == "test"
+        assert runner.invoke(cli.sweep, ["--queue", "default", sweep_id]).exit_code == 0
+
+
 def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):
@@ -991,13 +1003,13 @@ def test_cli_login_reprompts_when_no_key_specified(
     mocker, runner, empty_netrc, local_netrc
 ):
     with runner.isolated_filesystem():
-        mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", input)
+        mocker.patch("wandb.wandb_lib.apikey.getpass", input)
         # this first gives login an empty API key, which should cause
-        # it to reprompt.  this is what we are testing.  we then give
+        # it to re-prompt.  this is what we are testing.  we then give
         # it a valid API key (the dummy API key with a different final
         # letter to check that our monkeypatch input is working as
         # expected) to terminate the prompt finally we grep for the
-        # Error: No API key specified to assert that the reprompt
+        # Error: No API key specified to assert that the re-prompt
         # happened
         result = runner.invoke(cli.login, input=f"\n{DUMMY_API_KEY[:-1]}q\n")
         debug_result(result, "login")
