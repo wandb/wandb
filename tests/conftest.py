@@ -264,15 +264,18 @@ def runner(monkeypatch, mocker):
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
-    mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
+    mocker.patch("wandb.wandb_lib.apikey.getpass", lambda x: DUMMY_API_KEY)
     return CliRunner()
 
 
 @pytest.fixture(autouse=True)
 def reset_setup():
-    wandb.teardown()
+    def teardown():
+        wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+
+    getattr(wandb, "teardown", teardown)()
     yield
-    wandb.teardown()
+    getattr(wandb, "teardown", lambda: None)()
 
 
 @pytest.fixture(autouse=True)

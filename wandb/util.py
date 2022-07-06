@@ -890,7 +890,11 @@ def no_retry_auth(e: Any) -> bool:
 def check_retry_commit_artifact(e: Any) -> bool:
     if hasattr(e, "exception"):
         e = e.exception
-    if isinstance(e, requests.HTTPError) and e.response.status_code == 409:
+    if (
+        isinstance(e, requests.HTTPError)
+        and e.response is not None
+        and e.response.status_code == 409
+    ):
         return True
     return no_retry_auth(e)
 

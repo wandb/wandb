@@ -42,10 +42,14 @@ launch_requirements = [
     "kubernetes",
 ]
 
+models_requirements = [
+    "cloudpickle"
+]
+
 
 setup(
     name="wandb",
-    version="0.13.0rc5.dev1",
+    version="0.13.0rc5.dev2",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -95,6 +99,7 @@ setup(
         "media": media_requirements,
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
+        "models": models_requirements,
     },
 )
 
