@@ -273,7 +273,7 @@ class AuthConfig(dict):
 
     def resolve_authconfig(
         self, registry: Optional[str] = None
-    ) -> Optional[Union[Dict[str, Any]]]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Returns the authentication data from the given auth configuration for a
         specific registry. As with the Docker client, legacy entries in the
