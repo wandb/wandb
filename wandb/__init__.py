@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.13.0rc4.dev1"
+__version__ = "0.13.0rc5.dev2"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -192,8 +192,6 @@ if wandb_sdk.lib.ipython.in_jupyter():
     from IPython import get_ipython
 
     load_ipython_extension(get_ipython())
-
-wandb.require("service")
 
 
 __all__ = [

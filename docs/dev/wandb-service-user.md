@@ -62,7 +62,7 @@ That's it... no need to add any further code...
 
 ## FAQs
 
-### If your scrip is stuck in a restart loop
+### If your script is stuck in a restart loop
 
 Please try adding:
 
