@@ -1,8 +1,9 @@
 import configparser
 import logging
 import os
+from typing import Optional
 from urllib.parse import urlparse, urlunparse
-from typing import Optional, Union
+
 
 logger = logging.getLogger(__name__)
 
