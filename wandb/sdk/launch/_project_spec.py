@@ -57,6 +57,7 @@ class LaunchProject:
         resource: str,
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
+        run_id: Optional[str],
     ):
         if uri is not None and job is not None:
             raise LaunchError("Cannot specify both uri and job")
@@ -91,7 +92,7 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self.cuda = cuda
         self._runtime: Optional[str] = None
-        self.run_id = generate_id()
+        self.run_id = run_id or generate_id()
         self._image_tag: str = self._initialize_image_job_tag() or self.run_id
         self._entry_points: Dict[
             str, EntryPoint
@@ -436,6 +437,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource", "local"),
         launch_spec.get("resource_args", {}),
         launch_spec.get("cuda", None),
+        launch_spec.get("run_id", None),
     )
 
 

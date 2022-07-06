@@ -96,6 +96,12 @@ class LaunchError(Error):
     pass
 
 
+class SweepError(Error):
+    """Raised when a known error occurs with wandb sweeps"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
@@ -107,4 +113,5 @@ __all__ = [
     "RequireError",
     "ExecutionError",
     "LaunchError",
+    "SweepError",
 ]

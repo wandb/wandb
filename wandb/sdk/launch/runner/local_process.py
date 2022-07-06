@@ -10,7 +10,11 @@ from .local_container import _run_entry_point
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
+<<<<<<< HEAD
     download_wandb_python_deps,
+=======
+    _is_wandb_uri,
+>>>>>>> master
     parse_wandb_uri,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
@@ -49,26 +53,16 @@ class LocalProcessRunner(AbstractRunner):
         if launch_project.project_dir is None:
             raise LaunchError("Launch LocalProcessRunner received empty project dir")
 
-        # Check to make sure local python dependencies match run's requirement.txt
-        if launch_project.uri:
+        # If URI is not a wandb run, check to make sure local python dependencies match run's requirement.txt
+        if _is_wandb_uri(launch_project.uri):
             source_entity, source_project, run_name = parse_wandb_uri(
                 launch_project.uri
             )
-            run_requirements_file = download_wandb_python_deps(
+            validate_wandb_python_deps(
                 source_entity,
                 source_project,
                 run_name,
                 self._api,
-                launch_project.project_dir,
-            )
-            validate_wandb_python_deps(
-                run_requirements_file,
-                launch_project.project_dir,
-            )
-        elif launch_project.job:
-            assert launch_project._job_artifact is not None
-            validate_wandb_python_deps(
-                "requirements.frozen.txt",
                 launch_project.project_dir,
             )
         env_vars = get_env_vars_dict(launch_project, None, self._api)

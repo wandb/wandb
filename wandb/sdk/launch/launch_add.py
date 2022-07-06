@@ -1,4 +1,5 @@
 import json
+import pprint
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
@@ -31,6 +32,7 @@ def launch_add(
     params: Optional[Dict[str, Any]] = None,
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
+    run_id: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -91,6 +93,7 @@ def launch_add(
         params,
         resource_args,
         cuda,
+        run_id=run_id,
     )
 
 
@@ -140,13 +143,15 @@ def _launch_add(
         resource_args,
         launch_config,
         cuda,
+        run_id,
     )
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:
         raise Exception("Error adding run to queue")
-    wandb.termlog(f"Added run to queue {queue}")
+    wandb.termlog(f"Added run to queue {queue}.")
+    wandb.termlog(f"Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     queued_run_entity = launch_spec.get("entity")
     queued_run_project = launch_spec.get("project")
