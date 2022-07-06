@@ -30,9 +30,9 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
-<<<<<<< HEAD
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
+    run_id: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -55,6 +55,7 @@ def launch_add(
     resource_args: Resource related arguments for launching runs onto a remote backend.
         Will be stored on the constructed launch config under ``resource_args``.
     cuda: Whether to build a CUDA-enabled docker image or not
+    run_id: optional string indicating the id of the launched run
 
 
     Example:
@@ -75,10 +76,6 @@ def launch_add(
     Raises:
         `wandb.exceptions.LaunchError` if unsuccessful
     """
-=======
-    run_id: Optional[str] = None,
-) -> "public.QueuedJob":
->>>>>>> master
     api = Api()
 
     return _launch_add(
@@ -95,12 +92,9 @@ def launch_add(
         version,
         docker_image,
         params,
-<<<<<<< HEAD
         resource_args,
         cuda,
-=======
         run_id=run_id,
->>>>>>> master
     )
 
 
