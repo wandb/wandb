@@ -19,7 +19,7 @@ from .test_launch import (
     mocked_fetchable_git_repo,
 )
 
-from ..utils import fixture_open
+from tests import utils
 
 INPUT_TYPES = TypeRegistry.type_of(
     {"epochs": 2, "heavy": False, "sleep_every": 0}
@@ -105,7 +105,7 @@ def test_launch_job_artifact(
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
     mocked_public_artifact(job_download_func)
 
@@ -149,7 +149,7 @@ def test_launch_job_repo(
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
     mocked_public_artifact(job_download_func)
     api = wandb.sdk.internal.internal_api.Api(
@@ -189,7 +189,7 @@ def test_launch_job_container(
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
     mocked_public_artifact(job_download_func)
     api = wandb.sdk.internal.internal_api.Api(
@@ -220,7 +220,7 @@ def test_launch_add_container_queued_run(live_mock_server, mocked_public_artifac
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
         return root
 
