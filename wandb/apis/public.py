@@ -2239,15 +2239,6 @@ class QueuedRun:
             f"Could not find QueuedRun associated with id: {self.id} on queue id {self.queue_id}"
         )
 
-    def _exec(self, query, **kwargs):
-        """Execute a query against the cloud backend"""
-        variables = {
-            "entity": self.entity,
-            "project": self.project,
-        }
-        variables.update(kwargs)
-        return self.client.execute(query, variable_values=variables)
-
     @normalize_exceptions
     def wait_until_finished(self):
         if not self._run:
@@ -2336,6 +2327,8 @@ class QueuedRun:
                         return self._run
                     except ValueError as e:
                         print(e)
+                else:
+                    raise ValueError(f"Could not find run queue item with id {self.id}")
 
             time.sleep(5)
 
