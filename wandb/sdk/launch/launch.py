@@ -27,7 +27,7 @@ def resolve_agent_config(
     api: Api,
     entity: Optional[str],
     project: Optional[str],
-    max_jobs: Optional[float],
+    max_jobs: Optional[int],
     queues: Optional[List[str]],
 ) -> Tuple[Dict[str, Any], Api]:
     defaults = {
@@ -66,7 +66,7 @@ def resolve_agent_config(
     if entity is not None:
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
-        resolved_config.update({"max_jobs": max_jobs})
+        resolved_config.update({"max_jobs": int(max_jobs)})
 
     if queues is not None:
         resolved_config.update({"queues": queues})
@@ -110,6 +110,7 @@ def _run(
     synchronous: Optional[bool],
     cuda: Optional[bool],
     api: Api,
+    run_id: Optional[str],
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     launch_spec = construct_launch_spec(
@@ -127,6 +128,7 @@ def _run(
         resource_args,
         launch_config,
         cuda,
+        run_id,
     )
     validate_launch_spec_source(launch_spec)
     launch_project = create_project_from_spec(launch_spec, api)
@@ -186,6 +188,7 @@ def run(
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
     cuda: Optional[bool] = None,
+    run_id: Optional[str] = None,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
@@ -214,6 +217,7 @@ def run(
         ``synchronous`` is True and the run fails, the current process will
         error out as well.
     cuda: Whether to build a CUDA-enabled docker image or not
+    run_id: ID for the run (To ultimately replace the :name: field)
 
 
     Example:
@@ -253,6 +257,7 @@ def run(
         synchronous=synchronous,
         cuda=cuda,
         api=api,
+        run_id=run_id,
     )
 
     return submitted_run_obj

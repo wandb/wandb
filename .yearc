@@ -1,12 +1,11 @@
-
 [yea]
 
 test_paths =
-  functional_tests/
-  standalone_tests/
+  tests/functional_tests/
+  tests/standalone_tests/
   wandb/
 
-coverage_config_template = functional_tests/.coveragerc
+coverage_config_template = tests/functional_tests/.coveragerc
 coverage_source = wandb/
 coverage_source_env = YEACOV_SOURCE
 

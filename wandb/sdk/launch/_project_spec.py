@@ -15,7 +15,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
-from wandb.errors import CommError, Error as ExecutionError, LaunchError
+from wandb.errors import LaunchError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -57,6 +57,7 @@ class LaunchProject:
         resource: str,
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
+        run_id: Optional[str],
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -68,9 +69,10 @@ class LaunchProject:
         self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project.lower()
-        self.name = name
+        self.name = name  # TODO: replace with run_id
         self.resource = resource
         self.resource_args = resource_args
+        self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
@@ -89,7 +91,7 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self.cuda = cuda
         self._runtime: Optional[str] = None
-        self.run_id = generate_id()
+        self.run_id = run_id or generate_id()
         self._image_tag: str = self._initialize_image_job_tag() or self.run_id
         self._entry_points: Dict[
             str, EntryPoint
@@ -282,7 +284,7 @@ class LaunchProject:
                 ).decode()
             else:
                 if not run_info["git"]:
-                    raise ExecutionError(
+                    raise LaunchError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
                     )
                 utils._fetch_git_repo(
@@ -434,6 +436,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource", "local"),
         launch_spec.get("resource_args", {}),
         launch_spec.get("cuda", None),
+        launch_spec.get("run_id", None),
     )
 
 

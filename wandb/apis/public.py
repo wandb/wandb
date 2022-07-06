@@ -10,6 +10,7 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+import ast
 from collections import namedtuple
 import datetime
 from functools import partial
@@ -24,6 +25,7 @@ import time
 from typing import List, Optional
 import urllib
 
+from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -37,6 +39,7 @@ from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
+from wandb.sdk.wandb_require_helpers import requires
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
@@ -232,67 +235,95 @@ class Api:
     _HTTP_TIMEOUT = env.get_http_timeout(9)
     VIEWER_QUERY = gql(
         """
-    query Viewer{
-        viewer {
-            id
-            flags
-            entity
-            username
-            email
-            admin
-            apiKeys {
-                edges {
-                    node {
-                        id
-                        name
-                        description
+        query Viewer{
+            viewer {
+                id
+                flags
+                entity
+                username
+                email
+                admin
+                apiKeys {
+                    edges {
+                        node {
+                            id
+                            name
+                            description
+                        }
                     }
                 }
-            }
-            teams {
-                edges {
-                    node {
-                        name
+                teams {
+                    edges {
+                        node {
+                            name
+                        }
                     }
                 }
             }
         }
-    }
-    """
+        """
     )
     USERS_QUERY = gql(
         """
-    query SearchUsers($query: String) {
-        users(query: $query) {
-            edges {
-                node {
-                    id
-                    flags
-                    entity
-                    admin
-                    email
-                    deletedAt
-                    username
-                    apiKeys {
-                        edges {
-                            node {
-                                id
-                                name
-                                description
+        query SearchUsers($query: String) {
+            users(query: $query) {
+                edges {
+                    node {
+                        id
+                        flags
+                        entity
+                        admin
+                        email
+                        deletedAt
+                        username
+                        apiKeys {
+                            edges {
+                                node {
+                                    id
+                                    name
+                                    description
+                                }
                             }
                         }
-                    }
-                    teams {
-                        edges {
-                            node {
-                                name
+                        teams {
+                            edges {
+                                node {
+                                    name
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
+        """
+    )
+
+    VIEW_REPORT_QUERY = gql(
+        """
+        query SpecificReport($reportId: ID!) {
+            view(id: $reportId) {
+            id
+            type
+            name
+            displayName
+            description
+            project {
+                id
+                name
+                entityName
+            }
+            createdAt
+            updatedAt
+            spec
+            previewUrl
+            user {
+                name
+                username
+                userInfo
+            }
+            }
+        }
         """
     )
 
@@ -340,6 +371,54 @@ class Api:
         if kwargs.get("entity") is None:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
+
+    @requires("report-editing:v0")
+    def create_report(
+        self,
+        project: str,
+        entity: str = "",
+        title: Optional[str] = "Untitled Report",
+        description: Optional[str] = "",
+        width: Optional[str] = "readable",
+        blocks: "Optional[wandb.apis.reports.Block]" = None,
+    ) -> "wandb.apis.reports.Report":
+        if entity == "":
+            entity = self.default_entity or ""
+        if blocks is None:
+            blocks = []
+        return wandb.apis.reports.Report(
+            project, entity, title, description, width, blocks
+        )
+
+    @requires("report-editing:v0")
+    def load_report(self, path: str) -> "wandb.apis.reports.Report":
+        """
+        Get report at a given path.
+
+        Arguments:
+            path: (str) Path to the target report in the form `entity/project/reports/reportId`.
+                You can get this by copy-pasting the URL after your wandb url.  For example:
+                `megatruong/report-editing/reports/My-fabulous-report-title--VmlldzoxOTc1Njk0`
+
+        Returns:
+            A `BetaReport` object which represents the report at `path`
+
+        Raises:
+            wandb.Error if path is invalid
+        """
+        try:
+            entity, project, *_, _report_id = path.split("/")
+            *_, report_id = _report_id.split("--")
+        except ValueError as e:
+            raise ValueError("path must be `entity/project/reports/reportId`") from e
+        else:
+            r = self.client.execute(
+                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
+            )
+            # breakpoint()
+            viewspec = r["view"]
+            viewspec["spec"] = json.loads(viewspec["spec"])
+            return wandb.apis.reports.Report.from_json(viewspec)
 
     def create_user(self, email, admin=False):
         """Creates a new user
@@ -2718,8 +2797,10 @@ class QueryGenerator:
         "NIN": "$nin",
         "REGEX": "$regex",
     }
+    MONGO_TO_INDIVIDUAL_OP = {v: k for k, v in INDIVIDUAL_OP_TO_MONGO.items()}
 
     GROUP_OP_TO_MONGO = {"AND": "$and", "OR": "$or"}
+    MONGO_TO_GROUP_OP = {v: k for k, v in GROUP_OP_TO_MONGO.items()}
 
     def __init__(self):
         pass
@@ -2767,6 +2848,46 @@ class QueryGenerator:
             return "tags." + key["name"]
         raise ValueError("Invalid key: %s" % key)
 
+    def server_path_to_key(self, path):
+        if path.startswith("config."):
+            return {"section": "config", "name": path.split("config.", 1)[1]}
+        elif path.startswith("summary_metrics."):
+            return {"section": "summary", "name": path.split("summary_metrics.", 1)[1]}
+        elif path.startswith("keys_info.keys."):
+            return {"section": "keys_info", "name": path.split("keys_info.keys.", 1)[1]}
+        elif path.startswith("tags."):
+            return {"section": "tags", "name": path.split("tags.", 1)[1]}
+        else:
+            return {"section": "run", "name": path}
+
+    def keys_to_order(self, keys):
+        orders = []
+        for key in keys["keys"]:
+            order = self.key_to_server_path(key["key"])
+            if key.get("ascending"):
+                order = "+" + order
+            else:
+                order = "-" + order
+            orders.append(order)
+        # return ",".join(orders)
+        return orders
+
+    def order_to_keys(self, order):
+        keys = []
+        for k in order:  # orderstr.split(","):
+            name = k[1:]
+            if k[0] == "+":
+                ascending = True
+            elif k[0] == "-":
+                ascending = False
+            else:
+                raise Exception("you must sort by ascending(+) or descending(-)")
+
+            key = {"key": {"section": "run", "name": name}, "ascending": ascending}
+            keys.append(key)
+
+        return {"keys": keys}
+
     def _to_mongo_individual(self, filter):
         if filter["key"]["name"] == "":
             return None
@@ -2774,7 +2895,7 @@ class QueryGenerator:
         if filter.get("value") is None and filter["op"] != "=" and filter["op"] != "!=":
             return None
 
-        if filter.get("disabled") is None and filter["disabled"]:
+        if filter.get("disabled") is not None and filter["disabled"]:
             return None
 
         if filter["key"]["section"] == "tags":
@@ -2786,7 +2907,7 @@ class QueryGenerator:
                 }
             else:
                 return {"tags": filter["key"]["name"]}
-        path = self.key_to_server_path(filter.key)
+        path = self.key_to_server_path(filter["key"])
         if path is None:
             return path
         return {path: self._to_mongo_op_value(filter["op"], filter["value"])}
@@ -2800,6 +2921,253 @@ class QueryGenerator:
                     self.filter_to_mongo(f) for f in filter["filters"]
                 ]
             }
+
+    def mongo_to_filter(self, filter):
+        # Returns {"op": "OR", "filters": [{"op": "AND", "filters": []}]}
+        if filter is None:
+            return None  # this covers the case where self.filter_to_mongo returns None.
+
+        group_op = None
+        for key in filter.keys():
+            # if self.MONGO_TO_GROUP_OP[key]:
+            if key in self.MONGO_TO_GROUP_OP:
+                group_op = key
+                break
+        if group_op is not None:
+            return {
+                "op": self.MONGO_TO_GROUP_OP[group_op],
+                "filters": [self.mongo_to_filter(f) for f in filter[group_op]],
+            }
+        else:
+            for k, v in filter.items():
+                if isinstance(v, dict):
+                    # TODO: do we always have one key in this case?
+                    op = next(iter(v.keys()))
+                    return {
+                        "key": self.server_path_to_key(k),
+                        "op": self.MONGO_TO_INDIVIDUAL_OP[op],
+                        "value": v[op],
+                    }
+                else:
+                    return {"key": self.server_path_to_key(k), "op": "=", "value": v}
+
+
+class PythonMongoishQueryGenerator:
+    def __init__(self, run_set):
+        self.run_set = run_set
+        self.panel_metrics_helper = PanelMetricsHelper()
+
+    FRONTEND_NAME_MAPPING = {
+        "ID": "name",
+        "Name": "displayName",
+        "Tags": "tags",
+        "State": "state",
+        "CreatedTimestamp": "createdAt",
+        "Runtime": "duration",
+        "User": "username",
+        "Sweep": "sweep",
+        "Group": "group",
+        "JobType": "jobType",
+        "Hostname": "host",
+        "UsingArtifact": "inputArtifacts",
+        "OutputtingArtifact": "outputArtifacts",
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp"
+        # "GroupedRuns": "__wb_group_by_all"
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+    AST_OPERATORS = {
+        ast.Lt: "$lt",
+        ast.LtE: "$lte",
+        ast.Gt: "$gt",
+        ast.GtE: "$gte",
+        ast.Eq: "=",
+        ast.Is: "=",
+        ast.NotEq: "$ne",
+        ast.IsNot: "$ne",
+        ast.In: "$in",
+        ast.NotIn: "$nin",
+        ast.And: "$and",
+        ast.Or: "$or",
+        ast.Not: "$not",
+    }
+
+    if parse_version(platform.python_version()) >= parse_version("3.8"):
+        AST_FIELDS = {
+            ast.Constant: "value",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+        }
+    else:
+        AST_FIELDS = {
+            ast.Str: "s",
+            ast.Num: "n",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+            ast.NameConstant: "value",
+        }
+
+    def _handle_compare(self, node):
+        # only left side can be a col
+        left = self.front_to_back(self._handle_fields(node.left))
+        op = self._handle_ops(node.ops[0])
+        right = self._handle_fields(node.comparators[0])
+
+        # Eq has no op for some reason
+        if op == "=":
+            return {left: right}
+        else:
+            return {left: {op: right}}
+
+    def _handle_fields(self, node):
+        result = getattr(node, self.AST_FIELDS.get(type(node)))
+        if isinstance(result, list):
+            return [self._handle_fields(node) for node in result]
+        elif isinstance(result, str):
+            return self._unconvert(result)
+        return result
+
+    def _handle_ops(self, node):
+        return self.AST_OPERATORS.get(type(node))
+
+    def _convert(self, filterstr):
+        _conversion = filterstr.replace(".", "__________")  # this is so silly
+        # return _conversion
+        return "(" + _conversion + ")"  # wrap expr to make it eval-able
+
+    def _unconvert(self, field_name):
+        return field_name.replace("__________", ".")  # maximum silly, but it works!
+
+    def python_to_mongo(self, filterstr):
+        try:
+            tree = ast.parse(self._convert(filterstr), mode="eval")
+        except SyntaxError as e:
+            raise ValueError(
+                "Invalid python comparison expression; form something like `my_col == 123`"
+            ) from e
+
+        multiple_filters = hasattr(tree.body, "op")
+
+        if multiple_filters:
+            op = self.AST_OPERATORS.get(type(tree.body.op))
+            values = [self._handle_compare(v) for v in tree.body.values]
+        else:
+            op = "$and"
+            values = [self._handle_compare(tree.body)]
+        return {"$or": [{op: values}]}
+
+    def front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config.{name}.value{rest}"
+        else:  # assume summary metrics
+            return f"summary_metrics.{name}{rest}"
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif (
+            name.startswith("config.") and ".value" in name
+        ):  # may be brittle: originally "endswith", but that doesn't work with nested keys...
+            # strip is weird sometimes (??)
+            return name.replace("config.", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        wandb.termerror(f"Unknown token: {name}")
+        return name
+
+    # These are only used for ParallelCoordinatesPlot because it has weird backend names...
+    def pc_front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        if name is None:
+            return None
+        elif name in self.panel_metrics_helper.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.panel_metrics_helper.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config:{name}.value{rest}"
+        else:  # assume summary metrics
+            return f"summary:{name}{rest}"
+
+    def pc_back_to_front(self, name):
+        if name is None:
+            return None
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.panel_metrics_helper.FRONTEND_NAME_MAPPING_REVERSED.get(
+                name, name
+            )
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif name.startswith("config:") and ".value" in name:
+            return name.replace("config:", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        return name
+
+
+class PanelMetricsHelper:
+    FRONTEND_NAME_MAPPING = {
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp",
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+
+    RUN_MAPPING = {"Created Timestamp": "createdAt", "Latest Timestamp": "heartbeatAt"}
+    RUN_MAPPING_REVERSED = {v: k for k, v in RUN_MAPPING.items()}
+
+    def front_to_back(self, name):
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        return name
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        return name
+
+    # ScatterPlot and ParallelCoords have weird conventions
+    def special_front_to_back(self, name):
+        if name is None:
+            return name
+        elif name in self.RUN_MAPPING:
+            return "run:" + self.RUN_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.FRONTEND_NAME_MAPPING[name]
+        elif name == "Index":
+            return name
+        return "summary:" + name
+
+    def special_back_to_front(self, name):
+        if name is None:
+            return name
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.FRONTEND_NAME_MAPPING_REVERSED.get(name, name)
+        elif "run:" in name:
+            name = name.replace("run:", "")
+            return self.RUN_MAPPING_REVERSED[name]
+        return name
 
 
 class BetaReport(Attrs):

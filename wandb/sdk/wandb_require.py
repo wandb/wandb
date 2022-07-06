@@ -40,6 +40,13 @@ class _Requires:
     def require_service(self) -> None:
         self._require_service()
 
+    def _require_report_editing(self) -> None:
+        os.environ["WANDB_REQUIRE_REPORT_EDITING_V0"] = "True"
+        wandb.termwarn("This is an experimental feature -- use with caution!")
+
+    def require_report_editing(self) -> None:
+        self._require_report_editing()
+
     def apply(self) -> None:
         """Call require_* method for supported features."""
         last_message: str = ""

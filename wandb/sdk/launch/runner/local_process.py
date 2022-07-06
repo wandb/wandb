@@ -11,6 +11,7 @@ from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     download_wandb_python_deps,
+    _is_wandb_uri,
     parse_wandb_uri,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
