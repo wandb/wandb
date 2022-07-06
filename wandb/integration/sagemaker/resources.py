@@ -1,11 +1,12 @@
 import json
 import os
 import socket
+from typing import Dict, Tuple
 
 from . import files as sm_files
 
 
-def parse_sm_secrets():
+def parse_sm_secrets() -> Dict[str, str]:
     """We read our api_key from secrets.env in SageMaker"""
     env_dict = dict()
     # Set secret variables
@@ -16,9 +17,8 @@ def parse_sm_secrets():
     return env_dict
 
 
-def parse_sm_resources():
+def parse_sm_resources() -> Tuple[Dict[str, str], Dict[str, str]]:
     run_dict = dict()
-    env_dict = dict()
     run_id = os.getenv("TRAINING_JOB_NAME")
 
     if run_id and os.getenv("WANDB_RUN_ID") is None:

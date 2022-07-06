@@ -84,7 +84,7 @@ class RequestsMock:
         return requests.HTTPError
 
     @property
-    def model(self):
+    def models(self):
         return self.mock
 
     @property
