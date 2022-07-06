@@ -15,7 +15,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
-from wandb.errors import LaunchError
+from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils

@@ -10,8 +10,8 @@ from .local_container import _run_entry_point
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
-    download_wandb_python_deps,
     _is_wandb_uri,
+    download_wandb_python_deps,
     parse_wandb_uri,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
@@ -51,7 +51,7 @@ class LocalProcessRunner(AbstractRunner):
             raise LaunchError("Launch LocalProcessRunner received empty project dir")
 
         # Check to make sure local python dependencies match run's requirement.txt
-        if launch_project.uri:
+        if launch_project.uri and _is_wandb_uri(launch_project.uri):
             source_entity, source_project, run_name = parse_wandb_uri(
                 launch_project.uri
             )

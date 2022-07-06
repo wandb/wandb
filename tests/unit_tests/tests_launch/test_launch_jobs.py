@@ -59,22 +59,23 @@ def mocked_public_artifact(monkeypatch):
 
 
 def test_fetch_job_fail(api):
-
-    launch_project = _project_spec.LaunchProject(
-        None,
-        "test:v0",
-        api,
-        {},
-        "live_mock_server_entity",
-        "Test_project",
-        None,
-        {},
-        {},
-        {},
-        "local",
-        {},
-        None,
-    )
+    kwargs = {
+        "uri": None,
+        "job": "test:v0",
+        "api": api,
+        "launch_spec": {},
+        "target_entity": "live_mock_server_entity",
+        "target_project": "Test_project",
+        "name": None,
+        "docker_config": {},
+        "git_info": {},
+        "overrides": {},
+        "resource": "local",
+        "resource_args": {},
+        "cuda": None,
+        "run_id": None,
+    }
+    launch_project = _project_spec.LaunchProject(**kwargs)
     with pytest.raises(LaunchError) as e_info:
         launch_project._fetch_job()
     assert "Job test:v0 not found" in str(e_info.value)
