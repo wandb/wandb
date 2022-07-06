@@ -1,3 +1,59 @@
+## 0.12.21 (July 5, 2022)
+
+#### :nail_care: Enhancement
+* Fixes config not showing up until the run finish by @KyleGoyette in https://github.com/wandb/client/pull/3734
+* Adds new types to the TypeRegistry to handling artifact objects in jobs and run configs by @KyleGoyette in https://github.com/wandb/client/pull/3806
+* Adds new query to the the internal api getting the state of the run by @hu-po in https://github.com/wandb/client/pull/3799
+* Replaces unsafe yaml loaders with yaml.safe_load by @zythosec in https://github.com/wandb/client/pull/3753
+* Improves testing tooling by allowing to specify shards in manual testing  by @dmitryduev in https://github.com/wandb/client/pull/3826
+* Fixes ROC and PR curves in the sklearn integration by stratifying sampling by @tylerganter in https://github.com/wandb/client/pull/3757
+* Fixes input box in notebooks exceeding cell space by @dmitryduev in https://github.com/wandb/client/pull/3849
+* Allows string to be passed as alias to link_model by @tssweeney in https://github.com/wandb/client/pull/3834
+* Adds Support for FLOPS Calculation in `keras`'s `WandbCallback`  by @dmitryduev in https://github.com/wandb/client/pull/3869
+* Extends python report editing by @andrewtruong in https://github.com/wandb/client/pull/3732
+#### :bug: Bug Fix
+* Fixes stats logger so it can find all the correct GPUs in child processes by @raubitsj in https://github.com/wandb/client/pull/3727
+* Fixes regression in s3 reference upload for folders by @jlzhao27 in https://github.com/wandb/client/pull/3825
+* Fixes artifact commit logic to handle collision in the backend by @speezepearson in https://github.com/wandb/client/pull/3843
+* Checks for `None` response in the retry logic (safety check) by @raubitsj in https://github.com/wandb/client/pull/3863
+* Adds sweeps on top of launch (currently in MVP) by @hu-po in https://github.com/wandb/client/pull/3669
+* Renames functional tests dir and files by @raubitsj in https://github.com/wandb/client/pull/3879
+#### :broom: Cleanup
+* Fixes conditions order of `_to_dict` helper by @dmitryduev in https://github.com/wandb/client/pull/3772
+* Fixes changelog broken link to PR 3709 by @janosh in https://github.com/wandb/client/pull/3786
+* Fixes public api query (QueuedJob Api ) by @KyleGoyette in https://github.com/wandb/client/pull/3798
+* Renames local runners to local-container and local-process by @hu-po in https://github.com/wandb/client/pull/3800
+* Adds type annotations to files in the wandb/filesync directory by @speezepearson in https://github.com/wandb/client/pull/3774
+* Re-organizes all the testing directories to have common root dir by @dmitryduev in https://github.com/wandb/client/pull/3740
+* Fixes testing configuration and add bigger machine on `CircleCi` by @dmitryduev in https://github.com/wandb/client/pull/3836
+* Fixes typo in the `wandb-service-user` readme file by @Co1lin in https://github.com/wandb/client/pull/3847
+* Fixes broken artifact test for regression by @dmitryduev in https://github.com/wandb/client/pull/3857
+* Removes unused files (relating to `py27`) and empty `submodules` declaration by @dmitryduev in https://github.com/wandb/client/pull/3850
+* Adds extra for model reg dependency on cloudpickle by @tssweeney in https://github.com/wandb/client/pull/3866
+* Replaces deprecated threading aliases by @hugovk in https://github.com/wandb/client/pull/3794
+* Updates the `sdk` readme to the renamed (local -> server) commands by @sephmard in https://github.com/wandb/client/pull/3771
+
+## New Contributors
+* @janosh made their first contribution in https://github.com/wandb/client/pull/3786
+* @Co1lin made their first contribution in https://github.com/wandb/client/pull/3847
+* @tylerganter made their first contribution in https://github.com/wandb/client/pull/3757
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.20...v0.12.21
+
+## 0.12.20 (June 29, 2022)
+
+#### :bug: Bug Fix
+* Retry `commit_artifact` on conflict-error by @speezepearson in https://github.com/wandb/client/pull/3843
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.19...v0.12.20
+
+## 0.12.19 (June 22, 2022)
+
+#### :bug: Bug Fix
+* Fix regression in s3 reference upload for folders by @jlzhao27 in https://github.com/wandb/client/pull/3825
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.18...v0.12.19
+
 ## 0.12.18 (June 9, 2022)
 
 #### :nail_care: Enhancement
