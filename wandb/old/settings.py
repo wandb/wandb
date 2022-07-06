@@ -42,7 +42,7 @@ class Settings:
                 else:
                     raise
 
-    def set(self, section, key, value, globally=False, persist=False):
+    def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persists settings to disk if persist = True"""
 
         def write_setting(settings, settings_path, persist):
@@ -60,7 +60,7 @@ class Settings:
                 self._local_settings, Settings._local_path(self.root_dir), persist
             )
 
-    def clear(self, section, key, globally=False, persist=False):
+    def clear(self, section, key, globally=False, persist=False) -> None:
         def clear_setting(settings, settings_path, persist):
             settings.remove_option(section, key)
             if persist:

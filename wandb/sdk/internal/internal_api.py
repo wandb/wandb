@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -9,6 +10,7 @@ from typing import (
     Mapping,
     MutableMapping,
     Sequence,
+    TextIO,
     Tuple,
     TypeVar,
     Optional,
@@ -83,9 +85,11 @@ if TYPE_CHECKING:
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
-    class _MappingSupportsCopy(Mapping, Protocol):
-        def copy(self) -> "_MappingSupportsCopy":
-            ...
+
+# class _MappingSupportsCopy(Protocol):
+#     def copy(self) -> "_MappingSupportsCopy": ...
+#     def keys(self) -> Iterable: ...
+#     def __getitem__(self, name: str) -> Any: ...
 
 
 class Api:
@@ -180,15 +184,9 @@ class Api:
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
-        (
-            self.query_types,
-            self.server_info_types,
-            self.server_use_artifact_input_info,
-        ) = (
-            None,
-            None,
-            None,
-        )
+        self.query_types: Optional[List[str]] = None
+        self.server_info_types: Optional[List[str]] = None
+        self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
 
     def reauth(self) -> None:
@@ -465,7 +463,7 @@ class Api:
         return res.get("viewer") or {}
 
     @normalize_exceptions
-    def max_cli_version(self) -> str:
+    def max_cli_version(self) -> Optional[str]:
 
         if self._max_cli_version is not None:
             return self._max_cli_version
@@ -538,7 +536,7 @@ class Api:
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
-    def list_projects(self, entity: Optional[str] = None) -> List[str]:
+    def list_projects(self, entity: Optional[str] = None) -> List[Dict[str, str]]:
         """Lists projects in W&B scoped by entity.
 
         Arguments:
@@ -562,7 +560,7 @@ class Api:
         }
         """
         )
-        project_list: List[str] = self._flatten_edges(
+        project_list: List[Dict[str, str]] = self._flatten_edges(
             self.gql(
                 query, variable_values={"entity": entity or self.settings("entity")}
             )["models"]
@@ -593,9 +591,10 @@ class Api:
         }
         """
         )
-        return self.gql(query, variable_values={"entity": entity, "project": project})[
-            "model"
-        ]
+        response: "_Response" = self.gql(
+            query, variable_values={"entity": entity, "project": project}
+        )["model"]
+        return response
 
     @normalize_exceptions
     def sweep(
@@ -669,13 +668,15 @@ class Api:
         )
         if response["project"] is None or response["project"]["sweep"] is None:
             raise ValueError(f"Sweep {entity}/{project}/{sweep} not found")
-        data = response["project"]["sweep"]
+        data: Dict[str, Any] = response["project"]["sweep"]
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
         return data
 
     @normalize_exceptions
-    def list_runs(self, project: str, entity: Optional[str] = None) -> List[str]:
+    def list_runs(
+        self, project: str, entity: Optional[str] = None
+    ) -> List[Dict[str, str]]:
         """Lists runs in W&B scoped by project.
 
         Arguments:
@@ -760,7 +761,7 @@ class Api:
         cwd = "."
         if self.git.enabled:
             cwd = cwd + os.getcwd().replace(self.git.repo.working_dir, "")
-        response: "_Response" = self.gql(
+        response: "_Response" = self.gql(  # type: ignore
             query,
             variable_values={
                 "entity": entity or self.settings("entity"),
@@ -863,7 +864,7 @@ class Api:
     @normalize_exceptions
     def run_resume_status(
         self, entity: str, project_name: str, name: str
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Check if a run exists and get resume information.
 
         Arguments:
@@ -916,7 +917,9 @@ class Api:
         if "entity" in project:
             self.set_setting("entity", project["entity"]["name"])
 
-        return project["bucket"]
+        result: Dict[str, Any] = project["bucket"]
+
+        return result
 
     @normalize_exceptions
     def check_stop_requested(
@@ -994,10 +997,11 @@ class Api:
         )
         # TODO(jhr): Commenting out 'repo' field for cling, add back
         #   'description': description, 'repo': self.git.remote_url, 'id': id})
-        return response["upsertModel"]["model"]
+        result: Dict[str, Any] = response["upsertModel"]["model"]
+        return result
 
     @normalize_exceptions
-    def get_project_run_queues(self, entity, project):
+    def get_project_run_queues(self, entity: str, project: str) -> List[Dict[str, str]]:
         query = gql(
             """
         query ProjectRunQueues($entity: String!, $projectName: String!){
@@ -1020,12 +1024,12 @@ class Api:
         res = self.gql(query, variable_values)
         if res.get("project") is None:
             raise Exception(
-                "Error fetching run queues for {}/{} check that you have access to this entity and project".format(
-                    entity, project
-                )
+                f"Error fetching run queues for {entity}/{project} "
+                "check that you have access to this entity and project"
             )
 
-        return res["project"]["runQueues"]
+        project_run_queues: List[Dict[str, str]] = res["project"]["runQueues"]
+        return project_run_queues
 
     @normalize_exceptions
     def create_run_queue(
@@ -1054,10 +1058,15 @@ class Api:
             "access": access,
             "queueName": queue_name,
         }
-        return self.gql(query, variable_values)["createRunQueue"]
+        result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
+            "createRunQueue"
+        ]
+        return result
 
     @normalize_exceptions
-    def push_to_run_queue(self, queue_name, launch_spec):
+    def push_to_run_queue(
+        self, queue_name: str, launch_spec: Dict[str, str]
+    ) -> Optional[Dict[str, Any]]:
         # TODO(kdg): add pushToRunQueueByName to avoid this extra query
         entity = launch_spec["entity"]
         project = launch_spec["project"]
@@ -1094,7 +1103,7 @@ class Api:
                             entity, project
                         )
                     )
-                    return
+                    return None
                 queue_id = res["queueID"]
 
             else:
@@ -1132,10 +1141,17 @@ class Api:
         response = self.gql(
             mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
         )
-        return response["pushToRunQueue"]
+        result: Optional[Dict[str, Any]] = response["pushToRunQueue"]
+        return result
 
     @normalize_exceptions
-    def pop_from_run_queue(self, queue_name, entity=None, project=None, agent_id=None):
+    def pop_from_run_queue(
+        self,
+        queue_name: str,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        agent_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         mutation = gql(
             """
         mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
@@ -1160,10 +1176,11 @@ class Api:
                 "launchAgentId": agent_id,
             },
         )
-        return response["popFromRunQueue"]
+        result: Optional[Dict[str, Any]] = response["popFromRunQueue"]
+        return result
 
     @normalize_exceptions
-    def ack_run_queue_item(self, item_id, run_id=None):
+    def ack_run_queue_item(self, item_id: str, run_id: Optional[str] = None) -> bool:
         mutation = gql(
             """
         mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
@@ -1180,10 +1197,17 @@ class Api:
             raise CommError(
                 "Error acking run queue item. Item may have already been acknowledged by another process"
             )
-        return response["ackRunQueueItem"]["success"]
+        result: bool = response["ackRunQueueItem"]["success"]
+        return result
 
     @normalize_exceptions
-    def create_launch_agent(self, entity, project, queues, gorilla_agent_support):
+    def create_launch_agent(
+        self,
+        entity: str,
+        project: str,
+        queues: List[str],
+        gorilla_agent_support: bool,
+    ) -> dict:
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
             # create default queue if it doesn't already exist
@@ -1202,9 +1226,8 @@ class Api:
         ]  # filter to poll specified queues
         if len(polling_queue_ids) != len(queues):
             raise CommError(
-                "Could not start launch agent: Not all of requested queues ({}) found. Available queues for this project: {}".format(
-                    ", ".join(queues), ",".join([q["name"] for q in project_queues])
-                )
+                f"Could not start launch agent: Not all of requested queues ({', '.join(queues)}) found. "
+                f"Available queues for this project: {','.join([q['name'] for q in project_queues])}"
             )
 
         if not gorilla_agent_support:
@@ -1237,10 +1260,16 @@ class Api:
             "queues": polling_queue_ids,
             "hostname": hostname,
         }
-        return self.gql(mutation, variable_values)["createLaunchAgent"]
+        result: dict = self.gql(mutation, variable_values)["createLaunchAgent"]
+        return result
 
     @normalize_exceptions
-    def update_launch_agent_status(self, agent_id, status, gorilla_agent_support):
+    def update_launch_agent_status(
+        self,
+        agent_id: str,
+        status: str,
+        gorilla_agent_support: bool,
+    ) -> dict:
         if not gorilla_agent_support:
             # if gorilla doesn't support launch agents, this is a no-op
             return {
@@ -1265,7 +1294,8 @@ class Api:
             "agentId": agent_id,
             "agentStatus": status,
         }
-        return self.gql(mutation, variable_values)["updateLaunchAgent"]
+        result: dict = self.gql(mutation, variable_values)["updateLaunchAgent"]
+        return result
 
     @normalize_exceptions
     def get_launch_agent(self, agent_id: str, gorilla_agent_support: bool) -> dict:
@@ -1293,31 +1323,32 @@ class Api:
         variable_values = {
             "agentId": agent_id,
         }
-        return self.gql(query, variable_values)["launchAgent"]
+        result: dict = self.gql(query, variable_values)["launchAgent"]
+        return result
 
     @normalize_exceptions
     def upsert_run(
         self,
-        id=None,
-        name=None,
-        project=None,
-        host=None,
-        group=None,
-        tags=None,
-        config=None,
-        description=None,
-        entity=None,
-        state=None,
-        display_name=None,
-        notes=None,
-        repo=None,
-        job_type=None,
-        program_path=None,
-        commit=None,
-        sweep_name=None,
-        summary_metrics=None,
-        num_retries=None,
-    ):
+        id: Optional[str] = None,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        host: Optional[str] = None,
+        group: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        config: Optional[dict] = None,
+        description: Optional[str] = None,
+        entity: Optional[str] = None,
+        state: Optional[str] = None,
+        display_name: Optional[str] = None,
+        notes: Optional[str] = None,
+        repo: Optional[str] = None,
+        job_type: Optional[str] = None,
+        program_path: Optional[str] = None,
+        commit: Optional[str] = None,
+        sweep_name: Optional[str] = None,
+        summary_metrics: Optional[str] = None,
+        num_retries: Optional[int] = None,
+    ) -> Tuple[dict, bool]:
         """Update a run
 
         Arguments:
@@ -1406,8 +1437,7 @@ class Api:
         }
         """
         )
-        if config is not None:
-            config = json.dumps(config)
+        config_str = json.dumps(config) if config else None
         if not description or description.isspace():
             description = None
 
@@ -1423,7 +1453,7 @@ class Api:
             "groupName": group,
             "tags": tags,
             "description": description,
-            "config": config,
+            "config": config_str,
             "commit": commit,
             "displayName": display_name,
             "notes": notes,
@@ -1439,18 +1469,25 @@ class Api:
 
         response = self.gql(mutation, variable_values=variable_values, **kwargs)
 
-        run = response["upsertBucket"]["bucket"]
-        project = run.get("project")
-        if project:
-            self.set_setting("project", project["name"])
-            entity = project.get("entity")
-            if entity:
-                self.set_setting("entity", entity["name"])
+        run_obj: Dict[str, Dict[str, Dict[str, str]]] = response["upsertBucket"][
+            "bucket"
+        ]
+        project_obj: Dict[str, Dict[str, str]] = run_obj.get("project", {})
+        if project_obj:
+            self.set_setting("project", project_obj["name"])
+            entity_obj = project_obj.get("entity", {})
+            if entity_obj:
+                self.set_setting("entity", entity_obj["name"])
 
         return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
 
     @normalize_exceptions
-    def get_run_info(self, entity, project, name):
+    def get_run_info(
+        self,
+        entity: str,
+        project: str,
+        name: str,
+    ) -> dict:
         query = gql(
             """
         query RunInfo($project: String!, $entity: String!, $name: String!) {
@@ -1491,10 +1528,11 @@ class Api:
                     entity, project, name
                 )
             )
-        return res["project"]["run"]["runInfo"]
+        run_info: dict = res["project"]["run"]["runInfo"]
+        return run_info
 
     @normalize_exceptions
-    def get_run_state(self, entity, project, name):
+    def get_run_state(self, entity: str, project: str, name: str) -> str:
         query = gql(
             """
         query RunState(
@@ -1517,17 +1555,18 @@ class Api:
         res = self.gql(query, variable_values)
         if res.get("project") is None or res["project"].get("run") is None:
             raise CommError(f"Error fetching run state for {entity}/{project}/{name}.")
-        return res["project"]["run"]["state"]
+        run_state: str = res["project"]["run"]["state"]
+        return run_state
 
     @normalize_exceptions
     def upload_urls(
         self,
         project: str,
-        files: Union[List[str], Dict[str, str]],
+        files: Union[List[str], Dict[str, IO]],
         run: Optional[str] = None,
         entity: Optional[str] = None,
         description: Optional[str] = None,
-    ) -> Tuple[str, List[str], Dict[str, Dict[str, str]]]:
+    ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
         """Generate temporary resumable upload urls
 
         Arguments:
@@ -1581,15 +1620,22 @@ class Api:
             },
         )
 
-        run = query_result["model"]["bucket"]
-        if run:
-            result = {file["name"]: file for file in self._flatten_edges(run["files"])}
-            return run["id"], run["files"]["uploadHeaders"], result
+        run_obj = query_result["model"]["bucket"]
+        if run_obj:
+            result = {
+                file["name"]: file for file in self._flatten_edges(run_obj["files"])
+            }
+            return run_obj["id"], run_obj["files"]["uploadHeaders"], result
         else:
             raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
 
     @normalize_exceptions
-    def download_urls(self, project, run=None, entity=None):
+    def download_urls(
+        self,
+        project: str,
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+    ) -> Dict[str, Dict[str, str]]:
         """Generate download urls
 
         Arguments:
@@ -1642,7 +1688,13 @@ class Api:
         return {file["name"]: file for file in files if file}
 
     @normalize_exceptions
-    def download_url(self, project, file_name, run=None, entity=None):
+    def download_url(
+        self,
+        project: str,
+        file_name: str,
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+    ) -> Optional[Dict[str, str]]:
         """Generate download urls
 
         Arguments:
@@ -1695,7 +1747,7 @@ class Api:
             return None
 
     @normalize_exceptions
-    def download_file(self, url):
+    def download_file(self, url: str) -> Tuple[int, requests.Response]:
         """Initiate a streaming download
 
         Arguments:
@@ -1706,14 +1758,19 @@ class Api:
         """
         response = requests.get(url, auth=("user", self.api_key), stream=True)
         response.raise_for_status()
-        return (int(response.headers.get("content-length", 0)), response)
+        return int(response.headers.get("content-length", 0)), response
 
     @normalize_exceptions
-    def download_write_file(self, metadata, out_dir=None):
+    def download_write_file(
+        self,
+        metadata: Dict[str, str],
+        out_dir: Optional[str] = None,
+    ) -> Tuple[str, Optional[requests.Response]]:
         """Download a file from a run and write it to wandb/
 
         Arguments:
             metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
+            out_dir (str, optional): The directory to write the file to. Defaults to wandb/
 
         Returns:
             A tuple of the file's local path and the streaming response. The streaming response is None if the file
@@ -1732,7 +1789,12 @@ class Api:
 
         return path, response
 
-    def upload_file_azure(self, url, file, extra_headers):
+    def upload_file_azure(
+        self, url: str, file: Any, extra_headers: Dict[str, str]
+    ) -> None:
+        """
+        Upload a file to azure
+        """
         from azure.core.exceptions import AzureError  # type: ignore
 
         # Configure the client without retries so our existing logic can handle them
@@ -1741,7 +1803,7 @@ class Api:
         )
         try:
             if extra_headers.get("Content-MD5") is not None:
-                md5 = base64.b64decode(extra_headers["Content-MD5"])
+                md5: Optional[bytes] = base64.b64decode(extra_headers["Content-MD5"])
             else:
                 md5 = None
             content_settings = self._azure_blob_module.ContentSettings(
@@ -1757,7 +1819,7 @@ class Api:
             )
         except AzureError as e:
             if hasattr(e, "response"):
-                response = requests.model.Response()
+                response = requests.models.Response()
                 response.status_code = e.response.status_code
                 response.headers = e.response.headers
                 response.raw = e.response.internal_response
@@ -1770,7 +1832,7 @@ class Api:
         url: str,
         file: IO[bytes],
         callback: Optional["ProgressFn"] = None,
-        extra_headers: Optional[_MappingSupportsCopy[str, Union[str, bytes]]] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> Optional[requests.Response]:
         """Uploads a file to W&B with failure resumption
 
@@ -1789,7 +1851,7 @@ class Api:
         progress = Progress(file, callback=callback)
         try:
             if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
-                response = self.upload_file_azure(url, progress, extra_headers)
+                self.upload_file_azure(url, progress, extra_headers)
             else:
                 if "x-ms-blob-type" in extra_headers:
                     wandb.termwarn(
@@ -1811,22 +1873,28 @@ class Api:
             if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
-                e = retry.TransientError(exc=e)
-                raise e.with_traceback(sys.exc_info()[2])
+                _e = retry.TransientError(exc=e)
+                raise _e.with_traceback(sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
 
         return response
 
     @normalize_exceptions
-    def register_agent(self, host, sweep_id=None, project_name=None, entity=None):
+    def register_agent(
+        self,
+        host: str,
+        sweep_id: Optional[str] = None,
+        project_name: Optional[str] = None,
+        entity: Optional[str] = None,
+    ) -> dict:
         """Register a new agent
 
         Arguments:
             host (str): hostname
-            persistent (bool): long-running or one-off
-            sweep (str): sweep id
+            sweep_id (str): sweep id
             project_name: (str): model that contains sweep
+            entity: (str): entity that contains sweep
         """
         mutation = gql(
             """
@@ -1855,7 +1923,7 @@ class Api:
             project_name = self.settings("project")
 
         # don't retry on validation or not found errors
-        def no_retry_4xx(e):
+        def no_retry_4xx(e: Exception) -> bool:
             if not isinstance(e, requests.HTTPError):
                 return True
             if (
@@ -1876,9 +1944,12 @@ class Api:
             },
             check_retry_fn=no_retry_4xx,
         )
-        return response["createAgent"]["agent"]
+        result: dict = response["createAgent"]["agent"]
+        return result
 
-    def agent_heartbeat(self, agent_id, metrics, run_states):
+    def agent_heartbeat(
+        self, agent_id: str, metrics: dict, run_states: dict
+    ) -> List[str]:
         """Notify server about agent state, receive commands.
 
         Arguments:
@@ -1928,10 +1999,11 @@ class Api:
             logger.error("Error communicating with W&B: %s", message)
             return []
         else:
-            return json.loads(response["agentHeartbeat"]["commands"])
+            result: List[str] = json.loads(response["agentHeartbeat"]["commands"])
+            return result
 
     @staticmethod
-    def _validate_config_and_fill_distribution(config):
+    def _validate_config_and_fill_distribution(config: dict) -> dict:
         # verify that parameters are well specified.
         # TODO(dag): deprecate this in favor of jsonschema validation once
         # apiVersion 2 is released and local controller is integrated with
@@ -1972,29 +2044,36 @@ class Api:
     @normalize_exceptions
     def upsert_sweep(
         self,
-        config,
-        controller=None,
-        launch_scheduler=None,
-        scheduler=None,
-        obj_id=None,
-        project=None,
-        entity=None,
-        state=None,
-    ):
+        config: dict,
+        controller: Optional[str] = None,
+        launch_scheduler: Optional[str] = None,
+        scheduler: Optional[str] = None,
+        obj_id: Optional[str] = None,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
+        state: Optional[str] = None,
+    ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
 
         Arguments:
             config (dict): sweep config (will be converted to yaml)
+            controller (str): controller to use
+            launch_scheduler (str): launch scheduler to use
+            scheduler (str): scheduler to use
+            obj_id (str): object id
+            project (str): project to use
+            entity (str): entity to use
+            state (str): state
         """
         project_query = """
-                    project {
-                        id
-                        name
-                        entity {
-                            id
-                            name
-                        }
-                    }
+            project {
+                id
+                name
+                entity {
+                    id
+                    name
+                }
+            }
         """
         mutation_str = """
         mutation UpsertSweep(
@@ -2054,7 +2133,7 @@ class Api:
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
-        def no_retry_4xx(e):
+        def no_retry_4xx(e: Exception) -> bool:
             if not isinstance(e, requests.HTTPError):
                 return True
             if (
@@ -2070,6 +2149,7 @@ class Api:
 
         config = self._validate_config_and_fill_distribution(config)
 
+        err: Optional[Exception] = None
         for mutation in mutations:
             try:
                 response = self.gql(
@@ -2087,7 +2167,7 @@ class Api:
                     check_retry_fn=no_retry_4xx,
                 )
             except UsageError as e:
-                raise (e)
+                raise e
             except Exception as e:
                 # graphql schema exception is generic
                 err = e
@@ -2095,21 +2175,21 @@ class Api:
             err = None
             break
         if err:
-            raise (err)
+            raise err
 
-        sweep = response["upsertSweep"]["sweep"]
-        project = sweep.get("project")
-        if project:
-            self.set_setting("project", project["name"])
-            entity = project.get("entity")
-            if entity:
-                self.set_setting("entity", entity["name"])
+        sweep: Dict[str, Dict[str, Dict]] = response["upsertSweep"]["sweep"]
+        project_obj: Dict[str, Dict] = sweep.get("project", {})
+        if project_obj:
+            self.set_setting("project", project_obj["name"])
+            entity_obj: dict = project_obj.get("entity", {})
+            if entity_obj:
+                self.set_setting("entity", entity_obj["name"])
 
         warnings = response["upsertSweep"].get("configValidationWarnings", [])
         return response["upsertSweep"]["sweep"]["name"], warnings
 
     @normalize_exceptions
-    def create_anonymous_api_key(self):
+    def create_anonymous_api_key(self) -> str:
         """Creates a new API key belonging to a new anonymous user."""
         mutation = gql(
             """
@@ -2124,7 +2204,8 @@ class Api:
         )
 
         response = self.gql(mutation, variable_values={})
-        return response["createAnonymousEntity"]["apiKey"]["name"]
+        key: str = response["createAnonymousEntity"]["apiKey"]["name"]
+        return key
 
     @staticmethod
     def file_current(fname: str, md5: str) -> bool:
@@ -2156,19 +2237,20 @@ class Api:
         return responses
 
     def get_project(self) -> str:
-        return self.settings("project")
+        project: str = self.settings("project")
+        return project
 
     @normalize_exceptions
     def push(
         self,
-        files,
-        run=None,
-        entity=None,
-        project=None,
-        description=None,
-        force=True,
-        progress=False,
-    ) -> "List[requests.Response]":
+        files: Union[List[str], Dict[str, IO]],
+        run: Optional[str] = None,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        description: Optional[str] = None,
+        force: bool = True,
+        progress: Union[TextIO, bool] = False,
+    ) -> "List[Optional[requests.Response]]":
         """Uploads multiple files to W&B
 
         Arguments:
@@ -2222,9 +2304,15 @@ class Api:
             except OSError:
                 print(f"{file_name} does not exist")
                 continue
-            if progress:
-                if hasattr(progress, "__call__"):
-                    responses.append(
+            if progress is False:
+                responses.append(
+                    self.upload_file_retry(
+                        file_info["url"], open_file, extra_headers=extra_headers
+                    )
+                )
+            else:
+                if callable(progress):
+                    responses.append(  # type: ignore
                         self.upload_file_retry(
                             file_url, open_file, progress, extra_headers=extra_headers
                         )
@@ -2232,7 +2320,7 @@ class Api:
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(
-                        file=progress,
+                        file=progress,  # type: ignore
                         length=length,
                         label=f"Uploading file: {file_name}",
                         fill_char=click.style("&", fg="green"),
@@ -2245,12 +2333,6 @@ class Api:
                                 extra_headers=extra_headers,
                             )
                         )
-            else:
-                responses.append(
-                    self.upload_file_retry(
-                        file_info["url"], open_file, extra_headers=extra_headers
-                    )
-                )
             open_file.close()
         return responses
 
@@ -2984,6 +3066,6 @@ class Api:
             headers={"Content-Length": "0", "Content-Range": "bytes */%i" % length},
         )
 
-    def _flatten_edges(self, response: "_Response") -> list:
+    def _flatten_edges(self, response: "_Response") -> List[Dict]:
         """Return an array from the nested graphql relay structure"""
         return [node["node"] for node in response["edges"]]
