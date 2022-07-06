@@ -19,7 +19,7 @@ from .test_launch import (
     mocked_fetchable_git_repo,
 )
 
-from ..utils import fixture_open
+from tests import utils
 
 INPUT_TYPES = TypeRegistry.type_of(
     {"epochs": 2, "heavy": False, "sleep_every": 0}
@@ -59,22 +59,23 @@ def mocked_public_artifact(monkeypatch):
 
 
 def test_fetch_job_fail(api):
-
-    launch_project = _project_spec.LaunchProject(
-        None,
-        "test:v0",
-        api,
-        {},
-        "live_mock_server_entity",
-        "Test_project",
-        None,
-        {},
-        {},
-        {},
-        "local",
-        {},
-        None,
-    )
+    kwargs = {
+        "uri": None,
+        "job": "test:v0",
+        "api": api,
+        "launch_spec": {},
+        "target_entity": "live_mock_server_entity",
+        "target_project": "Test_project",
+        "name": None,
+        "docker_config": {},
+        "git_info": {},
+        "overrides": {},
+        "resource": "local",
+        "resource_args": {},
+        "cuda": None,
+        "run_id": None,
+    }
+    launch_project = _project_spec.LaunchProject(**kwargs)
     with pytest.raises(LaunchError) as e_info:
         launch_project._fetch_job()
     assert "Job test:v0 not found" in str(e_info.value)
@@ -105,7 +106,7 @@ def test_launch_job_artifact(
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
     mocked_public_artifact(job_download_func)
 
@@ -149,7 +150,7 @@ def test_launch_job_repo(
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
     mocked_public_artifact(job_download_func)
     api = wandb.sdk.internal.internal_api.Api(
@@ -189,7 +190,7 @@ def test_launch_job_container(
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
     mocked_public_artifact(job_download_func)
     api = wandb.sdk.internal.internal_api.Api(
@@ -220,7 +221,7 @@ def test_launch_add_container_queued_run(live_mock_server, mocked_public_artifac
             }
             f.write(json.dumps(source))
         with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
+            f.write(utils.fixture_open("requirements.txt").read())
 
         return root
 

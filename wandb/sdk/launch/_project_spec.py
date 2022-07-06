@@ -15,7 +15,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
-from wandb.errors import CommError, Error as ExecutionError, LaunchError
+from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -285,7 +285,7 @@ class LaunchProject:
                 ).decode()
             else:
                 if not run_info["git"]:
-                    raise ExecutionError(
+                    raise LaunchError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
                     )
                 utils._fetch_git_repo(

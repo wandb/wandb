@@ -413,7 +413,11 @@ def test_build_image_success(
             "resource": "kubernetes",
             "resource_args": {},
             "cuda": None,
+<<<<<<< HEAD
             "run_id": None
+=======
+            "run_id": None,
+>>>>>>> feature/launch-job-handling
         }
         project = LaunchProject(**kwargs)
         entry_point = EntryPoint("main.py", ["python", "main.py"])

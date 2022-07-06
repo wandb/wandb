@@ -55,6 +55,7 @@ def launch_add(
     resource_args: Resource related arguments for launching runs onto a remote backend.
         Will be stored on the constructed launch config under ``resource_args``.
     cuda: Whether to build a CUDA-enabled docker image or not
+    run_id: optional string indicating the id of the launched run
 
 
     Example:
@@ -113,6 +114,7 @@ def _launch_add(
     params: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
+    run_id: Optional[str] = None,
 ) -> "public.QueuedRun":
 
     resource = resource or "local"
