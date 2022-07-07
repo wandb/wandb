@@ -743,7 +743,13 @@ class Settings:
     @staticmethod
     def _validate_console(value: str) -> bool:
         # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices: Set[str] = {"auto", "redirect", "off", "wrap", "wrapraw",}
+        choices: Set[str] = {
+            "auto",
+            "redirect",
+            "off",
+            "wrap",
+            "wrapraw",
+        }
         if value not in choices:
             raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
         return True
