@@ -18,10 +18,17 @@ if TYPE_CHECKING:
         failed: bool
         artifact_file: bool
 
+    class ArtifactStats(TypedDict):
+        artifact_id: str
+        name: str
+        total_file_count: int
+        pending_file_count: int
+
 
 class Stats:
     def __init__(self) -> None:
         self._stats: MutableMapping[str, "FileStats"] = {}
+        self._artifact_stats: MutableMapping[str, "ArtifactStats"] = {}
         self._lock = threading.Lock()
 
     def init_file(
@@ -47,6 +54,23 @@ class Stats:
     def update_failed_file(self, save_name: str) -> None:
         self._stats[save_name]["uploaded"] = 0
         self._stats[save_name]["failed"] = True
+
+    def init_artifact_stats(
+        self, artifact_id: str, artifact_name: str, total_file_count: str
+    ) -> None:
+        with self._lock:
+            self._artifact_stats[artifact_id] = {
+                "artifact_id": artifact_id,
+                "name": artifact_name,
+                "total_file_count": total_file_count,
+                "pending_file_count": total_file_count,
+            }
+
+    def update_artifact_stats(self, artifact_id: str, pending_count: int):
+        with self._lock:
+            a = self._artifact_stats[artifact_id]
+            name, pending_count = a["name"], a["pending_file_count"]
+            print(f"{name}, {pending_count}")
 
     def summary(self) -> Mapping[str, int]:
         # Need to use list to ensure we get a copy, since other threads may

@@ -29,6 +29,7 @@ class RequestUpload(NamedTuple):
 class RequestStoreManifestFiles(NamedTuple):
     manifest: "artifacts.ArtifactManifest"
     artifact_id: str
+    artifact_name: str
     save_fn: "internal_artifacts.SaveFn"
 
 
@@ -104,6 +105,8 @@ class StepChecksum:
                     )
                 )
             elif isinstance(req, RequestStoreManifestFiles):
+                # needed to show progress of uploaded files (in artifact) to user
+                total_file_count = 0
                 for entry in req.manifest.entries.values():
                     if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
@@ -133,6 +136,14 @@ class StepChecksum:
                                 entry.digest,
                             )
                         )
+                        total_file_count += 1
+
+                print("artifact name", req.artifact_name)
+                self._stats.init_artifact_stats(
+                    artifact_id=req.artifact_id,
+                    artifact_name=req.artifact_name,
+                    total_file_count=total_file_count,
+                )
             elif isinstance(req, RequestCommitArtifact):
                 self._output_queue.put(
                     step_upload.RequestCommitArtifact(

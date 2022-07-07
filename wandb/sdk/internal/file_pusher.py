@@ -150,9 +150,12 @@ class FilePusher:
         self,
         manifest: "artifacts.ArtifactManifest",
         artifact_id: str,
+        artifact_name: str,
         save_fn: "internal_artifacts.SaveFn",
     ) -> None:
-        event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
+        event = step_checksum.RequestStoreManifestFiles(
+            manifest, artifact_id, artifact_name, save_fn
+        )
         self._incoming_queue.put(event)
 
     def commit_artifact(

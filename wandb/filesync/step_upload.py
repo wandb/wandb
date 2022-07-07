@@ -15,7 +15,7 @@ from typing import (
     Union,
 )
 
-from wandb.errors.term import termerror
+from wandb.errors.term import termerror, termlog
 from wandb.filesync import upload_job
 
 if TYPE_CHECKING:
@@ -135,7 +135,15 @@ class StepUpload:
             job.join()
             if job.artifact_id:
                 if event.success:
+                    pending = self._artifacts[job.artifact_id]["pending_count"]
+                    print(pending)
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
+                    pending = self._artifacts[job.artifact_id]["pending_count"]
+                    print(pending)
+                    self._stats.update_artifact_stats(
+                        job.artifact_id,
+                        pending,
+                    )
                     self._maybe_commit_artifact(job.artifact_id)
                 else:
                     termerror(
