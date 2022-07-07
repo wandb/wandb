@@ -141,8 +141,10 @@ def test_launch_job_repo(
                 "_version": "v0",
                 "source_type": "repo",
                 "source": {
-                    "remote": "https://github.com/test/remote",
-                    "commit": "asdasdasdasd",
+                    "git": {
+                        "remote": "https://github.com/test/remote",
+                        "commit": "asdasdasdasd",
+                    },
                     "entrypoint": ["python", "train.py"],
                 },
                 "input_types": INPUT_TYPES,
