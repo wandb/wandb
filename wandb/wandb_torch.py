@@ -84,7 +84,7 @@ class TorchHistory:
         log_gradients=True,
         log_freq=0,
     ):
-        """This instuments hooks into the pytorch module
+        """This instruments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         log_freq - log gradients/parameters every N batches

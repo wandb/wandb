@@ -332,7 +332,7 @@ class Api:
         overrides=None,
         timeout: Optional[int] = None,
         api_key: Optional[str] = None,
-    ):
+    ) -> None:
         self.settings = InternalApi().settings()
         self._api_key = api_key
         if self.api_key is None:
