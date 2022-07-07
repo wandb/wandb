@@ -10,7 +10,6 @@ exclude =
     dist/
     tests/
     codemod/
-    standalone_tests/
     *.pyc
     *.egg-info
     .cache
@@ -25,22 +24,20 @@ exclude =
     ./wandb/proto/
     ./wandb/proto_check/
     ./wandb/env.py
-    ./wandb/sweeps/
     ./wandb/integration/magic.py
     ./wandb/integration/keras/
     ./wandb/integration/metaflow/
-    ./wandb/filesync/
     ./wandb/sdk/internal/internal_api.py
-    ./wandb/sdk/internal/file_pusher.py
-    ./wandb/sdk/internal/file_stream.py
     ./wandb/keras/
     ./wandb/superagent/
     ./wandb/plots/
     ./wandb/sklearn/
     ./wandb/viz.py
     ./wandb/vendor/
+    */wandb/run-*/files/code/
+    */wandb/offline-run-*/files/code/
 
 per-file-ignores =
    wandb/cli/cli.py:C901,I202
    wandb/wandb_controller.py:N803,N806
-   wandb/apis/public.py:B006
+   wandb/filesync/step_checksum.py:B023

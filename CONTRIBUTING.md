@@ -12,7 +12,7 @@ This guide discusses the development workflow and the internals of the `wandb` c
 
 <!--
 ToC was generated with https://ecotrust-canada.github.io/markdown-toc/
-Please make sure to update the ToC when you update this page.
+Please make sure to update the ToC when you update this page!
 -->
 
 - [Development workflow](#development-workflow)
@@ -141,6 +141,36 @@ You can set up a subset of the target environments to test against, for example:
 
 The tool will also set up [`tox`](https://github.com/tox-dev/tox), which we use
 for automating development tasks such as code linting and testing.
+
+Note: to switch the default python version, edit the `.python-version` file in the repository root.
+
+### Mac with the Apple M1 chip
+
+- The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
+the `h5py` package to be installed, which in turn requires `hdf5` to be installed in the system.
+You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands 
+using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install hdf5
+$ export HDF5_DIR="$(brew --prefix hdf5)"
+$ pip install --no-binary=h5py h5py
+```
+
+- The `soundfile` package requires the `libsndfile` package to be installed in the system.
+Note that a pre-release version of `soundfile` will be installed.
+You can install `libsndfile` with the following command using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install libsndfile
+```
+
+- The `moviepy` package requires the `ffmpeg` package to be installed in the system.
+You can install `ffmpeg` with the following command using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install ffmpeg
+```
 
 ## Code organization
 

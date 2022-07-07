@@ -3,15 +3,15 @@ import logging
 import multiprocessing
 import os
 import platform
+import queue
 import signal
 import socket
 import subprocess
 import sys
 import time
 import traceback
+from typing import Any, Dict, List
 
-import six
-from six.moves import queue
 import wandb
 from wandb import util
 from wandb import wandb_lib
@@ -27,7 +27,7 @@ class AgentError(Exception):
     pass
 
 
-class AgentProcess(object):
+class AgentProcess:
     """Launch and manage a process."""
 
     def __init__(
@@ -121,7 +121,7 @@ class AgentProcess(object):
         return self._proc.terminate()
 
 
-class Agent(object):
+class Agent:
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 0
     KILL_DELAY = 30
@@ -208,7 +208,7 @@ class Agent(object):
                     logger.info("Running runs: %s", list(self._run_processes.keys()))
                     self._last_report_time = now
                 run_status = {}
-                for run_id, run_process in list(six.iteritems(self._run_processes)):
+                for run_id, run_process in list(self._run_processes.items()):
                     poll_result = run_process.poll()
                     if poll_result is None:
                         run_status[run_id] = True
@@ -241,6 +241,22 @@ class Agent(object):
                             self._running = False
                             break
                     logger.info("Cleaning up finished run: %s", run_id)
+
+                    # wandb.teardown() was added with wandb service and is a hammer to make
+                    # sure that active runs are finished before moving on to another agent run
+                    #
+                    # In the future, a lighter weight way to implement this could be to keep a
+                    # service process open for all the agent instances and inform_finish when
+                    # the run should be marked complete.  This however could require
+                    # inform_finish on every run created by this process.
+                    if hasattr(wandb, "teardown"):
+                        exit_code = 0
+                        if isinstance(poll_result, int):
+                            exit_code = poll_result
+                        elif isinstance(poll_result, bool):
+                            exit_code = -1
+                        wandb.teardown(exit_code)
+
                     del self._run_processes[run_id]
                     self._last_report_time = None
                     self._finished += 1
@@ -261,7 +277,7 @@ class Agent(object):
                 wandb.termlog(
                     "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
                 )
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     run_process.wait()
             except KeyboardInterrupt:
                 pass
@@ -269,16 +285,16 @@ class Agent(object):
             try:
                 if not self._in_jupyter:
                     wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     try:
                         run_process.terminate()
                     except OSError:
                         pass  # if process is already dead
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     run_process.wait()
             except KeyboardInterrupt:
                 wandb.termlog("Killing runs and quitting.")
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     try:
                         run_process.kill()
                     except OSError:
@@ -309,13 +325,53 @@ class Agent(object):
         except Exception:
             logger.exception("Exception while processing command: %s", command)
             ex_type, ex, tb = sys.exc_info()
-            response["exception"] = "{}: {}".format(ex_type.__name__, str(ex))
+            response["exception"] = f"{ex_type.__name__}: {str(ex)}"
             response["traceback"] = traceback.format_tb(tb)
             del tb
 
         self._log.append((command, response))
 
         return response
+
+    @staticmethod
+    def _create_command_args(command: Dict) -> Dict[str, Any]:
+        """Create various formats of command arguments for the agent.
+
+        Raises:
+            ValueError: improperly formatted command dict
+
+        """
+        if "args" not in command:
+            raise ValueError('No "args" found in command: %s' % command)
+        # four different formats of command args
+        # (1) standard command line flags (e.g. --foo=bar)
+        flags: List[str] = []
+        # (2) flags without hyphens (e.g. foo=bar)
+        flags_no_hyphens: List[str] = []
+        # (3) flags with false booleans ommited  (e.g. --foo)
+        flags_no_booleans: List[str] = []
+        # (4) flags as a dictionary (used for constructing a json)
+        flags_dict: Dict[str, Any] = {}
+        for param, config in command["args"].items():
+            _value: Any = config.get("value", None)
+            if _value is None:
+                raise ValueError('No "value" found for command["args"]["%s"]' % param)
+            _flag: str = f"{param}={_value}"
+            flags.append("--" + _flag)
+            flags_no_hyphens.append(_flag)
+            if isinstance(_value, bool):
+                # omit flags if they are boolean and false
+                if _value:
+                    flags_no_booleans.append("--" + param)
+            else:
+                flags_no_booleans.append("--" + _flag)
+            flags_dict[param] = _value
+        return {
+            "args": flags,
+            "args_no_hyphens": flags_no_hyphens,
+            "args_no_boolean_flags": flags_no_booleans,
+            "args_json": [json.dumps(flags_dict)],
+        }
 
     def _command_run(self, command):
         logger.info(
@@ -366,17 +422,11 @@ class Agent(object):
 
         env = dict(os.environ)
 
-        flags_list = [
-            (param, config["value"]) for param, config in command["args"].items()
-        ]
-        flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
-        flags = ["--" + flag for flag in flags_no_hyphens]
-        flags_dict = dict(flags_list)
-        flags_json = json.dumps(flags_dict)
+        sweep_vars: Dict[str, Any] = Agent._create_command_args(command)
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:
-                fp.write(flags_json)
+                fp.write(sweep_vars["args_json"][0])
 
         if self._function:
             # make sure that each run regenerates setup singleton
@@ -388,17 +438,11 @@ class Agent(object):
                 in_jupyter=self._in_jupyter,
             )
         else:
-            sweep_vars = dict(
-                interpreter=["python"],
-                program=[command["program"]],
-                args=flags,
-                args_no_hyphens=flags_no_hyphens,
-                args_json=[flags_json],
-                args_json_file=[json_file],
-                env=["/usr/bin/env"],
-            )
-            if platform.system() == "Windows":
-                del sweep_vars["env"]
+            sweep_vars["interpreter"] = ["python"]
+            sweep_vars["program"] = [command["program"]]
+            sweep_vars["args_json_file"] = [json_file]
+            if not platform.system() == "Windows":
+                sweep_vars["env"] = ["/usr/bin/env"]
             command_list = []
             for c in sweep_command:
                 c = str(c)
@@ -443,7 +487,7 @@ class Agent(object):
 
     def _command_exit(self, command):
         logger.info("Received exit command. Killing runs and quitting.")
-        for _, proc in six.iteritems(self._run_processes):
+        for _, proc in self._run_processes.items():
             try:
                 proc.kill()
             except OSError:
@@ -452,7 +496,7 @@ class Agent(object):
         self._running = False
 
 
-class AgentApi(object):
+class AgentApi:
     def __init__(self, queue):
         self._queue = queue
         self._command_id = 0

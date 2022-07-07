@@ -1,24 +1,22 @@
 import datetime
 import os
+import shlex
 import time
 from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
-from six.moves import shlex_quote
 import wandb
-import wandb.docker as docker
 from wandb.errors import LaunchError
 from wandb.util import get_module
 import yaml
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
-from ..docker import (
-    construct_gcp_image_uri,
-    generate_docker_image,
+from ..builder.abstract import AbstractBuilder
+from ..builder.build import (
+    construct_gcp_registry_uri,
     get_env_vars_dict,
-    validate_docker_installation,
 )
 from ..utils import (
     PROJECT_DOCKER_ARGS,
@@ -79,7 +77,12 @@ class VertexSubmittedRun(AbstractRun):
 class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun"""
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
 
         aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
@@ -110,9 +113,9 @@ class VertexRunner(AbstractRunner):
             raise LaunchError(
                 "Vertex requires an Artifact Registry repository for the Docker image. Specify a repo under key artifact_repo."
             )
-        gcp_docker_host = resource_args.get(
-            "docker_host"
-        ) or "{region}-docker.pkg.dev".format(region=gcp_region)
+        gcp_docker_host = (
+            resource_args.get("docker_host") or f"{gcp_region}-docker.pkg.dev"
+        )
         gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
         gcp_accelerator_type = (
             resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
@@ -130,8 +133,6 @@ class VertexRunner(AbstractRunner):
         aiplatform.init(
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
         )
-
-        validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
@@ -144,31 +145,24 @@ class VertexRunner(AbstractRunner):
         if launch_project.docker_image:
             image_uri = launch_project.docker_image
         else:
-            image_uri = construct_gcp_image_uri(
-                launch_project,
+
+            repository = construct_gcp_registry_uri(
                 gcp_artifact_repo,
                 gcp_project,
                 gcp_docker_host,
             )
-
-            generate_docker_image(
+            assert entry_point is not None
+            image_uri = builder.build_image(
                 launch_project,
-                image_uri,
+                repository,
                 entry_point,
                 docker_args,
-                runner_type="gcp-vertex",
             )
-
-        image, tag = image_uri.split(":")
-        if not exists_on_gcp(image, tag):
-            docker.push(image, tag)
 
         if not self.ack_run_queue_item(launch_project):
             return None
-
-        entry_cmd = get_entry_point_command(
-            entry_point, launch_project.override_args
-        ).split()
+        # TODO: how to handle this?
+        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
 
         worker_pool_specs = [
             {
@@ -183,7 +177,9 @@ class VertexRunner(AbstractRunner):
                     "command": entry_cmd,
                     "env": [
                         {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(launch_project, self._api).items()
+                        for k, v in get_env_vars_dict(
+                            launch_project, entry_point, self._api
+                        ).items()
                     ],
                 },
             }
@@ -229,7 +225,7 @@ class VertexRunner(AbstractRunner):
 def get_gcp_config(config: str = "default") -> Any:
     return yaml.safe_load(
         run_shell(
-            ["gcloud", "config", "configurations", "describe", shlex_quote(config)]
+            ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
         )[0]
     )
 
@@ -242,9 +238,9 @@ def exists_on_gcp(image: str, tag: str) -> bool:
             "docker",
             "images",
             "list",
-            shlex_quote(image),
+            shlex.quote(image),
             "--include-tags",
-            "--filter=tags:{}".format(shlex_quote(tag)),
+            f"--filter=tags:{shlex.quote(tag)}",
         ]
     )
     return tag in out and "sha256:" in out

@@ -9,7 +9,7 @@ _mock_module = None
 
 def get_mock_module(config):
     """
-    Import and return the actual "mock" module. By default this is
+    Import and return the actual "mock" module. By default, this is
     "unittest.mock", but the user can force to always use "mock" using
     the mock_use_standalone_module ini option.
     """
@@ -43,6 +43,12 @@ def parse_ini_boolean(value: Union[bool, str]) -> bool:
     raise ValueError("unknown string for bool: %r" % value)
 
 
+def assets_path(path):
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), os.pardir, "assets", path
+    )
+
+
 def subdict(d, expected_dict):
     """Return a new dict with only the items from `d` whose keys occur in `expected_dict`."""
     return {k: v for k, v in d.items() if k in expected_dict}
@@ -50,12 +56,16 @@ def subdict(d, expected_dict):
 
 def fixture_path(path):
     return os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", path
+        os.path.dirname(os.path.abspath(__file__)),
+        os.pardir,
+        "assets",
+        "fixtures",
+        path,
     )
 
 
 def first_filestream(ctx):
-    """In xdist tests sometimes rougue file_streams make it to the server,
+    """In xdist tests sometimes rogue file_streams make it to the server,
     we grab the first request with `files`"""
     return next(m for m in ctx["file_stream"] if m.get("files"))
 
@@ -75,7 +85,7 @@ def fixture_copy(path, dst=None):
 def notebook_path(path):
     """Returns the path to a notebook"""
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "notebooks", path)
+        os.path.join(os.path.dirname(__file__), os.pardir, "assets", "notebooks", path)
     )
 
 
@@ -93,7 +103,7 @@ def assert_deep_lists_equal(a, b, indices=None):
     except ValueError:
         assert len(a) == len(b)
 
-        # pytest's list diffing breaks at 4d so we track them ourselves
+        # pytest's list diffing breaks at 4d, so we track them ourselves
         if indices is None:
             indices = []
             top = True

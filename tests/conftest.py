@@ -1,9 +1,9 @@
 import atexit
 from contextlib import contextmanager
-import datetime
 import logging
 import os
 import platform
+import queue
 import shutil
 import subprocess
 import sys
@@ -12,6 +12,7 @@ import time
 import threading
 from unittest import mock
 from unittest.mock import MagicMock
+import urllib
 
 import click
 from click.testing import CliRunner
@@ -20,7 +21,6 @@ import nbformat
 import psutil
 import pytest
 import requests
-from six.moves import queue, urllib
 import webbrowser
 
 from tests import utils
@@ -40,7 +40,7 @@ from wandb import Api
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 
 
-class ServerMap(object):
+class ServerMap:
     def __init__(self):
         self._map = {}
 
@@ -59,7 +59,7 @@ servers = ServerMap()
 def test_cleanup(*args, **kwargs):
     print("Shutting down mock servers")
     for wid, server in servers.items():
-        print("Shutting down {}".format(wid))
+        print(f"Shutting down {wid}")
         server.terminate()
     print("Open files during tests: ")
     proc = psutil.Process()
@@ -69,15 +69,13 @@ def test_cleanup(*args, **kwargs):
 def start_mock_server(worker_id):
     """We start a flask server process for each pytest-xdist worker_id"""
     port = utils.free_port()
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    path = os.path.join(root, "tests", "utils", "mock_server.py")
+    this_folder = os.path.dirname(__file__)
+    path = os.path.join(this_folder, "utils", "mock_server.py")
     command = [sys.executable, "-u", path]
     env = os.environ
     env["PORT"] = str(port)
-    env["PYTHONPATH"] = root
-    logfname = os.path.join(
-        root, "tests", "logs", "live_mock_server-{}.log".format(worker_id)
-    )
+    env["PYTHONPATH"] = os.path.abspath(os.path.join(this_folder, os.pardir))
+    logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
     logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
@@ -120,10 +118,10 @@ def start_mock_server(worker_id):
             else:
                 raise ValueError("Server failed to start.")
     if started:
-        print("Mock server listing on {} see {}".format(server._port, logfname))
+        print(f"Mock server listing on {server._port} see {logfname}")
     else:
         server.terminate()
-        print("Server failed to launch, see {}".format(logfname))
+        print(f"Server failed to launch, see {logfname}")
         try:
             print("=" * 40)
             with open(logfname) as f:
@@ -149,8 +147,8 @@ def test_name(request):
 @pytest.fixture
 def test_dir(test_name):
     orig_dir = os.getcwd()
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    test_dir = os.path.join(root, "tests", "logs", test_name)
+    root = os.path.abspath(os.path.dirname(__file__))
+    test_dir = os.path.join(root, "logs", test_name)
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
     mkdir_exists_ok(test_dir)
@@ -225,10 +223,7 @@ def test_settings(test_dir, mocker, live_mock_server):
     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
     wandb_dir = os.path.join(test_dir, "wandb")
     mkdir_exists_ok(wandb_dir)
-    # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     settings = wandb.Settings(
-        _start_datetime=datetime.datetime.now(),
-        _start_time=time.time(),
         api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
         console="off",
@@ -238,6 +233,7 @@ def test_settings(test_dir, mocker, live_mock_server):
         run_id=wandb.util.generate_id(),
         save_code=False,
     )
+    settings._set_run_start_time()
     yield settings
     # Just in case someone forgets to join in tests. ...well, please don't!
     if wandb.run is not None:
@@ -268,13 +264,18 @@ def runner(monkeypatch, mocker):
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
-    mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
+    mocker.patch("wandb.wandb_lib.apikey.getpass", lambda x: DUMMY_API_KEY)
     return CliRunner()
 
 
 @pytest.fixture(autouse=True)
 def reset_setup():
-    wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+    def teardown():
+        wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+
+    getattr(wandb, "teardown", teardown)()
+    yield
+    getattr(wandb, "teardown", lambda: None)()
 
 
 @pytest.fixture(autouse=True)
@@ -463,15 +464,12 @@ def wandb_init_run(request, runner, mocker, mock_server):
         with mock.patch.dict(os.environ, {k: v for k, v in args["env"].items()}):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
-            #  We want to run setup every time in tests
-            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
             run = wandb.init(
                 settings=dict(console="off", mode="offline", _except_exit=False),
                 **args["wandb_init"],
             )
             yield run
-            wandb.finish()
+            run.finish()
     finally:
         unset_globals()
 
@@ -483,9 +481,6 @@ def wandb_init(request, runner, mocker, mock_server):
             mocks_from_args(mocker, default_wandb_args(), mock_server)
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
-            #  We want to run setup every time in tests
-            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
-            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
             return wandb.init(
                 settings=dict(console="off", mode="offline", _except_exit=False),
                 *args,
@@ -938,7 +933,7 @@ def mock_tty(monkeypatch):
                 # TODO: emulate msvcrt to support input on windows
                 with open(fname, "w") as fp:
                     fp.write(input_str)
-            fds["stdin"] = open(fname, "r")
+            fds["stdin"] = open(fname)
             monkeypatch.setattr("sys.stdin", fds["stdin"])
             sys.stdin.isatty = lambda: True
             sys.stdout.isatty = lambda: True

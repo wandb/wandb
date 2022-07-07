@@ -3,7 +3,12 @@ import math
 import sys
 import typing as t
 
-from wandb.util import get_module, is_numpy_array
+from wandb.util import (
+    _is_artifact_string,
+    _is_artifact_version_weave_dict,
+    get_module,
+    is_numpy_array,
+)
 
 np = get_module("numpy")  # intentionally not required
 
@@ -58,6 +63,10 @@ class TypeRegistry:
         if py_obj.__class__ == float and math.isnan(py_obj):  # type: ignore
             return NoneType()
 
+        # TODO: generalize this to handle other config input types
+        if _is_artifact_string(py_obj) or _is_artifact_version_weave_dict(py_obj):
+            return TypeRegistry.types_by_name().get("artifactVersion")()
+
         class_handler = TypeRegistry.types_by_class().get(py_obj.__class__)
         _type = None
         if class_handler:
@@ -75,7 +84,7 @@ class TypeRegistry:
             TypeError("json_dict must contain `wb_type` key")
         _type = TypeRegistry.types_by_name().get(wb_type)
         if _type is None:
-            TypeError("missing type handler for {}".format(wb_type))
+            TypeError(f"missing type handler for {wb_type}")
         return _type.from_json(json_dict, artifact)
 
     @staticmethod
@@ -160,7 +169,7 @@ def _json_obj_to_params_obj(
         return json_obj
 
 
-class Type(object):
+class Type:
     """This is the most generic type which all types are subclasses.
     It provides simple serialization and deserialization as well as equality checks.
     A name class-level property must be uniquely set by subclasses.
@@ -265,12 +274,12 @@ class Type(object):
             depth (int, optional): depth of the type checking. Defaults to 0.
 
         Returns:
-            str: human readable explanation
+            str: human-readable explanation
         """
         wbtype = TypeRegistry.type_of(other)
         gap = "".join(["\t"] * depth)
         if depth > 0:
-            return "{}{} not assignable to {}".format(gap, wbtype, self)
+            return f"{gap}{wbtype} not assignable to {self}"
         else:
             return "{}{} of type {} is not assignable to {}".format(
                 gap, other, wbtype, self
@@ -291,6 +300,7 @@ class Type(object):
         return self is other or (
             isinstance(self, Type)
             and isinstance(other, Type)
+            and self.name == other.name
             and self.params.keys() == other.params.keys()
             and all([self.params[k] == other.params[k] for k in self.params])
         )
@@ -558,7 +568,7 @@ class UnionType(Type):
         return self.__class__(resolved_types)
 
     def explain(self, other: t.Any, depth=0) -> str:
-        exp = super(UnionType, self).explain(other, depth)
+        exp = super().explain(other, depth)
         for ndx, subtype in enumerate(self.params["allowed_types"]):
             if ndx > 0:
                 exp += "\n{}and".format("".join(["\t"] * depth))
@@ -659,7 +669,7 @@ class ListType(Type):
         return InvalidType()
 
     def explain(self, other: t.Any, depth=0) -> str:
-        exp = super(ListType, self).explain(other, depth)
+        exp = super().explain(other, depth)
         gap = "".join(["\t"] * depth)
         if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
             isinstance(other, list)
@@ -839,7 +849,7 @@ class TypedDictType(Type):
         return InvalidType()
 
     def explain(self, other: t.Any, depth=0) -> str:
-        exp = super(TypedDictType, self).explain(other, depth)
+        exp = super().explain(other, depth)
         gap = "".join(["\t"] * depth)
         if isinstance(other, dict):
             extra_keys = set(other.keys()) - set(self.params["type_map"].keys())

@@ -10,7 +10,6 @@ from multiprocessing.process import BaseProcess
 from typing import Any, Optional
 from typing import cast
 
-import six
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -78,7 +77,7 @@ class InterfaceShared(InterfaceBase):
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
         stats.timestamp.GetCurrentTime()
-        for k, v in six.iteritems(stats_dict):
+        for k, v in stats_dict.items():
             item = stats.item.add()
             item.key = k
             item.value_json = json_dumps_safer(json_friendly(v)[0])
@@ -241,7 +240,7 @@ class InterfaceShared(InterfaceBase):
         result = self._communicate(rec, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(  # type: ignore[no-untyped-call]
+            raise wandb.Error(
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         login_response = result.response.login_response

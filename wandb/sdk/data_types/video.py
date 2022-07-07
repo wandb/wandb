@@ -87,7 +87,7 @@ class Video(BatchableMedia):
         fps: int = 4,
         format: Optional[str] = None,
     ):
-        super(Video, self).__init__()
+        super().__init__()
 
         self._fps = fps
         self._format = format or "gif"
@@ -167,7 +167,7 @@ class Video(BatchableMedia):
         return os.path.join("media", "videos")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
-        json_dict = super(Video, self).to_json(run_or_artifact)
+        json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
 
         if self._width is not None:

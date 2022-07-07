@@ -1,7 +1,7 @@
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
-class Api(object):
+class Api:
     """Internal proxy to the official internal API.  Eventually these methods
     should likely be moved to PublicApi"""
 
@@ -139,6 +139,9 @@ class Api(object):
 
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
+
+    def get_run_state(self, *args, **kwargs):
+        return self.api.get_run_state(*args, **kwargs)
 
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)

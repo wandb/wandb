@@ -1,25 +1,82 @@
 """Batching file prepare requests to our API."""
 
-import collections
+import queue
+import sys
 import threading
-from six.moves import queue
+from typing import (
+    Any,
+    Callable,
+    MutableMapping,
+    MutableSequence,
+    MutableSet,
+    NamedTuple,
+    Optional,
+    TYPE_CHECKING,
+    Union,
+)
 
-from wandb.filesync import upload_job
 from wandb.errors.term import termerror
+from wandb.filesync import upload_job
+
+if TYPE_CHECKING:
+    from wandb.filesync import dir_watcher, stats
+    from wandb.sdk.internal import file_stream, internal_api, progress
+
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
+
+    class ArtifactStatus(TypedDict):
+        finalize: bool
+        pending_count: int
+        commit_requested: bool
+        pre_commit_callbacks: MutableSet["PreCommitFn"]
+        post_commit_callbacks: MutableSet["PostCommitFn"]
 
 
-RequestUpload = collections.namedtuple(
-    "EventStartUploadJob",
-    ("path", "save_name", "artifact_id", "md5", "copied", "save_fn", "digest"),
-)
-RequestCommitArtifact = collections.namedtuple(
-    "RequestCommitArtifact", ("artifact_id", "finalize", "before_commit", "on_commit")
-)
-RequestFinish = collections.namedtuple("RequestFinish", ("callback"))
+PreCommitFn = Callable[[], None]
+PostCommitFn = Callable[[], None]
+OnRequestFinishFn = Callable[[], None]
+SaveFn = Callable[["progress.ProgressFn"], Any]
 
 
-class StepUpload(object):
-    def __init__(self, api, stats, event_queue, max_jobs, file_stream, silent=False):
+class RequestUpload(NamedTuple):
+    path: str
+    save_name: "dir_watcher.SaveName"
+    artifact_id: Optional[str]
+    md5: Optional[str]
+    copied: bool
+    save_fn: Optional[SaveFn]
+    digest: Optional[str]
+
+
+class RequestCommitArtifact(NamedTuple):
+    artifact_id: str
+    finalize: bool
+    before_commit: Optional[PreCommitFn]
+    on_commit: Optional[PostCommitFn]
+
+
+class RequestFinish(NamedTuple):
+    callback: Optional[OnRequestFinishFn]
+
+
+Event = Union[
+    RequestUpload, RequestCommitArtifact, RequestFinish, upload_job.EventJobDone
+]
+
+
+class StepUpload:
+    def __init__(
+        self,
+        api: "internal_api.Api",
+        stats: "stats.Stats",
+        event_queue: "queue.Queue[Event]",
+        max_jobs: int,
+        file_stream: "file_stream.FileStreamApi",
+        silent: bool = False,
+    ) -> None:
         self._api = api
         self._stats = stats
         self._event_queue = event_queue
@@ -30,15 +87,18 @@ class StepUpload(object):
         self._thread.daemon = True
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
-        self._running_jobs = {}
-        self._pending_jobs = []
+        self._running_jobs: MutableMapping[
+            dir_watcher.SaveName, upload_job.UploadJob
+        ] = {}
+        self._pending_jobs: MutableSequence[RequestUpload] = []
 
-        self._artifacts = {}
+        self._artifacts: MutableMapping[str, "ArtifactStatus"] = {}
 
         self._finished = False
         self.silent = silent
 
-    def _thread_body(self):
+    def _thread_body(self) -> None:
+        event: Optional[Event]
         # Wait for event in the queue, and process one by one until a
         # finish event is received
         finish_callback = None
@@ -69,7 +129,7 @@ class StepUpload(object):
                     finish_callback()
                 break
 
-    def _handle_event(self, event):
+    def _handle_event(self, event: Event) -> None:
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
             job.join()
@@ -112,7 +172,7 @@ class StepUpload(object):
         else:
             raise Exception("Programming error: unhandled event: %s" % str(event))
 
-    def _start_upload_job(self, event):
+    def _start_upload_job(self, event: Event) -> None:
         if not isinstance(event, RequestUpload):
             raise Exception("Programming error: invalid event")
 
@@ -141,15 +201,16 @@ class StepUpload(object):
         self._running_jobs[event.save_name] = job
         job.start()
 
-    def _init_artifact(self, artifact_id):
+    def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
+            "finalize": False,
             "pending_count": 0,
             "commit_requested": False,
             "pre_commit_callbacks": set(),
             "post_commit_callbacks": set(),
         }
 
-    def _maybe_commit_artifact(self, artifact_id):
+    def _maybe_commit_artifact(self, artifact_id: str) -> None:
         artifact_status = self._artifacts[artifact_id]
         if (
             artifact_status["pending_count"] == 0
@@ -162,12 +223,15 @@ class StepUpload(object):
             for callback in artifact_status["post_commit_callbacks"]:
                 callback()
 
-    def start(self):
+    def start(self) -> None:
         self._thread.start()
 
-    def is_alive(self):
+    def is_alive(self) -> bool:
         return self._thread.is_alive()
 
-    def shutdown(self):
+    def finish(self) -> None:
+        self._finished = True
+
+    def shutdown(self) -> None:
         self.finish()
         self._thread.join()

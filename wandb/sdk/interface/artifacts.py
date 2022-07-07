@@ -21,6 +21,11 @@ from wandb import env
 from wandb import util
 from wandb.data_types import WBValue
 
+if TYPE_CHECKING:
+    # need this import for type annotations, but want to avoid circular dependency
+    from wandb.sdk import wandb_artifacts
+    from wandb.sdk.internal import progress
+
 
 if TYPE_CHECKING:
     import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
@@ -73,7 +78,7 @@ def bytes_to_hex(bytestr):
     return codecs.getencoder("hex")(bytestr)[0]
 
 
-class ArtifactManifest(object):
+class ArtifactManifest:
     entries: Dict[str, "ArtifactEntry"]
 
     @classmethod
@@ -91,7 +96,12 @@ class ArtifactManifest(object):
     def version(cls):
         pass
 
-    def __init__(self, artifact, storage_policy, entries=None):
+    def __init__(
+        self,
+        artifact,
+        storage_policy: "wandb_artifacts.WandbStoragePolicy",
+        entries=None,
+    ) -> None:
         self.artifact = artifact
         self.storage_policy = storage_policy
         self.entries = entries or {}
@@ -123,7 +133,7 @@ class ArtifactManifest(object):
         ]
 
 
-class ArtifactEntry(object):
+class ArtifactEntry:
     path: str
     ref: Optional[str]
     digest: str
@@ -183,7 +193,7 @@ class ArtifactEntry(object):
         raise NotImplementedError
 
 
-class Artifact(object):
+class Artifact:
     @property
     def id(self) -> Optional[str]:
         """
@@ -351,13 +361,14 @@ class Artifact(object):
         """
         raise NotImplementedError
 
-    def new_file(self, name: str, mode: str = "w"):
+    def new_file(self, name: str, mode: str = "w", encoding: Optional[str] = None):
         """
         Open a new temporary file that will be automatically added to the artifact.
 
         Arguments:
             name: (str) The name of the new file being added to the artifact.
             mode: (str, optional) The mode in which to open the new file.
+            encoding: (str, optional) The encoding in which to open the new file.
 
         Examples:
             ```
@@ -758,12 +769,12 @@ class Artifact(object):
         raise NotImplementedError
 
 
-class StorageLayout(object):
+class StorageLayout:
     V1 = "V1"
     V2 = "V2"
 
 
-class StoragePolicy(object):
+class StoragePolicy:
     @classmethod
     def lookup_by_name(cls, name):
         for sub in cls.__subclasses__():
@@ -793,7 +804,7 @@ class StoragePolicy(object):
         artifact_manifest_id: str,
         entry: ArtifactEntry,
         preparer: "StepPrepare",
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
         raise NotImplementedError
 
@@ -812,7 +823,7 @@ class StoragePolicy(object):
         raise NotImplementedError
 
 
-class StorageHandler(object):
+class StorageHandler:
     @property
     def scheme(self) -> str:
         """
@@ -854,7 +865,7 @@ class StorageHandler(object):
         pass
 
 
-class ArtifactsCache(object):
+class ArtifactsCache:
 
     _TMP_PREFIX = "tmp"
 

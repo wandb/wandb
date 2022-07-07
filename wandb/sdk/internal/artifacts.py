@@ -1,21 +1,33 @@
-#
 import json
 import os
+import sys
 import tempfile
 import threading
-from typing import Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import wandb
 from wandb import util
 import wandb.filesync.step_prepare
 
-from ..interface.artifacts import ArtifactManifest
+from ..interface.artifacts import ArtifactEntry, ArtifactManifest
 
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
+    from wandb.sdk.internal.progress import ProgressFn
     from .file_pusher import FilePusher
     from wandb.proto import wandb_internal_pb2
+
+    if sys.version_info >= (3, 8):
+        from typing import Protocol
+    else:
+        from typing_extensions import Protocol
+
+    class SaveFn(Protocol):
+        def __call__(
+            self, entry: ArtifactEntry, progress_callback: "ProgressFn"
+        ) -> Any:
+            pass
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
@@ -36,9 +48,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
             for content in manifest.contents
         }
     else:
-        raise Exception(
-            "unknown artifact manifest version: {}".format(manifest.version)
-        )
+        raise Exception(f"unknown artifact manifest version: {manifest.version}")
 
     return {
         "version": manifest.version,
@@ -51,7 +61,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
     }
 
 
-class ArtifactSaver(object):
+class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
     def __init__(
@@ -215,8 +225,12 @@ class ArtifactSaver(object):
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
-            with open(path, "rb") as fp:  # type: ignore
-                self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
+            with open(path, "rb") as fp2:
+                self._api.upload_file_retry(
+                    upload_url,
+                    fp2,
+                    extra_headers=extra_headers,
+                )
 
         def on_commit() -> None:
             if finalize and use_after_commit:
@@ -248,9 +262,7 @@ class ArtifactSaver(object):
                     artifact_file_path = util.uri_from_path(entry.ref)
                     artifact_id = self._api._resolve_client_id(client_id)
                     if artifact_id is None:
-                        raise RuntimeError(
-                            "Could not resolve client id {}".format(client_id)
-                        )
+                        raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = "wandb-artifact://{}/{}".format(
                         util.b64_to_hex_id(artifact_id), artifact_file_path
                     )

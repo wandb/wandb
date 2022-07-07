@@ -1,11 +1,12 @@
 import json
-import requests
 import threading
 import urllib
 from unittest.mock import MagicMock
 
+import requests
 
-class ResponseMock(object):
+
+class ResponseMock:
     def __init__(self, response):
         self.response = response
         self.mock = MagicMock()
@@ -59,7 +60,7 @@ class ResponseMock(object):
         return json.loads(str_data) if str_data else {}
 
 
-class RequestsMock(object):
+class RequestsMock:
     def __init__(self, app, ctx):
         self.app = app
         self.client = app.test_client()
@@ -83,7 +84,7 @@ class RequestsMock(object):
         return requests.HTTPError
 
     @property
-    def model(self):
+    def models(self):
         return self.mock
 
     @property
@@ -193,7 +194,7 @@ class RequestsMock(object):
         return "<W&B Mocked Request class>"
 
 
-class InjectRequestsMatch(object):
+class InjectRequestsMatch:
     def __init__(self, path_suffix=None, count=None, query_str=None):
         self._path_suffix = path_suffix
         self._count = count
@@ -210,17 +211,17 @@ class InjectRequestsMatch(object):
         return r
 
 
-class InjectRequestsAction(object):
+class InjectRequestsAction:
     def __init__(self, response=None, http_status=None, requests_error=None):
         self.response = response
         self.http_status = http_status
         self.requests_error = requests_error
 
     def __str__(self):
-        return "Action({})".format(vars(self))
+        return f"Action({vars(self)})"
 
 
-class InjectRequestsParse(object):
+class InjectRequestsParse:
     def __init__(self, ctx):
         self._ctx = ctx
 
@@ -280,7 +281,7 @@ class InjectRequestsParse(object):
         return None
 
 
-class InjectRequests(object):
+class InjectRequests:
     """Add a structure to the ctx object that can be parsed by InjectRequestsParse()."""
 
     def __init__(self, ctx):

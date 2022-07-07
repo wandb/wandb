@@ -1,28 +1,28 @@
 """Mock Server for simple calls the cli and public api make"""
 
-from flask import Flask, request, g, jsonify
-import os
-import sys
-import re
 from datetime import datetime, timedelta
-import json
-import platform
-import yaml
-import six
-import gzip
 import functools
+import gzip
+import json
+import logging
+import os
+import platform
+import re
+import sys
+import threading
 import time
+import urllib.parse
+
+from flask import Flask, request, g, jsonify
 import requests
 from werkzeug.exceptions import BadRequest
+import yaml
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
 import wandb
 
 sys.path[0:0] = save_path
-import logging
-from six.moves import urllib
-import threading
 
 RequestsMock = None
 InjectRequestsParse = None
@@ -78,8 +78,8 @@ def default_ctx():
         "emulate_artifacts": None,
         "emulate_azure": False,
         "run_state": "running",
-        "run_queue_item_check_count": 0,
-        "return_jupyter_in_run_info": False,
+        "run_queue_item_return_type": "queued",
+        "run_script_type": "python",
         "alerts": [],
         "gorilla_supports_launch_agents": True,
         "launch_agents": {},
@@ -95,6 +95,7 @@ def default_ctx():
         "run_cuda_version": None,
         # relay mode, keep track of upsert runs for validation
         "relay_run_info": {},
+        "latest_arti_id": None,
     }
 
 
@@ -153,10 +154,14 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-    if ctx["return_jupyter_in_run_info"]:
+    if ctx["run_script_type"] == "notebook":
         program_name = "one_cell.ipynb"
-    else:
+    elif ctx["run_script_type"] == "shell":
+        program_name = "test.sh"
+    elif ctx["run_script_type"] == "python":
         program_name = "train.py"
+    elif ctx["run_script_type"] == "unknown":
+        program_name = "unknown.unk"
     return {
         "id": "test",
         "name": "test",
@@ -243,7 +248,7 @@ def artifact(
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
-                + "/storage?file=wandb_manifest.json&id={}".format(_id)
+                + f"/storage?file=wandb_manifest.json&id={_id}"
             }
         },
     }
@@ -262,7 +267,7 @@ def paginated(node, ctx, extra={}):
     }
 
 
-class CTX(object):
+class CTX:
     """This is a silly threadsafe wrapper for getting ctx into the server
     NOTE: This will stop working for live_mock_server if we make pytest run
     in parallel.
@@ -378,7 +383,12 @@ class SnoopRelay:
                 url_path = request.path
                 body = request.get_json()
 
-                url = f"https://api.wandb.ai{url_path}"
+                base_url = os.environ.get(
+                    "MOCKSERVER_RELAY_REMOTE_BASE_URL",
+                    "https://api.wandb.ai",
+                )
+                url = urllib.parse.urljoin(base_url, url_path)
+
                 resp = requests.post(url, json=body)
                 data = resp.json()
                 run_obj = data.get("data", {}).get("upsertBucket", {}).get("bucket", {})
@@ -405,7 +415,7 @@ class SnoopRelay:
                         time.sleep(12)
                         raise HttpException("some error", status_code=500)
                 return data
-            assert False
+            assert False  # we do not support get requests yet, and likely never will :)
 
             return func(*args, **kwargs)
 
@@ -419,7 +429,7 @@ class SnoopRelay:
                 ctx["run_ids"].append(run_id)
             run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
 
-            # NOTE: not used, added for consistancy with non-relay mode
+            # NOTE: not used, added for consistency with non-relay mode
             r = run_ctx.setdefault("run", {})
             r.setdefault("display_name", f"relay_name-{run_num}")
             r.setdefault("storage_id", f"storageid{run_num}")
@@ -428,10 +438,16 @@ class SnoopRelay:
 
             # TODO: handle errors better
             try:
-                # NOTE: We are using wandb but it isnt a strict depenedency
                 import wandb
 
-                api = wandb.Api()
+                api = wandb.Api(
+                    overrides={
+                        "base_url": os.environ.get(
+                            "MOCKSERVER_RELAY_REMOTE_BASE_URL",
+                            "https://api.wandb.ai",
+                        )
+                    }
+                )
                 run = api.run(f"{run_info['entity']}/{run_info['project']}/{run_id}")
             except Exception as e:
                 print(f"ERROR: problem calling public api for run {run_id}", e)
@@ -494,7 +510,7 @@ def create_app(user_ctx=None):
             ctx = snoop.context_enrich(ctx)
             return json.dumps(ctx)
         elif request.method == "DELETE":
-            app.logger.info("reseting context")
+            app.logger.info("resetting context")
             set_ctx(default_ctx())
             return json.dumps(get_ctx())
         else:
@@ -932,8 +948,8 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
 
             r = run_ctx.setdefault("run", {})
-            r.setdefault("display_name", "lovely-dawn-{}".format(run_num + 32))
-            r.setdefault("storage_id", "storageid{}".format(run_num))
+            r.setdefault("display_name", f"lovely-dawn-{run_num + 32}")
+            r.setdefault("storage_id", f"storageid{run_num}")
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
 
@@ -1040,18 +1056,25 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation LinkArtifact(" in body["query"]:
             if ART_EMU:
+                ctx["latest_arti_id"] = body["variables"].get("artifactID") or body[
+                    "variables"
+                ].get("clientID")
                 return ART_EMU.link(variables=body["variables"])
+
         if "mutation CreateArtifact(" in body["query"]:
             if ART_EMU:
-                return ART_EMU.create(variables=body["variables"])
+                res = ART_EMU.create(variables=body["variables"])
+                ctx["latest_arti_id"] = res["data"]["createArtifact"]["artifact"]["id"]
+                return res
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
-            app.logger.info("Creating artifact {}".format(collection_name))
+            app.logger.info(f"Creating artifact {collection_name}")
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
                 collection_name, []
             )
             ctx["artifacts"][collection_name].append(body["variables"])
+
             _id = body.get("variables", {}).get("digest", "")
             if _id != "":
                 ctx.get("artifacts_by_id")[_id] = body["variables"]
@@ -1069,6 +1092,11 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation updateArtifact" in body["query"]:
+            id = body["variables"]["artifactID"]
+            ctx["latest_arti_id"] = id
+            ctx.get("artifacts_by_id")[id] = body["variables"]
+            return {"data": {"updateArtifact": {"artifact": id}}}
         if "mutation DeleteArtifact(" in body["query"]:
             id = body["variables"]["artifactID"]
             delete_aliases = body["variables"]["deleteAliases"]
@@ -1179,6 +1207,91 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation upsertView(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "upsertView": {
+                            "view": {
+                                "id": "VmlldzoxOTk4ODgz",
+                                "type": "runs",
+                                "name": "2mr65bp2bjy",
+                                "displayName": "2mr65bp2bjy",
+                                "description": None,
+                                "project": {
+                                    "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                    "name": "report-editing",
+                                    "entityName": "megatruong",
+                                },
+                                "spec": '{"version": 5, "panelSettings": {}, "blocks": [], "width": "readable", "authors": [], "discussionThreads": [], "ref": {}}',
+                                "updatedAt": "2022-05-13T03:13:18",
+                            },
+                            "inserted": True,
+                        }
+                    }
+                }
+            )
+        if "mutation upsertModel(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "upsertModel": {
+                            "project": {
+                                "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                "name": "report-editing",
+                                "entityName": "megatruong",
+                                "description": None,
+                                "access": "PRIVATE",
+                                "views": "{}",
+                            },
+                            "model": {
+                                "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                "name": "report-editing",
+                                "entityName": "megatruong",
+                                "description": None,
+                                "access": "PRIVATE",
+                                "views": "{}",
+                            },
+                            "inserted": False,
+                        }
+                    }
+                }
+            )
+        if "query SpecificReport(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "view": {
+                            "id": "VmlldzoxOTcxMzI2",
+                            "type": "runs",
+                            "name": "hxrbu425ppr",
+                            "displayName": "Copy of megatruong's Copy of megatruong's Copy of megatruong's Untitled Report",
+                            "description": "",
+                            "project": {
+                                "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                "name": "report-editing",
+                                "entityName": "megatruong",
+                            },
+                            "createdAt": "2022-05-09T02:18:42",
+                            "updatedAt": "2022-05-09T02:18:45",
+                            "spec": '{"version":5,"panelSettings":{"xAxis":"_step","smoothingWeight":0,"smoothingType":"exponential","ignoreOutliers":false,"xAxisActive":false,"smoothingActive":false,"ref":{"type":"panelSettings","viewID":"qwnlqy0ka","id":"85uruphtl"}},"blocks":[{"type":"paragraph","children":[{"text":""},{"type":"link","url":"https://docs.google.com/presentation/d/1cvcSZygln3WPOjRGcJX8XgDtj9qcW7SA6K2u-fUVXTg/edit#slide=id.g1186f921888_0_1484","children":[{"text":"https://docs.google.com/presentation/d/1cvcSZygln3WPOjRGcJX8XgDtj9qcW7SA6K2u-fUVXTg/edit#slide=id.g1186f921888_0_1484"}]},{"text":""}]},{"type":"paragraph","children":[{"text":""}]},{"type":"twitter","html":"<blockquote class=\\"twitter-tweet\\"><p lang=\\"en\\" dir=\\"ltr\\">The voice of an angel, truly. <a href=\\"https://twitter.com/hashtag/MassEffect?src=hash&amp;ref_src=twsrc%5Etfw\\">#MassEffect</a> <a href=\\"https://t.co/nMev97Uw7F\\">pic.twitter.com/nMev97Uw7F</a></p>&mdash; Mass Effect (@masseffect) <a href=\\"https://twitter.com/masseffect/status/1428748886655569924?ref_src=twsrc%5Etfw\\">August 20, 2021</a></blockquote>\\n","children":[{"text":""}]},{"type":"spotify","spotifyType":"track","spotifyID":"7kRKlFCFLAUwt43HWtauhX","children":[{"text":""}]},{"type":"soundcloud","html":"<iframe width=\\"100%\\" height=\\"400\\" scrolling=\\"no\\" frameborder=\\"no\\" src=\\"https://w.soundcloud.com/player/?visual=true&url=https%3A%2F%2Fapi.soundcloud.com%2Ftracks%2F1076901103&show_artwork=true\\"></iframe>","children":[{"text":""}]},{"type":"video","url":"https://www.youtube.com/embed/ggqI-HH8yXc","children":[{"text":""}]},{"type":"paragraph","children":[{"text":"Normal paragraph  "}]},{"type":"heading","children":[{"text":"Heading 1"}],"level":1},{"type":"heading","children":[{"text":"Heading 2"}],"level":2},{"type":"heading","children":[{"text":"Heading 3"}],"level":3},{"type":"list","children":[{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Bullet 1"}]}]},{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Bullet 2"}]}]}]},{"type":"list","ordered":true,"children":[{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Ordered 1"}]}],"ordered":true},{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Ordered 2"}]}],"ordered":true}]},{"type":"list","children":[{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Unchecked"}]}],"checked":false},{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Checked"}]}],"checked":true}]},{"type":"block-quote","children":[{"text":"Block Quote 1\\nBlock Quote 2\\nBlock Quote 3"}]},{"type":"callout-block","children":[{"type":"callout-line","children":[{"text":"Callout 1"}]},{"type":"callout-line","children":[{"text":"Callout 2"}]},{"type":"callout-line","children":[{"text":"Callout 3"}]}]},{"type":"code-block","children":[{"type":"code-line","children":[{"text":"# python code block"}]},{"type":"code-line","children":[{"text":"for x in range(10):"}]},{"type":"code-line","children":[{"text":"  pass"}]}]},{"type":"horizontal-rule","children":[{"text":""}]},{"type":"code-block","language":"yaml","children":[{"type":"code-line","children":[{"text":"this:"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- is"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- a"}],"language":"yaml"},{"type":"code-line","children":[{"text":"cool:"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- yaml"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- file"}],"language":"yaml"}]},{"type":"markdown-block","children":[{"text":""}],"content":"Markdown cell with *italics* and **bold** and $e=mc^2$"},{"type":"image","children":[{"text":"It\'s a me, Pikachu"}],"url":"https://api.wandb.ai/files/megatruong/images/projects/918598/350382db.gif","hasCaption":true},{"type":"paragraph","children":[{"text":""},{"type":"latex","children":[{"text":""}],"content":"y=ax^2 +bx+c"},{"text":""}]},{"type":"latex","children":[{"text":""}],"content":"\\\\gamma^2+\\\\theta^2=\\\\omega^2\\n\\\\\\\\ a^2 + b^2 = c^2","block":true},{"type":"gallery","children":[{"text":""}],"ids":[]},{"type":"weave-panel","children":[{"text":""}],"config":{"panelConfig":{"exp":{"nodeType":"output","type":{"type":"tagged","tag":{"type":"tagged","tag":{"type":"typedDict","propertyTypes":{"entityName":"string","projectName":"string"}},"value":{"type":"typedDict","propertyTypes":{"project":"project","artifactName":"string"}}},"value":"artifact"},"fromOp":{"name":"project-artifact","inputs":{"project":{"nodeType":"output","type":{"type":"tagged","tag":{"type":"typedDict","propertyTypes":{"entityName":"string","projectName":"string"}},"value":"project"},"fromOp":{"name":"root-project","inputs":{"entityName":{"nodeType":"const","type":"string","val":"megatruong"},"projectName":{"nodeType":"const","type":"string","val":"nvda-ngc"}}}},"artifactName":{"nodeType":"const","type":"string","val":"my-artifact"}}}}}}},{"type":"paragraph","children":[{"text":""}]},{"type":"panel-grid","children":[{"text":""}],"metadata":{"openViz":true,"openRunSet":0,"name":"unused-name","runSets":[{"runFeed":{"version":2,"columnVisible":{"run:name":false},"columnPinned":{},"columnWidths":{},"columnOrder":[],"pageSize":10,"onlyShowSelected":false},"enabled":true,"name":"Run set","search":{"query":""},"id":"pw1e1wwf6","filters":{"op":"OR","filters":[{"op":"AND","filters":[{"key":{"section":"run","name":"jobType"},"op":"=","value":"job_type2","disabled":false},{"key":{"section":"run","name":"group"},"op":"=","value":"groupA","disabled":false}]}],"ref":{"type":"filters","viewID":"vtahfagaz","id":"dpd2z5bz0"}},"grouping":[{"section":"run","name":"username"}],"sort":{"keys":[{"key":{"section":"run","name":"createdAt"},"ascending":false},{"key":{"section":"run","name":"username"},"ascending":false}],"ref":{"type":"sort","viewID":"vtahfagaz","id":"ivgiyvxox"}},"selections":{"root":1,"bounds":[],"tree":[]},"expandedRowAddresses":[],"ref":{"type":"runSet","viewID":"vtahfagaz","id":"z59jmoybe"}}],"panelBankConfig":{"state":0,"settings":{"autoOrganizePrefix":2,"showEmptySections":false,"sortAlphabetically":false},"sections":[{"name":"Hidden Panels","isOpen":false,"type":"flow","flowConfig":{"snapToColumns":true,"columnsPerPage":3,"rowsPerPage":2,"gutterWidth":16,"boxWidth":460,"boxHeight":300},"sorted":0,"localPanelSettings":{"xAxis":"_step","smoothingWeight":0,"smoothingType":"exponential","ignoreOutliers":false,"xAxisActive":false,"smoothingActive":false,"ref":{"type":"panelSettings","viewID":"vtahfagaz","id":"xa2bddtor"}},"panels":[],"localPanelSettingsRef":{"type":"panelSettings","viewID":"vtahfagaz","id":"xa2bddtor"},"panelRefs":[],"ref":{"type":"panel-bank-section-config","viewID":"vtahfagaz","id":"fz92jh3dt"}}],"ref":{"type":"panel-bank-config","viewID":"vtahfagaz","id":"1o946whn4"}},"panelBankSectionConfig":{"name":"Report Panels","isOpen":true,"type":"grid","flowConfig":{"snapToColumns":true,"columnsPerPage":3,"rowsPerPage":2,"gutterWidth":16,"boxWidth":460,"boxHeight":300},"sorted":0,"localPanelSettings":{"xAxis":"_step","smoothingWeight":0,"smoothingType":"exponential","ignoreOutliers":false,"xAxisActive":false,"smoothingActive":false,"ref":{"type":"panelSettings","viewID":"vtahfagaz","id":"xvr9gn2vt"}},"panels":[{"__id__":"e6mwxa1mq","viewType":"Run History Line Plot","config":{"metrics":["y"],"groupBy":"None","legendFields":["run:displayName"],"yAxisAutoRange":false,"yLogScale":false},"ref":{"type":"panel","viewID":"vtahfagaz","id":"ui3b5xcsb"},"layout":{"x":8,"y":0,"w":8,"h":6}},{"__id__":"ymceey3mu","viewType":"Run History Line Plot","config":{"metrics":["x"],"groupBy":"None","legendFields":["run:displayName"],"yAxisAutoRange":false,"yLogScale":false},"ref":{"type":"panel","viewID":"vtahfagaz","id":"yewkh6k6p"},"layout":{"x":0,"y":0,"w":8,"h":6}}],"localPanelSettingsRef":{"type":"panelSettings","viewID":"vtahfagaz","id":"xvr9gn2vt"},"panelRefs":[{"type":"panel","viewID":"vtahfagaz","id":"ui3b5xcsb"},{"type":"panel","viewID":"vtahfagaz","id":"yewkh6k6p"}],"ref":{"type":"panel-bank-section-config","viewID":"vtahfagaz","id":"5mqkb97jz"}},"customRunColors":{"ref":{"type":"run-colors","viewID":"vtahfagaz","id":"ukxc20iq0"}},"ref":{"type":"section","viewID":"vtahfagaz","id":"eg2e88znk"}}},{"type":"paragraph","children":[{"text":""}]}],"width":"readable","authors":[{"name":"Andrew Truong","username":"megatruong"}],"discussionThreads":[],"ref":{"type":"runs/draft","viewID":"qwnlqy0ka","id":"s2r3aq8j6"}}',
+                            "previewUrl": None,
+                            "user": {
+                                "name": "Andrew Truong",
+                                "username": "megatruong",
+                                "userInfo": {
+                                    "bio": "model-registry \ninstant replay\nweeave-plot\nweeave-report\nniight\n",
+                                    "company": "Weights and Biases",
+                                    "location": "San Francisco",
+                                    "githubUrl": "",
+                                    "twitterUrl": "",
+                                    "websiteUrl": "wandb.com",
+                                },
+                            },
+                        }
+                    }
+                }
+            )
         if "query ProjectArtifacts(" in body["query"]:
             return {
                 "data": {
@@ -1270,9 +1383,17 @@ def create_app(user_ctx=None):
         ]:
             if f"query {query_name}(" in body["query"]:
                 if ART_EMU:
-                    return ART_EMU.query(
+                    res = ART_EMU.query(
                         variables=body.get("variables", {}), query=body.get("query")
                     )
+                    artifact_response = None
+                    if res["data"].get("project") is not None:
+                        artifact_response = res["data"]["project"]["artifact"]
+                    else:
+                        artifact_response = res["data"]["artifact"]
+                    if artifact_response:
+                        ctx["latest_arti_id"] = artifact_response.get("id")
+                    return res
                 art = artifact(
                     ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
                 )
@@ -1303,8 +1424,15 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 4, "name": "run_table"}
                 if "wb_validation_data" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                if "job" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 5, "name": "job"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
+            if ART_EMU:
+                res = ART_EMU.query(
+                    variables=body.get("variables", {}), query=body.get("query")
+                )
+                ctx["latest_arti_id"] = res["data"]["artifact"]["id"]
             art = artifact(ctx)
             art["currentManifest"] = {
                 "id": 1,
@@ -1342,8 +1470,7 @@ def create_app(user_ctx=None):
                 return json.dumps({"data": {"project": {"runQueues": []}}})
 
         if "query GetRunQueueItem" in body["query"]:
-            ctx["run_queue_item_check_count"] += 1
-            if ctx["run_queue_item_check_count"] > 1:
+            if ctx["run_queue_item_return_type"] == "claimed":
                 return json.dumps(
                     {
                         "data": {
@@ -1353,8 +1480,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
-                                                    "resultingRunId": "test",
+                                                    "id": "1",
+                                                    "associatedRunId": "1",
+                                                    "state": "CLAIMED",
                                                 }
                                             }
                                         ]
@@ -1374,8 +1502,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
-                                                    "resultingRunId": None,
+                                                    "id": "1",
+                                                    "associatedRunId": None,
+                                                    "state": "PENDING",
                                                 }
                                             }
                                         ]
@@ -1449,7 +1578,7 @@ def create_app(user_ctx=None):
             return {"data": {"deleteApiKey": {"success": True}}}
         if "mutation GenerateApiKey" in body["query"]:
             return {
-                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Z" * 40}}}
             }
         if "mutation DeleteInvite" in body["query"]:
             return {"data": {"deleteInvite": {"success": True}}}
@@ -1653,7 +1782,8 @@ def create_app(user_ctx=None):
                 c["file_bytes"].setdefault(file, 0)
                 c["file_bytes"][file] += request.content_length
         if ART_EMU:
-            return ART_EMU.storage(request=request)
+            res = ART_EMU.storage(request=request, arti_id=ctx["latest_arti_id"])
+            return res
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
@@ -1837,10 +1967,14 @@ def create_app(user_ctx=None):
                     },
                 }
         elif file == "wandb-metadata.json":
-            if ctx["return_jupyter_in_run_info"]:
+            if ctx["run_script_type"] == "notebook":
                 code_path = "one_cell.ipynb"
-            else:
+            elif ctx["run_script_type"] == "shell":
+                code_path = "test.sh"
+            elif ctx["run_script_type"] == "python":
                 code_path = "train.py"
+            elif ctx["run_script_type"] == "unknown":
+                code_path = "unknown.unk"
             result = {
                 "docker": "test/docker",
                 "program": "train.py",
@@ -1856,7 +1990,7 @@ def create_app(user_ctx=None):
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return """
+            return r"""
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
@@ -1867,7 +2001,7 @@ index 30d74d2..9a2c773 100644
 +testing
 \ No newline at end of file
 """
-        # emulate azure when we're receving requests from them
+        # emulate azure when we're receiving requests from them
         if extra is not None:
             return "", 201
         return "", 200
@@ -2043,13 +2177,13 @@ index 30d74d2..9a2c773 100644
 
     @app.errorhandler(404)
     def page_not_found(e):
-        print("Got request to: %s (%s)" % (request.url, request.method))
+        print(f"Got request to: {request.url} ({request.method})")
         return "Not Found", 404
 
     return app
 
 
-RE_DATETIME = re.compile("^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
+RE_DATETIME = re.compile(r"^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
 
 
 def strip_datetime(s):
@@ -2060,7 +2194,7 @@ def strip_datetime(s):
     return s
 
 
-class ParseCTX(object):
+class ParseCTX:
     def __init__(self, ctx, run_id=None):
         self._ctx = ctx["runs"][run_id] if run_id else ctx
         self._run_id = run_id
@@ -2072,21 +2206,21 @@ class ParseCTX(object):
             files = update.get("files")
             if not files:
                 continue
-            for k, v in six.iteritems(files):
+            for k, v in files.items():
                 data.setdefault(k, []).append(v)
         return data
 
     def get_filestream_file_items(self):
         data = {}
         fs_file_updates = self.get_filestream_file_updates()
-        for k, v in six.iteritems(fs_file_updates):
+        for k, v in fs_file_updates.items():
             l = []
             for d in v:
                 offset = d.get("offset")
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                # this check isnt valid right now.
+                # this check isn't valid right now.
                 # TODO: lets just assume it is fine, look into this later
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
@@ -2144,6 +2278,12 @@ class ParseCTX(object):
         fs_files = self.get_filestream_file_items()
         history = fs_files.get("wandb-history.jsonl")
         return history
+
+    @property
+    def stats(self):
+        fs_files = self.get_filestream_file_items()
+        stats = fs_files.get("wandb-events.jsonl")
+        return stats
 
     @property
     def output(self):

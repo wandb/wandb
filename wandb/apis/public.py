@@ -10,6 +10,7 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+import ast
 from collections import namedtuple
 import datetime
 from functools import partial
@@ -22,11 +23,10 @@ import shutil
 import tempfile
 import time
 from typing import Optional
+import urllib
 
-from dateutil.relativedelta import relativedelta
+from pkg_resources import parse_version
 import requests
-import six
-from six.moves import urllib
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
@@ -37,6 +37,7 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
+from wandb.sdk.wandb_require_helpers import requires
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
@@ -188,7 +189,7 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 """
 
 
-class RetryingClient(object):
+class RetryingClient:
     def __init__(self, client):
         self._client = client
 
@@ -215,7 +216,7 @@ class RetryingClient(object):
             raise
 
 
-class Api(object):
+class Api:
     """
     Used for querying the wandb server.
 
@@ -232,71 +233,115 @@ class Api(object):
     _HTTP_TIMEOUT = env.get_http_timeout(9)
     VIEWER_QUERY = gql(
         """
-    query Viewer{
-        viewer {
-            id
-            flags
-            entity
-            username
-            email
-            admin
-            teams {
-                edges {
-                    node {
-                        name
+        query Viewer{
+            viewer {
+                id
+                flags
+                entity
+                username
+                email
+                admin
+                apiKeys {
+                    edges {
+                        node {
+                            id
+                            name
+                            description
+                        }
+                    }
+                }
+                teams {
+                    edges {
+                        node {
+                            name
+                        }
                     }
                 }
             }
         }
-    }
-    """
+        """
     )
     USERS_QUERY = gql(
         """
-    query SearchUsers($query: String) {
-        users(query: $query) {
-            edges {
-                node {
-                    id
-                    flags
-                    entity
-                    admin
-                    email
-                    deletedAt
-                    username
-                    apiKeys {
-                        edges {
-                            node {
-                                id
-                                name
-                                description
+        query SearchUsers($query: String) {
+            users(query: $query) {
+                edges {
+                    node {
+                        id
+                        flags
+                        entity
+                        admin
+                        email
+                        deletedAt
+                        username
+                        apiKeys {
+                            edges {
+                                node {
+                                    id
+                                    name
+                                    description
+                                }
                             }
                         }
-                    }
-                    teams {
-                        edges {
-                            node {
-                                name
+                        teams {
+                            edges {
+                                node {
+                                    name
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
         """
     )
 
-    def __init__(self, overrides={}, timeout: Optional[int] = None):
+    VIEW_REPORT_QUERY = gql(
+        """
+        query SpecificReport($reportId: ID!) {
+            view(id: $reportId) {
+            id
+            type
+            name
+            displayName
+            description
+            project {
+                id
+                name
+                entityName
+            }
+            createdAt
+            updatedAt
+            spec
+            previewUrl
+            user {
+                name
+                username
+                userInfo
+            }
+            }
+        }
+        """
+    )
+
+    def __init__(
+        self,
+        overrides=None,
+        timeout: Optional[int] = None,
+        api_key: Optional[str] = None,
+    ) -> None:
         self.settings = InternalApi().settings()
+        self._api_key = api_key
         if self.api_key is None:
             wandb.login()
-        self.settings.update(overrides)
-        if "username" in overrides and "entity" not in overrides:
+        _overrides = overrides or {}
+        self.settings.update(_overrides)
+        if "username" in _overrides and "entity" not in _overrides:
             wandb.termwarn(
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
-            self.settings["entity"] = overrides["username"]
+            self.settings["entity"] = _overrides["username"]
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
         self._viewer = None
@@ -324,6 +369,54 @@ class Api(object):
         if kwargs.get("entity") is None:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
+
+    @requires("report-editing:v0")
+    def create_report(
+        self,
+        project: str,
+        entity: str = "",
+        title: Optional[str] = "Untitled Report",
+        description: Optional[str] = "",
+        width: Optional[str] = "readable",
+        blocks: "Optional[wandb.apis.reports.Block]" = None,
+    ) -> "wandb.apis.reports.Report":
+        if entity == "":
+            entity = self.default_entity or ""
+        if blocks is None:
+            blocks = []
+        return wandb.apis.reports.Report(
+            project, entity, title, description, width, blocks
+        )
+
+    @requires("report-editing:v0")
+    def load_report(self, path: str) -> "wandb.apis.reports.Report":
+        """
+        Get report at a given path.
+
+        Arguments:
+            path: (str) Path to the target report in the form `entity/project/reports/reportId`.
+                You can get this by copy-pasting the URL after your wandb url.  For example:
+                `megatruong/report-editing/reports/My-fabulous-report-title--VmlldzoxOTc1Njk0`
+
+        Returns:
+            A `BetaReport` object which represents the report at `path`
+
+        Raises:
+            wandb.Error if path is invalid
+        """
+        try:
+            entity, project, *_, _report_id = path.split("/")
+            *_, report_id = _report_id.split("--")
+        except ValueError as e:
+            raise ValueError("path must be `entity/project/reports/reportId`") from e
+        else:
+            r = self.client.execute(
+                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
+            )
+            # breakpoint()
+            viewspec = r["view"]
+            viewspec["spec"] = json.loads(viewspec["spec"])
+            return wandb.apis.reports.Report.from_json(viewspec)
 
     def create_user(self, email, admin=False):
         """Creates a new user
@@ -370,6 +463,8 @@ class Api(object):
 
     @property
     def api_key(self):
+        if self._api_key is not None:
+            return self._api_key
         auth = requests.utils.get_netrc_auth(self.settings["base_url"])
         key = None
         if auth:
@@ -377,6 +472,7 @@ class Api(object):
         # Environment should take precedence
         if os.getenv("WANDB_API_KEY"):
             key = os.environ["WANDB_API_KEY"]
+        self._api_key = key  # memoize key
         return key
 
     @property
@@ -477,7 +573,7 @@ class Api(object):
         path: entity/project/id
         docker: entity/project:id
 
-        entity is optional and will fallback to the current logged in user.
+        entity is optional and will fall back to the current logged-in user.
         """
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
@@ -521,7 +617,7 @@ class Api(object):
         Get projects for a given entity.
 
         Arguments:
-            entity: (str) Name of the entity requested.  If None will fallback to
+            entity: (str) Name of the entity requested.  If None, will fall back to
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
             per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
@@ -594,6 +690,8 @@ class Api(object):
     def user(self, username_or_email):
         """Return a user from a username or email address
 
+        Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
+
         Arguments:
             username_or_email: (str) The username or email address of the user
 
@@ -613,6 +711,8 @@ class Api(object):
 
     def users(self, username_or_email):
         """Return all users from a partial username or email address query
+
+        Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
 
         Arguments:
             username_or_email: (str) The prefix or suffix of the user you want to find
@@ -701,7 +801,7 @@ class Api(object):
 
         Arguments:
             path: (str) path to run in the form `entity/project/run_id`.
-                If api.entity is set, this can be in the form `project/run_id`
+                If `api.entity` is set, this can be in the form `project/run_id`
                 and if `api.project` is set this can just be the run_id.
 
         Returns:
@@ -725,7 +825,7 @@ class Api(object):
         Returns a sweep by parsing path in the form `entity/project/sweep_id`.
 
         Arguments:
-            path: (str, optional) path to sweep in the form entity/project/sweep_id.  If api.entity
+            path: (str, optional) path to sweep in the form entity/project/sweep_id.  If `api.entity`
                 is set, this can be in the form project/sweep_id and if `api.project` is set
                 this can just be the sweep_id.
 
@@ -779,7 +879,7 @@ class Api(object):
         return artifact
 
 
-class Attrs(object):
+class Attrs:
     def __init__(self, attrs):
         self._attrs = attrs
 
@@ -812,12 +912,10 @@ class Attrs(object):
         elif name in self._attrs.keys():
             return self._attrs[name]
         else:
-            raise AttributeError(
-                "'{}' object has no attribute '{}'".format(repr(self), name)
-            )
+            raise AttributeError(f"'{repr(self)}' object has no attribute '{name}'")
 
 
-class Paginator(object):
+class Paginator:
     QUERY = None
 
     def __init__(self, client, variables, per_page=None):
@@ -928,8 +1026,16 @@ class User(Attrs):
     )
 
     def __init__(self, client, attrs):
-        super(User, self).__init__(attrs)
+        super().__init__(attrs)
         self._client = client
+        self._user_api = None
+
+    @property
+    def user_api(self):
+        """An instance of the api using credentials from the user"""
+        if self._user_api is None and len(self.api_keys) > 0:
+            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        return self._user_api
 
     @classmethod
     def create(cls, api, email, admin=False):
@@ -987,14 +1093,17 @@ class User(Attrs):
             The new api key, or None on failure
         """
         try:
-            return self._client.execute(
+            # We must make this call using credentials from the original user
+            key = self.user_api.client.execute(
                 self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]["name"]
-        except requests.exceptions.HTTPError:
+            )["generateApiKey"]["apiKey"]
+            self._attrs["apiKeys"]["edges"].append({"node": key})
+            return key["name"]
+        except (requests.exceptions.HTTPError, AttributeError):
             return None
 
     def __repr__(self):
-        return "<User {}>".format(self.email)
+        return f"<User {self.email}>"
 
 
 class Member(Attrs):
@@ -1009,7 +1118,7 @@ class Member(Attrs):
     )
 
     def __init__(self, client, team, attrs):
-        super(Member, self).__init__(attrs)
+        super().__init__(attrs)
         self._client = client
         self.team = team
 
@@ -1027,7 +1136,7 @@ class Member(Attrs):
             return False
 
     def __repr__(self):
-        return "<Member {} ({})>".format(self.name, self.account_type)
+        return f"<Member {self.name} ({self.account_type})>"
 
 
 class Team(Attrs):
@@ -1109,7 +1218,7 @@ class Team(Attrs):
     )
 
     def __init__(self, client, name, attrs=None):
-        super(Team, self).__init__(attrs or {})
+        super().__init__(attrs or {})
         self._client = client
         self.name = name
         self.load()
@@ -1186,7 +1295,7 @@ class Team(Attrs):
         return self._attrs
 
     def __repr__(self):
-        return "<Team {}>".format(self.name)
+        return f"<Team {self.name}>"
 
 
 class Projects(Paginator):
@@ -1221,7 +1330,7 @@ class Projects(Paginator):
         variables = {
             "entity": self.entity,
         }
-        super(Projects, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -1248,14 +1357,14 @@ class Projects(Paginator):
         ]
 
     def __repr__(self):
-        return "<Projects {}>".format(self.entity)
+        return f"<Projects {self.entity}>"
 
 
 class Project(Attrs):
     """A project is a namespace for runs."""
 
     def __init__(self, client, entity, project, attrs):
-        super(Project, self).__init__(dict(attrs))
+        super().__init__(dict(attrs))
         self.client = client
         self.name = project
         self.entity = entity
@@ -1366,10 +1475,10 @@ class Runs(Paginator):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters={}, order=None, per_page=50):
+    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
         self.entity = entity
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         self._sweeps = {}
         variables = {
@@ -1378,7 +1487,7 @@ class Runs(Paginator):
             "order": self.order,
             "filters": json.dumps(self.filters),
         }
-        super(Runs, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -1435,12 +1544,12 @@ class Runs(Paginator):
         return objs
 
     def __repr__(self):
-        return "<Runs {}/{}>".format(self.entity, self.project)
+        return f"<Runs {self.entity}/{self.project}>"
 
 
 class QueuedJob(Attrs):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super(QueuedJob, self).__init__(dict(attrs))
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs=None):
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1460,7 +1569,7 @@ class QueuedJob(Attrs):
                                 node {
                                     id
                                     state
-                                    resultingRunId
+                                    associatedRunId
                                 }
                             }
                         }
@@ -1480,7 +1589,7 @@ class QueuedJob(Attrs):
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
                 if (
                     item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["resultingRunId"] is not None
+                    and item["node"]["associatedRunId"] is not None
                 ):
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
@@ -1488,9 +1597,9 @@ class QueuedJob(Attrs):
                             self.client,
                             self._entity,
                             self.project,
-                            item["node"]["resultingRunId"],
+                            item["node"]["associatedRunId"],
                         )
-                        self._run_id = item["node"]["resultingRunId"]
+                        self._run_id = item["node"]["associatedRunId"]
                         return
                     except ValueError:
                         continue
@@ -1528,11 +1637,12 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs={}):
+    def __init__(self, client, entity, project, run_id, attrs=None):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
-        super(Run, self).__init__(dict(attrs))
+        _attrs = attrs or {}
+        super().__init__(dict(_attrs))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1546,9 +1656,9 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self._state = attrs.get("state", "not found")
+        self._state = _attrs.get("state", "not found")
 
-        self.load(force=not attrs)
+        self.load(force=not _attrs)
 
     @property
     def state(self):
@@ -1680,7 +1790,7 @@ class Run(Attrs):
         if self._attrs.get("user"):
             self.user = User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in six.iteritems(json.loads(self._attrs.get("config") or "{}")):
+        for key, value in json.loads(self._attrs.get("config") or "{}").items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
@@ -1708,7 +1818,7 @@ class Run(Attrs):
             res = self._exec(query)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
-                print("Run finished with status: {}".format(state))
+                print(f"Run finished with status: {state}")
                 self._attrs["state"] = state
                 self._state = state
                 return
@@ -1786,7 +1896,7 @@ class Run(Attrs):
     @property
     def json_config(self):
         config = {}
-        for k, v in six.iteritems(self.config):
+        for k, v in self.config.items():
             config[k] = {"value": v, "desc": None}
         return json.dumps(config)
 
@@ -1829,16 +1939,16 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=[], per_page=50):
+    def files(self, names=None, per_page=50):
         """
         Arguments:
             names (list): names of the requested files, if empty returns all files
             per_page (int): number of results per page
 
         Returns:
-            A `Files` object, which is an iterator over `File` obejcts.
+            A `Files` object, which is an iterator over `File` objects.
         """
-        return Files(self.client, self, names, per_page)
+        return Files(self.client, self, names or [], per_page)
 
     @normalize_exceptions
     def file(self, name):
@@ -2138,9 +2248,9 @@ class Sweep(Attrs):
     """
     )
 
-    def __init__(self, client, entity, project, sweep_id, attrs={}):
+    def __init__(self, client, entity, project, sweep_id, attrs=None):
         # TODO: Add agents / flesh this out.
-        super(Sweep, self).__init__(dict(attrs))
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -2301,16 +2411,16 @@ class Files(Paginator):
         % FILE_FRAGMENT
     )
 
-    def __init__(self, client, run, names=[], per_page=50, upload=False):
+    def __init__(self, client, run, names=None, per_page=50, upload=False):
         self.run = run
         variables = {
             "project": run.project,
             "entity": run.entity,
             "name": run.id,
-            "fileNames": names,
+            "fileNames": names or [],
             "upload": upload,
         }
-        super(Files, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -2348,7 +2458,7 @@ class Files(Paginator):
         return "<Files {} ({})>".format("/".join(self.run.path), len(self))
 
 
-class File(object):
+class File:
     """File is a class associated with a file saved by wandb.
 
     Attributes:
@@ -2429,7 +2539,7 @@ class File(object):
         if os.path.exists(path) and not replace:
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
-        return open(path, "r")
+        return open(path)
 
     @normalize_exceptions
     def delete(self):
@@ -2498,7 +2608,7 @@ class Reports(Paginator):
             "entity": project.entity,
             "viewName": self.name,
         }
-        super(Reports, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -2546,7 +2656,7 @@ class Reports(Paginator):
         return "<Reports {}>".format("/".join(self.project.path))
 
 
-class QueryGenerator(object):
+class QueryGenerator:
     """QueryGenerator is a helper object to write filters for runs"""
 
     INDIVIDUAL_OP_TO_MONGO = {
@@ -2559,8 +2669,10 @@ class QueryGenerator(object):
         "NIN": "$nin",
         "REGEX": "$regex",
     }
+    MONGO_TO_INDIVIDUAL_OP = {v: k for k, v in INDIVIDUAL_OP_TO_MONGO.items()}
 
     GROUP_OP_TO_MONGO = {"AND": "$and", "OR": "$or"}
+    MONGO_TO_GROUP_OP = {v: k for k, v in GROUP_OP_TO_MONGO.items()}
 
     def __init__(self):
         pass
@@ -2608,6 +2720,46 @@ class QueryGenerator(object):
             return "tags." + key["name"]
         raise ValueError("Invalid key: %s" % key)
 
+    def server_path_to_key(self, path):
+        if path.startswith("config."):
+            return {"section": "config", "name": path.split("config.", 1)[1]}
+        elif path.startswith("summary_metrics."):
+            return {"section": "summary", "name": path.split("summary_metrics.", 1)[1]}
+        elif path.startswith("keys_info.keys."):
+            return {"section": "keys_info", "name": path.split("keys_info.keys.", 1)[1]}
+        elif path.startswith("tags."):
+            return {"section": "tags", "name": path.split("tags.", 1)[1]}
+        else:
+            return {"section": "run", "name": path}
+
+    def keys_to_order(self, keys):
+        orders = []
+        for key in keys["keys"]:
+            order = self.key_to_server_path(key["key"])
+            if key.get("ascending"):
+                order = "+" + order
+            else:
+                order = "-" + order
+            orders.append(order)
+        # return ",".join(orders)
+        return orders
+
+    def order_to_keys(self, order):
+        keys = []
+        for k in order:  # orderstr.split(","):
+            name = k[1:]
+            if k[0] == "+":
+                ascending = True
+            elif k[0] == "-":
+                ascending = False
+            else:
+                raise Exception("you must sort by ascending(+) or descending(-)")
+
+            key = {"key": {"section": "run", "name": name}, "ascending": ascending}
+            keys.append(key)
+
+        return {"keys": keys}
+
     def _to_mongo_individual(self, filter):
         if filter["key"]["name"] == "":
             return None
@@ -2615,7 +2767,7 @@ class QueryGenerator(object):
         if filter.get("value") is None and filter["op"] != "=" and filter["op"] != "!=":
             return None
 
-        if filter.get("disabled") is None and filter["disabled"]:
+        if filter.get("disabled") is not None and filter["disabled"]:
             return None
 
         if filter["key"]["section"] == "tags":
@@ -2627,7 +2779,7 @@ class QueryGenerator(object):
                 }
             else:
                 return {"tags": filter["key"]["name"]}
-        path = self.key_to_server_path(filter.key)
+        path = self.key_to_server_path(filter["key"])
         if path is None:
             return path
         return {path: self._to_mongo_op_value(filter["op"], filter["value"])}
@@ -2642,6 +2794,253 @@ class QueryGenerator(object):
                 ]
             }
 
+    def mongo_to_filter(self, filter):
+        # Returns {"op": "OR", "filters": [{"op": "AND", "filters": []}]}
+        if filter is None:
+            return None  # this covers the case where self.filter_to_mongo returns None.
+
+        group_op = None
+        for key in filter.keys():
+            # if self.MONGO_TO_GROUP_OP[key]:
+            if key in self.MONGO_TO_GROUP_OP:
+                group_op = key
+                break
+        if group_op is not None:
+            return {
+                "op": self.MONGO_TO_GROUP_OP[group_op],
+                "filters": [self.mongo_to_filter(f) for f in filter[group_op]],
+            }
+        else:
+            for k, v in filter.items():
+                if isinstance(v, dict):
+                    # TODO: do we always have one key in this case?
+                    op = next(iter(v.keys()))
+                    return {
+                        "key": self.server_path_to_key(k),
+                        "op": self.MONGO_TO_INDIVIDUAL_OP[op],
+                        "value": v[op],
+                    }
+                else:
+                    return {"key": self.server_path_to_key(k), "op": "=", "value": v}
+
+
+class PythonMongoishQueryGenerator:
+    def __init__(self, run_set):
+        self.run_set = run_set
+        self.panel_metrics_helper = PanelMetricsHelper()
+
+    FRONTEND_NAME_MAPPING = {
+        "ID": "name",
+        "Name": "displayName",
+        "Tags": "tags",
+        "State": "state",
+        "CreatedTimestamp": "createdAt",
+        "Runtime": "duration",
+        "User": "username",
+        "Sweep": "sweep",
+        "Group": "group",
+        "JobType": "jobType",
+        "Hostname": "host",
+        "UsingArtifact": "inputArtifacts",
+        "OutputtingArtifact": "outputArtifacts",
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp"
+        # "GroupedRuns": "__wb_group_by_all"
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+    AST_OPERATORS = {
+        ast.Lt: "$lt",
+        ast.LtE: "$lte",
+        ast.Gt: "$gt",
+        ast.GtE: "$gte",
+        ast.Eq: "=",
+        ast.Is: "=",
+        ast.NotEq: "$ne",
+        ast.IsNot: "$ne",
+        ast.In: "$in",
+        ast.NotIn: "$nin",
+        ast.And: "$and",
+        ast.Or: "$or",
+        ast.Not: "$not",
+    }
+
+    if parse_version(platform.python_version()) >= parse_version("3.8"):
+        AST_FIELDS = {
+            ast.Constant: "value",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+        }
+    else:
+        AST_FIELDS = {
+            ast.Str: "s",
+            ast.Num: "n",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+            ast.NameConstant: "value",
+        }
+
+    def _handle_compare(self, node):
+        # only left side can be a col
+        left = self.front_to_back(self._handle_fields(node.left))
+        op = self._handle_ops(node.ops[0])
+        right = self._handle_fields(node.comparators[0])
+
+        # Eq has no op for some reason
+        if op == "=":
+            return {left: right}
+        else:
+            return {left: {op: right}}
+
+    def _handle_fields(self, node):
+        result = getattr(node, self.AST_FIELDS.get(type(node)))
+        if isinstance(result, list):
+            return [self._handle_fields(node) for node in result]
+        elif isinstance(result, str):
+            return self._unconvert(result)
+        return result
+
+    def _handle_ops(self, node):
+        return self.AST_OPERATORS.get(type(node))
+
+    def _convert(self, filterstr):
+        _conversion = filterstr.replace(".", "__________")  # this is so silly
+        # return _conversion
+        return "(" + _conversion + ")"  # wrap expr to make it eval-able
+
+    def _unconvert(self, field_name):
+        return field_name.replace("__________", ".")  # maximum silly, but it works!
+
+    def python_to_mongo(self, filterstr):
+        try:
+            tree = ast.parse(self._convert(filterstr), mode="eval")
+        except SyntaxError as e:
+            raise ValueError(
+                "Invalid python comparison expression; form something like `my_col == 123`"
+            ) from e
+
+        multiple_filters = hasattr(tree.body, "op")
+
+        if multiple_filters:
+            op = self.AST_OPERATORS.get(type(tree.body.op))
+            values = [self._handle_compare(v) for v in tree.body.values]
+        else:
+            op = "$and"
+            values = [self._handle_compare(tree.body)]
+        return {"$or": [{op: values}]}
+
+    def front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config.{name}.value{rest}"
+        else:  # assume summary metrics
+            return f"summary_metrics.{name}{rest}"
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif (
+            name.startswith("config.") and ".value" in name
+        ):  # may be brittle: originally "endswith", but that doesn't work with nested keys...
+            # strip is weird sometimes (??)
+            return name.replace("config.", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        wandb.termerror(f"Unknown token: {name}")
+        return name
+
+    # These are only used for ParallelCoordinatesPlot because it has weird backend names...
+    def pc_front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        if name is None:
+            return None
+        elif name in self.panel_metrics_helper.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.panel_metrics_helper.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config:{name}.value{rest}"
+        else:  # assume summary metrics
+            return f"summary:{name}{rest}"
+
+    def pc_back_to_front(self, name):
+        if name is None:
+            return None
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.panel_metrics_helper.FRONTEND_NAME_MAPPING_REVERSED.get(
+                name, name
+            )
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif name.startswith("config:") and ".value" in name:
+            return name.replace("config:", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        return name
+
+
+class PanelMetricsHelper:
+    FRONTEND_NAME_MAPPING = {
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp",
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+
+    RUN_MAPPING = {"Created Timestamp": "createdAt", "Latest Timestamp": "heartbeatAt"}
+    RUN_MAPPING_REVERSED = {v: k for k, v in RUN_MAPPING.items()}
+
+    def front_to_back(self, name):
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        return name
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        return name
+
+    # ScatterPlot and ParallelCoords have weird conventions
+    def special_front_to_back(self, name):
+        if name is None:
+            return name
+        elif name in self.RUN_MAPPING:
+            return "run:" + self.RUN_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.FRONTEND_NAME_MAPPING[name]
+        elif name == "Index":
+            return name
+        return "summary:" + name
+
+    def special_back_to_front(self, name):
+        if name is None:
+            return name
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.FRONTEND_NAME_MAPPING_REVERSED.get(name, name)
+        elif "run:" in name:
+            name = name.replace("run:", "")
+            return self.RUN_MAPPING_REVERSED[name]
+        return name
+
 
 class BetaReport(Attrs):
     """BetaReport is a class associated with reports created in wandb.
@@ -2650,7 +3049,7 @@ class BetaReport(Attrs):
 
     Attributes:
         name (string): report name
-        description (string): report descirpiton;
+        description (string): report description;
         user (User): the user that created the report
         spec (dict): the spec off the report;
         updated_at (string): timestamp of last update
@@ -2661,7 +3060,7 @@ class BetaReport(Attrs):
         self.project = project
         self.entity = entity
         self.query_generator = QueryGenerator()
-        super(BetaReport, self).__init__(dict(attrs))
+        super().__init__(dict(attrs))
         self._attrs["spec"] = json.loads(self._attrs["spec"])
 
     @property
@@ -2725,7 +3124,7 @@ class BetaReport(Attrs):
         return self.to_html()
 
 
-class HistoryScan(object):
+class HistoryScan:
     QUERY = gql(
         """
         query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
@@ -2791,7 +3190,7 @@ class HistoryScan(object):
         self.scan_offset = 0
 
 
-class SampledHistoryScan(object):
+class SampledHistoryScan:
     QUERY = gql(
         """
         query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
@@ -2891,7 +3290,7 @@ class ProjectArtifactTypes(Paginator):
             "projectName": project,
         }
 
-        super(ProjectArtifactTypes, self).__init__(client, variable_values, per_page)
+        super().__init__(client, variable_values, per_page)
 
     @property
     def length(self):
@@ -2972,9 +3371,7 @@ class ProjectArtifactCollections(Paginator):
             "artifactTypeName": type_name,
         }
 
-        super(ProjectArtifactCollections, self).__init__(
-            client, variable_values, per_page
-        )
+        super().__init__(client, variable_values, per_page)
 
     @property
     def length(self):
@@ -3096,7 +3493,7 @@ class RunArtifacts(Paginator):
             "runName": run.id,
         }
 
-        super(RunArtifacts, self).__init__(client, variable_values, per_page)
+        super().__init__(client, variable_values, per_page)
 
     @property
     def length(self):
@@ -3138,7 +3535,7 @@ class RunArtifacts(Paginator):
         ]
 
 
-class ArtifactType(object):
+class ArtifactType:
     def __init__(self, client, entity, project, type_name, attrs=None):
         self.client = client
         self.entity = entity
@@ -3205,10 +3602,10 @@ class ArtifactType(object):
         )
 
     def __repr__(self):
-        return "<ArtifactType {}>".format(self.type)
+        return f"<ArtifactType {self.type}>"
 
 
-class ArtifactCollection(object):
+class ArtifactCollection:
     def __init__(self, client, entity, project, name, type, attrs=None):
         self.client = client
         self.entity = entity
@@ -3277,7 +3674,7 @@ class ArtifactCollection(object):
         return self._attrs
 
     def __repr__(self):
-        return "<ArtifactCollection {} ({})>".format(self.name, self.type)
+        return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
 class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
@@ -3477,7 +3874,7 @@ class Artifact(artifacts.Artifact):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    artifact, json.loads(six.ensure_text(req.content))
+                    artifact, json.loads(util.ensure_text(req.content))
                 )
 
             artifact._load_dependent_manifests()
@@ -3584,7 +3981,7 @@ class Artifact(artifacts.Artifact):
     def name(self):
         if self._version_index is None:
             return self.digest
-        return "%s:v%s" % (self._sequence_name, self._version_index)
+        return f"{self._sequence_name}:v{self._version_index}"
 
     @property
     def aliases(self):
@@ -3717,7 +4114,7 @@ class Artifact(artifacts.Artifact):
 
         Arguments:
             delete_aliases: (bool) If true, deletes all aliases associated with the artifact.
-                Otherwise, this raises an exception if the artifact has existing alaises.
+                Otherwise, this raises an exception if the artifact has existing aliases.
         """
         mutation = gql(
             """
@@ -3831,7 +4228,7 @@ class Artifact(artifacts.Artifact):
             # Load the object from the JSON blob
             result = None
             json_obj = {}
-            with open(item_path, "r") as file:
+            with open(item_path) as file:
                 json_obj = json.load(file)
             result = wb_class.from_json(json_obj, self)
             result._set_artifact_source(self, name)
@@ -3867,9 +4264,13 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            delta = relativedelta(datetime.datetime.now() - start_time)
+            now = datetime.datetime.now()
+            delta = abs((now - start_time).total_seconds())
+            hours = int(delta // 3600)
+            minutes = int((delta - hours * 3600) // 60)
+            seconds = delta - hours * 3600 - minutes * 60
             termlog(
-                "Done. %s:%s:%s" % (delta.hours, delta.minutes, delta.seconds),
+                f"Done. {hours}:{minutes}:{seconds:.1f}",
                 prefix=False,
             )
         return dirpath
@@ -4016,7 +4417,7 @@ class Artifact(artifacts.Artifact):
         return manifest.entries.keys()
 
     def __repr__(self):
-        return "<Artifact {}>".format(self.id)
+        return f"<Artifact {self.id}>"
 
     def _load(self):
         query = gql(
@@ -4107,7 +4508,7 @@ class Artifact(artifacts.Artifact):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(six.ensure_text(req.content))
+                    self, json.loads(util.ensure_text(req.content))
                 )
 
             self._load_dependent_manifests()
@@ -4272,7 +4673,7 @@ class ArtifactVersions(Paginator):
         project,
         collection_name,
         type,
-        filters={},
+        filters=None,
         order=None,
         per_page=50,
     ):
@@ -4280,7 +4681,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         variables = {
             "project": self.project,
@@ -4290,7 +4691,7 @@ class ArtifactVersions(Paginator):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
-        super(ArtifactVersions, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -4370,7 +4771,7 @@ class ArtifactFiles(Paginator):
             "artifactName": artifact.artifact_name,
             "fileNames": names,
         }
-        super(ArtifactFiles, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):

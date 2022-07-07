@@ -18,6 +18,7 @@ import threading
 from typing import (
     Any,
     Dict,
+    List,
     Optional,
     Union,
 )
@@ -81,12 +82,13 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
     _manager: Optional[wandb_manager._Manager]
+    _pid: int
 
     def __init__(
         self,
+        pid: int,
         settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         environ: Optional[Dict[str, Any]] = None,
-        pid: Optional[int] = None,
     ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
@@ -121,6 +123,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         early_logger: Optional[_EarlyLogger] = None,
     ):
         s = wandb_settings.Settings()
+        s._apply_base(pid=self._pid, _logger=early_logger)
         s._apply_config_files(_logger=early_logger)
         s._apply_env_vars(self._environ, _logger=early_logger)
 
@@ -181,6 +184,24 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             self._load_viewer()
         entity = self._server._viewer.get("entity")
         return entity
+
+    def _get_username(self) -> Optional[str]:
+        if self._settings and self._settings._offline:
+            return None
+        if self._server is None:
+            self._load_viewer()
+        username = self._server._viewer.get("username")
+        return username
+
+    def _get_teams(self) -> List[str]:
+        if self._settings and self._settings._offline:
+            return None
+        if self._server is None:
+            self._load_viewer()
+        teams = self._server._viewer.get("teams")
+        if teams:
+            teams = [team["node"]["name"] for team in teams["edges"]]
+        return teams or []
 
     def _load_viewer(self, settings=None) -> None:
         if self._settings and self._settings._offline:

@@ -4,15 +4,15 @@ import json
 import logging
 import os
 import platform
+from typing import Any, Dict, Mapping, Optional, Tuple, Union
 
-import dockerpycreds
-import six
+import dockerpycreds  # type: ignore
 
 IS_WINDOWS_PLATFORM = platform.system() == "Windows"
 DOCKER_CONFIG_FILENAME = os.path.join(".docker", "config.json")
 LEGACY_DOCKER_CONFIG_FILENAME = ".dockercfg"
 INDEX_NAME = "docker.io"
-INDEX_URL = "https://index.{0}/v1/".format(INDEX_NAME)
+INDEX_URL = f"https://index.{INDEX_NAME}/v1/"
 TOKEN_USERNAME = "<token>"
 
 log = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class InvalidRepositoryError(DockerError):
     pass
 
 
-def find_config_file(config_path=None):
+def find_config_file(config_path: Optional[str] = None) -> Optional[str]:
     paths = list(
         filter(
             None,
@@ -47,11 +47,11 @@ def find_config_file(config_path=None):
         )
     )
 
-    log.debug("Trying paths: {0}".format(repr(paths)))
+    log.debug(f"Trying paths: {repr(paths)}")
 
     for path in paths:
         if os.path.exists(path):
-            log.debug("Found file at path: {0}".format(path))
+            log.debug(f"Found file at path: {path}")
             return path
 
     log.debug("No config file found")
@@ -59,14 +59,14 @@ def find_config_file(config_path=None):
     return None
 
 
-def config_path_from_environment():
+def config_path_from_environment() -> Optional[str]:
     config_dir = os.environ.get("DOCKER_CONFIG")
     if not config_dir:
         return None
     return os.path.join(config_dir, os.path.basename(DOCKER_CONFIG_FILENAME))
 
 
-def home_dir():
+def home_dir() -> str:
     """
     Get the user's home directory, using the same logic as the Docker Engine
     client - use %USERPROFILE% on Windows, $HOME/getuid on POSIX.
@@ -77,7 +77,7 @@ def home_dir():
         return os.path.expanduser("~")
 
 
-def load_general_config(config_path=None):
+def load_general_config(config_path: Optional[str] = None) -> Dict:
     config_file = find_config_file(config_path)
 
     if not config_file:
@@ -85,8 +85,9 @@ def load_general_config(config_path=None):
 
     try:
         with open(config_file) as f:
-            return json.load(f)
-    except (IOError, ValueError) as e:
+            conf: Dict = json.load(f)
+            return conf
+    except (OSError, ValueError) as e:
         # In the case of a legacy `.dockercfg` file, we won't
         # be able to load any JSON data.
         log.debug(e)
@@ -95,54 +96,59 @@ def load_general_config(config_path=None):
     return {}
 
 
-def resolve_repository_name(repo_name):
+def resolve_repository_name(repo_name: str) -> Tuple[str, str]:
     if "://" in repo_name:
         raise InvalidRepositoryError(
-            "Repository name cannot contain a scheme ({0})".format(repo_name)
+            f"Repository name cannot contain a scheme ({repo_name})"
         )
 
     index_name, remote_name = split_repo_name(repo_name)
     if index_name[0] == "-" or index_name[-1] == "-":
         raise InvalidRepositoryError(
-            "Invalid index name ({0}). Cannot begin or end with a"
+            "Invalid index name ({}). Cannot begin or end with a"
             " hyphen.".format(index_name)
         )
     return resolve_index_name(index_name), remote_name
 
 
-def resolve_index_name(index_name):
+def resolve_index_name(index_name: str) -> str:
     index_name = convert_to_hostname(index_name)
     if index_name == "index." + INDEX_NAME:
         index_name = INDEX_NAME
     return index_name
 
 
-def split_repo_name(repo_name):
+def split_repo_name(repo_name: str) -> Tuple[str, str]:
     parts = repo_name.split("/", 1)
     if len(parts) == 1 or (
         "." not in parts[0] and ":" not in parts[0] and parts[0] != "localhost"
     ):
         # This is a docker index repo (ex: username/foobar or ubuntu)
         return INDEX_NAME, repo_name
-    return tuple(parts)
+    return parts[0], parts[1]
 
 
-def get_credential_store(authconfig, registry):
+def get_credential_store(authconfig: Dict, registry: str) -> Optional[str]:
     if not isinstance(authconfig, AuthConfig):
         authconfig = AuthConfig(authconfig)
     return authconfig.get_credential_store(registry)
 
 
 class AuthConfig(dict):
-    def __init__(self, dct, credstore_env=None):
+    def __init__(self, dct: Dict, credstore_env: Mapping = None) -> None:
+        super().__init__(dct)
         if "auths" not in dct:
             dct["auths"] = {}
         self.update(dct)
         self._credstore_env = credstore_env
-        self._stores = {}
+        self._stores: Dict[str, "dockerpycreds.Store"] = dict()
 
     @classmethod
-    def parse_auth(cls, entries, raise_on_error=False):
+    def parse_auth(
+        cls,
+        entries: Dict[str, Dict[str, Any]],
+        raise_on_error: bool = False,
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Parses authentication entries
         Arguments:
@@ -154,33 +160,29 @@ class AuthConfig(dict):
         """
 
         conf = {}
-        for registry, entry in six.iteritems(entries):
+        for registry, entry in entries.items():
             if not isinstance(entry, dict):
-                log.debug(
-                    "Config entry for key {0} is not auth config".format(registry)
-                )
+                log.debug(f"Config entry for key {registry} is not auth config")
                 # We sometimes fall back to parsing the whole config as if it
                 # was the auth config by itself, for legacy purposes. In that
                 # case, we fail silently and return an empty conf if any of the
                 # keys is not formatted properly.
                 if raise_on_error:
                     raise InvalidConfigFileError(
-                        "Invalid configuration for registry {0}".format(registry)
+                        f"Invalid configuration for registry {registry}"
                     )
                 return {}
             if "identitytoken" in entry:
-                log.debug(
-                    "Found an IdentityToken entry for registry {0}".format(registry)
-                )
+                log.debug(f"Found an IdentityToken entry for registry {registry}")
                 conf[registry] = {"IdentityToken": entry["identitytoken"]}
                 continue  # Other values are irrelevant if we have a token
 
             if "auth" not in entry:
                 # Starting with engine v1.11 (API 1.23), an empty dictionary is
-                # a valid value in the auths config.
+                # a valid value in the auth's config.
                 # https://github.com/docker/compose/issues/3265
                 log.debug(
-                    "Auth data for {0} is absent. Client might be using a "
+                    "Auth data for {} is absent. Client might be using a "
                     "credentials store instead.".format(registry)
                 )
                 conf[registry] = {}
@@ -188,7 +190,7 @@ class AuthConfig(dict):
 
             username, password = decode_auth(entry["auth"])
             log.debug(
-                "Found entry (registry={0}, username={1})".format(
+                "Found entry (registry={}, username={})".format(
                     repr(registry), repr(username)
                 )
             )
@@ -202,7 +204,12 @@ class AuthConfig(dict):
         return conf
 
     @classmethod
-    def load_config(cls, config_path, config_dict, credstore_env=None):
+    def load_config(
+        cls,
+        config_path: Optional[str],
+        config_dict: Optional[Dict[str, Any]],
+        credstore_env: Mapping = None,
+    ) -> "AuthConfig":
         """
         Loads authentication data from a Docker configuration file in the given
         root directory or if config_path is passed use given path.
@@ -219,14 +226,15 @@ class AuthConfig(dict):
             try:
                 with open(config_file) as f:
                     config_dict = json.load(f)
-            except (IOError, KeyError, ValueError) as e:
-                # Likely missing new Docker config file or it's in an
+            except (OSError, KeyError, ValueError) as e:
+                # Likely missing new Docker config file, or it's in an
                 # unknown format, continue to attempt to read old location
                 # and format.
                 log.debug(e)
                 return cls(_load_legacy_config(config_file), credstore_env)
 
         res = {}
+        assert isinstance(config_dict, Dict)  # worship mypy
         if config_dict.get("auths"):
             log.debug("Found 'auths' section")
             res.update(
@@ -248,22 +256,24 @@ class AuthConfig(dict):
         return cls({"auths": cls.parse_auth(config_dict)}, credstore_env)
 
     @property
-    def auths(self):
+    def auths(self) -> Dict[str, Dict[str, Any]]:
         return self.get("auths", {})
 
     @property
-    def creds_store(self):
+    def creds_store(self) -> Optional[str]:
         return self.get("credsStore", None)
 
     @property
-    def cred_helpers(self):
+    def cred_helpers(self) -> Dict:
         return self.get("credHelpers", {})
 
     @property
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return not self.auths and not self.creds_store and not self.cred_helpers
 
-    def resolve_authconfig(self, registry=None):
+    def resolve_authconfig(
+        self, registry: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Returns the authentication data from the given auth configuration for a
         specific registry. As with the Docker client, legacy entries in the
@@ -274,7 +284,7 @@ class AuthConfig(dict):
         if self.creds_store or self.cred_helpers:
             store_name = self.get_credential_store(registry)
             if store_name is not None:
-                log.debug('Using credentials store "{0}"'.format(store_name))
+                log.debug(f'Using credentials store "{store_name}"')
                 cfg = self._resolve_authconfig_credstore(registry, store_name)
                 if cfg is not None:
                     return cfg
@@ -282,26 +292,28 @@ class AuthConfig(dict):
 
         # Default to the public index server
         registry = resolve_index_name(registry) if registry else INDEX_NAME
-        log.debug("Looking for auth entry for {0}".format(repr(registry)))
+        log.debug(f"Looking for auth entry for {repr(registry)}")
 
         if registry in self.auths:
-            log.debug("Found {0}".format(repr(registry)))
+            log.debug(f"Found {repr(registry)}")
             return self.auths[registry]
 
-        for key, conf in six.iteritems(self.auths):
+        for key, conf in self.auths.items():
             if resolve_index_name(key) == registry:
-                log.debug("Found {0}".format(repr(key)))
+                log.debug(f"Found {repr(key)}")
                 return conf
 
         log.debug("No entry found")
         return None
 
-    def _resolve_authconfig_credstore(self, registry, credstore_name):
+    def _resolve_authconfig_credstore(
+        self, registry: Optional[str], credstore_name: str
+    ) -> Optional[Dict[str, Any]]:
         if not registry or registry == INDEX_NAME:
             # The ecosystem is a little schizophrenic with recker.io VS
             # docker.io - in that case, it seems the full URL is necessary.
             registry = INDEX_URL
-        log.debug("Looking for auth entry for {0}".format(repr(registry)))
+        log.debug(f"Looking for auth entry for {repr(registry)}")
         store = self._get_store_instance(credstore_name)
         try:
             data = store.get(registry)
@@ -317,58 +329,64 @@ class AuthConfig(dict):
             log.debug("No entry found")
             return None
         except dockerpycreds.StoreError as e:
-            raise DockerError("Credentials store error: {0}".format(repr(e)))
+            raise DockerError(f"Credentials store error: {repr(e)}")
 
-    def _get_store_instance(self, name):
+    def _get_store_instance(self, name: str) -> "dockerpycreds.Store":
         if name not in self._stores:
             self._stores[name] = dockerpycreds.Store(
                 name, environment=self._credstore_env
             )
         return self._stores[name]
 
-    def get_credential_store(self, registry):
+    def get_credential_store(self, registry: Optional[str]) -> Optional[str]:
         if not registry or registry == INDEX_NAME:
             registry = INDEX_URL
 
         return self.cred_helpers.get(registry) or self.creds_store
 
-    def get_all_credentials(self):
+    def get_all_credentials(self) -> Dict[str, Dict[str, Any]]:
         auth_data = self.auths.copy()
         if self.creds_store:
             # Retrieve all credentials from the default store
             store = self._get_store_instance(self.creds_store)
             for k in store.list().keys():
-                auth_data[k] = self._resolve_authconfig_credstore(k, self.creds_store)
+                auth_data[k] = self._resolve_authconfig_credstore(k, self.creds_store)  # type: ignore
 
         # credHelpers entries take priority over all others
         for reg, store_name in self.cred_helpers.items():
-            auth_data[reg] = self._resolve_authconfig_credstore(reg, store_name)
+            auth_data[reg] = self._resolve_authconfig_credstore(reg, store_name)  # type: ignore
 
         return auth_data
 
-    def add_auth(self, reg, data):
+    def add_auth(self, reg: str, data: Dict[str, Any]) -> None:
         self["auths"][reg] = data
 
 
-def resolve_authconfig(authconfig, registry=None, credstore_env=None):
+def resolve_authconfig(
+    authconfig: Dict,
+    registry: Optional[str] = None,
+    credstore_env: Optional[Mapping] = None,
+) -> Optional[Dict[str, Any]]:
     if not isinstance(authconfig, AuthConfig):
         authconfig = AuthConfig(authconfig, credstore_env)
     return authconfig.resolve_authconfig(registry)
 
 
-def convert_to_hostname(url):
+def convert_to_hostname(url: str) -> str:
     return url.replace("http://", "").replace("https://", "").split("/", 1)[0]
 
 
-def decode_auth(auth):
-    if isinstance(auth, six.string_types):
+def decode_auth(auth: Union[str, bytes]) -> Tuple[str, str]:
+    if isinstance(auth, str):
         auth = auth.encode("ascii")
     s = base64.b64decode(auth)
     login, pwd = s.split(b":", 1)
     return login.decode("utf8"), pwd.decode("utf8")
 
 
-def parse_auth(entries, raise_on_error=False):
+def parse_auth(
+    entries: Dict, raise_on_error: bool = False
+) -> Dict[str, Dict[str, Any]]:
     """
     Parses authentication entries
     Arguments:
@@ -382,11 +400,17 @@ def parse_auth(entries, raise_on_error=False):
     return AuthConfig.parse_auth(entries, raise_on_error)
 
 
-def load_config(config_path=None, config_dict=None, credstore_env=None):
+def load_config(
+    config_path: str = None,
+    config_dict: Dict[str, Any] = None,
+    credstore_env: Mapping = None,
+) -> AuthConfig:
     return AuthConfig.load_config(config_path, config_dict, credstore_env)
 
 
-def _load_legacy_config(config_file):
+def _load_legacy_config(
+    config_file: str,
+) -> Dict[str, Dict[str, Union[str, Dict[str, str]]]]:
     log.debug("Attempting to parse legacy auth file format")
     try:
         data = []

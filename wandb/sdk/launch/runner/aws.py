@@ -11,18 +11,17 @@ import wandb
 from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import LaunchError
+from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
+    EntryPoint,
     get_entry_point_command,
     LaunchProject,
 )
-from ..docker import (
-    construct_local_image_uri,
-    generate_docker_image,
+from ..builder.build import (
     get_env_vars_dict,
-    validate_docker_installation,
 )
 from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
 
@@ -79,12 +78,19 @@ class SagemakerSubmittedRun(AbstractRun):
 class AWSSagemakerRunner(AbstractRunner):
     """Runner class, uses a project to create a SagemakerSubmittedRun."""
 
-    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+    def run(
+        self,
+        launch_project: LaunchProject,
+        builder: AbstractBuilder,
+        registry_config: Dict[str, Any],
+    ) -> Optional[AbstractRun]:
         _logger.info("using AWSSagemakerRunner")
 
-        boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
+        boto3 = get_module(
+            "boto3",
+            "AWSSagemakerRunner requires boto3 to be installed,  install with pip install wandb[launch]",
+        )
 
-        validate_docker_installation()
         given_sagemaker_args = launch_project.resource_args.get("sagemaker")
         if given_sagemaker_args is None:
             raise LaunchError(
@@ -108,7 +114,7 @@ class AWSSagemakerRunner(AbstractRunner):
             "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
         )
         account_id = client.get_caller_identity()["Account"]
-
+        entry_point = launch_project.get_single_entry_point()
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
             given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
@@ -120,7 +126,9 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             )
-            sagemaker_args = build_sagemaker_args(launch_project, self._api, account_id)
+            sagemaker_args = build_sagemaker_args(
+                launch_project, entry_point, self._api, account_id
+            )
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
@@ -137,14 +145,38 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_secret_access_key=secret_key,
         )
         token = ecr_client.get_authorization_token()
-
         ecr_repo_name = given_sagemaker_args.get(
             "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
         )
-        aws_registry = (
-            token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
-            + f"/{ecr_repo_name}"
-        )
+        if ecr_repo_name:
+            repository = (
+                token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
+                + f"/{ecr_repo_name}"
+            )
+        else:
+            repository = registry_config.get("url")
+
+        if repository is None:
+            raise LaunchError(
+                "Must provide a repository url either through resource args or launch config file"
+            )
+
+        if registry_config.get("ecr-repo-provider", "aws") != "aws":
+            raise LaunchError(
+                "Sagemaker jobs requires an AWS ECR Repo to push the container to"
+            )
+        # TODO: handle login credentials gracefully
+        login_credentials = registry_config.get("credentials")
+        if login_credentials is not None:
+            wandb.termwarn(
+                "Ignoring registry credentials for ECR, using those found on the system"
+            )
+
+        if builder.type != "kaniko":
+            _logger.info("Logging in to AWS ECR")
+            login_resp = aws_ecr_login(region, repository)
+            if login_resp is None or "Login Succeeded" not in login_resp:
+                raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
         docker_args = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
@@ -152,33 +184,17 @@ class AWSSagemakerRunner(AbstractRunner):
                 "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )
 
-        entry_point = launch_project.get_single_entry_point()
-
         if launch_project.docker_image:
             image = launch_project.docker_image
         else:
+            assert entry_point is not None
             # build our own image
-            image_uri = construct_local_image_uri(launch_project)
-            _logger.info("Building docker image")
-            image = generate_docker_image(
-                launch_project, image_uri, entry_point, {}, "sagemaker"
+            image = builder.build_image(
+                launch_project,
+                repository,
+                entry_point,
+                {},
             )
-
-        _logger.info("Logging in to AWS ECR")
-        login_resp = aws_ecr_login(region, aws_registry)
-        if login_resp is None or "Login Succeeded" not in login_resp:
-            raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
-
-        # todo: we don't always want to tag/push the image (eg if image already hosted on aws), figure this out
-        aws_tag = f"{aws_registry}:{launch_project.run_id}"
-        docker.tag(image, aws_tag)
-
-        wandb.termlog(f"Pushing image {image} to registry {aws_registry}")
-        push_resp = docker.push(aws_registry, launch_project.run_id)
-        if push_resp is None:
-            raise LaunchError("Failed to push image to repository")
-        if f"The push refers to repository [{aws_registry}]" not in push_resp:
-            raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 
         if not self.ack_run_queue_item(launch_project):
             return None
@@ -196,16 +212,14 @@ class AWSSagemakerRunner(AbstractRunner):
             entry_point, launch_project.override_args
         )
         if command_args:
-            wandb.termlog(
-                "Launching run on sagemaker with entrypoint: {}".format(command_args)
-            )
+            command_str = " ".join(command_args)
+            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_str}")
         else:
             wandb.termlog(
                 "Launching run on sagemaker with user-provided entrypoint in image"
             )
-
         sagemaker_args = build_sagemaker_args(
-            launch_project, self._api, account_id, aws_tag
+            launch_project, entry_point, self._api, account_id, image
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
@@ -252,6 +266,7 @@ def merge_aws_tag_with_algorithm_specification(
 
 def build_sagemaker_args(
     launch_project: LaunchProject,
+    entry_point: Optional[EntryPoint],
     api: Api,
     account_id: str,
     aws_tag: Optional[str] = None,
@@ -304,7 +319,7 @@ def build_sagemaker_args(
     given_env = given_sagemaker_args.get(
         "Environment", sagemaker_args.get("environment", {})
     )
-    calced_env = get_env_vars_dict(launch_project, api)
+    calced_env = get_env_vars_dict(launch_project, entry_point, api)
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env
 

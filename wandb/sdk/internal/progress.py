@@ -1,27 +1,41 @@
-#
-# -*- coding: utf-8 -*-
 """
 progress.
 """
 
 import os
+import sys
+from typing import IO, Optional, TYPE_CHECKING
 
 from wandb.errors import CommError
 
+if TYPE_CHECKING:
+    if sys.version_info >= (3, 8):
+        from typing import Protocol
+    else:
+        from typing_extensions import Protocol
 
-class Progress(object):
+    class ProgressFn(Protocol):
+        def __call__(self, new_bytes: int, total_bytes: int) -> None:
+            pass
+
+
+class Progress:
     """A helper class for displaying progress"""
 
     ITER_BYTES = 1024 * 1024
 
-    def __init__(self, file, callback=None):
+    def __init__(
+        self, file: IO[bytes], callback: Optional["ProgressFn"] = None
+    ) -> None:
         self.file = file
         if callback is None:
 
-            def callback(bites, total):
-                return (bites, total)
+            def callback_(new_bytes: int, total_bytes: int) -> None:
+                pass
 
-        self.callback = callback
+            callback = callback_
+
+        self.callback: "ProgressFn" = callback
         self.bytes_read = 0
         self.len = os.fstat(file.fileno()).st_size
 
@@ -44,7 +58,7 @@ class Progress(object):
         self.callback(len(bites), self.bytes_read)
         return bites
 
-    def rewind(self):
+    def rewind(self) -> None:
         self.callback(0, -self.bytes_read)
         self.bytes_read = 0
         self.file.seek(0)

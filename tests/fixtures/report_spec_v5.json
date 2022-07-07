@@ -1,0 +1,584 @@
+{
+  "version": 5,
+  "panelSettings": {
+    "xAxis": "_step",
+    "smoothingWeight": 0,
+    "smoothingType": "exponential",
+    "ignoreOutliers": false,
+    "xAxisActive": false,
+    "smoothingActive": false,
+    "ref": { "type": "panelSettings", "viewID": "t78xhvf07", "id": "zth3t3pk3" }
+  },
+  "blocks": [
+    { "type": "paragraph", "children": [{ "text": "This is my paragraph." }] },
+    { "type": "block-quote", "children": [{ "text": "Block Quote" }] },
+    {
+      "type": "code-block",
+      "children": [
+        {
+          "type": "code-line",
+          "children": [{ "text": "Some sweet sweet code" }]
+        }
+      ]
+    },
+    {
+      "type": "weave-panel",
+      "config": {
+        "panelConfig": {
+          "exp": {
+            "nodeType": "output",
+            "type": {
+              "type": "tagged",
+              "tag": {
+                "type": "tagged",
+                "tag": {
+                  "type": "typedDict",
+                  "propertyTypes": {
+                    "entityName": "string",
+                    "projectName": "string"
+                  }
+                },
+                "value": {
+                  "type": "typedDict",
+                  "propertyTypes": {
+                    "project": "project",
+                    "artifactName": "string",
+                    "artifactVersionAlias": "string"
+                  }
+                }
+              },
+              "value": { "type": "file", "extension": "json" }
+            },
+            "fromOp": {
+              "name": "artifactVersion-file",
+              "inputs": {
+                "artifactVersion": {
+                  "nodeType": "output",
+                  "type": {
+                    "type": "tagged",
+                    "tag": {
+                      "type": "tagged",
+                      "tag": {
+                        "type": "typedDict",
+                        "propertyTypes": {
+                          "entityName": "string",
+                          "projectName": "string"
+                        }
+                      },
+                      "value": {
+                        "type": "typedDict",
+                        "propertyTypes": {
+                          "project": "project",
+                          "artifactName": "string",
+                          "artifactVersionAlias": "string"
+                        }
+                      }
+                    },
+                    "value": "artifactVersion"
+                  },
+                  "fromOp": {
+                    "name": "project-artifactVersion",
+                    "inputs": {
+                      "project": {
+                        "nodeType": "output",
+                        "type": {
+                          "type": "tagged",
+                          "tag": {
+                            "type": "typedDict",
+                            "propertyTypes": {
+                              "entityName": "string",
+                              "projectName": "string"
+                            }
+                          },
+                          "value": "project"
+                        },
+                        "fromOp": {
+                          "name": "root-project",
+                          "inputs": {
+                            "entityName": {
+                              "nodeType": "const",
+                              "type": "string",
+                              "val": "vanpelt"
+                            },
+                            "projectName": {
+                              "nodeType": "const",
+                              "type": "string",
+                              "val": "journal"
+                            }
+                          }
+                        }
+                      },
+                      "artifactName": {
+                        "nodeType": "const",
+                        "type": "string",
+                        "val": "oidc"
+                      },
+                      "artifactVersionAlias": {
+                        "nodeType": "const",
+                        "type": "string",
+                        "val": "a3ca536208fa3a525de8"
+                      }
+                    }
+                  }
+                },
+                "path": {
+                  "nodeType": "const",
+                  "type": "string",
+                  "val": "auth0.json"
+                }
+              }
+            }
+          },
+          "panelId": "text"
+        },
+        "height": 800
+      },
+      "children": [{ "text": "" }]
+    },
+    {
+      "type": "heading",
+      "children": [{ "text": "Heading number one" }],
+      "level": 1
+    },
+    {
+      "type": "heading",
+      "children": [{ "text": "Heading number two" }],
+      "level": 2
+    },
+    {
+      "type": "paragraph",
+      "children": [{ "text": "Some more paragraph fun" }],
+      "level": 2
+    },
+    {
+      "type": "panel-grid",
+      "children": [{ "text": "" }],
+      "level": 2,
+      "metadata": {
+        "openViz": true,
+        "openRunSet": 1,
+        "name": "unused-name",
+        "ref": { "type": "section", "viewID": "t78xhvf07", "id": "hznuyfech" },
+        "runSets": [
+          {
+            "runFeed": {
+              "version": 2,
+              "columnVisible": { "run:name": false },
+              "columnPinned": {},
+              "columnWidths": {},
+              "columnOrder": [],
+              "pageSize": 10,
+              "onlyShowSelected": false
+            },
+            "enabled": false,
+            "name": "Baseline",
+            "search": { "query": "" },
+            "id": "z07plttn0",
+            "ref": {
+              "type": "runSet",
+              "viewID": "t78xhvf07",
+              "id": "9w3b8vij0"
+            },
+            "filters": {
+              "op": "OR",
+              "filters": [{ "op": "AND", "filters": [] }],
+              "ref": {
+                "type": "filters",
+                "viewID": "t78xhvf07",
+                "id": "zkf0k8bfc"
+              }
+            },
+            "grouping": [],
+            "sort": {
+              "keys": [
+                {
+                  "key": { "section": "run", "name": "createdAt" },
+                  "ascending": false
+                }
+              ],
+              "ref": {
+                "type": "sort",
+                "viewID": "t78xhvf07",
+                "id": "wrnhu2h9u"
+              }
+            },
+            "selections": { "root": 1, "bounds": [], "tree": [] },
+            "expandedRowAddresses": []
+          },
+          {
+            "runFeed": {
+              "version": 2,
+              "columnVisible": { "run:name": false },
+              "columnPinned": {},
+              "columnWidths": {},
+              "columnOrder": [],
+              "pageSize": 10,
+              "onlyShowSelected": false
+            },
+            "enabled": true,
+            "name": "Run set 2",
+            "search": { "query": "" },
+            "id": "xbq4tgnac",
+            "project": { "entityName": "vanpelt", "name": "dogs" },
+            "ref": {
+              "type": "runSet",
+              "viewID": "t78xhvf07",
+              "id": "uderv3t9c"
+            },
+            "filters": {
+              "op": "OR",
+              "filters": [{ "op": "AND", "filters": [] }],
+              "ref": {
+                "type": "filters",
+                "viewID": "t78xhvf07",
+                "id": "x1ke5p2lz"
+              }
+            },
+            "grouping": [{ "section": "summary", "name": "best_epoch" }],
+            "sort": {
+              "keys": [
+                {
+                  "key": { "section": "run", "name": "createdAt" },
+                  "ascending": false
+                }
+              ],
+              "ref": {
+                "type": "sort",
+                "viewID": "t78xhvf07",
+                "id": "5dsdz3aj7"
+              }
+            },
+            "selections": {
+              "root": 0,
+              "bounds": [],
+              "tree": [8, { "value": 1, "children": ["ntefowb9"] }]
+            },
+            "expandedRowAddresses": ["xbq4tgnac/1"]
+          }
+        ],
+        "panels": {
+          "views": {
+            "0": {
+              "name": "Panels",
+              "defaults": [],
+              "config": [],
+              "panelRefs": []
+            }
+          },
+          "tabs": ["0"],
+          "ref": { "type": "panels", "viewID": "t78xhvf07", "id": "g9h04werj" }
+        },
+        "panelBankConfig": {
+          "state": 0,
+          "settings": {
+            "autoOrganizePrefix": 2,
+            "showEmptySections": false,
+            "sortAlphabetically": false
+          },
+          "ref": {
+            "type": "panel-bank-config",
+            "viewID": "t78xhvf07",
+            "id": "bsw6wmch4"
+          },
+          "sections": [
+            {
+              "name": "Hidden Panels",
+              "isOpen": false,
+              "type": "flow",
+              "flowConfig": {
+                "snapToColumns": true,
+                "columnsPerPage": 3,
+                "rowsPerPage": 2,
+                "gutterWidth": 16,
+                "boxWidth": 460,
+                "boxHeight": 300
+              },
+              "sorted": 0,
+              "localPanelSettings": {
+                "xAxis": "_step",
+                "smoothingWeight": 0,
+                "smoothingType": "exponential",
+                "ignoreOutliers": false,
+                "xAxisActive": false,
+                "smoothingActive": false,
+                "ref": {
+                  "type": "panelSettings",
+                  "viewID": "t78xhvf07",
+                  "id": "84yhcisnj"
+                }
+              },
+              "localPanelSettingsRef": {
+                "type": "panelSettings",
+                "viewID": "t78xhvf07",
+                "id": "84yhcisnj"
+              },
+              "ref": {
+                "type": "panel-bank-section-config",
+                "viewID": "t78xhvf07",
+                "id": "anaav0q2u"
+              },
+              "panels": [],
+              "panelRefs": []
+            }
+          ]
+        },
+        "panelBankSectionConfig": {
+          "name": "Report Panels",
+          "isOpen": true,
+          "type": "grid",
+          "flowConfig": {
+            "snapToColumns": true,
+            "columnsPerPage": 3,
+            "rowsPerPage": 2,
+            "gutterWidth": 16,
+            "boxWidth": 460,
+            "boxHeight": 300
+          },
+          "sorted": 0,
+          "localPanelSettings": {
+            "xAxis": "_step",
+            "smoothingWeight": 0,
+            "smoothingType": "exponential",
+            "ignoreOutliers": false,
+            "xAxisActive": false,
+            "smoothingActive": false,
+            "ref": {
+              "type": "panelSettings",
+              "viewID": "t78xhvf07",
+              "id": "8djoeuppt"
+            }
+          },
+          "localPanelSettingsRef": {
+            "type": "panelSettings",
+            "viewID": "t78xhvf07",
+            "id": "8djoeuppt"
+          },
+          "ref": {
+            "type": "panel-bank-section-config",
+            "viewID": "t78xhvf07",
+            "id": "zck3t9rch"
+          },
+          "panels": [
+            {
+              "__id__": "kkwt22jd9",
+              "viewType": "Run History Line Plot",
+              "config": {
+                "metrics": ["accuracy"],
+                "useMetricRegex": false,
+                "colorEachMetricDifferently": false
+              },
+              "ref": {
+                "type": "panel",
+                "viewID": "t78xhvf07",
+                "id": "pkul61ivy"
+              },
+              "layout": { "x": 12, "y": 0, "w": 12, "h": 6 }
+            },
+            {
+              "__id__": "lo8qfitw8",
+              "viewType": "Run Comparer",
+              "config": {},
+              "ref": {
+                "type": "panel",
+                "viewID": "t78xhvf07",
+                "id": "n6jrqif7x"
+              },
+              "layout": { "x": 0, "y": 0, "w": 12, "h": 6 }
+            }
+          ],
+          "panelRefs": [
+            { "type": "panel", "viewID": "t78xhvf07", "id": "pkul61ivy" },
+            { "type": "panel", "viewID": "t78xhvf07", "id": "n6jrqif7x" }
+          ]
+        },
+        "customRunColors": {
+          "ref": {
+            "type": "run-colors",
+            "viewID": "t78xhvf07",
+            "id": "qefarcg9c"
+          }
+        }
+      }
+    },
+    {
+      "type": "paragraph",
+      "children": [
+        { "text": "More work continues, now I want to show this great stuff." }
+      ]
+    },
+    {
+      "type": "panel-grid",
+      "children": [{ "text": "" }],
+      "metadata": {
+        "openViz": true,
+        "name": "unused-name",
+        "runSets": [
+          {
+            "runFeed": {
+              "version": 2,
+              "columnVisible": { "run:name": false },
+              "columnPinned": {},
+              "columnWidths": {},
+              "columnOrder": [],
+              "pageSize": 10,
+              "onlyShowSelected": false
+            },
+            "enabled": true,
+            "name": "Run set",
+            "search": { "query": "" },
+            "id": "04l5hfe55",
+            "project": { "entityName": "wandb", "name": "taco" },
+            "filters": {
+              "op": "OR",
+              "filters": [
+                {
+                  "op": "AND",
+                  "filters": [
+                    {
+                      "key": { "section": "run", "name": "jobType" },
+                      "op": "=",
+                      "value": "<null>",
+                      "disabled": false
+                    }
+                  ]
+                }
+              ],
+              "ref": {
+                "type": "filters",
+                "viewID": "xalmodb2x",
+                "id": "c5coeqxjj"
+              }
+            },
+            "grouping": [],
+            "sort": {
+              "keys": [
+                {
+                  "key": { "section": "run", "name": "createdAt" },
+                  "ascending": false
+                }
+              ],
+              "ref": {
+                "type": "sort",
+                "viewID": "xalmodb2x",
+                "id": "ixgdv4y5b"
+              }
+            },
+            "selections": { "root": 1, "bounds": [], "tree": [] },
+            "expandedRowAddresses": [],
+            "ref": {
+              "type": "runSet",
+              "viewID": "xalmodb2x",
+              "id": "7757yrqsn"
+            }
+          }
+        ],
+        "panelBankConfig": {
+          "state": 0,
+          "settings": {
+            "autoOrganizePrefix": 2,
+            "showEmptySections": false,
+            "sortAlphabetically": false
+          },
+          "sections": [
+            {
+              "name": "Hidden Panels",
+              "isOpen": false,
+              "type": "flow",
+              "flowConfig": {
+                "snapToColumns": true,
+                "columnsPerPage": 3,
+                "rowsPerPage": 2,
+                "gutterWidth": 16,
+                "boxWidth": 460,
+                "boxHeight": 300
+              },
+              "sorted": 0,
+              "localPanelSettings": {
+                "xAxis": "_step",
+                "smoothingWeight": 0,
+                "smoothingType": "exponential",
+                "ignoreOutliers": false,
+                "xAxisActive": false,
+                "smoothingActive": false,
+                "ref": {
+                  "type": "panelSettings",
+                  "viewID": "xalmodb2x",
+                  "id": "ehit4h2p1"
+                }
+              },
+              "panels": [],
+              "localPanelSettingsRef": {
+                "type": "panelSettings",
+                "viewID": "xalmodb2x",
+                "id": "ehit4h2p1"
+              },
+              "panelRefs": [],
+              "ref": {
+                "type": "panel-bank-section-config",
+                "viewID": "xalmodb2x",
+                "id": "o10exxags"
+              }
+            }
+          ],
+          "ref": {
+            "type": "panel-bank-config",
+            "viewID": "xalmodb2x",
+            "id": "g6hadrwht"
+          }
+        },
+        "panelBankSectionConfig": {
+          "name": "Report Panels",
+          "isOpen": false,
+          "type": "grid",
+          "flowConfig": {
+            "snapToColumns": true,
+            "columnsPerPage": 3,
+            "rowsPerPage": 2,
+            "gutterWidth": 16,
+            "boxWidth": 460,
+            "boxHeight": 300
+          },
+          "sorted": 0,
+          "localPanelSettings": {
+            "xAxis": "_step",
+            "smoothingWeight": 0,
+            "smoothingType": "exponential",
+            "ignoreOutliers": false,
+            "xAxisActive": false,
+            "smoothingActive": false,
+            "ref": {
+              "type": "panelSettings",
+              "viewID": "xalmodb2x",
+              "id": "agh00jzzs"
+            }
+          },
+          "panels": [],
+          "localPanelSettingsRef": {
+            "type": "panelSettings",
+            "viewID": "xalmodb2x",
+            "id": "agh00jzzs"
+          },
+          "panelRefs": [],
+          "ref": {
+            "type": "panel-bank-section-config",
+            "viewID": "xalmodb2x",
+            "id": "lc1csrm4f"
+          }
+        },
+        "customRunColors": {
+          "ref": {
+            "type": "run-colors",
+            "viewID": "xalmodb2x",
+            "id": "5a787rxz6"
+          }
+        },
+        "ref": { "type": "section", "viewID": "xalmodb2x", "id": "ga9fb1wwr" }
+      }
+    },
+    { "type": "paragraph", "children": [{ "text": "" }] }
+  ],
+  "width": "fluid",
+  "authors": [{ "username": "vanpelt", "name": "Chris Van Pelt" }],
+  "discussionThreads": [],
+  "ref": { "type": "runs/draft", "viewID": "t78xhvf07", "id": "b0sh3lus0" }
+}

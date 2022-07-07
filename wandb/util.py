@@ -50,9 +50,7 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-from sentry_sdk import capture_exception, capture_message
 import shortuuid  # type: ignore
-import six
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
@@ -100,18 +98,22 @@ def get_platform_name() -> str:
 
 
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
-# side effect of loading a module.
+#  side effect of loading a module.
+sentry_client: Optional["sentry_sdk.client.Client"] = None
+sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
+sentry_default_dsn = (
+    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+)
 if error_reporting_enabled():
-    default_dsn = (
-        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
-    )
-    sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
-    sentry_sdk.init(
+    sentry_dsn = os.environ.get(SENTRY_DSN, sentry_default_dsn)
+    sentry_client = sentry_sdk.Client(
         dsn=sentry_dsn,
-        release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
+        release=wandb.__version__,
     )
+
+    sentry_hub = sentry_sdk.Hub(sentry_client)
 
 POW_10_BYTES = [
     ("B", 10**0),
@@ -136,7 +138,8 @@ POW_2_BYTES = [
 
 def sentry_message(message: str) -> None:
     if error_reporting_enabled():
-        capture_message(message)
+        sentry_hub.capture_message(message)  # type: ignore
+    return None
 
 
 def sentry_exc(
@@ -154,11 +157,12 @@ def sentry_exc(
 ) -> None:
     if error_reporting_enabled():
         if isinstance(exc, str):
-            capture_exception(Exception(exc))
+            sentry_hub.capture_exception(Exception(exc))  # type: ignore
         else:
-            capture_exception(exc)
-        if delay:
-            time.sleep(2)
+            sentry_hub.capture_exception(exc)  # type: ignore
+    if delay:
+        time.sleep(2)
+    return None
 
 
 def sentry_reraise(exc: Any) -> None:
@@ -171,7 +175,7 @@ def sentry_reraise(exc: Any) -> None:
     sentry_exc(exc)
     # this will messily add this "reraise" function to the stack trace
     # but hopefully it's not too bad
-    six.reraise(type(exc), exc, sys.exc_info()[2])
+    raise exc.with_traceback(sys.exc_info()[2])
 
 
 def sentry_set_scope(
@@ -183,8 +187,8 @@ def sentry_set_scope(
     ] = None,
     process_context: Optional[str] = None,
 ) -> None:
-    # Using GLOBAL_HUB means these tags will persist between threads.
-    # Normally there is one hub per thread.
+    if not error_reporting_enabled():
+        return None
 
     # Tags come from two places: settings and args passed into this func.
     args = dict(locals())
@@ -207,7 +211,7 @@ def sentry_set_scope(
     def get(key: str) -> Any:
         return getattr(s, key, None)
 
-    with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
+    with sentry_hub.configure_scope() as scope:  # type: ignore
         scope.set_tag("platform", get_platform_name())
 
         # apply settings tags
@@ -230,7 +234,7 @@ def sentry_set_scope(
             if all(params.values()):
                 # here we're guaranteed that entity, project, base_url all have valid values
                 app_url = wandb.util.app_url(params["base_url"])
-                e, p = [quote(params[k]) for k in ["entity", "project"]]
+                e, p = (quote(params[k]) for k in ["entity", "project"])
 
                 # TODO: the settings object will be updated to contain run_url and sweep_url
                 # This is done by passing a settings_map in the run_start protocol buffer message
@@ -608,11 +612,14 @@ def json_friendly(  # noqa: C901
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
-        elif isinstance(obj, np.generic) and obj.dtype.kind == "f":
+        elif isinstance(obj, np.generic) and (
+            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+        ):
             # obj is a numpy float with precision greater than that of native python float
-            # (i.e., float96 or float128). in this case obj.item() does not return a native
-            # python float to avoid loss of precision, so we need to explicitly cast this
-            # down to a 64bit float
+            # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+            # in these cases, obj.item() does not return a native
+            # python float (in the first case - to avoid loss of precision,
+            # so we need to explicitly cast this down to a 64bit float)
             obj = float(obj)
 
     elif isinstance(obj, bytes):
@@ -621,7 +628,7 @@ def json_friendly(  # noqa: C901
         obj = obj.isoformat()
     elif callable(obj):
         obj = (
-            "{}.{}".format(obj.__module__, obj.__qualname__)
+            f"{obj.__module__}.{obj.__qualname__}"
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
@@ -880,6 +887,18 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
+def check_retry_commit_artifact(e: Any) -> bool:
+    if hasattr(e, "exception"):
+        e = e.exception
+    if (
+        isinstance(e, requests.HTTPError)
+        and e.response is not None
+        and e.response.status_code == 409
+    ):
+        return True
+    return no_retry_auth(e)
+
+
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
@@ -892,7 +911,7 @@ def find_runner(program: str) -> Union[None, list, List[str]]:
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except IOError:  # PermissionError doesn't exist in 2.7
+        except OSError:  # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith("#!"):
@@ -1007,11 +1026,7 @@ def image_from_docker_args(args: List[str]) -> Optional[str]:
 
 
 def load_yaml(file: Any) -> Any:
-    """If pyyaml > 5.1 use full_load to avoid warning"""
-    if hasattr(yaml, "full_load"):
-        return yaml.full_load(file)
-    else:
-        return yaml.load(file)
+    return yaml.safe_load(file)
 
 
 def image_id_from_k8s() -> Optional[str]:
@@ -1037,7 +1052,7 @@ def image_id_from_k8s() -> Optional[str]:
                 k8s_server,
                 verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
                 timeout=3,
-                headers={"Authorization": "Bearer {}".format(open(token_path).read())},
+                headers={"Authorization": f"Bearer {open(token_path).read()}"},
             )
             res.raise_for_status()
         except requests.RequestException:
@@ -1079,7 +1094,7 @@ def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
         try:
             result = q.get(True, timeout)
             if isinstance(result, Exception):
-                six.reraise(type(result), result, sys.exc_info()[2])
+                raise result.with_traceback(sys.exc_info()[2])
             return result, thread
         except queue.Empty:
             return None, thread
@@ -1271,7 +1286,7 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     entity = None
     project = None
     sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, six.string_types):
+    if not isinstance(sweep_id, str):
         return "Expected string sweep_id"
 
     sweep_split = sweep_id.split("/")
@@ -1410,13 +1425,13 @@ def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w"
+    path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
     """
     Opens a path for I/O, guaranteeing that the file is flushed and
     fsynced when the file's context expires.
     """
-    with open(path, mode) as f:
+    with open(path, mode, encoding=encoding) as f:
         yield f
 
         f.flush()
@@ -1507,7 +1522,7 @@ def handle_sweep_config_violations(warnings: List[str]) -> None:
 def _log_thread_stacks() -> None:
     """Log all threads, useful for debugging."""
 
-    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+    thread_map = {t.ident: t.name for t in threading.enumerate()}
 
     for thread_id, frame in sys._current_frames().items():
         logger.info(
@@ -1561,10 +1576,10 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
 def load_json_yaml_dict(config: str) -> Any:
     ext = os.path.splitext(config)[-1]
     if ext == ".json":
-        with open(config, "r") as f:
+        with open(config) as f:
             return json.load(f)
     elif ext == ".yaml":
-        with open(config, "r") as f:
+        with open(config) as f:
             return yaml.safe_load(f)
     else:
         try:
@@ -1637,7 +1652,11 @@ def _is_artifact(v: Any) -> bool:
 
 
 def _is_artifact_string(v: Any) -> bool:
-    return isinstance(v, six.string_types) and v.startswith("wandb-artifact://")
+    return isinstance(v, str) and v.startswith("wandb-artifact://")
+
+
+def _is_artifact_version_weave_dict(v: Any) -> bool:
+    return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
 def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
@@ -1673,6 +1692,18 @@ def _get_max_cli_version() -> Union[str, None]:
 
 
 def _is_offline() -> bool:
-    return (  # type: ignore [no-any-return]
+    return (  # type: ignore[no-any-return]
         wandb.run is not None and wandb.run.settings._offline
     ) or wandb.setup().settings._offline
+
+
+def ensure_text(
+    string: Union[str, bytes], encoding: str = "utf-8", errors: str = "strict"
+) -> str:
+    """Coerce s to str."""
+    if isinstance(string, bytes):
+        return string.decode(encoding, errors)
+    elif isinstance(string, str):
+        return string
+    else:
+        raise TypeError(f"not expecting type '{type(string)}'")

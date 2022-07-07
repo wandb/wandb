@@ -84,7 +84,7 @@ class TorchHistory:
         log_gradients=True,
         log_freq=0,
     ):
-        """This instuments hooks into the pytorch module
+        """This instruments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         log_freq - log gradients/parameters every N batches
@@ -140,9 +140,7 @@ class TorchHistory:
         # checking for inheritance from _TensorBase didn't work for some reason
         if not hasattr(tensor, "shape"):
             cls = type(tensor)
-            raise TypeError(
-                "Expected Tensor, not {}.{}".format(cls.__module__, cls.__name__)
-            )
+            raise TypeError(f"Expected Tensor, not {cls.__module__}.{cls.__name__}")
 
         # HalfTensors on cpu do not support view(), upconvert to 32bit
         if isinstance(tensor, torch.HalfTensor):
@@ -256,7 +254,7 @@ class TorchHistory:
 
         handle = self._hook_handles.get(name)
         if handle is not None and self._torch_hook_handle_is_valid(handle):
-            raise ValueError('A hook has already been set under name "{}"'.format(name))
+            raise ValueError(f'A hook has already been set under name "{name}"')
 
         def _callback(grad, log_track):
             if not log_track_update(log_track):
@@ -295,7 +293,7 @@ class TorchHistory:
 
 class TorchGraph(wandb.data_types.Graph):
     def __init__(self):
-        super(TorchGraph, self).__init__("torch")
+        super().__init__("torch")
         self._graph_hooks = set()
 
     @classmethod
