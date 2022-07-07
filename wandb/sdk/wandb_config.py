@@ -6,8 +6,12 @@ import logging
 
 import wandb
 from wandb.util import (
+<<<<<<< HEAD
     _is_artifact_object,
     _is_artifact_string,
+=======
+    _is_artifact_representation,
+>>>>>>> master
     check_dict_contains_nested_artifact,
     json_friendly_val,
 )
@@ -233,12 +237,16 @@ class Config:
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
+        # TODO: enable WBValues in the config in the future
+        # refuse all WBValues which is all Media and Histograms
+        if isinstance(val, wandb.sdk.data_types.base_types.wb_value.WBValue):
+            raise ValueError("WBValue objects cannot be added to the run config")
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        if _is_artifact_string(val) or _is_artifact_object(val):
+        if _is_artifact_representation(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
         if not (

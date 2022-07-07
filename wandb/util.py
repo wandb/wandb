@@ -1659,6 +1659,14 @@ def _is_artifact_version_weave_dict(v: Any) -> bool:
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
+def _is_artifact_representation(v: Any) -> bool:
+    return (
+        _is_artifact_object(v)
+        or _is_artifact_string(v)
+        or _is_artifact_version_weave_dict(v)
+    )
+
+
 def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
     if not v.startswith("wandb-artifact://"):
         raise ValueError(f"Invalid artifact string: {v}")
@@ -1711,9 +1719,16 @@ def ensure_text(
 
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts"""
-    return re.sub(r"[^a-zA-Z0-9_\-.]", "", name)
+    # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
+    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
 
 
 def make_docker_image_name_safe(name: str) -> str:
     """Make a docker image name safe for use in artifacts"""
     return re.sub(r"[^a-z0-9_\-.]", "", name)
+    
+
+
+def has_main_file(path: str) -> bool:
+    """Check if a directory has a main.py file"""
+    return path != "<python with no main file>"
