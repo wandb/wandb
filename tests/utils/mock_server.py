@@ -95,6 +95,8 @@ def default_ctx():
         "run_cuda_version": None,
         # relay mode, keep track of upsert runs for validation
         "relay_run_info": {},
+        "server_settings": False,
+        "server_messages": None,
         "latest_arti_id": None,
     }
 
@@ -938,6 +940,14 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "query ProbeServerSettings" in body["query"]:
+            if not ctx["server_settings"]:
+                data = {}
+            else:
+                data = {"ServerSettingsType": {"fields": [{"name": "sdkMessages"}]}}
+
+            return json.dumps({"data": data})
+
         if "mutation UpsertBucket(" in body["query"]:
             run_id_default = "abc123"
             run_id = body["variables"].get("name", run_id_default)
@@ -1020,6 +1030,10 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+            if ctx["server_settings"]:
+                response["data"]["upsertBucket"]["serverSettings"] = {
+                    "serverMessages": ctx["server_messages"]
+                }
             if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
@@ -1480,8 +1494,8 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": 1,
-                                                    "associatedRunId": 1,
+                                                    "id": "1",
+                                                    "associatedRunId": "test",
                                                     "state": "CLAIMED",
                                                 }
                                             }
@@ -1532,7 +1546,7 @@ def create_app(user_ctx=None):
                     {
                         "data": {
                             "popFromRunQueue": {
-                                "runQueueItemId": 1,
+                                "runQueueItemId": "1",
                                 "runSpec": {
                                     "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                     "project": "test_project2",
@@ -1547,7 +1561,7 @@ def create_app(user_ctx=None):
                 {
                     "data": {
                         "popFromRunQueue": {
-                            "runQueueItemId": 1,
+                            "runQueueItemId": "1",
                             "runSpec": {
                                 "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                 "project": "test_project",
@@ -1567,7 +1581,7 @@ def create_app(user_ctx=None):
                 ctx["run_queues"][body["variables"]["queueID"]] = [
                     body["variables"]["queueID"]
                 ]
-            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": "1"}}})
         if "mutation ackRunQueueItem" in body["query"]:
             ctx["num_acked"] += 1
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
