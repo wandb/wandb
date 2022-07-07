@@ -490,8 +490,8 @@ class SendManager:
             for message in self._server_messages:
                 # guard agains the case the message level returns malformed from server
                 message_level = str(message.get("messageLevel"))
-                message_level = (
-                    20 if not message_level.isdigit() else int(message_level)
+                message_level_sanitized = int(
+                    20 if not message_level.isdigit() else message_level
                 )
                 result.response.poll_exit_response.server_messages.item.append(
                     wandb_internal_pb2.ServerMessage(
@@ -499,7 +499,7 @@ class SendManager:
                         plain_text=message.get("plainText", ""),
                         html_text=message.get("htmlText", ""),
                         type=message.get("messageType", ""),
-                        level=message_level,
+                        level=message_level_sanitized,
                     )
                 )
         self._respond_result(result)
