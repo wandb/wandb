@@ -8,7 +8,23 @@ import random
 import sys
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
+
+    class ProcessedChunk(TypedDict):
+        offset: int
+        content: List[str]
+
+    class ProcessedBinaryChunk(TypedDict):
+        offset: int
+        content: List[str]
+        encoding: str
+
 
 import requests
 import wandb
@@ -22,17 +38,17 @@ Chunk = collections.namedtuple("Chunk", ("filename", "data"))
 
 
 class DefaultFilePolicy:
-    def __init__(self, start_chunk_id=0):
+    def __init__(self, start_chunk_id: int = 0) -> None:
         self._chunk_id = start_chunk_id
 
-    def process_chunks(self, chunks):
+    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedChunk":
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
         return {"offset": chunk_id, "content": [c.data for c in chunks]}
 
 
 class JsonlFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks):
+    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedChunk":
         chunk_id = self._chunk_id
         # TODO: chunk_id is getting reset on each request...
         self._chunk_id += len(chunks)
@@ -55,7 +71,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
 
 
 class SummaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks):
+    def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
@@ -75,14 +91,14 @@ class StreamCRState:
         cr:             most recent offset (line number) where we found \r.
                         We update this offset with every progress bar update.
         last_normal:    most recent offset without a \r in this stream.
-                        i.e the most recent "normal" line.
+                        i.e. the most recent "normal" line.
     """
 
     found_cr: bool
     cr: Optional[int]
     last_normal: Optional[int]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.found_cr = False
         self.cr = None
         self.last_normal = None
@@ -102,7 +118,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     This gives the illusion of the progress bar filling up in real-time.
     """
 
-    def __init__(self, start_chunk_id=0):
+    def __init__(self, start_chunk_id: int = 0) -> None:
         super().__init__(start_chunk_id=start_chunk_id)
         self._prev_chunk = None
 
@@ -111,7 +127,8 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         self.stderr = StreamCRState()
         self.stdout = StreamCRState()
 
-    def get_consecutive_offsets(self, console: Dict) -> List[Any]:
+    @staticmethod
+    def get_consecutive_offsets(console: Dict[int, str]) -> List[List[int]]:
         """
         Args:
             console: Dict[int, str] which maps offsets (line numbers) to lines of text.
@@ -138,7 +155,8 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                 intervals.append([num, num])
         return intervals
 
-    def split_chunk(self, chunk: Chunk) -> Tuple[str, str]:
+    @staticmethod
+    def split_chunk(chunk: Chunk) -> Tuple[str, str]:
         """
         Args:
             chunk: object with two fields: filename (str) & data (str)
@@ -168,7 +186,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List) -> List[Dict]:
+    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
         """
         Args:
             chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
@@ -206,7 +224,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                 stream = self.stderr if prefix.startswith("ERROR ") else self.stdout
                 if line.startswith("\r"):
                     # line starting with \r will always overwrite a previous offset.
-                    offset = stream.cr if stream.found_cr else stream.last_normal or 0
+                    offset: int = (
+                        stream.cr if stream.found_cr else stream.last_normal or 0
+                    )
                     stream.cr = offset
                     stream.found_cr = True
                     console[offset] = prefix + line[1:] + "\n"
@@ -233,7 +253,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
 
 class BinaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks):
+    def process_chunks(self, chunks: List[Chunk]) -> ProcessedBinaryChunk:
         data = b"".join([c.data for c in chunks])
         enc = base64.b64encode(data).decode("ascii")
         self._offset += len(data)
@@ -321,7 +341,7 @@ class FileStreamApi:
         else:
             return max(5, self.heartbeat_seconds)
 
-    def _read_queue(self):
+    def _read_queue(self) -> List:
         # called from the push thread (_thread_body), this does an initial read
         # that'll block for up to rate_limit_seconds. Then it tries to read
         # as much out of the queue as it can. We do this because the http post
@@ -335,7 +355,7 @@ class FileStreamApi:
             self._queue, self.MAX_ITEMS_PER_PUSH, self.rate_limit_seconds()
         )
 
-    def _thread_body(self):
+    def _thread_body(self) -> None:
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
@@ -412,7 +432,7 @@ class FileStreamApi:
             },
         )
 
-    def _thread_except_body(self):
+    def _thread_except_body(self) -> None:
         # TODO: Consolidate with internal_util.ExceptionThread
         try:
             self._thread_body()
@@ -423,7 +443,7 @@ class FileStreamApi:
             util.sentry_exc(exc_info, delay=True)
             raise e
 
-    def _handle_response(self, response):
+    def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
             wandb.termerror(
@@ -432,7 +452,7 @@ class FileStreamApi:
             logging.exception("dropped chunk %s" % response)
             self._dropped_chunks += 1
         else:
-            parsed: dict = None
+            parsed: Optional[dict] = None
             try:
                 parsed = response.json()
             except Exception:
@@ -492,13 +512,12 @@ class FileStreamApi:
     def enqueue_preempting(self) -> None:
         self._queue.put(self.Preempting())
 
-    def push(self, filename, data) -> None:
+    def push(self, filename: str, data) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
         Arguments:
             filename: Name of file that this is a chunk of.
-            chunk_id: TODO: change to 'offset'
-            chunk: File data.
+            data: File data.
         """
         self._queue.put(Chunk(filename, data))
 
