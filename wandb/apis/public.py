@@ -4981,10 +4981,11 @@ class Job:
         self.configure_launch_project = func
 
     def _configure_launch_project_repo(self, launch_project):
+        git_info = self._source_info.get("source",{}).get("git",{})
         _fetch_git_repo(
             launch_project.project_dir,
-            self._source_info.get("source")["remote"],
-            self._source_info.get("source")["commit"],
+            git_info["remote"],
+            git_info["commit"],
         )
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):
             with open(os.path.join(self._fpath, "diff.patch")) as f:
