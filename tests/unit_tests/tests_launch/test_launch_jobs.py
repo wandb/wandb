@@ -98,9 +98,9 @@ def test_launch_job_artifact(
                 "_version": "v0",
                 "source_type": "artifact",
                 "source": {
-                    "artifact": "wandb-artifact://mock_server_entity/test/runs/1/artifacts/test-artifact"
+                    "artifact": "wandb-artifact://mock_server_entity/test/runs/1/artifacts/test-artifact",
+                    "entrypoint": ["python", "train.py"],
                 },
-                "entrypoint": ["python", "train.py"],
                 "input_types": INPUT_TYPES,
                 "output_types": OUTPUT_TYPES,
             }
@@ -143,8 +143,8 @@ def test_launch_job_repo(
                 "source": {
                     "remote": "https://github.com/test/remote",
                     "commit": "asdasdasdasd",
+                    "entrypoint": ["python", "train.py"],
                 },
-                "entrypoint": ["python", "train.py"],
                 "input_types": INPUT_TYPES,
                 "output_types": OUTPUT_TYPES,
             }
