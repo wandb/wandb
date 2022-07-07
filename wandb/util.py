@@ -1647,7 +1647,7 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
     return aliases
 
 
-def _is_artifact(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> bool:
     return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
 
 
