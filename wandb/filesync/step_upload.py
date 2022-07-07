@@ -136,10 +136,8 @@ class StepUpload:
             if job.artifact_id:
                 if event.success:
                     pending = self._artifacts[job.artifact_id]["pending_count"]
-                    print(pending)
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
                     pending = self._artifacts[job.artifact_id]["pending_count"]
-                    print(pending)
                     self._stats.update_artifact_stats(
                         job.artifact_id,
                         pending,

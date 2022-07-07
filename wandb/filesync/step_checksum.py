@@ -138,7 +138,6 @@ class StepChecksum:
                         )
                         total_file_count += 1
 
-                print("artifact name", req.artifact_name)
                 self._stats.init_artifact_stats(
                     artifact_id=req.artifact_id,
                     artifact_name=req.artifact_name,

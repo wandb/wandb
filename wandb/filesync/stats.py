@@ -1,6 +1,8 @@
 import sys
 import threading
 from typing import Mapping, MutableMapping, TYPE_CHECKING
+import tqdm
+import time
 
 import wandb
 
@@ -23,6 +25,7 @@ if TYPE_CHECKING:
         name: str
         total_file_count: int
         pending_file_count: int
+        lineno: int
 
 
 class Stats:
@@ -30,6 +33,8 @@ class Stats:
         self._stats: MutableMapping[str, "FileStats"] = {}
         self._artifact_stats: MutableMapping[str, "ArtifactStats"] = {}
         self._lock = threading.Lock()
+        self._lineno = 0
+        self.pbar = None
 
     def init_file(
         self, save_name: str, size: int, is_artifact_file: bool = False
@@ -59,18 +64,43 @@ class Stats:
         self, artifact_id: str, artifact_name: str, total_file_count: str
     ) -> None:
         with self._lock:
+            if self._lineno == 0:
+                with open("artifact_stats.txt", "w") as f:
+                    f.write("Artifact Name\tPending files to be uploaded\n")
+
+            self._lineno += 1
             self._artifact_stats[artifact_id] = {
                 "artifact_id": artifact_id,
                 "name": artifact_name,
                 "total_file_count": total_file_count,
                 "pending_file_count": total_file_count,
+                "lineno": self._lineno,
             }
+            # if self.pbar is None:
+            #     self.pbar = tqdm.tqdm(total=total_file_count)
 
     def update_artifact_stats(self, artifact_id: str, pending_count: int):
         with self._lock:
             a = self._artifact_stats[artifact_id]
-            name, pending_count = a["name"], a["pending_file_count"]
-            print(f"{name}, {pending_count}")
+            name = a["name"]
+
+            # this works but is inefficient for large files
+            s = time.time()
+            f = open("artifact_stats.txt", "r")
+            lines = f.readlines()
+            f.close()
+            if a["lineno"] >= len(lines):
+                lines.append(f"{name}\t{pending_count}\n")
+            else:
+                lines[a["lineno"]] = f"{name}\t{pending_count}\n"
+            out = open("artifact_stats.txt", "w")
+            out.writelines(lines)
+            out.close()
+            # print(f"Time elapsed for writing to file: {time.time() - s}")
+            # print(f"{name}, {pending_count}")
+            # self.pbar.update(a["total_file_count"] - pending_count)
+            # if pending_count == 0:
+            #     self.pbar.close()
 
     def summary(self) -> Mapping[str, int]:
         # Need to use list to ensure we get a copy, since other threads may
