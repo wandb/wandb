@@ -2327,7 +2327,7 @@ class QueuedRun:
                         return self._run
                     except ValueError as e:
                         print(e)
-                elif (item["node"]["id"] == self.id):
+                elif item["node"]["id"] == self.id:
                     wandb.termlog("Waiting for run to start")
 
             time.sleep(3)
