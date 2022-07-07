@@ -2723,9 +2723,9 @@ class Run:
 
         # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
-            printer.display(check_version.delete_message, status="error")
+            printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
-            printer.display(check_version.yank_message, status="warn")
+            printer.display(check_version.yank_message, level="warn")
 
         printer.display(
             check_version.upgrade_message, off=not check_version.upgrade_message
@@ -2826,7 +2826,7 @@ class Run:
             if Api().api.settings().get("anonymous") == "true":
                 printer.display(
                     "Do NOT share these links with anyone. They can be used to claim your runs.",
-                    status="warn",
+                    level="warn",
                 )
 
     # ------------------------------------------------------------------------------
@@ -2872,6 +2872,12 @@ class Run:
         )
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
+        )
+        Run._footer_server_messages(
+            poll_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
         )
 
     @staticmethod
@@ -3177,7 +3183,31 @@ class Run:
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
                     f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
-                    status="warn",
+                    level="warn",
+                )
+
+    @staticmethod
+    def _footer_server_messages(
+        poll_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if settings.disable_hints:
+            return
+
+        if poll_exit_response and poll_exit_response.server_messages:
+            for message in poll_exit_response.server_messages.item:
+                printer.display(
+                    message.html_text if printer._html else message.utf_text,
+                    default_text=message.plain_text,
+                    level=message.level,
+                    off=message.type.lower() != "footer",
                 )
 
     @staticmethod
@@ -3200,9 +3230,9 @@ class Run:
 
         # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
-            printer.display(check_version.delete_message, status="error")
+            printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
-            printer.display(check_version.yank_message, status="warn")
+            printer.display(check_version.yank_message, level="warn")
 
         # only display upgrade message if packages are bad
         package_problem = check_version.delete_message or check_version.yank_message
