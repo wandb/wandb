@@ -1,4 +1,4 @@
-from wandb.sdk.lib.printer import PrinterTerm
+from wandb.sdk.lib.printer import PrinterTerm, CRITICAL, DEBUG, NOTSET
 import pytest
 
 
@@ -19,9 +19,9 @@ def test_printer_invalid_level_str(level):
 @pytest.mark.parametrize(
     "level, prefix",
     [
-        (55, "wandb: ERROR"),
-        (12, "wandb:"),
-        (0, "wandb:"),
+        (CRITICAL, "wandb: ERROR"),
+        (DEBUG, "wandb:"),
+        (NOTSET, "wandb:"),
     ],
 )
 def test_printer_levels(level, prefix, capsys):
