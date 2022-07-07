@@ -2330,7 +2330,7 @@ class QueuedRun:
                 elif (item["node"]["id"] == self.id):
                     wandb.termlog("Waiting for run to start")
 
-            time.sleep(5)
+            time.sleep(3)
 
     def __repr__(self):
         return f"<QueuedRun {self.queue_id} ({self.id})"
