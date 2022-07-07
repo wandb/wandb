@@ -295,6 +295,7 @@ class Type:
         return self is other or (
             isinstance(self, Type)
             and isinstance(other, Type)
+            and self.name == other.name
             and self.params.keys() == other.params.keys()
             and all([self.params[k] == other.params[k] for k in self.params])
         )
