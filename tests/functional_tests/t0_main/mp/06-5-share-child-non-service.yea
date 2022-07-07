@@ -1,8 +1,11 @@
 id: 0.mp.06-5-share-child-non-service
 plugin:
   - wandb
+env:
+  - WANDB_DISABLE_SERVICE: "true"
 tag:
-  skip: true
+  skips:
+    - platform: win
 parametrize:
   permute:
     - :yea:start_method:
@@ -20,3 +23,6 @@ assert:
   - :wandb:runs[0][history][0][_step]: 0
   - :wandb:runs[0][summary][s1]: 11
   - :wandb:runs[0][exitcode]: 0
+  - :op:not_contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 23  # service
