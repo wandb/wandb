@@ -1,0 +1,14 @@
+id: 0.code-save.1-enabled
+plugin:
+  - wandb
+command:
+  program: code-save.py
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]: {}
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[0][config_wandb][code_path]: code/tests/functional_tests/code-save/code-save.py
+  - :op:contains:
+    - :wandb:runs[0][files]
+    - code/tests/functional_tests/code-save/code-save.py
