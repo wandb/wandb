@@ -554,9 +554,9 @@ class StreamWrapper(RedirectBase):
                 pass
 
     def _callback(self):
-       while not (self._stopped.is_set() and self._queue.empty()):
-           self.flush()
-           time.sleep(_MIN_CALLBACK_INTERVAL)
+        while not (self._stopped.is_set() and self._queue.empty()):
+            self.flush()
+            time.sleep(_MIN_CALLBACK_INTERVAL)
 
     def install(self):
         super().install()
@@ -569,13 +569,7 @@ class StreamWrapper(RedirectBase):
 
         def write(data):
             self._old_write(data)
-            # self._queue.put(data)
-            for cb in self.cbs:
-                try:
-                    cb(data)
-                except Exception as e:
-                    self._old_write(f"problem: {e}\n")
-                    pass
+            self._queue.put(data)
 
         stream.write = write
 
