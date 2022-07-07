@@ -2305,6 +2305,8 @@ class QueuedRun:
         }
 
         while True:
+            # sleep here to hide an ugly warning
+            time.sleep(2)
             res = self.client.execute(query, variable_values)
             # TODO: add fetch run queue by item end point
             for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
@@ -2312,8 +2314,6 @@ class QueuedRun:
                     item["node"]["id"] == self.id
                     and item["node"]["associatedRunId"] is not None
                 ):
-                    # sleep here to hide an ugly warning
-                    time.sleep(2)
                     # TODO: this should be changed once the ack occurs within the docker container.
                     try:
                         self._run = Run(
@@ -2327,8 +2327,8 @@ class QueuedRun:
                         return self._run
                     except ValueError as e:
                         print(e)
-                else:
-                    raise ValueError(f"Could not find run queue item with id {self.id}")
+                elif (item["node"]["id"] == self.id):
+                    wandb.termlog("Waiting for run to start")
 
             time.sleep(5)
 
