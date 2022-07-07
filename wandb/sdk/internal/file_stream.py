@@ -253,7 +253,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
 
 class BinaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> ProcessedBinaryChunk:
+    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":
         data = b"".join([c.data for c in chunks])
         enc = base64.b64encode(data).decode("ascii")
         self._offset += len(data)
