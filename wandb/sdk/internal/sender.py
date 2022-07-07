@@ -40,6 +40,7 @@ from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib import tracelog
+from ..lib import printer
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 
@@ -491,7 +492,7 @@ class SendManager:
                 # guard agains the case the message level returns malformed from server
                 message_level = str(message.get("messageLevel"))
                 message_level_sanitized = int(
-                    20 if not message_level.isdigit() else message_level
+                    printer.INFO if not message_level.isdigit() else message_level
                 )
                 result.response.poll_exit_response.server_messages.item.append(
                     wandb_internal_pb2.ServerMessage(

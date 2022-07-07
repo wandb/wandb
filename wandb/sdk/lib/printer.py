@@ -11,38 +11,38 @@ import wandb
 
 from . import ipython, sparkline
 
+# Follow the same logic as the python logging module
+CRITICAL = 50
+FATAL = CRITICAL
+ERROR = 40
+WARNING = 30
+WARN = WARNING
+INFO = 20
+DEBUG = 10
+NOTSET = 0
+
+_level_to_name = {
+    CRITICAL: "CRITICAL",
+    ERROR: "ERROR",
+    WARNING: "WARNING",
+    INFO: "INFO",
+    DEBUG: "DEBUG",
+    NOTSET: "NOTSET",
+}
+
+_name_to_level = {
+    "CRITICAL": CRITICAL,
+    "FATAL": FATAL,
+    "ERROR": ERROR,
+    "WARN": WARNING,
+    "WARNING": WARNING,
+    "INFO": INFO,
+    "DEBUG": DEBUG,
+    "NOTSET": NOTSET,
+}
+
 
 class _Printer:
-    # Follow the same logic as the python logging module
-    CRITICAL = 50
-    FATAL = CRITICAL
-    ERROR = 40
-    WARNING = 30
-    WARN = WARNING
-    INFO = 20
-    DEBUG = 10
-    NOTSET = 0
-
-    _level_to_name = {
-        CRITICAL: "CRITICAL",
-        ERROR: "ERROR",
-        WARNING: "WARNING",
-        INFO: "INFO",
-        DEBUG: "DEBUG",
-        NOTSET: "NOTSET",
-    }
-
-    _name_to_level = {
-        "CRITICAL": CRITICAL,
-        "FATAL": FATAL,
-        "ERROR": ERROR,
-        "WARN": WARNING,
-        "WARNING": WARNING,
-        "INFO": INFO,
-        "DEBUG": DEBUG,
-        "NOTSET": NOTSET,
-    }
-
     def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
         # Only print sparklines if the terminal is utf-8
         if wandb.util.is_unicode_safe(sys.stdout):
@@ -76,15 +76,21 @@ class _Printer:
     ) -> None:
         raise NotImplementedError
 
-    def _sanitize_level(self, name_or_level: Optional[Union[str, int]]) -> int:
+    @staticmethod
+    def _sanitize_level(name_or_level: Optional[Union[str, int]]) -> int:
         if isinstance(name_or_level, str):
-            return self._name_to_level[name_or_level.upper()]
+            try:
+                return _name_to_level[name_or_level.upper()]
+            except KeyError:
+                raise ValueError(
+                    f"Unknown level name: {name_or_level}, supported levels: {_name_to_level.keys()}"
+                )
 
         if isinstance(name_or_level, int):
             return name_or_level
 
         if name_or_level is None:
-            return self.INFO
+            return INFO
 
         raise ValueError(f"Unknown status level {name_or_level}")
 
@@ -144,20 +150,19 @@ class PrinterTerm(_Printer):
             text = text or default_text
         self._display_fn_mapping(level)(text)
 
-    def _display_fn_mapping(
-        self, level: Optional[Union[str, int]]
-    ) -> Callable[[str], None]:
-        level = self._sanitize_level(level)
+    @staticmethod
+    def _display_fn_mapping(level: Optional[Union[str, int]]) -> Callable[[str], None]:
+        level = _Printer._sanitize_level(level)
 
-        if level >= self.CRITICAL:
+        if level >= CRITICAL:
             return wandb.termerror
-        elif self.ERROR <= level < self.CRITICAL:
+        elif ERROR <= level < CRITICAL:
             return wandb.termerror
-        elif self.WARNING <= level < self.ERROR:
+        elif WARNING <= level < ERROR:
             return wandb.termwarn
-        elif self.INFO <= level < self.WARNING:
+        elif INFO <= level < WARNING:
             return wandb.termlog
-        elif self.DEBUG <= level < self.INFO:
+        elif DEBUG <= level < INFO:
             return wandb.termlog
         else:
             return wandb.termlog
@@ -226,20 +231,19 @@ class PrinterJupyter(_Printer):
             text = text or default_text
         self._display_fn_mapping(level)(text)
 
-    def _display_fn_mapping(
-        self, level: Optional[Union[str, int]]
-    ) -> Callable[[str], None]:
-        level = self._sanitize_level(level)
+    @staticmethod
+    def _display_fn_mapping(level: Optional[Union[str, int]]) -> Callable[[str], None]:
+        level = _Printer._sanitize_level(level)
 
-        if level >= self.CRITICAL:
+        if level >= CRITICAL:
             return ipython.display_html
-        elif self.ERROR <= level < self.CRITICAL:
+        elif ERROR <= level < CRITICAL:
             return ipython.display_html
-        elif self.WARNING <= level < self.ERROR:
+        elif WARNING <= level < ERROR:
             return ipython.display_html
-        elif self.INFO <= level < self.WARNING:
+        elif INFO <= level < WARNING:
             return ipython.display_html
-        elif self.DEBUG <= level < self.INFO:
+        elif DEBUG <= level < INFO:
             return ipython.display_html
         else:
             return ipython.display_html

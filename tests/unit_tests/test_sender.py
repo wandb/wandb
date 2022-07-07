@@ -7,6 +7,7 @@ import shutil
 
 import wandb
 from wandb.util import mkdir_exists_ok
+from wandb.sdk.lib.printer import INFO
 
 from tests import utils
 
@@ -481,7 +482,7 @@ def test_server_response_message_malformed_level(
     publish_util()
     server_messages = collect_responses.poll_exit_resp.server_messages.item
     assert len(server_messages) == 1
-    assert server_messages[0].level == 20
+    assert server_messages[0].level == INFO
 
 
 @pytest.mark.parametrize("messageLevel", ["30", 40])
