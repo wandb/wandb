@@ -1,6 +1,7 @@
 # Taken from: https://github.com/alexsdutton/www-authenticate
 from collections import OrderedDict
 import re
+from typing import Any
 
 _tokens = (
     ("token", re.compile(r"""^([!#$%&'*+\-.^_`|~\w/]+(?:={1,2}$)?)""")),
@@ -11,7 +12,7 @@ _tokens = (
 )
 
 
-def _casefold(value):
+def _casefold(value: str) -> str:
     try:
         return value.casefold()
     except AttributeError:
@@ -19,23 +20,23 @@ def _casefold(value):
 
 
 class CaseFoldedOrderedDict(OrderedDict):
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return super().__getitem__(_casefold(key))
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Any) -> None:
         super().__setitem__(_casefold(key), value)
 
-    def __contains__(self, key):
-        return super().__contains__(_casefold(key))
+    def __contains__(self, key: object) -> bool:
+        return super().__contains__(_casefold(key))  # type: ignore
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return super().get(_casefold(key), default)
 
-    def pop(self, key, default=None):
+    def pop(self, key: str, default: Any = None) -> Any:
         return super().pop(_casefold(key), default)
 
 
-def _group_pairs(tokens):
+def _group_pairs(tokens: list) -> None:
     i = 0
     while i < len(tokens) - 2:
         if (
@@ -47,7 +48,7 @@ def _group_pairs(tokens):
         i += 1
 
 
-def _group_challenges(tokens):
+def _group_challenges(tokens: list) -> list:
     challenges = []
     while tokens:
         j = 1
@@ -66,7 +67,7 @@ def _group_challenges(tokens):
     return challenges
 
 
-def parse(value):
+def parse(value: str) -> CaseFoldedOrderedDict:
     tokens = []
     while value:
         for token_name, pattern in _tokens:
