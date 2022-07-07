@@ -4,6 +4,7 @@ import os
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
+import wandb
 
 logger = logging.getLogger(__name__)
 
