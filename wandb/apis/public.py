@@ -4957,7 +4957,7 @@ class Job:
 
         with open(os.path.join(self._fpath, "source_info.json")) as f:
             self._source_info = json.load(f)
-        self._entrypoint = self._source_info.get("entrypoint")
+        self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._source_info.get("input_types")
