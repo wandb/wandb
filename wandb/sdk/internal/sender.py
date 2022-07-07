@@ -11,8 +11,17 @@ import os
 import queue
 from queue import Queue
 import time
-from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
-from typing import cast, TYPE_CHECKING
+from typing import (
+    Any,
+    cast,
+    Dict,
+    Generator,
+    List,
+    NewType,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+)
 
 from pkg_resources import parse_version
 import requests
@@ -21,16 +30,12 @@ from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 
-from . import artifacts
-from . import file_stream
-from . import internal_api
-from . import update
+from . import artifacts, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib import tracelog
+from ..lib import config_util, filenames, printer, proto_util, telemetry, tracelog
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 
@@ -117,6 +122,7 @@ class SendManager:
     _resume_state: ResumeState
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
+    _server_messages: List[Dict[str, Any]]
 
     def __init__(
         self,
@@ -154,6 +160,7 @@ class SendManager:
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
+        self._server_messages = []
 
         # State updated by resuming
         self._resume_state = ResumeState()
@@ -476,6 +483,21 @@ class SendManager:
                 self.get_local_info()
             )
             result.response.poll_exit_response.done = True
+            for message in self._server_messages:
+                # guard agains the case the message level returns malformed from server
+                message_level = str(message.get("messageLevel"))
+                message_level_sanitized = int(
+                    printer.INFO if not message_level.isdigit() else message_level
+                )
+                result.response.poll_exit_response.server_messages.item.append(
+                    wandb_internal_pb2.ServerMessage(
+                        utf_text=message.get("utfText", ""),
+                        plain_text=message.get("plainText", ""),
+                        html_text=message.get("htmlText", ""),
+                        type=message.get("messageType", ""),
+                        level=message_level_sanitized,
+                    )
+                )
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -718,7 +740,7 @@ class SendManager:
         start_time = run.start_time.ToSeconds() - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
-        server_run, inserted = self._api.upsert_run(
+        server_run, _, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
@@ -734,6 +756,7 @@ class SendManager:
             repo=run.git.remote_url or None,
             commit=run.git.last_commit or None,
         )
+        self._server_messages = server_messages or []
         self._run = run
         if self._resume_state.resumed:
             self._run.resumed = True

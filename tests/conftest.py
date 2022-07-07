@@ -793,7 +793,7 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
-                    collect_responses.local_info = poll_exit_resp.local_info
+                    collect_responses.poll_exit_resp = poll_exit_resp
                     break
             time.sleep(1)
         _internal_sender.join()
