@@ -30,17 +30,12 @@ from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 
-from . import artifacts
-from . import file_stream
-from . import internal_api
-from . import update
+from . import artifacts, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib import tracelog
-from ..lib import printer
+from ..lib import config_util, filenames, printer, proto_util, telemetry, tracelog
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 
