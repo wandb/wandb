@@ -494,7 +494,7 @@ class SendManager:
                         plain_text=message.get("plainText", ""),
                         html_text=message.get("htmlText", ""),
                         type=message.get("messageType", ""),
-                        level=message.get("messageLevel", 0),
+                        level=int(message.get("messageLevel") or 20),
                     )
                 )
         self._respond_result(result)
