@@ -1,6 +1,6 @@
-import os
-
 import configparser
+import os
+from typing import Any, Optional
 
 from wandb import util
 from wandb.old import core
@@ -14,7 +14,9 @@ class Settings:
 
     _UNSET = object()
 
-    def __init__(self, load_settings=True, root_dir=None):
+    def __init__(
+        self, load_settings: bool = True, root_dir: Optional[str] = None
+    ) -> None:
         self._global_settings = Settings._settings()
         self._local_settings = Settings._settings()
         self.root_dir = root_dir
@@ -25,7 +27,7 @@ class Settings:
             if os.path.isdir(core.wandb_dir(self.root_dir)):
                 self._local_settings.read([Settings._local_path(self.root_dir)])
 
-    def get(self, section, key, fallback=_UNSET):
+    def get(self, section: str, key: str, fallback: Any = _UNSET) -> Any:
         # Try the local settings first. If we can't find the key, then try the global settings.
         # If a fallback is provided, return it if we can't find the key in either the local or global
         # settings.
@@ -40,7 +42,7 @@ class Settings:
                 else:
                     raise
 
-    def set(self, section, key, value, globally=False, persist=False):
+    def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persists settings to disk if persist = True"""
 
         def write_setting(settings, settings_path, persist):
@@ -58,7 +60,7 @@ class Settings:
                 self._local_settings, Settings._local_path(self.root_dir), persist
             )
 
-    def clear(self, section, key, globally=False, persist=False):
+    def clear(self, section, key, globally=False, persist=False) -> None:
         def clear_setting(settings, settings_path, persist):
             settings.remove_option(section, key)
             if persist:
