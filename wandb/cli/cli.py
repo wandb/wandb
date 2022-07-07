@@ -1439,6 +1439,46 @@ def server():
     pass
 
 
+def parse_user_settings(user_settings):
+    deployment_map = { "gs": "GCP", "s3": "AWS" }
+
+    sso_enabled = user_settings["ssoEnable"]["value"]
+    file_storage_bucket = user_settings["fileStorageBucket"]["value"]
+
+    bucket = file_storage_bucket.split(":")[0]
+    deployment_type = deployment_map[bucket] if bucket in deployment_map else ""
+
+    print("|".ljust(72, "=") + "|")
+    print("|User Settings".ljust(72, " ") + "|")
+    print("|".ljust(72, "=") + "|")
+    print(f"|SSO enabled: {sso_enabled}".ljust(72, " ") + "|")
+    print(f"|Deployment type: {deployment_type}".ljust(72, " ") + "|")
+
+
+def parse_build_info(build_info):
+    local_version = build_info["version"]
+
+    print("".ljust(72, "="))
+    print("Build Info")
+    print("".ljust(72, "="))
+    print(f"Version: {local_version}")
+
+
+def parse_limits(limits):
+    seats = limits["seats"]
+    concurrentAgents = limits["concurrentAgents"]
+    storageGigs = limits["storageGigs"]
+    teams = limits["teams"]
+
+    print("".ljust(72, "="))
+    print("Limits")
+    print("".ljust(72, "="))
+    print(f"Seats: {seats}")
+    print(f"Concurrent Agents: {concurrentAgents}")
+    print(f"Storage (Gb): {storageGigs}")
+    print(f"Teams: {teams}")
+
+
 @server.command(context_settings=RUN_CONTEXT, help="Debug a local W&B server")
 @click.option("--host", default=None, help="Debug a specific instance of W&B")
 @display_error
@@ -1447,7 +1487,6 @@ def debug(host):
     reinit = False
     if host is None:
         host = api.settings("base_url")
-        print(f"Default host selected: {host}")
     elif host != api.settings("base_url"):
         reinit = True
 
@@ -1455,39 +1494,24 @@ def debug(host):
         api = _get_cling_api(reset=True)
 
     print(f"Gathering information about: {host}")
-    print("Downloading debug files...")
-
     debug_url = f"{host}/system-admin/api/debug"
-    debug_request = requests.get(debug_url, stream=True)
+    debug_response = requests.get(debug_url, stream=True)
 
     tmp_dir = tempfile.mkdtemp()
-    print("Find detailed logs for this test at: {}".format(os.path.join(tmp_dir)))
+    print(f"Find detailed logs for this test at: {os.path.join(tmp_dir)}\n")
     os.chdir(tmp_dir)
     output_path = os.path.join(tmp_dir, "debug.zip")
-    with open(output_path, "wb") as debug_file:
-        debug_file.write(debug_request.content)
-    print("Download complete.")
+    
     if zipfile.is_zipfile(output_path):
+        print("\n===== Download complete =====\n")
         with zipfile.ZipFile(output_path, "r") as zip_obj:
             zip_obj.extractall()
         json_file = open(os.path.join(tmp_dir, "debug/instance-state.json"))
         env_data = json.load(json_file)
 
-        user_settings = env_data["userSettings"]
-        local_version = env_data["buildInfo"]["version"]
-        sso_enabled = user_settings["ssoEnable"]["value"]
-        file_storage_bucket = user_settings["fileStorageBucket"]["value"]
-
-        bucket_type = file_storage_bucket.split(":")[0]
-        deployment_type = ""
-        if bucket_type == "gs":
-            deployment_type = "GCP"
-        elif bucket_type == "s3":
-            deployment_type = "AWS"
-
-        print(f"Version: {local_version}")
-        print(f"SSO enabled: {sso_enabled}")
-        print(f"Deployment type: {deployment_type}")
+        parse_user_settings(env_data["userSettings"])
+        parse_build_info(env_data["buildInfo"])
+        parse_limits(env_data["limits"])
     else:
         print("Could not download debug bundle.")
 
