@@ -8,7 +8,19 @@ import random
 import sys
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+from types import TracebackType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    Union,
+)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -22,13 +34,14 @@ if TYPE_CHECKING:
 
     class ProcessedBinaryChunk(TypedDict):
         offset: int
-        content: List[str]
+        content: str
         encoding: str
 
 
 import requests
 import wandb
 from wandb import env, util
+from wandb.sdk.internal import internal_api, settings_static
 
 from ..lib import file_stream_utils
 
@@ -71,7 +84,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
 
 
 class SummaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:
+    def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:  # type: ignore
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
@@ -186,7 +199,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
+    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:  # type: ignore
         """
         Args:
             chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
@@ -225,7 +238,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                 if line.startswith("\r"):
                     # line starting with \r will always overwrite a previous offset.
                     offset: int = (
-                        stream.cr if stream.found_cr else stream.last_normal or 0
+                        stream.cr
+                        if (stream.found_cr and stream.cr)
+                        else (stream.last_normal or 0)
                     )
                     stream.cr = offset
                     stream.found_cr = True
@@ -248,12 +263,20 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         intervals = self.get_consecutive_offsets(console)
         ret = []
         for (a, b) in intervals:
-            ret.append({"offset": a, "content": [console[i] for i in range(a, b + 1)]})
+            processed_chunk: "ProcessedChunk" = {
+                "offset": a,
+                "content": [console[i] for i in range(a, b + 1)],
+            }
+            ret.append(processed_chunk)
         return ret
 
 
 class BinaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":
+    def __init__(self) -> None:
+        super().__init__()
+        self._offset: int = 0
+
+    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":  # type: ignore
         data = b"".join([c.data for c in chunks])
         enc = base64.b64encode(data).decode("ascii")
         self._offset += len(data)
@@ -269,18 +292,31 @@ class FileStreamApi:
     TODO: Differentiate between binary/text encoding.
     """
 
-    Finish = collections.namedtuple("Finish", ("exitcode"))
+    Finish = collections.namedtuple("Finish", "exitcode")
     Preempting = collections.namedtuple("Preempting", ())
     PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
-    def __init__(self, api, run_id, start_time, settings=None):
-        if settings is None:
-            settings = dict()
+    def __init__(
+        self,
+        api: "internal_api.Api",
+        run_id: str,
+        start_time: float,
+        settings: Optional[
+            Union[
+                "wandb.sdk.wandb_settings.Settings",
+                "wandb.sdk.internal.settings_static.SettingsStatic",
+                dict,
+            ]
+        ] = None,
+    ) -> None:
+        settings = settings or dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
-        self._exc_info = None
+        self._exc_info: Optional[
+            Tuple[Type[BaseException], BaseException, TracebackType]
+        ] = None
         self._settings = settings
         self._api = api
         self._run_id = run_id
@@ -462,9 +498,9 @@ class FileStreamApi:
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
-    def _send(self, chunks, uploaded=None):
+    def _send(self, chunks: List[Chunk], uploaded: Optional[Set[str]] = None) -> bool:
         uploaded = list(uploaded or [])
-        # create files dict. dict of <filename: chunks> pairs where chunks is a list of
+        # create files dict. dict of <filename: chunks> pairs where chunks are a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
         # Groupby needs group keys to be consecutive, so sort first.
@@ -504,7 +540,7 @@ class FileStreamApi:
                 return False
         return True
 
-    def stream_file(self, path):
+    def stream_file(self, path: str) -> None:
         name = path.split("/")[-1]
         with open(path) as f:
             self._send([Chunk(name, line) for line in f])
@@ -512,7 +548,7 @@ class FileStreamApi:
     def enqueue_preempting(self) -> None:
         self._queue.put(self.Preempting())
 
-    def push(self, filename: str, data) -> None:
+    def push(self, filename: str, data: Any) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
         Arguments:
@@ -521,7 +557,7 @@ class FileStreamApi:
         """
         self._queue.put(Chunk(filename, data))
 
-    def push_success(self, artifact_id, save_name) -> None:
+    def push_success(self, artifact_id: str, save_name: str) -> None:
         """Notification that a file upload has been successfully completed
 
         Arguments:
@@ -530,7 +566,7 @@ class FileStreamApi:
         """
         self._queue.put(self.PushSuccess(artifact_id, save_name))
 
-    def finish(self, exitcode) -> None:
+    def finish(self, exitcode: int) -> None:
         """Cleans up.
 
         Anything pushed after finish will be dropped.
@@ -550,22 +586,27 @@ class FileStreamApi:
 MAX_SLEEP_SECONDS = 60 * 5
 
 
-def request_with_retry(func, *args, **kwargs):
+def request_with_retry(
+    func: Callable,
+    *args: Any,
+    **kwargs: Any,
+) -> Union["requests.Response", "requests.RequestException"]:
     """Perform a requests http call, retrying with exponential backoff.
 
     Arguments:
-        func: An http-requesting function to call, like requests.post
-        max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
-        *args: passed through to func
-        **kwargs: passed through to func
+        func:        An http-requesting function to call, like requests.post
+        max_retries: Maximum retries before giving up.
+                     By default, we retry 30 times in ~2 hours before dropping the chunk
+        *args:       passed through to func
+        **kwargs:    passed through to func
     """
-    max_retries = kwargs.pop("max_retries", 30)
-    retry_callback = kwargs.pop("retry_callback", None)
+    max_retries: int = kwargs.pop("max_retries", 30)
+    retry_callback: Optional[Callable] = kwargs.pop("retry_callback", None)
     sleep = 2
     retry_count = 0
     while True:
         try:
-            response = func(*args, **kwargs)
+            response: "requests.Response" = func(*args, **kwargs)
             response.raise_for_status()
             return response
         except (
