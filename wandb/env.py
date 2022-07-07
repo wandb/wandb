@@ -13,7 +13,7 @@ these values in many cases.
 import json
 import os
 import sys
-from typing import List, Mapping, MutableMapping, Optional, Union
+from typing import List, MutableMapping, Optional, Union
 
 from distutils.util import strtobool
 
@@ -71,6 +71,8 @@ CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
+REQUIRE_SERVICE = "WANDB_REQUIRE_SERVICE"
+_DISABLE_SERVICE = "WANDB_DISABLE_SERVICE"
 SENTRY_DSN = "WANDB_SENTRY_DSN"
 INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 

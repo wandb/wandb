@@ -6,7 +6,6 @@ import os
 import pickle
 import platform
 import sys
-import tempfile
 from unittest import mock
 
 import numpy as np
