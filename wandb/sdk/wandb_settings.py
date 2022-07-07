@@ -179,6 +179,7 @@ class SettingsConsole(enum.IntEnum):
     OFF = 0
     WRAP = 1
     REDIRECT = 2
+    WRAPRAW = 3
 
 
 class Property:
@@ -742,7 +743,7 @@ class Settings:
     @staticmethod
     def _validate_console(value: str) -> bool:
         # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices: Set[str] = {"auto", "redirect", "off", "wrap"}
+        choices: Set[str] = {"auto", "redirect", "off", "wrap", "wrapraw",}
         if value not in choices:
             raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
         return True
@@ -889,6 +890,7 @@ class Settings:
         convert_dict: Dict[str, SettingsConsole] = dict(
             off=SettingsConsole.OFF,
             wrap=SettingsConsole.WRAP,
+            wrapraw=SettingsConsole.WRAPRAW,
             redirect=SettingsConsole.REDIRECT,
         )
         console: str = str(self.console)

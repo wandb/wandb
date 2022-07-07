@@ -1805,14 +1805,28 @@ class Run:
                 src="stdout",
                 cbs=[
                     lambda data: self._redirect_cb("stdout", data),  # type: ignore
-                    # self._output_writer.write,  # type: ignore
+                    self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
                 cbs=[
                     lambda data: self._redirect_cb("stderr", data),  # type: ignore
-                    # self._output_writer.write,  # type: ignore
+                    self._output_writer.write,  # type: ignore
+                ],
+            )
+        elif console == SettingsConsole.WRAPRAW:
+            logger.info("Wrapping output streams.")
+            out_redir = redirect.StreamRawWrapper(
+                src="stdout",
+                cbs=[
+                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                ],
+            )
+            err_redir = redirect.StreamRawWrapper(
+                src="stderr",
+                cbs=[
+                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
                 ],
             )
         elif console == SettingsConsole.OFF:
