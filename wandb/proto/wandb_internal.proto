@@ -123,6 +123,9 @@ message RunRecord {
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
   GitRepoRecord             git = 21;
+  int64                     user_pid = 22;
+
+
   _RecordInfo               _info = 200;
 }
 
@@ -473,6 +476,8 @@ message Request {
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
+    DebugRequest          debug = 67;
+    DebugPollRequest      debug_poll = 68;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -496,6 +501,7 @@ message Response {
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
+    DebugPollResponse      debug_poll_response = 68;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -650,6 +656,7 @@ message AttachRequest {
 message AttachResponse {
   RunRecord run = 1;
   ErrorInfo error = 2;
+  int64 user_pid = 3;
 }
 
 /*
@@ -784,4 +791,70 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
+}
+
+/*
+ * DebugRequest:
+ */
+message DebugRequest {
+  bool threads = 16;
+  bool stacks = 17;
+  bool lines = 18;
+  bool locals = 19;
+}
+
+/*
+ * DebugResponse:
+ */
+message DebugResponse {
+}
+
+/*
+ * DebugPollRequest:
+ */
+message DebugPollRequest {
+}
+
+/*
+ * DebugDataLocals:
+ */
+message DebugDataLocal {
+  string var = 1;
+  string repr = 2;
+  string type = 3;
+}
+
+/*
+ * DebugDataFrame:
+ */
+message DebugDataFrame {
+  string filename = 1;
+  int32 lineno = 2;
+  string name = 3;
+  string line = 4;
+  repeated DebugDataLocal locals = 5;
+}
+
+/*
+ * DebugDataThread:
+ */
+message DebugDataThread {
+  repeated DebugDataFrame stack = 1;
+  string name = 2;
+  string thread_id = 3;
+}
+
+/*
+ * DebugData:
+ */
+message DebugData {
+  repeated DebugDataThread threads = 1;
+}
+
+/*
+ * DebugPollResponse:
+ */
+message DebugPollResponse {
+  bool done = 2;
+  DebugData data = 3;
 }

@@ -8,7 +8,7 @@ from abc import abstractmethod
 from collections.abc import Iterable, Mapping
 import datetime
 import enum
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict, List, TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.wandb_settings import Settings
@@ -55,6 +55,10 @@ class ServiceInterface:
         raise NotImplementedError
 
     @abstractmethod
+    def _svc_inform_connect(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
         raise NotImplementedError
 
@@ -64,6 +68,10 @@ class ServiceInterface:
 
     @abstractmethod
     def _svc_inform_attach(self, attach_id: str) -> spb.ServerInformAttachResponse:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _svc_inform_list(self) -> spb.ServerInformListResponse:
         raise NotImplementedError
 
     @abstractmethod

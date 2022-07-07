@@ -5,7 +5,7 @@ Create a grpc manager channel.
 
 import atexit
 import os
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
@@ -46,6 +46,7 @@ class _ManagerToken:
         return cls(token=token)
 
     def set_environment(self) -> None:
+        print(f"DEBUG: token = {self._token_str}")
         os.environ[env.SERVICE] = self._token_str
 
     def _parse(self) -> None:
@@ -157,6 +158,10 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_init(settings=settings, run_id=run_id)
 
+    def _inform_connect(self) -> None:
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_connect()
+
     def _inform_start(self, settings: "Settings", run_id: str) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
@@ -165,6 +170,15 @@ class _Manager:
         svc_iface = self._get_service_interface()
         response = svc_iface._svc_inform_attach(attach_id=attach_id)
         return settings_dict_from_pbmap(response._settings_map)
+
+    def _inform_list(self) -> List[str]:
+        svc_iface = self._get_service_interface()
+        response = svc_iface._svc_inform_list()
+
+        ret = []
+        for stream in response.streams:
+            ret.append(stream)
+        return ret
 
     def _inform_finish(self, run_id: str = None) -> None:
         svc_iface = self._get_service_interface()

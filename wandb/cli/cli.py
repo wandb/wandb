@@ -37,10 +37,14 @@ from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.utils import construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
 
+from wandb.sdk.service import port_file
+
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
+
+from . import debug as debug_cli
 
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
@@ -245,6 +249,25 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
 
 
+def _wait_for_ports(fname: str, proc: subprocess.Popen = None) -> bool:
+        time_max = time.time() + 30
+        while time.time() < time_max:
+            if not os.path.isfile(fname):
+                time.sleep(0.2)
+                continue
+            try:
+                pf = port_file.PortFile()
+                pf.read(fname)
+                if not pf.is_valid:
+                    time.sleep(0.2)
+                    continue
+                return pf.grpc_port, pf.sock_port
+            except Exception as e:
+                print("Error:", e)
+                return False
+        return False
+
+
 @cli.command(
     context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
@@ -260,6 +283,10 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @click.option("--debug", is_flag=True, help="log debug info")
 @click.option("--serve-sock", is_flag=True, help="use socket mode")
 @click.option("--serve-grpc", is_flag=True, help="use grpc mode")
+@click.option("--bg", is_flag=True, help="run in the background")
+@click.option("--detach", is_flag=True, help="detach from session")
+@click.option("--shell", is_flag=True, help="start a new shell")
+@click.argument("args", nargs=-1)
 @display_error
 def service(
     grpc_port=None,
@@ -270,7 +297,95 @@ def service(
     debug=False,
     serve_sock=False,
     serve_grpc=False,
+    bg=False,
+    shell=False,
+    detach=False,
+    args=None,
 ):
+    if args and not shell:
+        print("ERROR: args require the shell flag")
+        os.exit(1)
+
+    if bg or shell:
+        from wandb.sdk.wandb_manager import _ManagerToken
+
+        token = _ManagerToken.from_environment()
+        if token:
+            print("# WARNING: existing service detected, not making another")
+            return
+
+        # https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
+        exec_cmd_list = [sys.executable, sys.executable, "-m"]
+        exec_cmd_list += ["wandb", "service"]
+        if grpc_port is not None:
+            exec_cmd_list += ["--grpc-port", str(grpc_port)]
+        if sock_port is not None:
+            exec_cmd_list += ["--sock-port", str(sock_port)]
+        if port_filename is not None:
+            exec_cmd_list += ["--port-filename", str(port_filename)]
+        if address is not None:
+            exec_cmd_list += ["--address", str(address)]
+        if pid is not None:
+            exec_cmd_list += ["--pid", str(pid)]
+        if debug:
+            exec_cmd_list += ["--debug"]
+        # make sure we set sock if not grpc
+        if not serve_grpc:
+            serve_sock = True
+        if serve_sock:
+            exec_cmd_list += ["--serve-sock"]
+        if serve_grpc:
+            exec_cmd_list += ["--serve-grpc"]
+
+        # get setsid in server (not portable?)
+        exec_cmd_list += ["--detach"]
+
+        if bg:
+            ppid = os.getppid()
+        elif shell:
+            # we use the current pid for shell
+            ppid = os.getpid()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fname = os.path.join(tmpdir, f"port-{os.getpid()}.txt")
+            pid_str = str(ppid)
+            exec_cmd_list += ["--pid", pid_str]
+            exec_cmd_list += ["--port-filename", fname]
+            # print("RUN", exec_cmd_list)
+            ret = os.spawnl(os.P_NOWAITO, *exec_cmd_list)
+            # print("GOT", ret)
+            # HACK: wait for fname
+            ports = _wait_for_ports(fname)
+            if not ports:
+                print("# PROBLEM starting service")
+                return
+            grpc_port, sock_port = ports
+            host = "localhost"
+            if grpc_port:
+                transport = "grpc"
+                port = grpc_port
+            else:
+                transport = "tcp"
+                port = sock_port
+            assert port
+            token = _ManagerToken.from_params(transport=transport, host=host, port=port)
+            if bg:
+                print(f"export WANDB_SERVICE={token.token}")
+            if shell:
+                print("Starting wandb-service shell...")
+                env = os.environ
+                env["WANDB_SERVICE"] = token.token
+                env["WANDB_REQUIRE_SERVICE"] = "true"
+                env["WANDB_PROMPT"] = "(wb)"
+                # PROMPT=%F{blue}%1~%f %#
+                # prompt = env.get("PROMPT")
+                # if prompt:
+                #    env["PROMPT"] = "(wb)" + prompt
+                cmd = ["zsh"]
+                cmd += args
+                os.execve("/bin/zsh", cmd, env)
+        return
+
     from wandb.sdk.service.server import WandbServer
 
     server = WandbServer(
@@ -282,8 +397,31 @@ def service(
         debug=debug,
         serve_sock=serve_sock,
         serve_grpc=serve_grpc,
+        detach=detach,
     )
     server.serve()
+
+
+@cli.command(context_settings=CONTEXT)
+@click.pass_context
+@click.option("--name", help="The project to use.")
+def init(ctx, name):
+    debug_cli.init(name)
+
+
+@cli.command(context_settings=CONTEXT)
+@click.pass_context
+@click.option("--key", help="key")
+@click.option("--value", help="value")
+@click.option("--image", help="value")
+def log(ctx, key, value, image):
+    debug_cli.log(key, value, image)
+
+
+@cli.command(context_settings=CONTEXT)
+@click.pass_context
+def finish(ctx):
+    debug_cli.finish()
 
 
 @cli.command(
@@ -302,7 +440,7 @@ def service(
 )
 @click.pass_context
 @display_error
-def init(ctx, project, entity, reset, mode):
+def configure(ctx, project, entity, reset, mode):
     from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
 
     if __stage_dir__ is None:
@@ -2212,3 +2350,11 @@ def verify(host):
         and url_success
     ):
         sys.exit(1)
+
+
+@cli.group(context_settings=CONTEXT, help="Debug stuff")
+def debug():
+    pass
+
+
+debug_cli.install_subcommands(debug)
