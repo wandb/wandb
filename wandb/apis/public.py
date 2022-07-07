@@ -5043,7 +5043,6 @@ class Job:
         run_config = self._config_defaults().copy()
 
         for key, item in config.items():
-
             if util._is_artifact(item):
                 if isinstance(item, wandb.Artifact) and item.id is None:
                     raise ValueError("Cannot queue jobs with unlogged artifacts")
