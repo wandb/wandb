@@ -529,6 +529,9 @@ jobs:
       execute:
         type: boolean
         default: true
+      notify_on_failure:
+        type: boolean
+        default: false
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
@@ -558,6 +561,16 @@ jobs:
                 command: |
                   docker push << parameters.image_name >>
             # todo: clean up old images in gcr.io
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   # Nightly workflow for the SDK.
   #  - spin_up_cluster job creates a GKE cluster
@@ -576,6 +589,9 @@ jobs:
       cluster:
         type: string
         default: << pipeline.parameters.gcp_cluster_name >>
+      notify_on_failure:
+        type: boolean
+        default: false
     docker:
       - image: "cimg/base:stable"
     steps:
@@ -590,6 +606,16 @@ jobs:
       - run:
           name: "Install GPU drivers"
           command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   shut_down_cluster:
     parameters:
@@ -599,6 +625,9 @@ jobs:
       sleep_time: # time in seconds to wait before re-checking pod status
         type: integer
         default: 30
+      notify_on_failure:
+        type: boolean
+        default: false
     docker:
       - image: "cimg/base:stable"
     steps:
@@ -633,6 +662,16 @@ jobs:
           command: gcloud container clusters delete << parameters.cluster >>
           when: always
           no_output_timeout: "10m"
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   cloud_test:
     parameters:
@@ -841,7 +880,7 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          notify_on_failure: true
       #
       # stanalone tests on gke
       #
@@ -856,7 +895,7 @@ workflows:
             parameters:
               python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
           context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          notify_on_failure: true
           requires:
             - "slack-notify-on-start"
       # build docker images for yea shards
@@ -867,6 +906,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          notify_on_failure: true
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
@@ -874,13 +914,16 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          notify_on_failure: true
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          notify_on_failure: true
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          notify_on_failure: true
       # run the tests
       - cloud_test:
           name: "cloud-test-cpu"
@@ -1112,6 +1155,7 @@ workflows:
           requires:
             - "slack-notify-on-start"
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_cpu >>
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
@@ -1121,13 +1165,16 @@ workflows:
           requires:
             - "slack-notify-on-start"
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu >>
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # run the tests
       - cloud_test:
           name: "cloud-test-cpu"
