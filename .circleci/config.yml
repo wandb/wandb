@@ -881,6 +881,7 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
+          context: slack-secrets
           notify_on_failure: true
       #
       # stanalone tests on gke
@@ -907,6 +908,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: true
       - sdk_docker:
           name: "build-gpu-docker-image"
@@ -915,15 +917,18 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: true
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: true
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          context: slack-secrets
           notify_on_failure: true
       # run the tests
       - cloud_test:
@@ -1127,6 +1132,7 @@ workflows:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
           execute: << pipeline.parameters.manual_nightly_execute_shard_kfp >>
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
       # stanalone tests on gke
@@ -1156,6 +1162,7 @@ workflows:
           requires:
             - "slack-notify-on-start"
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_cpu >>
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - sdk_docker:
           name: "build-gpu-docker-image"
@@ -1166,15 +1173,18 @@ workflows:
           requires:
             - "slack-notify-on-start"
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu >>
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # run the tests
       - cloud_test:
