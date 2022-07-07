@@ -4981,7 +4981,7 @@ class Job:
         self.configure_launch_project = func
 
     def _configure_launch_project_repo(self, launch_project):
-        git_info = self._source_info.get("source",{}).get("git",{})
+        git_info = self._source_info.get("source", {}).get("git", {})
         _fetch_git_repo(
             launch_project.project_dir,
             git_info["remote"],

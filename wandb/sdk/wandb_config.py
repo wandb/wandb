@@ -6,12 +6,7 @@ import logging
 
 import wandb
 from wandb.util import (
-<<<<<<< HEAD
-    _is_artifact_object,
-    _is_artifact_string,
-=======
     _is_artifact_representation,
->>>>>>> master
     check_dict_contains_nested_artifact,
     json_friendly_val,
 )
