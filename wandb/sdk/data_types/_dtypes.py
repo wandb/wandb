@@ -117,6 +117,9 @@ class TypeRegistry:
 
         # The dtype is a dict, then we resolve the dict notation
         elif isinstance(dtype, dict):
+            wb_type_string = dtype.get("wb_type")
+            if not wb_type_string is None:
+                return TypeRegistry.type_from_dict(dtype)
             wbtype = TypedDictType(
                 {key: TypeRegistry.type_from_dtype(dtype[key]) for key in dtype}
             )
