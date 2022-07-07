@@ -888,3 +888,29 @@ def test_artifact_type():
     assert type_of_artifact_dict.assign(artifact_string) == target_type
     assert type_of_artifact_string.assign(artifact_config_shape) == target_type
     assert type_of_artifact_string.assign(artifact) == target_type
+
+    # test nested
+    nested_artifact = {"nested_artifact": artifact}
+    type_of_nested_artifact = TypeRegistry.type_of(nested_artifact)
+    nested_artifact_string = {"nested_artifact": artifact_string}
+    type_of_nested_artifact_string = TypeRegistry.type_of(nested_artifact_string)
+    nested_artifact_config_dict = {"nested_artifact": artifact_config_shape}
+    type_of_nested_artifact_dict = TypeRegistry.type_of(nested_artifact_config_dict)
+    nested_target_type = TypedDictType(
+        {"nested_artifact": TypeRegistry.types_by_name().get("artifactVersion")()}
+    )
+    assert type_of_nested_artifact.assign(nested_artifact_string) == nested_target_type
+    assert (
+        type_of_nested_artifact_dict.assign(nested_artifact_config_dict)
+        == nested_target_type
+    )
+    assert type_of_nested_artifact_dict.assign(nested_artifact) == nested_target_type
+    assert (
+        type_of_nested_artifact_dict.assign(nested_artifact_string)
+        == nested_target_type
+    )
+    assert (
+        type_of_nested_artifact_string.assign(nested_artifact_config_dict)
+        == nested_target_type
+    )
+    assert type_of_nested_artifact_string.assign(nested_artifact) == nested_target_type

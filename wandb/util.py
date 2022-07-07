@@ -1655,6 +1655,10 @@ def _is_artifact_string(v: Any) -> bool:
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
+def _is_artifact_version_weave_dict(v: Any) -> bool:
+    return isinstance(v, dict) and v.get("_type") == "artifactVersion"
+
+
 def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     if not v.startswith("wandb-artifact://"):
         raise ValueError(f"Invalid artifact string: {v}")
