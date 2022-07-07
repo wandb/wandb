@@ -76,9 +76,7 @@ class _Printer:
     ) -> None:
         raise NotImplementedError
 
-    def _sanitize_level(
-        self, name_or_level: Optional[Union[str, int]]
-    ) -> Callable[[str], None]:
+    def _sanitize_level(self, name_or_level: Optional[Union[str, int]]) -> int:
         if isinstance(name_or_level, str):
             return self._name_to_level[name_or_level.upper()]
 
@@ -215,7 +213,7 @@ class PrinterJupyter(_Printer):
         self,
         text: Union[str, List[str], Tuple[str]],
         *,
-        level: Optional[str] = None,
+        level: Optional[Union[str, int]] = None,
         default_text: Optional[Union[str, List[str], Tuple[str]]] = None,
     ) -> None:
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
