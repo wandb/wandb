@@ -241,6 +241,22 @@ class Agent:
                             self._running = False
                             break
                     logger.info("Cleaning up finished run: %s", run_id)
+
+                    # wandb.teardown() was added with wandb service and is a hammer to make
+                    # sure that active runs are finished before moving on to another agent run
+                    #
+                    # In the future, a lighter weight way to implement this could be to keep a
+                    # service process open for all the agent instances and inform_finish when
+                    # the run should be marked complete.  This however could require
+                    # inform_finish on every run created by this process.
+                    if hasattr(wandb, "teardown"):
+                        exit_code = 0
+                        if isinstance(poll_result, int):
+                            exit_code = poll_result
+                        elif isinstance(poll_result, bool):
+                            exit_code = -1
+                        wandb.teardown(exit_code)
+
                     del self._run_processes[run_id]
                     self._last_report_time = None
                     self._finished += 1

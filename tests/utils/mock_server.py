@@ -95,6 +95,8 @@ def default_ctx():
         "run_cuda_version": None,
         # relay mode, keep track of upsert runs for validation
         "relay_run_info": {},
+        "server_settings": False,
+        "server_messages": None,
         "latest_arti_id": None,
     }
 
@@ -938,6 +940,14 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "query ProbeServerSettings" in body["query"]:
+            if not ctx["server_settings"]:
+                data = {}
+            else:
+                data = {"ServerSettingsType": {"fields": [{"name": "sdkMessages"}]}}
+
+            return json.dumps({"data": data})
+
         if "mutation UpsertBucket(" in body["query"]:
             run_id_default = "abc123"
             run_id = body["variables"].get("name", run_id_default)
@@ -1020,6 +1030,10 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+            if ctx["server_settings"]:
+                response["data"]["upsertBucket"]["serverSettings"] = {
+                    "serverMessages": ctx["server_messages"]
+                }
             if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"

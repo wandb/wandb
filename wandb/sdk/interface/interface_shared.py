@@ -240,7 +240,7 @@ class InterfaceShared(InterfaceBase):
         result = self._communicate(rec, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(  # type: ignore[no-untyped-call]
+            raise wandb.Error(
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         login_response = result.response.login_response

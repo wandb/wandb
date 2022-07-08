@@ -3,9 +3,7 @@ plugin:
   - wandb
 var:
   - src0:
-      :fn:concat:
-      - source-
-      - :wandb:runs[0][run_id]
+    source-test-.log_code.py
   - runline0:
       :fn:concat:
       - RUN_ID=
