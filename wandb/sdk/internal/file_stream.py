@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
 
 import requests
-from requests.adapters import HTTPAdapter
 import wandb
 from wandb import env, util
 from wandb.sdk.internal import internal_api, settings_static
@@ -328,7 +327,7 @@ class FileStreamApi:
         settings: Optional[
             Union[
                 "wandb.sdk.wandb_settings.Settings",
-                "wandb.sdk.internal.settings_static.SettingsStatic",
+                "settings_static.SettingsStatic",
                 dict,
             ]
         ] = None,
