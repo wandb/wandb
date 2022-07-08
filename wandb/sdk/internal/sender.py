@@ -1074,6 +1074,8 @@ class SendManager:
                 )
                 return None
 
+        # print("boomdawg", self._settings.root_dir)
+        # print("boomdawg", self._settings.files_dir)
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         return saver.save(
             type=artifact.type,
