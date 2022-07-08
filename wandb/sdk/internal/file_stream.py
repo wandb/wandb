@@ -1,5 +1,4 @@
 import base64
-import collections
 import itertools
 import logging
 import os
@@ -14,6 +13,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 
 
 import requests
+from requests.adapters import HTTPAdapter
 import wandb
 from wandb import env, util
 from wandb.sdk.internal import internal_api, settings_static
@@ -47,7 +48,21 @@ from ..lib import file_stream_utils
 
 logger = logging.getLogger(__name__)
 
-Chunk = collections.namedtuple("Chunk", ("filename", "data"))
+
+class Chunk(NamedTuple):
+    filename: str
+    data: Any
+
+
+class SessionWithDefaultTimeout(requests.Session):
+    def __init__(self, timeout: Union[int, float]) -> None:
+        super().__init__()
+        self.timeout = timeout
+
+    def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:  # type: ignore
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = self.timeout
+        return super().request(method, url, **kwargs)
 
 
 class DefaultFilePolicy:
@@ -292,9 +307,15 @@ class FileStreamApi:
     TODO: Differentiate between binary/text encoding.
     """
 
-    Finish = collections.namedtuple("Finish", "exitcode")
-    Preempting = collections.namedtuple("Preempting", ())
-    PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
+    class Finish(NamedTuple):
+        exitcode: int
+
+    class Preempting(NamedTuple):
+        pass
+
+    class PushSuccess(NamedTuple):
+        artifact_id: str
+        save_name: str
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
@@ -315,25 +336,27 @@ class FileStreamApi:
         settings = settings or dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
         self._exc_info: Optional[
-            Tuple[Type[BaseException], BaseException, TracebackType]
+            Union[
+                Tuple[Type[BaseException], BaseException, TracebackType],
+                Tuple[None, None, None],
+            ]
         ] = None
         self._settings = settings
         self._api = api
         self._run_id = run_id
         self._start_time = start_time
-        self._client = requests.Session()
-        self._client.auth = ("api", api.api_key)
-        self._client.timeout = self.HTTP_TIMEOUT
+        self._client = SessionWithDefaultTimeout(self.HTTP_TIMEOUT)
+        self._client.auth = ("api", api.api_key or "")
         self._client.headers.update(
             {
                 "User-Agent": api.user_agent,
-                "X-WANDB-USERNAME": env.get_username(),
-                "X-WANDB-USER-EMAIL": env.get_user_email(),
+                "X-WANDB-USERNAME": env.get_username() or "",
+                "X-WANDB-USER-EMAIL": env.get_user_email() or "",
             }
         )
-        self._file_policies = {}
-        self._dropped_chunks = 0
-        self._queue = queue.Queue()
+        self._file_policies: Dict[str, "DefaultFilePolicy"] = {}
+        self._dropped_chunks: int = 0
+        self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
@@ -341,7 +364,7 @@ class FileStreamApi:
         self._thread.daemon = True
         self._init_endpoint()
 
-    def _init_endpoint(self):
+    def _init_endpoint(self) -> None:
         settings = self._api.settings()
         settings.update(self._settings)
         self._endpoint = "{base}/files/{entity}/{project}/{run}/file_stream".format(
@@ -351,31 +374,36 @@ class FileStreamApi:
             run=self._run_id,
         )
 
-    def start(self):
+    def start(self) -> None:
         self._init_endpoint()
         self._thread.start()
 
-    def set_default_file_policy(self, filename, file_policy):
+    def set_default_file_policy(
+        self, filename: str, file_policy: "DefaultFilePolicy"
+    ) -> None:
         """Set an upload policy for a file unless one has already been set."""
         if filename not in self._file_policies:
             self._file_policies[filename] = file_policy
 
-    def set_file_policy(self, filename, file_policy):
+    def set_file_policy(self, filename: str, file_policy: "DefaultFilePolicy") -> None:
         self._file_policies[filename] = file_policy
 
     @property
-    def heartbeat_seconds(self):
+    def heartbeat_seconds(self) -> Union[int, float]:
         # Defaults to 30
-        return self._api.dynamic_settings["heartbeat_seconds"]
+        heartbeat_seconds: Union[int, float] = self._api.dynamic_settings[
+            "heartbeat_seconds"
+        ]
+        return heartbeat_seconds
 
-    def rate_limit_seconds(self):
+    def rate_limit_seconds(self) -> Union[int, float]:
         run_time = time.time() - self._start_time
         if run_time < 60:
-            return max(1, self.heartbeat_seconds / 15)
+            return max(1.0, self.heartbeat_seconds / 15)
         elif run_time < 300:
             return max(2.5, self.heartbeat_seconds / 3)
         else:
-            return max(5, self.heartbeat_seconds)
+            return max(5.0, self.heartbeat_seconds)
 
     def _read_queue(self) -> List:
         # called from the push thread (_thread_body), this does an initial read
@@ -395,8 +423,8 @@ class FileStreamApi:
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
-        uploaded = set()
-        finished = None
+        uploaded: Set[str] = set()
+        finished: Optional["FileStreamApi.Finish"] = None
         while finished is None:
             items = self._read_queue()
             for item in items:
@@ -499,17 +527,19 @@ class FileStreamApi:
                     self._api.dynamic_settings.update(limits)
 
     def _send(self, chunks: List[Chunk], uploaded: Optional[Set[str]] = None) -> bool:
-        uploaded = list(uploaded or [])
+        uploaded_list = list(uploaded or [])
         # create files dict. dict of <filename: chunks> pairs where chunks are a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
         # Groupby needs group keys to be consecutive, so sort first.
         chunks.sort(key=lambda c: c.filename)
         for filename, file_chunks in itertools.groupby(chunks, lambda c: c.filename):
-            file_chunks = list(file_chunks)  # groupby returns iterator
+            file_chunks_list = list(file_chunks)  # groupby returns iterator
             # Specific file policies are set by internal/sender.py
             self.set_default_file_policy(filename, DefaultFilePolicy())
-            files[filename] = self._file_policies[filename].process_chunks(file_chunks)
+            files[filename] = self._file_policies[filename].process_chunks(
+                file_chunks_list
+            )
             if not files[filename]:
                 del files[filename]
 
@@ -523,7 +553,7 @@ class FileStreamApi:
                 )
             )
 
-        if uploaded:
+        if uploaded_list:
             if isinstance(
                 request_with_retry(
                     self._client.post,
@@ -532,7 +562,7 @@ class FileStreamApi:
                         "complete": False,
                         "failed": False,
                         "dropped": self._dropped_chunks,
-                        "uploaded": uploaded,
+                        "uploaded": uploaded_list,
                     },
                 ),
                 Exception,
@@ -580,7 +610,8 @@ class FileStreamApi:
         if self._exc_info:
             logger.error("FileStream exception", exc_info=self._exc_info)
             # re-raising the original exception, will get re-caught in internal.py for the sender thread
-            raise self._exc_info[1].with_traceback(self._exc_info[2])
+            if self._exc_info[1] is not None:
+                raise self._exc_info[1].with_traceback(self._exc_info[2])
 
 
 MAX_SLEEP_SECONDS = 60 * 5
