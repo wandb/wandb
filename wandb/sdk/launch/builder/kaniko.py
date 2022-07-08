@@ -141,7 +141,7 @@ class KanikoBuilder(AbstractBuilder):
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
         context_file.close()
-        if self.cloud_provider == "aws":
+        if self.cloud_provider.lower() == "aws":
             boto3 = get_module(
                 "boto3",
                 "AWS cloud provider requires boto3, install with pip install wandb[launch]",
@@ -163,7 +163,7 @@ class KanikoBuilder(AbstractBuilder):
                 raise LaunchError(f"Failed to upload build context to S3: {e}")
             return f"s3://{self.build_context_store}/{run_id}.tgz"
         # TODO: support gcp and azure cloud providers
-        elif self.cloud_provider == "gcp":
+        elif self.cloud_provider.lower() == "gcp":
             storage = get_module(
                 "google.cloud.storage",
                 "gcp provider requires google-cloud-storage,  install with pip install wandb[launch]",
@@ -267,7 +267,7 @@ class KanikoBuilder(AbstractBuilder):
         build_context_path: str,
     ) -> "client.V1Job":
         env = None
-        if self.instance_mode and self.cloud_provider == "aws":
+        if self.instance_mode and self.cloud_provider.lower() == "aws":
             region = repository.split(".")[3]
             env = client.V1EnvVar(name="AWS_REGION", value=region)
 

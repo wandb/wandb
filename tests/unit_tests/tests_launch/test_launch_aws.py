@@ -67,6 +67,7 @@ def mock_boto3_client(
     *args,
     **kwargs,
 ):
+    client_type = args[0]
     sts_client = MagicMock()
     sts_client.get_caller_identity.return_value = {"Account": "123456789012"}
     clients = {
@@ -74,10 +75,11 @@ def mock_boto3_client(
         "ecr": mock_ecr_client(),
         "sts": sts_client,
     }
-    return clients[args[0]]
+    return clients[client_type]
 
 
 def mock_boto3_client_no_instance(*args, **kwargs):
+    client_type = args[0]
 
     if kwargs.get("aws_access_key_id") is None:
         sts_client = MagicMock()
@@ -93,7 +95,7 @@ def mock_boto3_client_no_instance(*args, **kwargs):
         "ecr": mock_ecr_client(),
         "sts": sts_client,
     }
-    return clients[args[0]]
+    return clients[client_type]
 
 
 def test_launch_aws_sagemaker_no_instance(

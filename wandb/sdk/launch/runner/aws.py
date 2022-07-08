@@ -115,7 +115,7 @@ class AWSSagemakerRunner(AbstractRunner):
             default_output_path = f"s3://{default_output_path}"
 
         region = get_region(given_sagemaker_args, registry_config.get("region"))
-        instance_role = False
+        instance_role: bool = False
         try:
             client = boto3.client("sts")
             instance_role = True
