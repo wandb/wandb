@@ -521,8 +521,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.save_model_frequency > 0 and self.save_best_only:
             self.save_model_frequency = 0
             wandb.termwarn(
-                "If you are trying to `save_best_only` model as W&B Artifacts, "
-                "the `save_model_frequency` will be 0 (default)."
+                "`save_best_only` is set to `True`, hence only best model will be saved as W&B Artifacts, "
+                "and `save_model_frequency` will be ignored"
             )
 
         self._epochs_since_last_save = 0
