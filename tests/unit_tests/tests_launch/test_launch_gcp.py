@@ -222,9 +222,7 @@ def test_vertex_supplied_docker_image(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
-        "uri": uri,
         "api": api,
         "resource": "gcp-vertex",
         "entity": "mock_server_entity",
