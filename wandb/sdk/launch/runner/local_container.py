@@ -12,6 +12,7 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import (
+    docker_image_exists,
     get_env_vars_dict,
     pull_docker_image,
 )
@@ -103,11 +104,11 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
-
         if launch_project.docker_image:
             # user has provided their own docker image
-            image_uri = launch_project.docker_image
-            pull_docker_image(image_uri)
+            image_uri = launch_project.image_name
+            if not docker_image_exists(image_uri):
+                pull_docker_image(image_uri)
             env_vars.pop("WANDB_RUN_ID")
             # if they've given an override to the entrypoint
             entry_cmd = get_entry_point_command(

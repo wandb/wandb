@@ -192,7 +192,7 @@ class KanikoBuilder(AbstractBuilder):
 
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
-        image_uri = f"{repository}:{launch_project.run_id}"
+        image_uri = f"{repository}:{launch_project.image_tag}"
         entry_cmd = " ".join(
             get_entry_point_command(entrypoint, launch_project.override_args)
         )
