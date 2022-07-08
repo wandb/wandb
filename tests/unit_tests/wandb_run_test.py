@@ -6,7 +6,6 @@ import os
 import pickle
 import platform
 import sys
-import tempfile
 from unittest import mock
 
 import numpy as np
@@ -148,7 +147,9 @@ def test_log_code_settings(live_mock_server, test_settings):
     run.finish()
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
-    assert artifact_name == "source-" + run.id
+    assert artifact_name == wandb.util.make_artifact_name_safe(
+        f"source-{run._project}-{run._settings.program_relpath}"
+    )
 
 
 @pytest.mark.parametrize("save_code", [True, False])
@@ -174,7 +175,9 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         ctx = live_mock_server.get_ctx()
         artifact_names = list(ctx["artifacts"].keys())
         if save_code:
-            assert artifact_names[0] == "source-" + run.id
+            assert artifact_names[0] == wandb.util.make_artifact_name_safe(
+                f"source-{run._project}-{run._settings.program_relpath}"
+            )
         else:
             assert len(artifact_names) == 0
 
@@ -643,14 +646,13 @@ def test_wandb_artifact_config_update(
         artifact.add_reference(
             "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
         )
-        run = wandb.init(settings=test_settings)
-        run.config.update({"test_reference_download": artifact})
+        with wandb.init(settings=test_settings) as run:
+            run.config.update({"test_reference_download": artifact})
 
-        assert run.config.test_reference_download == artifact
-        run.finish()
+            assert run.config.test_reference_download == artifact
 
         ctx = parse_ctx(live_mock_server.get_ctx())
-        assert ctx.config_user["test_reference_download"] == {
+        config_art = {
             "_type": "artifactVersion",
             "_version": "v0",
             "id": artifact.id,
@@ -658,6 +660,18 @@ def test_wandb_artifact_config_update(
             "sequenceName": artifact.name.split(":")[0],
             "usedAs": "test_reference_download",
         }
+        assert ctx.config_user["test_reference_download"] == config_art
+
+        with wandb.init(settings=test_settings) as run:
+            run.config.update({"test_reference_download": config_art})
+            assert run.config.test_reference_download.id == artifact.id
+
+
+def test_media_in_config(runner, live_mock_server, test_settings, parse_ctx):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        with pytest.raises(ValueError):
+            run.config["image"] = wandb.Image(np.random.randint(0, 255, (100, 100, 3)))
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
@@ -758,3 +772,50 @@ def test_init_with_settings(live_mock_server, test_settings):
         == wandb_sdk.wandb_settings.Source.INIT
     )
     run.finish()
+
+
+def test_repo_job_creation(
+    live_mock_server, test_settings, git_repo_with_remote_and_commit
+):
+    test_settings.update(
+        {"enable_job_creation": True, "program_relpath": "./blah/test_program.py"}
+    )
+
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    artifact_name = list(ctx["artifacts"].keys())[0]
+
+    assert artifact_name == wandb.util.make_artifact_name_safe(
+        f"job-{run._settings.git_remote}_{run._settings.program_relpath}"
+    )
+
+
+def test_artifact_job_creation(live_mock_server, test_settings, runner):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+        test_settings.update(
+            {
+                "enable_job_creation": True,
+                "disable_git": True,
+                "program_relpath": "./blah/test_program.py",
+            }
+        )
+        run = wandb.init(settings=test_settings)
+        run.log_code()
+        run.finish()
+        ctx = live_mock_server.get_ctx()
+        code_artifact_name = list(ctx["artifacts"].keys())[0]
+        job_artifact_name = list(ctx["artifacts"].keys())[1]
+        assert job_artifact_name == f"job-{code_artifact_name}"
+
+
+def test_container_job_creation(live_mock_server, test_settings):
+    test_settings.update({"enable_job_creation": True, "disable_git": True})
+    with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:v0"):
+        run = wandb.init(settings=test_settings)
+        run.finish()
+        ctx = live_mock_server.get_ctx()
+        artifact_name = list(ctx["artifacts"].keys())[0]
+        assert artifact_name == "job-dummy-container_v0"
