@@ -99,7 +99,7 @@ class KanikoBuilder(AbstractBuilder):
     def _create_docker_ecr_config_map(
         self, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
-        if self.cloud_provider == "aws":
+        if self.cloud_provider.lower() == "aws":
             if not self.instance_mode:
                 ecr_config_map = client.V1ConfigMap(
                     api_version="v1",
