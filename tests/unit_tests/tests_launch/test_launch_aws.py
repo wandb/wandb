@@ -94,7 +94,6 @@ def mock_boto3_client_no_instance(*args, **kwargs):
         "sts": sts_client,
     }
     return clients[args[0]]
-   
 
 
 def test_launch_aws_sagemaker_no_instance(
