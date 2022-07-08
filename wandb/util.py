@@ -887,6 +887,18 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
+def check_retry_commit_artifact(e: Any) -> bool:
+    if hasattr(e, "exception"):
+        e = e.exception
+    if (
+        isinstance(e, requests.HTTPError)
+        and e.response is not None
+        and e.response.status_code == 409
+    ):
+        return True
+    return no_retry_auth(e)
+
+
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
@@ -1014,11 +1026,7 @@ def image_from_docker_args(args: List[str]) -> Optional[str]:
 
 
 def load_yaml(file: Any) -> Any:
-    """If pyyaml > 5.1 use full_load to avoid warning"""
-    if hasattr(yaml, "full_load"):
-        return yaml.full_load(file)
-    else:
-        return yaml.load(file)
+    return yaml.safe_load(file)
 
 
 def image_id_from_k8s() -> Optional[str]:
@@ -1639,7 +1647,7 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
     return aliases
 
 
-def _is_artifact(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> bool:
     return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
 
 
@@ -1647,7 +1655,19 @@ def _is_artifact_string(v: Any) -> bool:
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
+def _is_artifact_version_weave_dict(v: Any) -> bool:
+    return isinstance(v, dict) and v.get("_type") == "artifactVersion"
+
+
+def _is_artifact_representation(v: Any) -> bool:
+    return (
+        _is_artifact_object(v)
+        or _is_artifact_string(v)
+        or _is_artifact_version_weave_dict(v)
+    )
+
+
+def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
     if not v.startswith("wandb-artifact://"):
         raise ValueError(f"Invalid artifact string: {v}")
     parsed_v = v[len("wandb-artifact://") :]
@@ -1662,7 +1682,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
         # for now can't fetch paths but this will be supported in the future
         # when we allow passing typed media objects, this can be extended
         # to include paths
-        return parts[1], base_uri
+        return parts[1], base_uri, True
 
     if len(parts) < 3:
         raise ValueError(f"Invalid artifact string: {v}")
@@ -1671,7 +1691,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     # when we allow passing typed media objects, this can be extended
     # to include paths
     entity, project, name_and_alias_or_version = parts[:3]
-    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
+    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri, False
 
 
 def _get_max_cli_version() -> Union[str, None]:
@@ -1695,3 +1715,14 @@ def ensure_text(
         return string
     else:
         raise TypeError(f"not expecting type '{type(string)}'")
+
+
+def make_artifact_name_safe(name: str) -> str:
+    """Make an artifact name safe for use in artifacts"""
+    # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
+    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+
+
+def has_main_file(path: str) -> bool:
+    """Check if a directory has a main.py file"""
+    return path != "<python with no main file>"

@@ -114,6 +114,7 @@ def construct_launch_spec(
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     cuda: Optional[bool],
+    run_id: Optional[str],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -166,6 +167,9 @@ def construct_launch_spec(
         launch_spec["overrides"]["entry_point"] = entry_point
     if cuda is not None:
         launch_spec["cuda"] = cuda
+
+    if run_id is not None:
+        launch_spec["run_id"] = run_id
 
     return launch_spec
 
