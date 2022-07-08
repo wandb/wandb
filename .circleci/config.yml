@@ -80,7 +80,6 @@ parameters:
     type: boolean
     default: false
 
-
 commands:
   save-tox-cache:
     description: "Save tox environment to cache"
@@ -484,7 +483,7 @@ jobs:
         type: boolean
         default: true
     docker:
-      - image: 'cimg/base:stable'
+      - image: "cimg/base:stable"
     steps:
       - when:
           condition: << parameters.execute >>
@@ -688,7 +687,7 @@ jobs:
         default: pod.yaml
       pod_name: # same as in <path>/pod.yaml
         type: string
-      sleep_time:  # time in seconds to wait before re-checking pod status
+      sleep_time: # time in seconds to wait before re-checking pod status
         type: integer
         default: 5
       notify_on_failure:
@@ -701,7 +700,7 @@ jobs:
         type: boolean
         default: true
     docker:
-      - image: 'cimg/base:stable'
+      - image: "cimg/base:stable"
     steps:
       - checkout
       - when:
@@ -881,6 +880,7 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
+          context: slack-secrets
           notify_on_failure: true
       #
       # stanalone tests on gke
@@ -894,7 +894,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: [ "3.6", "3.7", "3.8", "3.9", "3.10" ]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
           context: slack-secrets
           notify_on_failure: true
           requires:
@@ -907,6 +907,7 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: true
       - sdk_docker:
           name: "build-gpu-docker-image"
@@ -915,15 +916,18 @@ workflows:
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: true
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: true
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          context: slack-secrets
           notify_on_failure: true
       # run the tests
       - cloud_test:
@@ -987,7 +991,7 @@ workflows:
       - test:
           name: "unit-s_base-lin-py310"
           image: "python:3.10"
-          toxenv: "py310"
+          toxenv: "py310,covercircle"
       #
       # functional linux tests
       #
@@ -1127,6 +1131,7 @@ workflows:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
           execute: << pipeline.parameters.manual_nightly_execute_shard_kfp >>
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
       # stanalone tests on gke
@@ -1156,6 +1161,7 @@ workflows:
           requires:
             - "slack-notify-on-start"
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_cpu >>
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - sdk_docker:
           name: "build-gpu-docker-image"
@@ -1166,15 +1172,18 @@ workflows:
           requires:
             - "slack-notify-on-start"
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu >>
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # run the tests
       - cloud_test:

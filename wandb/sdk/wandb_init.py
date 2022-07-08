@@ -23,7 +23,7 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.util import _is_artifact, _is_artifact_string, sentry_exc
+from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -146,7 +146,7 @@ class _WandbInit:
                     "`wandb.init()` arguments, please refer to "
                     f"{self.printer.link(wburls.get('wandb_init'), 'the W&B docs')}."
                 )
-                self.printer.display(line, status="warn")
+                self.printer.display(line, level="warn")
 
         self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
@@ -305,7 +305,7 @@ class _WandbInit:
 
     def _split_artifacts_from_config(self, config_source, config_target):
         for k, v in config_source.items():
-            if _is_artifact(v) or _is_artifact_string(v):
+            if _is_artifact_representation(v):
                 self.init_artifact_config[k] = v
             else:
                 config_target.setdefault(k, v)
