@@ -219,7 +219,7 @@ def is_bare_wandb_uri(uri: str) -> bool:
     result = uri.split("/")[1:]
     # a bare wandb uri will have 4 parts, with the last being the run name
     # and the second last being "runs"
-    if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
+    if len(result) == 4 and result[-2] == "runs":
         return True
     return False
 

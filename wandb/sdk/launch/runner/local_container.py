@@ -93,7 +93,7 @@ class LocalContainerRunner(AbstractRunner):
                 docker_args["add-host"] = "host.docker.internal:host-gateway"
 
         entry_point = launch_project.get_single_entry_point()
-        env_vars = get_env_vars_dict(launch_project, entry_point, self._api)
+        env_vars = get_env_vars_dict(launch_project, self._api)
 
         # When running against local port, need to swap to local docker host
         if (
