@@ -71,28 +71,30 @@ def mock_boto3_client(
     sts_client.get_caller_identity.return_value = {"Account": "123456789012"}
     clients = {
         "sagemaker": mock_sagemaker_client(),
-        "ecr": mock_sagemaker_client(),
+        "ecr": mock_ecr_client(),
         "sts": sts_client,
     }
     return clients[args[0]]
 
 
 def mock_boto3_client_no_instance(*args, **kwargs):
-    if args[0] == "sagemaker":
-        return mock_sagemaker_client()
-    elif args[0] == "ecr":
-        return mock_ecr_client()
-    elif args[0] == "sts":
-        if kwargs.get("aws_access_key_id") is None:
-            sts_client = MagicMock()
-            sts_client.get_caller_identity = MagicMock(
-                side_effect=botocore.exceptions.NoCredentialsError,
-            )
-        elif kwargs.get("aws_access_key_id") is not None:
-            sts_client = MagicMock()
-            sts_client.get_caller_identity.return_value = {"Account": "123456789012"}
 
-        return sts_client
+    if kwargs.get("aws_access_key_id") is None:
+        sts_client = MagicMock()
+        sts_client.get_caller_identity = MagicMock(
+            side_effect=botocore.exceptions.NoCredentialsError,
+        )
+    elif kwargs.get("aws_access_key_id") is not None:
+        sts_client = MagicMock()
+        sts_client.get_caller_identity.return_value = {"Account": "123456789012"}
+
+    clients = {
+        "sagemaker": mock_sagemaker_client(),
+        "ecr": mock_ecr_client(),
+        "sts": sts_client,
+    }
+    return clients[args[0]]
+   
 
 
 def test_launch_aws_sagemaker_no_instance(
