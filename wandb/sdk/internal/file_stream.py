@@ -1,4 +1,5 @@
 import base64
+from functools import partial
 import itertools
 import logging
 import os
@@ -51,17 +52,6 @@ logger = logging.getLogger(__name__)
 class Chunk(NamedTuple):
     filename: str
     data: Any
-
-
-class SessionWithDefaultTimeout(requests.Session):
-    def __init__(self, timeout: Union[int, float]) -> None:
-        super().__init__()
-        self.timeout = timeout
-
-    def request(self, method: str, url: str, **kwargs: Any) -> requests.Response:  # type: ignore
-        if "timeout" not in kwargs:
-            kwargs["timeout"] = self.timeout
-        return super().request(method, url, **kwargs)
 
 
 class DefaultFilePolicy:
@@ -344,7 +334,8 @@ class FileStreamApi:
         self._api = api
         self._run_id = run_id
         self._start_time = start_time
-        self._client = SessionWithDefaultTimeout(self.HTTP_TIMEOUT)
+        self._client = requests.Session()
+        self._client.post = partial(self._client.post, timeout=self.HTTP_TIMEOUT)
         self._client.auth = ("api", api.api_key or "")
         self._client.headers.update(
             {
