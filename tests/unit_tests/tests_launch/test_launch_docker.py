@@ -232,7 +232,10 @@ def test_gcp_uri(test_settings, live_mock_server, mocked_fetchable_git_repo):
     uri = construct_gcp_image_uri(
         test_project, "test-repo", "test-project", "test-registry"
     )
-    assert "test-registry/test-project/test-repo/test_launch" in uri
+    assert (
+        "test-registry/test-project/test-repo/wandb.aimock_server_entitytestruns1:68747470733a2f2f666f6f3a62617240"
+        in uri
+    )
 
 
 def test_docker_image_exists(

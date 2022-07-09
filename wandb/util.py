@@ -1725,6 +1725,11 @@ def make_artifact_name_safe(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
 
 
+def make_docker_image_name_safe(name: str) -> str:
+    """Make a docker image name safe for use in artifacts"""
+    return re.sub(r"[^a-z0-9_\-.]", "", name)
+
+
 def has_main_file(path: str) -> bool:
     """Check if a directory has a main.py file"""
     return path != "<python with no main file>"

@@ -977,6 +977,13 @@ def sweep(
 )
 @click.argument("uri", nargs=1, required=False)
 @click.option(
+    "--job",
+    "-j",
+    metavar="<str>",
+    default=None,
+    help="Name of the job to launch. If passed in, launch does not require a uri.",
+)
+@click.option(
     "--entry-point",
     "-E",
     metavar="NAME",
@@ -1084,6 +1091,7 @@ def sweep(
 @display_error
 def launch(
     uri,
+    job,
     entry_point,
     git_version,
     args_list,
@@ -1158,20 +1166,13 @@ def launch(
     elif resource is None:
         resource = "local-container"
 
-    if (
-        uri is None
-        and docker_image is None
-        and config.get("uri") is not None
-        and config.get("docker", {}).get("docker_image") is None
-    ):
-        raise LaunchError("Must pass a URI or a docker image to launch.")
-
     if queue is None:
         # direct launch
         try:
             wandb_launch.run(
-                uri,
                 api,
+                uri,
+                job,
                 entry_point,
                 git_version,
                 project=project,
@@ -1195,6 +1196,7 @@ def launch(
         _launch_add(
             api,
             uri,
+            job,
             config,
             project,
             entity,
