@@ -719,7 +719,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         if _can_compute_flops():
             try:
-                wandb.summary["GFLOPS"] = self.get_flops()
+                wandb.summary["GFLOPs"] = self.get_flops()
             except Exception as e:
                 wandb.termwarn("Unable to compute FLOPs for this model.")
 
@@ -1071,7 +1071,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
     def get_flops(self) -> float:
         """
-        Calculate FLOPS [GFLOPS] for a tf.keras.Model or tf.keras.Sequential model
+        Calculate FLOPS [GFLOPs] for a tf.keras.Model or tf.keras.Sequential model
         in inference mode. It uses tf.compat.v1.profiler under the hood.
         """
         if not hasattr(self, "model"):
@@ -1116,5 +1116,5 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         tf.compat.v1.reset_default_graph()
 
-        # convert to GFLOPS
+        # convert to GFLOPs
         return (flops.total_float_ops / 1e9) / 2

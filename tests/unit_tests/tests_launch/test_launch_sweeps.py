@@ -146,7 +146,7 @@ def test_launch_sweeps_scheduler_base_add_to_launch_queue(test_settings, monkeyp
     )
 
     def mock_launch_add(*args, **kwargs):
-        return Mock(spec=wandb.apis.public.QueuedJob)
+        return Mock(spec=wandb.apis.public.QueuedRun1)
 
     monkeypatch.setattr(
         "wandb.sdk.launch.launch_add.launch_add",
@@ -172,7 +172,7 @@ def test_launch_sweeps_scheduler_base_add_to_launch_queue(test_settings, monkeyp
     assert _scheduler.is_alive() == False
     assert len(_scheduler._runs) == 1
     assert isinstance(
-        _scheduler._runs["foo_run"].launch_job, wandb.apis.public.QueuedJob
+        _scheduler._runs["foo_run"].launch_job, wandb.apis.public.QueuedRun
     )
     assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
 
