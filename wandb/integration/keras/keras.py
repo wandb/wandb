@@ -1039,10 +1039,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 "`tf.keras.Model` and `tf.keras.Sequential` instances."
             )
 
-        from tensorflow.python.framework.convert_to_constants import (
-            convert_variables_to_constants_v2_as_graph,
-        )
-
         # Compute FLOPs for one sample
         batch_size = 1
         inputs = [
@@ -1051,8 +1047,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         ]
 
         # convert tf.keras model into frozen graph to count FLOPs about operations used at inference
-        real_model = tf.function(self.model).get_concrete_function(inputs)
-        frozen_func, _ = convert_variables_to_constants_v2_as_graph(real_model)
+        model = tf.function(self.model).get_concrete_function(inputs)
 
         # Calculate FLOPs with tf.profiler
         run_meta = tf.compat.v1.RunMetadata()
@@ -1065,7 +1060,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         )
 
         flops = tf.compat.v1.profiler.profile(
-            graph=frozen_func.graph, run_meta=run_meta, cmd="scope", options=opts
+            graph=model.graph, run_meta=run_meta, cmd="scope", options=opts
         )
 
         tf.compat.v1.reset_default_graph()
