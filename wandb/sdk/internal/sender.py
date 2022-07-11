@@ -878,15 +878,17 @@ class SendManager:
             return
         if not self._run:
             return
-        now = stats.timestamp.seconds
+        now_ns = stats.timestamp.ToNanoseconds()
+        start_ns = self._run.start_time.ToNanoseconds()
         d = dict()
         for item in stats.item:
             d[item.key] = json.loads(item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
+        # FIXME: turn into microseconds
         row["_wandb"] = True
-        row["_timestamp"] = now
-        row["_runtime"] = int(now - self._run.start_time.ToSeconds())
+        row["_timestamp"] = now_ns / 1**9
+        row["_runtime"] = (now_ns - start_ns) / 1**9
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 

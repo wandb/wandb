@@ -1264,10 +1264,9 @@ class Run:
     ) -> None:
         if row:
             row = self._visualization_hack(row)
-            row["_timestamp"] = int(row.get("_timestamp", time.time()))
-            row["_runtime"] = int(
-                row.get("_runtime", time.time() - self._get_start_time())
-            )
+            now = time.time()
+            row["_timestamp"] = row.get("_timestamp", now)
+            row["_runtime"] = row.get("_runtime", now - self._get_start_time())
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
