@@ -7,6 +7,7 @@ import shutil
 
 import wandb
 from wandb.util import mkdir_exists_ok
+from wandb.sdk.lib.printer import INFO
 
 from tests import utils
 
@@ -459,10 +460,42 @@ def test_exit_poll_local(
     mock_server.ctx["local_none"] = local_none
     publish_util()
 
-    out_of_date = collect_responses.local_info.out_of_date
+    out_of_date = collect_responses.poll_exit_resp.local_info.out_of_date
     if empty_query:
         assert out_of_date
     elif local_none:
         assert not out_of_date
     else:
         assert out_of_date == outdated
+
+
+@pytest.mark.parametrize("messageLevel", ["a20", "None", ""])
+def test_server_response_message_malformed_level(
+    publish_util, mock_server, collect_responses, messageLevel
+):
+    mock_server.ctx["server_settings"] = True
+    mock_server.ctx["server_messages"] = [
+        {
+            "messageLevel": messageLevel,
+        },
+    ]
+    publish_util()
+    server_messages = collect_responses.poll_exit_resp.server_messages.item
+    assert len(server_messages) == 1
+    assert server_messages[0].level == INFO
+
+
+@pytest.mark.parametrize("messageLevel", ["30", 40])
+def test_server_response_message_level(
+    publish_util, mock_server, collect_responses, messageLevel
+):
+    mock_server.ctx["server_settings"] = True
+    mock_server.ctx["server_messages"] = [
+        {
+            "messageLevel": messageLevel,
+        },
+    ]
+    publish_util()
+    server_messages = collect_responses.poll_exit_resp.server_messages.item
+    assert len(server_messages) == 1
+    assert server_messages[0].level == int(messageLevel)

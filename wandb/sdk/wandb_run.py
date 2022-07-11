@@ -44,9 +44,12 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.util import (
+    _is_artifact_object,
     _is_artifact_string,
+    _is_artifact_version_weave_dict,
     _is_py_path,
     add_import_hook,
+    artifact_to_json,
     parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
@@ -61,6 +64,7 @@ from . import wandb_artifacts
 from . import wandb_config
 from . import wandb_metric
 from . import wandb_summary
+from .data_types._dtypes import TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
@@ -76,6 +80,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
+from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
@@ -86,6 +91,11 @@ from .wandb_setup import _WandbSetup
 
 
 if TYPE_CHECKING:
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
+
     from .data_types.base_types.wb_value import WBValue
     from .wandb_alerts import AlertLevel
 
@@ -101,6 +111,26 @@ if TYPE_CHECKING:
         GetSummaryResponse,
         SampledHistoryResponse,
     )
+
+    class GitSourceDict(TypedDict):
+        remote: str
+        commit: str
+        entrypoint: List[str]
+
+    class ArtifactSourceDict(TypedDict):
+        artifact: str
+        entrypoint: List[str]
+
+    class ImageSourceDict(TypedDict):
+        image: str
+
+    class JobSourceDict(TypedDict, total=False):
+        _version: str
+        source_type: str
+        source: Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
+        input_types: Dict[str, Any]
+        output_types: Dict[str, Any]
+        runtime: Optional[str]
 
 
 logger = logging.getLogger("wandb")
@@ -455,6 +485,7 @@ class Run:
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
+        self._code_artifact_info: Optional[Dict[str, str]] = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -927,7 +958,7 @@ class Run:
         Arguments:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
             name: (str, optional) The name of our code artifact. By default, we'll name
-                the artifact `source-$RUN_ID`. There may be scenarios where you want
+                the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
@@ -949,7 +980,11 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name or "{}-{}".format("source", self._run_id)
+        if name is None:
+            name_string = wandb.util.make_artifact_name_safe(
+                f"{self._project}-{self._settings.program_relpath}"
+            )
+            name = f"source-{name_string}"
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -967,6 +1002,8 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
+        self._code_artifact_info = {"name": name, "client_id": art._client_id}
+
         return self._log_artifact(art)
 
     def get_url(self) -> Optional[str]:
@@ -1133,26 +1170,41 @@ class Run:
             self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
-        self, key: str, val: Union[str, Artifact]
+        self, key: str, val: Union[str, Artifact, dict]
     ) -> Union[Artifact, public.Artifact]:
-        if _is_artifact_string(val):
+        # artifacts can look like dicts as they are passed into the run config
+        # since the run config stores them on the backend as a dict with fields shown
+        # in wandb.util.artifact_to_json
+        if _is_artifact_version_weave_dict(val):
+            assert isinstance(val, dict)
+            public_api = self._public_api()
+            artifact = public.Artifact.from_id(val["id"], public_api.client)
+            return self.use_artifact(artifact, use_as=key)
+        elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
-            artifact_string, base_url = parse_artifact_string(val)
+            artifact_string, base_url, is_id = parse_artifact_string(val)
             overrides = {}
             if base_url is not None:
                 overrides = {"base_url": base_url}
                 public_api = public.Api(overrides)
             else:
                 public_api = self._public_api()
-            artifact = public_api.artifact(name=artifact_string)
+            if is_id:
+                artifact = public.Artifact.from_id(artifact_string, public_api._client)
+            else:
+                artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
             # different instances of wandb. simplest way to do that is
             # likely to convert the retrieved public.Artifact to a wandb.Artifact
 
             return self.use_artifact(artifact, use_as=key)
-        else:
+        elif _is_artifact_object(val):
             return self.use_artifact(val, use_as=key)
+        else:
+            raise ValueError(
+                f"Cannot call _config_artifact_callback on type {type(val)}"
+            )
 
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
@@ -1973,15 +2025,169 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+    def _log_job(self) -> None:
+        artifact = None
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
+        import pkg_resources
+
+        installed_packages_list = sorted(
+            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
+        )
+
+        for job_creation_function in [
+            self._create_repo_job,
+            self._create_artifact_job,
+            self._create_image_job,
+        ]:
+            artifact = job_creation_function(
+                input_types, output_types, installed_packages_list
+            )
+            if artifact:
+                break
+            else:
+                logger.info(
+                    f"Failed to create job using {job_creation_function.__name__}"
+                )
+
+    def _construct_job_artifact(
+        self,
+        name: str,
+        source_dict: "JobSourceDict",
+        installed_packages_list: List[str],
+        patch_path: Optional[os.PathLike] = None,
+    ) -> "Artifact":
+        job_artifact = wandb.Artifact(name, type="job")
+        if patch_path and os.path.exists(patch_path):
+            job_artifact.add_file(patch_path, "diff.patch")
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
+        with job_artifact.new_file("source_info.json") as f:
+            f.write(json.dumps(source_dict))
+
+        default_config = {}
+        for k, v in self.config.as_dict().items():
+            if _is_artifact_object(v):
+                default_config[k] = artifact_to_json(v)
+            else:
+                default_config[k] = v
+        job_artifact.metadata["config_defaults"] = default_config
+        return job_artifact
+
+    def _create_repo_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Optional[Artifact]":
+        """Create a job version artifact from a repo."""
+        has_repo = self._remote_url is not None and self._last_commit is not None
+        program_relpath = self._settings.program_relpath
+        if not has_repo or program_relpath is None:
+            return None
+        assert self._remote_url is not None
+        assert self._last_commit is not None
+        name = wandb.util.make_artifact_name_safe(
+            f"job-{self._remote_url}_{program_relpath}"
+        )
+        patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
+
+        source_info: JobSourceDict = {
+            "_version": "v0",
+            "source_type": "repo",
+            "source": {
+                "git": {
+                    "remote": self._remote_url,
+                    "commit": self._last_commit,
+                },
+                "entrypoint": [
+                    sys.executable.split("/")[-1],
+                    program_relpath,
+                ],
+            },
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list, patch_path
+        )
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
+    def _create_artifact_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Optional[Artifact]":
+        if (
+            self._code_artifact_info is None
+            or self._run_obj is None
+            or self._settings.program_relpath is None
+        ):
+            return None
+        artifact_client_id = self._code_artifact_info.get("client_id")
+        name = f"job-{self._code_artifact_info['name']}"
+
+        source_info: JobSourceDict = {
+            "_version": "v0",
+            "source_type": "artifact",
+            "source": {
+                "artifact": f"wandb-artifact://_id/{artifact_client_id}",
+                "entrypoint": [
+                    sys.executable.split("/")[-1],
+                    self._settings.program_relpath,
+                ],
+            },
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list
+        )
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
+    def _create_image_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Optional[Artifact]":
+        docker_image_name = os.getenv("WANDB_DOCKER")
+        if docker_image_name is None:
+            return None
+        name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
+
+        source_info: JobSourceDict = {
+            "_version": "v0",
+            "source_type": "image",
+            "source": {"image": docker_image_name},
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list
+        )
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
     def _on_finish(self) -> None:
         trigger.call("on_finished")
-
         # populate final import telemetry
         with telemetry.context(run=self) as tel:
             self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
+
+        if not self._settings._offline and self._settings.enable_job_creation:
+            self._log_job()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
@@ -2032,46 +2238,6 @@ class Run:
             settings=self._settings,
             printer=self._printer,
         )
-
-    def _save_job_spec(self) -> None:
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
-        varsdict = {"WANDB_DISABLE_CODE": "True"}
-        source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
-        )
-        execdict = dict(
-            program="train.py",
-            directory="keras-cnn-fashion",
-            envvars=varsdict,
-            args=[],
-        )
-        configdict = (dict(self._config),)
-        artifactsdict = dict(
-            dataset="v1",
-        )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
-        job_spec = {
-            "kind": "WandbJob",
-            "version": "v0",
-            "environment": envdict,
-            "source": source,
-            "exec": execdict,
-            "input": inputdict,
-        }
-
-        s = json.dumps(job_spec, indent=4)
-        spec_filename = filenames.JOBSPEC_FNAME
-        with open(spec_filename, "w") as f:
-            print(s, file=f)
-        self._save(spec_filename)
 
     @_run_decorator._attach
     def define_metric(
@@ -2737,9 +2903,9 @@ class Run:
 
         # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
-            printer.display(check_version.delete_message, status="error")
+            printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
-            printer.display(check_version.yank_message, status="warn")
+            printer.display(check_version.yank_message, level="warn")
 
         printer.display(
             check_version.upgrade_message, off=not check_version.upgrade_message
@@ -2840,7 +3006,7 @@ class Run:
             if Api().api.settings().get("anonymous") == "true":
                 printer.display(
                     "Do NOT share these links with anyone. They can be used to claim your runs.",
-                    status="warn",
+                    level="warn",
                 )
 
     # ------------------------------------------------------------------------------
@@ -2886,6 +3052,12 @@ class Run:
         )
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
+        )
+        Run._footer_server_messages(
+            poll_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
         )
 
     @staticmethod
@@ -3191,7 +3363,31 @@ class Run:
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
                     f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
-                    status="warn",
+                    level="warn",
+                )
+
+    @staticmethod
+    def _footer_server_messages(
+        poll_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if settings.disable_hints:
+            return
+
+        if poll_exit_response and poll_exit_response.server_messages:
+            for message in poll_exit_response.server_messages.item:
+                printer.display(
+                    message.html_text if printer._html else message.utf_text,
+                    default_text=message.plain_text,
+                    level=message.level,
+                    off=message.type.lower() != "footer",
                 )
 
     @staticmethod
@@ -3214,9 +3410,9 @@ class Run:
 
         # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
-            printer.display(check_version.delete_message, status="error")
+            printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
-            printer.display(check_version.yank_message, status="warn")
+            printer.display(check_version.yank_message, level="warn")
 
         # only display upgrade message if packages are bad
         package_problem = check_version.delete_message or check_version.yank_message

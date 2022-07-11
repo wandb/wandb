@@ -188,6 +188,7 @@ class Api:
         self.server_info_types: Optional[List[str]] = None
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
+        self._server_settings_type: Optional[List[str]] = None
 
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
@@ -401,7 +402,34 @@ class Api:
             ]
         return self.query_types, self.server_info_types
 
-    def server_use_artifact_input_introspection(self) -> List[str]:
+    @normalize_exceptions
+    def server_settings_introspection(self) -> None:
+        query_string = """
+           query ProbeServerSettings {
+               ServerSettingsType: __type(name: "ServerSettings") {
+                   ...fieldData
+                }
+            }
+
+            fragment fieldData on __Type {
+                fields {
+                    name
+                }
+            }
+        """
+        if self._server_settings_type is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            self._server_settings_type = (
+                [
+                    field.get("name", "")
+                    for field in res.get("ServerSettingsType", {}).get("fields", [{}])
+                ]
+                if res
+                else []
+            )
+
+    def server_use_artifact_input_introspection(self) -> List:
         query_string = """
            query ProbeServerUseArtifactInput {
                UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
@@ -1348,7 +1376,7 @@ class Api:
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
-    ) -> Tuple[dict, bool]:
+    ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run
 
         Arguments:
@@ -1372,8 +1400,8 @@ class Api:
             summary_metrics (str, optional): The JSON summary metrics
             num_retries (int, optional): Number of retries
         """
-        mutation = gql(
-            """
+
+        query_string = """
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -1433,10 +1461,30 @@ class Api:
                     }
                 }
                 inserted
+                _Server_Settings_
             }
         }
         """
+        self.server_settings_introspection()
+
+        server_settings_string = (
+            """
+        serverSettings {
+                serverMessages{
+                    utfText
+                    plainText
+                    htmlText
+                    messageType
+                    messageLevel
+                }
+         }
+        """
+            if self._server_settings_type
+            else ""
         )
+
+        query_string = query_string.replace("_Server_Settings_", server_settings_string)
+        mutation = gql(query_string)
         config_str = json.dumps(config) if config else None
         if not description or description.isspace():
             description = None
@@ -1479,7 +1527,18 @@ class Api:
             if entity_obj:
                 self.set_setting("entity", entity_obj["name"])
 
-        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
+        server_messages = None
+        if self._server_settings_type:
+            server_messages = (
+                response["upsertBucket"]
+                .get("serverSettings", {})
+                .get("serverMessages", [])
+            )
+        return (
+            response["upsertBucket"]["bucket"],
+            response["upsertBucket"]["inserted"],
+            server_messages,
+        )
 
     @normalize_exceptions
     def get_run_info(

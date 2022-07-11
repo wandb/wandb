@@ -404,9 +404,7 @@ def test_kube_user_container(
         }
     }
 
-    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
-        "uri": uri,
         "api": api,
         "resource": "kubernetes",
         "entity": "mock_server_entity",
