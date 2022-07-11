@@ -445,7 +445,7 @@ class SendManager:
             else:
                 transition_state()
         elif state == defer.FLUSH_FS:
-            self._output_finish()
+            self._output_raw_finish()
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
@@ -854,7 +854,7 @@ class SendManager:
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
-        self._output_start()
+        self._output_raw_start()
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
@@ -904,7 +904,7 @@ class SendManager:
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 
-    def _output_start(self) -> None:
+    def _output_raw_start(self) -> None:
         for stream in self._output_streams:
             self._output_queues[stream] = queue.Queue()
             self._output_emulators[stream] = redirect.TerminalEmulator()
@@ -919,7 +919,7 @@ class SendManager:
             self._output_writers[stream].start()
             self._output_readers[stream].start()
 
-    def _output_finish(self) -> None:
+    def _output_raw_finish(self) -> None:
         self._output_stopped.set()
         for stream in self._output_streams:
             if self._output_writers[stream]:
@@ -1225,7 +1225,7 @@ class SendManager:
         logger.info("shutting down sender")
         # if self._tb_watcher:
         #     self._tb_watcher.finish()
-        self._output_finish()
+        self._output_raw_finish()
         if self._dir_watcher:
             self._dir_watcher.finish()
             self._dir_watcher = None

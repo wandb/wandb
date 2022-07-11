@@ -380,6 +380,7 @@ class Run:
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
+    _redirect_raw_cb: Optional[Callable[[str, str], None]]
     _output_writer: Optional["filesystem.CRDedupedFile"]
     _quiet: Optional[bool]
 
@@ -474,6 +475,7 @@ class Run:
         self._hooks = None
         self._teardown_hooks = []
         self._redirect_cb = None
+        self._redirect_raw_cb = None
         self._out_redir = None
         self._err_redir = None
         self.stdout_redirector = None
@@ -1285,6 +1287,11 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
+    def _console_raw_callback(self, name: str, data: str) -> None:
+        # logger.info("console callback: %s, %s", name, data)
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_output_raw(name, data)
+
     def _tensorboard_callback(
         self, logdir: str, save: bool = True, root_logdir: str = ""
     ) -> None:
@@ -1872,13 +1879,13 @@ class Run:
             out_redir = redirect.StreamRawWrapper(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    lambda data: self._redirect_raw_cb("stdout", data),  # type: ignore
                 ],
             )
             err_redir = redirect.StreamRawWrapper(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    lambda data: self._redirect_raw_cb("stderr", data),  # type: ignore
                 ],
             )
         elif console == SettingsConsole.OFF:
@@ -1967,7 +1974,9 @@ class Run:
 
         if self._use_redirect:
             # setup fake callback
+            # TODO: we dont need these redirect callbacks and just use the underlying methods
             self._redirect_cb = self._console_callback
+            self._redirect_raw_cb = self._console_raw_callback
 
         output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
         self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))

@@ -598,7 +598,23 @@ class InterfaceBase:
             print("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
-        self._publish_output(o)
+        self._publish_output_raw(o)
+
+    def publish_output_raw(self, name: str, data: str) -> None:
+        # from vendor.protobuf import google3.protobuf.timestamp
+        # ts = timestamp.Timestamp()
+        # ts.GetCurrentTime()
+        # now = datetime.now()
+        if name == "stdout":
+            otype = pb.OutputRawRecord.OutputType.STDOUT
+        elif name == "stderr":
+            otype = pb.OutputRawRecord.OutputType.STDERR
+        else:
+            # TODO(jhr): throw error?
+            print("unknown type")
+        o = pb.OutputRawRecord(output_type=otype, line=data)
+        o.timestamp.GetCurrentTime()
+        self._publish_output_raw(o)
 
     @abstractmethod
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
