@@ -124,6 +124,9 @@ if TYPE_CHECKING:
     class ImageSourceDict(TypedDict):
         image: str
 
+    class SweepSource(TypedDict):
+        sweep_type: str # classic, raytune, hyperopt, etc
+
     class JobSourceDict(TypedDict, total=False):
         _version: str
         source_type: str
