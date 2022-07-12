@@ -97,7 +97,7 @@ def sweep(
     """Sweep create for controller api and jupyter (eventually for cli)."""
 
     # Project may be only found in the sweep config.
-    if project is None:
+    if project is None and isinstance(sweep, dict):
         project = sweep.get("project", None)
 
     if entity:
