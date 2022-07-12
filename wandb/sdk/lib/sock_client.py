@@ -1,9 +1,9 @@
 import socket
 import struct
 import threading
-from typing import Any, Optional
-from typing import TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 import uuid
+
 from wandb.proto import wandb_server_pb2 as spb
 
 from . import tracelog
