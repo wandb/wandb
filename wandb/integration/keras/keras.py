@@ -1001,10 +1001,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         except (ImportError, RuntimeError, TypeError) as e:
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
-                "W&B Artifacts in the SavedModel format."
+                "as an W&B Artifact in the 'tf' format."
             )
-            self.save_model = False
-            self.save_model_as_artifact = True
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
