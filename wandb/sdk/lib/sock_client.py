@@ -1,6 +1,7 @@
 import socket
 import struct
 import threading
+import time
 from typing import Any, Optional, TYPE_CHECKING
 import uuid
 
@@ -22,6 +23,8 @@ class SockClient:
     _sock: socket.socket
     _data: bytes
     _sockid: str
+    _retry_delay: float
+    _lock: "threading.Lock"
 
     # current header is magic byte "W" followed by 4 byte length of the message
     HEADLEN = 1 + 4
@@ -30,6 +33,7 @@ class SockClient:
         self._data = b""
         # TODO: use safe uuid's (python3.7+) or emulate this
         self._sockid = uuid.uuid4().hex
+        self._retry_delay = 0.1
         self._lock = threading.Lock()
 
     def connect(self, port: int) -> None:
@@ -46,20 +50,32 @@ class SockClient:
     def set_socket(self, sock: socket.socket) -> None:
         self._sock = sock
 
+    def _sendall_with_timeout(self, data: bytes) -> None:
+        total_sent = 0
+        while total_sent < len(data):
+            start_time = time.monotonic()
+            try:
+                sent = self._sock.send(data[total_sent:])
+                # sent equal to 0 indicates a closed socket
+                if sent == 0:
+                    raise RuntimeError("socket connection broken")
+                total_sent += sent
+            # we handle the timeout case in case timeout is set
+            # on a system level by another application
+            except socket.timeout:
+                # adding sleep to avoid tight loop
+                delta_time = time.monotonic() - start_time
+                if delta_time < self._retry_delay:
+                    time.sleep(self._retry_delay - delta_time)
+
     def _send_message(self, msg: Any) -> None:
         tracelog.log_message_send(msg, self._sockid)
         raw_size = msg.ByteSize()
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
         header = struct.pack("<BI", ord("W"), raw_size)
-        total_sent = 0
-        message = header + data
-        while total_sent < len(message):
-            with self._lock:
-                sent = self._sock.send(message[total_sent:])
-            if sent == 0:
-                raise RuntimeError("socket connection broken")
-            total_sent = total_sent + sent
+        with self._lock:
+            self._sendall_with_timeout(header + data)
 
     def send_server_request(self, msg: Any) -> None:
         self._send_message(msg)
