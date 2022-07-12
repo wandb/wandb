@@ -1,9 +1,9 @@
 import socket
 import struct
+import threading
 from typing import Any, Optional
 from typing import TYPE_CHECKING
 import uuid
-
 from wandb.proto import wandb_server_pb2 as spb
 
 from . import tracelog
@@ -30,6 +30,7 @@ class SockClient:
         self._data = b""
         # TODO: use safe uuid's (python3.7+) or emulate this
         self._sockid = uuid.uuid4().hex
+        self._lock = threading.Lock()
 
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -51,7 +52,14 @@ class SockClient:
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
         header = struct.pack("<BI", ord("W"), raw_size)
-        self._sock.sendall(header + data)
+        total_sent = 0
+        message = header + data
+        while total_sent < len(message):
+            with self._lock:
+                sent = self._sock.send(message[total_sent:])
+            if sent == 0:
+                raise RuntimeError("socket connection broken")
+            total_sent = total_sent + sent
 
     def send_server_request(self, msg: Any) -> None:
         self._send_message(msg)
