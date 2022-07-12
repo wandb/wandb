@@ -190,7 +190,7 @@ class SendManager:
 
         # dict of queues
         self._output_stopped = threading.Event()
-        self._output_streams = ("stdout", "stderr")
+        self._output_streams = ()
         self._output_queues = dict()
         self._output_emulators = dict()
         self._output_writers = dict()
@@ -854,6 +854,9 @@ class SendManager:
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
+        # FIXME: this is unsafe as offline doesnt have this
+        if self._settings.console == "wrapraw":
+            self._output_streams = ("stdout", "stderr")
         self._output_raw_start()
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
@@ -978,12 +981,26 @@ class SendManager:
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
-        self._send_output(stream, line)
+        self._send_output_line(stream, line)
 
-    def _send_output(self, stream, data) -> None:
+    def send_output_raw(self, record: "Record") -> None:
+        if not self._fs:
+            return
+        out = record.output_raw
+        stream = "stdout"
+        if out.output_type == wandb_internal_pb2.OutputRawRecord.OutputType.STDERR:
+            stream = "stderr"
+        line = out.line
+        self._send_output_raw(stream, line)
+
+    def _send_output_raw(self, stream, data) -> None:
         self._output_queues[stream].put(data)
 
     def _send_output_line(self, stream, line) -> None:
+        """Combined writer for raw and non raw output lines.
+
+        This is combined because they are both post emulator.
+        """
         prepend = ""
         if stream == "stderr":
             prepend = "ERROR "

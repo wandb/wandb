@@ -642,6 +642,7 @@ class StreamRawWrapper(RedirectBase):
                 try:
                     cb(data)
                 except Exception as e:
+                    # TODO: remove me
                     self._old_write(f"problem: {e}\n")
                     pass
 

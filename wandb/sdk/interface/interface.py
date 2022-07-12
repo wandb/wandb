@@ -598,7 +598,7 @@ class InterfaceBase:
             print("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
-        self._publish_output_raw(o)
+        self._publish_output(o)
 
     def publish_output_raw(self, name: str, data: str) -> None:
         # from vendor.protobuf import google3.protobuf.timestamp
