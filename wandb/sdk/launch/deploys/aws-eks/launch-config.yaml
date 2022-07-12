@@ -74,16 +74,21 @@ roleRef:
 apiVersion: v1
 data:
   launch-config.yaml: |
-    base_url: https://api.wandb.ai # TODO: SET YOUR WANDB BASE URL
-    project: launch-welcome # TODO: SET YOUR ML PROJECT
-    max_jobs: -1 # TODO: SET YOUR MAX CONCURRENT JOBS HERE
+    base_url: https://api.wandb.ai # TODO: set wandb base url
+    project: launch-welcome # TODO: set ml project
+    max_jobs: -1 # TODO: set max concurrent jobs here
     registry:
-      url:  # TODO: SET ECR REPOSITORY URL HERE
-      ecr-provider: AWS # TODO: SET ECR PROVIDER HERE
+      url: # TODO: set ecr repository url here
+      ecr-provider: aws # TODO: set ecr provider here
+      region: us-east-1 # TODO: specify registry region here
     build:
       type: kaniko
-      cloud-provider: AWS # TODO: SET CLOUD PROVIDER HERE
+      cloud-provider: aws # TODO: set cloud provider here
       build-context-store: wandb-build # name here
+    runner: # this can be set to specify default runner configuration
+      type: sagemaker
+      role_arn: # TODO: fill in sagemaker execution role
+      s3_output_path: # TODO: set your sagemaker artifact output bucket
 
 kind: ConfigMap
 metadata:

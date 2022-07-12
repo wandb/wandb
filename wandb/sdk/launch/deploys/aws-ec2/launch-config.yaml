@@ -1,0 +1,16 @@
+version: 1
+project: launch-welcome # TODO: set ml project
+max_jobs: -1 # TODO: set the maximum number of concurrent jobs
+base_url: https://api.wandb.ai # TODO: set api url
+queues:
+ - default
+registry: 
+  url: # TODO: fill in url of ECR Repo
+  ecr-repo-provider: aws
+  region: us-east-1 # TODO: fill in region of ECR repo
+build:
+  type: docker
+runner:
+  type: sagemaker
+  role_arn: # TODO: fill in sagemaker execution role
+  s3_output_path: # TODO: set your sagemaker artifact output bucket
