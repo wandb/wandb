@@ -126,11 +126,12 @@ if TYPE_CHECKING:
 
     class SweepSource(TypedDict):
         sweep_type: str # classic, raytune, hyperopt, etc
+        config: Dict[str, Any]
 
     class JobSourceDict(TypedDict, total=False):
         _version: str
         source_type: str
-        source: Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
+        source: Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict, SweepSource]
         input_types: Dict[str, Any]
         output_types: Dict[str, Any]
         runtime: Optional[str]
@@ -2155,6 +2156,32 @@ class Run:
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
+            "source": {"image": docker_image_name},
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list
+        )
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
+    def _create_sweep_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Optional[Artifact]":
+        docker_image_name = os.getenv("WANDB_DOCKER")
+        if docker_image_name is None:
+            # Warning or just default behavior?
+            pass
+        name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
+
+        source_info: JobSourceDict = {
+            "_version": "v0",
+            "source_type": "sweep",
             "source": {"image": docker_image_name},
             "input_types": input_types,
             "output_types": output_types,
