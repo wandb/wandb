@@ -1497,7 +1497,7 @@ def create_app(user_ctx=None):
                                             {
                                                 "node": {
                                                     "id": "1",
-                                                    "associatedRunId": "1",
+                                                    "associatedRunId": "test",
                                                     "state": "CLAIMED",
                                                 }
                                             }
@@ -1548,7 +1548,7 @@ def create_app(user_ctx=None):
                     {
                         "data": {
                             "popFromRunQueue": {
-                                "runQueueItemId": 1,
+                                "runQueueItemId": "1",
                                 "runSpec": {
                                     "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                     "project": "test_project2",
@@ -1563,7 +1563,7 @@ def create_app(user_ctx=None):
                 {
                     "data": {
                         "popFromRunQueue": {
-                            "runQueueItemId": 1,
+                            "runQueueItemId": "1",
                             "runSpec": {
                                 "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                 "project": "test_project",
@@ -1583,7 +1583,7 @@ def create_app(user_ctx=None):
                 ctx["run_queues"][body["variables"]["queueID"]] = [
                     body["variables"]["queueID"]
                 ]
-            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": "1"}}})
         if "mutation ackRunQueueItem" in body["query"]:
             ctx["num_acked"] += 1
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})

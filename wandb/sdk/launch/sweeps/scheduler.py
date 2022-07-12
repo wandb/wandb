@@ -33,7 +33,7 @@ class SimpleRunState(Enum):
 class SweepRun:
     id: str
     state: SimpleRunState = SimpleRunState.ALIVE
-    launch_job: Optional[public.QueuedJob] = None
+    launch_job: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
     program: Optional[str] = None
@@ -180,7 +180,7 @@ class Scheduler(ABC):
         entry_point: Optional[List[str]] = None,
         run_id: Optional[str] = None,
         params: Optional[Dict[str, Any]] = None,
-    ) -> "public.QueuedJob":
+    ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
         job = launch_add(
