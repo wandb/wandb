@@ -433,7 +433,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 ),
             )
 
-        self.save_model_as_artifact = False
+        self.save_model_as_artifact = True
         self.log_weights = log_weights
         self.log_gradients = log_gradients
         self.training_data = training_data
@@ -608,7 +608,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             if self.save_model:
                 self._save_model(epoch)
 
-            if self.save_model_as_artifact:
+            if self.save_model and self.save_model_as_artifact:
                 self._save_model_as_artifact(epoch)
 
             self.best = self.current
@@ -1001,10 +1001,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         except (ImportError, RuntimeError, TypeError) as e:
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
-                "W&B Artifacts in the SavedModel format."
+                "as an W&B Artifact in the 'tf' format."
             )
-            self.save_model = False
-            self.save_model_as_artifact = True
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
