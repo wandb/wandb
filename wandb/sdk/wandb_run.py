@@ -125,7 +125,7 @@ if TYPE_CHECKING:
         image: str
 
     class SweepSource(TypedDict):
-        sweep_type: str # classic, raytune, hyperopt, etc
+        sweep_type: str  # classic, raytune, hyperopt, etc
         config: Dict[str, Any]
 
     class JobSourceDict(TypedDict, total=False):
