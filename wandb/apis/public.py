@@ -2656,7 +2656,8 @@ class File:
         Raises:
             `ValueError` if file already exists and replace=False
         """
-        path = os.path.join(root, self.name)
+        if os.path.isdir(self.name):
+            raise Exception("A directory cannot be downloaded, please use a file.")
         if os.path.exists(path) and not replace:
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
