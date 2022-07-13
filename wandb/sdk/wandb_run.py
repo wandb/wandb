@@ -1822,9 +1822,12 @@ class Run:
     ) -> None:
         if console is None:
             console = self._settings._console
-        # map wrap to wrap raw for now
+        # only use raw for service to minimize potential changes
         if console == SettingsConsole.WRAP:
-            console = SettingsConsole.WRAP_RAW
+            if self._settings._require_service:
+                console = SettingsConsole.WRAP_RAW
+            else:
+                console = SettingsConsole.WRAP_EMU
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase

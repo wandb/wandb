@@ -1044,7 +1044,7 @@ class SendManager:
                         open(output_log_path, "wb")
                     )
                 except OSError as e:
-                    logger.warning("could not open output_raw_file: {e}")
+                    logger.warning(f"could not open output_raw_file: {e}")
                 if output_raw_file:
                     self._output_raw_file = output_raw_file
             output_raw.start()
