@@ -33,7 +33,7 @@ class SimpleRunState(Enum):
 class SweepRun:
     id: str
     state: SimpleRunState = SimpleRunState.ALIVE
-    launch_job: Optional[public.QueuedRun] = None
+    queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
     program: Optional[str] = None
@@ -183,8 +183,9 @@ class Scheduler(ABC):
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
-        job = launch_add(
+        queued_run = launch_add(
             uri or os.environ.get(wandb.env.DIR, os.getcwd()) or "",
+            job={}, # TODO(hupo)
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,
@@ -193,11 +194,11 @@ class Scheduler(ABC):
             # params=params,
             run_id=run_id,
         )
-        self._runs[run_id].launch_job = job
+        self._runs[run_id].queued_run = queued_run
         _msg = f"Added job to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        return job
+        return queued_run
 
     def _stop_run(self, run_id: str) -> None:
         _msg = f"Stopping run {run_id}."
