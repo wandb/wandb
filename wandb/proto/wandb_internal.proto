@@ -529,11 +529,12 @@ message DeferRequest {
     FLUSH_TB = 3;
     FLUSH_SUM = 4;
     FLUSH_DEBOUNCER = 5;
-    FLUSH_DIR = 6;
-    FLUSH_FP = 7;
-    FLUSH_FS = 8;
-    FLUSH_FINAL = 9;
-    END = 10;
+    FLUSH_OUTPUT = 6;
+    FLUSH_DIR = 7;
+    FLUSH_FP = 8;
+    FLUSH_FS = 9;
+    FLUSH_FINAL = 10;
+    END = 11;
   }
   DeferState state = 1;
   // Internal message, no _info field needed

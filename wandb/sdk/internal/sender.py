@@ -296,7 +296,7 @@ class SendManager:
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
-        if record_type not in {"output", "request"}:
+        if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
         send_handler(record)
@@ -475,6 +475,9 @@ class SendManager:
         elif state == defer.FLUSH_DEBOUNCER:
             self.debounce()
             transition_state()
+        elif state == defer.FLUSH_OUTPUT:
+            self._output_raw_finish()
+            transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
@@ -490,7 +493,6 @@ class SendManager:
             else:
                 transition_state()
         elif state == defer.FLUSH_FS:
-            self._output_raw_finish()
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
