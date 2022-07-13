@@ -130,11 +130,8 @@ class _OutputRawStream:
     _emulator: redirect.TerminalEmulator
     _writer_thr: threading.Thread
     _reader_thr: threading.Thread
-    _output_file: "filesystem.CRDedupedFile"
-    _settings: SettingsStatic
 
-    def __init__(self, stream: str, sm: "SendManager", settings: SettingsStatic):
-        self._settings = settings
+    def __init__(self, stream: str, sm: "SendManager"):
         self._stopped = threading.Event()
         self._queue = queue.Queue()
         self._emulator = redirect.TerminalEmulator()
@@ -150,8 +147,6 @@ class _OutputRawStream:
             daemon=True,
             name=f"OutRawRd-{stream}",
         )
-        output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
-        self._output_file = filesystem.CRDedupedFile(open(output_log_path, "wb"))
 
     def start(self) -> None:
         self._writer_thr.start()
@@ -180,6 +175,7 @@ class SendManager:
     _server_messages: List[Dict[str, Any]]
 
     _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
+    _output_raw_file: Optional[filesystem.CRDedupedFile]
 
     def __init__(
         self,
@@ -241,8 +237,9 @@ class SendManager:
 
         self._exit_code = 0
 
-        # dict of queues
+        # internal vars for handing raw console output
         self._output_raw_streams = dict()
+        self._output_raw_file = None
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
@@ -964,8 +961,10 @@ class SendManager:
 
             # flush output buffers and files
             self._output_raw_flush(stream)
-            output_raw._output_file.close()
         self._output_raw_streams = {}
+        if self._output_raw_file:
+            self._output_raw_file.close()
+            self._output_raw_file = None
 
     def _output_writer_thread(self, stream: "StreamLiterals") -> None:
         while True:
@@ -1007,7 +1006,8 @@ class SendManager:
                 logger.warning(f"problem reading from output_raw emulator: {e}")
         if data:
             self._send_output_line(stream, data)
-            output_raw._output_file.write(data.encode("utf-8"))
+            if self._output_raw_file:
+                self._output_raw_file.write(data.encode("utf-8"))
 
     def send_output(self, record: "Record") -> None:
         if not self._fs:
@@ -1030,10 +1030,23 @@ class SendManager:
 
         output_raw = self._output_raw_streams.get(stream)
         if not output_raw:
-            output_raw = _OutputRawStream(
-                stream=stream, sm=self, settings=self._settings
-            )
+            output_raw = _OutputRawStream(stream=stream, sm=self)
             self._output_raw_streams[stream] = output_raw
+
+            # open the console output file shared between both streams
+            if not self._output_raw_file:
+                output_log_path = os.path.join(
+                    self._settings.files_dir, filenames.OUTPUT_FNAME
+                )
+                output_raw_file = None
+                try:
+                    output_raw_file = filesystem.CRDedupedFile(
+                        open(output_log_path, "wb")
+                    )
+                except OSError as e:
+                    logger.warning("could not open output_raw_file: {e}")
+                if output_raw_file:
+                    self._output_raw_file = output_raw_file
             output_raw.start()
 
         output_raw._queue.put(line)
