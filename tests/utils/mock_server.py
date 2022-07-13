@@ -1440,6 +1440,8 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
                 if "job" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 5, "name": "job"}
+                if "model" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 6, "name": "model"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             if ART_EMU:
