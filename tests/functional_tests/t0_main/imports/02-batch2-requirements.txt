@@ -5,7 +5,7 @@ elegy
 # espnet
 # fairseq
 # fastai>=2.5
-conllu<4.5 # Not directly required, needed to fix flair breakage
+conllu<4.4.3 # Not directly required, needed to fix flair breakage
 flair
 flax
 # greykite
