@@ -1874,7 +1874,7 @@ class Run:
                     self._output_writer.write,  # type: ignore
                 ],
             )
-        elif console == SettingsConsole.WRAPRAW:
+        elif console == SettingsConsole.WRAP_RAW:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamRawWrapper(
                 src="stdout",

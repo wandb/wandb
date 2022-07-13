@@ -179,7 +179,8 @@ class SettingsConsole(enum.IntEnum):
     OFF = 0
     WRAP = 1
     REDIRECT = 2
-    WRAPRAW = 3
+    WRAP_RAW = 3
+    WRAP_EMU = 4
 
 
 class Property:
@@ -752,7 +753,8 @@ class Settings:
             "redirect",
             "off",
             "wrap",
-            "wrapraw",
+            "wrap_emu",
+            "wrap_raw",
         }
         if value not in choices:
             raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
@@ -900,7 +902,8 @@ class Settings:
         convert_dict: Dict[str, SettingsConsole] = dict(
             off=SettingsConsole.OFF,
             wrap=SettingsConsole.WRAP,
-            wrapraw=SettingsConsole.WRAPRAW,
+            wrap_raw=SettingsConsole.WRAP_RAW,
+            wrap_emu=SettingsConsole.WRAP_EMU,
             redirect=SettingsConsole.REDIRECT,
         )
         console: str = str(self.console)

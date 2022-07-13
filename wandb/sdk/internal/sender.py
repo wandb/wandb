@@ -41,6 +41,7 @@ from ..lib import config_util, filenames, printer, proto_util, telemetry, tracel
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 
+
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactRecord,
@@ -51,6 +52,11 @@ if TYPE_CHECKING:
         RunExitResult,
         RunRecord,
     )
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:
+        from typing_extensions import Literal
 
 
 logger = logging.getLogger(__name__)
@@ -106,8 +112,32 @@ class ResumeState:
         return f"ResumeState({obj})"
 
 
-class SendManager:
+class _OutputRawStream:
+    _stopped: threading.Event
+    _queue: queue.Queue
+    _emulator: redirect.TerminalEmulator
+    _writer: threading.Thread
+    _reader: threading.Thread
 
+    def __init__(self, stream: str, sm: "SendManager"):
+        self._stopped = threading.Event()
+        self._queue = queue.Queue()
+        self._emulator = redirect.TerminalEmulator()
+        self._writer = threading.Thread(
+                target=sm._output_writer_thread, kwargs=dict(stream=stream)
+            )
+        self._reader = threading.Thread(
+                target=sm._output_reader_thread, kwargs=dict(stream=stream)
+            )
+        self._writer.daemon = True
+        self._reader.daemon = True
+
+    def start(self):
+        self._writer.start()
+        self._reader.start()
+
+
+class SendManager:
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
@@ -127,6 +157,8 @@ class SendManager:
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
+
+    _output_raw_streams: Dict["Literal[stdout,stderr]", _OutputRawStream]
 
     def __init__(
         self,
@@ -189,12 +221,7 @@ class SendManager:
         self._exit_code = 0
 
         # dict of queues
-        self._output_stopped = threading.Event()
-        self._output_streams = ()
-        self._output_queues = dict()
-        self._output_emulators = dict()
-        self._output_writers = dict()
-        self._output_readers = dict()
+        self._output_raw_streams = dict()
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
@@ -854,10 +881,6 @@ class SendManager:
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
-        # FIXME: this is unsafe as offline doesnt have this
-        if self._settings.console == "wrapraw":
-            self._output_streams = ("stdout", "stderr")
-        self._output_raw_start()
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
@@ -907,69 +930,56 @@ class SendManager:
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 
-    def _output_raw_start(self) -> None:
-        for stream in self._output_streams:
-            self._output_queues[stream] = queue.Queue()
-            self._output_emulators[stream] = redirect.TerminalEmulator()
-            self._output_readers[stream] = threading.Thread(
-                target=self._output_reader_thread, kwargs=dict(stream=stream)
-            )
-            self._output_writers[stream] = threading.Thread(
-                target=self._output_writer_thread, kwargs=dict(stream=stream)
-            )
-            self._output_writers[stream].daemon = True
-            self._output_readers[stream].daemon = True
-            self._output_writers[stream].start()
-            self._output_readers[stream].start()
-
     def _output_raw_finish(self) -> None:
-        self._output_stopped.set()
-        for stream in self._output_streams:
-            if self._output_writers[stream]:
-                self._output_writers[stream].join(timeout=5)
-                if self._output_writers[stream].is_alive():
-                    print("processing output...")
-                    self._output_writers[stream].join()
-                self._output_writers[stream] = None
-            if self._output_readers[stream]:
-                self._output_readers[stream].join()
-                self._output_readers[stream] = None
-            self._output_flush(stream)
+        for stream, output_raw in self._output_raw_streams.items():
+            output_raw._stopped.set()
+            output_raw._writer.join(timeout=5)
+            if output_raw._writer.is_alive():
+                logger.info("processing output...")
+                output_raw._writer.join()
+            output_raw._reader.join()
+
+            self._output_raw_flush(stream)
 
     def _output_writer_thread(self, stream) -> None:
         while True:
-            if self._output_queues[stream].empty():
-                if self._output_stopped.is_set():
+            output_raw = self._output_raw_streams[stream]
+            if output_raw._queue.empty():
+                if output_raw._stopped.is_set():
                     return
                 time.sleep(0.5)
                 continue
             data = []
-            while not self._output_queues[stream].empty():
-                data.append(self._output_queues[stream].get())
-            if self._output_stopped.is_set() and sum(map(len, data)) > 100000:
-                wandb.termlog("Terminal output too large. Logging without processing.")
-                self._output_flush(stream)
-                [self._output_flush(stream, line.encode("utf-8")) for line in data]
+            while not output_raw._queue.empty():
+                data.append(output_raw._queue.get())
+            if output_raw._stopped.is_set() and sum(map(len, data)) > 100000:
+                logger.warning(f"Terminal output too large. Logging without processing.")
+                self._output_raw_flush(stream)
+                for line in data:
+                    # TODO: is this encoding step needed?
+                    self._output_raw_flush(stream, line.encode("utf-8"))
+                # TODO: lets mark that this happened in telemetry
                 return
             try:
-                self._output_emulators[stream].write("".join(data))
-            except Exception:
-                pass
+                output_raw._emulator.write("".join(data))
+            except Exception as e:
+                logger.warning(f"problem writing to output_raw emulator: {e}")
 
     def _output_reader_thread(self, stream) -> None:
+        output_raw = self._output_raw_streams[stream]
         while not (
-            self._output_stopped.is_set() and self._output_queues[stream].empty()
+            output_raw._stopped.is_set() and output_raw._queue.empty()
         ):
-            self._output_flush(stream)
+            self._output_raw_flush(stream)
             time.sleep(_OUTPUT_MIN_CALLBACK_INTERVAL)
 
-    def _output_flush(self, stream, data=None):
+    def _output_raw_flush(self, stream, data=None):
         if data is None:
+            output_raw = self._output_raw_streams[stream]
             try:
-                # data = self._output_emulators[stream].read().encode("utf-8")
-                data = self._output_emulators[stream].read()
-            except Exception:
-                pass
+                data = output_raw._emulator.read()
+            except Exception as e:
+                logger.warning(f"problem reading from output_raw emulator: {e}")
         if data:
             self._send_output_line(stream, data)
 
@@ -991,10 +1001,14 @@ class SendManager:
         if out.output_type == wandb_internal_pb2.OutputRawRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
-        self._send_output_raw(stream, line)
 
-    def _send_output_raw(self, stream, data) -> None:
-        self._output_queues[stream].put(data)
+        output_raw = self._output_raw_streams.get(stream)
+        if not output_raw:
+            output_raw = _OutputRawStream(stream=stream, sm=self)
+            self._output_raw_streams[stream] = output_raw
+            output_raw.start()
+
+        output_raw._queue.put(line)
 
     def _send_output_line(self, stream, line) -> None:
         """Combined writer for raw and non raw output lines.

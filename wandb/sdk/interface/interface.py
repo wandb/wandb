@@ -600,6 +600,10 @@ class InterfaceBase:
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
 
+    @abstractmethod
+    def _publish_output(self, outdata: pb.OutputRecord) -> None:
+        raise NotImplementedError
+
     def publish_output_raw(self, name: str, data: str) -> None:
         # from vendor.protobuf import google3.protobuf.timestamp
         # ts = timestamp.Timestamp()
@@ -617,7 +621,7 @@ class InterfaceBase:
         self._publish_output_raw(o)
 
     @abstractmethod
-    def _publish_output(self, outdata: pb.OutputRecord) -> None:
+    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
         raise NotImplementedError
 
     def publish_pause(self) -> None:
