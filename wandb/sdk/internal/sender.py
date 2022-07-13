@@ -37,7 +37,15 @@ from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import config_util, filenames, printer, proto_util, telemetry, tracelog
+from ..lib import (
+    config_util,
+    filenames,
+    filesystem,
+    printer,
+    proto_util,
+    telemetry,
+    tracelog,
+)
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
 
@@ -120,25 +128,34 @@ class _OutputRawStream:
     _stopped: threading.Event
     _queue: queue.Queue
     _emulator: redirect.TerminalEmulator
-    _writer: threading.Thread
-    _reader: threading.Thread
+    _writer_thr: threading.Thread
+    _reader_thr: threading.Thread
+    _output_file: "filesystem.CRDedupFile"
+    _settings: SettingsStatic
 
-    def __init__(self, stream: str, sm: "SendManager"):
+    def __init__(self, stream: str, sm: "SendManager", settings: SettingsStatic):
+        self._settings = settings
         self._stopped = threading.Event()
         self._queue = queue.Queue()
         self._emulator = redirect.TerminalEmulator()
-        self._writer = threading.Thread(
-            target=sm._output_writer_thread, kwargs=dict(stream=stream)
+        self._writer_thr = threading.Thread(
+            target=sm._output_writer_thread,
+            kwargs=dict(stream=stream),
+            daemon=True,
+            name=f"OutRawWr-{stream}",
         )
-        self._reader = threading.Thread(
-            target=sm._output_reader_thread, kwargs=dict(stream=stream)
+        self._reader_thr = threading.Thread(
+            target=sm._output_reader_thread,
+            kwargs=dict(stream=stream),
+            daemon=True,
+            name=f"OutRawRd-{stream}",
         )
-        self._writer.daemon = True
-        self._reader.daemon = True
+        output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
+        self._output_file = filesystem.CRDedupedFile(open(output_log_path, "wb"))
 
     def start(self) -> None:
-        self._writer.start()
-        self._reader.start()
+        self._writer_thr.start()
+        self._reader_thr.start()
 
 
 class SendManager:
@@ -937,13 +954,18 @@ class SendManager:
     def _output_raw_finish(self) -> None:
         for stream, output_raw in self._output_raw_streams.items():
             output_raw._stopped.set()
-            output_raw._writer.join(timeout=5)
-            if output_raw._writer.is_alive():
-                logger.info("processing output...")
-                output_raw._writer.join()
-            output_raw._reader.join()
 
+            # shut down threads
+            output_raw._writer_thr.join(timeout=5)
+            if output_raw._writer_thr.is_alive():
+                logger.info("processing output...")
+                output_raw._writer_thr.join()
+            output_raw._reader_thr.join()
+
+            # flush output buffers and files
             self._output_raw_flush(stream)
+            output_raw._output_file.close()
+        self._output_raw_streams = {}
 
     def _output_writer_thread(self, stream: "StreamLiterals") -> None:
         while True:
@@ -985,6 +1007,7 @@ class SendManager:
                 logger.warning(f"problem reading from output_raw emulator: {e}")
         if data:
             self._send_output_line(stream, data)
+            output_raw._output_file.write(data.encode("utf-8"))
 
     def send_output(self, record: "Record") -> None:
         if not self._fs:
@@ -1007,7 +1030,9 @@ class SendManager:
 
         output_raw = self._output_raw_streams.get(stream)
         if not output_raw:
-            output_raw = _OutputRawStream(stream=stream, sm=self)
+            output_raw = _OutputRawStream(
+                stream=stream, sm=self, settings=self._settings
+            )
             self._output_raw_streams[stream] = output_raw
             output_raw.start()
 

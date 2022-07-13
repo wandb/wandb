@@ -1822,6 +1822,9 @@ class Run:
     ) -> None:
         if console is None:
             console = self._settings._console
+        # map wrap to wrap raw for now
+        if console == SettingsConsole.WRAP:
+            console = SettingsConsole.WRAP_RAW
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
@@ -1858,7 +1861,7 @@ class Run:
                     self._redirect(None, None, console=SettingsConsole.WRAP)
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == SettingsConsole.WRAP:
+        elif console == SettingsConsole.WRAP_EMU:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
