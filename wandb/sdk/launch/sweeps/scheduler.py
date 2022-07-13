@@ -175,7 +175,7 @@ class Scheduler(ABC):
 
     def _add_to_launch_queue(
         self,
-        uri: Optional[str] = None,
+        # uri: Optional[str] = None,
         resource: Optional[str] = None,
         entry_point: Optional[List[str]] = None,
         run_id: Optional[str] = None,
@@ -184,8 +184,9 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
         queued_run = launch_add(
-            uri or os.environ.get(wandb.env.DIR, os.getcwd()) or "",
-            job={}, # TODO(hupo)
+            # uri or os.environ.get(wandb.env.DIR, os.getcwd()) or "",
+            uri=f"{self._entity}/{self._project}/{run_id}",
+            job="foo",  # TODO(hupo)
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,
