@@ -753,10 +753,13 @@ class Settings:
             "redirect",
             "off",
             "wrap",
+            # internal console states
             "wrap_emu",
             "wrap_raw",
         }
         if value not in choices:
+            # do not advertise internal console states
+            choices -= {"wrap_emu", "wrap_raw"}
             raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
         return True
 

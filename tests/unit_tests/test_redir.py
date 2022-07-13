@@ -233,6 +233,8 @@ def test_run_with_console_redirect(test_settings, capfd, console):
 
 @pytest.mark.parametrize("console", console_modes)
 def test_offline_compression(test_settings, capfd, runner, console):
+    if console == "wrap":
+        pytest.skip("skip test because wrap_raw internals have changed")
     with capfd.disabled():
         test_settings.update(
             mode="offline",
@@ -335,6 +337,8 @@ def test_no_numpy(test_settings, capfd, runner, console):
 
 @pytest.mark.parametrize("console", console_modes)
 def test_memory_leak2(test_settings, capfd, runner, console):
+    if console == "wrap":
+        pytest.skip("skip test because wrap_raw internals have changed")
     test_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
         run = wandb.init(settings=test_settings)

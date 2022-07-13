@@ -130,7 +130,7 @@ class _OutputRawStream:
     _emulator: redirect.TerminalEmulator
     _writer_thr: threading.Thread
     _reader_thr: threading.Thread
-    _output_file: "filesystem.CRDedupFile"
+    _output_file: "filesystem.CRDedupedFile"
     _settings: SettingsStatic
 
     def __init__(self, stream: str, sm: "SendManager", settings: SettingsStatic):
