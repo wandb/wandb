@@ -53,10 +53,14 @@ if TYPE_CHECKING:
         RunRecord,
     )
 
+    import sys
+
     if sys.version_info >= (3, 8):
         from typing import Literal
     else:
         from typing_extensions import Literal
+
+    StreamLiterals = Literal["stdout", "stderr"]
 
 
 logger = logging.getLogger(__name__)
@@ -132,7 +136,7 @@ class _OutputRawStream:
         self._writer.daemon = True
         self._reader.daemon = True
 
-    def start(self):
+    def start(self) -> None:
         self._writer.start()
         self._reader.start()
 
@@ -158,7 +162,7 @@ class SendManager:
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
 
-    _output_raw_streams: Dict["Literal[stdout,stderr]", _OutputRawStream]
+    _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
 
     def __init__(
         self,
@@ -941,7 +945,7 @@ class SendManager:
 
             self._output_raw_flush(stream)
 
-    def _output_writer_thread(self, stream) -> None:
+    def _output_writer_thread(self, stream: "StreamLiterals") -> None:
         while True:
             output_raw = self._output_raw_streams[stream]
             if output_raw._queue.empty():
@@ -953,13 +957,10 @@ class SendManager:
             while not output_raw._queue.empty():
                 data.append(output_raw._queue.get())
             if output_raw._stopped.is_set() and sum(map(len, data)) > 100000:
-                logger.warning(
-                    f"Terminal output too large. Logging without processing."
-                )
+                logger.warning("Terminal output too large. Logging without processing.")
                 self._output_raw_flush(stream)
                 for line in data:
-                    # TODO: is this encoding step needed?
-                    self._output_raw_flush(stream, line.encode("utf-8"))
+                    self._output_raw_flush(stream, line)
                 # TODO: lets mark that this happened in telemetry
                 return
             try:
@@ -967,13 +968,15 @@ class SendManager:
             except Exception as e:
                 logger.warning(f"problem writing to output_raw emulator: {e}")
 
-    def _output_reader_thread(self, stream) -> None:
+    def _output_reader_thread(self, stream: "StreamLiterals") -> None:
         output_raw = self._output_raw_streams[stream]
         while not (output_raw._stopped.is_set() and output_raw._queue.empty()):
             self._output_raw_flush(stream)
             time.sleep(_OUTPUT_MIN_CALLBACK_INTERVAL)
 
-    def _output_raw_flush(self, stream, data=None):
+    def _output_raw_flush(
+        self, stream: "StreamLiterals", data: Optional[str] = None
+    ) -> None:
         if data is None:
             output_raw = self._output_raw_streams[stream]
             try:
@@ -987,7 +990,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output
-        stream = "stdout"
+        stream: "StreamLiterals" = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
@@ -997,7 +1000,7 @@ class SendManager:
         if not self._fs:
             return
         out = record.output_raw
-        stream = "stdout"
+        stream: "StreamLiterals" = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRawRecord.OutputType.STDERR:
             stream = "stderr"
         line = out.line
@@ -1010,7 +1013,7 @@ class SendManager:
 
         output_raw._queue.put(line)
 
-    def _send_output_line(self, stream, line) -> None:
+    def _send_output_line(self, stream: "StreamLiterals", line: str) -> None:
         """Combined writer for raw and non raw output lines.
 
         This is combined because they are both post emulator.
@@ -1033,7 +1036,8 @@ class SendManager:
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
             line = f"{prepend}{timestamp}{prev_str}{line}"
-            self._fs.push(filenames.OUTPUT_FNAME, line)
+            if self._fs:
+                self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
     def _update_config(self) -> None:
