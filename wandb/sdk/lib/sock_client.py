@@ -50,7 +50,10 @@ class SockClient:
     def set_socket(self, sock: socket.socket) -> None:
         self._sock = sock
 
-    def _sendall_with_timeout(self, data: bytes) -> None:
+    def _sendall_with_error_handle(self, data: bytes) -> None:
+        # This is a helper function for sending data in a retry fashion.
+        # Similar to the sendall() function in the socket module, but with a
+        # an error handling in case of timeout.
         total_sent = 0
         while total_sent < len(data):
             start_time = time.monotonic()
@@ -58,9 +61,9 @@ class SockClient:
                 sent = self._sock.send(data[total_sent:])
                 # sent equal to 0 indicates a closed socket
                 if sent == 0:
-                    raise RuntimeError("socket connection broken")
+                    raise SockClientClosedError("socket connection broken")
                 total_sent += sent
-            # we handle the timeout case in case timeout is set
+            # we handle the timeout case for the cases when timeout is set
             # on a system level by another application
             except socket.timeout:
                 # adding sleep to avoid tight loop
@@ -75,7 +78,7 @@ class SockClient:
         assert len(data) == raw_size, "invalid serialization"
         header = struct.pack("<BI", ord("W"), raw_size)
         with self._lock:
-            self._sendall_with_timeout(header + data)
+            self._sendall_with_error_handle(header + data)
 
     def send_server_request(self, msg: Any) -> None:
         self._send_message(msg)
