@@ -2649,15 +2649,16 @@ class File:
         """Downloads a file previously saved by a run from the wandb server.
 
         Arguments:
+            root (str): Local directory or file path to save the file. Defaults to ".".
             replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
-            root (str): Local directory to save the file.  Defaults to ".".
 
         Raises:
             `ValueError` if file already exists and replace=False
         """
         if os.path.isdir(self.name):
             raise Exception("A directory cannot be downloaded, please use a file.")
+        path = os.path.join(root, self.name) if os.path.isdir(root) else root
         if os.path.exists(path) and not replace:
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
