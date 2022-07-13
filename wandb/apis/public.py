@@ -1916,10 +1916,8 @@ class Run(Attrs):
     def upload_file(self, path, root="."):
         """
         Arguments:
-            path (str): name of file to upload.
-            root (str): the root path to save the file relative to.  i.e.
-                If you want to have the file saved in the run as "my_dir/file.txt"
-                and you're currently in "my_dir" you would set root to "../"
+            path (str): local path to the file to upload.
+            root (str): the root path to save the file in wandb.
 
         Returns:
             A `File` matching the name argument.
@@ -1929,9 +1927,10 @@ class Run(Attrs):
             retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
-        root = os.path.abspath(root)
-        name = os.path.relpath(path, root)
-        with open(os.path.join(root, name), "rb") as f:
+        cwd = os.getcwd()
+        name = (f"{root}/{os.path.basename(path)}").replace("./", "") if os.path.isdir(root) else root
+        path = os.path.relpath(path, cwd)
+        with open(os.path.normpath(os.path.join(cwd, path)), "rb") as f:
             api.push({util.to_forward_slash_path(name): f})
         return Files(self.client, self, [name])[0]
 
