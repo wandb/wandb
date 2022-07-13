@@ -124,11 +124,11 @@ class _OutputRawStream:
         self._queue = queue.Queue()
         self._emulator = redirect.TerminalEmulator()
         self._writer = threading.Thread(
-                target=sm._output_writer_thread, kwargs=dict(stream=stream)
-            )
+            target=sm._output_writer_thread, kwargs=dict(stream=stream)
+        )
         self._reader = threading.Thread(
-                target=sm._output_reader_thread, kwargs=dict(stream=stream)
-            )
+            target=sm._output_reader_thread, kwargs=dict(stream=stream)
+        )
         self._writer.daemon = True
         self._reader.daemon = True
 
@@ -953,7 +953,9 @@ class SendManager:
             while not output_raw._queue.empty():
                 data.append(output_raw._queue.get())
             if output_raw._stopped.is_set() and sum(map(len, data)) > 100000:
-                logger.warning(f"Terminal output too large. Logging without processing.")
+                logger.warning(
+                    f"Terminal output too large. Logging without processing."
+                )
                 self._output_raw_flush(stream)
                 for line in data:
                     # TODO: is this encoding step needed?
@@ -967,9 +969,7 @@ class SendManager:
 
     def _output_reader_thread(self, stream) -> None:
         output_raw = self._output_raw_streams[stream]
-        while not (
-            output_raw._stopped.is_set() and output_raw._queue.empty()
-        ):
+        while not (output_raw._stopped.is_set() and output_raw._queue.empty()):
             self._output_raw_flush(stream)
             time.sleep(_OUTPUT_MIN_CALLBACK_INTERVAL)
 
