@@ -11,6 +11,7 @@ from unittest import mock
 import numpy as np
 import pytest
 import wandb
+from wandb import env
 from wandb import wandb_sdk
 from wandb.errors import MultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
@@ -785,9 +786,8 @@ def test_repo_job_creation(
     run.finish()
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
-
     assert artifact_name == wandb.util.make_artifact_name_safe(
-        f"job-{run._settings.git_remote}_{run._settings.program_relpath}"
+        f"job-{run._settings.git_remote_url}_{run._settings.program_relpath}"
     )
 
 
@@ -819,3 +819,37 @@ def test_container_job_creation(live_mock_server, test_settings):
         ctx = live_mock_server.get_ctx()
         artifact_name = list(ctx["artifacts"].keys())[0]
         assert artifact_name == "job-dummy-container_v0"
+
+
+def test_manual_git_run_metadata_from_settings(live_mock_server, test_settings):
+    remote_url = "git@github.com:me/my-repo.git"
+    commit_hash = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    test_settings.update(
+        {
+            "git_remote_url": remote_url,
+            "git_last_commit": commit_hash",
+        }
+    )
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    assert ctx["git"]["remote"] == remote_url
+    assert ctx["git"]["commit"] == commit_hash
+
+
+def test_manual_git_run_metadata_from_environ(live_mock_server, test_settings):
+    remote_url = "git@github.com:me/my-repo.git"
+    commit_hash = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    with mock.patch.dict(
+        os.environ,
+        {
+            env.GIT_REMOTE_URL: remote_url,
+            env.GIT_LAST_COMMIT: commit_hash,
+        },
+    ):
+        run = wandb.init(settings=test_settings)
+        run.finish()
+
+    ctx = live_mock_server.get_ctx()
+    assert ctx["git"]["remote"] == remote_url
+    assert ctx["git"]["commit"] == commit_hash
