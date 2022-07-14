@@ -16,4 +16,4 @@ assert:
     - after progress 
   - :op:contains_regex:
     - :wandb:runs[0][output][stdout]
-    - before progress 
+    - final progress

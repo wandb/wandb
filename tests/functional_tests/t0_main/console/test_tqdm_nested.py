@@ -13,3 +13,4 @@ for outer in tqdm.tqdm([10, 20, 30, 40, 50], desc=" outer", position=0):
         time.sleep(0.05)
 print("done!")
 print("after progress", file=sys.stderr)
+print("final progress")

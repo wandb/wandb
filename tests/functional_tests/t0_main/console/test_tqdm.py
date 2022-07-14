@@ -10,3 +10,4 @@ print("before progress")
 for _ in tqdm.tqdm(range(100), ascii=" 123456789#"):
     time.sleep(0.1)
 print("after progress", file=sys.stderr)
+print("final progress")
