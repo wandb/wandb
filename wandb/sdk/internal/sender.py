@@ -136,13 +136,13 @@ class _OutputRawStream:
         self._queue = queue.Queue()
         self._emulator = redirect.TerminalEmulator()
         self._writer_thr = threading.Thread(
-            target=sm._output_writer_thread,
+            target=sm._output_raw_writer_thread,
             kwargs=dict(stream=stream),
             daemon=True,
             name=f"OutRawWr-{stream}",
         )
         self._reader_thr = threading.Thread(
-            target=sm._output_reader_thread,
+            target=sm._output_raw_reader_thread,
             kwargs=dict(stream=stream),
             daemon=True,
             name=f"OutRawRd-{stream}",
@@ -968,7 +968,7 @@ class SendManager:
             self._output_raw_file.close()
             self._output_raw_file = None
 
-    def _output_writer_thread(self, stream: "StreamLiterals") -> None:
+    def _output_raw_writer_thread(self, stream: "StreamLiterals") -> None:
         while True:
             output_raw = self._output_raw_streams[stream]
             if output_raw._queue.empty():
@@ -991,7 +991,7 @@ class SendManager:
             except Exception as e:
                 logger.warning(f"problem writing to output_raw emulator: {e}")
 
-    def _output_reader_thread(self, stream: "StreamLiterals") -> None:
+    def _output_raw_reader_thread(self, stream: "StreamLiterals") -> None:
         output_raw = self._output_raw_streams[stream]
         while not (output_raw._stopped.is_set() and output_raw._queue.empty()):
             self._output_raw_flush(stream)
@@ -1064,6 +1064,9 @@ class SendManager:
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             if line.startswith("\r"):
+                # TODO: maybe we shouldnt just drop this, what if there was some \ns in the partial
+                # that should probably be the check instead of not line.endswith(\n")
+                # logger.info(f"Dropping data {self._partial_output[stream]}")
                 self._partial_output[stream] = ""
             self._partial_output[stream] += line
             # TODO(jhr): how do we make sure this gets flushed?
