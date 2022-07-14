@@ -8,5 +8,5 @@ run = wandb.init()
 wandb.log(dict(this=2))
 print("before emoji")
 for i in range(100):
-    print(f"line-{i}-😃")
+    print(f"line-{i}-\N{grinning face}")
 print("after emoji", file=sys.stderr)

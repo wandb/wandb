@@ -19,4 +19,4 @@ assert:
     - before emoji 
   - :op:contains_regex:
     - :wandb:runs[0][output][stdout]
-    - "line-92-😃"
+    - "line-92-😀"
