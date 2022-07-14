@@ -1922,15 +1922,21 @@ class Run(Attrs):
         Returns:
             A `File` matching the name argument.
         """
+        path = os.path.normpath(os.path.join(os.getcwd(), os.path.relpath(path, os.getcwd())))
+        if not os.path.isfile(path):
+            raise Exception(f"File {path} doesn't exist!")
+        if root == "/":
+            raise Exception("'/' is not a valid directory, to use the root directory use '.' instead.")
+        root_ext = os.path.splitext(root)[1]
+        if root_ext not in [os.path.splitext(path)[1], ""]:
+            raise Exception(f"Local file extension doesn't match target file extension!")
+        name = os.path.normpath(f"{root}/{os.path.basename(path)}" if root_ext == "" else root)
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
             retry_timedelta=RETRY_TIMEDELTA,
         )
         api.set_current_run_id(self.id)
-        cwd = os.getcwd()
-        name = (f"{root}/{os.path.basename(path)}").replace("./", "") if os.path.isdir(root) else root
-        path = os.path.relpath(path, cwd)
-        with open(os.path.normpath(os.path.join(cwd, path)), "rb") as f:
+        with open(path, "rb") as f:
             api.push({util.to_forward_slash_path(name): f})
         return Files(self.client, self, [name])[0]
 
