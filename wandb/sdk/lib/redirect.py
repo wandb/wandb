@@ -641,9 +641,9 @@ class StreamRawWrapper(RedirectBase):
             for cb in self.cbs:
                 try:
                     cb(data)
-                except Exception as e:
-                    # TODO: remove me
-                    self._old_write(f"problem: {e}\n")
+                except Exception:
+                    # TODO: Figure out why this was needed and log or error out appropriately
+                    # it might have been strange terminals? maybe shutdown cases?
                     pass
 
         stream.write = write

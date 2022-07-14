@@ -395,7 +395,6 @@ class Run:
     _final_summary: Optional["GetSummaryResponse"]
     _poll_exit_response: Optional[PollExitResponse]
 
-    _use_redirect: bool
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
     _artifact_slots: List[str]
@@ -474,14 +473,8 @@ class Run:
 
         self._hooks = None
         self._teardown_hooks = []
-        self._redirect_cb = None
-        self._redirect_raw_cb = None
         self._out_redir = None
         self._err_redir = None
-        self.stdout_redirector = None
-        self.stderr_redirector = None
-        self._save_stdout = None
-        self._save_stderr = None
         self._stdout_slave_fd = None
         self._stderr_slave_fd = None
         self._exit_code = None
@@ -511,7 +504,6 @@ class Run:
         self._telemetry_obj_dirty = False
 
         self._atexit_cleanup_called = False
-        self._use_redirect = True
 
         # Pull info from settings
         self._init_from_settings(self._settings)
@@ -1832,19 +1824,31 @@ class Run:
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
+
+        # raw output handles the output_log writing in the internal process
+        if console in {SettingsConsole.REDIRECT, SettingsConsole.WRAP_EMU}:
+            output_log_path = os.path.join(
+                self._settings.files_dir, filenames.OUTPUT_FNAME
+            )
+            # output writer might have been setup, see wrap_fallback case
+            if not self._output_writer:
+                self._output_writer = filesystem.CRDedupedFile(
+                    open(output_log_path, "wb")
+                )
+
         if console == SettingsConsole.REDIRECT:
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.Redirect(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
@@ -1869,14 +1873,14 @@ class Run:
             out_redir = redirect.StreamWrapper(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
@@ -1885,13 +1889,13 @@ class Run:
             out_redir = redirect.StreamRawWrapper(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_raw_cb("stdout", data),  # type: ignore
+                    lambda data: self._console_raw_callback("stdout", data),
                 ],
             )
             err_redir = redirect.StreamRawWrapper(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_raw_cb("stderr", data),  # type: ignore
+                    lambda data: self._console_raw_callback("stderr", data),
                 ],
             )
         elif console == SettingsConsole.OFF:
@@ -1912,21 +1916,10 @@ class Run:
     def _restore(self) -> None:
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
-        if self._use_redirect:
-            if self._out_redir:
-                self._out_redir.uninstall()
-            if self._err_redir:
-                self._err_redir.uninstall()
-            return
-
-        if self.stdout_redirector:
-            self.stdout_redirector.restore()
-        if self.stderr_redirector:
-            self.stderr_redirector.restore()
-        if self._save_stdout:
-            sys.stdout = self._save_stdout
-        if self._save_stderr:
-            sys.stderr = self._save_stderr
+        if self._out_redir:
+            self._out_redir.uninstall()
+        if self._err_redir:
+            self._err_redir.uninstall()
         logger.info("restore done")
 
     def _atexit_cleanup(self, exit_code: int = None) -> None:
@@ -1978,14 +1971,6 @@ class Run:
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
-        if self._use_redirect:
-            # setup fake callback
-            # TODO: we dont need these redirect callbacks and just use the underlying methods
-            self._redirect_cb = self._console_callback
-            self._redirect_raw_cb = self._console_raw_callback
-
-        output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
-        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
