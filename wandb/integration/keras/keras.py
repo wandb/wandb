@@ -1014,7 +1014,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
         # Log the model as artifact.
-        model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
+        name = wandb.util.make_artifact_name_safe(f"model-{wandb.run.name}")
+        model_artifact = wandb.Artifact(name, type="model")
         model_artifact.add_dir(self.filepath[:-3])
         wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
 
