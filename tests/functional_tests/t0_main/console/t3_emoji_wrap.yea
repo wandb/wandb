@@ -1,4 +1,7 @@
 id: 0.console.t3_emoji_wrap
+tag:
+  skips:
+    - platform: win
 plugin:
   - wandb
 command:
