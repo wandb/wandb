@@ -4,8 +4,9 @@ Implementation of launch agent.
 
 import logging
 import os
+import pprint
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -58,7 +59,7 @@ class LaunchAgent:
             self._max_jobs = float("inf")
         else:
             self._max_jobs = config.get("max_jobs") or 1
-        self.default_config: Optional[Dict[str, Any]] = config
+        self.default_config: Dict[str, Any] = config
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -144,9 +145,9 @@ class LaunchAgent:
 
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
-        # TODO: logger
-        wandb.termlog(f"agent: got job f{job}")
-        _logger.info(f"Agent job: {job}")
+        _msg = f"Launch agent received job:\n{pprint.pformat(job)}\n"
+        wandb.termlog(_msg)
+        _logger.info(_msg)
         # update agent status
         self.update_status(AGENT_RUNNING)
 
@@ -180,6 +181,10 @@ class LaunchAgent:
             self.default_config, override_build_config, override_registry_config
         )
         builder = load_builder(build_config)
+
+        default_runner = self.default_config.get("runner", {}).get("type")
+        if default_runner == resource:
+            backend_config["runner"] = self.default_config.get("runner")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")

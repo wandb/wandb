@@ -58,22 +58,27 @@ parameters:
   manual_nightly:
     type: boolean
     default: false
+  manual_nightly_git_branch:
+    type: string
+    default: master
   manual_nightly_slack_notify:
     type: boolean
     default: false
-  manual_nightly_execute_shard_cpu:
+  manual_nightly_execute_shard_standalone_cpu:
     type: boolean
     default: false
-  manual_nightly_execute_shard_gpu:
+  manual_nightly_execute_shard_standalone_gpu:
     type: boolean
     default: false
-  manual_nightly_execute_shard_tpu:
+  manual_nightly_execute_shard_standalone_tpu:
     type: boolean
     default: false
-  manual_nightly_execute_shard_local:
+  manual_nightly_execute_shard_standalone_local:
     type: boolean
     default: false
-
+  manual_nightly_execute_shard_kfp:
+    type: boolean
+    default: false
 
 commands:
   save-tox-cache:
@@ -292,7 +297,9 @@ jobs:
       xdist:
         type: integer
         default: 3
-    executor: win/default
+    executor:
+      name: win/default
+      size: "large"
     parallelism: << parameters.parallelism >>
     steps:
       - checkout
@@ -327,7 +334,8 @@ jobs:
         type: integer
         default: 3
     macos:
-      xcode: 11.4.1
+      xcode: 13.4.1
+    resource_class: large
     parallelism: << parameters.parallelism >>
     steps:
       - checkout
@@ -382,6 +390,9 @@ jobs:
     parameters:
       toxenv:
         type: string
+      execute:
+        type: boolean
+        default: true
       notify_on_failure:
         type: boolean
         default: true
@@ -396,69 +407,72 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
-      - restore-kfp-cache
-      - run:
-          name: Install system deps
-          command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
-      - run:
-          name: Use py37
-          command: |
-            pyenv install -s 3.7.9
-            pyenv versions
-            pyenv global 3.7.9
-      - run:
-          name: Install python dependencies
-          command: |
-            pip install --upgrade pip
-            pip install tox==<< pipeline.parameters.tox_version >>
-      - run:
-          name: Install kubectl
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      - run:
-          name: Install kind
-          command: |
-            curl -Lo ./kind/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 --create-dirs
-            chmod +x ./kind/kind
-            export PATH="./kind:$PATH"
-            kind create cluster
-      - run:
-          name: Install KFP
-          command: |
-            export PIPELINE_VERSION=1.7.1
-            kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
-            sleep 10s
-            kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
-            kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
-            sleep 10s
-            kubectl wait --for condition=ready --timeout=300s pods -n kubeflow --all
-            kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80 &
-      - run:
-          name: Run tests
-          command: |
-            tox -v -e << parameters.toxenv >>
-          no_output_timeout: 25m
-      # conditionally post a notification to slack if the job failed/succeeded
       - when:
-          condition: << parameters.notify_on_failure >>
+          condition: << parameters.execute >>
           steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-      - when:
-          condition: << parameters.notify_on_success >>
-          steps:
-            - slack/notify:
-                event: pass
-                template: basic_success_1
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-      - save-kfp-cache
-      - save-test-results
+            - restore-kfp-cache
+            - run:
+                name: Install system deps
+                command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
+            - run:
+                name: Use py37
+                command: |
+                  pyenv install -s 3.7.9
+                  pyenv versions
+                  pyenv global 3.7.9
+            - run:
+                name: Install python dependencies
+                command: |
+                  pip install --upgrade pip
+                  pip install tox==<< pipeline.parameters.tox_version >>
+            - run:
+                name: Install kubectl
+                command: |
+                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            - run:
+                name: Install kind
+                command: |
+                  curl -Lo ./kind/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 --create-dirs
+                  chmod +x ./kind/kind
+                  export PATH="./kind:$PATH"
+                  kind create cluster
+            - run:
+                name: Install KFP
+                command: |
+                  export PIPELINE_VERSION=1.7.1
+                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
+                  sleep 10s
+                  kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
+                  sleep 10s
+                  kubectl wait --for condition=ready --timeout=300s pods -n kubeflow --all
+                  kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80 &
+            - run:
+                name: Run tests
+                command: |
+                  tox -v -e << parameters.toxenv >>
+                no_output_timeout: 25m
+            # conditionally post a notification to slack if the job failed/succeeded
+            - when:
+                condition: << parameters.notify_on_failure >>
+                steps:
+                  - slack/notify:
+                      event: fail
+                      template: basic_fail_1
+                      mentions: "@channel"
+                      # taken from slack-secrets context
+                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+            - when:
+                condition: << parameters.notify_on_success >>
+                steps:
+                  - slack/notify:
+                      event: pass
+                      template: basic_success_1
+                      # taken from slack-secrets context
+                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+            - save-kfp-cache
+            - save-test-results
 
   slack_notify:
     parameters:
@@ -469,7 +483,7 @@ jobs:
         type: boolean
         default: true
     docker:
-      - image: 'cimg/base:stable'
+      - image: "cimg/base:stable"
     steps:
       - when:
           condition: << parameters.execute >>
@@ -515,6 +529,9 @@ jobs:
       execute:
         type: boolean
         default: true
+      notify_on_failure:
+        type: boolean
+        default: false
     docker:
       - image: "google/cloud-sdk:alpine"
     steps:
@@ -544,6 +561,16 @@ jobs:
                 command: |
                   docker push << parameters.image_name >>
             # todo: clean up old images in gcr.io
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   # Nightly workflow for the SDK.
   #  - spin_up_cluster job creates a GKE cluster
@@ -562,6 +589,9 @@ jobs:
       cluster:
         type: string
         default: << pipeline.parameters.gcp_cluster_name >>
+      notify_on_failure:
+        type: boolean
+        default: false
     docker:
       - image: "cimg/base:stable"
     steps:
@@ -576,6 +606,16 @@ jobs:
       - run:
           name: "Install GPU drivers"
           command: kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   shut_down_cluster:
     parameters:
@@ -585,6 +625,9 @@ jobs:
       sleep_time: # time in seconds to wait before re-checking pod status
         type: integer
         default: 30
+      notify_on_failure:
+        type: boolean
+        default: false
     docker:
       - image: "cimg/base:stable"
     steps:
@@ -619,6 +662,16 @@ jobs:
           command: gcloud container clusters delete << parameters.cluster >>
           when: always
           no_output_timeout: "10m"
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   cloud_test:
     parameters:
@@ -634,7 +687,7 @@ jobs:
         default: pod.yaml
       pod_name: # same as in <path>/pod.yaml
         type: string
-      sleep_time:  # time in seconds to wait before re-checking pod status
+      sleep_time: # time in seconds to wait before re-checking pod status
         type: integer
         default: 5
       notify_on_failure:
@@ -647,7 +700,7 @@ jobs:
         type: boolean
         default: true
     docker:
-      - image: 'cimg/base:stable'
+      - image: "cimg/base:stable"
     steps:
       - checkout
       - when:
@@ -827,7 +880,8 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          context: slack-secrets
+          notify_on_failure: true
       #
       # stanalone tests on gke
       #
@@ -840,40 +894,48 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: [ "3.6", "3.7", "3.8", "3.9", "3.10" ]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
           context: slack-secrets
-          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
+          notify_on_failure: true
           requires:
             - "slack-notify-on-start"
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
           description: "SDK Docker image for CPU testing"
-          path: "./standalone_tests/shards/gke_cpu"
+          path: "./tests/standalone_tests/shards/gke_cpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
+          notify_on_failure: true
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
-          path: "./standalone_tests/shards/gke_gpu"
+          path: "./tests/standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
+          notify_on_failure: true
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
+          notify_on_failure: true
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          context: slack-secrets
+          notify_on_failure: true
       # run the tests
       - cloud_test:
           name: "cloud-test-cpu"
           requires:
             - "build-cpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_cpu"
+          path: "./tests/standalone_tests/shards/gke_cpu"
           pod_name: "cpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
@@ -884,7 +946,7 @@ workflows:
           requires:
             - "build-gpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_gpu"
+          path: "./tests/standalone_tests/shards/gke_gpu"
           pod_name: "gpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
@@ -929,7 +991,7 @@ workflows:
       - test:
           name: "unit-s_base-lin-py310"
           image: "python:3.10"
-          toxenv: "py310"
+          toxenv: "py310,covercircle"
       #
       # functional linux tests
       #
@@ -978,8 +1040,8 @@ workflows:
       # functional win tests
       #
       - win:
-          name: "func-s_base-win-py37"
-          toxenv: "func-s_base-py37"
+          name: "func-s_base-win-py39"
+          toxenv: "func-s_base-py39"
           parallelism: 1
           xdist: 1
       #
@@ -989,8 +1051,8 @@ workflows:
           name: "unit-s_base-win-py37"
           toxenv: "py37,wincovercircle -- --timeout 300"
       - mac:
-          name: "unit-s_base-mac-py37"
-          toxenv: "py37"
+          name: "unit-s_base-mac-py39"
+          toxenv: "py39"
       #
       # launch tests
       #
@@ -1011,8 +1073,8 @@ workflows:
           parallelism: 1
           xdist: 1
       - mac:
-          name: "unit-s_nb-mac-py37"
-          toxenv: "unit-s_nb-py37"
+          name: "unit-s_nb-mac-py39"
+          toxenv: "unit-s_nb-py39"
           parallelism: 1
           xdist: 1
       # s_kfp: kubeflow pipeline tests
@@ -1026,8 +1088,8 @@ workflows:
           parallelism: 1
           xdist: 1
       - mac:
-          name: "unit-s_kfp-mac-py37"
-          toxenv: "unit-s_kfp-py37"
+          name: "unit-s_kfp-mac-py39"
+          toxenv: "unit-s_kfp-py39"
           parallelism: 1
           xdist: 1
 
@@ -1068,6 +1130,8 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-s_kfp-py37"
+          execute: << pipeline.parameters.manual_nightly_execute_shard_kfp >>
+          context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
       # stanalone tests on gke
@@ -1091,51 +1155,61 @@ workflows:
       - sdk_docker:
           name: "build-cpu-docker-image"
           description: "SDK Docker image for CPU testing"
-          path: "./standalone_tests/shards/gke_cpu"
+          git_branch: << pipeline.parameters.manual_nightly_git_branch >>
+          path: "./tests/standalone_tests/shards/gke_cpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           requires:
             - "slack-notify-on-start"
-          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_cpu >>
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - sdk_docker:
           name: "build-gpu-docker-image"
           description: "SDK Docker image for GPU testing"
-          path: "./standalone_tests/shards/gke_gpu"
+          git_branch: << pipeline.parameters.manual_nightly_git_branch >>
+          path: "./tests/standalone_tests/shards/gke_gpu"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           requires:
             - "slack-notify-on-start"
-          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu >>
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # manage the gke cluster
       - spin_up_cluster:
           requires:
             - "slack-notify-on-start"
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       - shut_down_cluster:
           requires:
             - spin_up_cluster
+          context: slack-secrets
+          notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       # run the tests
       - cloud_test:
           name: "cloud-test-cpu"
           requires:
             - "build-cpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_cpu"
+          path: "./tests/standalone_tests/shards/gke_cpu"
           pod_name: "cpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
-          execute: << pipeline.parameters.manual_nightly_execute_shard_cpu >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_cpu >>
       - cloud_test:
           name: "cloud-test-gpu"
           requires:
             - "build-gpu-docker-image"
             - spin_up_cluster
-          path: "./standalone_tests/shards/gke_gpu"
+          path: "./tests/standalone_tests/shards/gke_gpu"
           pod_name: "gpu-pod"
           image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
           notify_on_success: << pipeline.parameters.manual_nightly_slack_notify >>
-          execute: << pipeline.parameters.manual_nightly_execute_shard_gpu >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu >>
       - slack_notify:
           execute: << pipeline.parameters.manual_nightly_slack_notify >>
           name: "slack-notify-on-finish"
