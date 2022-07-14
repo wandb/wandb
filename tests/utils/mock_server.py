@@ -56,6 +56,8 @@ def default_ctx():
         "current_run": None,
         "files": {},
         "k8s": False,
+        "config": [],
+        "summary": [],
         "resume": None,
         "file_bytes": {},
         "manifests_created": [],
@@ -1436,6 +1438,8 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 3, "name": "run_table"}
                 if "run-" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 4, "name": "run_table"}
+                if "monitored" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "inference"}
                 if "wb_validation_data" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
                 if "job" in body["variables"]["name"]:
@@ -1767,8 +1771,8 @@ def create_app(user_ctx=None):
             run = extra.split("/")[-2]
         ctx["storage"] = ctx.get("storage", {})
         ctx["storage"][run] = ctx["storage"].get(run, [])
-        ctx["storage"][run].append(request.args.get("file"))
-        size = ctx["files"].get(request.args.get("file"))
+        ctx["storage"][run].append(file)
+        size = ctx["files"].get(file)
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
@@ -2115,6 +2119,11 @@ index 30d74d2..9a2c773 100644
         for c in ctx, run_ctx:
             c["file_stream"] = c.get("file_stream", [])
             c["file_stream"].append(request.get_json())
+            summary_json = (
+                ctx["file_stream"][-1].get("files", {}).get("wandb-summary.json")
+            )
+            if summary_json:
+                c["summary"] = json.loads(summary_json["content"][0])
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)

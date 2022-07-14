@@ -1,5 +1,5 @@
 """
-config tests.
+run tests.
 """
 
 import os

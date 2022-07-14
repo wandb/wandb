@@ -2,6 +2,7 @@
 module sdk
 """
 
+from . import beta  # noqa: F401
 from . import wandb_helper as helper  # noqa: F401
 from .wandb_alerts import AlertLevel  # noqa: F401
 from .wandb_artifacts import Artifact  # noqa: F401

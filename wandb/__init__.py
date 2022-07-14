@@ -36,6 +36,7 @@ _teardown = wandb_sdk.teardown
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
+beta = wandb_sdk.beta
 finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
