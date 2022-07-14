@@ -2110,11 +2110,14 @@ index 30d74d2..9a2c773 100644
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     @snoop.relay
     def file_stream(entity, project, run):
+        body = request.get_json()
+        app.logger.info("file_stream post body: %s", body)
+
         ctx = get_ctx()
         run_ctx = get_run_ctx(run)
         for c in ctx, run_ctx:
             c["file_stream"] = c.get("file_stream", [])
-            c["file_stream"].append(request.get_json())
+            c["file_stream"].append(body)
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)
@@ -2236,16 +2239,18 @@ class ParseCTX:
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                # this check isn't valid right now.
-                # TODO: lets just assume it is fine, look into this later
-                # assert offset == 0 or offset == len(l), (k, v, l, d)
-                if not offset:
-                    l = []
                 if k == "output.log":
                     lines = content
+                    pad = ""
                 else:
-                    lines = map(json.loads, content)
-                l.extend(lines)
+                    lines = list(map(json.loads, content))
+                    pad = {}
+
+                # pad list if our offset is too large (is this what bt would do?)
+                # TODO: is this pad the right thing or should we assert if offset is past len
+                l += [pad] * (offset - len(l))
+
+                l[offset : offset + len(lines)] = lines
             data[k] = l
         return data
 
