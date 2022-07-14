@@ -1658,6 +1658,7 @@ class PollExitResponse(google.protobuf.message.Message):
     FILE_COUNTS_FIELD_NUMBER: builtins.int
     PUSHER_STATS_FIELD_NUMBER: builtins.int
     LOCAL_INFO_FIELD_NUMBER: builtins.int
+    SERVER_MESSAGES_FIELD_NUMBER: builtins.int
     done: builtins.bool = ...
 
     @property
@@ -1672,6 +1673,9 @@ class PollExitResponse(google.protobuf.message.Message):
     @property
     def local_info(self) -> global___LocalInfo: ...
 
+    @property
+    def server_messages(self) -> global___ServerMessages: ...
+
     def __init__(self,
         *,
         done : builtins.bool = ...,
@@ -1679,10 +1683,49 @@ class PollExitResponse(google.protobuf.message.Message):
         file_counts : typing.Optional[global___FileCounts] = ...,
         pusher_stats : typing.Optional[global___FilePusherStats] = ...,
         local_info : typing.Optional[global___LocalInfo] = ...,
+        server_messages : typing.Optional[global___ServerMessages] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"done",b"done",u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats",u"server_messages",b"server_messages"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"done",b"done",u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats",u"server_messages",b"server_messages"]) -> None: ...
 global___PollExitResponse = PollExitResponse
+
+class ServerMessages(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    ITEM_FIELD_NUMBER: builtins.int
+
+    @property
+    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerMessage]: ...
+
+    def __init__(self,
+        *,
+        item : typing.Optional[typing.Iterable[global___ServerMessage]] = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"item",b"item"]) -> None: ...
+global___ServerMessages = ServerMessages
+
+class ServerMessage(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    PLAIN_TEXT_FIELD_NUMBER: builtins.int
+    UTF_TEXT_FIELD_NUMBER: builtins.int
+    HTML_TEXT_FIELD_NUMBER: builtins.int
+    TYPE_FIELD_NUMBER: builtins.int
+    LEVEL_FIELD_NUMBER: builtins.int
+    plain_text: typing.Text = ...
+    utf_text: typing.Text = ...
+    html_text: typing.Text = ...
+    type: typing.Text = ...
+    level: builtins.int = ...
+
+    def __init__(self,
+        *,
+        plain_text : typing.Text = ...,
+        utf_text : typing.Text = ...,
+        html_text : typing.Text = ...,
+        type : typing.Text = ...,
+        level : builtins.int = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"html_text",b"html_text",u"level",b"level",u"plain_text",b"plain_text",u"type",b"type",u"utf_text",b"utf_text"]) -> None: ...
+global___ServerMessage = ServerMessage
 
 class FileCounts(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

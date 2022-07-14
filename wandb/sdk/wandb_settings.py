@@ -33,6 +33,7 @@ from urllib.parse import quote, urlencode, urlparse, urlsplit
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
+import wandb.env
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -388,6 +389,9 @@ class Settings:
     _service_transport: str
     _start_datetime: datetime
     _start_time: float
+    _stats_pid: int  # (internal) base pid for system stats
+    _stats_sample_rate_seconds: float
+    _stats_samples_to_average: int
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -402,9 +406,11 @@ class Settings:
     deployment: str
     disable_code: bool
     disable_git: bool
+    disable_hints: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
+    enable_job_creation: bool
     entity: str
     files_dir: str
     force: bool
@@ -508,6 +514,8 @@ class Settings:
             },
             _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
+            _stats_sample_rate_seconds={"value": 2.0},
+            _stats_samples_to_average={"value": 15},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -529,8 +537,10 @@ class Settings:
                 "auto_hook": True,
             },
             disable_code={"preprocessor": _str_as_bool},
+            disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
+            enable_job_creation={"preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
@@ -1245,6 +1255,11 @@ class Settings:
                 config[k] = config[k].split(",")
         return config
 
+    def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
+        if _logger is not None:
+            _logger.info(f"Configure stats pid to {pid}")
+        self.update({"_stats_pid": pid}, source=Source.SETUP)
+
     def _apply_config_files(self, _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): permit setting of config in system and workspace
         if self.settings_system is not None:
@@ -1307,7 +1322,7 @@ class Settings:
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
 
-        settings: Dict[str, Union[bool, str, Sequence]] = dict()
+        settings: Dict[str, Union[bool, str, Sequence, None]] = dict()
         # disable symlinks if on windows (requires admin or developer setup)
         settings["symlink"] = True
         if self._windows:

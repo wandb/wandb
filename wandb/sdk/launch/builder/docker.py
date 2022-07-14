@@ -9,7 +9,6 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .build import (
     _create_docker_build_ctx,
-    construct_local_image_uri,
     generate_dockerfile,
     validate_docker_installation,
 )
@@ -37,37 +36,25 @@ class DockerBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         repository: Optional[str],
-        entrypoint: Optional[EntryPoint],
+        entrypoint: EntryPoint,
         docker_args: Dict[str, Any],
     ) -> str:
 
         if repository:
-            image_uri = f"{repository}:{launch_project.run_id}"
+            image_uri = f"{repository}:{launch_project.image_tag}"
         else:
-            image_uri = construct_local_image_uri(launch_project)
+            image_uri = launch_project.image_uri
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
-        print(entry_cmd)
         dockerfile_str = generate_dockerfile(
-            launch_project, entry_cmd, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
             image_uri,
-            sanitize_wandb_api_key(entry_cmd),
+            sanitize_wandb_api_key(" ".join(entry_cmd)),
             docker_args,
-            sanitize_wandb_api_key(dockerfile_str),
+            dockerfile_str,
         )
-        if (
-            launch_project.resource == "sagemaker"
-            and launch_project.project_dir is not None
-        ):
-            # sagemaker automatically appends train after the entrypoint
-            # by redirecting to running a train script we can avoid issues
-            # with argparse, and hopefully if the user intends for the train
-            # argument to be present it is captured in the original jobs
-            # command arguments
-            with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-                fp.write(entry_cmd)
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:

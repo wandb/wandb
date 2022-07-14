@@ -81,6 +81,31 @@ message Imports {
   bool joblib = 53;
   bool dask = 54;
   bool asyncio = 55;
+  bool paddleocr = 56;
+  bool ppdet = 57;
+  bool paddleseg = 58;
+  bool paddlenlp = 59;
+  bool mmseg = 60;
+  bool mmocr = 61;
+  bool mmcls = 62;
+  bool timm = 63;
+  bool fairseq = 64;
+  bool deepchecks = 65;
+  bool composer = 66;
+  bool sparseml = 67;
+  bool anomalib = 68;
+  bool zenml = 69;
+  bool colossalai = 70;
+  bool accelerate = 71;
+  bool merlin = 72;
+  bool nanodet = 73;
+  bool segmentation_models_pytorch = 74;
+  bool sentence_transformers = 75;
+  bool dgl = 76;
+  bool torch_geometric = 77;
+  bool jina = 78;
+  bool kornia = 79;
+  bool albumentations = 80;
 }
 
 message Feature {

@@ -56,7 +56,7 @@ def _log(
     resource: str = None,
 ) -> None:
     prefix = "TRACELOG(1)"
-    tname = threading.currentThread().getName()
+    tname = threading.current_thread().name
     now = datetime.datetime.now()
     ts = now.strftime("%H%M%S.%f")
     arrow = "<-" if is_response else "->"

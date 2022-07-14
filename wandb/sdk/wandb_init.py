@@ -8,6 +8,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 import copy
+import json
 import logging
 import os
 import platform
@@ -22,7 +23,7 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.util import _is_artifact, _is_artifact_string, sentry_exc
+from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -72,6 +73,22 @@ def _maybe_mp_process(backend: Backend) -> bool:
     return False
 
 
+def _handle_launch_config(settings: "Settings") -> Dict[str, Any]:
+    launch_run_config = {}
+    if not settings.launch:
+        return launch_run_config
+    if os.environ.get("WANDB_CONFIG") is not None:
+        try:
+            launch_run_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
+        except (ValueError, SyntaxError):
+            wandb.termwarn("Malformed WANDB_CONFIG, using original config")
+    elif settings.launch_config_path and os.path.exists(settings.launch_config_path):
+        with open(settings.launch_config_path) as fp:
+            launch_config = json.loads(fp.read())
+        launch_run_config = launch_config.get("overrides", {}).get("run_config")
+    return launch_run_config
+
+
 class _WandbInit:
     _init_telemetry_obj: telemetry.TelemetryRecord
 
@@ -79,6 +96,7 @@ class _WandbInit:
         self.kwargs = None
         self.settings = None
         self.sweep_config = None
+        self.launch_config = {}
         self.config = None
         self.run = None
         self.backend = None
@@ -128,7 +146,7 @@ class _WandbInit:
                     "`wandb.init()` arguments, please refer to "
                     f"{self.printer.link(wburls.get('wandb_init'), 'the W&B docs')}."
                 )
-                self.printer.display(line, status="warn")
+                self.printer.display(line, level="warn")
 
         self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
@@ -190,20 +208,24 @@ class _WandbInit:
         )
 
         # merge config with sweep or sagemaker (or config file)
-        self.sweep_config = self._wl._sweep_config or dict()
+        self.sweep_config = dict()
+        sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
         self.init_artifact_config = dict()
-        for config_data in sagemaker_config, self._wl._config, init_config:
+        for config_data in (
+            sagemaker_config,
+            self._wl._config,
+            init_config,
+        ):
             if not config_data:
                 continue
             # split out artifacts, since when inserted into
             # config they will trigger use_artifact
             # but the run is not yet upserted
-            for k, v in config_data.items():
-                if _is_artifact(v) or _is_artifact_string(v):
-                    self.init_artifact_config[k] = v
-                else:
-                    self.config.setdefault(k, v)
+            self._split_artifacts_from_config(config_data, self.config)
+
+        if sweep_config:
+            self._split_artifacts_from_config(sweep_config, self.sweep_config)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -266,8 +288,12 @@ class _WandbInit:
 
             if settings._jupyter:
                 self._jupyter_setup(settings)
+        launch_config = _handle_launch_config(settings)
+        if launch_config:
+            self._split_artifacts_from_config(launch_config, self.launch_config)
 
         self.settings = settings
+
         # self.settings.freeze()
 
     def teardown(self):
@@ -276,6 +302,13 @@ class _WandbInit:
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
             hook.call()
+
+    def _split_artifacts_from_config(self, config_source, config_target):
+        for k, v in config_source.items():
+            if _is_artifact_representation(v):
+                self.init_artifact_config[k] = v
+            else:
+                config_target.setdefault(k, v)
 
     def _enable_logging(self, log_fname, run_id=None):
         """Enables logging to the global debug log.
@@ -528,7 +561,12 @@ class _WandbInit:
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(config=self.config, settings=self.settings)
+        run = Run(
+            config=self.config,
+            settings=self.settings,
+            sweep_config=self.sweep_config,
+            launch_config=self.launch_config,
+        )
 
         # probe the active start method
         active_start_method: Optional[str] = None
@@ -678,10 +716,16 @@ class _WandbInit:
         self._wl._global_run_stack.append(run)
         self.run = run
 
+        run._handle_launch_artifact_overrides()
+        if (
+            self.settings.launch
+            and self.settings.launch_config_path
+            and os.path.exists(self.settings.launch_config_path)
+        ):
+            run._save(self.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
-        run._populate_sweep_or_launch_config(self.sweep_config)
         for k, v in self.init_artifact_config.items():
             run.config.update({k: v}, allow_val_change=True)
 
@@ -879,7 +923,7 @@ def init(
             "production". It's easy to add and remove tags in the UI, or filter
             down to just runs with a specific tag.
         name: (str, optional) A short display name for this run, which is how
-            you'll identify this run in the UI. By default we generate a random
+            you'll identify this run in the UI. By default, we generate a random
             two-word name that lets you easily cross-reference runs from the
             table to charts. Keeping these run names short makes the chart
             legends and tables easier to read. If you're looking for a place to
@@ -889,14 +933,14 @@ def init(
             ran this run.
         dir: (str, optional) An absolute path to a directory where metadata will
             be stored. When you call `download()` on an artifact, this is the
-            directory where downloaded files will be saved. By default this is
+            directory where downloaded files will be saved. By default, this is
             the `./wandb` directory.
         resume: (bool, str, optional) Sets the resuming behavior. Options:
             `"allow"`, `"must"`, `"never"`, `"auto"` or `None`. Defaults to `None`.
             Cases:
             - `None` (default): If the new run has the same ID as a previous run,
                 this run overwrites that data.
-            - `"auto"` (or `True`): if the preivous run on this machine crashed,
+            - `"auto"` (or `True`): if the previous run on this machine crashed,
                 automatically resume it. Otherwise, start a new run.
             - `"allow"`: if id is set with `init(id="UNIQUE_ID")` or
                 `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
@@ -933,7 +977,7 @@ def init(
         mode: (str, optional) Can be `"online"`, `"offline"` or `"disabled"`. Defaults to
             online.
         allow_val_change: (bool, optional) Whether to allow config values to
-            change after setting the keys once. By default we throw an exception
+            change after setting the keys once. By default, we throw an exception
             if a config value is overwritten. If you want to track something
             like a varying learning rate at multiple times during training, use
             `wandb.log()` instead. (default: `False` in scripts, `True` in Jupyter)
