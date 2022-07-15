@@ -131,6 +131,11 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(outdata)
         _ = self._stub.Output(outdata)
 
+    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
+        assert self._stub
+        self._assign(outdata)
+        _ = self._stub.OutputRaw(outdata)
+
     def _communicate_shutdown(self) -> None:
         assert self._stub
         shutdown = pb.ShutdownRequest()
