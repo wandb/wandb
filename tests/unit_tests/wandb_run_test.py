@@ -827,7 +827,7 @@ def test_manual_git_run_metadata_from_settings(live_mock_server, test_settings):
     test_settings.update(
         {
             "git_remote_url": remote_url,
-            "git_last_commit": commit_hash",
+            "git_last_commit": commit_hash,
         }
     )
     run = wandb.init(settings=test_settings)

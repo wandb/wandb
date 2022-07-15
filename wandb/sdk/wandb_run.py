@@ -703,7 +703,7 @@ class Run:
             self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
-        
+
     def __getstate__(self) -> Any:
         """Custom pickler."""
         # We only pickle in service mode
