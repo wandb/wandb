@@ -1,12 +1,11 @@
 import logging
-from dataclasses import dataclass
 import os
 import pprint
 import queue
 import socket
 import threading
 import time
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import wandb
 from wandb import wandb_lib  # type: ignore
@@ -16,13 +15,6 @@ from wandb.wandb_agent import Agent as LegacySweepAgent
 from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class HeartbeatAgent:
-    agent: dict
-    id: str
-    thread: threading.Thread
 
 
 class SweepScheduler(Scheduler):
@@ -37,7 +29,6 @@ class SweepScheduler(Scheduler):
         heartbeat_thread_sleep: int = 3,
         heartbeat_queue_timeout: int = 3,
         main_thread_sleep: int = 3,
-        num_workers: int = 1,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
@@ -50,40 +41,27 @@ class SweepScheduler(Scheduler):
                 f"Could not find sweep {self._entity}/{self._project}/{sweep_id}"
             )
         self._sweep_id = sweep_id
-        # TODO(hupo) validate sleeps integers here, throw errors if needed
         self._heartbeat_thread_sleep: int = heartbeat_thread_sleep
         self._heartbeat_queue_timeout: int = heartbeat_queue_timeout
         self._main_thread_sleep: int = main_thread_sleep
-        self._num_workers: int = num_workers
 
     def _start(self) -> None:
+        self._heartbeat_agent = self._api.register_agent(
+            socket.gethostname(),  # host
+            sweep_id=self._sweep_id,
+            project_name=self._project,
+            entity=self._entity,
+        )
+        self._heartbeat_agent_id = self._heartbeat_agent["id"]
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue
         self._heartbeat_queue: "queue.Queue[SweepRun]" = queue.Queue()
-        # Emulation of N agents in a classic sweeps setup
-        self._heartbeat_agents: List[HeartbeatAgent] = []
-        for worker_idx in range(self._num_workers):
-            _msg = f"Starting AgentHeartbeat worker {worker_idx}\n"
-            logger.debug(_msg)
-            _agent = self._api.register_agent(
-                f"{socket.gethostname()}-{worker_idx}",  # host
-                sweep_id=self._sweep_id,
-                project_name=self._project,
-                entity=self._entity,
-            )
-            _thread = threading.Thread(target=self._heartbeat)
-            _thread.daemon = True
-            self._heartbeat_agents.append(
-                HeartbeatAgent(
-                    agent=_agent,
-                    id=_agent["id"],
-                    thread=_thread,
-                )
-            )
-            _thread.start()
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
+        self._heartbeat_thread.daemon = True
+        self._heartbeat_thread.start()
 
-    def _heartbeat(self, worker_idx: int) -> None:
+    def _heartbeat(self) -> None:
         while True:
             if not self.is_alive():
                 return
@@ -95,7 +73,7 @@ class SweepScheduler(Scheduler):
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
             commands = self._api.agent_heartbeat(
-                self._heartbeat_agents[worker_idx].id, {}, _run_states
+                self._heartbeat_agent_id, {}, _run_states
             )
             if commands:
                 _msg = f"AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
