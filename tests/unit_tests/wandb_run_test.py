@@ -8,9 +8,12 @@ import platform
 import sys
 from unittest import mock
 
+
+import git
 import numpy as np
 import pytest
 import wandb
+from wandb import env
 from wandb import wandb_sdk
 from wandb.errors import MultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
@@ -819,3 +822,17 @@ def test_container_job_creation(live_mock_server, test_settings):
         ctx = live_mock_server.get_ctx()
         artifact_name = list(ctx["artifacts"].keys())[0]
         assert artifact_name == "job-dummy-container_v0"
+
+
+def test_git_root(live_mock_server, test_settings):
+    path = "./foo"
+    remote_url = "https://foo:@github.com/FooTest/Foo.git"
+    with git.Repo.init(path) as repo:
+        repo.create_remote("origin", remote_url)
+        repo.index.commit("initial commit")
+    with mock.patch.dict(os.environ, {env.GIT_ROOT: path}):
+        run = wandb.init(settings=test_settings)
+        run.finish()
+    ctx = live_mock_server.get_ctx()
+    assert ctx["git"]["remote"] == repo.remote().url
+    assert ctx["git"]["commit"] == repo.head.commit.hexsha

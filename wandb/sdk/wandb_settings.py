@@ -1355,7 +1355,6 @@ class Settings:
             settings["save_code"] = wandb.env.should_save_code()
 
         settings["disable_git"] = wandb.env.disable_git()
-        settings["git_root"] = wandb.env.get_git_root()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):

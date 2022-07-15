@@ -348,13 +348,6 @@ def get_agent_max_initial_failures(
     return val
 
 
-def get_git_root(default=None, env: Env = None):
-    if env is None:
-        env = os.environ
-    val = env.get(GIT_ROOT, default)
-    return val
-
-
 def set_entity(value: str, env: Env = None) -> None:
     if env is None:
         env = os.environ
