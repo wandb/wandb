@@ -51,6 +51,7 @@ class Scheduler(ABC):
         entity: Optional[str] = None,
         project: Optional[str] = None,
         queue: Optional[str] = None,
+        job: Optional[str] = None,
         **kwargs: Any,
     ):
         self._api = api
@@ -64,6 +65,7 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
+        self._job = job
 
         self._state: SchedulerState = SchedulerState.PENDING
         self._runs: Dict[str, SweepRun] = {}
@@ -185,8 +187,8 @@ class Scheduler(ABC):
         run_id = run_id or generate_id()
         queued_run = launch_add(
             # uri or os.environ.get(wandb.env.DIR, os.getcwd()) or "",
-            uri=f"{self._entity}/{self._project}/{run_id}",
-            job="foo",  # TODO(hupo)
+            # uri=f"{self._entity}/{self._project}/{run_id}",
+            job=self._job,
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,

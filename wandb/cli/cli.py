@@ -941,6 +941,8 @@ def sweep(
                             queue,
                             "--project",
                             project,
+                            "--job",
+                            job_name,
                         ],  # entry_point,
                         None,  # version,
                         None,  # params,
@@ -1357,6 +1359,12 @@ def agent(ctx, project, entity, count, sweep_id):
     default=None,
     help="The queue to push sweep jobs to.",
 )
+@click.option(
+    "--job",
+    "-j",
+    default=None,
+    help="The name of the job that encapsulates a single run in the sweep.",
+)
 @click.argument("sweep_id")
 @display_error
 def scheduler(
@@ -1364,6 +1372,7 @@ def scheduler(
     project,
     entity,
     queue,
+    job,
     sweep_id,
 ):
     api = _get_cling_api()
@@ -1376,7 +1385,7 @@ def scheduler(
     from wandb.sdk.launch.sweeps import load_scheduler
 
     _scheduler = load_scheduler("sweep")(
-        api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
+        api, entity=entity, project=project, queue=queue, sweep_id=sweep_id, job=job,
     )
     _scheduler.start()
 
