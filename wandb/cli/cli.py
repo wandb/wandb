@@ -570,6 +570,7 @@ def sync(
             view=view,
             verbose=verbose,
             sync_tensorboard=_sync_tensorboard,
+            log_path=_wandb_log_path,
         )
         for p in _path:
             sm.add(p)

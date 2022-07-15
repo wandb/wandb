@@ -439,6 +439,7 @@ class Api:
         run_id = run_id or util.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
         entity = entity or self.default_entity
+        # TODO: pipe through log_path to inform the user how to debug
         sm = SyncManager(
             project=project,
             entity=entity,

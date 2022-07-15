@@ -223,7 +223,15 @@ class DirWatcher:
             return None
 
     def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
-        if path == glob.escape(path):
+        # When we're dealing with one of our own media files, there's no need
+        # to store the policy in memory.  _get_file_event_handler will always
+        # return PolicyNow.  Using the path makes syncing historic runs much
+        # faster if the name happens to include glob escapable characters.  In
+        # the future we may add a flag to "files" records that indicates it's
+        # policy is not dynamic and doesn't need to be stored / checked.
+        if path.startswith("media/"):
+            pass
+        elif path == glob.escape(path):
             save_name = SaveName(
                 os.path.relpath(os.path.join(self._dir, path), self._dir)
             )
@@ -312,6 +320,9 @@ class DirWatcher:
         file_path: the file's actual path
         save_name: its path relative to the run directory (aka the watch directory)
         """
+        # Always return PolicyNow for any of our media files.
+        if save_name.startswith("media/"):
+            return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
         if save_name not in self._file_event_handlers:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:
