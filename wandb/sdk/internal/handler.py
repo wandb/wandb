@@ -195,6 +195,9 @@ class HandleManager:
     def handle_output(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_output_raw(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_files(self, record: Record) -> None:
         self._dispatch_record(record)
 
