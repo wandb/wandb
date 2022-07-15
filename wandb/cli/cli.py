@@ -876,10 +876,9 @@ def sweep(
 
         # Create a job which will be used when launching runs in this sweep
 
-        name = wandb.util.make_artifact_name_safe(f"job-{sweep_id}")
-        wandb.termlog("Creating job artifact: %s" % name)
-
-        put(os.getcwd(), name, f"Job artifact for sweep {sweep_id}", "job", name)
+        job_name = wandb.util.make_artifact_name_safe(f"job-{sweep_id}")
+        wandb.termlog("Creating job artifact: %s" % job_name)
+        put(os.getcwd(), job_name, f"Job artifact for sweep {sweep_id}", "job", job_name)
 
         # job_artifact = wandb.Artifact(name, type="job")
         # input_types = TypeRegistry.type_of(config.as_dict()).to_json()
@@ -926,7 +925,8 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        os.getcwd(),  # uri,
+                        None, # uri
+                        job_name,  # job,
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
                         project,
