@@ -1440,6 +1440,8 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
                 if "job" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 5, "name": "job"}
+                if "model" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 6, "name": "model"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             if ART_EMU:
@@ -1495,7 +1497,7 @@ def create_app(user_ctx=None):
                                             {
                                                 "node": {
                                                     "id": "1",
-                                                    "associatedRunId": "1",
+                                                    "associatedRunId": "test",
                                                     "state": "CLAIMED",
                                                 }
                                             }
@@ -1546,7 +1548,7 @@ def create_app(user_ctx=None):
                     {
                         "data": {
                             "popFromRunQueue": {
-                                "runQueueItemId": 1,
+                                "runQueueItemId": "1",
                                 "runSpec": {
                                     "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                     "project": "test_project2",
@@ -1561,7 +1563,7 @@ def create_app(user_ctx=None):
                 {
                     "data": {
                         "popFromRunQueue": {
-                            "runQueueItemId": 1,
+                            "runQueueItemId": "1",
                             "runSpec": {
                                 "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                 "project": "test_project",
@@ -1581,7 +1583,7 @@ def create_app(user_ctx=None):
                 ctx["run_queues"][body["variables"]["queueID"]] = [
                     body["variables"]["queueID"]
                 ]
-            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": "1"}}})
         if "mutation ackRunQueueItem" in body["query"]:
             ctx["num_acked"] += 1
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
@@ -2108,11 +2110,14 @@ index 30d74d2..9a2c773 100644
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     @snoop.relay
     def file_stream(entity, project, run):
+        body = request.get_json()
+        app.logger.info("file_stream post body: %s", body)
+
         ctx = get_ctx()
         run_ctx = get_run_ctx(run)
         for c in ctx, run_ctx:
             c["file_stream"] = c.get("file_stream", [])
-            c["file_stream"].append(request.get_json())
+            c["file_stream"].append(body)
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)
@@ -2234,16 +2239,18 @@ class ParseCTX:
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                # this check isn't valid right now.
-                # TODO: lets just assume it is fine, look into this later
-                # assert offset == 0 or offset == len(l), (k, v, l, d)
-                if not offset:
-                    l = []
                 if k == "output.log":
                     lines = content
+                    pad = ""
                 else:
-                    lines = map(json.loads, content)
-                l.extend(lines)
+                    lines = list(map(json.loads, content))
+                    pad = {}
+
+                # pad list if our offset is too large (is this what bt would do?)
+                # TODO: is this pad the right thing or should we assert if offset is past len
+                l += [pad] * (offset - len(l))
+
+                l[offset : offset + len(lines)] = lines
             data[k] = l
         return data
 

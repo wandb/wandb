@@ -9,7 +9,6 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .build import (
     _create_docker_build_ctx,
-    construct_local_image_uri,
     generate_dockerfile,
     validate_docker_installation,
 )
@@ -42,9 +41,9 @@ class DockerBuilder(AbstractBuilder):
     ) -> str:
 
         if repository:
-            image_uri = f"{repository}:{launch_project.run_id}"
+            image_uri = f"{repository}:{launch_project.image_tag}"
         else:
-            image_uri = construct_local_image_uri(launch_project)
+            image_uri = launch_project.image_uri
         entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
         dockerfile_str = generate_dockerfile(
             launch_project, entrypoint, launch_project.resource, self.type
