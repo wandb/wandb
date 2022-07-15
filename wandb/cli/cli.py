@@ -35,6 +35,7 @@ from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.utils import construct_launch_spec
+from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
@@ -873,49 +874,44 @@ def sweep(
     if queue is not None:
         wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
-        def _construct_job_artifact(
-            self,
-            name: str,
-            source_dict: "JobSourceDict",
-            installed_packages_list: List[str],
-            patch_path: Optional[os.PathLike] = None,
-        ) -> "Artifact":
-            job_artifact = wandb.Artifact(name, type="job")
-            if patch_path and os.path.exists(patch_path):
-                job_artifact.add_file(patch_path, "diff.patch")
-            with job_artifact.new_file("requirements.frozen.txt") as f:
-                f.write("\n".join(installed_packages_list))
-            with job_artifact.new_file("source_info.json") as f:
-                f.write(json.dumps(source_dict))
+        # Create a job which will be used when launching runs in this sweep
 
-            default_config = {}
-            for k, v in self.config.as_dict().items():
-                if _is_artifact_object(v):
-                    default_config[k] = artifact_to_json(v)
-                else:
-                    default_config[k] = v
-            job_artifact.metadata["config_defaults"] = default_config
-            return job_artifact
+        name = wandb.util.make_artifact_name_safe(f"job-{sweep_id}")
+        wandb.termlog("Creating job artifact: %s" % name)
 
-        # TODO(hupo) Create job here, upload to artifacts
-        docker_image_name = os.getenv("WANDB_DOCKER")
-        if docker_image_name is None:
-            # Warning or just default behavior?
-            pass
-        name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
+        put(os.getcwd(), name, f"Job artifact for sweep {sweep_id}", "job", name)
 
-        source_info: JobSourceDict = {
-            "_version": "v0",
-            "source_type": "sweep",
-            "source": {"image": docker_image_name},
-            "input_types": input_types,
-            "output_types": output_types,
-            "runtime": self._settings._python,
-        }
-        job_artifact = self._construct_job_artifact(
-            name, source_info, installed_packages_list
-        )
-        artifact = self.log_artifact(job_artifact)
+        # job_artifact = wandb.Artifact(name, type="job")
+        # input_types = TypeRegistry.type_of(config.as_dict()).to_json()
+        # output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
+        # import pkg_resources
+
+        # installed_packages_list = sorted(
+        #     f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
+        # )
+        # with job_artifact.new_file("requirements.frozen.txt") as f:
+        #     f.write("\n".join(installed_packages_list))
+
+        # source_info = {
+        #     "_version": "v0",
+        #     "source_type": "sweep",
+        #     "source": {"image": docker_image_name},
+        #     "input_types": input_types,
+        #     "output_types": output_types,
+        #     "runtime": self._settings._python,
+        # }
+        # with job_artifact.new_file("source_info.json") as f:
+        #     f.write(json.dumps(source_info))
+
+        # default_config = {}
+        # for k, v in config.as_dict().items():
+        #     if wandb.util._is_artifact_object(v):
+        #         default_config[k] = wandb.util.artifact_to_json(v)
+        #     else:
+        #         default_config[k] = v
+        # job_artifact.metadata["config_defaults"] = default_config
+        # artifact = self.log_artifact(job_artifact)
 
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
