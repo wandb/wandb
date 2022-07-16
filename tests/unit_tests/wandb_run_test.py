@@ -824,15 +824,16 @@ def test_container_job_creation(live_mock_server, test_settings):
         assert artifact_name == "job-dummy-container_v0"
 
 
-def test_git_root(live_mock_server, test_settings):
+def test_git_root(runner, live_mock_server, test_settings):
     path = "./foo"
     remote_url = "https://foo:@github.com/FooTest/Foo.git"
-    with git.Repo.init(path) as repo:
-        repo.create_remote("origin", remote_url)
-        repo.index.commit("initial commit")
-    with mock.patch.dict(os.environ, {env.GIT_ROOT: path}):
-        run = wandb.init(settings=test_settings)
-        run.finish()
-    ctx = live_mock_server.get_ctx()
-    assert ctx["git"]["remote"] == repo.remote().url
-    assert ctx["git"]["commit"] == repo.head.commit.hexsha
+    with runner.isolated_filesystem():
+        with git.Repo.init(path) as repo:
+            repo.create_remote("origin", remote_url)
+            repo.index.commit("initial commit")
+        with mock.patch.dict(os.environ, {env.GIT_ROOT: path}):
+            run = wandb.init(settings=test_settings)
+            run.finish()
+        ctx = live_mock_server.get_ctx()
+        assert ctx["git"]["remote"] == repo.remote().url
+        assert ctx["git"]["commit"] == repo.head.commit.hexsha
