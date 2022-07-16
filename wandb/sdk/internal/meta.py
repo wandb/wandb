@@ -40,7 +40,7 @@ class Meta:
         self._git = GitRepo(
             remote=self._settings.get("git_remote", None),
             remote_url=self._settings.get("git_remote_url", None),
-            last_commit=self._settings.get("git_last_commit", None),
+            commit=self._settings.get("git_commit", None),
         )
         # Location under "code" directory in files where program was saved.
         self._saved_program = None
@@ -197,7 +197,9 @@ class Meta:
         if self._settings.disable_git:
             return
 
-        if not (self._git.enabled or self._git.manual):
+        # in case of manually passing the git repo info, `enabled` wouldb be False
+        # but we still want to save the git repo info
+        if not self._git.enabled and self._git.auto:
             return
 
         logger.debug("setup git")

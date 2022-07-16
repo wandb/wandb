@@ -418,7 +418,7 @@ class Settings:
     force: bool
     git_remote: str
     git_remote_url: str
-    git_last_commit: str
+    git_commit: str
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
@@ -1546,7 +1546,7 @@ class Settings:
             "host": "host",
             "resumed": "resumed",
             "git.remote_url": "git_remote_url",
-            "git.last_commit": "git_last_commit",
+            "git.commit": "git_commit",
         }
         run_settings = {
             name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)

@@ -775,13 +775,11 @@ def test_init_with_settings(live_mock_server, test_settings):
     run.finish()
 
 
-def test_repo_job_creation(
-    live_mock_server, test_settings, git_repo_with_remote_and_commit
-):
+def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
+    _ = git_repo_fn(commit_msg="initial commit")
     test_settings.update(
         {"enable_job_creation": True, "program_relpath": "./blah/test_program.py"}
     )
-
     run = wandb.init(settings=test_settings)
     run.finish()
     ctx = live_mock_server.get_ctx()
@@ -823,28 +821,28 @@ def test_container_job_creation(live_mock_server, test_settings):
 
 def test_manual_git_run_metadata_from_settings(live_mock_server, test_settings):
     remote_url = "git@github.com:me/my-repo.git"
-    commit_hash = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    commit = "29c15e893e36efad84001f4484b4813fbacd55a0"
     test_settings.update(
         {
             "git_remote_url": remote_url,
-            "git_last_commit": commit_hash,
+            "git_commit": commit,
         }
     )
     run = wandb.init(settings=test_settings)
     run.finish()
     ctx = live_mock_server.get_ctx()
     assert ctx["git"]["remote"] == remote_url
-    assert ctx["git"]["commit"] == commit_hash
+    assert ctx["git"]["commit"] == commit
 
 
 def test_manual_git_run_metadata_from_environ(live_mock_server, test_settings):
     remote_url = "git@github.com:me/my-repo.git"
-    commit_hash = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    commit = "29c15e893e36efad84001f4484b4813fbacd55a0"
     with mock.patch.dict(
         os.environ,
         {
             env.GIT_REMOTE_URL: remote_url,
-            env.GIT_LAST_COMMIT: commit_hash,
+            env.GIT_COMMIT: commit,
         },
     ):
         run = wandb.init(settings=test_settings)
@@ -852,4 +850,4 @@ def test_manual_git_run_metadata_from_environ(live_mock_server, test_settings):
 
     ctx = live_mock_server.get_ctx()
     assert ctx["git"]["remote"] == remote_url
-    assert ctx["git"]["commit"] == commit_hash
+    assert ctx["git"]["commit"] == commit

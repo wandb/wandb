@@ -15,12 +15,12 @@ class GitRepo:
         remote: str = "origin",
         lazy: bool = True,
         remote_url: Optional[str] = None,
-        last_commit: Optional[str] = None,
+        commit: Optional[str] = None,
     ) -> None:
         self.remote_name = remote if remote_url is None else None
         self._root = root
         self._remote_url = remote_url
-        self._last_commit = last_commit
+        self._commit = commit
         self._repo = None
         if not lazy:
             self.repo
@@ -41,8 +41,8 @@ class GitRepo:
         return self._repo
 
     @property
-    def manual(self):
-        return self._remote_url is not None
+    def auto(self):
+        return self._remote_url is None
 
     def is_untracked(self, file_name: str) -> bool:
         if not self.repo:
@@ -76,8 +76,8 @@ class GitRepo:
 
     @property
     def last_commit(self):
-        if self._last_commit:
-            return self._last_commit
+        if self._commit:
+            return self._commit
         if not self.repo:
             return None
         if not self.repo.head or not self.repo.head.is_valid():

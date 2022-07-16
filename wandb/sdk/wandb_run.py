@@ -469,7 +469,7 @@ class Run:
         self._notes = None
         self._tags = None
         self._remote_url = None
-        self._last_commit = None
+        self._commit = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -681,8 +681,8 @@ class Run:
             run.start_time.FromSeconds(int(self._start_time))
         if self._remote_url is not None:
             run.git.remote_url = self._remote_url
-        if self._last_commit is not None:
-            run.git.last_commit = self._last_commit
+        if self._commit is not None:
+            run.git.commit = self._commit
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
@@ -691,10 +691,10 @@ class Run:
             repo = GitRepo(
                 remote=self._settings.git_remote,
                 remote_url=self._settings.git_remote_url,
-                last_commit=self._settings.git_last_commit,
+                commit=self._settings.git_commit,
                 lazy=False,
             )
-            self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
+            self._remote_url, self._commit = repo.remote_url, repo.last_commit
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
 
@@ -2087,12 +2087,12 @@ class Run:
         installed_packages_list: List[str],
     ) -> "Optional[Artifact]":
         """Create a job version artifact from a repo."""
-        has_repo = self._remote_url is not None and self._last_commit is not None
+        has_repo = self._remote_url is not None and self._commit is not None
         program_relpath = self._settings.program_relpath
         if not has_repo or program_relpath is None:
             return None
         assert self._remote_url is not None
-        assert self._last_commit is not None
+        assert self._commit is not None
         name = wandb.util.make_artifact_name_safe(
             f"job-{self._remote_url}_{program_relpath}"
         )
@@ -2104,7 +2104,7 @@ class Run:
             "source": {
                 "git": {
                     "remote": self._remote_url,
-                    "commit": self._last_commit,
+                    "commit": self._commit,
                 },
                 "entrypoint": [
                     sys.executable.split("/")[-1],
