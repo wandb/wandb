@@ -6,7 +6,7 @@ test_git_repo
 
 Tests for the `wandb.GitRepo` module.
 """
-
+import pytest
 import wandb
 
 GitRepo = wandb.wandb_lib.git.GitRepo
@@ -51,3 +51,7 @@ class TestGitRepo:
             git_repo_with_remote_and_port.remote_url
             == "https://foo:@github.com:8080/FooTest/Foo.git"
         )
+
+    def test_root_doesnt_exist(self):
+        git_repo = GitRepo(root="/tmp/foo")
+        assert git_repo.repo is False
