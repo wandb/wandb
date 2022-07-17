@@ -22,7 +22,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Optional
+from typing import List, Optional
 import urllib
 
 from pkg_resources import parse_version
@@ -32,10 +32,12 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import LaunchError
+from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
+from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
+from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
 from wandb_gql import Client, gql
@@ -330,7 +332,7 @@ class Api:
         overrides=None,
         timeout: Optional[int] = None,
         api_key: Optional[str] = None,
-    ):
+    ) -> None:
         self.settings = InternalApi().settings()
         self._api_key = api_key
         if self.api_key is None:
@@ -812,12 +814,20 @@ class Api:
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
-    def queued_job(self, path=""):
+    def queued_run(
+        self, entity, project, queue_id, run_queue_item_id, container_job=False
+    ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
         """
-        entity, project, queue, run_queue_item_id = path.split("/")
-        return QueuedJob(self.client, entity, project, queue, run_queue_item_id)
+        return QueuedRun(
+            self.client,
+            entity,
+            project,
+            queue_id,
+            run_queue_item_id,
+            container_job=container_job,
+        )
 
     @normalize_exceptions
     def sweep(self, path=""):
@@ -877,6 +887,12 @@ class Api:
                 f"type {type} specified but this artifact is of type {artifact.type}"
             )
         return artifact
+
+    @normalize_exceptions
+    def job(self, name, path=None):
+        if name is None:
+            raise ValueError("You must specify name= to fetch a job.")
+        return Job(self, name, path)
 
 
 class Attrs:
@@ -1547,71 +1563,6 @@ class Runs(Paginator):
         return f"<Runs {self.entity}/{self.project}>"
 
 
-class QueuedJob(Attrs):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs=None):
-        super().__init__(dict(attrs or {}))
-        self.client = client
-        self._entity = entity
-        self.project = project
-        self._queue = queue
-        self._run_queue_item_id = run_queue_item_id
-        self._run_id = None
-
-    @normalize_exceptions
-    def wait_until_running(self):
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    associatedRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        variable_values = {
-            "projectName": self.project,
-            "entityName": self._entity,
-            "runQueue": self._queue,
-        }
-
-        while True:
-            res = self.client.execute(query, variable_values)
-            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-                if (
-                    item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["associatedRunId"] is not None
-                ):
-                    # TODO: this should be changed once the ack occurs within the docker container.
-                    try:
-                        Run(
-                            self.client,
-                            self._entity,
-                            self.project,
-                            item["node"]["associatedRunId"],
-                        )
-                        self._run_id = item["node"]["associatedRunId"]
-                        return
-                    except ValueError:
-                        continue
-            time.sleep(5)
-
-    @property
-    def run(self):
-        if self._run_id is None:
-            raise LaunchError("Tried to fetch run without having run_id")
-        return Run(self.client, self._entity, self.project, self._run_id)
-
-
 class Run(Attrs):
     """
     A single run associated with an entity and project.
@@ -2213,6 +2164,176 @@ class Run(Attrs):
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+
+class QueuedRun:
+    """
+    A single queued run associated with an entity and project. Call `run = wait_until_running()` or `run = wait_until_finished()` methods to access the run
+    """
+
+    def __init__(
+        self,
+        client,
+        entity,
+        project,
+        queue_id,
+        run_queue_item_id,
+        container_job=False,
+    ):
+        self.client = client
+        self._entity = entity
+        self._project = project
+        self._queue_id = queue_id
+        self._run_queue_item_id = run_queue_item_id
+        self.sweep = None
+        self._run = None
+        self.container_job = container_job
+
+    @property
+    def queue_id(self):
+        return self._queue_id
+
+    @property
+    def id(self):
+        return self._run_queue_item_id
+
+    @property
+    def project(self):
+        return self._project
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def state(self):
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+        }
+        res = self.client.execute(query, variable_values)
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            if str(item["node"]["id"]) == str(self.id):
+                return item["node"]["state"].lower()
+        raise ValueError(
+            f"Could not find QueuedRun associated with id: {self.id} on queue id {self.queue_id}"
+        )
+
+    @normalize_exceptions
+    def wait_until_finished(self):
+        if not self._run:
+            self.wait_until_running()
+
+        self._run.wait_until_finished()
+        # refetch run to get updated summary
+        self._run.load(force=True)
+        return self._run
+
+    @normalize_exceptions
+    def delete(self, delete_artifacts=False):
+        """
+        Deletes the given queued run from the wandb backend.
+        """
+        mutation = gql(
+            """
+            mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
+            {
+                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        self.client.execute(
+            mutation,
+            variable_values={
+                "queueID": self.queue_id,
+                "runQueueItemID": self._run_queue_item_id,
+            },
+        )
+
+    @normalize_exceptions
+    def wait_until_running(self):
+        if self._run is not None:
+            return self._run
+        if self.container_job:
+            raise LaunchError("Container jobs cannot be waited on")
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+        }
+
+        while True:
+            # sleep here to hide an ugly warning
+            time.sleep(2)
+            res = self.client.execute(query, variable_values)
+            # TODO: add fetch run queue by item end point
+            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+                if (
+                    item["node"]["id"] == self.id
+                    and item["node"]["associatedRunId"] is not None
+                ):
+                    # TODO: this should be changed once the ack occurs within the docker container.
+                    try:
+                        self._run = Run(
+                            self.client,
+                            self._entity,
+                            self.project,
+                            item["node"]["associatedRunId"],
+                            None,
+                        )
+                        self._run_id = item["node"]["associatedRunId"]
+                        return self._run
+                    except ValueError as e:
+                        print(e)
+                elif item["node"]["id"] == self.id:
+                    wandb.termlog("Waiting for run to start")
+
+            time.sleep(3)
+
+    def __repr__(self):
+        return f"<QueuedRun {self.queue_id} ({self.id})"
 
 
 class Sweep(Attrs):
@@ -4809,3 +4930,139 @@ class ArtifactFiles(Paginator):
 
     def __repr__(self):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
+
+
+class Job:
+
+    _name: str
+    _input_types: Type
+    _output_types: Type
+    _entity: str
+    _project: str
+    _entrypoint: List[str]
+
+    def __init__(self, api: Api, name, path: str = None) -> None:
+        try:
+            self._job_artifact = api.artifact(name, type="job")
+        except CommError:
+            raise CommError(f"Job artifact {name} not found")
+        if path:
+            self._fpath = path
+            self._job_artifact.download(root=path)
+        else:
+            self._fpath = self._job_artifact.download()
+        self._name = name
+        self._api = api
+        self._entity = api.default_entity
+
+        with open(os.path.join(self._fpath, "source_info.json")) as f:
+            self._source_info = json.load(f)
+        self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
+        self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
+        self._input_types = TypeRegistry.type_from_dict(
+            self._source_info.get("input_types")
+        )
+        self._output_types = TypeRegistry.type_from_dict(
+            self._source_info.get("output_types")
+        )
+
+        if self._source_info.get("source_type") == "artifact":
+            self._set_configure_launch_project(self._configure_launch_project_artifact)
+        if self._source_info.get("source_type") == "repo":
+            self._set_configure_launch_project(self._configure_launch_project_repo)
+        if self._source_info.get("source_type") == "image":
+            self._set_configure_launch_project(self._configure_launch_project_container)
+
+    @property
+    def name(self):
+        return self._name
+
+    def _set_configure_launch_project(self, func):
+        self.configure_launch_project = func
+
+    def _configure_launch_project_repo(self, launch_project):
+        git_info = self._source_info.get("source", {}).get("git", {})
+        _fetch_git_repo(
+            launch_project.project_dir,
+            git_info["remote"],
+            git_info["commit"],
+        )
+        if os.path.exists(os.path.join(self._fpath, "diff.patch")):
+            with open(os.path.join(self._fpath, "diff.patch")) as f:
+                apply_patch(f.read(), launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
+
+    def _configure_launch_project_artifact(self, launch_project):
+        artifact_string = self._source_info.get("source", {}).get("artifact")
+        if artifact_string is None:
+            raise LaunchError(f"Job {self.name} had no source artifact")
+        artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
+        if is_id:
+            code_artifact = Artifact.from_id(artifact_string, self._api._client)
+        else:
+            code_artifact = self._api.artifact(name=artifact_string, type="code")
+        if code_artifact is None:
+            raise LaunchError("No code artifact found")
+        code_artifact.download(launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
+
+    def _configure_launch_project_container(self, launch_project):
+        launch_project.docker_image = self._source_info.get("source", {}).get("image")
+        if launch_project.docker_image is None:
+            raise LaunchError(
+                "Job had malformed source dictionary without an image key"
+            )
+        if self._entrypoint:
+            launch_project.add_entry_point(self._entrypoint)
+
+    def set_default_input(self, key, val):
+        self._job_artifact.metadata["config_defaults"][key] = val
+        self._job_artifact.save()
+
+    def _config_defaults(self):
+        return self._job_artifact.metadata["config_defaults"]
+
+    def set_entrypoint(self, entrypoint: List[str]):
+        self._entrypoint = entrypoint
+
+    def call(
+        self,
+        config,
+        project=None,
+        entity=None,
+        queue=None,
+        resource="local-container",
+        resource_args=None,
+        cuda=False,
+    ):
+        from wandb.sdk.launch import launch_add
+
+        run_config = self._config_defaults().copy()
+
+        for key, item in config.items():
+            if util._is_artifact_object(item):
+                if isinstance(item, wandb.Artifact) and item.id is None:
+                    raise ValueError("Cannot queue jobs with unlogged artifacts")
+                run_config[key] = util.artifact_to_json(item)
+
+        run_config.update(config)
+
+        assigned_config_type = self._input_types.assign(run_config)
+        if isinstance(assigned_config_type, InvalidType):
+            raise TypeError(self._input_types.explain(run_config))
+
+        queued_run = launch_add.launch_add(
+            job=self._name,
+            config={"overrides": {"run_config": run_config}},
+            project=project or self._project,
+            entity=entity or self._entity,
+            queue=queue,
+            resource=resource,
+            resource_args=resource_args,
+            cuda=cuda,
+        )
+        return queued_run

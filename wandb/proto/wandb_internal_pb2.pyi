@@ -29,6 +29,7 @@ class Record(google.protobuf.message.Message):
     ALERT_FIELD_NUMBER: builtins.int
     TELEMETRY_FIELD_NUMBER: builtins.int
     METRIC_FIELD_NUMBER: builtins.int
+    OUTPUT_RAW_FIELD_NUMBER: builtins.int
     RUN_FIELD_NUMBER: builtins.int
     EXIT_FIELD_NUMBER: builtins.int
     FINAL_FIELD_NUMBER: builtins.int
@@ -77,6 +78,9 @@ class Record(google.protobuf.message.Message):
     def metric(self) -> global___MetricRecord: ...
 
     @property
+    def output_raw(self) -> global___OutputRawRecord: ...
+
+    @property
     def run(self) -> global___RunRecord: ...
 
     @property
@@ -120,6 +124,7 @@ class Record(google.protobuf.message.Message):
         alert : typing.Optional[global___AlertRecord] = ...,
         telemetry : typing.Optional[wandb.proto.wandb_telemetry_pb2.TelemetryRecord] = ...,
         metric : typing.Optional[global___MetricRecord] = ...,
+        output_raw : typing.Optional[global___OutputRawRecord] = ...,
         run : typing.Optional[global___RunRecord] = ...,
         exit : typing.Optional[global___RunExitRecord] = ...,
         final : typing.Optional[global___FinalRecord] = ...,
@@ -132,9 +137,9 @@ class Record(google.protobuf.message.Message):
         uuid : typing.Text = ...,
         _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","run","exit","final","header","footer","preempting","link_artifact","request"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","output_raw","run","exit","final","header","footer","preempting","link_artifact","request"]: ...
 global___Record = Record
 
 class Control(google.protobuf.message.Message):
@@ -599,6 +604,48 @@ class OutputResult(google.protobuf.message.Message):
     def __init__(self,
         ) -> None: ...
 global___OutputResult = OutputResult
+
+class OutputRawRecord(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    class _OutputType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputType.V], builtins.type):
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
+        STDERR = OutputRawRecord.OutputType.V(0)
+        STDOUT = OutputRawRecord.OutputType.V(1)
+    class OutputType(metaclass=_OutputType):
+        V = typing.NewType('V', builtins.int)
+    STDERR = OutputRawRecord.OutputType.V(0)
+    STDOUT = OutputRawRecord.OutputType.V(1)
+
+    OUTPUT_TYPE_FIELD_NUMBER: builtins.int
+    TIMESTAMP_FIELD_NUMBER: builtins.int
+    LINE_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    output_type: global___OutputRawRecord.OutputType.V = ...
+    line: typing.Text = ...
+
+    @property
+    def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
+    def __init__(self,
+        *,
+        output_type : global___OutputRawRecord.OutputType.V = ...,
+        timestamp : typing.Optional[google.protobuf.timestamp_pb2.Timestamp] = ...,
+        line : typing.Text = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"timestamp",b"timestamp"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"line",b"line",u"output_type",b"output_type",u"timestamp",b"timestamp"]) -> None: ...
+global___OutputRawRecord = OutputRawRecord
+
+class OutputRawResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___OutputRawResult = OutputRawResult
 
 class MetricRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
@@ -1406,11 +1453,12 @@ class DeferRequest(google.protobuf.message.Message):
         FLUSH_TB = DeferRequest.DeferState.V(3)
         FLUSH_SUM = DeferRequest.DeferState.V(4)
         FLUSH_DEBOUNCER = DeferRequest.DeferState.V(5)
-        FLUSH_DIR = DeferRequest.DeferState.V(6)
-        FLUSH_FP = DeferRequest.DeferState.V(7)
-        FLUSH_FS = DeferRequest.DeferState.V(8)
-        FLUSH_FINAL = DeferRequest.DeferState.V(9)
-        END = DeferRequest.DeferState.V(10)
+        FLUSH_OUTPUT = DeferRequest.DeferState.V(6)
+        FLUSH_DIR = DeferRequest.DeferState.V(7)
+        FLUSH_FP = DeferRequest.DeferState.V(8)
+        FLUSH_FS = DeferRequest.DeferState.V(9)
+        FLUSH_FINAL = DeferRequest.DeferState.V(10)
+        END = DeferRequest.DeferState.V(11)
     class DeferState(metaclass=_DeferState):
         V = typing.NewType('V', builtins.int)
     BEGIN = DeferRequest.DeferState.V(0)
@@ -1419,11 +1467,12 @@ class DeferRequest(google.protobuf.message.Message):
     FLUSH_TB = DeferRequest.DeferState.V(3)
     FLUSH_SUM = DeferRequest.DeferState.V(4)
     FLUSH_DEBOUNCER = DeferRequest.DeferState.V(5)
-    FLUSH_DIR = DeferRequest.DeferState.V(6)
-    FLUSH_FP = DeferRequest.DeferState.V(7)
-    FLUSH_FS = DeferRequest.DeferState.V(8)
-    FLUSH_FINAL = DeferRequest.DeferState.V(9)
-    END = DeferRequest.DeferState.V(10)
+    FLUSH_OUTPUT = DeferRequest.DeferState.V(6)
+    FLUSH_DIR = DeferRequest.DeferState.V(7)
+    FLUSH_FP = DeferRequest.DeferState.V(8)
+    FLUSH_FS = DeferRequest.DeferState.V(9)
+    FLUSH_FINAL = DeferRequest.DeferState.V(10)
+    END = DeferRequest.DeferState.V(11)
 
     STATE_FIELD_NUMBER: builtins.int
     state: global___DeferRequest.DeferState.V = ...
@@ -1658,6 +1707,7 @@ class PollExitResponse(google.protobuf.message.Message):
     FILE_COUNTS_FIELD_NUMBER: builtins.int
     PUSHER_STATS_FIELD_NUMBER: builtins.int
     LOCAL_INFO_FIELD_NUMBER: builtins.int
+    SERVER_MESSAGES_FIELD_NUMBER: builtins.int
     done: builtins.bool = ...
 
     @property
@@ -1672,6 +1722,9 @@ class PollExitResponse(google.protobuf.message.Message):
     @property
     def local_info(self) -> global___LocalInfo: ...
 
+    @property
+    def server_messages(self) -> global___ServerMessages: ...
+
     def __init__(self,
         *,
         done : builtins.bool = ...,
@@ -1679,10 +1732,49 @@ class PollExitResponse(google.protobuf.message.Message):
         file_counts : typing.Optional[global___FileCounts] = ...,
         pusher_stats : typing.Optional[global___FilePusherStats] = ...,
         local_info : typing.Optional[global___LocalInfo] = ...,
+        server_messages : typing.Optional[global___ServerMessages] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"done",b"done",u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats",u"server_messages",b"server_messages"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"done",b"done",u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats",u"server_messages",b"server_messages"]) -> None: ...
 global___PollExitResponse = PollExitResponse
+
+class ServerMessages(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    ITEM_FIELD_NUMBER: builtins.int
+
+    @property
+    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerMessage]: ...
+
+    def __init__(self,
+        *,
+        item : typing.Optional[typing.Iterable[global___ServerMessage]] = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"item",b"item"]) -> None: ...
+global___ServerMessages = ServerMessages
+
+class ServerMessage(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    PLAIN_TEXT_FIELD_NUMBER: builtins.int
+    UTF_TEXT_FIELD_NUMBER: builtins.int
+    HTML_TEXT_FIELD_NUMBER: builtins.int
+    TYPE_FIELD_NUMBER: builtins.int
+    LEVEL_FIELD_NUMBER: builtins.int
+    plain_text: typing.Text = ...
+    utf_text: typing.Text = ...
+    html_text: typing.Text = ...
+    type: typing.Text = ...
+    level: builtins.int = ...
+
+    def __init__(self,
+        *,
+        plain_text : typing.Text = ...,
+        utf_text : typing.Text = ...,
+        html_text : typing.Text = ...,
+        type : typing.Text = ...,
+        level : builtins.int = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"html_text",b"html_text",u"level",b"level",u"plain_text",b"plain_text",u"type",b"type",u"utf_text",b"utf_text"]) -> None: ...
+global___ServerMessage = ServerMessage
 
 class FileCounts(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

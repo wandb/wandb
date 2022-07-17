@@ -433,7 +433,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 ),
             )
 
-        self.save_model_as_artifact = False
+        self.save_model_as_artifact = True
         self.log_weights = log_weights
         self.log_gradients = log_gradients
         self.training_data = training_data
@@ -608,7 +608,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             if self.save_model:
                 self._save_model(epoch)
 
-            if self.save_model_as_artifact:
+            if self.save_model and self.save_model_as_artifact:
                 self._save_model_as_artifact(epoch)
 
             self.best = self.current
@@ -700,7 +700,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         if _can_compute_flops():
             try:
-                wandb.summary["GFLOPS"] = self.get_flops()
+                wandb.summary["GFLOPs"] = self.get_flops()
             except Exception as e:
                 wandb.termwarn("Unable to compute FLOPs for this model.")
 
@@ -1001,10 +1001,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         except (ImportError, RuntimeError, TypeError) as e:
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
-                "W&B Artifacts in the SavedModel format."
+                "as an W&B Artifact in the 'tf' format."
             )
-            self.save_model = False
-            self.save_model_as_artifact = True
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
@@ -1016,7 +1014,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
         # Log the model as artifact.
-        model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
+        name = wandb.util.make_artifact_name_safe(f"model-{wandb.run.name}")
+        model_artifact = wandb.Artifact(name, type="model")
         model_artifact.add_dir(self.filepath[:-3])
         wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
 
@@ -1025,7 +1024,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
     def get_flops(self) -> float:
         """
-        Calculate FLOPS [GFLOPS] for a tf.keras.Model or tf.keras.Sequential model
+        Calculate FLOPS [GFLOPs] for a tf.keras.Model or tf.keras.Sequential model
         in inference mode. It uses tf.compat.v1.profiler under the hood.
         """
         if not hasattr(self, "model"):
@@ -1070,5 +1069,5 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         tf.compat.v1.reset_default_graph()
 
-        # convert to GFLOPS
+        # convert to GFLOPs
         return (flops.total_float_ops / 1e9) / 2

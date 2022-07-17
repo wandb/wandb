@@ -178,6 +178,17 @@ def git_repo(runner):
 
 
 @pytest.fixture
+def git_repo_with_remote_and_commit(runner):
+    with runner.isolated_filesystem():
+        with git.Repo.init(".") as repo:
+            repo.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
+            open("README", "wb").close()
+            repo.index.add(["README"])
+            repo.index.commit("Initial commit")
+            yield GitRepo(lazy=False)
+
+
+@pytest.fixture
 def git_repo_with_remote(runner):
     with runner.isolated_filesystem():
         with git.Repo.init(".") as repo:
@@ -275,6 +286,7 @@ def reset_setup():
 
     getattr(wandb, "teardown", teardown)()
     yield
+    getattr(wandb, "teardown", lambda: None)()
 
 
 @pytest.fixture(autouse=True)
@@ -781,7 +793,7 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
-                    collect_responses.local_info = poll_exit_resp.local_info
+                    collect_responses.poll_exit_resp = poll_exit_resp
                     break
             time.sleep(1)
         _internal_sender.join()
