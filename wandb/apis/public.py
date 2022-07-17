@@ -2656,9 +2656,17 @@ class File:
         Raises:
             `ValueError` if file already exists and replace=False
         """
-        if os.path.isdir(self.name):
-            raise Exception("A directory cannot be downloaded, please use a file.")
-        path = os.path.join(root, self.name) if os.path.isdir(root) else root
+        if not os.path.isfile(self.name):
+            raise Exception(f"Either the file {path} doesn't exist or it's a directory!")
+        path_ext = os.path.splitext(self.name)[1]
+        if path_ext == "":
+            raise Exception(f"File {path} must contain a file extension, otherwise it won't be downloaded!")
+        if root == "/":
+            raise Exception("'/' is not a valid directory, to use the root directory use '.' instead.")
+        root_ext = os.path.splitext(root)[1]
+        if root_ext not in [path_ext, ""]:
+            raise Exception(f"Remote file extension ({path_ext}) doesn't match target file extension ({root_ext})!")
+        path = os.path.normpath(os.path.join(root, self.name) if root_ext == "" else root)
         if os.path.exists(path) and not replace:
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
