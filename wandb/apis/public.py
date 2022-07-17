@@ -1924,12 +1924,15 @@ class Run(Attrs):
         """
         path = os.path.normpath(os.path.join(os.getcwd(), os.path.relpath(path, os.getcwd())))
         if not os.path.isfile(path):
-            raise Exception(f"File {path} doesn't exist!")
+            raise Exception(f"Either the file {path} doesn't exist or it's a directory!")
+        path_ext = os.path.splitext(path)[1]
+        if path_ext == "":
+            raise Exception(f"File {path} must contain a file extension, otherwise it won't be uploaded!")
         if root == "/":
             raise Exception("'/' is not a valid directory, to use the root directory use '.' instead.")
         root_ext = os.path.splitext(root)[1]
-        if root_ext not in [os.path.splitext(path)[1], ""]:
-            raise Exception(f"Local file extension doesn't match target file extension!")
+        if root_ext not in [path_ext, ""]:
+            raise Exception(f"Local file extension ({path_ext}) doesn't match target file extension ({root_ext})!")
         name = os.path.normpath(f"{root}/{os.path.basename(path)}" if root_ext == "" else root)
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
