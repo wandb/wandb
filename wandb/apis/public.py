@@ -2656,11 +2656,9 @@ class File:
         Raises:
             `ValueError` if file already exists and replace=False
         """
-        if not os.path.isfile(self.name):
-            raise Exception(f"Either the file {path} doesn't exist or it's a directory!")
         path_ext = os.path.splitext(self.name)[1]
         if path_ext == "":
-            raise Exception(f"File {path} must contain a file extension, otherwise it won't be downloaded!")
+            raise Exception(f"File {self.name} must contain a file extension, otherwise it won't be downloaded!")
         if root == "/":
             raise Exception("'/' is not a valid directory, to use the root directory use '.' instead.")
         root_ext = os.path.splitext(root)[1]
