@@ -2361,6 +2361,7 @@ class Sweep(Attrs):
             sweep(sweepName: $name) {
                 id
                 name
+                state
                 bestLoss
                 config
             }
@@ -2377,6 +2378,7 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
+        self.state = self._attrs.get("state", None)
 
         self.load(force=not attrs)
 
@@ -2455,6 +2457,10 @@ class Sweep(Attrs):
     def name(self):
         return self.config.get("name") or self.id
 
+    @property
+    def state(self):
+        return self._state
+
     @classmethod
     def get(
         cls,
@@ -2510,7 +2516,7 @@ class Sweep(Attrs):
         return self.to_html()
 
     def __repr__(self):
-        return "<Sweep {}>".format("/".join(self.path))
+        return "<Sweep {} ({})>".format("/".join(self.path), self.state)
 
 
 class Files(Paginator):
@@ -4060,7 +4066,7 @@ class Artifact(artifacts.Artifact):
 
     @property
     def state(self):
-        return self._attrs["state"]
+        return self._state
 
     @property
     def size(self):
