@@ -56,6 +56,7 @@ class Scheduler(ABC):
     ):
         self._api = api
         self._launch_queue = queue
+        self._job = job
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -65,9 +66,6 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
-
-        # TODO(hupo): validate job
-        self._job = job
 
         self._state: SchedulerState = SchedulerState.PENDING
         self._runs: Dict[str, SweepRun] = {}
@@ -188,6 +186,7 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
         queued_run = launch_add(
+            uri=os.environ.get(wandb.env.DIR, os.getcwd()) if self._job is None else None,
             job=self._job,
             project=self._project,
             entity=self._entity,
@@ -198,7 +197,7 @@ class Scheduler(ABC):
             run_id=run_id,
         )
         self._runs[run_id].queued_run = queued_run
-        _msg = f"Added job to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
+        _msg = f"Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
         return queued_run

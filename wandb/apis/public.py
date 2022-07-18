@@ -2377,8 +2377,8 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
-        # TODO(hupo)
-        self._job = None
+        # self._job = None
+        # self._queue = None
 
         self.load(force=not attrs)
 
@@ -2447,10 +2447,13 @@ class Sweep(Attrs):
             urllib.parse.quote_plus(str(self.id)),
         ]
 
-    @property
-    def job(self):
-        # TODO(hupo)
-        return "foo"
+    # @property
+    # def job(self):
+    #     return self._job
+
+    # @property
+    # def queue(self):
+    #     return self._queue
 
     @property
     def url(self):
@@ -5025,10 +5028,6 @@ class Job:
             )
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
-
-    def _configure_launch_project_sweep(self, launch_project):
-        # TODO(hupo)
-        pass
 
     def set_default_input(self, key, val):
         self._job_artifact.metadata["config_defaults"][key] = val
