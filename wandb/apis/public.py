@@ -2511,7 +2511,9 @@ class Sweep(Attrs):
         return self.to_html()
 
     def __repr__(self):
-        return "<Sweep {} ({})>".format("/".join(self.path), self._attrs.get("state", "Unknown State"))
+        return "<Sweep {} ({})>".format(
+            "/".join(self.path), self._attrs.get("state", "Unknown State")
+        )
 
 
 class Files(Paginator):
