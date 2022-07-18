@@ -923,7 +923,7 @@ def sweep(
         # job_artifact.metadata["config_defaults"] = default_config
         # artifact = self.log_artifact(job_artifact)
 
-        # ------ 
+        # ------
 
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
@@ -938,7 +938,7 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        None, # uri
+                        None,  # uri
                         job,  # job,
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
@@ -1398,7 +1398,12 @@ def scheduler(
     from wandb.sdk.launch.sweeps import load_scheduler
 
     _scheduler = load_scheduler("sweep")(
-        api, entity=entity, project=project, queue=queue, sweep_id=sweep_id, job=job,
+        api,
+        entity=entity,
+        project=project,
+        queue=queue,
+        sweep_id=sweep_id,
+        job=job,
     )
     _scheduler.start()
 
