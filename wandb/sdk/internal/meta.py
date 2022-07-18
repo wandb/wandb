@@ -38,9 +38,9 @@ class Meta:
         self.fname = os.path.join(self._settings.files_dir, METADATA_FNAME)
         self._interface = interface
         self._git = GitRepo(
-            remote=self._settings.get("git_remote", None),
-            remote_url=self._settings.get("git_remote_url", None),
-            commit=self._settings.get("git_commit", None),
+            remote=self._settings.git_remote,
+            remote_url=self._settings.git_remote_url,
+            commit=self._settings.git_commit,
         )
         # Location under "code" directory in files where program was saved.
         self._saved_program = None
