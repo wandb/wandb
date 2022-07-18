@@ -2378,7 +2378,7 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
-        self.state = self._attrs.get("state", None)
+        self._state = self._attrs.get("state", None)
 
         self.load(force=not attrs)
 
