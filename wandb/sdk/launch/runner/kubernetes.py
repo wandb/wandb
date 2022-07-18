@@ -238,7 +238,7 @@ class KubernetesRunner(AbstractRunner):
     ) -> str:
         runner_config_namespace = self.backend_config.get("runner", {}).get("namespace")
         if runner_config_namespace is not None:
-            return runner_config_namespace
+            return runner_config_namespace  # type: ignore
         return resource_args.get("namespace", default_namespace)
 
     def run(
