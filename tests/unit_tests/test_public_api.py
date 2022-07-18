@@ -579,7 +579,7 @@ def test_sweep(runner, mock_server, api):
     assert sweep.entity == "test"
     assert sweep.best_run().name == "beast-bug-33"
     assert sweep.url == "https://wandb.ai/test/test/sweeps/test"
-    assert sweep.state == "finished"
+    assert sweep.state in ["running", "finished"]
 
 
 def test_run_wait_until_finished(runner, mock_server, api, capsys):
