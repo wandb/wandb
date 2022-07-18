@@ -938,8 +938,8 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        os.environ.get(wandb.env.DIR, os.getcwd()) , # uri,
-                        job,  # job,
+                        None, # uri
+                        job,  # job
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
                         project,
