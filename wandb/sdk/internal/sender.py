@@ -945,7 +945,6 @@ class SendManager:
             d[item.key] = json.loads(item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
-        # FIXME: turn into microseconds
         row["_wandb"] = True
         row["_timestamp"] = now_ns / 1**9
         row["_runtime"] = (now_ns - start_ns) / 1**9
