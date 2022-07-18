@@ -2378,7 +2378,6 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
-        self._state = self._attrs.get("state", None)
 
         self.load(force=not attrs)
 
@@ -2457,10 +2456,6 @@ class Sweep(Attrs):
     def name(self):
         return self.config.get("name") or self.id
 
-    @property
-    def state(self):
-        return self._state
-
     @classmethod
     def get(
         cls,
@@ -2516,7 +2511,7 @@ class Sweep(Attrs):
         return self.to_html()
 
     def __repr__(self):
-        return "<Sweep {} ({})>".format("/".join(self.path), self.state)
+        return "<Sweep {} ({})>".format("/".join(self.path), self._attrs.get("state", "Unknown State"))
 
 
 class Files(Paginator):
