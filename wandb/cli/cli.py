@@ -677,6 +677,12 @@ def sync(
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
 @click.option(
+    "--job",
+    "-j",
+    default=None,
+    help="The name of the job that encapsulates a single run in the sweep.",
+)
+@click.option(
     "--stop",
     is_flag=True,
     default=False,
@@ -713,6 +719,7 @@ def sweep(
     settings,
     update,
     queue,
+    job,
     stop,
     cancel,
     pause,
@@ -874,11 +881,15 @@ def sweep(
     if queue is not None:
         wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
-        # Create a job which will be used when launching runs in this sweep
+        if job is None:
+            wandb.termerror("Must specify job name when using queue")
+            return
 
-        job_name = wandb.util.make_artifact_name_safe(f"job-{sweep_id}")
-        wandb.termlog("Creating job artifact: %s" % job_name)
-        put(os.getcwd(), job_name, f"Job artifact for sweep {sweep_id}", "job", job_name)
+        # ------ Create a job which will be used when launching runs in this sweep
+
+        # job_name = wandb.util.make_artifact_name_safe(f"job-{sweep_id}")
+        # wandb.termlog("Creating job artifact: %s" % job_name)
+        # put(os.getcwd(), job_name, f"Job artifact for sweep {sweep_id}", "job", job_name)
 
         # job_artifact = wandb.Artifact(name, type="job")
         # input_types = TypeRegistry.type_of(config.as_dict()).to_json()
@@ -912,6 +923,8 @@ def sweep(
         # job_artifact.metadata["config_defaults"] = default_config
         # artifact = self.log_artifact(job_artifact)
 
+        # ------ 
+
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
         # know until it is created,so we use this placeholder
@@ -926,7 +939,7 @@ def sweep(
                 "run_spec": json.dumps(
                     construct_launch_spec(
                         None, # uri
-                        job_name,  # job,
+                        job,  # job,
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
                         project,
@@ -942,7 +955,7 @@ def sweep(
                             "--project",
                             project,
                             "--job",
-                            job_name,
+                            job,
                         ],  # entry_point,
                         None,  # version,
                         None,  # params,
