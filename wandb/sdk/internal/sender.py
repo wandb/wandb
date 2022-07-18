@@ -946,8 +946,8 @@ class SendManager:
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
-        row["_timestamp"] = now_ns / 1**9
-        row["_runtime"] = (now_ns - start_ns) / 1**9
+        row["_timestamp"] = now_ns / 1e9
+        row["_runtime"] = (now_ns - start_ns) / 1e9
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 
