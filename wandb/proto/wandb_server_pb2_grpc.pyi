@@ -78,6 +78,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.OutputRecord,
     ) -> wandb.proto.wandb_internal_pb2.OutputResult: ...
 
+    def OutputRaw(self,
+        request: wandb.proto.wandb_internal_pb2.OutputRawRecord,
+    ) -> wandb.proto.wandb_internal_pb2.OutputRawResult: ...
+
     def Telemetry(self,
         request: wandb.proto.wandb_telemetry_pb2.TelemetryRecord,
     ) -> wandb.proto.wandb_telemetry_pb2.TelemetryResult: ...
@@ -253,6 +257,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.OutputRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.OutputResult: ...
+
+    @abc.abstractmethod
+    def OutputRaw(self,
+        request: wandb.proto.wandb_internal_pb2.OutputRawRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.OutputRawResult: ...
 
     @abc.abstractmethod
     def Telemetry(self,
