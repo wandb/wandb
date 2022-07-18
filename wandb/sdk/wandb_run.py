@@ -678,7 +678,7 @@ class Run:
             for tag in self._tags:
                 run.tags.append(tag)
         if self._start_time is not None:
-            run.start_time.FromSeconds(int(self._start_time))
+            run.start_time.FromMicroseconds(int(self._start_time * 1e6))
         if self._remote_url is not None:
             run.git.remote_url = self._remote_url
         if self._last_commit is not None:
@@ -847,7 +847,7 @@ class Run:
         return (
             self._start_time
             if not self._run_obj
-            else self._run_obj.start_time.ToSeconds()
+            else (self._run_obj.start_time.ToMicroseconds() / 1e6)
         )
 
     @property  # type: ignore
