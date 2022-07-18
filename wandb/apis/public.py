@@ -2491,6 +2491,7 @@ class Sweep(Attrs):
 
         sweep_response = response["project"]["sweep"]
         sweep = cls(client, entity, project, sid, attrs=sweep_response)
+        cls._state = cls._attrs["state"]
         sweep.runs = Runs(
             client,
             entity,
@@ -4066,7 +4067,7 @@ class Artifact(artifacts.Artifact):
 
     @property
     def state(self):
-        return self._state
+        return self._attrs["state"]
 
     @property
     def size(self):
