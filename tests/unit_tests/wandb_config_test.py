@@ -119,3 +119,11 @@ def test_load_empty_config_default(runner, capsys):
         warn_msg = "wandb: WARNING Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
         print(err_log)
         assert warn_msg in err_log
+
+
+def test_config_getattr_default(config):
+    default_value = config.get("a", 1)
+    assert default_value == 1
+
+    with pytest.raises(AttributeError, match="object has no attribute 'a'"):
+        _ = config.a

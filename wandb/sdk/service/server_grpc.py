@@ -230,6 +230,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.OutputResult()
         return result
 
+    def OutputRaw(  # noqa: N802
+        self, output_data: pb.OutputRawRecord, context: grpc.ServicerContext
+    ) -> pb.OutputRawResult:
+        stream_id = output_data._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_output_raw(output_data)
+        # make up a response even though this was async
+        result = pb.OutputRawResult()
+        return result
+
     def Files(  # noqa: N802
         self, files_data: pb.FilesRecord, context: grpc.ServicerContext
     ) -> pb.FilesResult:
