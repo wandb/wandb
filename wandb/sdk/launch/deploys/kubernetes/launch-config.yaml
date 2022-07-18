@@ -90,6 +90,9 @@ data:
         secret-name: aws-secret
         secret-mount-path: /root/.aws/
       build-context-store: wandb-build # name here
+    runner:
+      type: kubernetes
+      namespace: wandb # TODO: set namespace here
 
 kind: ConfigMap
 metadata:
