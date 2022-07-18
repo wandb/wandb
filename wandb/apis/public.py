@@ -2491,7 +2491,6 @@ class Sweep(Attrs):
 
         sweep_response = response["project"]["sweep"]
         sweep = cls(client, entity, project, sid, attrs=sweep_response)
-        cls._state = cls._attrs["state"]
         sweep.runs = Runs(
             client,
             entity,
