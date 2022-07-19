@@ -38,9 +38,10 @@ class Meta:
         self.fname = os.path.join(self._settings.files_dir, METADATA_FNAME)
         self._interface = interface
         self._git = GitRepo(
-            remote=self._settings["git_remote"]
-            if "git_remote" in self._settings.keys()
-            else "origin"
+            root=self._settings.git_root,
+            remote=self._settings.git_remote,
+            remote_url=self._settings.git_remote_url,
+            commit=self._settings.git_commit,
         )
         # Location under "code" directory in files where program was saved.
         self._saved_program = None
@@ -194,15 +195,21 @@ class Meta:
         self.data["state"] = "running"
 
     def _setup_git(self):
-        if self._settings.disable_git or not self._git.enabled:
+        if self._settings.disable_git:
             return
+
+        # in case of manually passing the git repo info, `enabled` wouldb be False
+        # but we still want to save the git repo info
+        if not self._git.enabled and self._git.auto:
+            return
+
         logger.debug("setup git")
         self.data["git"] = {
             "remote": self._git.remote_url,
             "commit": self._git.last_commit,
         }
         self.data["email"] = self._git.email
-        self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
+        self.data["root"] = self._git.root or self.data.get("root") or os.getcwd()
         logger.debug("setup git done")
 
     def probe(self):
