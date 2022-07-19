@@ -58,7 +58,9 @@ class DefaultFilePolicy:
     def __init__(self, start_chunk_id: int = 0) -> None:
         self._chunk_id = start_chunk_id
 
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedChunk":
+    def process_chunks(
+        self, chunks: List[Chunk]
+    ) -> Union[bool, "ProcessedChunk", "ProcessedBinaryChunk", List["ProcessedChunk"]]:
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
         return {"offset": chunk_id, "content": [c.data for c in chunks]}
@@ -88,7 +90,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
 
 
 class SummaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:  # type: ignore
+    def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
@@ -203,7 +205,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:  # type: ignore
+    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
         """
         Args:
             chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
@@ -280,7 +282,7 @@ class BinaryFilePolicy(DefaultFilePolicy):
         super().__init__()
         self._offset: int = 0
 
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":  # type: ignore
+    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":
         data = b"".join([c.data for c in chunks])
         enc = base64.b64encode(data).decode("ascii")
         self._offset += len(data)
@@ -335,7 +337,7 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
-        self._client.post = partial(self._client.post, timeout=self.HTTP_TIMEOUT)
+        self._client.post = partial(self._client.post, timeout=self.HTTP_TIMEOUT)  # type: ignore
         self._client.auth = ("api", api.api_key or "")
         self._client.headers.update(
             {
