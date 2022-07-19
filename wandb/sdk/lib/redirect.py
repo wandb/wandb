@@ -523,19 +523,6 @@ class RedirectBase:
         _redirects[self.src] = None
 
 
-class _WrappedStream:
-    """
-    For python 2.7 only.
-    """
-
-    def __init__(self, stream, write_f):
-        object.__setattr__(self, "write", write_f)
-        object.__setattr__(self, "_stream", stream)
-
-    def __getattr__(self, attr):
-        return getattr(self._stream, attr)
-
-
 class StreamWrapper(RedirectBase):
     """
     Patches the write method of current sys.stdout/sys.stderr
@@ -625,6 +612,47 @@ class StreamWrapper(RedirectBase):
             wandb.termlog("Done.")
         self.flush()
 
+        self._installed = False
+        super().uninstall()
+
+
+class StreamRawWrapper(RedirectBase):
+    """
+    Patches the write method of current sys.stdout/sys.stderr
+
+    Captures data in a raw form rather than using the emulator
+    """
+
+    def __init__(self, src, cbs=()):
+        super().__init__(src=src, cbs=cbs)
+        self._installed = False
+
+    def install(self):
+        super().install()
+        if self._installed:
+            return
+        stream = self.src_wrapped_stream
+        old_write = stream.write
+        self._prev_callback_timestamp = time.time()
+        self._old_write = old_write
+
+        def write(data):
+            self._old_write(data)
+            for cb in self.cbs:
+                try:
+                    cb(data)
+                except Exception:
+                    # TODO: Figure out why this was needed and log or error out appropriately
+                    # it might have been strange terminals? maybe shutdown cases?
+                    pass
+
+        stream.write = write
+        self._installed = True
+
+    def uninstall(self):
+        if not self._installed:
+            return
+        self.src_wrapped_stream.write = self._old_write
         self._installed = False
         super().uninstall()
 

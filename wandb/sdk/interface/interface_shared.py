@@ -51,6 +51,11 @@ class InterfaceShared(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
+        rec = pb.Record()
+        rec.output_raw.CopyFrom(outdata)
+        self._publish(rec)
+
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)

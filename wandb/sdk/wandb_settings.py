@@ -179,6 +179,8 @@ class SettingsConsole(enum.IntEnum):
     OFF = 0
     WRAP = 1
     REDIRECT = 2
+    WRAP_RAW = 3
+    WRAP_EMU = 4
 
 
 class Property:
@@ -414,7 +416,10 @@ class Settings:
     entity: str
     files_dir: str
     force: bool
+    git_commit: str
     git_remote: str
+    git_remote_url: str
+    git_root: str
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
@@ -746,8 +751,18 @@ class Settings:
     @staticmethod
     def _validate_console(value: str) -> bool:
         # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices: Set[str] = {"auto", "redirect", "off", "wrap"}
+        choices: Set[str] = {
+            "auto",
+            "redirect",
+            "off",
+            "wrap",
+            # internal console states
+            "wrap_emu",
+            "wrap_raw",
+        }
         if value not in choices:
+            # do not advertise internal console states
+            choices -= {"wrap_emu", "wrap_raw"}
             raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
         return True
 
@@ -893,6 +908,8 @@ class Settings:
         convert_dict: Dict[str, SettingsConsole] = dict(
             off=SettingsConsole.OFF,
             wrap=SettingsConsole.WRAP,
+            wrap_raw=SettingsConsole.WRAP_RAW,
+            wrap_emu=SettingsConsole.WRAP_EMU,
             redirect=SettingsConsole.REDIRECT,
         )
         console: str = str(self.console)
@@ -1529,7 +1546,8 @@ class Settings:
             "sweep_id": "sweep_id",
             "host": "host",
             "resumed": "resumed",
-            "git.remote_url": "git_remote",
+            "git.remote_url": "git_remote_url",
+            "git.commit": "git_commit",
         }
         run_settings = {
             name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)

@@ -743,66 +743,6 @@ class Api:
         )
 
     @normalize_exceptions
-    def launch_run(
-        self,
-        command: str,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-        run_id: Optional[str] = None,
-    ) -> "_Response":
-        """Launch a run in the cloud.
-
-        Arguments:
-            command (str): The command to run
-            project (str): The project to scope the runs to
-            entity (str, optional): The entity to scope this project to.  Defaults to public models
-            run_id (str, optional): The run_id to scope to
-
-        Returns:
-                [{"podName","status"}]
-        """
-        query = gql(
-            """
-        mutation launchRun(
-            $entity: String
-            $model: String
-            $runId: String
-            $image: String
-            $command: String
-            $patch: String
-            $cwd: String
-            $datasets: [String]
-        ) {
-            launchRun(input: {id: $runId, entityName: $entity, patch: $patch, modelName: $model,
-                image: $image, command: $command, datasets: $datasets, cwd: $cwd}) {
-                podName
-                status
-                runId
-            }
-        }
-        """
-        )
-        patch = BytesIO()
-        if self.git.dirty:
-            self.git.repo.git.execute(["git", "diff"], output_stream=patch)
-            patch.seek(0)
-        cwd = "."
-        if self.git.enabled:
-            cwd = cwd + os.getcwd().replace(self.git.repo.working_dir, "")
-        response: "_Response" = self.gql(  # type: ignore
-            query,
-            variable_values={
-                "entity": entity or self.settings("entity"),
-                "model": project or self.settings("project"),
-                "command": command,
-                "runId": run_id,
-                "patch": patch.read().decode("utf8"),
-                "cwd": cwd,
-            },
-        )
-        return response
-
-    @normalize_exceptions
     def run_config(
         self, project: str, run: Optional[str] = None, entity: Optional[str] = None
     ) -> Tuple[str, Dict[str, Any], Optional[str], Dict[str, Any]]:

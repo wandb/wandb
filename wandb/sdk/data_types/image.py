@@ -63,7 +63,7 @@ class Image(BatchableMedia):
 
     Examples:
         ### Create a wandb.Image from a numpy array
-        <!--yeadoc-test:log-image-numpy->
+        <!--yeadoc-test:log-image-numpy-->
         ```python
         import numpy as np
         import wandb
@@ -78,7 +78,7 @@ class Image(BatchableMedia):
         ```
 
         ### Create a wandb.Image from a PILImage
-        <!--yeadoc-test:log-image-pil->
+        <!--yeadoc-test:log-image-pillow-->
         ```python
         import numpy as np
         from PIL import Image as PILImage
