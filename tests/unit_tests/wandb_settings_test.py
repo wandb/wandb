@@ -1042,6 +1042,7 @@ def test_run_urls():
 
 def test_StaticSettings():
     from wandb.sdk.internal.settings_static import SettingsStatic
+
     static_settings = SettingsStatic(Settings().make_static())
     assert "base_url" in static_settings
     assert static_settings.get("base_url") == "https://api.wandb.ai"
