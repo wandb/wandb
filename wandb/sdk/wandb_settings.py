@@ -1,3 +1,4 @@
+
 import configparser
 from datetime import datetime
 from distutils.util import strtobool
@@ -416,9 +417,10 @@ class Settings:
     entity: str
     files_dir: str
     force: bool
+    git_commit: str
     git_remote: str
     git_remote_url: str
-    git_commit: str
+    git_root: str
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]

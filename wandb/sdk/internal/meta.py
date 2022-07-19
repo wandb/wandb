@@ -38,6 +38,7 @@ class Meta:
         self.fname = os.path.join(self._settings.files_dir, METADATA_FNAME)
         self._interface = interface
         self._git = GitRepo(
+            root=self._settings.git_root,
             remote=self._settings.git_remote,
             remote_url=self._settings.git_remote_url,
             commit=self._settings.git_commit,

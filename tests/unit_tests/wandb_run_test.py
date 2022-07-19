@@ -8,6 +8,8 @@ import platform
 import sys
 from unittest import mock
 
+
+import git
 import numpy as np
 import pytest
 import wandb
@@ -851,3 +853,18 @@ def test_manual_git_run_metadata_from_environ(live_mock_server, test_settings):
     ctx = live_mock_server.get_ctx()
     assert ctx["git"]["remote"] == remote_url
     assert ctx["git"]["commit"] == commit
+
+
+def test_git_root(runner, live_mock_server, test_settings):
+    path = "./foo"
+    remote_url = "https://foo:@github.com/FooTest/Foo.git"
+    with runner.isolated_filesystem():
+        with git.Repo.init(path) as repo:
+            repo.create_remote("origin", remote_url)
+            repo.index.commit("initial commit")
+        with mock.patch.dict(os.environ, {env.GIT_ROOT: path}):
+            run = wandb.init(settings=test_settings)
+            run.finish()
+        ctx = live_mock_server.get_ctx()
+        assert ctx["git"]["remote"] == repo.remote().url
+        assert ctx["git"]["commit"] == repo.head.commit.hexsha

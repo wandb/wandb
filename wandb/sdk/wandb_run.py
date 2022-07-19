@@ -689,6 +689,7 @@ class Run:
         # Use user provided git info if available otherwise resolve it from the environment
         try:
             repo = GitRepo(
+                root=self._settings.git_root,
                 remote=self._settings.git_remote,
                 remote_url=self._settings.git_remote_url,
                 commit=self._settings.git_commit,

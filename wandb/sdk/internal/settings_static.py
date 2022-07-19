@@ -28,9 +28,10 @@ class SettingsStatic:
     program: Optional[str]
     silent: Optional[bool]
     email: Optional[str]
+    git_commit: Optional[str]
     git_remote: Optional[str]
     git_remote_url: Optional[str]
-    git_commit: Optional[str]
+    git_root: Optional[str]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

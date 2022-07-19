@@ -1040,7 +1040,7 @@ def test_run_urls():
     assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
 
 
-def test_StaticSettings():
+def test_SettingsStatic():
     from wandb.sdk.internal.settings_static import SettingsStatic
 
     static_settings = SettingsStatic(Settings().make_static())
