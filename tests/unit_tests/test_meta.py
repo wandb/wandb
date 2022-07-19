@@ -120,8 +120,8 @@ def test_commmit_hash_sent_correctly(test_settings, git_repo):
     # disable_git is False is by default
     # so run object should have git info
     run = wandb.init(settings=test_settings)
-    assert run._last_commit is not None
-    assert run._last_commit == git_repo.last_commit
+    assert run._commit is not None
+    assert run._commit == git_repo.last_commit
     assert run._remote_url is None
     run.finish()
 
@@ -134,5 +134,5 @@ def test_commmit_hash_sent_correctly(test_settings, git_repo):
 def test_commit_hash_not_sent_when_disable(test_settings, git_repo, disable_git_save):
     run = wandb.init(settings=test_settings)
     assert git_repo.last_commit
-    assert run._last_commit is None
+    assert run._commit is None
     run.finish()

@@ -15,9 +15,13 @@ class GitRepo:
         root: Optional[str] = None,
         remote: str = "origin",
         lazy: bool = True,
+        remote_url: Optional[str] = None,
+        commit: Optional[str] = None,
     ) -> None:
-        self.remote_name = remote
+        self.remote_name = remote if remote_url is None else None
         self._root = root
+        self._remote_url = remote_url
+        self._commit = commit
         self._repo = None
         if not lazy:
             self.repo
@@ -40,6 +44,10 @@ class GitRepo:
                     logger.warn(f"git root {self._root} does not exist")
                     self._repo = False
         return self._repo
+
+    @property
+    def auto(self):
+        return self._remote_url is None
 
     def is_untracked(self, file_name: str) -> bool:
         if not self.repo:
@@ -73,6 +81,8 @@ class GitRepo:
 
     @property
     def last_commit(self):
+        if self._commit:
+            return self._commit
         if not self.repo:
             return None
         if not self.repo.head or not self.repo.head.is_valid():
@@ -113,6 +123,8 @@ class GitRepo:
 
     @property
     def remote_url(self):
+        if self._remote_url:
+            return self._remote_url
         if not self.remote:
             return None
         parsed = urlparse(self.remote.url)
