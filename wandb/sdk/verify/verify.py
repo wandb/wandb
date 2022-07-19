@@ -15,7 +15,7 @@ from typing import (
     Union,
 )
 
-import click
+import click  # type: ignore
 from pkg_resources import parse_version
 import requests
 import wandb

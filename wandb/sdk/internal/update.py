@@ -49,13 +49,13 @@ def _find_available(
     if parse_version(latest_version) <= parsed_current_version:
         # pre-releases are not included in latest_version
         # so if we are currently running a pre-release we check more
-        if not parsed_current_version.is_prerelease:  # type: ignore
+        if not parsed_current_version.is_prerelease:
             return None
         # Candidates are pre-releases with the same base_version
         release_list = map(parse_version, release_list)
         release_list = filter(lambda v: v.is_prerelease, release_list)
         release_list = filter(
-            lambda v: v.base_version == parsed_current_version.base_version,  # type: ignore
+            lambda v: v.base_version == parsed_current_version.base_version,
             release_list,
         )
         release_list = sorted(release_list)
