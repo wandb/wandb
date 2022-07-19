@@ -687,7 +687,11 @@ class Run:
 
     def _populate_git_info(self) -> None:
         try:
-            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+            repo = GitRepo(
+                root=self._settings.git_root,
+                remote=self._settings.git_remote,
+                lazy=False,
+            )
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
             return

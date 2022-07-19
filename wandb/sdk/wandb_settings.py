@@ -417,6 +417,7 @@ class Settings:
     files_dir: str
     force: bool
     git_remote: str
+    git_root: str
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
