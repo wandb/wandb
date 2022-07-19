@@ -11,6 +11,9 @@ assert:
   - :wandb:runs[0][summary]:
       m1: 1
       m2: 2
+  - :op:contains_regex:
+    - :wandb:runs[0][output][stderr]
+    - ZeroDivisionError
   - :wandb:runs[0][exitcode]: 1
   - :yea:exit: 1
 """
