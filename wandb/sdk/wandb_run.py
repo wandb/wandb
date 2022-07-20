@@ -31,7 +31,6 @@ from typing import (
 from typing import TYPE_CHECKING
 
 import requests
-import weakref
 
 import wandb
 from wandb import errors
@@ -2007,19 +2006,25 @@ class Run:
         self._is_attached = True
         self._on_ready()
 
-    def _telemetry_import_hook(self, module: object) -> None:
-        with telemetry.context(run=self) as tel:
-            setattr(tel.imports_finish, module.__name__, True)
-
     def _register_telemetry_import_hooks(self) -> None:
+        def _telemetry_import_hook(run: "wandb.Run", module: Any) -> None:
+            print(run._run_id, module.__name__)
+            print("+" * 80)
+            with telemetry.context(run=run) as tel:
+                setattr(tel.imports_finish, module.__name__, True)
+
         import_telemetry_set = set(
             desc.name
             for desc in telemetry.TelemetryImports.DESCRIPTOR.fields
             if desc.type == desc.TYPE_BOOL
         )
+
         for module_name in import_telemetry_set:
+
             register_post_import_hook(
-                self._telemetry_import_hook, self._run_id, module_name
+                functools.partial(_telemetry_import_hook, self),
+                self._run_id,
+                module_name,
             )
 
     def _on_ready(self) -> None:

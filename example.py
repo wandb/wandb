@@ -1,12 +1,19 @@
 import torch
-import sklearn
-
 import tensorflow
 import wandb
 
-run = wandb.init()
-run.finish()
-import xgboost
 
-run = wandb.init()
-run.finish()
+def main():
+    run = wandb.init()
+    import sklearn
+
+    run.finish()
+
+    run1 = wandb.init()
+    import xgboost
+
+    run1.finish()
+
+
+if __name__ == "__main__":
+    main()
