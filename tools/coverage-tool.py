@@ -184,7 +184,9 @@ def main():
             print(f"{k:{max_key_len}} {v}")
     elif args.action == "check":
         tasks = coverage_tasks(args)
-        coverage_config_check(len(tasks), args)
+        # lets only count the main workflow
+        main_tasks = filter(lambda x: x[0].split(".")[1] == "main", tasks)
+        coverage_config_check(len(list(main_tasks)), args)
     else:
         parser.print_help()
 
