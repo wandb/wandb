@@ -2378,8 +2378,6 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
-        # self._job = None
-        # self._queue = None
 
         self.load(force=not attrs)
 
@@ -2447,14 +2445,6 @@ class Sweep(Attrs):
             urllib.parse.quote_plus(str(self.project)),
             urllib.parse.quote_plus(str(self.id)),
         ]
-
-    # @property
-    # def job(self):
-    #     return self._job
-
-    # @property
-    # def queue(self):
-    #     return self._queue
 
     @property
     def url(self):
