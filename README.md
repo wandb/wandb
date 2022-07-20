@@ -193,14 +193,17 @@ trainer = Trainer(logger=wandb_logger)
 
 
 ## 🤗 HuggingFace
-Just run a script using HuggingFace's Trainer in an environment where `wandb` is installed
-and we'll automatically log losses, evaluation metrics, model topology and gradients:
+Just run a script using HuggingFace's Trainer in an environment where `wandb` is installed. You
+need to pass `--report_to wandb` in order to start logging losses, evaluation metrics, 
+model topology and gradients:
+
 ```python
 # 1. Install the wandb library
 pip install wandb
 
 # 2. Run a script that has the Trainer to automatically logs metrics, model topology and gradients
 python run_glue.py \
+ --report_to wandb \
  --model_name_or_path bert-base-uncased \
  --task_name MRPC \
  --data_dir $GLUE_DIR/$TASK_NAME \
