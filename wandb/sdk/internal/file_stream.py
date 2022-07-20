@@ -1,5 +1,4 @@
 import base64
-from functools import partial
 import itertools
 import logging
 import os
@@ -337,7 +336,8 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
-        self._client.post = partial(self._client.post, timeout=self.HTTP_TIMEOUT)  # type: ignore
+        # todo: actually use the timeout once more thorough error injection in testing covers it
+        # self._client.post = functools.partial(self._client.post, timeout=self.HTTP_TIMEOUT)
         self._client.auth = ("api", api.api_key or "")
         self._client.headers.update(
             {
