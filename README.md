@@ -188,7 +188,7 @@ wandb_logger = WandbLogger(project="gpt-3")
 trainer = Trainer(logger=wandb_logger)
 ```
 
-- **[Try in a colab →](http://wandb.me/lit-colab)**
+- **[Try in a colab →](http://wandb.me/lightning)**
 - [Docs](https://docs.wandb.ai/guides/integrations/lightning)
 
 
