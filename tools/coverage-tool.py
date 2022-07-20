@@ -121,7 +121,6 @@ def parallelism_expand(cov_list, par_dict):
 
 
 def coverage_tasks(args: argparse.Namespace):
-    tasks = []
 
     ci_fname = args.circleci_yaml
 
