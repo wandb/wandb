@@ -69,7 +69,9 @@ class ServiceSockInterface(ServiceInterface):
         self._sock_client.send(inform_teardown=inform_teardown)
 
     def _svc_inform_console_data(self, name: str, data: str) -> None:
-        inform_console_data = spb.ServerInformConsoleDataRequest(output_type=name, output_data=data)
+        inform_console_data = spb.ServerInformConsoleDataRequest(
+            output_type=name, output_data=data
+        )
 
         assert self._sock_client
         self._sock_client.send(inform_console_data=inform_console_data)

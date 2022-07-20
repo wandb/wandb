@@ -158,7 +158,7 @@ class SockServerReadThread(threading.Thread):
 
             o = pb.OutputRecord(output_type=otype, line=data)
             o.timestamp.GetCurrentTime()
-            
+
             record = pb.Record()
             record.output.CopyFrom(o)
 
@@ -171,7 +171,6 @@ class SockServerReadThread(threading.Thread):
                 continue
             assert iface.record_q
             iface.record_q.put(record)
-
 
     def server_inform_console_start(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_console_start
