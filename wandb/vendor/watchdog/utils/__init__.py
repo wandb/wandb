@@ -67,14 +67,8 @@ class BaseThread(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        if has_attribute(self, 'daemon'):
-            self.daemon = True
-        else:
-            self.setDaemon(True)
+        self.daemon = True
         self._stopped_event = Event()
-
-        if not has_attribute(self._stopped_event, 'is_set'):
-            self._stopped_event.is_set = self._stopped_event.isSet
 
     @property
     def stopped_event(self):

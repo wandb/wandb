@@ -10,6 +10,7 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+import ast
 from collections import namedtuple
 import datetime
 from functools import partial
@@ -21,21 +22,24 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Optional
+from typing import List, Optional
 import urllib
 
-from dateutil.relativedelta import relativedelta
+from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import LaunchError
+from wandb.errors import CommError, LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
+from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
+from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
+from wandb.sdk.wandb_require_helpers import requires
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
@@ -231,74 +235,115 @@ class Api:
     _HTTP_TIMEOUT = env.get_http_timeout(9)
     VIEWER_QUERY = gql(
         """
-    query Viewer{
-        viewer {
-            id
-            flags
-            entity
-            username
-            email
-            admin
-            teams {
-                edges {
-                    node {
-                        name
+        query Viewer{
+            viewer {
+                id
+                flags
+                entity
+                username
+                email
+                admin
+                apiKeys {
+                    edges {
+                        node {
+                            id
+                            name
+                            description
+                        }
+                    }
+                }
+                teams {
+                    edges {
+                        node {
+                            name
+                        }
                     }
                 }
             }
         }
-    }
-    """
+        """
     )
     USERS_QUERY = gql(
         """
-    query SearchUsers($query: String) {
-        users(query: $query) {
-            edges {
-                node {
-                    id
-                    flags
-                    entity
-                    admin
-                    email
-                    deletedAt
-                    username
-                    apiKeys {
-                        edges {
-                            node {
-                                id
-                                name
-                                description
+        query SearchUsers($query: String) {
+            users(query: $query) {
+                edges {
+                    node {
+                        id
+                        flags
+                        entity
+                        admin
+                        email
+                        deletedAt
+                        username
+                        apiKeys {
+                            edges {
+                                node {
+                                    id
+                                    name
+                                    description
+                                }
                             }
                         }
-                    }
-                    teams {
-                        edges {
-                            node {
-                                name
+                        teams {
+                            edges {
+                                node {
+                                    name
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
+        """
+    )
+
+    VIEW_REPORT_QUERY = gql(
+        """
+        query SpecificReport($reportId: ID!) {
+            view(id: $reportId) {
+            id
+            type
+            name
+            displayName
+            description
+            project {
+                id
+                name
+                entityName
+            }
+            createdAt
+            updatedAt
+            spec
+            previewUrl
+            user {
+                name
+                username
+                userInfo
+            }
+            }
+        }
         """
     )
 
     def __init__(
-        self, overrides={}, timeout: Optional[int] = None, api_key: Optional[str] = None
-    ):
+        self,
+        overrides=None,
+        timeout: Optional[int] = None,
+        api_key: Optional[str] = None,
+    ) -> None:
         self.settings = InternalApi().settings()
         self._api_key = api_key
         if self.api_key is None:
             wandb.login()
-        self.settings.update(overrides)
-        if "username" in overrides and "entity" not in overrides:
+        _overrides = overrides or {}
+        self.settings.update(_overrides)
+        if "username" in _overrides and "entity" not in _overrides:
             wandb.termwarn(
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
-            self.settings["entity"] = overrides["username"]
+            self.settings["entity"] = _overrides["username"]
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
         self._viewer = None
@@ -326,6 +371,54 @@ class Api:
         if kwargs.get("entity") is None:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
+
+    @requires("report-editing:v0")
+    def create_report(
+        self,
+        project: str,
+        entity: str = "",
+        title: Optional[str] = "Untitled Report",
+        description: Optional[str] = "",
+        width: Optional[str] = "readable",
+        blocks: "Optional[wandb.apis.reports.Block]" = None,
+    ) -> "wandb.apis.reports.Report":
+        if entity == "":
+            entity = self.default_entity or ""
+        if blocks is None:
+            blocks = []
+        return wandb.apis.reports.Report(
+            project, entity, title, description, width, blocks
+        )
+
+    @requires("report-editing:v0")
+    def load_report(self, path: str) -> "wandb.apis.reports.Report":
+        """
+        Get report at a given path.
+
+        Arguments:
+            path: (str) Path to the target report in the form `entity/project/reports/reportId`.
+                You can get this by copy-pasting the URL after your wandb url.  For example:
+                `megatruong/report-editing/reports/My-fabulous-report-title--VmlldzoxOTc1Njk0`
+
+        Returns:
+            A `BetaReport` object which represents the report at `path`
+
+        Raises:
+            wandb.Error if path is invalid
+        """
+        try:
+            entity, project, *_, _report_id = path.split("/")
+            *_, report_id = _report_id.split("--")
+        except ValueError as e:
+            raise ValueError("path must be `entity/project/reports/reportId`") from e
+        else:
+            r = self.client.execute(
+                self.VIEW_REPORT_QUERY, variable_values={"reportId": report_id}
+            )
+            # breakpoint()
+            viewspec = r["view"]
+            viewspec["spec"] = json.loads(viewspec["spec"])
+            return wandb.apis.reports.Report.from_json(viewspec)
 
     def create_user(self, email, admin=False):
         """Creates a new user
@@ -721,12 +814,20 @@ class Api:
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
-    def queued_job(self, path=""):
+    def queued_run(
+        self, entity, project, queue_id, run_queue_item_id, container_job=False
+    ):
         """
         Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
         """
-        entity, project, queue, run_queue_item_id = path.split("/")
-        return QueuedJob(self.client, entity, project, queue, run_queue_item_id)
+        return QueuedRun(
+            self.client,
+            entity,
+            project,
+            queue_id,
+            run_queue_item_id,
+            container_job=container_job,
+        )
 
     @normalize_exceptions
     def sweep(self, path=""):
@@ -786,6 +887,12 @@ class Api:
                 f"type {type} specified but this artifact is of type {artifact.type}"
             )
         return artifact
+
+    @normalize_exceptions
+    def job(self, name, path=None):
+        if name is None:
+            raise ValueError("You must specify name= to fetch a job.")
+        return Job(self, name, path)
 
 
 class Attrs:
@@ -937,6 +1044,14 @@ class User(Attrs):
     def __init__(self, client, attrs):
         super().__init__(attrs)
         self._client = client
+        self._user_api = None
+
+    @property
+    def user_api(self):
+        """An instance of the api using credentials from the user"""
+        if self._user_api is None and len(self.api_keys) > 0:
+            self._user_api = wandb.Api(api_key=self.api_keys[0])
+        return self._user_api
 
     @classmethod
     def create(cls, api, email, admin=False):
@@ -994,10 +1109,13 @@ class User(Attrs):
             The new api key, or None on failure
         """
         try:
-            return self._client.execute(
+            # We must make this call using credentials from the original user
+            key = self.user_api.client.execute(
                 self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]["name"]
-        except requests.exceptions.HTTPError:
+            )["generateApiKey"]["apiKey"]
+            self._attrs["apiKeys"]["edges"].append({"node": key})
+            return key["name"]
+        except (requests.exceptions.HTTPError, AttributeError):
             return None
 
     def __repr__(self):
@@ -1373,10 +1491,10 @@ class Runs(Paginator):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters={}, order=None, per_page=50):
+    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
         self.entity = entity
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         self._sweeps = {}
         variables = {
@@ -1445,71 +1563,6 @@ class Runs(Paginator):
         return f"<Runs {self.entity}/{self.project}>"
 
 
-class QueuedJob(Attrs):
-    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super().__init__(dict(attrs))
-        self.client = client
-        self._entity = entity
-        self.project = project
-        self._queue = queue
-        self._run_queue_item_id = run_queue_item_id
-        self._run_id = None
-
-    @normalize_exceptions
-    def wait_until_running(self):
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    resultingRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        variable_values = {
-            "projectName": self.project,
-            "entityName": self._entity,
-            "runQueue": self._queue,
-        }
-
-        while True:
-            res = self.client.execute(query, variable_values)
-            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-                if (
-                    item["node"]["id"] == self._run_queue_item_id
-                    and item["node"]["resultingRunId"] is not None
-                ):
-                    # TODO: this should be changed once the ack occurs within the docker container.
-                    try:
-                        Run(
-                            self.client,
-                            self._entity,
-                            self.project,
-                            item["node"]["resultingRunId"],
-                        )
-                        self._run_id = item["node"]["resultingRunId"]
-                        return
-                    except ValueError:
-                        continue
-            time.sleep(5)
-
-    @property
-    def run(self):
-        if self._run_id is None:
-            raise LaunchError("Tried to fetch run without having run_id")
-        return Run(self.client, self._entity, self.project, self._run_id)
-
-
 class Run(Attrs):
     """
     A single run associated with an entity and project.
@@ -1535,11 +1588,12 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs={}):
+    def __init__(self, client, entity, project, run_id, attrs=None):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
-        super().__init__(dict(attrs))
+        _attrs = attrs or {}
+        super().__init__(dict(_attrs))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1553,9 +1607,9 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self._state = attrs.get("state", "not found")
+        self._state = _attrs.get("state", "not found")
 
-        self.load(force=not attrs)
+        self.load(force=not _attrs)
 
     @property
     def state(self):
@@ -1836,7 +1890,7 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=[], per_page=50):
+    def files(self, names=None, per_page=50):
         """
         Arguments:
             names (list): names of the requested files, if empty returns all files
@@ -1845,7 +1899,7 @@ class Run(Attrs):
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
-        return Files(self.client, self, names, per_page)
+        return Files(self.client, self, names or [], per_page)
 
     @normalize_exceptions
     def file(self, name):
@@ -2112,6 +2166,176 @@ class Run(Attrs):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 
+class QueuedRun:
+    """
+    A single queued run associated with an entity and project. Call `run = wait_until_running()` or `run = wait_until_finished()` methods to access the run
+    """
+
+    def __init__(
+        self,
+        client,
+        entity,
+        project,
+        queue_id,
+        run_queue_item_id,
+        container_job=False,
+    ):
+        self.client = client
+        self._entity = entity
+        self._project = project
+        self._queue_id = queue_id
+        self._run_queue_item_id = run_queue_item_id
+        self.sweep = None
+        self._run = None
+        self.container_job = container_job
+
+    @property
+    def queue_id(self):
+        return self._queue_id
+
+    @property
+    def id(self):
+        return self._run_queue_item_id
+
+    @property
+    def project(self):
+        return self._project
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def state(self):
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+        }
+        res = self.client.execute(query, variable_values)
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            if str(item["node"]["id"]) == str(self.id):
+                return item["node"]["state"].lower()
+        raise ValueError(
+            f"Could not find QueuedRun associated with id: {self.id} on queue id {self.queue_id}"
+        )
+
+    @normalize_exceptions
+    def wait_until_finished(self):
+        if not self._run:
+            self.wait_until_running()
+
+        self._run.wait_until_finished()
+        # refetch run to get updated summary
+        self._run.load(force=True)
+        return self._run
+
+    @normalize_exceptions
+    def delete(self, delete_artifacts=False):
+        """
+        Deletes the given queued run from the wandb backend.
+        """
+        mutation = gql(
+            """
+            mutation DeleteFromRunQueue($queueID: String!, $runQueueItemID: String!)
+            {
+                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemID: $runQueueItemID}) {
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        self.client.execute(
+            mutation,
+            variable_values={
+                "queueID": self.queue_id,
+                "runQueueItemID": self._run_queue_item_id,
+            },
+        )
+
+    @normalize_exceptions
+    def wait_until_running(self):
+        if self._run is not None:
+            return self._run
+        if self.container_job:
+            raise LaunchError("Container jobs cannot be waited on")
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+        }
+
+        while True:
+            # sleep here to hide an ugly warning
+            time.sleep(2)
+            res = self.client.execute(query, variable_values)
+            # TODO: add fetch run queue by item end point
+            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+                if (
+                    item["node"]["id"] == self.id
+                    and item["node"]["associatedRunId"] is not None
+                ):
+                    # TODO: this should be changed once the ack occurs within the docker container.
+                    try:
+                        self._run = Run(
+                            self.client,
+                            self._entity,
+                            self.project,
+                            item["node"]["associatedRunId"],
+                            None,
+                        )
+                        self._run_id = item["node"]["associatedRunId"]
+                        return self._run
+                    except ValueError as e:
+                        print(e)
+                elif item["node"]["id"] == self.id:
+                    wandb.termlog("Waiting for run to start")
+
+            time.sleep(3)
+
+    def __repr__(self):
+        return f"<QueuedRun {self.queue_id} ({self.id})"
+
+
 class Sweep(Attrs):
     """A set of runs associated with a sweep.
 
@@ -2137,6 +2361,7 @@ class Sweep(Attrs):
             sweep(sweepName: $name) {
                 id
                 name
+                state
                 bestLoss
                 config
             }
@@ -2145,9 +2370,9 @@ class Sweep(Attrs):
     """
     )
 
-    def __init__(self, client, entity, project, sweep_id, attrs={}):
+    def __init__(self, client, entity, project, sweep_id, attrs=None):
         # TODO: Add agents / flesh this out.
-        super().__init__(dict(attrs))
+        super().__init__(dict(attrs or {}))
         self.client = client
         self._entity = entity
         self.project = project
@@ -2286,7 +2511,9 @@ class Sweep(Attrs):
         return self.to_html()
 
     def __repr__(self):
-        return "<Sweep {}>".format("/".join(self.path))
+        return "<Sweep {} ({})>".format(
+            "/".join(self.path), self._attrs.get("state", "Unknown State")
+        )
 
 
 class Files(Paginator):
@@ -2308,13 +2535,13 @@ class Files(Paginator):
         % FILE_FRAGMENT
     )
 
-    def __init__(self, client, run, names=[], per_page=50, upload=False):
+    def __init__(self, client, run, names=None, per_page=50, upload=False):
         self.run = run
         variables = {
             "project": run.project,
             "entity": run.entity,
             "name": run.id,
-            "fileNames": names,
+            "fileNames": names or [],
             "upload": upload,
         }
         super().__init__(client, variables, per_page)
@@ -2566,8 +2793,10 @@ class QueryGenerator:
         "NIN": "$nin",
         "REGEX": "$regex",
     }
+    MONGO_TO_INDIVIDUAL_OP = {v: k for k, v in INDIVIDUAL_OP_TO_MONGO.items()}
 
     GROUP_OP_TO_MONGO = {"AND": "$and", "OR": "$or"}
+    MONGO_TO_GROUP_OP = {v: k for k, v in GROUP_OP_TO_MONGO.items()}
 
     def __init__(self):
         pass
@@ -2615,6 +2844,46 @@ class QueryGenerator:
             return "tags." + key["name"]
         raise ValueError("Invalid key: %s" % key)
 
+    def server_path_to_key(self, path):
+        if path.startswith("config."):
+            return {"section": "config", "name": path.split("config.", 1)[1]}
+        elif path.startswith("summary_metrics."):
+            return {"section": "summary", "name": path.split("summary_metrics.", 1)[1]}
+        elif path.startswith("keys_info.keys."):
+            return {"section": "keys_info", "name": path.split("keys_info.keys.", 1)[1]}
+        elif path.startswith("tags."):
+            return {"section": "tags", "name": path.split("tags.", 1)[1]}
+        else:
+            return {"section": "run", "name": path}
+
+    def keys_to_order(self, keys):
+        orders = []
+        for key in keys["keys"]:
+            order = self.key_to_server_path(key["key"])
+            if key.get("ascending"):
+                order = "+" + order
+            else:
+                order = "-" + order
+            orders.append(order)
+        # return ",".join(orders)
+        return orders
+
+    def order_to_keys(self, order):
+        keys = []
+        for k in order:  # orderstr.split(","):
+            name = k[1:]
+            if k[0] == "+":
+                ascending = True
+            elif k[0] == "-":
+                ascending = False
+            else:
+                raise Exception("you must sort by ascending(+) or descending(-)")
+
+            key = {"key": {"section": "run", "name": name}, "ascending": ascending}
+            keys.append(key)
+
+        return {"keys": keys}
+
     def _to_mongo_individual(self, filter):
         if filter["key"]["name"] == "":
             return None
@@ -2622,7 +2891,7 @@ class QueryGenerator:
         if filter.get("value") is None and filter["op"] != "=" and filter["op"] != "!=":
             return None
 
-        if filter.get("disabled") is None and filter["disabled"]:
+        if filter.get("disabled") is not None and filter["disabled"]:
             return None
 
         if filter["key"]["section"] == "tags":
@@ -2634,7 +2903,7 @@ class QueryGenerator:
                 }
             else:
                 return {"tags": filter["key"]["name"]}
-        path = self.key_to_server_path(filter.key)
+        path = self.key_to_server_path(filter["key"])
         if path is None:
             return path
         return {path: self._to_mongo_op_value(filter["op"], filter["value"])}
@@ -2648,6 +2917,253 @@ class QueryGenerator:
                     self.filter_to_mongo(f) for f in filter["filters"]
                 ]
             }
+
+    def mongo_to_filter(self, filter):
+        # Returns {"op": "OR", "filters": [{"op": "AND", "filters": []}]}
+        if filter is None:
+            return None  # this covers the case where self.filter_to_mongo returns None.
+
+        group_op = None
+        for key in filter.keys():
+            # if self.MONGO_TO_GROUP_OP[key]:
+            if key in self.MONGO_TO_GROUP_OP:
+                group_op = key
+                break
+        if group_op is not None:
+            return {
+                "op": self.MONGO_TO_GROUP_OP[group_op],
+                "filters": [self.mongo_to_filter(f) for f in filter[group_op]],
+            }
+        else:
+            for k, v in filter.items():
+                if isinstance(v, dict):
+                    # TODO: do we always have one key in this case?
+                    op = next(iter(v.keys()))
+                    return {
+                        "key": self.server_path_to_key(k),
+                        "op": self.MONGO_TO_INDIVIDUAL_OP[op],
+                        "value": v[op],
+                    }
+                else:
+                    return {"key": self.server_path_to_key(k), "op": "=", "value": v}
+
+
+class PythonMongoishQueryGenerator:
+    def __init__(self, run_set):
+        self.run_set = run_set
+        self.panel_metrics_helper = PanelMetricsHelper()
+
+    FRONTEND_NAME_MAPPING = {
+        "ID": "name",
+        "Name": "displayName",
+        "Tags": "tags",
+        "State": "state",
+        "CreatedTimestamp": "createdAt",
+        "Runtime": "duration",
+        "User": "username",
+        "Sweep": "sweep",
+        "Group": "group",
+        "JobType": "jobType",
+        "Hostname": "host",
+        "UsingArtifact": "inputArtifacts",
+        "OutputtingArtifact": "outputArtifacts",
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp"
+        # "GroupedRuns": "__wb_group_by_all"
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+    AST_OPERATORS = {
+        ast.Lt: "$lt",
+        ast.LtE: "$lte",
+        ast.Gt: "$gt",
+        ast.GtE: "$gte",
+        ast.Eq: "=",
+        ast.Is: "=",
+        ast.NotEq: "$ne",
+        ast.IsNot: "$ne",
+        ast.In: "$in",
+        ast.NotIn: "$nin",
+        ast.And: "$and",
+        ast.Or: "$or",
+        ast.Not: "$not",
+    }
+
+    if parse_version(platform.python_version()) >= parse_version("3.8"):
+        AST_FIELDS = {
+            ast.Constant: "value",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+        }
+    else:
+        AST_FIELDS = {
+            ast.Str: "s",
+            ast.Num: "n",
+            ast.Name: "id",
+            ast.List: "elts",
+            ast.Tuple: "elts",
+            ast.NameConstant: "value",
+        }
+
+    def _handle_compare(self, node):
+        # only left side can be a col
+        left = self.front_to_back(self._handle_fields(node.left))
+        op = self._handle_ops(node.ops[0])
+        right = self._handle_fields(node.comparators[0])
+
+        # Eq has no op for some reason
+        if op == "=":
+            return {left: right}
+        else:
+            return {left: {op: right}}
+
+    def _handle_fields(self, node):
+        result = getattr(node, self.AST_FIELDS.get(type(node)))
+        if isinstance(result, list):
+            return [self._handle_fields(node) for node in result]
+        elif isinstance(result, str):
+            return self._unconvert(result)
+        return result
+
+    def _handle_ops(self, node):
+        return self.AST_OPERATORS.get(type(node))
+
+    def _convert(self, filterstr):
+        _conversion = filterstr.replace(".", "__________")  # this is so silly
+        # return _conversion
+        return "(" + _conversion + ")"  # wrap expr to make it eval-able
+
+    def _unconvert(self, field_name):
+        return field_name.replace("__________", ".")  # maximum silly, but it works!
+
+    def python_to_mongo(self, filterstr):
+        try:
+            tree = ast.parse(self._convert(filterstr), mode="eval")
+        except SyntaxError as e:
+            raise ValueError(
+                "Invalid python comparison expression; form something like `my_col == 123`"
+            ) from e
+
+        multiple_filters = hasattr(tree.body, "op")
+
+        if multiple_filters:
+            op = self.AST_OPERATORS.get(type(tree.body.op))
+            values = [self._handle_compare(v) for v in tree.body.values]
+        else:
+            op = "$and"
+            values = [self._handle_compare(tree.body)]
+        return {"$or": [{op: values}]}
+
+    def front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config.{name}.value{rest}"
+        else:  # assume summary metrics
+            return f"summary_metrics.{name}{rest}"
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif (
+            name.startswith("config.") and ".value" in name
+        ):  # may be brittle: originally "endswith", but that doesn't work with nested keys...
+            # strip is weird sometimes (??)
+            return name.replace("config.", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        wandb.termerror(f"Unknown token: {name}")
+        return name
+
+    # These are only used for ParallelCoordinatesPlot because it has weird backend names...
+    def pc_front_to_back(self, name):
+        name, *rest = name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        if name is None:
+            return None
+        elif name in self.panel_metrics_helper.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.panel_metrics_helper.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return name
+        elif name in self.run_set._runs_config:
+            return f"config:{name}.value{rest}"
+        else:  # assume summary metrics
+            return f"summary:{name}{rest}"
+
+    def pc_back_to_front(self, name):
+        if name is None:
+            return None
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.panel_metrics_helper.FRONTEND_NAME_MAPPING_REVERSED.get(
+                name, name
+            )
+        elif name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return name
+        elif name.startswith("config:") and ".value" in name:
+            return name.replace("config:", "").replace(".value", "")
+        elif name.startswith("summary_metrics."):
+            return name.replace("summary_metrics.", "")
+        return name
+
+
+class PanelMetricsHelper:
+    FRONTEND_NAME_MAPPING = {
+        "Step": "_step",
+        "Relative Time (Wall)": "_absolute_runtime",
+        "Relative Time (Process)": "_runtime",
+        "Wall Time": "_timestamp",
+    }
+    FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
+
+    RUN_MAPPING = {"Created Timestamp": "createdAt", "Latest Timestamp": "heartbeatAt"}
+    RUN_MAPPING_REVERSED = {v: k for k, v in RUN_MAPPING.items()}
+
+    def front_to_back(self, name):
+        if name in self.FRONTEND_NAME_MAPPING:
+            return self.FRONTEND_NAME_MAPPING[name]
+        return name
+
+    def back_to_front(self, name):
+        if name in self.FRONTEND_NAME_MAPPING_REVERSED:
+            return self.FRONTEND_NAME_MAPPING_REVERSED[name]
+        return name
+
+    # ScatterPlot and ParallelCoords have weird conventions
+    def special_front_to_back(self, name):
+        if name is None:
+            return name
+        elif name in self.RUN_MAPPING:
+            return "run:" + self.RUN_MAPPING[name]
+        elif name in self.FRONTEND_NAME_MAPPING:
+            return "summary:" + self.FRONTEND_NAME_MAPPING[name]
+        elif name == "Index":
+            return name
+        return "summary:" + name
+
+    def special_back_to_front(self, name):
+        if name is None:
+            return name
+        elif "summary:" in name:
+            name = name.replace("summary:", "")
+            return self.FRONTEND_NAME_MAPPING_REVERSED.get(name, name)
+        elif "run:" in name:
+            name = name.replace("run:", "")
+            return self.RUN_MAPPING_REVERSED[name]
+        return name
 
 
 class BetaReport(Attrs):
@@ -3872,9 +4388,13 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            delta = relativedelta(datetime.datetime.now() - start_time)
+            now = datetime.datetime.now()
+            delta = abs((now - start_time).total_seconds())
+            hours = int(delta // 3600)
+            minutes = int((delta - hours * 3600) // 60)
+            seconds = delta - hours * 3600 - minutes * 60
             termlog(
-                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
+                f"Done. {hours}:{minutes}:{seconds:.1f}",
                 prefix=False,
             )
         return dirpath
@@ -4277,7 +4797,7 @@ class ArtifactVersions(Paginator):
         project,
         collection_name,
         type,
-        filters={},
+        filters=None,
         order=None,
         per_page=50,
     ):
@@ -4285,7 +4805,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         variables = {
             "project": self.project,
@@ -4413,3 +4933,139 @@ class ArtifactFiles(Paginator):
 
     def __repr__(self):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
+
+
+class Job:
+
+    _name: str
+    _input_types: Type
+    _output_types: Type
+    _entity: str
+    _project: str
+    _entrypoint: List[str]
+
+    def __init__(self, api: Api, name, path: str = None) -> None:
+        try:
+            self._job_artifact = api.artifact(name, type="job")
+        except CommError:
+            raise CommError(f"Job artifact {name} not found")
+        if path:
+            self._fpath = path
+            self._job_artifact.download(root=path)
+        else:
+            self._fpath = self._job_artifact.download()
+        self._name = name
+        self._api = api
+        self._entity = api.default_entity
+
+        with open(os.path.join(self._fpath, "source_info.json")) as f:
+            self._source_info = json.load(f)
+        self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
+        self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
+        self._input_types = TypeRegistry.type_from_dict(
+            self._source_info.get("input_types")
+        )
+        self._output_types = TypeRegistry.type_from_dict(
+            self._source_info.get("output_types")
+        )
+
+        if self._source_info.get("source_type") == "artifact":
+            self._set_configure_launch_project(self._configure_launch_project_artifact)
+        if self._source_info.get("source_type") == "repo":
+            self._set_configure_launch_project(self._configure_launch_project_repo)
+        if self._source_info.get("source_type") == "image":
+            self._set_configure_launch_project(self._configure_launch_project_container)
+
+    @property
+    def name(self):
+        return self._name
+
+    def _set_configure_launch_project(self, func):
+        self.configure_launch_project = func
+
+    def _configure_launch_project_repo(self, launch_project):
+        git_info = self._source_info.get("source", {}).get("git", {})
+        _fetch_git_repo(
+            launch_project.project_dir,
+            git_info["remote"],
+            git_info["commit"],
+        )
+        if os.path.exists(os.path.join(self._fpath, "diff.patch")):
+            with open(os.path.join(self._fpath, "diff.patch")) as f:
+                apply_patch(f.read(), launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
+
+    def _configure_launch_project_artifact(self, launch_project):
+        artifact_string = self._source_info.get("source", {}).get("artifact")
+        if artifact_string is None:
+            raise LaunchError(f"Job {self.name} had no source artifact")
+        artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
+        if is_id:
+            code_artifact = Artifact.from_id(artifact_string, self._api._client)
+        else:
+            code_artifact = self._api.artifact(name=artifact_string, type="code")
+        if code_artifact is None:
+            raise LaunchError("No code artifact found")
+        code_artifact.download(launch_project.project_dir)
+        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.add_entry_point(self._entrypoint)
+        launch_project.python_version = self._source_info.get("runtime")
+
+    def _configure_launch_project_container(self, launch_project):
+        launch_project.docker_image = self._source_info.get("source", {}).get("image")
+        if launch_project.docker_image is None:
+            raise LaunchError(
+                "Job had malformed source dictionary without an image key"
+            )
+        if self._entrypoint:
+            launch_project.add_entry_point(self._entrypoint)
+
+    def set_default_input(self, key, val):
+        self._job_artifact.metadata["config_defaults"][key] = val
+        self._job_artifact.save()
+
+    def _config_defaults(self):
+        return self._job_artifact.metadata["config_defaults"]
+
+    def set_entrypoint(self, entrypoint: List[str]):
+        self._entrypoint = entrypoint
+
+    def call(
+        self,
+        config,
+        project=None,
+        entity=None,
+        queue=None,
+        resource="local-container",
+        resource_args=None,
+        cuda=False,
+    ):
+        from wandb.sdk.launch import launch_add
+
+        run_config = self._config_defaults().copy()
+
+        for key, item in config.items():
+            if util._is_artifact_object(item):
+                if isinstance(item, wandb.Artifact) and item.id is None:
+                    raise ValueError("Cannot queue jobs with unlogged artifacts")
+                run_config[key] = util.artifact_to_json(item)
+
+        run_config.update(config)
+
+        assigned_config_type = self._input_types.assign(run_config)
+        if isinstance(assigned_config_type, InvalidType):
+            raise TypeError(self._input_types.explain(run_config))
+
+        queued_run = launch_add.launch_add(
+            job=self._name,
+            config={"overrides": {"run_config": run_config}},
+            project=project or self._project,
+            entity=entity or self._entity,
+            queue=queue,
+            resource=resource,
+            resource_args=resource_args,
+            cuda=cuda,
+        )
+        return queued_run

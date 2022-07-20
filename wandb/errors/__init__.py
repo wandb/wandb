@@ -4,7 +4,7 @@ from typing import List, Optional
 class Error(Exception):
     """Base W&B Error"""
 
-    def __init__(self, message):
+    def __init__(self, message) -> None:
         super().__init__(message)
         self.message = message
 
@@ -16,7 +16,7 @@ class Error(Exception):
 class CommError(Error):
     """Error communicating with W&B"""
 
-    def __init__(self, msg, exc=None):
+    def __init__(self, msg, exc=None) -> None:
         super().__init__(msg)
         self.message = msg
         self.exc = exc
@@ -67,7 +67,7 @@ class DockerError(Error):
         return_code: int,
         stdout: Optional[bytes] = None,
         stderr: Optional[bytes] = None,
-    ):
+    ) -> None:
         command_launched_str = " ".join(command_launched)
         error_msg = (
             f"The docker command executed was `{command_launched_str}`.\n"
@@ -96,6 +96,12 @@ class LaunchError(Error):
     pass
 
 
+class SweepError(Error):
+    """Raised when a known error occurs with wandb sweeps"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
@@ -107,4 +113,5 @@ __all__ = [
     "RequireError",
     "ExecutionError",
     "LaunchError",
+    "SweepError",
 ]

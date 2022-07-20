@@ -3,7 +3,12 @@ import math
 import sys
 import typing as t
 
-from wandb.util import get_module, is_numpy_array
+from wandb.util import (
+    _is_artifact_string,
+    _is_artifact_version_weave_dict,
+    get_module,
+    is_numpy_array,
+)
 
 np = get_module("numpy")  # intentionally not required
 
@@ -57,6 +62,10 @@ class TypeRegistry:
         # passed to isnan.
         if py_obj.__class__ == float and math.isnan(py_obj):  # type: ignore
             return NoneType()
+
+        # TODO: generalize this to handle other config input types
+        if _is_artifact_string(py_obj) or _is_artifact_version_weave_dict(py_obj):
+            return TypeRegistry.types_by_name().get("artifactVersion")()
 
         class_handler = TypeRegistry.types_by_class().get(py_obj.__class__)
         _type = None
@@ -291,6 +300,7 @@ class Type:
         return self is other or (
             isinstance(self, Type)
             and isinstance(other, Type)
+            and self.name == other.name
             and self.params.keys() == other.params.keys()
             and all([self.params[k] == other.params[k] for k in self.params])
         )
