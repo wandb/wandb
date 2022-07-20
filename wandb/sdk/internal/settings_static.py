@@ -28,6 +28,10 @@ class SettingsStatic:
     program: Optional[str]
     silent: Optional[bool]
     email: Optional[str]
+    git_commit: Optional[str]
+    git_remote: Optional[str]
+    git_remote_url: Optional[str]
+    git_root: Optional[str]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int
@@ -52,3 +56,9 @@ class SettingsStatic:
 
     def __str__(self) -> str:
         return str(self.__dict__)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.__dict__
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.__dict__.get(key, default)
