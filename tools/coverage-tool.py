@@ -8,13 +8,11 @@ Usage:
 """
 
 import argparse
-import csv
-import os
-from typing import Any, List
-import yaml
-import itertools
 import copy
+import itertools
 import sys
+
+import yaml
 
 
 def find_list_of_key_locations_and_dicts(data, search_key: str, root=None):
@@ -66,7 +64,6 @@ def matrix_expand(loc_dict_tuple_list):
     loc_dict_tuple_list = list(loc_dict_tuple_list)
     for location, containing_dict in loc_dict_tuple_list:
         matrix = containing_dict.get("matrix")
-        cross_product = 1
         if matrix:
             # assume any block referencing a matrix is using all parameters
             # could check <<>> and expand syntax
@@ -115,14 +112,11 @@ def parallelism_expand(cov_list, par_dict):
             lookup = location[-1]
             count = par_dict.get(lookup, 1)
 
-        toxenv = containing_dict["toxenv"]
-        if count > 1:
-            for i in range(count):
-                loc = location[:]
+        for i in range(count):
+            loc = location[:]
+            if count > 1:
                 loc.append(i)
-                ret.append((loc, containing_dict))
-        else:
-            ret.append((location, containing_dict))
+            ret.append((loc, containing_dict))
     return ret
 
 
@@ -158,7 +152,7 @@ def coverage_config_check(jobs_count, args):
         num_builds_tuple_list = find_list_of_key_locations_and_dicts(
             data, "after_n_builds"
         )
-        for loc, data in num_builds_tuple_list:
+        for _, data in num_builds_tuple_list:
             num_builds = data["after_n_builds"]
             if num_builds != jobs_count:
                 print(f"Mismatch builds count: {num_builds} (expecting {jobs_count})")
@@ -173,8 +167,8 @@ def process_args():
     subparsers = parser.add_subparsers(
         dest="action", title="action", description="Action to perform"
     )
-    parser_jobs = subparsers.add_parser("jobs")
-    parser_check = subparsers.add_parser("check")
+    subparsers.add_parser("jobs")
+    subparsers.add_parser("check")
 
     args = parser.parse_args()
     return parser, args
@@ -185,9 +179,9 @@ def main():
 
     if args.action == "jobs":
         tasks = coverage_tasks(args)
-        l = max(len(t) for t, _ in tasks)
+        max_key_len = max(len(t) for t, _ in tasks)
         for k, v in tasks:
-            print(f"{k:{l}} {v}")
+            print(f"{k:{max_key_len}} {v}")
     elif args.action == "check":
         tasks = coverage_tasks(args)
         coverage_config_check(len(tasks), args)
