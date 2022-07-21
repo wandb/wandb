@@ -102,7 +102,7 @@ class ResumeState:
     history: int
     events: int
     output: int
-    runtime: int
+    runtime: float
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
