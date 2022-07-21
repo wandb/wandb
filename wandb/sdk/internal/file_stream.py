@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 import requests
 import wandb
 from wandb import env, util
-from wandb.sdk.internal import internal_api, settings_static
+from wandb.sdk.internal import internal_api
 
 from ..lib import file_stream_utils
 
