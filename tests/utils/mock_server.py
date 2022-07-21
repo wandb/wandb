@@ -744,7 +744,7 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        if "query Viewer " in body["query"]:
+        if "query Viewer " in body["query"] or "query ServerInfo" in body["query"]:
             viewer_dict = {
                 "data": {
                     "viewer": {
@@ -781,6 +781,31 @@ def create_app(user_ctx=None):
             viewer_dict["data"].update(server_info)
 
             return json.dumps(viewer_dict)
+        if "query ArtifactFiles" in body["query"]:
+            artifact_file = {
+                "id": "1",
+                "name": "foo",
+                "uploadUrl": "",
+                "storagePath": "x/y/z",
+                "uploadheaders": [],
+                "artifact": {"id": "1"},
+            }
+            if "storagePath" not in body["query"]:
+                del artifact_file["storagePath"]
+            return {
+                "data": {
+                    "project": {
+                        "artifactType": {
+                            "artifact": {
+                                "files": paginated(
+                                    artifact_file,
+                                    ctx,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
         if "query ProbeServerCapabilities" in body["query"]:
             if ctx["empty_query"]:

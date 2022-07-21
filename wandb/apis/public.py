@@ -17,6 +17,7 @@ from functools import partial
 import json
 import logging
 import os
+from packaging import version
 import platform
 import re
 import shutil
@@ -161,6 +162,7 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
                 name: displayName
                 url
                 sizeBytes
+                storagePath
                 mimetype
                 updatedAt
                 digest
@@ -192,7 +194,22 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 
 
 class RetryingClient:
+    INFO_QUERY = gql(
+        """
+        query ServerInfo{
+            serverInfo {
+                cliVersionInfo
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                }
+            }
+        }
+        """
+    )
+
     def __init__(self, client):
+        self._server_info = None
         self._client = client
 
     @property
@@ -216,6 +233,17 @@ class RetryingClient:
                     f"to increase the graphql timeout."
                 )
             raise
+
+    @property
+    def server_info(self):
+        if self._server_info is None:
+            self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
+        return self._server_info
+
+    def version_supported(self, min_version):
+        return version.parse(min_version) <= version.parse(
+            self.server_info["cliVersionInfo"]["max_cli_version"]
+        )
 
 
 class Api:
@@ -2582,7 +2610,7 @@ class Files(Paginator):
         return "<Files {} ({})>".format("/".join(self.run.path), len(self))
 
 
-class File:
+class File(Attrs):
     """File is a class associated with a file saved by wandb.
 
     Attributes:
@@ -2599,41 +2627,7 @@ class File:
     def __init__(self, client, attrs):
         self.client = client
         self._attrs = attrs
-        # if self.size == 0:
-        #    raise AttributeError(
-        #        "File {} does not exist.".format(self._attrs["name"]))
-
-    @property
-    def id(self):
-        return self._attrs["id"]
-
-    @property
-    def name(self):
-        return self._attrs["name"]
-
-    @property
-    def url(self):
-        return self._attrs["url"]
-
-    @property
-    def direct_url(self):
-        return self._attrs["directUrl"]
-
-    @property
-    def md5(self):
-        return self._attrs["md5"]
-
-    @property
-    def digest(self):
-        return self._attrs["digest"]
-
-    @property
-    def mimetype(self):
-        return self._attrs["mimetype"]
-
-    @property
-    def updated_at(self):
-        return self._attrs["updatedAt"]
+        super().__init__(dict(attrs))
 
     @property
     def size(self):
@@ -4590,8 +4584,17 @@ class Artifact(artifacts.Artifact):
         self._attrs = response["project"]["artifact"]
         return self._attrs
 
-    # The only file should be wandb_manifest.json
-    def _files(self, names=None, per_page=50):
+    def files(self, names=None, per_page=50):
+        """Iterate over all files stored in this artifact.
+
+        Arguments:
+            names: (list of str, optional) The filename paths relative to the
+                root of the artifact you wish to list.
+            per_page: (int, default 50) The number of files to return per request
+
+        Returns:
+            (`ArtifactFiles`): An iterator containing `File` objects
+        """
         return ArtifactFiles(self.client, self, names, per_page)
 
     def _load_manifest(self):
@@ -4891,10 +4894,14 @@ class ArtifactFiles(Paginator):
         variables = {
             "entityName": artifact.entity,
             "projectName": artifact.project,
-            "artifactTypeName": artifact.artifact_type_name,
-            "artifactName": artifact.artifact_name,
+            "artifactTypeName": artifact.type,
+            "artifactName": artifact.name,
             "fileNames": names,
         }
+        # The server must advertise at least SDK 0.12.21
+        # to get storagePath
+        if not client.version_supported("0.12.21"):
+            self.QUERY = gql(self.QUERY.loc.source.body.replace("storagePath\n", ""))
         super().__init__(client, variables, per_page)
 
     @property
