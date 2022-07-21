@@ -380,6 +380,7 @@ class Run:
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
+    _redirect_raw_cb: Optional[Callable[[str, str], None]]
     _output_writer: Optional["filesystem.CRDedupedFile"]
     _quiet: Optional[bool]
 
@@ -394,7 +395,6 @@ class Run:
     _final_summary: Optional["GetSummaryResponse"]
     _poll_exit_response: Optional[PollExitResponse]
 
-    _use_redirect: bool
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
     _artifact_slots: List[str]
@@ -469,17 +469,12 @@ class Run:
         self._notes = None
         self._tags = None
         self._remote_url = None
-        self._last_commit = None
+        self._commit = None
 
         self._hooks = None
         self._teardown_hooks = []
-        self._redirect_cb = None
         self._out_redir = None
         self._err_redir = None
-        self.stdout_redirector = None
-        self.stderr_redirector = None
-        self._save_stdout = None
-        self._save_stderr = None
         self._stdout_slave_fd = None
         self._stderr_slave_fd = None
         self._exit_code = None
@@ -509,7 +504,6 @@ class Run:
         self._telemetry_obj_dirty = False
 
         self._atexit_cleanup_called = False
-        self._use_redirect = True
 
         # Pull info from settings
         self._init_from_settings(self._settings)
@@ -687,17 +681,23 @@ class Run:
             run.start_time.FromSeconds(int(self._start_time))
         if self._remote_url is not None:
             run.git.remote_url = self._remote_url
-        if self._last_commit is not None:
-            run.git.last_commit = self._last_commit
+        if self._commit is not None:
+            run.git.commit = self._commit
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
+        # Use user provided git info if available otherwise resolve it from the environment
         try:
-            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+            repo = GitRepo(
+                root=self._settings.git_root,
+                remote=self._settings.git_remote,
+                remote_url=self._settings.git_remote_url,
+                commit=self._settings.git_commit,
+                lazy=False,
+            )
+            self._remote_url, self._commit = repo.remote_url, repo.last_commit
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
-            return
-        self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
@@ -1285,6 +1285,11 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
+    def _console_raw_callback(self, name: str, data: str) -> None:
+        # logger.info("console callback: %s, %s", name, data)
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_output_raw(name, data)
+
     def _tensorboard_callback(
         self, logdir: str, save: bool = True, root_logdir: str = ""
     ) -> None:
@@ -1815,23 +1820,41 @@ class Run:
     ) -> None:
         if console is None:
             console = self._settings._console
+        # only use raw for service to minimize potential changes
+        if console == SettingsConsole.WRAP:
+            if self._settings._require_service:
+                console = SettingsConsole.WRAP_RAW
+            else:
+                console = SettingsConsole.WRAP_EMU
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
+
+        # raw output handles the output_log writing in the internal process
+        if console in {SettingsConsole.REDIRECT, SettingsConsole.WRAP_EMU}:
+            output_log_path = os.path.join(
+                self._settings.files_dir, filenames.OUTPUT_FNAME
+            )
+            # output writer might have been setup, see wrap_fallback case
+            if not self._output_writer:
+                self._output_writer = filesystem.CRDedupedFile(
+                    open(output_log_path, "wb")
+                )
+
         if console == SettingsConsole.REDIRECT:
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.Redirect(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
@@ -1851,20 +1874,34 @@ class Run:
                     self._redirect(None, None, console=SettingsConsole.WRAP)
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == SettingsConsole.WRAP:
+        elif console == SettingsConsole.WRAP_EMU:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
+                ],
+            )
+        elif console == SettingsConsole.WRAP_RAW:
+            logger.info("Wrapping output streams.")
+            out_redir = redirect.StreamRawWrapper(
+                src="stdout",
+                cbs=[
+                    lambda data: self._console_raw_callback("stdout", data),
+                ],
+            )
+            err_redir = redirect.StreamRawWrapper(
+                src="stderr",
+                cbs=[
+                    lambda data: self._console_raw_callback("stderr", data),
                 ],
             )
         elif console == SettingsConsole.OFF:
@@ -1885,21 +1922,10 @@ class Run:
     def _restore(self) -> None:
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
-        if self._use_redirect:
-            if self._out_redir:
-                self._out_redir.uninstall()
-            if self._err_redir:
-                self._err_redir.uninstall()
-            return
-
-        if self.stdout_redirector:
-            self.stdout_redirector.restore()
-        if self.stderr_redirector:
-            self.stderr_redirector.restore()
-        if self._save_stdout:
-            sys.stdout = self._save_stdout
-        if self._save_stderr:
-            sys.stderr = self._save_stderr
+        if self._out_redir:
+            self._out_redir.uninstall()
+        if self._err_redir:
+            self._err_redir.uninstall()
         logger.info("restore done")
 
     def _atexit_cleanup(self, exit_code: int = None) -> None:
@@ -1951,12 +1977,6 @@ class Run:
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
-        if self._use_redirect:
-            # setup fake callback
-            self._redirect_cb = self._console_callback
-
-        output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
-        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -2068,12 +2088,12 @@ class Run:
         installed_packages_list: List[str],
     ) -> "Optional[Artifact]":
         """Create a job version artifact from a repo."""
-        has_repo = self._remote_url is not None and self._last_commit is not None
+        has_repo = self._remote_url is not None and self._commit is not None
         program_relpath = self._settings.program_relpath
         if not has_repo or program_relpath is None:
             return None
         assert self._remote_url is not None
-        assert self._last_commit is not None
+        assert self._commit is not None
         name = wandb.util.make_artifact_name_safe(
             f"job-{self._remote_url}_{program_relpath}"
         )
@@ -2085,7 +2105,7 @@ class Run:
             "source": {
                 "git": {
                     "remote": self._remote_url,
-                    "commit": self._last_commit,
+                    "commit": self._commit,
                 },
                 "entrypoint": [
                     sys.executable.split("/")[-1],

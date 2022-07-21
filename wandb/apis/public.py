@@ -2361,6 +2361,7 @@ class Sweep(Attrs):
             sweep(sweepName: $name) {
                 id
                 name
+                state
                 bestLoss
                 config
             }
@@ -2510,7 +2511,9 @@ class Sweep(Attrs):
         return self.to_html()
 
     def __repr__(self):
-        return "<Sweep {}>".format("/".join(self.path))
+        return "<Sweep {} ({})>".format(
+            "/".join(self.path), self._attrs.get("state", "Unknown State")
+        )
 
 
 class Files(Paginator):
