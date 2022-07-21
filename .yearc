@@ -3,6 +3,8 @@
 test_paths =
   tests/functional_tests/
   tests/standalone_tests/
+
+yeadoc_paths =
   wandb/
 
 coverage_config_template = tests/functional_tests/.coveragerc

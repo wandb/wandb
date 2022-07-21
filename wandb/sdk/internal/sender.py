@@ -816,7 +816,7 @@ class SendManager:
             host=run.host or None,
             program_path=self._settings.program or None,
             repo=run.git.remote_url or None,
-            commit=run.git.last_commit or None,
+            commit=run.git.commit or None,
         )
         self._server_messages = server_messages or []
         self._run = run
