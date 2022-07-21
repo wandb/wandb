@@ -17,7 +17,6 @@ from functools import partial
 import json
 import logging
 import os
-from packaging import version
 import platform
 import re
 import shutil
@@ -241,7 +240,7 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
-        return version.parse(min_version) <= version.parse(
+        return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
         )
 
