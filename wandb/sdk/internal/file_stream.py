@@ -244,7 +244,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                     # line starting with \r will always overwrite a previous offset.
                     offset: int = (
                         stream.cr
-                        if (stream.found_cr and stream.cr)
+                        if (stream.found_cr and stream.cr is not None)
                         else (stream.last_normal or 0)
                     )
                     stream.cr = offset
@@ -315,13 +315,7 @@ class FileStreamApi:
         api: "internal_api.Api",
         run_id: str,
         start_time: float,
-        settings: Optional[
-            Union[
-                "wandb.sdk.wandb_settings.Settings",
-                "settings_static.SettingsStatic",
-                dict,
-            ]
-        ] = None,
+        settings: Optional[dict] = None,
     ) -> None:
         settings = settings or dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
