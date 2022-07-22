@@ -49,7 +49,6 @@ from wandb.util import (
     _is_artifact_version_weave_dict,
     _is_py_path,
     add_import_hook,
-    artifact_to_json,
     parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
