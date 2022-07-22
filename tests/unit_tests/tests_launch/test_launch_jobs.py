@@ -93,7 +93,7 @@ def test_launch_job_artifact(
     )
 
     def job_download_func(root):
-        with open(os.path.join(root, "source_info.json"), "w") as f:
+        with open(os.path.join(root, "wandb-job.json"), "w") as f:
             source = {
                 "_version": "v0",
                 "source_type": "artifact",
@@ -136,7 +136,7 @@ def test_launch_job_repo(
     )
 
     def job_download_func(root):
-        with open(os.path.join(root, "source_info.json"), "w") as f:
+        with open(os.path.join(root, "wandb-job.json"), "w") as f:
             source = {
                 "_version": "v0",
                 "source_type": "repo",
@@ -182,7 +182,7 @@ def test_launch_job_container(
     )
 
     def job_download_func(root):
-        with open(os.path.join(root, "source_info.json"), "w") as f:
+        with open(os.path.join(root, "wandb-job.json"), "w") as f:
             source = {
                 "_version": "v0",
                 "source_type": "image",
@@ -213,7 +213,7 @@ def test_launch_add_container_queued_run(live_mock_server, mocked_public_artifac
     def job_download_func(root=None):
         if root is None:
             root = tempfile.mkdtemp()
-        with open(os.path.join(root, "source_info.json"), "w") as f:
+        with open(os.path.join(root, "wandb-job.json"), "w") as f:
             source = {
                 "_version": "v0",
                 "source_type": "image",
