@@ -1436,8 +1436,15 @@ class TestArtifactChecksMetadata:
             create_artifact(metadata={"unserializable": object()})
 
     def test_deepcopies_metadata(self, create_artifact: Callable[..., wandb.Artifact]):
-        orig_metadata = {"foo": {"bar": "baz"}}
+        orig_metadata = {"foo": ["original"]}
         artifact = create_artifact(metadata=orig_metadata)
-        assert artifact.metadata == orig_metadata
-        orig_metadata["foo"]["bar"] = "quux"
-        assert artifact.metadata["foo"]["bar"] == "baz"
+
+        # ensure `artifact.metadata` isn't just a reference to the argument
+        assert artifact.metadata is not orig_metadata
+        orig_metadata["bar"] = "modifying the top-level value"
+        assert "bar" not in artifact.metadata
+
+        # ensure that any mutable sub-values are also copies
+        assert artifact.metadata["foo"] is not orig_metadata["foo"]
+        orig_metadata["foo"].append("modifying the sub-value")
+        assert artifact.metadata["foo"] == ["original"]
