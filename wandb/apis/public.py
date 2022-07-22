@@ -5036,6 +5036,7 @@ class Job:
         cuda=False,
     ):
         from wandb.sdk.launch import launch_add
+
         run_config = {}
         for key, item in config.items():
             if util._is_artifact_object(item):
