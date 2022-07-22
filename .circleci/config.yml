@@ -970,8 +970,8 @@ workflows:
     jobs:
       - test:
           name: "code-check"
-          image: "python:3.6"
-          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
+          image: "python:3.8"
+          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
       - test:
           name: "unit-s_base-lin-py36"
           image: "python:3.6"

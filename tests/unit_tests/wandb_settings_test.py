@@ -1038,3 +1038,11 @@ def test_run_urls():
     s = Settings(base_url=base_url, entity=entity, project=project, run_id=run_id)
     assert s.project_url == f"{base_url}/{entity}/{project}"
     assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
+
+
+def test_SettingsStatic():
+    from wandb.sdk.internal.settings_static import SettingsStatic
+
+    static_settings = SettingsStatic(Settings().make_static())
+    assert "base_url" in static_settings
+    assert static_settings.get("base_url") == "https://api.wandb.ai"
