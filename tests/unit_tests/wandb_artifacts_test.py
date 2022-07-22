@@ -1408,9 +1408,7 @@ def _create_artifact_and_set_metadata(metadata):
 @pytest.mark.parametrize(
     "create_artifact",
     [
-        lambda *args, metadata, **kwargs: wandb.Artifact(
-            *args, metadata=metadata, **kwargs
-        ),
+        lambda metadata: wandb.Artifact("foo", "dataset", metadata=metadata),
         _create_artifact_and_set_metadata,
     ],
 )
