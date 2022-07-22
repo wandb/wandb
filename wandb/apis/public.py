@@ -4958,7 +4958,7 @@ class Job:
         self._api = api
         self._entity = api.default_entity
 
-        with open(os.path.join(self._fpath, "source_info.json")) as f:
+        with open(os.path.join(self._fpath, "wandb-job.json")) as f:
             self._source_info = json.load(f)
         self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
