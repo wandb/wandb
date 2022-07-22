@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import os
+from typing import Any, Callable, Optional, Type
 import pytest
 from wandb import util
 import wandb
@@ -1396,3 +1397,45 @@ def test_communicate_artifact(runner, publish_util, mocked_run):
         artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
         ctx_util = publish_util(artifacts=[artifact_publish])
         assert len(set(ctx_util.manifests_created_ids)) == 1
+
+
+def _create_artifact_and_set_metadata(metadata):
+    artifact = wandb.Artifact("foo", "dataset")
+    artifact.metadata = metadata
+    return artifact
+
+
+@pytest.mark.parametrize(
+    "create_artifact",
+    [
+        lambda *args, metadata, **kwargs: wandb.Artifact(
+            *args, metadata=metadata, **kwargs
+        ),
+        _create_artifact_and_set_metadata,
+    ],
+)
+class TestArtifactChecksMetadata:
+    def test_validates_metadata_ok(
+        self, create_artifact: Callable[..., wandb.Artifact]
+    ):
+        assert create_artifact(metadata=None).metadata == {}
+        assert create_artifact(metadata={"foo": "bar"}).metadata == {"foo": "bar"}
+
+    def test_validates_metadata_err(
+        self, create_artifact: Callable[..., wandb.Artifact]
+    ):
+        with pytest.raises(TypeError):
+            create_artifact(metadata=123)
+
+        with pytest.raises(TypeError):
+            create_artifact(metadata=[])
+
+        with pytest.raises(TypeError):
+            create_artifact(metadata={"unserializable": object()})
+
+    def test_deepcopies_metadata(self, create_artifact: Callable[..., wandb.Artifact]):
+        orig_metadata = {"foo": {"bar": "baz"}}
+        artifact = create_artifact(metadata=orig_metadata)
+        assert artifact.metadata == orig_metadata
+        orig_metadata["foo"]["bar"] = "quux"
+        assert artifact.metadata["foo"]["bar"] == "baz"

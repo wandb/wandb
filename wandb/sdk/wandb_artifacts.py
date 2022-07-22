@@ -10,6 +10,7 @@ import tempfile
 import time
 from typing import (
     Any,
+    cast,
     Dict,
     Generator,
     IO,
@@ -82,7 +83,8 @@ def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         return {}
     if not isinstance(metadata, dict):
         raise TypeError(f"metadata must be dict, not {type(metadata)}")
-    return json.loads(json.dumps(metadata))
+    return cast(Dict[str, Any], json.loads(json.dumps(metadata)))
+
 
 class Artifact(ArtifactInterface):
     """
@@ -298,6 +300,7 @@ class Artifact(ArtifactInterface):
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
+        metadata = _normalize_metadata(metadata)
         if self._logged_artifact:
             self._logged_artifact.metadata = metadata
             return
