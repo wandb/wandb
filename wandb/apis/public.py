@@ -5022,13 +5022,6 @@ class Job:
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
 
-    def set_default_input(self, key, val):
-        self._job_artifact.metadata["config_defaults"][key] = val
-        self._job_artifact.save()
-
-    def _config_defaults(self):
-        return self._job_artifact.metadata["config_defaults"]
-
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint
 
@@ -5043,9 +5036,7 @@ class Job:
         cuda=False,
     ):
         from wandb.sdk.launch import launch_add
-
-        run_config = self._config_defaults().copy()
-
+        run_config = {}
         for key, item in config.items():
             if util._is_artifact_object(item):
                 if isinstance(item, wandb.Artifact) and item.id is None:
