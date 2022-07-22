@@ -1102,7 +1102,9 @@ def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
     return wrapper
 
 
-def read_many_from_queue(q: "queue.Queue", max_items: int, queue_timeout: int) -> list:
+def read_many_from_queue(
+    q: "queue.Queue", max_items: int, queue_timeout: Union[int, float]
+) -> list:
     try:
         item = q.get(True, queue_timeout)
     except queue.Empty:
