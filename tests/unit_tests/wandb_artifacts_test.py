@@ -1405,6 +1405,10 @@ def _create_artifact_and_set_metadata(metadata):
     return artifact
 
 
+# All these metadata-validation tests should behave identically
+# regardless of whether we set the metadata by passing it into the constructor
+# or by setting the attribute after creation; so, parametrize how we build the
+# artifact, and run tests both ways.
 @pytest.mark.parametrize(
     "create_artifact",
     [
