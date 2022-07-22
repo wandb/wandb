@@ -1336,7 +1336,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
 
         for setter in testable_setters_valid + testable_setters_invalid:
             with pytest.raises(ValueError):
-                setattr(art, setter, "TEST")
+                setattr(art, setter, setter_data.get(setter, setter))
 
         for method in testable_methods_valid + testable_methods_invalid:
             attr_method = getattr(art, method)
@@ -1350,7 +1350,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             _ = getattr(art, getter)
 
         for setter in testable_setters_valid + testable_setters_invalid:
-            setattr(art, setter, "TEST")
+            setattr(art, setter, setter_data.get(setter, setter))
 
         for method in testable_methods_valid + testable_methods_invalid:
             attr_method = getattr(art, method)
