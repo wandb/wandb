@@ -65,7 +65,7 @@ class UploadJob(threading.Thread):
                 os.remove(self.save_path)
             self._done_queue.put(EventJobDone(self, success))
             if success:
-                self._file_stream.push_success(self.artifact_id, self.save_name)
+                self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> bool:
         if self.save_fn:
@@ -100,7 +100,7 @@ class UploadJob(threading.Thread):
             # This is the new artifact manifest upload flow, in which we create the
             # database entry for the manifest file before creating it. This is used for
             # artifact L0 files. Which now is only artifact_manifest.json
-            response = self._api.create_artifact_manifest(
+            _, response = self._api.create_artifact_manifest(
                 self.save_name, self.md5, self.artifact_id
             )
             upload_url = response["uploadUrl"]

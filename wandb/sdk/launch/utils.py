@@ -5,12 +5,15 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, ExecutionError, LaunchError
+
+if TYPE_CHECKING:  # pragma: no cover
+    from wandb.apis.public import Artifact as PublicArtifact
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -102,6 +105,7 @@ def set_project_entity_defaults(
 
 def construct_launch_spec(
     uri: Optional[str],
+    job: Optional[str],
     api: Api,
     name: Optional[str],
     project: Optional[str],
@@ -114,12 +118,15 @@ def construct_launch_spec(
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     cuda: Optional[bool],
+    run_id: Optional[str],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     if uri is not None:
         launch_spec["uri"] = uri
+    if job is not None:
+        launch_spec["job"] = job
     project, entity = set_project_entity_defaults(
         uri,
         api,
@@ -167,7 +174,21 @@ def construct_launch_spec(
     if cuda is not None:
         launch_spec["cuda"] = cuda
 
+    if run_id is not None:
+        launch_spec["run_id"] = run_id
+
     return launch_spec
+
+
+def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
+    uri = launch_spec.get("uri")
+    job = launch_spec.get("job")
+    docker_image = launch_spec.get("docker", {}).get("docker_image")
+
+    if not bool(uri) and not bool(job) and not bool(docker_image):
+        raise LaunchError("Must specify a uri, job or docker image")
+    elif sum(map(bool, [uri, job, docker_image])) > 1:
+        raise LaunchError("Must specify exactly one of uri, job or image")
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
@@ -198,7 +219,7 @@ def is_bare_wandb_uri(uri: str) -> bool:
     result = uri.split("/")[1:]
     # a bare wandb uri will have 4 parts, with the last being the run name
     # and the second last being "runs"
-    if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
+    if len(result) == 4 and result[-2] == "runs":
         return True
     return False
 
@@ -335,20 +356,19 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
 
 
 def validate_wandb_python_deps(
-    entity: str, project: str, run_name: str, api: Api, dir: str
+    requirements_file: Optional[str],
+    dir: str,
 ) -> None:
     """Warns if local python dependencies differ from wandb requirements.txt"""
-
-    _requirements_file = download_wandb_python_deps(entity, project, run_name, api, dir)
-    if _requirements_file is not None:
-        _requirements_file = os.path.join(dir, _requirements_file)
-        with open(_requirements_file) as f:
+    if requirements_file is not None:
+        requirements_path = os.path.join(dir, requirements_file)
+        with open(requirements_path) as f:
             wandb_python_deps: List[str] = f.read().splitlines()
 
-        _requirements_file = get_local_python_deps(dir)
-        if _requirements_file is not None:
-            _requirements_file = os.path.join(dir, _requirements_file)
-            with open(_requirements_file) as f:
+        local_python_file = get_local_python_deps(dir)
+        if local_python_file is not None:
+            local_python_deps_path = os.path.join(dir, local_python_file)
+            with open(local_python_deps_path) as f:
                 local_python_deps: List[str] = f.read().splitlines()
 
             diff_pip_requirements(wandb_python_deps, local_python_deps)
@@ -449,7 +469,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> bool:
+) -> Optional["PublicArtifact"]:
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -461,9 +481,9 @@ def check_and_download_code_artifacts(
     for artifact in run_artifacts:
         if hasattr(artifact, "type") and artifact.type == "code":
             artifact.download(project_dir)
-            return True
+            return artifact  # type: ignore
 
-    return False
+    return None
 
 
 def to_camel_case(maybe_snake_str: str) -> str:

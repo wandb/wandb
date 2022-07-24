@@ -101,6 +101,11 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.FromString,
                 )
+        self.OutputRaw = channel.unary_unary(
+                '/wandb_internal.InternalService/OutputRaw',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawResult.FromString,
+                )
         self.Telemetry = channel.unary_unary(
                 '/wandb_internal.InternalService/Telemetry',
                 request_serializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
@@ -293,6 +298,12 @@ class InternalServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Output(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def OutputRaw(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -494,6 +505,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.Output,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.SerializeToString,
+            ),
+            'OutputRaw': grpc.unary_unary_rpc_method_handler(
+                    servicer.OutputRaw,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRawResult.SerializeToString,
             ),
             'Telemetry': grpc.unary_unary_rpc_method_handler(
                     servicer.Telemetry,
@@ -881,6 +897,23 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Output',
             wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def OutputRaw(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/OutputRaw',
+            wandb_dot_proto_dot_wandb__internal__pb2.OutputRawRecord.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.OutputRawResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import threading
+from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
 import urllib
@@ -178,29 +179,23 @@ def git_repo(runner):
 
 
 @pytest.fixture
-def git_repo_with_remote(runner):
+def git_repo_fn(runner):
+    def git_repo_fn_helper(
+        path: str = ".",
+        remote_name: str = "origin",
+        remote_url: Optional[str] = "https://foo:bar@github.com/FooTest/Foo.git",
+        commit_msg: Optional[str] = None,
+    ):
+        with git.Repo.init(path) as repo:
+            mkdir_exists_ok("wandb")
+            if remote_url is not None:
+                repo.create_remote(remote_name, remote_url)
+            if commit_msg is not None:
+                repo.index.commit(commit_msg)
+            return GitRepo(lazy=False)
+
     with runner.isolated_filesystem():
-        with git.Repo.init(".") as repo:
-            repo.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
-            yield GitRepo(lazy=False)
-
-
-@pytest.fixture
-def git_repo_with_remote_and_port(runner):
-    with runner.isolated_filesystem():
-        with git.Repo.init(".") as repo:
-            repo.create_remote(
-                "origin", "https://foo:bar@github.com:8080/FooTest/Foo.git"
-            )
-            yield GitRepo(lazy=False)
-
-
-@pytest.fixture
-def git_repo_with_remote_and_empty_pass(runner):
-    with runner.isolated_filesystem():
-        with git.Repo.init(".") as repo:
-            repo.create_remote("origin", "https://foo:@github.com/FooTest/Foo.git")
-            yield GitRepo(lazy=False)
+        yield git_repo_fn_helper
 
 
 @pytest.fixture
@@ -270,9 +265,12 @@ def runner(monkeypatch, mocker):
 
 @pytest.fixture(autouse=True)
 def reset_setup():
-    wandb.teardown()
+    def teardown():
+        wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+
+    getattr(wandb, "teardown", teardown)()
     yield
-    wandb.teardown()
+    getattr(wandb, "teardown", lambda: None)()
 
 
 @pytest.fixture(autouse=True)
@@ -779,7 +777,7 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
-                    collect_responses.local_info = poll_exit_resp.local_info
+                    collect_responses.poll_exit_resp = poll_exit_resp
                     break
             time.sleep(1)
         _internal_sender.join()

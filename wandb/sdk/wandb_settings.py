@@ -33,6 +33,7 @@ from urllib.parse import quote, urlencode, urlparse, urlsplit
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
+import wandb.env
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -178,6 +179,8 @@ class SettingsConsole(enum.IntEnum):
     OFF = 0
     WRAP = 1
     REDIRECT = 2
+    WRAP_RAW = 3
+    WRAP_EMU = 4
 
 
 class Property:
@@ -405,13 +408,18 @@ class Settings:
     deployment: str
     disable_code: bool
     disable_git: bool
+    disable_hints: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
+    enable_job_creation: bool
     entity: str
     files_dir: str
     force: bool
+    git_commit: str
     git_remote: str
+    git_remote_url: str
+    git_root: str
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
@@ -534,8 +542,10 @@ class Settings:
                 "auto_hook": True,
             },
             disable_code={"preprocessor": _str_as_bool},
+            disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
+            enable_job_creation={"preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
@@ -741,8 +751,18 @@ class Settings:
     @staticmethod
     def _validate_console(value: str) -> bool:
         # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices: Set[str] = {"auto", "redirect", "off", "wrap"}
+        choices: Set[str] = {
+            "auto",
+            "redirect",
+            "off",
+            "wrap",
+            # internal console states
+            "wrap_emu",
+            "wrap_raw",
+        }
         if value not in choices:
+            # do not advertise internal console states
+            choices -= {"wrap_emu", "wrap_raw"}
             raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
         return True
 
@@ -888,6 +908,8 @@ class Settings:
         convert_dict: Dict[str, SettingsConsole] = dict(
             off=SettingsConsole.OFF,
             wrap=SettingsConsole.WRAP,
+            wrap_raw=SettingsConsole.WRAP_RAW,
+            wrap_emu=SettingsConsole.WRAP_EMU,
             redirect=SettingsConsole.REDIRECT,
         )
         console: str = str(self.console)
@@ -1317,7 +1339,7 @@ class Settings:
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
 
-        settings: Dict[str, Union[bool, str, Sequence]] = dict()
+        settings: Dict[str, Union[bool, str, Sequence, None]] = dict()
         # disable symlinks if on windows (requires admin or developer setup)
         settings["symlink"] = True
         if self._windows:
@@ -1524,7 +1546,8 @@ class Settings:
             "sweep_id": "sweep_id",
             "host": "host",
             "resumed": "resumed",
-            "git.remote_url": "git_remote",
+            "git.remote_url": "git_remote_url",
+            "git.commit": "git_commit",
         }
         run_settings = {
             name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
