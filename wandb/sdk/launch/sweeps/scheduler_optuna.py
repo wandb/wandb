@@ -15,9 +15,12 @@ from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun
 logger = logging.getLogger(__name__)
 
 
-class Scheduler(Scheduler):
-    """A Scheduler is a controller/agent that will populate a Launch RunQueue with
-    launch jobs it creates from run suggestions it pulls from an internal sweeps RunQueue.
+class OptunaScheduler(Scheduler):
+    """An OptunaScheduler uses the Optuna library to perform hyperparameter sweeps.
+
+    More information on Optuna can be found at:
+        https://optuna.readthedocs.io/en/stable/index.html
+
     """
 
     def __init__(

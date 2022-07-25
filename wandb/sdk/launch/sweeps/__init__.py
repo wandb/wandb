@@ -6,15 +6,9 @@ log = logging.getLogger(__name__)
 
 
 def _import_classic_sweep_scheduler() -> Any:
-    from .scheduler_classic_sweep import ClassicSweepScheduler
+    from .scheduler_sweep import ClassicSweepScheduler
 
     return ClassicSweepScheduler
-
-
-def _import_ray_tune_scheduler() -> Any:
-    from .scheduler_ray_tune import RayTuneScheduler
-
-    return RayTuneScheduler
 
 
 def _import_optuna_scheduler() -> Any:
@@ -25,7 +19,7 @@ def _import_optuna_scheduler() -> Any:
 
 _WANDB_SCHEDULERS: Dict[str, Callable] = {
     "classic": _import_classic_sweep_scheduler,
-    "raytune": _import_ray_tune_scheduler,
+    "sweeps": _import_classic_sweep_scheduler,
     "optuna": _import_optuna_scheduler,
 }
 

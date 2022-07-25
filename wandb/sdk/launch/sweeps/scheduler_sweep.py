@@ -17,9 +17,12 @@ from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun
 logger = logging.getLogger(__name__)
 
 
-class SweepScheduler(Scheduler):
-    """A SweepScheduler is a controller/agent that will populate a Launch RunQueue with
-    launch jobs it creates from run suggestions it pulls from an internal sweeps RunQueue.
+class ClassicSweepScheduler(Scheduler):
+    """An ClassicSweepScheduler uses WandB's original Sweeps library to perform hyperparameter sweeps.
+
+    More information on the Classic Sweeps Library can be found at:
+        https://github.com/wandb/sweeps/blob/master/README.md
+
     """
 
     def __init__(
