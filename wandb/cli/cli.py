@@ -938,8 +938,8 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        None, # uri
-                        job,  # job
+                        os.getcwd(), # uri
+                        None,  # TODO(hupo): Generic scheduler job (container)
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
                         project,
