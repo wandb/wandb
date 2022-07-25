@@ -148,15 +148,21 @@ class _WandbInit:
                 )
                 self.printer.display(line, level="warn")
 
-        self._wl = wandb_setup.setup()
+        # pop local setings
+        settings_param = kwargs.pop("settings", None)
+
+        # defer setting up the manager until we have processed more settings
+        self._wl = wandb_setup._setup(_disable_manager=True)
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
-        settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
+
+        # now that we have our settings more finalized, lets setup the manager
+        self._wl._setup_manager()
 
         self._reporter = reporting.setup_reporter(settings=settings)
 

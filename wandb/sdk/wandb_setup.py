@@ -89,6 +89,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         pid: int,
         settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         environ: Optional[Dict[str, Any]] = None,
+        _disable_manager: bool = False,
     ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
@@ -111,7 +112,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         wandb.termsetup(self._settings, logger)
 
         self._check()
-        self._setup()
+        self._setup(_disable_manager=_disable_manager)
 
         tracelog_mode = self._settings._tracelog
         if tracelog_mode:
@@ -238,8 +239,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         if getattr(sys, "frozen", False):
             print("frozen, could be trouble")
 
-    def _setup(self):
-        self._setup_manager()
+    def _setup(self, _disable_manager: bool = False):
+        if not _disable_manager:
+            self._setup_manager()
 
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
@@ -267,6 +269,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def _setup_manager(self) -> None:
         if not self._settings._require_service:
             return
+        # thread mode doesnt use service yet
+        if self._settings.start_method == "thread":
+            return
         # Temporary setting to allow use of grpc so that we can keep
         # that code from rotting during the transition
         use_grpc = self._settings._service_transport == "grpc"
@@ -293,18 +298,22 @@ class _WandbSetup:
 
     _instance = None
 
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings=None, _disable_manager: bool = False) -> None:
         pid = os.getpid()
         if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
             return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
+        _WandbSetup._instance = _WandbSetup__WandbSetup(
+            settings=settings, pid=pid, _disable_manager=_disable_manager
+        )
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
 
 
-def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
+def _setup(
+    settings=None, _reset: bool = False, _disable_manager: bool = False
+) -> Optional["_WandbSetup"]:
     """Setup library context."""
     if _reset:
         setup_instance = _WandbSetup._instance
@@ -312,7 +321,7 @@ def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
             setup_instance._teardown()
         _WandbSetup._instance = None
         return
-    wl = _WandbSetup(settings=settings)
+    wl = _WandbSetup(settings=settings, _disable_manager=_disable_manager)
     return wl
 
 
