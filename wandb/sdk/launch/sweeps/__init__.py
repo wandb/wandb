@@ -5,14 +5,28 @@ from typing import Any, Callable, Dict
 log = logging.getLogger(__name__)
 
 
-def _import_sweep_scheduler() -> Any:
-    from .scheduler_sweep import SweepScheduler
+def _import_classic_sweep_scheduler() -> Any:
+    from .scheduler_classic_sweep import ClassicSweepScheduler
 
-    return SweepScheduler
+    return ClassicSweepScheduler
+
+
+def _import_ray_tune_scheduler() -> Any:
+    from .scheduler_ray_tune import RayTuneScheduler
+
+    return RayTuneScheduler
+
+
+def _import_optuna_scheduler() -> Any:
+    from .scheduler_optuna import OptunaScheduler
+
+    return OptunaScheduler
 
 
 _WANDB_SCHEDULERS: Dict[str, Callable] = {
-    "sweep": _import_sweep_scheduler,
+    "classic": _import_classic_sweep_scheduler,
+    "raytune": _import_ray_tune_scheduler,
+    "optuna": _import_optuna_scheduler,
 }
 
 
