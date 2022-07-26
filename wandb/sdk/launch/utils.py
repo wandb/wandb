@@ -430,12 +430,26 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
         except git.exc.GitCommandError as e:
             raise ExecutionError(
                 "Unable to checkout version '%s' of git repo %s"
-                "- please ensure that the version exists in the repo. "
+                "- please ensure that the version exists in the repo. \n"
                 "Error: %s" % (version, uri, e)
             )
     else:
-        repo.create_head("master", origin.refs.master)
-        repo.heads.master.checkout()
+        version = "master"  # change to "main" for current github practice?
+        try:
+            repo.create_head(version, origin.refs[version])
+            repo.heads[version].checkout()
+        except git.exc.GitCommandError as e:
+            raise ExecutionError(
+                "Unable to checkout version '%s' of git repo %s"
+                "- please ensure that the version exists in the repo. \n"
+                "Error: %s" % (version, uri, e)
+            )
+        except (AttributeError, IndexError) as e:
+            raise ExecutionError(
+                "Unable to checkout default version '%s' of git repo %s "
+                "- to specify a git version use: --git-version \n"
+                "Error: %s" % (version, uri, e)
+            )
     repo.submodule_update(init=True, recursive=True)
 
 
