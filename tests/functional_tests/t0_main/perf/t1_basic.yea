@@ -19,7 +19,7 @@ assert:
     - 3
   - :op:<:
     - :yea:profile[:wandb:init][mean]
-    - 3
+    - 8
   - :op:<:
     - :yea:profile[:wandb:log][mean]
     - 0.001
