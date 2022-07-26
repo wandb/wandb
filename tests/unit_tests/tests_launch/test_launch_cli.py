@@ -316,6 +316,21 @@ def test_sweep_launch_scheduler(runner, mock_server, test_settings):
         ],
     )
     assert result.exit_code == 0
+    # If no --job is specified this should error out
+    result = runner.invoke(
+        cli.sweep,
+        [
+            sweep_id,
+            "--queue",
+            "default",
+            "--job",
+            "mock_job_artifact",
+            "--entity",
+            "mock_server_entity",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Must specify --job flag" in str(result.exception)
 
 
 @pytest.mark.timeout(320)
