@@ -2421,6 +2421,8 @@ class Run:
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+        if aliases is None:
+            aliases = []
 
         if self._backend and self._backend.interface:
             if not self._settings._offline:
