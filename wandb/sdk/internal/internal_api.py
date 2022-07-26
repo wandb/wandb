@@ -2111,10 +2111,12 @@ class Api:
             mutation_str.replace(
                 "$controller: JSONString,",
                 "$controller: JSONString,$launchScheduler: JSONString,",
-            ).replace(
+            )
+            .replace(
                 "controller: $controller,",
                 "controller: $controller,launchScheduler: $launchScheduler,",
-            ).replace("_PROJECT_QUERY_", project_query)
+            )
+            .replace("_PROJECT_QUERY_", project_query)
         )
 
         # mutation 3 maps to backend that can support CLI version of at least 0.10.31
@@ -2168,7 +2170,9 @@ class Api:
             except UsageError as e:
                 raise e
             except Exception as e:
-                wandb.termwarn(f"Exception while upserting sweep, retrying with older format (potential back compat issue). Exception: {e}")
+                wandb.termwarn(
+                    f"Exception while upserting sweep, retrying with older format (potential back compat issue). Exception: {e}"
+                )
                 # graphql schema exception is generic
                 err = e
                 continue

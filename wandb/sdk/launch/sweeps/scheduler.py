@@ -186,7 +186,9 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
         queued_run = launch_add(
-            uri=os.environ.get(wandb.env.DIR, os.getcwd()) if self._job is None else None,
+            uri=os.environ.get(wandb.env.DIR, os.getcwd())
+            if self._job is None
+            else None,
             job=self._job,
             project=self._project,
             entity=self._entity,
