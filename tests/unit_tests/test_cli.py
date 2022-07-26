@@ -870,7 +870,7 @@ def test_sweep_scheduler(runner, mock_server, test_settings):
         }
         sweep_id = wandb.sweep(sweep_config)
         assert sweep_id == "test"
-        assert runner.invoke(cli.sweep, ["--queue", "default", sweep_id]).exit_code == 0
+        assert runner.invoke(cli.sweep, ["--queue", "default", "--job", "mock_job_artifact", sweep_id]).exit_code == 0
 
 
 def test_sync_gc(runner):

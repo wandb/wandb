@@ -309,6 +309,8 @@ def test_sweep_launch_scheduler(runner, mock_server, test_settings):
             sweep_id,
             "--queue",
             "default",
+            "--job",
+            "mock_job_artifact",
             "--entity",
             "mock_server_entity",
         ],
