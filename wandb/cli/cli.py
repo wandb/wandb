@@ -938,7 +938,7 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        os.getcwd(), # uri
+                        os.environ.get(wandb.env.DIR, os.getcwd()), # uri
                         None,  # TODO(hupo): Generic scheduler job (container)
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
@@ -958,7 +958,7 @@ def sweep(
                             job,
                         ],  # entry_point,
                         None,  # version,
-                        None,  # params,
+                        None,  # parameters,
                         None,  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
@@ -968,6 +968,7 @@ def sweep(
             }
         )
 
+    print(_launch_scheduler_spec)
     sweep_id, warnings = api.upsert_sweep(
         config,
         project=project,
