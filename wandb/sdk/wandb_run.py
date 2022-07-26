@@ -2006,8 +2006,6 @@ class Run:
 
     def _register_telemetry_import_hooks(self) -> None:
         def _telemetry_import_hook(run: "wandb.Run", module: Any) -> None:
-            print(run._run_id, module.__name__)
-            print("+" * 80)
             with telemetry.context(run=run) as tel:
                 setattr(tel.imports_finish, module.__name__, True)
 

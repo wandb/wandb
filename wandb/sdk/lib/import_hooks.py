@@ -1,4 +1,9 @@
-"""This module implements a post import hook mechanism styled after what is
+"""
+Note: This file is based on 
+https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
+(with slight modifications).
+
+This module implements a post import hook mechanism styled after what is
 described in PEP-369. Note that it doesn't cope with modules being reloaded.
 
 """
