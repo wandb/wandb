@@ -1,8 +1,7 @@
 import time
 
-import numpy as np
 from memory_profiler import profile
-
+import numpy as np
 import wandb
 
 
