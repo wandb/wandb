@@ -1,8 +1,7 @@
 plugin:
   - wandb
 tag:
-  shards:
-    - standalone-cpu
+  shard: standalone-cpu
 command:
   program: log_data.py
   args:
