@@ -190,7 +190,7 @@ def test_numpy(cls, capfd):
 @pytest.mark.parametrize("cls", impls)
 @pytest.mark.timeout(5)
 def test_print_torch_model(cls, capfd):
-    # https://github.com/wandb/client/issues/2097
+    # https://github.com/wandb/wandb/issues/2097
     import torch
 
     with capfd.disabled():

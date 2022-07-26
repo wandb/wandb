@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 # This helper function is a workaround for the issue discussed here:
-# https://github.com/wandb/client/issues/3472
+# https://github.com/wandb/wandb/issues/3472
 #
 # Essentially, the issue is that moviepy's write_gif function fails to close
 # the open write / file descripter returned from `imageio.save`. The following

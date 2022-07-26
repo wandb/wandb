@@ -3,10 +3,10 @@
 Decode json encoded form of a List of MetricRecord protobufs
 
 Definition of record:
-    https://github.com/wandb/client/blob/master/wandb/proto/wandb_internal.proto
+    https://github.com/wandb/wandb/blob/master/wandb/proto/wandb_internal.proto
 
 Encoder function:
-    https://github.com/wandb/client/blob/master/wandb/sdk/lib/proto_util.py
+    https://github.com/wandb/wandb/blob/master/wandb/sdk/lib/proto_util.py
 
 Example:
     {'loss': 'global_step', 'acc': 'global_step', 'v1': 'other_step'}
