@@ -882,48 +882,8 @@ def sweep(
         wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
         if job is None:
-            wandb.termerror("Must specify job name when using queue")
+            wandb.termerror("Must specify --job flag when using launch queues")
             return
-
-        # ------ Create a job which will be used when launching runs in this sweep
-
-        # job_name = wandb.util.make_artifact_name_safe(f"job-{sweep_id}")
-        # wandb.termlog("Creating job artifact: %s" % job_name)
-        # put(os.getcwd(), job_name, f"Job artifact for sweep {sweep_id}", "job", job_name)
-
-        # job_artifact = wandb.Artifact(name, type="job")
-        # input_types = TypeRegistry.type_of(config.as_dict()).to_json()
-        # output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
-
-        # import pkg_resources
-
-        # installed_packages_list = sorted(
-        #     f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
-        # )
-        # with job_artifact.new_file("requirements.frozen.txt") as f:
-        #     f.write("\n".join(installed_packages_list))
-
-        # source_info = {
-        #     "_version": "v0",
-        #     "source_type": "sweep",
-        #     "source": {"image": docker_image_name},
-        #     "input_types": input_types,
-        #     "output_types": output_types,
-        #     "runtime": self._settings._python,
-        # }
-        # with job_artifact.new_file("source_info.json") as f:
-        #     f.write(json.dumps(source_info))
-
-        # default_config = {}
-        # for k, v in config.as_dict().items():
-        #     if wandb.util._is_artifact_object(v):
-        #         default_config[k] = wandb.util.artifact_to_json(v)
-        #     else:
-        #         default_config[k] = v
-        # job_artifact.metadata["config_defaults"] = default_config
-        # artifact = self.log_artifact(job_artifact)
-
-        # ------
 
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
