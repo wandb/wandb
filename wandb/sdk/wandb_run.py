@@ -2403,7 +2403,7 @@ class Run:
         self,
         artifact: Union[public.Artifact, Artifact],
         target_path: str,
-        aliases: List[str],
+        aliases: Optional[List[str]] = None,
     ) -> None:
         """Links the given artifact to a portfolio (a promoted collection of artifacts).
 
