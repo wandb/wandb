@@ -2042,8 +2042,8 @@ class Run:
         )
 
         for job_creation_function in [
-            self._create_repo_job,
             self._create_artifact_job,
+            self._create_repo_job,
             self._create_image_job,
         ]:
             artifact = job_creation_function(
