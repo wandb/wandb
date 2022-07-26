@@ -14,6 +14,7 @@ exclude =
     .cache
     .eggs
     ./tests/conftest.py
+    ./tests/assets/fixtures/train.py
     ./tests/utils/
     ./tests/logs/
     ./tests/unit_tests/
