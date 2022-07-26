@@ -142,7 +142,7 @@ commands:
       - setup_remote_docker:
           version: 20.10.12
           docker_layer_caching: << parameters.docker_layer_caching >>
-      - run: apk add docker-cli-buildx=0.8.2-r2  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+      - run: apk add docker-cli-buildx=0.8.2-r3  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
   setup_gcloud:
     parameters:
@@ -829,7 +829,7 @@ jobs:
       - run:
           name: "Install stable version of wandb with pre-release versions of dependencies"
           command: |
-            wget https://raw.githubusercontent.com/wandb/client/$CIRCLE_BRANCH/requirements.txt
+            wget https://raw.githubusercontent.com/wandb/wandb/$CIRCLE_BRANCH/requirements.txt
             for r in `grep -o '^[^#]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
             pip install wandb
             python -c "import wandb"
@@ -971,7 +971,7 @@ workflows:
       - test:
           name: "code-check"
           image: "python:3.8"
-          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
+          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
       - test:
           name: "unit-s_base-lin-py36"
           image: "python:3.6"
