@@ -234,9 +234,11 @@ class KubernetesRunner(AbstractRunner):
         return pod_names
 
     def get_namespace(
-        self, resource_args: Dict[str, Any], default_namespace: str
-    ) -> Optional[str]:
-        return self.backend_config.get("runner", {}).get("namespace")
+        self, resource_args: Dict[str, Any]
+    ) -> Optional[str]:  # noqa: C901
+        return self.backend_config.get("runner", {}).get(
+            "namespace"
+        ) or resource_args.get("namespace")
 
     def run(
         self,
