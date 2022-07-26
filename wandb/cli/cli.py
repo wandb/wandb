@@ -35,7 +35,6 @@ from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 from wandb.sdk.launch.utils import construct_launch_spec
-from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
@@ -928,7 +927,6 @@ def sweep(
             }
         )
 
-    print(_launch_scheduler_spec)
     sweep_id, warnings = api.upsert_sweep(
         config,
         project=project,
