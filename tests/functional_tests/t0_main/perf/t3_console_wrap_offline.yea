@@ -10,5 +10,18 @@ command:
 env:
   - WANDB_MODE: offline
   - WANDB_CONSOLE: wrap
+profile:
+  - :wandb:init
+  - :wandb:finish
 assert:
   - :yea:exit: 0
+  - :wandb:runs_len: 0
+  - :op:<:
+    - :yea:time
+    - 50
+  - :op:<:
+    - :yea:profile[:wandb:init][mean]
+    - 3
+  - :op:<:
+    - :yea:profile[:wandb:finish][mean]
+    - 40
