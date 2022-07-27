@@ -797,6 +797,7 @@ def test_launch_agent_instance(test_settings, live_mock_server):
 
 @pytest.mark.flaky
 # @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+@pytest.mark.timeout(240)
 def test_launch_agent_different_project_in_spec(
     test_settings,
     live_mock_server,
