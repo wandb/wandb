@@ -13,8 +13,8 @@ def main():
     args = parser.parse_args()
 
     run = wandb.init()
-    for i in range(args.output_total):
-        for j in range(args.output_chunk):
+    for _i in range(args.output_total):
+        for _j in range(args.output_chunk):
             sys.stdout.write(".")
         sys.stdout.write("\n")
     run.finish()
