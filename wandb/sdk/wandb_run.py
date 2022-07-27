@@ -2041,14 +2041,15 @@ class Run:
         )
 
         for job_creation_function in [
-            self._create_artifact_job,
             self._create_repo_job,
+            self._create_artifact_job,
             self._create_image_job,
         ]:
             artifact = job_creation_function(
                 input_types, output_types, installed_packages_list
             )
             if artifact:
+                logger.info(f"Created job using {job_creation_function.__name__}")
                 break
             else:
                 logger.info(
