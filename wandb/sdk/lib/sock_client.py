@@ -1,7 +1,8 @@
 import socket
 import struct
-from typing import Any, Optional
-from typing import TYPE_CHECKING
+import threading
+import time
+from typing import Any, Optional, TYPE_CHECKING
 import uuid
 
 from wandb.proto import wandb_server_pb2 as spb
@@ -22,6 +23,8 @@ class SockClient:
     _sock: socket.socket
     _data: bytes
     _sockid: str
+    _retry_delay: float
+    _lock: "threading.Lock"
 
     # current header is magic byte "W" followed by 4 byte length of the message
     HEADLEN = 1 + 4
@@ -30,6 +33,8 @@ class SockClient:
         self._data = b""
         # TODO: use safe uuid's (python3.7+) or emulate this
         self._sockid = uuid.uuid4().hex
+        self._retry_delay = 0.1
+        self._lock = threading.Lock()
 
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -45,13 +50,35 @@ class SockClient:
     def set_socket(self, sock: socket.socket) -> None:
         self._sock = sock
 
+    def _sendall_with_error_handle(self, data: bytes) -> None:
+        # This is a helper function for sending data in a retry fashion.
+        # Similar to the sendall() function in the socket module, but with a
+        # an error handling in case of timeout.
+        total_sent = 0
+        while total_sent < len(data):
+            start_time = time.monotonic()
+            try:
+                sent = self._sock.send(data[total_sent:])
+                # sent equal to 0 indicates a closed socket
+                if sent == 0:
+                    raise SockClientClosedError("socket connection broken")
+                total_sent += sent
+            # we handle the timeout case for the cases when timeout is set
+            # on a system level by another application
+            except socket.timeout:
+                # adding sleep to avoid tight loop
+                delta_time = time.monotonic() - start_time
+                if delta_time < self._retry_delay:
+                    time.sleep(self._retry_delay - delta_time)
+
     def _send_message(self, msg: Any) -> None:
         tracelog.log_message_send(msg, self._sockid)
         raw_size = msg.ByteSize()
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
         header = struct.pack("<BI", ord("W"), raw_size)
-        self._sock.sendall(header + data)
+        with self._lock:
+            self._sendall_with_error_handle(header + data)
 
     def send_server_request(self, msg: Any) -> None:
         self._send_message(msg)

@@ -233,6 +233,13 @@ class KubernetesRunner(AbstractRunner):
         )
         return pod_names
 
+    def get_namespace(
+        self, resource_args: Dict[str, Any]
+    ) -> Optional[str]:  # noqa: C901
+        return self.backend_config.get("runner", {}).get(
+            "namespace"
+        ) or resource_args.get("namespace")
+
     def run(
         self,
         launch_project: LaunchProject,
@@ -272,13 +279,10 @@ class KubernetesRunner(AbstractRunner):
         # begin pulling resource arg overrides. all of these are optional
 
         # allow top-level namespace override, otherwise take namespace specified at the job level, or default in current context
-        default = (
+        default_namespace = (
             context["context"].get("namespace", "default") if context else "default"
         )
-        namespace = resource_args.get(
-            "namespace",
-            job_metadata.get("namespace", default),
-        )
+        namespace = self.get_namespace(resource_args) or default_namespace
 
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
@@ -297,7 +301,7 @@ class KubernetesRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         # env vars
-        env_vars = get_env_vars_dict(launch_project, entry_point, self._api)
+        env_vars = get_env_vars_dict(launch_project, self._api)
 
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         secret = None
@@ -399,8 +403,10 @@ def maybe_create_imagepull_secret(
     namespace: str,
 ) -> Optional["V1Secret"]:
     secret = None
+    ecr_provider = registry_config.get("ecr-provider", "").lower()
     if (
-        registry_config.get("ecr-provider") == "AWS"
+        ecr_provider
+        and ecr_provider == "aws"
         and registry_config.get("url") is not None
         and registry_config.get("credentials") is not None
     ):
@@ -442,14 +448,7 @@ def maybe_create_imagepull_secret(
             core_api.create_namespaced_secret(namespace, secret)
         except Exception as e:
             raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
-    # TODO: support other ecxr providers
-    elif (
-        registry_config.get("ecr-provider") != "AWS"
-        and registry_config.get("ecr-provider") is not None
-    ):
-        raise LaunchError(
-            "Registry provider not supported: {}".format(
-                registry_config.get("ecr-provider")
-            )
-        )
+    # TODO: support other ecr providers
+    elif ecr_provider and ecr_provider != "aws":
+        raise LaunchError(f"Registry provider not supported: {ecr_provider}")
     return secret

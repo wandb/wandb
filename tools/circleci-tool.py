@@ -21,6 +21,11 @@ Trigger (re)execution of a branch
 
     ```
 
+Trigger nightly run
+    ```
+    $ ./circleci-tool.py trigger-nightly --slack-notify
+    ```
+
 Download artifacts from an executed workflow
     ```
     $ ./circleci-tool download
@@ -84,7 +89,7 @@ def poll(args, pipeline_id=None, workflow_ids=None):
 
 
 def trigger(args):
-    url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
+    url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
     payload = {
         "branch": args.branch,
     }
@@ -147,7 +152,7 @@ def trigger(args):
 
 
 def trigger_nightly(args):
-    url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
+    url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
 
     default_shards = {
         "standalone-cpu",
@@ -201,7 +206,7 @@ def trigger_nightly(args):
 def get_ci_builds(args, completed=True):
     bname = args.branch
     # TODO: extend pagination if not done
-    url = "https://circleci.com/api/v1.1/project/gh/wandb/client?shallow=true&limit=100"
+    url = "https://circleci.com/api/v1.1/project/gh/wandb/wandb?shallow=true&limit=100"
     if completed:
         url = url + "&filter=completed"
     # print("SEND", url)
@@ -231,7 +236,7 @@ def get_ci_builds(args, completed=True):
 
 
 def grab(args, vhash, bnum):
-    # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/client/61238/artifacts
+    # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/wandb/61238/artifacts
     # curl -L  -o out.dat -H "Circle-Token: $CIRCLECI_TOKEN" https://61238-86031674-gh.circle-artifacts.com/0/cover-results/.coverage
     cachedir = ".circle_cache"
     cfbase = f"cover-{vhash}-{bnum}.xml"
@@ -241,7 +246,7 @@ def grab(args, vhash, bnum):
     if os.path.exists(cfname):
         return
     url = (
-        "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(
+        "https://circleci.com/api/v1.1/project/github/wandb/wandb/{}/artifacts".format(
             bnum
         )
     )

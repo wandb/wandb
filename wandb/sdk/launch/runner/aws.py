@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, cast, Dict, Optional, Tuple
 
 if False:
     import boto3  # type: ignore
@@ -16,14 +16,18 @@ from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
-    EntryPoint,
     get_entry_point_command,
     LaunchProject,
 )
 from ..builder.build import (
     get_env_vars_dict,
 )
-from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
+from ..utils import (
+    PROJECT_DOCKER_ARGS,
+    PROJECT_SYNCHRONOUS,
+    run_shell,
+    to_camel_case,
+)
 
 
 _logger = logging.getLogger(__name__)
@@ -90,44 +94,65 @@ class AWSSagemakerRunner(AbstractRunner):
             "boto3",
             "AWSSagemakerRunner requires boto3 to be installed,  install with pip install wandb[launch]",
         )
+        botocore = get_module(
+            "botocore",
+            "AWSSagemakerRunner requires botocore to be installed,  install with pip install wandb[launch]",
+        )
 
         given_sagemaker_args = launch_project.resource_args.get("sagemaker")
         if given_sagemaker_args is None:
             raise LaunchError(
                 "No sagemaker args specified. Specify sagemaker args in resource_args"
             )
-        if (
-            given_sagemaker_args.get(
-                "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
-            )
-            is None
-        ):
-            raise LaunchError(
-                "AWS sagemaker requires an ECR Repo to push the container to "
-                "set this by adding a `EcrRepoName` key to the sagemaker"
-                "field of resource_args"
-            )
+        validate_sagemaker_requirements(given_sagemaker_args, registry_config)
 
-        region = get_region(given_sagemaker_args)
-        access_key, secret_key = get_aws_credentials(given_sagemaker_args)
-        client = boto3.client(
-            "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+        default_output_path = self.backend_config.get("runner", {}).get(
+            "s3_output_path"
         )
-        account_id = client.get_caller_identity()["Account"]
+        if default_output_path is not None and not default_output_path.startswith(
+            "s3://"
+        ):
+            default_output_path = f"s3://{default_output_path}"
+
+        region = get_region(given_sagemaker_args, registry_config.get("region"))
+        instance_role: bool = False
+        try:
+            client = boto3.client("sts")
+            instance_role = True
+            caller_id = client.get_caller_identity()
+
+        except botocore.exceptions.NoCredentialsError:
+            access_key, secret_key = get_aws_credentials(given_sagemaker_args)
+            client = boto3.client(
+                "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+            )
+            caller_id = client.get_caller_identity()
+
+        account_id = caller_id["Account"]
+        role_arn = get_role_arn(given_sagemaker_args, self.backend_config, account_id)
         entry_point = launch_project.get_single_entry_point()
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
             given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
             is not None
         ):
-            sagemaker_client = boto3.client(
-                "sagemaker",
-                region_name=region,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-            )
+            if instance_role:
+                sagemaker_client = boto3.client("sagemaker", region_name=region)
+            else:
+                sagemaker_client = boto3.client(
+                    "sagemaker",
+                    region_name=region,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                )
             sagemaker_args = build_sagemaker_args(
-                launch_project, entry_point, self._api, account_id
+                launch_project,
+                self._api,
+                role_arn,
+                given_sagemaker_args.get("AlgorithmSpecification", {}).get(
+                    "TrainingImage"
+                ),
+                default_output_path,
             )
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
@@ -138,33 +163,18 @@ class AWSSagemakerRunner(AbstractRunner):
             return run
 
         _logger.info("Connecting to AWS ECR Client")
-        ecr_client = boto3.client(
-            "ecr",
-            region_name=region,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
-        token = ecr_client.get_authorization_token()
-        ecr_repo_name = given_sagemaker_args.get(
-            "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
-        )
-        if ecr_repo_name:
-            repository = (
-                token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
-                + f"/{ecr_repo_name}"
-            )
+        if instance_role:
+            ecr_client = boto3.client("ecr", region_name=region)
         else:
-            repository = registry_config.get("url")
-
-        if repository is None:
-            raise LaunchError(
-                "Must provide a repository url either through resource args or launch config file"
+            ecr_client = boto3.client(
+                "ecr",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
             )
-
-        if registry_config.get("ecr-repo-provider", "aws") != "aws":
-            raise LaunchError(
-                "Sagemaker jobs requires an AWS ECR Repo to push the container to"
-            )
+        repository = get_ecr_repository_url(
+            ecr_client, given_sagemaker_args, registry_config
+        )
         # TODO: handle login credentials gracefully
         login_credentials = registry_config.get("credentials")
         if login_credentials is not None:
@@ -200,13 +210,15 @@ class AWSSagemakerRunner(AbstractRunner):
             return None
 
         _logger.info("Connecting to sagemaker client")
-
-        sagemaker_client = boto3.client(
-            "sagemaker",
-            region_name=region,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
+        if instance_role:
+            sagemaker_client = boto3.client("sagemaker", region_name=region)
+        else:
+            sagemaker_client = boto3.client(
+                "sagemaker",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
 
         command_args = get_entry_point_command(
             entry_point, launch_project.override_args
@@ -219,7 +231,7 @@ class AWSSagemakerRunner(AbstractRunner):
                 "Launching run on sagemaker with user-provided entrypoint in image"
             )
         sagemaker_args = build_sagemaker_args(
-            launch_project, entry_point, self._api, account_id, image
+            launch_project, self._api, role_arn, image, default_output_path
         )
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
@@ -266,20 +278,38 @@ def merge_aws_tag_with_algorithm_specification(
 
 def build_sagemaker_args(
     launch_project: LaunchProject,
-    entry_point: Optional[EntryPoint],
     api: Api,
-    account_id: str,
+    role_arn: str,
     aws_tag: Optional[str] = None,
+    default_output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    sagemaker_args = {}
-    given_sagemaker_args = launch_project.resource_args.get("sagemaker")
+    sagemaker_args: Dict[str, Any] = {}
+    given_sagemaker_args: Optional[Dict[str, Any]] = launch_project.resource_args.get(
+        "sagemaker"
+    )
+
     if given_sagemaker_args is None:
         raise LaunchError(
             "No sagemaker args specified. Specify sagemaker args in resource_args"
         )
-    sagemaker_args["TrainingJobName"] = (
-        given_sagemaker_args.get("TrainingJobName") or launch_project.run_id
+    if (
+        given_sagemaker_args.get("OutputDataConfig") is None
+        and default_output_path is not None
+    ):
+        sagemaker_args["OutputDataConfig"] = {"S3OutputPath": default_output_path}
+    else:
+        sagemaker_args["OutputDataConfig"] = given_sagemaker_args.get(
+            "OutputDataConfig"
+        )
+
+    if sagemaker_args.get("OutputDataConfig") is None:
+        raise LaunchError(
+            "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
+        )
+    training_job_name = cast(
+        str, (given_sagemaker_args.get("TrainingJobName") or launch_project.run_id)
     )
+    sagemaker_args["TrainingJobName"] = training_job_name
 
     sagemaker_args[
         "AlgorithmSpecification"
@@ -291,7 +321,7 @@ def build_sagemaker_args(
         aws_tag,
     )
 
-    sagemaker_args["RoleArn"] = get_role_arn(given_sagemaker_args, account_id)
+    sagemaker_args["RoleArn"] = role_arn
 
     camel_case_args = {
         to_camel_case(key): item for key, item in given_sagemaker_args.items()
@@ -300,11 +330,6 @@ def build_sagemaker_args(
         **camel_case_args,
         **sagemaker_args,
     }
-
-    if sagemaker_args.get("OutputDataConfig") is None:
-        raise LaunchError(
-            "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
-        )
 
     if sagemaker_args.get("ResourceConfig") is None:
         raise LaunchError(
@@ -319,7 +344,7 @@ def build_sagemaker_args(
     given_env = given_sagemaker_args.get(
         "Environment", sagemaker_args.get("environment", {})
     )
-    calced_env = get_env_vars_dict(launch_project, entry_point, api)
+    calced_env = get_env_vars_dict(launch_project, api)
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env
 
@@ -354,8 +379,12 @@ def launch_sagemaker_job(
     return run
 
 
-def get_region(sagemaker_args: Dict[str, Any]) -> str:
+def get_region(
+    sagemaker_args: Dict[str, Any], registry_config_region: Optional[str] = None
+) -> str:
     region = sagemaker_args.get("region")
+    if region is None:
+        region = registry_config_region
     if region is None:
         region = os.environ.get("AWS_DEFAULT_REGION")
     if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
@@ -406,8 +435,12 @@ def get_aws_credentials(sagemaker_args: Dict[str, Any]) -> Tuple[str, str]:
     return access_key, secret_key
 
 
-def get_role_arn(sagemaker_args: Dict[str, Any], account_id: str) -> str:
+def get_role_arn(
+    sagemaker_args: Dict[str, Any], backend_config: Dict[str, Any], account_id: str
+) -> str:
     role_arn = sagemaker_args.get("RoleArn") or sagemaker_args.get("role_arn")
+    if role_arn is None:
+        role_arn = backend_config.get("runner", {}).get("role_arn")
     if role_arn is None or not isinstance(role_arn, str):
         raise LaunchError(
             "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"
@@ -417,3 +450,55 @@ def get_role_arn(sagemaker_args: Dict[str, Any], account_id: str) -> str:
         return role_arn
 
     return f"arn:aws:iam::{account_id}:role/{role_arn}"
+
+
+def validate_sagemaker_requirements(
+    given_sagemaker_args: Dict[str, Any], registry_config: Dict[str, Any]
+) -> None:
+    if (
+        given_sagemaker_args.get(
+            "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
+        )
+        is None
+        and registry_config.get("url") is None
+    ):
+        raise LaunchError(
+            "AWS sagemaker requires an ECR Repository to push the container to "
+            "set this by adding a `EcrRepoName` key to the sagemaker"
+            "field of resource_args or through the url key in the registry section "
+            "of the launch agent config."
+        )
+
+    if registry_config.get("ecr-repo-provider", "aws").lower() != "aws":
+        raise LaunchError(
+            "Sagemaker jobs requires an AWS ECR Repo to push the container to"
+        )
+
+
+def get_ecr_repository_url(
+    ecr_client: "boto3.Client",
+    given_sagemaker_args: Dict[str, Any],
+    registry_config: Dict[str, Any],
+) -> str:
+    token = ecr_client.get_authorization_token()
+    ecr_repo_name = given_sagemaker_args.get(
+        "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
+    )
+    if ecr_repo_name:
+        if not isinstance(ecr_repo_name, str):
+            raise LaunchError("EcrRepoName must be a string")
+        if not ecr_repo_name.startswith("arn:aws:ecr:"):
+            repository = cast(
+                str,
+                token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
+                + f"/{ecr_repo_name}",
+            )
+        else:
+            repository = ecr_repo_name
+    else:
+        repository = cast(str, registry_config.get("url", ""))
+    if not repository:
+        raise LaunchError(
+            "Must provide a repository url either through resource args or launch config file"
+        )
+    return repository

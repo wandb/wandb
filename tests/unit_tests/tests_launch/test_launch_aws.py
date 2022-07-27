@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import sys
 
 import boto3
+import botocore
 import wandb
 import wandb.sdk.launch.launch as launch
 import wandb.sdk.launch._project_spec as _project_spec
@@ -12,6 +13,8 @@ from wandb.sdk.launch.runner.aws import (
     SagemakerSubmittedRun,
     get_aws_credentials,
     get_region,
+    get_ecr_repository_url,
+    validate_sagemaker_requirements,
 )
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
@@ -32,37 +35,107 @@ def mock_create_training_job(*args, **kwargs):
     }
 
 
-def mock_boto3_client(*args, **kwargs):
-    if args[0] == "sagemaker":
-        mock_sagemaker_client = MagicMock()
-        mock_sagemaker_client.create_training_job = mock_create_training_job
-        mock_sagemaker_client.create_training_job.return_value = {
-            "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
-        }
-        mock_sagemaker_client.stop_training_job.return_value = {
-            "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
-        }
-        mock_sagemaker_client.describe_training_job.return_value = {
-            "TrainingJobStatus": "Completed",
-            "TrainingJobName": "test-job-1",
-        }
-        return mock_sagemaker_client
-    elif args[0] == "ecr":
-        ecr_client = MagicMock()
-        ecr_client.get_authorization_token.return_value = {
-            "authorizationData": [
-                {
-                    "proxyEndpoint": "https://123456789012.dkr.ecr.us-east-1.amazonaws.com",
-                }
-            ]
-        }
-        return ecr_client
-    elif args[0] == "sts":
+def mock_sagemaker_client():
+    mock_sagemaker_client = MagicMock()
+    mock_sagemaker_client.create_training_job = mock_create_training_job
+    mock_sagemaker_client.create_training_job.return_value = {
+        "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
+    }
+    mock_sagemaker_client.stop_training_job.return_value = {
+        "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
+    }
+    mock_sagemaker_client.describe_training_job.return_value = {
+        "TrainingJobStatus": "Completed",
+        "TrainingJobName": "test-job-1",
+    }
+    return mock_sagemaker_client
+
+
+def mock_ecr_client():
+    ecr_client = MagicMock()
+    ecr_client.get_authorization_token.return_value = {
+        "authorizationData": [
+            {
+                "proxyEndpoint": "https://123456789012.dkr.ecr.us-east-1.amazonaws.com",
+            }
+        ]
+    }
+    return ecr_client
+
+
+def mock_boto3_client(
+    *args,
+    **kwargs,
+):
+    client_type = args[0]
+    sts_client = MagicMock()
+    sts_client.get_caller_identity.return_value = {"Account": "123456789012"}
+    clients = {
+        "sagemaker": mock_sagemaker_client(),
+        "ecr": mock_ecr_client(),
+        "sts": sts_client,
+    }
+    return clients[client_type]
+
+
+def mock_boto3_client_no_instance(*args, **kwargs):
+    client_type = args[0]
+
+    if kwargs.get("aws_access_key_id") is None:
         sts_client = MagicMock()
-        sts_client.get_caller_identity.return_value = {
-            "Account": "123456789012",
-        }
-        return sts_client
+        sts_client.get_caller_identity = MagicMock(
+            side_effect=botocore.exceptions.NoCredentialsError,
+        )
+    elif kwargs.get("aws_access_key_id") is not None:
+        sts_client = MagicMock()
+        sts_client.get_caller_identity.return_value = {"Account": "123456789012"}
+
+    clients = {
+        "sagemaker": mock_sagemaker_client(),
+        "ecr": mock_ecr_client(),
+        "sts": sts_client,
+    }
+    return clients[client_type]
+
+
+def test_launch_aws_sagemaker_no_instance(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+):
+    def mock_create_metadata_file(*args, **kwargs):
+        dockerfile_contents = args[4]
+        expected_entrypoint = 'ENTRYPOINT ["sh", "train"]'
+        assert expected_entrypoint in dockerfile_contents, dockerfile_contents
+        _project_spec.create_metadata_file(*args, **kwargs)
+
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(boto3, "client", mock_boto3_client_no_instance)
+    monkeypatch.setattr(
+        wandb.sdk.launch._project_spec,
+        "create_metadata_file",
+        mock_create_metadata_file,
+    )
+    monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
+    kwargs["uri"] = uri
+    kwargs["api"] = api
+    run = launch.run(**kwargs)
+    out, _ = capsys.readouterr()
+    assert run.training_job_name == "test-job-1"
+    assert "Project: test" in out
+    assert "Entity: mock_server_entity" in out
+    assert "Config: {}" in out
+    assert "Artifacts: {}" in out
 
 
 def test_launch_aws_sagemaker(
@@ -378,6 +451,7 @@ def test_aws_get_region_file_success(runner, monkeypatch):
         launch_project = _project_spec.LaunchProject(
             "https://wandb.ai/mock_server_entity/test/runs/1",
             None,
+            None,
             {},
             "test",
             "test",
@@ -404,6 +478,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
     with runner.isolated_filesystem():
         launch_project = _project_spec.LaunchProject(
             "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
             None,
             {},
             "test",
@@ -432,6 +507,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
     with runner.isolated_filesystem():
         launch_project = _project_spec.LaunchProject(
             "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
             None,
             {},
             "test",
@@ -490,6 +566,9 @@ def test_no_OuputDataConfig(
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(
         wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
@@ -600,3 +679,38 @@ def test_no_RoleARN(
             == "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"
             "field of resource_args"
         )
+
+
+def test_validate_sagemaker_requirements():
+    given_sagemaker_args = {}
+    registry_config = {}
+    with pytest.raises(wandb.errors.LaunchError):
+        validate_sagemaker_requirements(given_sagemaker_args, registry_config)
+
+    registry_config["ecr-repo-provider"] = "gcp"
+    with pytest.raises(wandb.errors.LaunchError):
+        validate_sagemaker_requirements(given_sagemaker_args, registry_config)
+
+
+def test_get_ecr_repository_url():
+    client = MagicMock()
+    client.get_authorization_token.return_value = {
+        "authorizationData": [{"proxyEndpoint": "token"}]
+    }
+    given_sagemaker_args = {}
+    registry_config = {}
+    with pytest.raises(wandb.errors.LaunchError):
+        get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+
+    given_sagemaker_args["EcrRepoName"] = {"asd": 123}
+    with pytest.raises(wandb.errors.LaunchError):
+        get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+
+    given_sagemaker_args["EcrRepoName"] = "test_repo_name"
+    repo = get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+    assert repo == "token/test_repo_name"
+    given_sagemaker_args.pop("EcrRepoName")
+
+    registry_config["url"] = "test-reg-repo"
+    repo = get_ecr_repository_url(client, given_sagemaker_args, registry_config)
+    assert repo == "test-reg-repo"

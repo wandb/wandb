@@ -6,12 +6,14 @@ import os
 import pickle
 import platform
 import sys
-import tempfile
 from unittest import mock
 
+
+import git
 import numpy as np
 import pytest
 import wandb
+from wandb import env
 from wandb import wandb_sdk
 from wandb.errors import MultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
@@ -148,7 +150,9 @@ def test_log_code_settings(live_mock_server, test_settings):
     run.finish()
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
-    assert artifact_name == "source-" + run.id
+    assert artifact_name == wandb.util.make_artifact_name_safe(
+        f"source-{run._project}-{run._settings.program_relpath}"
+    )
 
 
 @pytest.mark.parametrize("save_code", [True, False])
@@ -174,7 +178,9 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         ctx = live_mock_server.get_ctx()
         artifact_names = list(ctx["artifacts"].keys())
         if save_code:
-            assert artifact_names[0] == "source-" + run.id
+            assert artifact_names[0] == wandb.util.make_artifact_name_safe(
+                f"source-{run._project}-{run._settings.program_relpath}"
+            )
         else:
             assert len(artifact_names) == 0
 
@@ -643,14 +649,13 @@ def test_wandb_artifact_config_update(
         artifact.add_reference(
             "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
         )
-        run = wandb.init(settings=test_settings)
-        run.config.update({"test_reference_download": artifact})
+        with wandb.init(settings=test_settings) as run:
+            run.config.update({"test_reference_download": artifact})
 
-        assert run.config.test_reference_download == artifact
-        run.finish()
+            assert run.config.test_reference_download == artifact
 
         ctx = parse_ctx(live_mock_server.get_ctx())
-        assert ctx.config_user["test_reference_download"] == {
+        config_art = {
             "_type": "artifactVersion",
             "_version": "v0",
             "id": artifact.id,
@@ -658,6 +663,18 @@ def test_wandb_artifact_config_update(
             "sequenceName": artifact.name.split(":")[0],
             "usedAs": "test_reference_download",
         }
+        assert ctx.config_user["test_reference_download"] == config_art
+
+        with wandb.init(settings=test_settings) as run:
+            run.config.update({"test_reference_download": config_art})
+            assert run.config.test_reference_download.id == artifact.id
+
+
+def test_media_in_config(runner, live_mock_server, test_settings, parse_ctx):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        with pytest.raises(ValueError):
+            run.config["image"] = wandb.Image(np.random.randint(0, 255, (100, 100, 3)))
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
@@ -758,3 +775,96 @@ def test_init_with_settings(live_mock_server, test_settings):
         == wandb_sdk.wandb_settings.Source.INIT
     )
     run.finish()
+
+
+def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
+    _ = git_repo_fn(commit_msg="initial commit")
+    test_settings.update(
+        {"enable_job_creation": True, "program_relpath": "./blah/test_program.py"}
+    )
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    artifact_name = list(ctx["artifacts"].keys())[0]
+    assert artifact_name == wandb.util.make_artifact_name_safe(
+        f"job-{run._settings.git_remote_url}_{run._settings.program_relpath}"
+    )
+
+
+def test_artifact_job_creation(live_mock_server, test_settings, runner):
+    with runner.isolated_filesystem():
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+        test_settings.update(
+            {
+                "enable_job_creation": True,
+                "disable_git": True,
+                "program_relpath": "./blah/test_program.py",
+            }
+        )
+        run = wandb.init(settings=test_settings)
+        run.log_code()
+        run.finish()
+        ctx = live_mock_server.get_ctx()
+        code_artifact_name = list(ctx["artifacts"].keys())[0]
+        job_artifact_name = list(ctx["artifacts"].keys())[1]
+        assert job_artifact_name == f"job-{code_artifact_name}"
+
+
+def test_container_job_creation(live_mock_server, test_settings):
+    test_settings.update({"enable_job_creation": True, "disable_git": True})
+    with mock.patch.dict("os.environ", WANDB_DOCKER="dummy-container:v0"):
+        run = wandb.init(settings=test_settings)
+        run.finish()
+        ctx = live_mock_server.get_ctx()
+        artifact_name = list(ctx["artifacts"].keys())[0]
+        assert artifact_name == "job-dummy-container_v0"
+
+
+def test_manual_git_run_metadata_from_settings(live_mock_server, test_settings):
+    remote_url = "git@github.com:me/my-repo.git"
+    commit = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    test_settings.update(
+        {
+            "git_remote_url": remote_url,
+            "git_commit": commit,
+        }
+    )
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    assert ctx["git"]["remote"] == remote_url
+    assert ctx["git"]["commit"] == commit
+
+
+def test_manual_git_run_metadata_from_environ(live_mock_server, test_settings):
+    remote_url = "git@github.com:me/my-repo.git"
+    commit = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    with mock.patch.dict(
+        os.environ,
+        {
+            env.GIT_REMOTE_URL: remote_url,
+            env.GIT_COMMIT: commit,
+        },
+    ):
+        run = wandb.init(settings=test_settings)
+        run.finish()
+
+    ctx = live_mock_server.get_ctx()
+    assert ctx["git"]["remote"] == remote_url
+    assert ctx["git"]["commit"] == commit
+
+
+def test_git_root(runner, live_mock_server, test_settings):
+    path = "./foo"
+    remote_url = "https://foo:@github.com/FooTest/Foo.git"
+    with runner.isolated_filesystem():
+        with git.Repo.init(path) as repo:
+            repo.create_remote("origin", remote_url)
+            repo.index.commit("initial commit")
+        with mock.patch.dict(os.environ, {env.GIT_ROOT: path}):
+            run = wandb.init(settings=test_settings)
+            run.finish()
+        ctx = live_mock_server.get_ctx()
+        assert ctx["git"]["remote"] == repo.remote().url
+        assert ctx["git"]["commit"] == repo.head.commit.hexsha
