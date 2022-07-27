@@ -185,7 +185,8 @@ class Scheduler(ABC):
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
         queued_run = launch_add(
-            uri=None,
+            # TODO(hupo): If no Job is specified, use a placeholder URI to prevent Launch failure
+            uri=None if self._job is not None else "placeholder-uri-queuedrun",
             job=self._job,
             project=self._project,
             entity=self._entity,

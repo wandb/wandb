@@ -881,8 +881,9 @@ def sweep(
         wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
         if job is None:
-            wandb.termerror("Must specify --job flag when using launch queues")
-            return
+            _msg = "Must specify --job flag when using launch queues"
+            wandb.termerror(_msg)
+            raise LaunchError(_msg)
 
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
@@ -897,7 +898,7 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        f"Scheduler.{_sweep_id_placeholder}",  # TODO: placeholder uri, remove in future
+                        "placeholder-uri-scheduler",  # TODO(hupo): placeholder uri, remove in future
                         None,  # TODO(hupo): Generic scheduler job (container)
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,

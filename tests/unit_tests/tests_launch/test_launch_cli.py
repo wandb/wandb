@@ -211,6 +211,9 @@ def test_launch_sweep_scheduler(runner, test_settings, live_mock_server):
             "mock_server_entity",
             "--queue",
             "default",
+            # TODO(hupo): No mock job artifacts for now
+            # "--job",
+            # "mock_job_artifact",
             sweep_id,
         ],
     )
@@ -294,43 +297,42 @@ def test_launch_no_docker_exec(
     assert "Could not find Docker executable" in str(result.exception)
 
 
-def test_sweep_launch_scheduler(runner, mock_server, test_settings):
-    sweep_id = wandb.sweep(
-        {
-            "name": "My Sweep",
-            "method": "grid",
-            "parameters": {"parameter1": {"values": [1, 2, 3]}},
-        }
-    )
-    assert sweep_id == "test"
-    result = runner.invoke(
-        cli.sweep,
-        [
-            sweep_id,
-            "--queue",
-            "default",
-            "--job",
-            "mock_job_artifact",
-            "--entity",
-            "mock_server_entity",
-        ],
-    )
-    assert result.exit_code == 0
-    # If no --job is specified this should error out
-    result = runner.invoke(
-        cli.sweep,
-        [
-            sweep_id,
-            "--queue",
-            "default",
-            "--job",
-            "mock_job_artifact",
-            "--entity",
-            "mock_server_entity",
-        ],
-    )
-    assert result.exit_code == 1
-    assert "Must specify --job flag" in str(result.exception)
+def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+    sweep_config_path = os.path.expanduser("sweep-config.yaml")
+    with runner.isolated_filesystem():
+        with open(sweep_config_path, "w") as f:
+            json.dump(sweep_config, f)
+        result = runner.invoke(
+            cli.sweep,
+            [
+                sweep_config_path,
+                "--queue",
+                "default",
+                "--job",
+                "mock_job_artifact",
+                "--entity",
+                "mock_server_entity",
+            ],
+        )
+        assert result.exit_code == 0
+        # If no --job is specified this should error out
+        result = runner.invoke(
+            cli.sweep,
+            [
+                sweep_config_path,
+                "--queue",
+                "default",
+                "--entity",
+                "mock_server_entity",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "Must specify --job flag" in result.output
 
 
 @pytest.mark.timeout(320)
