@@ -19,55 +19,40 @@ def test_telemetry_finish(runner, live_mock_server, parse_ctx):
         assert telemetry and 2 in telemetry.get("3", [])
 
 
-def test_telemetry_imports_hf(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        run = wandb.init()
-
-        with mock.patch.dict("sys.modules", {"transformers": mock.Mock()}):
-            import transformers
-
-            run.finish()
-
-            ctx_util = parse_ctx(live_mock_server.get_ctx())
-            telemetry = ctx_util.telemetry
-
-            # hf in finish modules but not in init modules
-            # assert telemetry and 11 not in telemetry.get("1", [])
-            assert telemetry and 11 in telemetry.get("2", [])
-
-
-def test_telemetry_imports_catboost(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        with mock.patch.dict("sys.modules", {"catboost": mock.Mock()}):
-            import catboost
-
-            run = wandb.init()
-            run.finish()
-
-            ctx_util = parse_ctx(live_mock_server.get_ctx())
-            telemetry = ctx_util.telemetry
-
-            # catboost in both init and finish modules
-            # assert telemetry and 7 in telemetry.get("1", [])
-            assert telemetry and 7 in telemetry.get("2", [])
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+@pytest.mark.parametrize(
+    "module, telemetry_value",
+    [
+        ("transformers", 11),
+        ("catboost", 7),
+        ("jax", 12),
+    ],
 )
-def test_telemetry_imports_jax(runner, live_mock_server, parse_ctx):
+def test_telemetry_imports(
+    runner, live_mock_server, parse_ctx, module, telemetry_value
+):
     with runner.isolated_filesystem():
-        import jax
 
-        wandb.init()
-        wandb.finish()
+        module_mock = mock.MagicMock()
+        module_mock.__name__ = module
+        with mock.patch.dict("sys.modules", {module: module_mock}):
+            run = wandb.init()
+            __import__(module)
+            run.finish()
 
         ctx_util = parse_ctx(live_mock_server.get_ctx())
         telemetry = ctx_util.telemetry
 
-        # jax in finish modules but not in init modules
-        # assert telemetry and 12 in telemetry.get("1", [])
-        assert telemetry and 12 in telemetry.get("2", [])
+        assert telemetry and telemetry_value in telemetry.get("2", [])
+
+        with mock.patch.dict("sys.modules", {module: module_mock}):
+            __import__(module)
+            run = wandb.init()
+            run.finish()
+
+        ctx_util = parse_ctx(live_mock_server.get_ctx())
+        telemetry = ctx_util.telemetry
+
+        assert telemetry and telemetry_value in telemetry.get("2", [])
 
 
 def test_telemetry_run_organizing_init(runner, live_mock_server, parse_ctx):
