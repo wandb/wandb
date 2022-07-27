@@ -6,7 +6,7 @@ This integration lets users apply decorators to Metaflow flows and steps to auto
 - Decorating the flow is equivalent to decorating all steps with a default
 - Decorating a step after decorating the flow will overwrite the flow decoration
 
-Examples can be found at wandb/client/functional_tests/metaflow
+Examples can be found at wandb/wandb/functional_tests/metaflow
 """
 
 from functools import wraps

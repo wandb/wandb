@@ -3,7 +3,7 @@
 # lightgbm
 lightning-flash
 openmim # handles dependencies for mmlab projects
-mmcv
+mmcv<1.6.1 # 1.6.1 breaks mmdet 2.25.0
 mmdet
 # mmf
 monai

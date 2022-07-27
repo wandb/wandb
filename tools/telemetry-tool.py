@@ -5,7 +5,7 @@ Data directory for telemetry records:
     https://github.com/wandb/analytics/tree/master/dbt/data
 
 Usage:
-    ./client/tools/telemetry-tool.py --output-dir analytics/dbt/seeds/
+    ./wandb/tools/telemetry-tool.py --output-dir analytics/dbt/seeds/
 """
 
 import argparse
