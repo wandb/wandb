@@ -22,25 +22,25 @@ assert:
   #  - :wandb:runs[0][telemetry][1]  # imports init
   #  - 14  # allennlp
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports init
     - 15  # autogluon
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports init
     - 16  # autokeras
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports init
     - 18  # catalyst
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports init
     - 7  # catboost
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports init
     - 51  # datasets
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports init
     - 21  # deepchem
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports init
     - 22  # deepctr
 """
 

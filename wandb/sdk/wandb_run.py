@@ -2223,16 +2223,17 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.join()
 
-        self._unregister_telemetry_import_hooks()
+        self._unregister_telemetry_import_hooks(self._run_id)
 
-    def _unregister_telemetry_import_hooks(self) -> None:
+    @staticmethod
+    def _unregister_telemetry_import_hooks(run_id) -> None:
         import_telemetry_set = set(
             desc.name
             for desc in telemetry.TelemetryImports.DESCRIPTOR.fields
             if desc.type == desc.TYPE_BOOL
         )
         for module_name in import_telemetry_set:
-            unregister_post_import_hook(self._run_id, module_name)
+            unregister_post_import_hook(module_name, run_id)
 
     def _on_final(self) -> None:
         self._footer(

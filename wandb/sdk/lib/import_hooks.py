@@ -13,7 +13,7 @@ import threading
 import functools
 
 import importlib
-from typing import Callable
+from typing import Callable, Optional
 
 string_types = (str,)
 
@@ -121,16 +121,23 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
 
 
 @synchronized(_post_import_hooks_lock)
-def unregister_post_import_hook(hook_id: str, name: str) -> None:
+def unregister_post_import_hook(name: str, hook_id: Optional[str]) -> None:
     # Remove the import hook if it has been registered.
-
     hooks = _post_import_hooks.get(name)
 
     if hooks is not None:
-        hooks.pop(hook_id, None)
+        if hook_id is not None:
+            hooks.pop(hook_id, None)
 
-        if not hooks:
+            if not hooks:
+                del _post_import_hooks[name]
+        else:
             del _post_import_hooks[name]
+
+
+@synchronized(_post_import_hooks_lock)
+def unregister_all_post_import_hooks():
+    _post_import_hooks.clear()
 
 
 # Register post import hooks defined as package entry points.
