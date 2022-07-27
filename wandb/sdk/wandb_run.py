@@ -2013,7 +2013,7 @@ class Run:
         self._on_ready()
 
     def _register_telemetry_import_hooks(self) -> None:
-        def _telemetry_import_hook(run: "wandb.Run", module: Any) -> None:
+        def _telemetry_import_hook(run: "Run", module: Any) -> None:
             with telemetry.context(run=run) as tel:
                 setattr(tel.imports_finish, module.__name__, True)
 
@@ -2234,7 +2234,7 @@ class Run:
         self._unregister_telemetry_import_hooks(self._run_id)
 
     @staticmethod
-    def _unregister_telemetry_import_hooks(run_id) -> None:
+    def _unregister_telemetry_import_hooks(run_id: str) -> None:
         import_telemetry_set = {
             desc.name
             for desc in telemetry.TelemetryImports.DESCRIPTOR.fields

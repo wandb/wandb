@@ -12,14 +12,14 @@ import functools
 import importlib  # noqa: F401
 import sys
 import threading
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 
 # modified the following import: from .decorators import synchronized
-def synchronized(lock):
-    def decorator(func):
+def synchronized(lock: "threading.RLock") -> Callable:
+    def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        def new_func(*args, **kwargs):
+        def new_func(*args: Any, **kwargs: Any) -> Any:
             with lock:
                 return func(*args, **kwargs)
 
@@ -34,8 +34,8 @@ def synchronized(lock):
 # module will be truncacted but the list left in the dictionary. This
 # acts as a flag to indicate that the module had already been imported.
 
-_post_import_hooks = {}
-_post_import_hooks_init = False
+_post_import_hooks: Dict = {}
+_post_import_hooks_init: bool = False
 _post_import_hooks_lock = threading.RLock()
 
 # Register a new post import hook for the target module name. This
@@ -46,15 +46,15 @@ _post_import_hooks_lock = threading.RLock()
 # specified module containing the callback function until required.
 
 
-def _create_import_hook_from_string(name):
-    def import_hook(module):
+def _create_import_hook_from_string(name: str) -> Any:
+    def import_hook(module: Any) -> Any:
         module_name, function = name.split(":")
         attrs = function.split(".")
         __import__(module_name)
         callback = sys.modules[module_name]
         for attr in attrs:
             callback = getattr(callback, attr)
-        return callback(module)
+        return callback(module)  # type: ignore
 
     return import_hook
 
@@ -64,8 +64,8 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
     # Create a deferred import hook if hook is a string name rather than
     # a callable function.
 
-    if isinstance(hook, str):
-        hook = _create_import_hook_from_string(hook)
+    if isinstance(hook, (str,)):
+        hook = _create_import_hook_from_string(hook)  # type: ignore
 
     # Automatically install the import hook finder if it has not already
     # been installed.
@@ -74,7 +74,7 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
 
     if not _post_import_hooks_init:
         _post_import_hooks_init = True
-        sys.meta_path.insert(0, ImportHookFinder())
+        sys.meta_path.insert(0, ImportHookFinder())  # type: ignore
 
     # Determine if any prior registration of a post import hook for
     # the target modules has occurred and act appropriately.
@@ -134,25 +134,25 @@ def unregister_post_import_hook(name: str, hook_id: Optional[str]) -> None:
 
 
 @synchronized(_post_import_hooks_lock)
-def unregister_all_post_import_hooks():
+def unregister_all_post_import_hooks() -> None:
     _post_import_hooks.clear()
 
 
 # Register post import hooks defined as package entry points.
 
 
-def _create_import_hook_from_entrypoint(entrypoint):
-    def import_hook(module):
+def _create_import_hook_from_entrypoint(entrypoint: Any) -> Callable:
+    def import_hook(module: Any) -> Any:
         __import__(entrypoint.module_name)
         callback = sys.modules[entrypoint.module_name]
         for attr in entrypoint.attrs:
             callback = getattr(callback, attr)
-        return callback(module)
+        return callback(module)  # type: ignore
 
     return import_hook
 
 
-def discover_post_import_hooks(group):
+def discover_post_import_hooks(group: Any) -> None:
     try:
         import pkg_resources
     except ImportError:
@@ -170,7 +170,7 @@ def discover_post_import_hooks(group):
 
 
 @synchronized(_post_import_hooks_lock)
-def notify_module_loaded(module):
+def notify_module_loaded(module: Any) -> None:
     name = getattr(module, "__name__", None)
     hooks = _post_import_hooks.get(name)
 
@@ -188,10 +188,10 @@ def notify_module_loaded(module):
 
 
 class _ImportHookChainedLoader:
-    def __init__(self, loader):
+    def __init__(self, loader: Any) -> None:
         self.loader = loader
 
-    def load_module(self, fullname):
+    def load_module(self, fullname: str) -> Any:
         module = self.loader.load_module(fullname)
         notify_module_loaded(module)
 
@@ -199,11 +199,15 @@ class _ImportHookChainedLoader:
 
 
 class ImportHookFinder:
-    def __init__(self):
-        self.in_progress = {}
+    def __init__(self) -> None:
+        self.in_progress: Dict = {}
 
     @synchronized(_post_import_hooks_lock)
-    def find_module(self, fullname: str, path=None):
+    def find_module(  # type: ignore
+        self,
+        fullname: str,
+        path: Optional[str] = None,
+    ) -> Optional["_ImportHookChainedLoader"]:
         # If the module being imported is not one we have registered
         # post import hooks for, we can return immediately. We will
         # take no further part in the importing of this module.
@@ -237,7 +241,7 @@ class ImportHookFinder:
             try:
                 import importlib.util
 
-                loader = importlib.util.find_spec(fullname).loader
+                loader = importlib.util.find_spec(fullname).loader  # type: ignore
             except (ImportError, AttributeError):
                 loader = importlib.find_loader(fullname, path)
             if loader:
