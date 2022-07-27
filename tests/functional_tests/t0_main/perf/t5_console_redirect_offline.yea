@@ -8,8 +8,9 @@ command:
     - --output-total
     - "10000"
 env:
+  - WANDB_DISABLE_SERVICE: "true"
   - WANDB_MODE: offline
-  - WANDB_CONSOLE: wrap_emu
+  - WANDB_CONSOLE: redirect
 profile:
   - :wandb:init
   - :wandb:finish
@@ -18,10 +19,10 @@ assert:
   - :wandb:runs_len: 0
   - :op:<:
     - :yea:time
-    - 50
+    - 15
   - :op:<:
     - :yea:profile[:wandb:init][mean]
     - 3
   - :op:<:
     - :yea:profile[:wandb:finish][mean]
-    - 40
+    - 10

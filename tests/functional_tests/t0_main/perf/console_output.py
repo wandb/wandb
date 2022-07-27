@@ -16,7 +16,7 @@ def main():
     for i in range(args.output_total):
         for _ in range(args.output_chunk):
             sys.stdout.write(".")
-        print(f"{i}", end="\r")
+        sys.stdout.write(f"{i}\r")
     sys.stdout.write("\n")
     run.finish()
 
