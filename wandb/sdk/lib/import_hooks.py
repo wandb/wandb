@@ -12,7 +12,7 @@ import functools
 import importlib  # noqa: F401
 import sys
 import threading
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional
 
 
 # modified the following import: from .decorators import synchronized

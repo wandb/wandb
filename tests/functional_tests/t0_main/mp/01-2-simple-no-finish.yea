@@ -3,7 +3,6 @@ plugin:
   - wandb
 tag:
   shard: service
-  skip: true
 
 depend:
   requirements:
@@ -29,4 +28,3 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][2]  # imports after
     - 12  # jax
-
