@@ -49,7 +49,6 @@ from wandb.util import (
     _is_artifact_version_weave_dict,
     _is_py_path,
     add_import_hook,
-    artifact_to_json,
     parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
@@ -469,7 +468,7 @@ class Run:
         self._notes = None
         self._tags = None
         self._remote_url = None
-        self._last_commit = None
+        self._commit = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -678,20 +677,26 @@ class Run:
             for tag in self._tags:
                 run.tags.append(tag)
         if self._start_time is not None:
-            run.start_time.FromSeconds(int(self._start_time))
+            run.start_time.FromMicroseconds(int(self._start_time * 1e6))
         if self._remote_url is not None:
             run.git.remote_url = self._remote_url
-        if self._last_commit is not None:
-            run.git.last_commit = self._last_commit
+        if self._commit is not None:
+            run.git.commit = self._commit
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
+        # Use user provided git info if available otherwise resolve it from the environment
         try:
-            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+            repo = GitRepo(
+                root=self._settings.git_root,
+                remote=self._settings.git_remote,
+                remote_url=self._settings.git_remote_url,
+                commit=self._settings.git_commit,
+                lazy=False,
+            )
+            self._remote_url, self._commit = repo.remote_url, repo.last_commit
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
-            return
-        self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
@@ -847,7 +852,7 @@ class Run:
         return (
             self._start_time
             if not self._run_obj
-            else self._run_obj.start_time.ToSeconds()
+            else (self._run_obj.start_time.ToMicroseconds() / 1e6)
         )
 
     @property  # type: ignore
@@ -1258,10 +1263,9 @@ class Run:
     ) -> None:
         if row:
             row = self._visualization_hack(row)
-            row["_timestamp"] = int(row.get("_timestamp", time.time()))
-            row["_runtime"] = int(
-                row.get("_runtime", time.time() - self._get_start_time())
-            )
+            now = time.time()
+            row["_timestamp"] = row.get("_timestamp", now)
+            row["_runtime"] = row.get("_runtime", now - self._get_start_time())
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -2063,16 +2067,9 @@ class Run:
             job_artifact.add_file(patch_path, "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
-        with job_artifact.new_file("source_info.json") as f:
+        with job_artifact.new_file("wandb-job.json") as f:
             f.write(json.dumps(source_dict))
 
-        default_config = {}
-        for k, v in self.config.as_dict().items():
-            if _is_artifact_object(v):
-                default_config[k] = artifact_to_json(v)
-            else:
-                default_config[k] = v
-        job_artifact.metadata["config_defaults"] = default_config
         return job_artifact
 
     def _create_repo_job(
@@ -2082,12 +2079,12 @@ class Run:
         installed_packages_list: List[str],
     ) -> "Optional[Artifact]":
         """Create a job version artifact from a repo."""
-        has_repo = self._remote_url is not None and self._last_commit is not None
+        has_repo = self._remote_url is not None and self._commit is not None
         program_relpath = self._settings.program_relpath
         if not has_repo or program_relpath is None:
             return None
         assert self._remote_url is not None
-        assert self._last_commit is not None
+        assert self._commit is not None
         name = wandb.util.make_artifact_name_safe(
             f"job-{self._remote_url}_{program_relpath}"
         )
@@ -2099,7 +2096,7 @@ class Run:
             "source": {
                 "git": {
                     "remote": self._remote_url,
-                    "commit": self._last_commit,
+                    "commit": self._commit,
                 },
                 "entrypoint": [
                     sys.executable.split("/")[-1],

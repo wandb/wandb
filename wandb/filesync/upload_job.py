@@ -65,7 +65,7 @@ class UploadJob(threading.Thread):
                 os.remove(self.save_path)
             self._done_queue.put(EventJobDone(self, success))
             if success:
-                self._file_stream.push_success(self.artifact_id, self.save_name)
+                self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> bool:
         if self.save_fn:
