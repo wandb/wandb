@@ -1157,6 +1157,7 @@ def test_run_in_launch_context_with_malformed_env_vars(
         assert "Malformed WANDB_ARTIFACTS, using original artifacts" in err
 
 
+@pytest.mark.timeout(240)
 def test_launch_local_cuda_command(
     live_mock_server, test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
