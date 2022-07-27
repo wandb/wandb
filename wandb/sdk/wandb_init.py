@@ -577,7 +577,6 @@ class _WandbInit:
                 backend._multiprocessing, "get_start_method", lambda: None
             )()
 
-        
         # Populate initial telemetry
         with telemetry.context(run=run, obj=self._init_telemetry_obj) as tel:
             tel.cli_version = wandb.__version__
@@ -591,7 +590,7 @@ class _WandbInit:
                 tel.env.kaggle = True
             if self.settings._windows:
                 tel.env.windows = True
-            
+
             if self.settings.launch:
                 tel.feature.launch = True
 

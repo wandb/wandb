@@ -85,9 +85,9 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
         ("lightgbm", "lightgbm"),
         ("catboost", "catboost"),
         ("xgboost", "xgboost"),
-        ("transformers_huggingface", "huggingface"), # backwards compatibility
+        ("transformers_huggingface", "huggingface"),  # backwards compatibility
         ("transformers", "huggingface"),
-        ("pytorch_ignite", "ignite"), # backwards compatibility
+        ("pytorch_ignite", "ignite"),  # backwards compatibility
         ("ignite", "ignite"),
         ("pytorch_lightning", "lightning"),
         ("fastai", "fastai"),
@@ -96,6 +96,7 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
         ("tensorflow", "tensorflow"),
         ("sklearn", "sklearn"),
     ]
+
 
 class ResumeState:
     resumed: bool

@@ -1,5 +1,5 @@
 """
-Note: This file is based on 
+Note: This file is based on
 https://github.com/GrahamDumpleton/wrapt/blob/1.12.1/src/wrapt/importer.py
 (with slight modifications).
 
@@ -8,16 +8,14 @@ described in PEP-369. Note that it doesn't cope with modules being reloaded.
 
 """
 
+import functools
+import importlib  # noqa: F401
 import sys
 import threading
-import functools
-
-import importlib
 from typing import Callable, Optional
 
-string_types = (str,)
 
-# from .decorators import synchronized
+# modified the following import: from .decorators import synchronized
 def synchronized(lock):
     def decorator(func):
         @functools.wraps(func)
@@ -66,7 +64,7 @@ def register_post_import_hook(hook: Callable, hook_id: str, name: str) -> None:
     # Create a deferred import hook if hook is a string name rather than
     # a callable function.
 
-    if isinstance(hook, string_types):
+    if isinstance(hook, str):
         hook = _create_import_hook_from_string(hook)
 
     # Automatically install the import hook finder if it has not already
@@ -210,7 +208,7 @@ class ImportHookFinder:
         # post import hooks for, we can return immediately. We will
         # take no further part in the importing of this module.
 
-        if not fullname in _post_import_hooks:
+        if fullname not in _post_import_hooks:
             return None
 
         # When we are interested in a specific module, we will call back
@@ -247,60 +245,3 @@ class ImportHookFinder:
 
         finally:
             del self.in_progress[fullname]
-
-    # @synchronized(_post_import_hooks_lock)
-    # def find_spec(self, fullname: str, path=None):
-    #     # If the module being imported is not one we have registered
-    #     # post import hooks for, we can return immediately. We will
-    #     # take no further part in the importing of this module.
-
-    #     if not fullname in _post_import_hooks:
-    #         return None
-
-    #     # When we are interested in a specific module, we will call back
-    #     # into the import system a second time to defer to the import
-    #     # finder that is supposed to handle the importing of the module.
-    #     # We set an in progress flag for the target module so that on
-    #     # the second time through we don't trigger another call back
-    #     # into the import system and cause a infinite loop.
-
-    #     if fullname in self.in_progress:
-    #         return None
-
-    #     self.in_progress[fullname] = True
-
-    #     # Now call back into the import system again.
-
-    #     try:
-
-    #         # For Python 3 we need to use find_spec().loader
-    #         # from the importlib.util module. It doesn't actually
-    #         # import the target module and only finds the
-    #         # loader. If a loader is found, we need to return
-    #         # our own loader which will then in turn call the
-    #         # real loader to import the module and invoke the
-    #         # post import hooks.
-    #         try:
-    #             import importlib.util
-
-    #             spec = importlib.util.find_spec(fullname)
-
-    #             spec.loader = _ImportHookChainedLoader(spec.loader)
-    #             return spec
-
-    #         except (ImportError, AttributeError):
-    #             # spec = importlib.find_loader(fullname, path)
-    #             pass
-
-    #     finally:
-    #         del self.in_progress[fullname]
-
-
-# # Decorator for marking that a function should be called as a post
-# # import hook when the target module is imported.
-
-# def when_imported(name):
-#     def register(hook):
-#         register_post_import_hook(hook, name)
-#         return hook
-#     return register

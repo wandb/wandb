@@ -26,12 +26,11 @@ from typing import (
     TextIO,
     Tuple,
     Type,
+    TYPE_CHECKING,
     Union,
 )
-from typing import TYPE_CHECKING
 
 import requests
-
 import wandb
 from wandb import errors
 from wandb import trigger
@@ -957,7 +956,9 @@ class Run:
 
             Advanced usage
             ```python
-            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            run.log_code(
+                "../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb")
+            )
             ```
 
         Returns:
@@ -1469,18 +1470,20 @@ class Run:
             <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'accuracy': 0.9, 'epoch': 5})
+            wandb.log({"accuracy": 0.9, "epoch": 5})
             ```
 
             ### Incremental logging
             <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'loss': 0.2}, commit=False)
+            wandb.log({"loss": 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
-            wandb.log({'accuracy': 0.8})
+            wandb.log({"accuracy": 0.8})
             ```
 
             ### Histogram
@@ -1556,15 +1559,20 @@ class Run:
 
             ### PR Curve
             ```python
-            wandb.log({'pr': wandb.plots.precision_recall(y_test, y_probas, labels)})
+            wandb.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
             ### 3D Object
             ```python
-            wandb.log({"generated_samples":
-            [wandb.Object3D(open("sample.obj")),
-                wandb.Object3D(open("sample.gltf")),
-                wandb.Object3D(open("sample.glb"))]})
+            wandb.log(
+                {
+                    "generated_samples": [
+                        wandb.Object3D(open("sample.obj")),
+                        wandb.Object3D(open("sample.gltf")),
+                        wandb.Object3D(open("sample.glb")),
+                    ]
+                }
+            )
             ```
 
         Raises:
@@ -2009,11 +2017,11 @@ class Run:
             with telemetry.context(run=run) as tel:
                 setattr(tel.imports_finish, module.__name__, True)
 
-        import_telemetry_set = set(
+        import_telemetry_set = {
             desc.name
             for desc in telemetry.TelemetryImports.DESCRIPTOR.fields
             if desc.type == desc.TYPE_BOOL
-        )
+        }
 
         for module_name in import_telemetry_set:
 
@@ -2227,11 +2235,11 @@ class Run:
 
     @staticmethod
     def _unregister_telemetry_import_hooks(run_id) -> None:
-        import_telemetry_set = set(
+        import_telemetry_set = {
             desc.name
             for desc in telemetry.TelemetryImports.DESCRIPTOR.fields
             if desc.type == desc.TYPE_BOOL
-        )
+        }
         for module_name in import_telemetry_set:
             unregister_post_import_hook(module_name, run_id)
 
