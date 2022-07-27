@@ -18,31 +18,31 @@ assert:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 28  # pycaret
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 10  # ignite
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 29  # pytorchvideo
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 9  # pytorch_lightning
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 30  # ray
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 5  # sklearn
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 31  # simpletransformers
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 32  # skorch
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 33  # spacy
 """
 

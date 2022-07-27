@@ -18,28 +18,28 @@ assert:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 63  # timm
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 64  # fairseq
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 65  # deepchecks
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 66  # composer
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 67  # sparseml
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 69  # zenml
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 71  # accelerate
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 72  # merlin
 """
 

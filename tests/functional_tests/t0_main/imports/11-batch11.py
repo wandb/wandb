@@ -18,25 +18,25 @@ assert:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 73  # nanodet
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 74  # segmentation_models_pytorch
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 75  # sentence_transformers
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 76  # dgl
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 78  # jina
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 79  # kornia
   - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 80  # albumentations
 """
 

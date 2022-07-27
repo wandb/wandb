@@ -19,28 +19,28 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   # todo: once allennlp fixes their deps conflict, uncomment this
   #- :op:contains:
-  #  - :wandb:runs[0][telemetry][1]  # imports init
+  #  - :wandb:runs[0][telemetry][1]  # imports finish
   #  - 14  # allennlp
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 15  # autogluon
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 16  # autokeras
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 18  # catalyst
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 7  # catboost
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 51  # datasets
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 21  # deepchem
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports init
+    - :wandb:runs[0][telemetry][2]  # imports finish
     - 22  # deepctr
 """
 
