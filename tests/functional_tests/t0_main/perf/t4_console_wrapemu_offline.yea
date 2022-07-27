@@ -1,0 +1,14 @@
+plugin:
+  - wandb
+tag:
+  shard: standalone-cpu
+command:
+  program: console_output.py
+  args:
+    - --output-total
+    - "10000"
+env:
+  - WANDB_MODE: offline
+  - WANDB_CONSOLE: wrap_emu
+assert:
+  - :yea:exit: 0
