@@ -802,7 +802,7 @@ class SendManager:
         ) - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
-        server_run, _, server_messages = self._api.upsert_run(
+        server_run, inserted, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
@@ -824,6 +824,15 @@ class SendManager:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
+        else:
+            # If the user is not resuming and we didnt insert on upsert_run then
+            # it is likely that we are overwriting the run which we might want to
+            # prevent in the future.  This could be a false signal since an upsert_run
+            # message which gets retried in the network could also show up as not
+            # inserted.
+            if not inserted:
+                # no need to flush this, it will get updated eventually
+                self._telemetry_obj.feature.maybe_run_overwrite = True
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
