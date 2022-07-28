@@ -4909,8 +4909,10 @@ class ArtifactFiles(Paginator):
 
     @property
     def length(self):
-        # TODO
-        return None
+        if self.last_response:
+            return len(self.last_response["project"]["artifactType"]["artifact"]["files"])
+        else:
+            return None
 
     @property
     def more(self):
@@ -4946,7 +4948,6 @@ class ArtifactFiles(Paginator):
 
 
 class Job:
-
     _name: str
     _input_types: Type
     _output_types: Type
