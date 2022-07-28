@@ -454,7 +454,8 @@ def test_check_retry_conflict():
     assert util.is_conflict(e) is True
 
 
-def test_make_check_reply_fn():
+def test_make_check_reply_fn_timeout():
+    """Verify case where secondary check returns a new timeout."""
     e = mock.MagicMock(spec=requests.HTTPError)
     e.response = mock.MagicMock(spec=requests.Response)
 
@@ -476,6 +477,62 @@ def test_make_check_reply_fn():
     check = check_retry_fn(e)
     assert check
     assert check == datetime.timedelta(minutes=3)
+
+
+def test_make_check_reply_fn_false():
+    """Verify case where secondary check forces no retry."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    def is_special(e):
+        if e.response.status_code == 500:
+            return False
+        return None
+
+    check_retry_fn = util.make_check_retry_fn(
+        check_fn=is_special,
+        fallback_retry_fn=util.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check is False
+
+
+def test_make_check_reply_fn_true():
+    """Verify case where secondary check allows retry."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    def is_special(e):
+        if e.response.status_code == 400:
+            return True
+        return None
+
+    check_retry_fn = util.make_check_retry_fn(
+        check_fn=is_special,
+        fallback_retry_fn=util.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check is False
 
 
 def test_downsample():
