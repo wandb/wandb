@@ -151,7 +151,7 @@ class SyncThread(threading.Thread):
             url_quote(proto_run.project),
             url_quote(proto_run.run_id),
         )
-        print("Syncing: %s ... " % url)
+        print("Syncing: %s ..." % url)
         sys.stdout.flush()
         # using a handler here automatically handles the step
         # logic, adds summaries to the run, and handles different
@@ -284,7 +284,7 @@ class SyncThread(threading.Thread):
                             url_quote(r.project),
                             url_quote(r.run_id),
                         )
-                        print("Syncing: %s ..." % url, end="")
+                        print("Syncing: %s ... " % url, end="")
                         sys.stdout.flush()
                         shown = True
             sm.finish()

@@ -229,12 +229,10 @@ class DirWatcher:
         # faster if the name happens to include glob escapable characters.  In
         # the future we may add a flag to "files" records that indicates it's
         # policy is not dynamic and doesn't need to be stored / checked.
-        if path.startswith("media/"):
+        save_name = SaveName(os.path.relpath(os.path.join(self._dir, path), self._dir))
+        if save_name.startswith("media/"):
             pass
         elif path == glob.escape(path):
-            save_name = SaveName(
-                os.path.relpath(os.path.join(self._dir, path), self._dir)
-            )
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
