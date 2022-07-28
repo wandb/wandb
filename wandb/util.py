@@ -3,7 +3,7 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import errno
 import functools
 import gzip
@@ -55,6 +55,8 @@ import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
 import yaml
+
+CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -887,7 +889,7 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
-def check_retry_commit_artifact(e: Any) -> bool:
+def is_conflict(e: Any) -> Optional[bool]:
     if hasattr(e, "exception"):
         e = e.exception
     if (
@@ -896,7 +898,21 @@ def check_retry_commit_artifact(e: Any) -> bool:
         and e.response.status_code == 409
     ):
         return True
-    return no_retry_auth(e)
+    return None
+
+
+def make_check_retry_fn(
+    check_fn: Callable[[Exception], Optional[bool]],
+    check_timedelta: timedelta,
+    fallback_retry_fn: CheckRetryFnType,
+) -> CheckRetryFnType:
+    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
+        check = check_fn(e)
+        if check is None:
+            return fallback_retry_fn(e)
+        return check_timedelta if check else False
+
+    return check_retry_fn
 
 
 def find_runner(program: str) -> Union[None, list, List[str]]:

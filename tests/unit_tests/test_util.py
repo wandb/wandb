@@ -439,18 +439,18 @@ def test_no_retry_auth():
     assert util.no_retry_auth(e)
 
 
-def test_check_retry_commit_artifact_retries_on_conflict():
+def test_check_retry_conflict():
     e = mock.MagicMock(spec=requests.HTTPError)
     e.response = mock.MagicMock(spec=requests.Response)
 
     e.response.status_code = 400
-    assert not util.check_retry_commit_artifact(e)
+    assert util.is_conflict(e) is None
 
     e.response.status_code = 500
-    assert util.check_retry_commit_artifact(e)
+    assert util.is_conflict(e) is None
 
     e.response.status_code = 409
-    assert util.check_retry_commit_artifact(e)
+    assert util.is_conflict(e) is True
 
 
 def test_downsample():

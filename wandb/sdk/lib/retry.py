@@ -4,12 +4,12 @@ import logging
 import os
 import random
 import time
-from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
+from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar, Union
 
 from requests import HTTPError
 import wandb
 
-ExceptionPredicate = Callable[[Exception], bool]
+ExceptionPredicate = Callable[[Exception], Union[bool, datetime.timedelta]]
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +121,19 @@ class Retry(Generic[_R]):
                 return result
             except self._retryable_exceptions as e:
                 # if the secondary check fails, re-raise
-                if not check_retry_fn(e):
+                check_retry = check_retry_fn(e)
+                if not check_retry:
                     raise
+
+                # use secondary check timedelta if it is provided
+                timedelta = (
+                    check_retry
+                    if isinstance(check_retry, datetime.timedelta)
+                    else retry_timedelta
+                )
+
                 if (
-                    datetime.datetime.now() - start_time >= retry_timedelta
+                    datetime.datetime.now() - start_time >= timedelta
                     or self._num_iter >= num_retries
                 ):
                     raise
