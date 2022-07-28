@@ -50,6 +50,9 @@ class Retry(Generic[_R]):
         error_prefix: str = "Network error",
         retry_callback: Optional[Callable[[int, str], Any]] = None,
         sleep_fn_for_testing: Callable[[float], None] = time.sleep,
+        datetime_now_fn_for_testing: Callable[
+            [], datetime.datetime
+        ] = datetime.datetime.now,
     ) -> None:
         self._call_fn = call_fn
         self._check_retry_fn = check_retry_fn
@@ -64,6 +67,7 @@ class Retry(Generic[_R]):
         self._index = 0
         self.retry_callback = retry_callback
         self._sleep_fn = sleep_fn_for_testing
+        self._datetime_now_fn = datetime_now_fn_for_testing
 
     @property
     def num_iters(self) -> int:
@@ -98,7 +102,7 @@ class Retry(Generic[_R]):
         )
 
         sleep = sleep_base
-        now = datetime.datetime.now()
+        now = self._datetime_now_fn()
         start_time = now
         start_time_triggered = None
 
@@ -111,12 +115,12 @@ class Retry(Generic[_R]):
                 if self._num_iter > 2 and now - self._last_print > datetime.timedelta(
                     minutes=1
                 ):
-                    self._last_print = datetime.datetime.now()
+                    self._last_print = self._datetime_now_fn()
                     if self.retry_callback:
                         self.retry_callback(
                             200,
                             "{} resolved after {}, resuming normal operation.".format(
-                                self._error_prefix, datetime.datetime.now() - start_time
+                                self._error_prefix, self._datetime_now_fn() - start_time
                             ),
                         )
                 return result
@@ -130,7 +134,7 @@ class Retry(Generic[_R]):
                 if self._num_iter >= num_retries:
                     raise
 
-                now = datetime.datetime.now()
+                now = self._datetime_now_fn()
 
                 # handle a triggered secondary check which could have a shortened timeout
                 if isinstance(retry_timedelta_triggered, datetime.timedelta):
@@ -169,7 +173,7 @@ class Retry(Generic[_R]):
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS
-            now = datetime.datetime.now()
+            now = self._datetime_now_fn()
 
             self._num_iter += 1
 
