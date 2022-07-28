@@ -12,7 +12,8 @@ def run_first() -> str:
         wandb.log(dict(m2=2))
         wandb.log(dict(m3=3))
         run_id = run.id
-    return run_id
+        run_path = run.path
+    return run_id, run_path
 
 
 def run_again(run_id: str, resume: Optional[str]) -> None:
@@ -29,12 +30,22 @@ def run_again(run_id: str, resume: Optional[str]) -> None:
         wandb.log(dict(m4=44))
 
 
+def delete_run(run_path: str) -> None:
+    api = wandb.Api()
+    run = api.run(run_path)
+    run.delete()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--resume", type=str)
+    parser.add_argument("--delete_run", action="store_true")
     args = parser.parse_args()
 
-    run_id = run_first()
+    run_id, run_path = run_first()
+    if args.delete_run:
+        delete_run(run_path)
+
     run_again(run_id=run_id, resume=args.resume)
 
 
