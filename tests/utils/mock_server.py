@@ -232,6 +232,7 @@ def artifact(
         "description": "",
         "state": state,
         "size": 10000,
+        "fileCount": 10,
         "createdAt": datetime.now().isoformat(),
         "updatedAt": datetime.now().isoformat(),
         "versionIndex": ctx["page_count"],

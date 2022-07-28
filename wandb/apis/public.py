@@ -135,6 +135,7 @@ fragment ArtifactFragment on Artifact {
     updatedAt
     labels
     metadata
+    fileCount
     versionIndex
     aliases {
         artifactCollectionName
@@ -4027,6 +4028,10 @@ class Artifact(artifacts.Artifact):
         return self._attrs["id"]
 
     @property
+    def file_count(self):
+        return self._attrs["fileCount"]
+
+    @property
     def version(self):
         return "v%d" % self._version_index
 
@@ -4904,9 +4909,12 @@ class ArtifactFiles(Paginator):
         super().__init__(client, variables, per_page)
 
     @property
+    def path(self):
+        return [self.artifact.entity, self.artifact.project, self.artifact.name]
+
+    @property
     def length(self):
-        # TODO
-        return None
+        return self.artifact.file_count
 
     @property
     def more(self):
@@ -4938,7 +4946,7 @@ class ArtifactFiles(Paginator):
         ]
 
     def __repr__(self):
-        return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
+        return "<ArtifactFiles {} ({})>".format("/".join(self.path), len(self))
 
 
 class Job:
