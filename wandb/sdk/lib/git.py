@@ -1,16 +1,27 @@
 import configparser
 import logging
 import os
+from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
+import wandb
 
 logger = logging.getLogger(__name__)
 
 
 class GitRepo:
-    def __init__(self, root=None, remote="origin", lazy=True):
-        self.remote_name = remote
+    def __init__(
+        self,
+        root: Optional[str] = None,
+        remote: str = "origin",
+        lazy: bool = True,
+        remote_url: Optional[str] = None,
+        commit: Optional[str] = None,
+    ) -> None:
+        self.remote_name = remote if remote_url is None else None
         self._root = root
+        self._remote_url = remote_url
+        self._commit = commit
         self._repo = None
         if not lazy:
             self.repo
@@ -28,31 +39,39 @@ class GitRepo:
                 except exc.InvalidGitRepositoryError:
                     logger.debug("git repository is invalid")
                     self._repo = False
+                except exc.NoSuchPathError:
+                    wandb.termwarn(f"git root {self._root} does not exist")
+                    logger.warn(f"git root {self._root} does not exist")
+                    self._repo = False
         return self._repo
 
-    def is_untracked(self, file_name):
+    @property
+    def auto(self):
+        return self._remote_url is None
+
+    def is_untracked(self, file_name: str) -> bool:
         if not self.repo:
             return True
         return file_name in self.repo.untracked_files
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return bool(self.repo)
 
     @property
-    def root(self):
+    def root(self) -> Optional[str]:
         if not self.repo:
-            return False
+            return None
         return self.repo.git.rev_parse("--show-toplevel")
 
     @property
-    def dirty(self):
+    def dirty(self) -> bool:
         if not self.repo:
             return False
         return self.repo.is_dirty()
 
     @property
-    def email(self):
+    def email(self) -> Optional[str]:
         if not self.repo:
             return None
         try:
@@ -62,6 +81,8 @@ class GitRepo:
 
     @property
     def last_commit(self):
+        if self._commit:
+            return self._commit
         if not self.repo:
             return None
         if not self.repo.head or not self.repo.head.is_valid():
@@ -78,7 +99,7 @@ class GitRepo:
             return None
 
     @property
-    def branch(self):
+    def branch(self) -> Optional[str]:
         if not self.repo:
             return None
         return self.repo.head.ref.name
@@ -95,13 +116,15 @@ class GitRepo:
     # the --submodule=diff option doesn't exist in pre-2.11 versions of git (november 2016)
     # https://stackoverflow.com/questions/10757091/git-list-of-all-changed-files-including-those-in-submodules
     @property
-    def has_submodule_diff(self):
+    def has_submodule_diff(self) -> bool:
         if not self.repo:
             return False
         return self.repo.git.version_info >= (2, 11, 0)
 
     @property
     def remote_url(self):
+        if self._remote_url:
+            return self._remote_url
         if not self.remote:
             return None
         parsed = urlparse(self.remote.url)

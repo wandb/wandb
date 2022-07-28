@@ -1,14 +1,17 @@
-
 [yea]
 
 test_paths =
-  functional_tests/
+  tests/functional_tests/
+  tests/standalone_tests/
+
+yeadoc_paths =
   wandb/
 
-coverage_config_template = functional_tests/.coveragerc
+coverage_config_template = tests/functional_tests/.coveragerc
 coverage_source = wandb/
 coverage_source_env = YEACOV_SOURCE
 
 results_file = test-results/junit-yea.xml
 
 coverage_run_in_process = true
+; root = true

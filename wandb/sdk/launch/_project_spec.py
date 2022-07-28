@@ -2,19 +2,20 @@
 Internal utility for converting arguments from a launch spec or call to wandb launch
 into a runnable wandb launch script
 """
-
+import binascii
 import enum
 import json
 import logging
 import os
-from shlex import quote, split
+from shlex import quote
 import tempfile
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
-from wandb.errors import Error as ExecutionError, LaunchError
+from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -27,6 +28,7 @@ DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 # need to make user root for sagemaker, so users have access to /opt/ml directories
 # that let users create artifacts and access input data
 RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
+IMAGE_TAG_MAX_LENGTH = 32
 
 
 class LaunchSource(enum.IntEnum):
@@ -34,6 +36,7 @@ class LaunchSource(enum.IntEnum):
     GIT: int = 2
     LOCAL: int = 3
     DOCKER: int = 4
+    JOB: int = 5
 
 
 class LaunchProject:
@@ -42,6 +45,7 @@ class LaunchProject:
     def __init__(
         self,
         uri: Optional[str],
+        job: Optional[str],
         api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
@@ -53,16 +57,21 @@ class LaunchProject:
         resource: str,
         resource_args: Dict[str, Any],
         cuda: Optional[bool],
+        run_id: Optional[str],
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
+        self.job = job
+        self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
-        self.target_project = target_project
-        self.name = name
+        self.target_project = target_project.lower()
+        self.name = name  # TODO: replace with run_id
+        self.resource = resource
+        self.resource_args = resource_args
         self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
@@ -78,39 +87,39 @@ class LaunchProject:
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
-        self.resource = resource
-        self.resource_args = resource_args
+        self.override_entrypoint: Optional[EntryPoint] = None
         self.deps_type: Optional[str] = None
         self.cuda = cuda
         self._runtime: Optional[str] = None
-        self.run_id = generate_id()
+        self.run_id = run_id or generate_id()
+        self._image_tag: str = self._initialize_image_job_tag() or self.run_id
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
-        if (
-            "entry_point" in overrides
-            and overrides["entry_point"] is not None
-            and overrides["entry_point"] != ""
-        ):
+
+        if overrides.get("entry_point"):
             _logger.info("Adding override entry point")
-            self.add_entry_point(overrides["entry_point"])
-        if self.uri is None:
-            if self.docker_image is None:
-                raise LaunchError("Run requires a URI or a docker image")
+            self.override_entrypoint = self.add_entry_point(
+                overrides.get("entry_point")  # type: ignore
+            )
+        if self.docker_image is not None:
             self.source = LaunchSource.DOCKER
             self.project_dir = None
-        elif utils._is_wandb_uri(self.uri):
+        elif self.job is not None:
+            self.source = LaunchSource.JOB
+            self.project_dir = tempfile.mkdtemp()
+        elif self.uri is not None and utils._is_wandb_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
-        elif utils._is_git_uri(self.uri):
+        elif self.uri is not None and utils._is_git_uri(self.uri):
             _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         else:
             _logger.info(f"URI {self.uri} indicates a local uri")
             # assume local
-            if not os.path.exists(self.uri):
+            if self.uri is not None and not os.path.exists(self.uri):
                 raise LaunchError(
                     "Assumed URI supplied is a local path but path is not valid"
                 )
@@ -139,10 +148,43 @@ class LaunchProject:
 
     @property
     def image_name(self) -> str:
-        """Returns {PROJECT}_launch the ultimate version will
-        be tagged with a sha of the git repo"""
-        # TODO: this should likely be source_project when we have it...
-        return f"{self.target_project}_launch"
+        if self.docker_image is not None:
+            return self.docker_image
+        elif self.uri is not None:
+            cleaned_uri = self.uri.replace("https://", "/")
+            first_sep = cleaned_uri.find("/")
+            shortened_uri = cleaned_uri[first_sep:]
+            return wandb.util.make_docker_image_name_safe(shortened_uri)
+        else:
+            # this will always pass since one of these 3 is required
+            assert self.job is not None
+            return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
+
+    def _initialize_image_job_tag(self) -> Optional[str]:
+        if self.job is not None:
+            _, alias = self.job.split(":")
+            self._image_tag = alias
+            return alias
+        return None
+
+    @property
+    def image_uri(self) -> str:
+        if self.docker_image:
+            return self.docker_image
+        return f"{self.image_name}:{self.image_tag}"
+
+    @property
+    def image_tag(self) -> str:
+        return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
+
+    @property
+    def docker_image(self) -> Optional[str]:
+        return self._docker_image
+
+    @docker_image.setter
+    def docker_image(self, value: str) -> None:
+        self._docker_image = value
+        self._ensure_not_docker_image_and_local_process()
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the override run config values if a matching key exists in the override arguments."""
@@ -165,23 +207,33 @@ class LaunchProject:
             return None
         return list(self._entry_points.values())[0]
 
-    def add_entry_point(self, command: str) -> "EntryPoint":
+    def add_entry_point(self, command: List[str]) -> "EntryPoint":
         """Adds an entry point to the project."""
-        entry_point = split(command)[-1]
+        entry_point = command[-1]
         new_entrypoint = EntryPoint(name=entry_point, command=command)
         self._entry_points[entry_point] = new_entrypoint
         return new_entrypoint
 
-    def get_entry_point(self, entry_point: str) -> "EntryPoint":
-        """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
-        if entry_point in self._entry_points:
-            return self._entry_points[entry_point]
-        return self.add_entry_point(entry_point)
+    def _ensure_not_docker_image_and_local_process(self) -> None:
+        if self.docker_image is not None and self.resource == "local-process":
+            raise LaunchError(
+                "Cannot specify docker image with local-process resource runner"
+            )
+
+    def _fetch_job(self) -> None:
+        public_api = wandb.apis.public.Api()
+        job_dir = tempfile.mkdtemp()
+        try:
+            job = public_api.job(self.job, path=job_dir)
+        except CommError:
+            raise LaunchError(f"Job {self.job} not found")
+        job.configure_launch_project(self)
+        self._job_artifact = job._job_artifact
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         # these asserts are all guaranteed to pass, but are required by mypy
-        assert self.source != LaunchSource.LOCAL
+        assert self.source != LaunchSource.LOCAL and self.source != LaunchSource.JOB
         assert isinstance(self.uri, str)
         assert self.project_dir is not None
         _logger.info("Fetching project locally...")
@@ -216,6 +268,8 @@ class LaunchProject:
                             self.cuda_version, original_cuda_version, self.cuda_version
                         )
                     )
+            # Specify the python runtime for jupyter2docker
+            self.python_version = run_info.get("python", "3")
 
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -224,12 +278,13 @@ class LaunchProject:
                 internal_api,
                 self.project_dir,
             )
-
             if downloaded_code_artifact:
-                self.build_image = True
-            elif not downloaded_code_artifact:
+                self._image_tag = binascii.hexlify(
+                    downloaded_code_artifact.digest.encode()
+                ).decode()
+            else:
                 if not run_info["git"]:
-                    raise ExecutionError(
+                    raise LaunchError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
                     )
                 utils._fetch_git_repo(
@@ -243,6 +298,12 @@ class LaunchProject:
 
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
+
+                tag_string = (
+                    run_info["git"]["remote"] + run_info["git"]["commit"] + patch
+                )
+                self._image_tag = binascii.hexlify(tag_string.encode()).decode()
+
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):
                     downloaded_entrypoint = utils.download_entry_point(
@@ -258,9 +319,6 @@ class LaunchProject:
                             f"Entrypoint file: {program_name} does not exist, "
                             "and could not be downloaded. Please specify the entrypoint for this run."
                         )
-                    # if the entrypoint is downloaded and inserted into the project dir
-                    # need to rebuild image with new code
-                    self.build_image = True
 
             if (
                 "_session_history.ipynb" in os.listdir(self.project_dir)
@@ -279,15 +337,13 @@ class LaunchProject:
                 self.project_dir,
             )
 
-            # Specify the python runtime for jupyter2docker
-            self.python_version = run_info.get("python", "3")
             if not self._entry_points:
                 _, ext = os.path.splitext(program_name)
                 if ext == ".py":
-                    entry_point = f"python {program_name}"
+                    entry_point = ["python", program_name]
                 elif ext == ".sh":
                     command = os.environ.get("SHELL", "bash")
-                    entry_point = f"{command} {program_name}"
+                    entry_point = [command, program_name]
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
                 self.add_entry_point(entry_point)
@@ -298,95 +354,46 @@ class LaunchProject:
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
             )
-
             if not self._entry_points:
                 wandb.termlog(
                     "Entry point for repo not specified, defaulting to python main.py"
                 )
-                self.add_entry_point("python main.py")
+                self.add_entry_point(["python", "main.py"])
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
-    def __init__(self, name: str, command: str):
+    def __init__(self, name: str, command: List[str]):
         self.name = name
         self.command = command
-        self.parameters: Dict[str, Any] = {}
 
-    def _validate_parameters(self, user_parameters: Dict[str, Any]) -> None:
-        missing_params = []
-        for name in self.parameters:
-            if name not in user_parameters and self.parameters[name].default is None:
-                missing_params.append(name)
-        if missing_params:
-            raise ExecutionError(
-                "No value given for missing parameters: %s"
-                % ", ".join(["'%s'" % name for name in missing_params])
-            )
-
-    def compute_parameters(
-        self, user_parameters: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Optional[str]], Dict[str, Optional[str]]]:
-        """Validates and sanitizes parameters dict into expected dict format.
-
-        Given a dict mapping user-specified param names to values, computes parameters to
-        substitute into the command for this entry point. Returns a tuple (params, extra_params)
-        where `params` contains key-value pairs for parameters specified in the entry point
-        definition, and `extra_params` contains key-value pairs for additional parameters passed
-        by the user.
-        """
-        if user_parameters is None:
-            user_parameters = {}
-        # Validate params before attempting to resolve parameter values
-        self._validate_parameters(user_parameters)
-        final_params = {}
-        extra_params = {}
-
-        parameter_keys = list(self.parameters.keys())
-        for key in parameter_keys:
-            param_obj = self.parameters[key]
-            key_position = parameter_keys.index(key)
-            value = (
-                user_parameters[key]
-                if key in user_parameters
-                else self.parameters[key].default
-            )
-            final_params[key] = param_obj.compute_value(value, key_position)
-        for key in user_parameters:
-            if key not in final_params:
-                extra_params[key] = user_parameters[key]
-        return (
-            self._sanitize_param_dict(final_params),
-            self._sanitize_param_dict(extra_params),
-        )
-
-    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> str:
+    def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> List[str]:
         """Converts user parameter dictionary to a string."""
-        params, extra_params = self.compute_parameters(user_parameters)
-        command_with_params = self.command.format(**params)
-        command_arr = [command_with_params]
-        command_arr.extend(
-            [
-                f"--{key} {value}" if value is not None else f"--{key}"
-                for key, value in extra_params.items()
-            ]
-        )
-        return " ".join(command_arr)
+        command_arr = []
+        command_arr += self.command
+        extras = compute_command_args(user_parameters)
+        command_arr += extras
+        return command_arr
 
-    @staticmethod
-    def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
-        """Sanitizes a dictionary of parameters, quoting values, except for keys with None values."""
-        return {
-            (str(key)): (quote(str(value)) if value is not None else None)
-            for key, value in param_dict.items()
-        }
+
+def compute_command_args(parameters: Optional[Dict[str, Any]]) -> List[str]:
+    arr: List[str] = []
+    if parameters is None:
+        return arr
+    for key, value in parameters.items():
+        if value is not None:
+            arr.append(f"--{key}")
+            arr.append(quote(str(value)))
+        else:
+            arr.append(f"--{key}")
+    return arr
 
 
 def get_entry_point_command(
     entry_point: Optional["EntryPoint"], parameters: Dict[str, Any]
-) -> str:
+) -> List[str]:
     """Returns the shell command to execute in order to run the specified entry point.
 
     Arguments:
@@ -397,7 +404,7 @@ def get_entry_point_command(
         List of strings representing the shell command to be executed
     """
     if entry_point is None:
-        return ""
+        return []
     return entry_point.compute_command(parameters)
 
 
@@ -417,6 +424,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         name = launch_spec["name"]
     return LaunchProject(
         launch_spec.get("uri"),
+        launch_spec.get("job"),
         api,
         launch_spec,
         launch_spec["entity"],
@@ -428,6 +436,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("resource", "local"),
         launch_spec.get("resource_args", {}),
         launch_spec.get("cuda", None),
+        launch_spec.get("run_id", None),
     )
 
 
@@ -448,8 +457,12 @@ def fetch_and_validate_project(
         return launch_project
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
-            wandb.termlog("Entry point for repo not specified, defaulting to main.py")
-            launch_project.add_entry_point("main.py")
+            wandb.termlog(
+                "Entry point for repo not specified, defaulting to `python main.py`"
+            )
+            launch_project.add_entry_point(["python", "main.py"])
+    elif launch_project.source == LaunchSource.JOB:
+        launch_project._fetch_job()
     else:
         launch_project._fetch_project_local(internal_api=api)
 
@@ -465,11 +478,6 @@ def fetch_and_validate_project(
     elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
         launch_project.deps_type = "conda"
 
-    first_entry_point = list(launch_project._entry_points.keys())[0]
-    _logger.info("validating entrypoint parameters")
-    launch_project.get_entry_point(first_entry_point)._validate_parameters(
-        launch_project.override_args
-    )
     return launch_project
 
 

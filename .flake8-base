@@ -8,14 +8,18 @@ exclude =
     __pycache__
     build/
     dist/
-    tests/
     codemod/
-    standalone_tests/
     *.pyc
     *.egg-info
     .cache
     .eggs
-    ./functional_tests/metaflow/
+    ./tests/conftest.py
+    ./tests/assets/fixtures/train.py
+    ./tests/utils/
+    ./tests/logs/
+    ./tests/unit_tests/
+    ./tests/functional_tests/t0_main/metaflow/
+    ./tests/functional_tests/t0_main/fastai/t1_v1.py
     ./wandb/__init__.py
     ./wandb/wandb_torch.py
     ./wandb/bin
@@ -29,8 +33,6 @@ exclude =
     ./wandb/integration/keras/
     ./wandb/integration/metaflow/
     ./wandb/sdk/internal/internal_api.py
-    ./wandb/sdk/internal/file_pusher.py
-    ./wandb/sdk/internal/file_stream.py
     ./wandb/keras/
     ./wandb/superagent/
     ./wandb/plots/
@@ -43,4 +45,4 @@ exclude =
 per-file-ignores =
    wandb/cli/cli.py:C901,I202
    wandb/wandb_controller.py:N803,N806
-   wandb/apis/public.py:B006
+   wandb/filesync/step_checksum.py:B023

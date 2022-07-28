@@ -6,7 +6,6 @@ import tempfile
 import time
 from typing import Any, Dict, Optional
 
-
 import kubernetes  # type: ignore
 from kubernetes import client
 import wandb
@@ -73,9 +72,10 @@ class KanikoBuilder(AbstractBuilder):
         self.build_job_name = builder_config.get(
             "build-job-name", "wandb-launch-container-build"
         )
-        self.cloud_provider = builder_config.get("cloud-provider", None)
-        if self.cloud_provider is None:
-            raise LaunchError("Kaniko builder requires cloud-provider info")
+        cloud_provider = builder_config.get("cloud-provider", None)
+        if cloud_provider is None or not isinstance(cloud_provider, str):
+            raise LaunchError("Kaniko builder requires string cloud-provider")
+        self.cloud_provider: str = cloud_provider.lower()
         self.instance_mode = False
         if not builder_config.get("credentials"):
             self.instance_mode = True
@@ -99,7 +99,7 @@ class KanikoBuilder(AbstractBuilder):
     def _create_docker_ecr_config_map(
         self, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
-        if self.cloud_provider == "AWS":
+        if self.cloud_provider.lower() == "aws":
             if not self.instance_mode:
                 ecr_config_map = client.V1ConfigMap(
                     api_version="v1",
@@ -141,8 +141,7 @@ class KanikoBuilder(AbstractBuilder):
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
         context_file.close()
-
-        if self.builder_config.get("cloud-provider") == "AWS":
+        if self.cloud_provider.lower() == "aws":
             boto3 = get_module(
                 "boto3",
                 "AWS cloud provider requires boto3, install with pip install wandb[launch]",
@@ -164,7 +163,7 @@ class KanikoBuilder(AbstractBuilder):
                 raise LaunchError(f"Failed to upload build context to S3: {e}")
             return f"s3://{self.build_context_store}/{run_id}.tgz"
         # TODO: support gcp and azure cloud providers
-        elif self.builder_config.get("cloud-provider") == "gcp":
+        elif self.cloud_provider.lower() == "gcp":
             storage = get_module(
                 "google.cloud.storage",
                 "gcp provider requires google-cloud-storage,  install with pip install wandb[launch]",
@@ -187,17 +186,20 @@ class KanikoBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         repository: Optional[str],
-        entrypoint: Optional[EntryPoint],
+        entrypoint: EntryPoint,
         docker_args: Dict[str, Any],
     ) -> str:
+
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
-        image_uri = f"{repository}:{launch_project.run_id}"
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
+        image_uri = f"{repository}:{launch_project.image_tag}"
+        entry_cmd = " ".join(
+            get_entry_point_command(entrypoint, launch_project.override_args)
+        )
 
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
-            launch_project, entry_cmd, launch_project.resource, self.type
+            launch_project, entrypoint, launch_project.resource, self.type
         )
         create_metadata_file(
             launch_project,
@@ -263,9 +265,9 @@ class KanikoBuilder(AbstractBuilder):
         repository: str,
         image_tag: str,
         build_context_path: str,
-    ) -> client.V1Job:
+    ) -> "client.V1Job":
         env = None
-        if self.instance_mode and self.cloud_provider == "AWS":
+        if self.instance_mode and self.cloud_provider.lower() == "aws":
             region = repository.split(".")[3]
             env = client.V1EnvVar(name="AWS_REGION", value=region)
 

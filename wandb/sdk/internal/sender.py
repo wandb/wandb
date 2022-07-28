@@ -10,9 +10,19 @@ import logging
 import os
 import queue
 from queue import Queue
+import threading
 import time
-from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
-from typing import cast, TYPE_CHECKING
+from typing import (
+    Any,
+    cast,
+    Dict,
+    Generator,
+    List,
+    NewType,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+)
 
 from pkg_resources import parse_version
 import requests
@@ -20,18 +30,25 @@ import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.sdk.lib import redirect
 
-from . import artifacts
-from . import file_stream
-from . import internal_api
-from . import update
+from . import artifacts, file_stream, internal_api, update
 from .file_pusher import FilePusher
 from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib import tracelog
+from ..lib import (
+    config_util,
+    filenames,
+    filesystem,
+    printer,
+    proto_util,
+    telemetry,
+    tracelog,
+)
 from ..lib.proto_util import message_to_dict
+from ..wandb_settings import Settings
+
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -44,12 +61,23 @@ if TYPE_CHECKING:
         RunRecord,
     )
 
+    import sys
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:
+        from typing_extensions import Literal
+
+    StreamLiterals = Literal["stdout", "stderr"]
+
 
 logger = logging.getLogger(__name__)
 
 
 DictWithValues = NewType("DictWithValues", Dict[str, Any])
 DictNoValues = NewType("DictNoValues", Dict[str, Any])
+
+_OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
 def _framework_priority(
@@ -74,7 +102,7 @@ class ResumeState:
     history: int
     events: int
     output: int
-    runtime: int
+    runtime: float
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
@@ -96,8 +124,36 @@ class ResumeState:
         return f"ResumeState({obj})"
 
 
-class SendManager:
+class _OutputRawStream:
+    _stopped: threading.Event
+    _queue: queue.Queue
+    _emulator: redirect.TerminalEmulator
+    _writer_thr: threading.Thread
+    _reader_thr: threading.Thread
 
+    def __init__(self, stream: str, sm: "SendManager"):
+        self._stopped = threading.Event()
+        self._queue = queue.Queue()
+        self._emulator = redirect.TerminalEmulator()
+        self._writer_thr = threading.Thread(
+            target=sm._output_raw_writer_thread,
+            kwargs=dict(stream=stream),
+            daemon=True,
+            name=f"OutRawWr-{stream}",
+        )
+        self._reader_thr = threading.Thread(
+            target=sm._output_raw_reader_thread,
+            kwargs=dict(stream=stream),
+            daemon=True,
+            name=f"OutRawRd-{stream}",
+        )
+
+    def start(self) -> None:
+        self._writer_thr.start()
+        self._reader_thr.start()
+
+
+class SendManager:
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
@@ -116,6 +172,10 @@ class SendManager:
     _resume_state: ResumeState
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
+    _server_messages: List[Dict[str, Any]]
+
+    _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
+    _output_raw_file: Optional[filesystem.CRDedupedFile]
 
     def __init__(
         self,
@@ -143,7 +203,7 @@ class SendManager:
 
         # keep track of config from key/val updates
         self._consolidated_config: DictNoValues = cast(DictNoValues, dict())
-        self._start_time: int = 0
+        self._start_time: float = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
@@ -153,6 +213,7 @@ class SendManager:
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
+        self._server_messages = []
 
         # State updated by resuming
         self._resume_state = ResumeState()
@@ -175,6 +236,10 @@ class SendManager:
         self._partial_output = dict()
 
         self._exit_code = 0
+
+        # internal vars for handing raw console output
+        self._output_raw_streams = dict()
+        self._output_raw_file = None
 
     @classmethod
     def setup(cls, root_dir: str) -> "SendManager":
@@ -231,7 +296,7 @@ class SendManager:
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
-        if record_type not in {"output", "request"}:
+        if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
         send_handler(record)
@@ -324,7 +389,7 @@ class SendManager:
         # TODO(jhr): check result of upsert_run?
         if self._run:
             self._api.upsert_run(
-                name=self._run.run_id, config=config_value_dict, **self._api_settings
+                name=self._run.run_id, config=config_value_dict, **self._api_settings  # type: ignore
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
@@ -410,6 +475,9 @@ class SendManager:
         elif state == defer.FLUSH_DEBOUNCER:
             self.debounce()
             transition_state()
+        elif state == defer.FLUSH_OUTPUT:
+            self._output_raw_finish()
+            transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
@@ -475,6 +543,21 @@ class SendManager:
                 self.get_local_info()
             )
             result.response.poll_exit_response.done = True
+            for message in self._server_messages:
+                # guard agains the case the message level returns malformed from server
+                message_level = str(message.get("messageLevel"))
+                message_level_sanitized = int(
+                    printer.INFO if not message_level.isdigit() else message_level
+                )
+                result.response.poll_exit_response.server_messages.item.append(
+                    wandb_internal_pb2.ServerMessage(
+                        utf_text=message.get("utfText", ""),
+                        plain_text=message.get("plainText", ""),
+                        html_text=message.get("htmlText", ""),
+                        type=message.get("messageType", ""),
+                        level=message_level_sanitized,
+                    )
+                )
         self._respond_result(result)
 
     def _maybe_setup_resume(
@@ -488,12 +571,13 @@ class SendManager:
         # TODO: This causes a race, we need to make the upsert atomically
         # only create or update depending on the resume config
         # we use the runs entity if set, otherwise fallback to users entity
+        # todo: ensure entity is not None as self._entity is Optional[str]
         entity = run.entity or self._entity
         logger.info(
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
         resume_status = self._api.run_resume_status(
-            entity=entity, project_name=run.project, name=run.run_id
+            entity=entity, project_name=run.project, name=run.run_id  # type: ignore
         )
 
         if not resume_status:
@@ -644,7 +728,7 @@ class SendManager:
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.seconds
+        self._start_time = run.start_time.ToMicroseconds() / 1e6
 
         # update telemetry
         if run.telemetry:
@@ -713,10 +797,12 @@ class SendManager:
         self, run: "RunRecord", config_dict: Optional[DictWithValues]
     ) -> None:
         # We subtract the previous runs runtime when resuming
-        start_time = run.start_time.ToSeconds() - self._resume_state.runtime
+        start_time = (
+            run.start_time.ToMicroseconds() / 1e6
+        ) - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
-        server_run, inserted = self._api.upsert_run(
+        server_run, inserted, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
@@ -730,15 +816,25 @@ class SendManager:
             host=run.host or None,
             program_path=self._settings.program or None,
             repo=run.git.remote_url or None,
-            commit=run.git.last_commit or None,
+            commit=run.git.commit or None,
         )
+        self._server_messages = server_messages or []
         self._run = run
         if self._resume_state.resumed:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
+        else:
+            # If the user is not resuming and we didnt insert on upsert_run then
+            # it is likely that we are overwriting the run which we might want to
+            # prevent in the future.  This could be a false signal since an upsert_run
+            # message which gets retried in the network could also show up as not
+            # inserted.
+            if not inserted:
+                # no need to flush this, it will get updated eventually
+                self._telemetry_obj.feature.maybe_run_overwrite = True
         self._run.starting_step = self._resume_state.step
-        self._run.start_time.FromSeconds(int(start_time))
+        self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
         if self._resume_state.summary is not None:
             self._run.summary.CopyFrom(
@@ -781,7 +877,7 @@ class SendManager:
         self._fs = file_stream.FileStreamApi(
             self._api,
             self._run.run_id,
-            self._run.start_time.ToSeconds(),
+            self._run.start_time.ToMicroseconds() / 1e6,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
@@ -808,11 +904,13 @@ class SendManager:
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
+        self._dir_watcher = DirWatcher(
+            cast(Settings, self._settings), self._pusher, file_dir
+        )
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
-            self._run.start_time.ToSeconds(),
+            self._run.start_time.ToMicroseconds() / 1e6,
         )
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
@@ -851,31 +949,136 @@ class SendManager:
             return
         if not self._run:
             return
-        now = stats.timestamp.seconds
+        now_us = stats.timestamp.ToMicroseconds()
+        start_us = self._run.start_time.ToMicroseconds()
         d = dict()
         for item in stats.item:
             d[item.key] = json.loads(item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
-        row["_timestamp"] = now
-        row["_runtime"] = int(now - self._run.start_time.ToSeconds())
+        row["_timestamp"] = now_us / 1e6
+        row["_runtime"] = (now_us - start_us) / 1e6
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
+
+    def _output_raw_finish(self) -> None:
+        for stream, output_raw in self._output_raw_streams.items():
+            output_raw._stopped.set()
+
+            # shut down threads
+            output_raw._writer_thr.join(timeout=5)
+            if output_raw._writer_thr.is_alive():
+                logger.info("processing output...")
+                output_raw._writer_thr.join()
+            output_raw._reader_thr.join()
+
+            # flush output buffers and files
+            self._output_raw_flush(stream)
+        self._output_raw_streams = {}
+        if self._output_raw_file:
+            self._output_raw_file.close()
+            self._output_raw_file = None
+
+    def _output_raw_writer_thread(self, stream: "StreamLiterals") -> None:
+        while True:
+            output_raw = self._output_raw_streams[stream]
+            if output_raw._queue.empty():
+                if output_raw._stopped.is_set():
+                    return
+                time.sleep(0.5)
+                continue
+            data = []
+            while not output_raw._queue.empty():
+                data.append(output_raw._queue.get())
+            if output_raw._stopped.is_set() and sum(map(len, data)) > 100000:
+                logger.warning("Terminal output too large. Logging without processing.")
+                self._output_raw_flush(stream)
+                for line in data:
+                    self._output_raw_flush(stream, line)
+                # TODO: lets mark that this happened in telemetry
+                return
+            try:
+                output_raw._emulator.write("".join(data))
+            except Exception as e:
+                logger.warning(f"problem writing to output_raw emulator: {e}")
+
+    def _output_raw_reader_thread(self, stream: "StreamLiterals") -> None:
+        output_raw = self._output_raw_streams[stream]
+        while not (output_raw._stopped.is_set() and output_raw._queue.empty()):
+            self._output_raw_flush(stream)
+            time.sleep(_OUTPUT_MIN_CALLBACK_INTERVAL)
+
+    def _output_raw_flush(
+        self, stream: "StreamLiterals", data: Optional[str] = None
+    ) -> None:
+        if data is None:
+            output_raw = self._output_raw_streams[stream]
+            try:
+                data = output_raw._emulator.read()
+            except Exception as e:
+                logger.warning(f"problem reading from output_raw emulator: {e}")
+        if data:
+            self._send_output_line(stream, data)
+            if self._output_raw_file:
+                self._output_raw_file.write(data.encode("utf-8"))
 
     def send_output(self, record: "Record") -> None:
         if not self._fs:
             return
         out = record.output
-        prepend = ""
-        stream = "stdout"
+        stream: "StreamLiterals" = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
             stream = "stderr"
-            prepend = "ERROR "
         line = out.line
+        self._send_output_line(stream, line)
+
+    def send_output_raw(self, record: "Record") -> None:
+        if not self._fs:
+            return
+        out = record.output_raw
+        stream: "StreamLiterals" = "stdout"
+        if out.output_type == wandb_internal_pb2.OutputRawRecord.OutputType.STDERR:
+            stream = "stderr"
+        line = out.line
+
+        output_raw = self._output_raw_streams.get(stream)
+        if not output_raw:
+            output_raw = _OutputRawStream(stream=stream, sm=self)
+            self._output_raw_streams[stream] = output_raw
+
+            # open the console output file shared between both streams
+            if not self._output_raw_file:
+                output_log_path = os.path.join(
+                    self._settings.files_dir, filenames.OUTPUT_FNAME
+                )
+                output_raw_file = None
+                try:
+                    output_raw_file = filesystem.CRDedupedFile(
+                        open(output_log_path, "wb")
+                    )
+                except OSError as e:
+                    logger.warning(f"could not open output_raw_file: {e}")
+                if output_raw_file:
+                    self._output_raw_file = output_raw_file
+            output_raw.start()
+
+        output_raw._queue.put(line)
+
+    def _send_output_line(self, stream: "StreamLiterals", line: str) -> None:
+        """Combined writer for raw and non raw output lines.
+
+        This is combined because they are both post emulator.
+        """
+        prepend = ""
+        if stream == "stderr":
+            prepend = "ERROR "
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             if line.startswith("\r"):
+                # TODO: maybe we shouldnt just drop this, what if there was some \ns in the partial
+                # that should probably be the check instead of not line.endswith(\n")
+                # logger.info(f"Dropping data {self._partial_output[stream]}")
                 self._partial_output[stream] = ""
             self._partial_output[stream] += line
             # TODO(jhr): how do we make sure this gets flushed?
@@ -888,7 +1091,8 @@ class SendManager:
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
             line = f"{prepend}{timestamp}{prev_str}{line}"
-            self._fs.push(filenames.OUTPUT_FNAME, line)
+            if self._fs:
+                self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
     def _update_config(self) -> None:
@@ -1111,6 +1315,7 @@ class SendManager:
         logger.info("shutting down sender")
         # if self._tb_watcher:
         #     self._tb_watcher.finish()
+        self._output_raw_finish()
         if self._dir_watcher:
             self._dir_watcher.finish()
             self._dir_watcher = None

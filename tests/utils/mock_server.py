@@ -78,7 +78,7 @@ def default_ctx():
         "emulate_artifacts": None,
         "emulate_azure": False,
         "run_state": "running",
-        "run_queue_item_check_count": 0,
+        "run_queue_item_return_type": "queued",
         "run_script_type": "python",
         "alerts": [],
         "gorilla_supports_launch_agents": True,
@@ -95,6 +95,9 @@ def default_ctx():
         "run_cuda_version": None,
         # relay mode, keep track of upsert runs for validation
         "relay_run_info": {},
+        "server_settings": False,
+        "server_messages": None,
+        "latest_arti_id": None,
     }
 
 
@@ -937,6 +940,14 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "query ProbeServerSettings" in body["query"]:
+            if not ctx["server_settings"]:
+                data = {}
+            else:
+                data = {"ServerSettingsType": {"fields": [{"name": "sdkMessages"}]}}
+
+            return json.dumps({"data": data})
+
         if "mutation UpsertBucket(" in body["query"]:
             run_id_default = "abc123"
             run_id = body["variables"].get("name", run_id_default)
@@ -1019,6 +1030,10 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+            if ctx["server_settings"]:
+                response["data"]["upsertBucket"]["serverSettings"] = {
+                    "serverMessages": ctx["server_messages"]
+                }
             if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
@@ -1055,10 +1070,16 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation LinkArtifact(" in body["query"]:
             if ART_EMU:
+                ctx["latest_arti_id"] = body["variables"].get("artifactID") or body[
+                    "variables"
+                ].get("clientID")
                 return ART_EMU.link(variables=body["variables"])
+
         if "mutation CreateArtifact(" in body["query"]:
             if ART_EMU:
-                return ART_EMU.create(variables=body["variables"])
+                res = ART_EMU.create(variables=body["variables"])
+                ctx["latest_arti_id"] = res["data"]["createArtifact"]["artifact"]["id"]
+                return res
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
             app.logger.info(f"Creating artifact {collection_name}")
@@ -1067,6 +1088,7 @@ def create_app(user_ctx=None):
                 collection_name, []
             )
             ctx["artifacts"][collection_name].append(body["variables"])
+
             _id = body.get("variables", {}).get("digest", "")
             if _id != "":
                 ctx.get("artifacts_by_id")[_id] = body["variables"]
@@ -1084,6 +1106,11 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation updateArtifact" in body["query"]:
+            id = body["variables"]["artifactID"]
+            ctx["latest_arti_id"] = id
+            ctx.get("artifacts_by_id")[id] = body["variables"]
+            return {"data": {"updateArtifact": {"artifact": id}}}
         if "mutation DeleteArtifact(" in body["query"]:
             id = body["variables"]["artifactID"]
             delete_aliases = body["variables"]["deleteAliases"]
@@ -1194,6 +1221,91 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation upsertView(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "upsertView": {
+                            "view": {
+                                "id": "VmlldzoxOTk4ODgz",
+                                "type": "runs",
+                                "name": "2mr65bp2bjy",
+                                "displayName": "2mr65bp2bjy",
+                                "description": None,
+                                "project": {
+                                    "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                    "name": "report-editing",
+                                    "entityName": "megatruong",
+                                },
+                                "spec": '{"version": 5, "panelSettings": {}, "blocks": [], "width": "readable", "authors": [], "discussionThreads": [], "ref": {}}',
+                                "updatedAt": "2022-05-13T03:13:18",
+                            },
+                            "inserted": True,
+                        }
+                    }
+                }
+            )
+        if "mutation upsertModel(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "upsertModel": {
+                            "project": {
+                                "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                "name": "report-editing",
+                                "entityName": "megatruong",
+                                "description": None,
+                                "access": "PRIVATE",
+                                "views": "{}",
+                            },
+                            "model": {
+                                "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                "name": "report-editing",
+                                "entityName": "megatruong",
+                                "description": None,
+                                "access": "PRIVATE",
+                                "views": "{}",
+                            },
+                            "inserted": False,
+                        }
+                    }
+                }
+            )
+        if "query SpecificReport(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "view": {
+                            "id": "VmlldzoxOTcxMzI2",
+                            "type": "runs",
+                            "name": "hxrbu425ppr",
+                            "displayName": "Copy of megatruong's Copy of megatruong's Copy of megatruong's Untitled Report",
+                            "description": "",
+                            "project": {
+                                "id": "UHJvamVjdDp2MTpyZXBvcnQtZWRpdGluZzptZWdhdHJ1b25n",
+                                "name": "report-editing",
+                                "entityName": "megatruong",
+                            },
+                            "createdAt": "2022-05-09T02:18:42",
+                            "updatedAt": "2022-05-09T02:18:45",
+                            "spec": '{"version":5,"panelSettings":{"xAxis":"_step","smoothingWeight":0,"smoothingType":"exponential","ignoreOutliers":false,"xAxisActive":false,"smoothingActive":false,"ref":{"type":"panelSettings","viewID":"qwnlqy0ka","id":"85uruphtl"}},"blocks":[{"type":"paragraph","children":[{"text":""},{"type":"link","url":"https://docs.google.com/presentation/d/1cvcSZygln3WPOjRGcJX8XgDtj9qcW7SA6K2u-fUVXTg/edit#slide=id.g1186f921888_0_1484","children":[{"text":"https://docs.google.com/presentation/d/1cvcSZygln3WPOjRGcJX8XgDtj9qcW7SA6K2u-fUVXTg/edit#slide=id.g1186f921888_0_1484"}]},{"text":""}]},{"type":"paragraph","children":[{"text":""}]},{"type":"twitter","html":"<blockquote class=\\"twitter-tweet\\"><p lang=\\"en\\" dir=\\"ltr\\">The voice of an angel, truly. <a href=\\"https://twitter.com/hashtag/MassEffect?src=hash&amp;ref_src=twsrc%5Etfw\\">#MassEffect</a> <a href=\\"https://t.co/nMev97Uw7F\\">pic.twitter.com/nMev97Uw7F</a></p>&mdash; Mass Effect (@masseffect) <a href=\\"https://twitter.com/masseffect/status/1428748886655569924?ref_src=twsrc%5Etfw\\">August 20, 2021</a></blockquote>\\n","children":[{"text":""}]},{"type":"spotify","spotifyType":"track","spotifyID":"7kRKlFCFLAUwt43HWtauhX","children":[{"text":""}]},{"type":"soundcloud","html":"<iframe width=\\"100%\\" height=\\"400\\" scrolling=\\"no\\" frameborder=\\"no\\" src=\\"https://w.soundcloud.com/player/?visual=true&url=https%3A%2F%2Fapi.soundcloud.com%2Ftracks%2F1076901103&show_artwork=true\\"></iframe>","children":[{"text":""}]},{"type":"video","url":"https://www.youtube.com/embed/ggqI-HH8yXc","children":[{"text":""}]},{"type":"paragraph","children":[{"text":"Normal paragraph  "}]},{"type":"heading","children":[{"text":"Heading 1"}],"level":1},{"type":"heading","children":[{"text":"Heading 2"}],"level":2},{"type":"heading","children":[{"text":"Heading 3"}],"level":3},{"type":"list","children":[{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Bullet 1"}]}]},{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Bullet 2"}]}]}]},{"type":"list","ordered":true,"children":[{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Ordered 1"}]}],"ordered":true},{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Ordered 2"}]}],"ordered":true}]},{"type":"list","children":[{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Unchecked"}]}],"checked":false},{"type":"list-item","children":[{"type":"paragraph","children":[{"text":"Checked"}]}],"checked":true}]},{"type":"block-quote","children":[{"text":"Block Quote 1\\nBlock Quote 2\\nBlock Quote 3"}]},{"type":"callout-block","children":[{"type":"callout-line","children":[{"text":"Callout 1"}]},{"type":"callout-line","children":[{"text":"Callout 2"}]},{"type":"callout-line","children":[{"text":"Callout 3"}]}]},{"type":"code-block","children":[{"type":"code-line","children":[{"text":"# python code block"}]},{"type":"code-line","children":[{"text":"for x in range(10):"}]},{"type":"code-line","children":[{"text":"  pass"}]}]},{"type":"horizontal-rule","children":[{"text":""}]},{"type":"code-block","language":"yaml","children":[{"type":"code-line","children":[{"text":"this:"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- is"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- a"}],"language":"yaml"},{"type":"code-line","children":[{"text":"cool:"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- yaml"}],"language":"yaml"},{"type":"code-line","children":[{"text":"- file"}],"language":"yaml"}]},{"type":"markdown-block","children":[{"text":""}],"content":"Markdown cell with *italics* and **bold** and $e=mc^2$"},{"type":"image","children":[{"text":"It\'s a me, Pikachu"}],"url":"https://api.wandb.ai/files/megatruong/images/projects/918598/350382db.gif","hasCaption":true},{"type":"paragraph","children":[{"text":""},{"type":"latex","children":[{"text":""}],"content":"y=ax^2 +bx+c"},{"text":""}]},{"type":"latex","children":[{"text":""}],"content":"\\\\gamma^2+\\\\theta^2=\\\\omega^2\\n\\\\\\\\ a^2 + b^2 = c^2","block":true},{"type":"gallery","children":[{"text":""}],"ids":[]},{"type":"weave-panel","children":[{"text":""}],"config":{"panelConfig":{"exp":{"nodeType":"output","type":{"type":"tagged","tag":{"type":"tagged","tag":{"type":"typedDict","propertyTypes":{"entityName":"string","projectName":"string"}},"value":{"type":"typedDict","propertyTypes":{"project":"project","artifactName":"string"}}},"value":"artifact"},"fromOp":{"name":"project-artifact","inputs":{"project":{"nodeType":"output","type":{"type":"tagged","tag":{"type":"typedDict","propertyTypes":{"entityName":"string","projectName":"string"}},"value":"project"},"fromOp":{"name":"root-project","inputs":{"entityName":{"nodeType":"const","type":"string","val":"megatruong"},"projectName":{"nodeType":"const","type":"string","val":"nvda-ngc"}}}},"artifactName":{"nodeType":"const","type":"string","val":"my-artifact"}}}}}}},{"type":"paragraph","children":[{"text":""}]},{"type":"panel-grid","children":[{"text":""}],"metadata":{"openViz":true,"openRunSet":0,"name":"unused-name","runSets":[{"runFeed":{"version":2,"columnVisible":{"run:name":false},"columnPinned":{},"columnWidths":{},"columnOrder":[],"pageSize":10,"onlyShowSelected":false},"enabled":true,"name":"Run set","search":{"query":""},"id":"pw1e1wwf6","filters":{"op":"OR","filters":[{"op":"AND","filters":[{"key":{"section":"run","name":"jobType"},"op":"=","value":"job_type2","disabled":false},{"key":{"section":"run","name":"group"},"op":"=","value":"groupA","disabled":false}]}],"ref":{"type":"filters","viewID":"vtahfagaz","id":"dpd2z5bz0"}},"grouping":[{"section":"run","name":"username"}],"sort":{"keys":[{"key":{"section":"run","name":"createdAt"},"ascending":false},{"key":{"section":"run","name":"username"},"ascending":false}],"ref":{"type":"sort","viewID":"vtahfagaz","id":"ivgiyvxox"}},"selections":{"root":1,"bounds":[],"tree":[]},"expandedRowAddresses":[],"ref":{"type":"runSet","viewID":"vtahfagaz","id":"z59jmoybe"}}],"panelBankConfig":{"state":0,"settings":{"autoOrganizePrefix":2,"showEmptySections":false,"sortAlphabetically":false},"sections":[{"name":"Hidden Panels","isOpen":false,"type":"flow","flowConfig":{"snapToColumns":true,"columnsPerPage":3,"rowsPerPage":2,"gutterWidth":16,"boxWidth":460,"boxHeight":300},"sorted":0,"localPanelSettings":{"xAxis":"_step","smoothingWeight":0,"smoothingType":"exponential","ignoreOutliers":false,"xAxisActive":false,"smoothingActive":false,"ref":{"type":"panelSettings","viewID":"vtahfagaz","id":"xa2bddtor"}},"panels":[],"localPanelSettingsRef":{"type":"panelSettings","viewID":"vtahfagaz","id":"xa2bddtor"},"panelRefs":[],"ref":{"type":"panel-bank-section-config","viewID":"vtahfagaz","id":"fz92jh3dt"}}],"ref":{"type":"panel-bank-config","viewID":"vtahfagaz","id":"1o946whn4"}},"panelBankSectionConfig":{"name":"Report Panels","isOpen":true,"type":"grid","flowConfig":{"snapToColumns":true,"columnsPerPage":3,"rowsPerPage":2,"gutterWidth":16,"boxWidth":460,"boxHeight":300},"sorted":0,"localPanelSettings":{"xAxis":"_step","smoothingWeight":0,"smoothingType":"exponential","ignoreOutliers":false,"xAxisActive":false,"smoothingActive":false,"ref":{"type":"panelSettings","viewID":"vtahfagaz","id":"xvr9gn2vt"}},"panels":[{"__id__":"e6mwxa1mq","viewType":"Run History Line Plot","config":{"metrics":["y"],"groupBy":"None","legendFields":["run:displayName"],"yAxisAutoRange":false,"yLogScale":false},"ref":{"type":"panel","viewID":"vtahfagaz","id":"ui3b5xcsb"},"layout":{"x":8,"y":0,"w":8,"h":6}},{"__id__":"ymceey3mu","viewType":"Run History Line Plot","config":{"metrics":["x"],"groupBy":"None","legendFields":["run:displayName"],"yAxisAutoRange":false,"yLogScale":false},"ref":{"type":"panel","viewID":"vtahfagaz","id":"yewkh6k6p"},"layout":{"x":0,"y":0,"w":8,"h":6}}],"localPanelSettingsRef":{"type":"panelSettings","viewID":"vtahfagaz","id":"xvr9gn2vt"},"panelRefs":[{"type":"panel","viewID":"vtahfagaz","id":"ui3b5xcsb"},{"type":"panel","viewID":"vtahfagaz","id":"yewkh6k6p"}],"ref":{"type":"panel-bank-section-config","viewID":"vtahfagaz","id":"5mqkb97jz"}},"customRunColors":{"ref":{"type":"run-colors","viewID":"vtahfagaz","id":"ukxc20iq0"}},"ref":{"type":"section","viewID":"vtahfagaz","id":"eg2e88znk"}}},{"type":"paragraph","children":[{"text":""}]}],"width":"readable","authors":[{"name":"Andrew Truong","username":"megatruong"}],"discussionThreads":[],"ref":{"type":"runs/draft","viewID":"qwnlqy0ka","id":"s2r3aq8j6"}}',
+                            "previewUrl": None,
+                            "user": {
+                                "name": "Andrew Truong",
+                                "username": "megatruong",
+                                "userInfo": {
+                                    "bio": "model-registry \ninstant replay\nweeave-plot\nweeave-report\nniight\n",
+                                    "company": "Weights and Biases",
+                                    "location": "San Francisco",
+                                    "githubUrl": "",
+                                    "twitterUrl": "",
+                                    "websiteUrl": "wandb.com",
+                                },
+                            },
+                        }
+                    }
+                }
+            )
         if "query ProjectArtifacts(" in body["query"]:
             return {
                 "data": {
@@ -1285,9 +1397,17 @@ def create_app(user_ctx=None):
         ]:
             if f"query {query_name}(" in body["query"]:
                 if ART_EMU:
-                    return ART_EMU.query(
+                    res = ART_EMU.query(
                         variables=body.get("variables", {}), query=body.get("query")
                     )
+                    artifact_response = None
+                    if res["data"].get("project") is not None:
+                        artifact_response = res["data"]["project"]["artifact"]
+                    else:
+                        artifact_response = res["data"]["artifact"]
+                    if artifact_response:
+                        ctx["latest_arti_id"] = artifact_response.get("id")
+                    return res
                 art = artifact(
                     ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
                 )
@@ -1318,8 +1438,17 @@ def create_app(user_ctx=None):
                     art["artifactType"] = {"id": 4, "name": "run_table"}
                 if "wb_validation_data" in body["variables"]["name"]:
                     art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                if "job" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 5, "name": "job"}
+                if "model" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 6, "name": "model"}
                 return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
+            if ART_EMU:
+                res = ART_EMU.query(
+                    variables=body.get("variables", {}), query=body.get("query")
+                )
+                ctx["latest_arti_id"] = res["data"]["artifact"]["id"]
             art = artifact(ctx)
             art["currentManifest"] = {
                 "id": 1,
@@ -1357,8 +1486,7 @@ def create_app(user_ctx=None):
                 return json.dumps({"data": {"project": {"runQueues": []}}})
 
         if "query GetRunQueueItem" in body["query"]:
-            ctx["run_queue_item_check_count"] += 1
-            if ctx["run_queue_item_check_count"] > 1:
+            if ctx["run_queue_item_return_type"] == "claimed":
                 return json.dumps(
                     {
                         "data": {
@@ -1368,8 +1496,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
-                                                    "resultingRunId": "test",
+                                                    "id": "1",
+                                                    "associatedRunId": "test",
+                                                    "state": "CLAIMED",
                                                 }
                                             }
                                         ]
@@ -1389,8 +1518,9 @@ def create_app(user_ctx=None):
                                         "edges": [
                                             {
                                                 "node": {
-                                                    "id": "test",
-                                                    "resultingRunId": None,
+                                                    "id": "1",
+                                                    "associatedRunId": None,
+                                                    "state": "PENDING",
                                                 }
                                             }
                                         ]
@@ -1418,7 +1548,7 @@ def create_app(user_ctx=None):
                     {
                         "data": {
                             "popFromRunQueue": {
-                                "runQueueItemId": 1,
+                                "runQueueItemId": "1",
                                 "runSpec": {
                                     "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                     "project": "test_project2",
@@ -1433,7 +1563,7 @@ def create_app(user_ctx=None):
                 {
                     "data": {
                         "popFromRunQueue": {
-                            "runQueueItemId": 1,
+                            "runQueueItemId": "1",
                             "runSpec": {
                                 "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
                                 "project": "test_project",
@@ -1453,7 +1583,7 @@ def create_app(user_ctx=None):
                 ctx["run_queues"][body["variables"]["queueID"]] = [
                     body["variables"]["queueID"]
                 ]
-            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": "1"}}})
         if "mutation ackRunQueueItem" in body["query"]:
             ctx["num_acked"] += 1
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
@@ -1464,7 +1594,7 @@ def create_app(user_ctx=None):
             return {"data": {"deleteApiKey": {"success": True}}}
         if "mutation GenerateApiKey" in body["query"]:
             return {
-                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Z" * 40}}}
             }
         if "mutation DeleteInvite" in body["query"]:
             return {"data": {"deleteInvite": {"success": True}}}
@@ -1668,7 +1798,8 @@ def create_app(user_ctx=None):
                 c["file_bytes"].setdefault(file, 0)
                 c["file_bytes"][file] += request.content_length
         if ART_EMU:
-            return ART_EMU.storage(request=request)
+            res = ART_EMU.storage(request=request, arti_id=ctx["latest_arti_id"])
+            return res
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
@@ -1979,11 +2110,14 @@ index 30d74d2..9a2c773 100644
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     @snoop.relay
     def file_stream(entity, project, run):
+        body = request.get_json()
+        app.logger.info("file_stream post body: %s", body)
+
         ctx = get_ctx()
         run_ctx = get_run_ctx(run)
         for c in ctx, run_ctx:
             c["file_stream"] = c.get("file_stream", [])
-            c["file_stream"].append(request.get_json())
+            c["file_stream"].append(body)
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)
@@ -2105,16 +2239,18 @@ class ParseCTX:
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                # this check isn't valid right now.
-                # TODO: lets just assume it is fine, look into this later
-                # assert offset == 0 or offset == len(l), (k, v, l, d)
-                if not offset:
-                    l = []
                 if k == "output.log":
                     lines = content
+                    pad = ""
                 else:
-                    lines = map(json.loads, content)
-                l.extend(lines)
+                    lines = list(map(json.loads, content))
+                    pad = {}
+
+                # pad list if our offset is too large (is this what bt would do?)
+                # TODO: is this pad the right thing or should we assert if offset is past len
+                l += [pad] * (offset - len(l))
+
+                l[offset : offset + len(lines)] = lines
             data[k] = l
         return data
 
@@ -2163,6 +2299,12 @@ class ParseCTX:
         fs_files = self.get_filestream_file_items()
         history = fs_files.get("wandb-history.jsonl")
         return history
+
+    @property
+    def stats(self):
+        fs_files = self.get_filestream_file_items()
+        stats = fs_files.get("wandb-events.jsonl")
+        return stats
 
     @property
     def output(self):

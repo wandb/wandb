@@ -10,7 +10,6 @@ import os
 import sys
 
 from itertools import chain
-from pkg_resources import parse_version
 
 import wandb
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
@@ -23,11 +22,24 @@ import tensorflow.keras.backend as K
 
 def _check_keras_version():
     from keras import __version__ as keras_version
+    from pkg_resources import parse_version
 
     if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(
             f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
         )
+
+
+def _can_compute_flops() -> bool:
+    """
+    FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1
+    """
+    from pkg_resources import parse_version
+
+    if parse_version(tf.__version__) >= parse_version("2.0.0"):
+        return True
+
+    return False
 
 
 if "keras" in sys.modules:
@@ -66,12 +78,10 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():
-
+    from pkg_resources import parse_version
     from tensorflow.python.eager import context
 
-    from tensorflow import __version__ as tf_version
-
-    if parse_version(tf_version) >= parse_version("2.6.0"):
+    if parse_version(tf.__version__) >= parse_version("2.6.0"):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
@@ -269,10 +279,11 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
     Example:
         ```python
-        model.fit(X_train,
+        model.fit(
+            X_train,
             y_train,
             validation_data=(X_test, y_test),
-            callbacks=[WandbCallback()]
+            callbacks=[WandbCallback()],
         )
         ```
 
@@ -280,7 +291,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
     metrics collected by keras: loss and anything passed into `keras_model.compile()`.
 
     `WandbCallback` will set summary metrics for the run associated with the "best" training
-    step, where "best" is defined by the `monitor` and `mode` attribues.  This defaults
+    step, where "best" is defined by the `monitor` and `mode` attributes.  This defaults
     to the epoch with the minimum `val_loss`. `WandbCallback` will by default save the model
     associated with the best `epoch`.
 
@@ -307,10 +318,13 @@ class WandbCallback(tf.keras.callbacks.Callback):
             for calculating gradients - this is mandatory if `log_gradients` is `True`.
         validation_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data
             for wandb to visualize.  If this is set, every epoch, wandb will
-            make a small number of predictions and save the results for later visualization.
+            make a small number of predictions and save the results for later visualization. In case
+            you are working with image data, please also set `input_type` and `output_type` in order
+            to log correctly.
         generator: (generator) a generator that returns validation data for wandb to visualize.  This
             generator should return tuples `(X,y)`.  Either `validate_data` or generator should
-            be set for wandb to visualize specific data examples.
+            be set for wandb to visualize specific data examples. In case you are working with image data,
+            please also set `input_type` and `output_type` in order to log correctly.
         validation_steps: (int) if `validation_data` is a generator, how many
             steps to run the generator for the full validation set.
         labels: (list) If you are visualizing your data with wandb this list of labels
@@ -321,11 +335,11 @@ class WandbCallback(tf.keras.callbacks.Callback):
         predictions: (int) the number of predictions to make for visualization each epoch, max
             is 100.
         input_type: (string) type of the model input to help visualization. can be one of:
-            (`image`, `images`, `segmentation_mask`).
-        output_type: (string) type of the model output to help visualziation. can be one of:
-            (`image`, `images`, `segmentation_mask`).
+            (`image`, `images`, `segmentation_mask`, `auto`).
+        output_type: (string) type of the model output to help visualization. can be one of:
+            (`image`, `images`, `segmentation_mask`, `label`).
         log_evaluation: (boolean) if True, save a Table containing validation data and the
-            model's preditions at each epoch. See `validation_indexes`,
+            model's predictions at each epoch. See `validation_indexes`,
             `validation_row_processor`, and `output_row_processor` for additional details.
         class_colors: ([float, float, float]) if the input or output is a segmentation mask,
             an array containing an rgb tuple (range 0-1) for each class.
@@ -419,7 +433,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 ),
             )
 
-        self.save_model_as_artifact = False
+        self.save_model_as_artifact = True
         self.log_weights = log_weights
         self.log_gradients = log_gradients
         self.training_data = training_data
@@ -594,7 +608,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             if self.save_model:
                 self._save_model(epoch)
 
-            if self.save_model_as_artifact:
+            if self.save_model and self.save_model_as_artifact:
                 self._save_model_as_artifact(epoch)
 
             self.best = self.current
@@ -646,7 +660,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 elif self.generator:
                     if not self.validation_steps:
                         wandb.termwarn(
-                            "WandbCallback is unable to log validation data. When using a generator for validation_data, you must pass validation_steps"
+                            "WandbCallback is unable to log validation data. "
+                            "When using a generator for validation_data, you must pass validation_steps"
                         )
                     else:
                         x = None
@@ -663,7 +678,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
                         validation_data = (x, y_true)
                 else:
                     wandb.termwarn(
-                        "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data. Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
+                        "WandbCallback is unable to read validation_data from trainer "
+                        "and therefore cannot log validation data. Ensure Keras is properly "
+                        "patched by calling `from wandb.keras import WandbCallback` at the top of your script."
                     )
                 if validation_data:
                     self._validation_data_logger = ValidationDataLogger(
@@ -677,9 +694,15 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     )
             except Exception as e:
                 wandb.termwarn(
-                    "Error initializing ValidationDataLogger in WandbCallback. Skipping logging validation data. Error: "
-                    + str(e)
+                    "Error initializing ValidationDataLogger in WandbCallback. "
+                    f"Skipping logging validation data. Error: {str(e)}"
                 )
+
+        if _can_compute_flops():
+            try:
+                wandb.summary["GFLOPs"] = self.get_flops()
+            except Exception as e:
+                wandb.termwarn("Unable to compute FLOPs for this model.")
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
@@ -722,7 +745,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
             else:
                 if len(self.labels) != 0:
                     wandb.termwarn(
-                        'keras model is producing a single output, so labels should be a length two array: ["False label", "True label"].'
+                        "keras model is producing a single output, "
+                        'so labels should be a length two array: ["False label", "True label"].'
                     )
                 captions = [logit[0] for logit in logits]
         else:
@@ -918,7 +942,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         elif self.generator:
             if not self.validation_steps:
                 wandb.termwarn(
-                    "when using a generator for validation data with dataframes, you must pass validation_steps. skipping"
+                    "when using a generator for validation data with dataframes, "
+                    "you must pass validation_steps. skipping"
                 )
                 return None
 
@@ -976,10 +1001,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         except (ImportError, RuntimeError, TypeError) as e:
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
-                "W&B Artifacts in the SavedModel format."
+                "as an W&B Artifact in the 'tf' format."
             )
-            self.save_model = False
-            self.save_model_as_artifact = True
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
@@ -991,9 +1014,60 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
         # Log the model as artifact.
-        model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
+        name = wandb.util.make_artifact_name_safe(f"model-{wandb.run.name}")
+        model_artifact = wandb.Artifact(name, type="model")
         model_artifact.add_dir(self.filepath[:-3])
         wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
 
         # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
         shutil.rmtree(self.filepath[:-3])
+
+    def get_flops(self) -> float:
+        """
+        Calculate FLOPS [GFLOPs] for a tf.keras.Model or tf.keras.Sequential model
+        in inference mode. It uses tf.compat.v1.profiler under the hood.
+        """
+        if not hasattr(self, "model"):
+            raise wandb.Error("self.model must be set before using this method.")
+
+        if not isinstance(
+            self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
+        ):
+            raise ValueError(
+                "Calculating FLOPS is only supported for "
+                "`tf.keras.Model` and `tf.keras.Sequential` instances."
+            )
+
+        from tensorflow.python.framework.convert_to_constants import (
+            convert_variables_to_constants_v2_as_graph,
+        )
+
+        # Compute FLOPs for one sample
+        batch_size = 1
+        inputs = [
+            tf.TensorSpec([batch_size] + inp.shape[1:], inp.dtype)
+            for inp in self.model.inputs
+        ]
+
+        # convert tf.keras model into frozen graph to count FLOPs about operations used at inference
+        real_model = tf.function(self.model).get_concrete_function(inputs)
+        frozen_func, _ = convert_variables_to_constants_v2_as_graph(real_model)
+
+        # Calculate FLOPs with tf.profiler
+        run_meta = tf.compat.v1.RunMetadata()
+        opts = (
+            tf.compat.v1.profiler.ProfileOptionBuilder(
+                tf.compat.v1.profiler.ProfileOptionBuilder().float_operation()
+            )
+            .with_empty_output()
+            .build()
+        )
+
+        flops = tf.compat.v1.profiler.profile(
+            graph=frozen_func.graph, run_meta=run_meta, cmd="scope", options=opts
+        )
+
+        tf.compat.v1.reset_default_graph()
+
+        # convert to GFLOPs
+        return (flops.total_float_ops / 1e9) / 2
