@@ -435,6 +435,7 @@ def test_artifact_files(runner, mock_server, api):
     with runner.isolated_filesystem():
         mock_server.ctx["max_cli_version"] = "0.12.21"
         art = api.artifact("entity/project/mnist:v0", type="dataset")
+        assert str(art.files()) == "<ArtifactFiles entity/project/mnist:v0 (10)>"
         paths = [f.storage_path for f in art.files()]
         assert paths == ["x/y/z", "x/y/z"]
         # Assert we don't break legacy local installs
