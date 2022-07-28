@@ -19,7 +19,9 @@ If you are using `wandb` in a distributed training setup and experiencing hangs,
 `service` can be enabled by adding the following to your script:
 
 ```python
-def __name__ == "__main__":
+import wandb
+
+if __name__ == "__main__":
     wandb.require(experiment="service")
     # <rest-of-your-script-goes-here>
 ```
@@ -30,16 +32,20 @@ If you are calling `wandb.init` in a spawned process you should add `wandb.setup
 
 ```python
 import multiprocessing as mp
+import wandb
+
 
 def do_work(n):
     run = wandb.init(config=dict(n=n))
-    run.log(dict(this=n*n))
+    run.log(dict(this=n * n))
+
 
 def main():
     wandb.require("service")
     wandb.setup()
     pool = mp.Pool(processes=4)
     pool.map(do_work, range(4))
+
 
 if __name__ == "__main__":
     main()
@@ -69,11 +75,12 @@ Please try adding:
 ```python
 if __name__ == "__main__":
     # <your-script-goes-here>
+    ...
 ```
 
 ## Reporting issues
 
-We appreciate it that you gave this feature a try. If you are experiencing an issue that is not listed in the FAQs, please file a [GitHub Issue](https://github.com/wandb/client/issues).
+We appreciate it that you gave this feature a try. If you are experiencing an issue that is not listed in the FAQs, please file a [GitHub Issue](https://github.com/wandb/wandb/issues).
 To help us reproduce your issue, please provide the following:
 
 - Minimal script to reproduce

@@ -7,7 +7,7 @@ This file describes what happens with the following snippet (after wandb.init())
 wandb.require(experiment="service")
 # ...
 run = wandb.init()
-artifact = wandb.Artifact('my-dataset', type='dataset')
+artifact = wandb.Artifact("my-dataset", type="dataset")
 art = run.log_artifact(artifact)
 art.wait()
 ```
@@ -42,7 +42,7 @@ art.wait()
                   |      |       .       |          .         .         .    |
                                                                  send_request_artifact_send()
                   |      |       .       |          .         .         .    |
-                                      <------ 
+                                      <------
                   |      |       .       |          .         .         .    |
                       <---------------
                   |      |       .       |          .         .         .    |
@@ -62,7 +62,7 @@ art.wait()
                   |      |       .       |          .         .         .    |
                                              handle_request_artifact_poll()
                   |      |       .       |          .         .         .    |
-                                      <------ 
+                                      <------
                   |      |       .       |          .         .         .    |
                       <---------------
                   |      |       .       |          .         .         .    |
@@ -82,7 +82,7 @@ art.wait()
                   |      |       .       |          .         .         .    |
                                              handle_request_artifact_poll()
                   |      |       .       |          .         .         .    |
-                                      <------ 
+                                      <------
                   |      |       .       |          .         .         .    |
                       <---------------
                   |      |       .       |          .         .         .    |
@@ -99,6 +99,6 @@ Ref | Message/Function | File | Description
 6   | `_communicate_artifact_poll()` | [interface.py]   | handle GRPC and pass polling to handler
 7   | `_publish_artifact_done()`     | [interface.py]   | artifact send is done (error or success)
 
-[interface.py]: https://github.com/wandb/client/blob/master/wandb/sdk/interface/interface.py
-[iface_grpc.py]: https://github.com/wandb/client/blob/master/wandb/sdk/interface/iface_grpc.py
-[grpc_server.py]: https://github.com/wandb/client/blob/master/wandb/sdk/service/grpc_server.py
+[interface.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/interface/interface.py
+[iface_grpc.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/interface/iface_grpc.py
+[grpc_server.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/service/grpc_server.py
