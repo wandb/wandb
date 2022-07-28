@@ -49,7 +49,6 @@ from wandb.util import (
     _is_artifact_version_weave_dict,
     _is_py_path,
     add_import_hook,
-    artifact_to_json,
     parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
@@ -2068,16 +2067,9 @@ class Run:
             job_artifact.add_file(patch_path, "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
-        with job_artifact.new_file("source_info.json") as f:
+        with job_artifact.new_file("wandb-job.json") as f:
             f.write(json.dumps(source_dict))
 
-        default_config = {}
-        for k, v in self.config.as_dict().items():
-            if _is_artifact_object(v):
-                default_config[k] = artifact_to_json(v)
-            else:
-                default_config[k] = v
-        job_artifact.metadata["config_defaults"] = default_config
         return job_artifact
 
     def _create_repo_job(
