@@ -1,3 +1,4 @@
+import datetime
 import os
 import platform
 import random
@@ -451,6 +452,30 @@ def test_check_retry_conflict():
 
     e.response.status_code = 409
     assert util.is_conflict(e) is True
+
+
+def test_make_check_reply_fn():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    check_retry_fn = util.make_check_retry_fn(
+        check_fn=util.is_conflict,
+        check_timedelta=datetime.timedelta(minutes=3),
+        fallback_retry_fn=util.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check
+    assert check == datetime.timedelta(minutes=3)
 
 
 def test_downsample():
