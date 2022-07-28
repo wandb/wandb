@@ -98,8 +98,9 @@ class Retry(Generic[_R]):
         )
 
         sleep = sleep_base
-        start_time = datetime.datetime.now()
-        now = start_time
+        now = datetime.datetime.now()
+        start_time = now
+        start_time_triggered = None
 
         self._num_iter = 0
 
@@ -121,22 +122,30 @@ class Retry(Generic[_R]):
                 return result
             except self._retryable_exceptions as e:
                 # if the secondary check fails, re-raise
-                check_retry = check_retry_fn(e)
-                if not check_retry:
+                retry_timedelta_triggered = check_retry_fn(e)
+                if not retry_timedelta_triggered:
                     raise
 
-                # use secondary check timedelta if it is provided
-                timedelta = (
-                    check_retry
-                    if isinstance(check_retry, datetime.timedelta)
-                    else retry_timedelta
-                )
-
-                if (
-                    datetime.datetime.now() - start_time >= timedelta
-                    or self._num_iter >= num_retries
-                ):
+                # always enforce num_retries no matter which type of exception was seen
+                if self._num_iter >= num_retries:
                     raise
+
+                now = datetime.datetime.now()
+
+                # handle a triggered secondary check which could have a shortened timeout
+                if isinstance(retry_timedelta_triggered, datetime.timedelta):
+                    # save the time of the first secondary trigger
+                    if not start_time_triggered:
+                        start_time_triggered = now
+
+                    # make sure that we havent run out of time from secondary trigger
+                    if now - start_time_triggered >= retry_timedelta_triggered:
+                        raise
+
+                # always enforce the default timeout from start of retries
+                if now - start_time >= retry_timedelta:
+                    raise
+
                 if self._num_iter == 2:
                     logger.exception("Retry attempt failed:")
                     if (

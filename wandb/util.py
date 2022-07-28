@@ -902,15 +902,26 @@ def is_conflict(e: Any) -> Optional[bool]:
 
 
 def make_check_retry_fn(
-    check_fn: Callable[[Exception], Optional[bool]],
-    check_timedelta: timedelta,
     fallback_retry_fn: CheckRetryFnType,
+    check_fn: Callable[[Exception], Optional[bool]],
+    check_timedelta: Optional[timedelta] = None,
 ) -> CheckRetryFnType:
+    """Return a check_retry_fn which can be used by lib.Retry().
+
+    Arguments:
+        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
+        check_fn: Function which returns bool if retry should happen or None if unsure.
+        check_timedelta: Optional retry timeout if we check_fn matches the exception
+    """
     def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
         check = check_fn(e)
         if check is None:
             return fallback_retry_fn(e)
-        return check_timedelta if check else False
+        if check is False:
+            return False
+        if check_timedelta:
+            return check_timedelta
+        return True
 
     return check_retry_fn
 
