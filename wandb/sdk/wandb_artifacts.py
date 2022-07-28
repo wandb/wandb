@@ -56,6 +56,7 @@ if TYPE_CHECKING:
     import google.cloud.storage as gcs_module  # type: ignore
     import boto3  # type: ignore
     import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
+    import wandb.apis.public
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.

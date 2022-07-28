@@ -22,7 +22,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 import urllib
 
 from pkg_resources import parse_version
@@ -43,6 +43,10 @@ from wandb.sdk.wandb_require_helpers import requires
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_gql.transport.requests import RequestsHTTPTransport
+
+if TYPE_CHECKING:
+    import wandb.apis.reports
+    import wandb.apis.reports.util
 
 
 logger = logging.getLogger(__name__)
@@ -380,7 +384,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.Block]" = None,
+        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""

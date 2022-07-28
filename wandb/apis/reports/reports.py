@@ -2,7 +2,7 @@ from copy import deepcopy
 import inspect
 import json
 import re
-from typing import Any, Dict, List as LList
+from typing import Any, Dict, List as LList, TYPE_CHECKING
 from typing import Optional, Union
 import urllib
 
@@ -35,6 +35,9 @@ from .validators import (
     SMOOTHING_TYPES,
     TypeValidator,
 )
+
+if TYPE_CHECKING:
+    import wandb.apis.public
 
 
 class LineKey:

@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress
+    import wandb.apis.public
 
 
 if TYPE_CHECKING:

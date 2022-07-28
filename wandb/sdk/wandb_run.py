@@ -110,6 +110,10 @@ if TYPE_CHECKING:
         GetSummaryResponse,
         SampledHistoryResponse,
     )
+    import wandb.sdk.backend.backend
+    import wandb.sdk.interface.interface_grpc
+    import wandb.sdk.interface.interface_queue
+    import wandb.apis.public
 
     class GitSourceDict(TypedDict):
         remote: str

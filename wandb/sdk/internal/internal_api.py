@@ -59,6 +59,9 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import Literal, Protocol, TypedDict
 
+    import wandb.sdk.wandb_settings
+    import wandb.sdk.internal.settings_static
+
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict):

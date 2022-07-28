@@ -43,6 +43,7 @@ from typing import (
     TextIO,
     Tuple,
     Type,
+    TYPE_CHECKING,
     Union,
 )
 import urllib
@@ -55,6 +56,12 @@ import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
 import yaml
+
+if TYPE_CHECKING:
+    import wandb.sdk.wandb_settings
+    import wandb.sdk.internal.settings_static
+    import wandb.sdk.wandb_artifacts
+    import wandb.apis.public
 
 logger = logging.getLogger(__name__)
 _not_importable = set()

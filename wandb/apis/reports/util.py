@@ -5,6 +5,7 @@ from typing import (
     List,
     Optional,
     Tuple,
+    TYPE_CHECKING,
     TypeVar,
     Union,
 )
@@ -13,6 +14,9 @@ import wandb
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
 from .validators import TypeValidator, UNDEFINED_TYPE, Validator
+
+if TYPE_CHECKING:
+    import wandb.apis.reports.reports
 
 
 Func = TypeVar("Func")
