@@ -913,6 +913,7 @@ def make_check_retry_fn(
         check_fn: Function which returns bool if retry should happen or None if unsure.
         check_timedelta: Optional retry timeout if we check_fn matches the exception
     """
+
     def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
         check = check_fn(e)
         if check is None:
