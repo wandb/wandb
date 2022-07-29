@@ -315,6 +315,23 @@ def test_save_now_twice(mocked_run, mock_server, backend_interface):
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2
 
 
+def test_save_empty_file(mocked_run, mock_server, backend_interface):
+    with backend_interface() as interface:
+        test_file = os.path.join(mocked_run.dir, "test.txt")
+        with open(test_file, "w"):
+            pass
+
+        interface.publish_files({"files": [("test.txt", "now")]})
+
+    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    assert any(
+        [
+            "test.txt" in request_dict.get("uploaded", [])
+            for request_dict in mock_server.ctx["file_stream"]
+        ]
+    )
+
+
 def test_output(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
         for i in range(100):

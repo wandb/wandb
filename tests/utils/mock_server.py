@@ -1796,7 +1796,7 @@ def create_app(user_ctx=None):
         if request.method == "PUT":
             for c in ctx, run_ctx:
                 c["file_bytes"].setdefault(file, 0)
-                c["file_bytes"][file] += request.content_length
+                c["file_bytes"][file] += request.content_length or 0
         if ART_EMU:
             res = ART_EMU.storage(request=request, arti_id=ctx["latest_arti_id"])
             return res
