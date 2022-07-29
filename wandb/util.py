@@ -890,6 +890,13 @@ def no_retry_auth(e: Any) -> bool:
 
 
 def is_conflict(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict type so it can be retried.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
     if hasattr(e, "exception"):
         e = e.exception
     if (

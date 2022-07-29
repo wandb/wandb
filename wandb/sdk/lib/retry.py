@@ -8,8 +8,8 @@ from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar, Union
 
 from requests import HTTPError
 import wandb
+from wandb.util import CheckRetryFnType
 
-ExceptionPredicate = Callable[[Exception], Union[bool, datetime.timedelta]]
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class Retry(Generic[_R]):
         call_fn: Callable[..., _R],
         retry_timedelta: Optional[datetime.timedelta] = None,
         num_retries: Optional[int] = None,
-        check_retry_fn: ExceptionPredicate = lambda e: True,
+        check_retry_fn: CheckRetryFnType = lambda e: True,
         retryable_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
         error_prefix: str = "Network error",
         retry_callback: Optional[Callable[[int, str], Any]] = None,
@@ -97,7 +97,7 @@ class Retry(Generic[_R]):
         sleep_base: float = kwargs.pop("retry_sleep_base", 1)
 
         # an extra function to allow performing more logic on the filtered exception
-        check_retry_fn: ExceptionPredicate = kwargs.pop(
+        check_retry_fn: CheckRetryFnType = kwargs.pop(
             "check_retry_fn", self._check_retry_fn
         )
 
