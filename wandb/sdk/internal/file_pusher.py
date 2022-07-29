@@ -131,8 +131,6 @@ class FilePusher:
         # Tests in linux were failing because wandb-events.jsonl didn't exist
         if not os.path.exists(path) or not os.path.isfile(path):
             return
-        if os.path.getsize(path) == 0:
-            return
 
         save_name = dir_watcher.SaveName(wandb.util.to_forward_slash_path(save_name))
         event = step_checksum.RequestUpload(
