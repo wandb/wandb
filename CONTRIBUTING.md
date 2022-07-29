@@ -77,7 +77,7 @@ Please make sure to update the ToC when you update this page!
     git commit -m "Added integration with a new library"
     ```
     - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
-4.  Proposed changes are contributed through  
+4.  Proposed changes are contributed through
     [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
 
     - When your contribution is ready and the tests all pass, push your branch to GitHub:
@@ -148,7 +148,7 @@ Note: to switch the default python version, edit the `.python-version` file in t
 
 - The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
 the `h5py` package to be installed, which in turn requires `hdf5` to be installed in the system.
-You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands 
+You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands
 using [homebrew](https://brew.sh/):
 
 ```shell
@@ -443,9 +443,9 @@ If you update one of those files, you need to:
     In `tox.ini`, search for `yea-wandb==<version>` and change it to
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
-  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`. 
+  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`.
   - Merge and release `yea-wandb` (with `make release`).
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.** 
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.**
   - Point the client branch you are working on to the fresh release of `yea-wandb`.
 
 
@@ -566,6 +566,7 @@ def uses_https(x):
         raise ValueError("Must use https")
     return True
 
+
 base_url = Property(
     name="base_url",
     value="https://wandb.com/",
@@ -583,7 +584,7 @@ endpoint = Property(
 )
 ```
 
-```python
+```ipython
 >>> print(base_url)  # note the stripped "/"
 'https://wandb.com'
 >>> print(endpoint)  # note the runtime hook
@@ -628,6 +629,10 @@ The `Settings` object:
     (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
     and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
+- If a setting validator depends on another setting, special care must be taken to ensure that
+  certain operations with the `wandb.Settings` object
+  (namely, `__init__`, `copy`, `update`, and `_apply_settings`) are performed in the correct order.
+  For reference, see how the `base_url` setting is handled (the `api_key` validator depends on it).
 
 ### Data to be synced to server is fully validated
 
@@ -649,10 +654,11 @@ not perform any serialization to sync data.
 ### Program
 
 ```python
-1 import wandb
-2 run = wandb.init(config=dict(param1=1))
-3 run.config.param2 = 2
-4 run.log(dict(this=3))
+import wandb
+
+run = wandb.init(config=dict(param1=1))
+run.config.param2 = 2
+run.log(dict(this=3))
 ```
 
 #### import wandb [line 1]
@@ -778,7 +784,7 @@ To mark a feature as deprecated (and to be removed in the next major release), p
 from wandb.sdk.lib import deprecate
 
 deprecate.deprecate(
-    field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1
+    field_name=deprecate.Deprecated.new_field_name,  # new_field_name from step 1
     warning_message="This feature is deprecated and will be removed in a future release.",
 )
 ```

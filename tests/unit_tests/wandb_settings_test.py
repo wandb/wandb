@@ -1012,7 +1012,6 @@ def test_program_python_m():
         assert "-m module.lib" in output.decode("utf-8")
 
 
-@pytest.mark.skip(reason="Unskip once api_key validation is restored")
 def test_local_api_key_validation():
     with pytest.raises(UsageError):
         wandb.Settings(

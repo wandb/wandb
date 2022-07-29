@@ -780,15 +780,14 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
-    @staticmethod
-    def _validate_api_key(value: str) -> bool:
+    def _validate_api_key(self, value: str) -> bool:
         if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
 
-        # if value.startswith("local") and not self.is_local:
-        #     raise UsageError(
-        #         "Attempting to use a local API key to connect to https://api.wandb.ai"
-        #     )
+        if value.startswith("local") and not self.is_local:
+            raise UsageError(
+                "Attempting to use a local API key to connect to https://api.wandb.ai"
+            )
         # todo: move here the logic from sdk/lib/apikey.py
 
         return True
@@ -1064,6 +1063,10 @@ class Settings:
 
             # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
+        base_url = kwargs.pop("base_url", None)
+        if base_url is not None:
+            self.update({"base_url": base_url}, source=Source.BASE)
+
         for k, v in kwargs.items():
             # todo: double-check this logic:
             source = Source.RUN if self.__dict__[k].is_policy else Source.BASE
@@ -1111,6 +1114,10 @@ class Settings:
         # get attributes that are instances of the Property class:
         attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
         new = Settings()
+        # update base_url first
+        base_url = attributes.pop("base_url", None)
+        if base_url and base_url._value is not None:
+            new.update({"base_url": base_url._value}, source=base_url.source)
         for k, v in attributes.items():
             # make sure to use the raw property value (v._value),
             # not the potential result of runtime hooks applied to it (v.value)
@@ -1199,6 +1206,12 @@ class Settings:
         if unknown_properties:
             raise KeyError(f"Unknown settings: {unknown_properties}")
         # only if all keys are valid, update them
+
+        # update base_url first (if provided), as api_key validation depends on it
+        base_url = settings.pop("base_url", None)
+        if base_url is not None:
+            self.__dict__["base_url"].update(base_url, source)
+
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
@@ -1249,6 +1262,10 @@ class Settings:
         attributes = {
             k: v for k, v in settings.__dict__.items() if isinstance(v, Property)
         }
+        base_url = attributes.pop("base_url", None)
+        if base_url and base_url._value is not None:
+            self.update({"base_url": base_url._value}, source=base_url.source)
+
         for k, v in attributes.items():
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)
