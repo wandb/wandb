@@ -1269,7 +1269,7 @@ class SendManager:
                 return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        return saver.save(
+        return saver.save_async(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
