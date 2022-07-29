@@ -102,7 +102,7 @@ class ResumeState:
     history: int
     events: int
     output: int
-    runtime: int
+    runtime: float
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
@@ -203,7 +203,7 @@ class SendManager:
 
         # keep track of config from key/val updates
         self._consolidated_config: DictNoValues = cast(DictNoValues, dict())
-        self._start_time: int = 0
+        self._start_time: float = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
@@ -526,13 +526,13 @@ class SendManager:
             alive, status = self._pusher.get_status()
             file_counts = self._pusher.file_counts_by_category()
             resp = result.response.poll_exit_response
-            resp.pusher_stats.uploaded_bytes = status["uploaded_bytes"]
-            resp.pusher_stats.total_bytes = status["total_bytes"]
-            resp.pusher_stats.deduped_bytes = status["deduped_bytes"]
-            resp.file_counts.wandb_count = file_counts["wandb"]
-            resp.file_counts.media_count = file_counts["media"]
-            resp.file_counts.artifact_count = file_counts["artifact"]
-            resp.file_counts.other_count = file_counts["other"]
+            resp.pusher_stats.uploaded_bytes = status.uploaded_bytes
+            resp.pusher_stats.total_bytes = status.total_bytes
+            resp.pusher_stats.deduped_bytes = status.deduped_bytes
+            resp.file_counts.wandb_count = file_counts.wandb
+            resp.file_counts.media_count = file_counts.media
+            resp.file_counts.artifact_count = file_counts.artifact
+            resp.file_counts.other_count = file_counts.other
 
         if self._exit_result and not alive:
             # pusher join should not block as it was reported as not alive
@@ -728,7 +728,7 @@ class SendManager:
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.seconds
+        self._start_time = run.start_time.ToMicroseconds() / 1e6
 
         # update telemetry
         if run.telemetry:
@@ -797,10 +797,12 @@ class SendManager:
         self, run: "RunRecord", config_dict: Optional[DictWithValues]
     ) -> None:
         # We subtract the previous runs runtime when resuming
-        start_time = run.start_time.ToSeconds() - self._resume_state.runtime
+        start_time = (
+            run.start_time.ToMicroseconds() / 1e6
+        ) - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
-        server_run, _, server_messages = self._api.upsert_run(
+        server_run, inserted, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
@@ -822,8 +824,17 @@ class SendManager:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
+        else:
+            # If the user is not resuming and we didnt insert on upsert_run then
+            # it is likely that we are overwriting the run which we might want to
+            # prevent in the future.  This could be a false signal since an upsert_run
+            # message which gets retried in the network could also show up as not
+            # inserted.
+            if not inserted:
+                # no need to flush this, it will get updated eventually
+                self._telemetry_obj.feature.maybe_run_overwrite = True
         self._run.starting_step = self._resume_state.step
-        self._run.start_time.FromSeconds(int(start_time))
+        self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
         if self._resume_state.summary is not None:
             self._run.summary.CopyFrom(
@@ -866,7 +877,7 @@ class SendManager:
         self._fs = file_stream.FileStreamApi(
             self._api,
             self._run.run_id,
-            self._run.start_time.ToSeconds(),
+            self._run.start_time.ToMicroseconds() / 1e6,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
@@ -899,7 +910,7 @@ class SendManager:
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
-            self._run.start_time.ToSeconds(),
+            self._run.start_time.ToMicroseconds() / 1e6,
         )
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
@@ -938,15 +949,16 @@ class SendManager:
             return
         if not self._run:
             return
-        now = stats.timestamp.seconds
+        now_us = stats.timestamp.ToMicroseconds()
+        start_us = self._run.start_time.ToMicroseconds()
         d = dict()
         for item in stats.item:
             d[item.key] = json.loads(item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
-        row["_timestamp"] = now
-        row["_runtime"] = int(now - self._run.start_time.ToSeconds())
+        row["_timestamp"] = now_us / 1e6
+        row["_runtime"] = (now_us - start_us) / 1e6
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 
