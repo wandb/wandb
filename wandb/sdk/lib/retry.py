@@ -4,7 +4,7 @@ import logging
 import os
 import random
 import time
-from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
 import wandb
