@@ -27,14 +27,16 @@ import sys
 import tempfile
 from typing import Optional
 
+import pandas as pd
+
 import wandb
 from wandb import util
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
-    _numpy_arrays_to_lists,
     BatchableMedia,
     Media,
+    _numpy_arrays_to_lists,
 )
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
@@ -921,6 +923,17 @@ class Table(Media):
                 new_columns[key].append(new_row_dict[key])
         for new_col_name in new_columns:
             self.add_column(new_col_name, new_columns[new_col_name])
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """Converts the WandB Table object in to a pandas dataframe.
+        Not compatible with WANDB native types such as wandb.Image, wandb.Audio
+
+        Returns:
+            pd.DataFrame: dataframe with the contents from wandb.Table
+        """
+        return pd.DataFrame(
+            data=self.data, index=self.get_index(), columns=self.columns
+        )
 
 
 class _PartitionTablePartEntry:
