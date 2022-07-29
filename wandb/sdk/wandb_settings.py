@@ -1063,6 +1063,8 @@ class Settings:
 
             # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
+        # todo: automatically inspect setting validators and topologically sort them
+        #  so that we can safely update them. throw error if there are cycles.
         base_url = kwargs.pop("base_url", None)
         if base_url is not None:
             self.update({"base_url": base_url}, source=Source.BASE)
