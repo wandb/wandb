@@ -1455,10 +1455,10 @@ class Api:
             "summaryMetrics": summary_metrics,
         }
 
-        # retry conflict errors for 8 minutes, default to no_auth_retry
+        # retry conflict errors for 2 minutes, default to no_auth_retry
         check_retry_fn = util.make_check_retry_fn(
             check_fn=util.is_conflict,
-            check_timedelta=datetime.timedelta(minutes=8),
+            check_timedelta=datetime.timedelta(minutes=2),
             fallback_retry_fn=util.no_retry_auth,
         )
 
