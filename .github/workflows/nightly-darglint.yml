@@ -6,12 +6,12 @@ jobs:
   darglint:  # run our tox darglint job on files in the reference documentation.
     runs-on: ubuntu-latest
     steps:
-      - name: checkout client repo
+      - name: checkout wandb repo
         uses: actions/checkout@v2
         with:
-          repository: wandb/client
+          repository: wandb/wandb
           persist-credentials: false
-          path: client
+          path: wandb
       - name: setup python
         uses: actions/setup-python@v2
         with:
@@ -26,7 +26,7 @@ jobs:
           path: gitbook
           ref: en
       - name: apply darglint to reference files
-        working-directory: client
+        working-directory: wandb
         run: |
-          # Find the "View source on" links | extract url path relative to client/tree | extract path to .py files | remove duplicates | pass to tox env
-          grep -r "View source on" ../gitbook/ref/python | grep -o "client/tree/.*" | grep -o "wandb/.*\.py" | sort | uniq | xargs tox -e darglint
+          # Find the "View source on" links | extract url path relative to wandb/tree | extract path to .py files | remove duplicates | pass to tox env
+          grep -r "View source on" ../gitbook/ref/python | grep -o "wandb/tree/.*" | grep -o "wandb/.*\.py" | sort | uniq | xargs tox -e darglint

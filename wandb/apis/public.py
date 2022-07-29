@@ -2361,6 +2361,7 @@ class Sweep(Attrs):
             sweep(sweepName: $name) {
                 id
                 name
+                state
                 bestLoss
                 config
             }
@@ -2510,7 +2511,9 @@ class Sweep(Attrs):
         return self.to_html()
 
     def __repr__(self):
-        return "<Sweep {}>".format("/".join(self.path))
+        return "<Sweep {} ({})>".format(
+            "/".join(self.path), self._attrs.get("state", "Unknown State")
+        )
 
 
 class Files(Paginator):
@@ -4955,7 +4958,7 @@ class Job:
         self._api = api
         self._entity = api.default_entity
 
-        with open(os.path.join(self._fpath, "source_info.json")) as f:
+        with open(os.path.join(self._fpath, "wandb-job.json")) as f:
             self._source_info = json.load(f)
         self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
@@ -5019,13 +5022,6 @@ class Job:
         if self._entrypoint:
             launch_project.add_entry_point(self._entrypoint)
 
-    def set_default_input(self, key, val):
-        self._job_artifact.metadata["config_defaults"][key] = val
-        self._job_artifact.save()
-
-    def _config_defaults(self):
-        return self._job_artifact.metadata["config_defaults"]
-
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint
 
@@ -5041,8 +5037,7 @@ class Job:
     ):
         from wandb.sdk.launch import launch_add
 
-        run_config = self._config_defaults().copy()
-
+        run_config = {}
         for key, item in config.items():
             if util._is_artifact_object(item):
                 if isinstance(item, wandb.Artifact) and item.id is None:

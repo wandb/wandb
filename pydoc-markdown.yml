@@ -36,7 +36,7 @@ renderer:
   markdown:
     source_linker:
       type: github
-      repo: wandb/client
+      repo: wandb/wandb
   pages:
     - title: Artifacts
       contents:
