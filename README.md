@@ -194,14 +194,17 @@ trainer = Trainer(logger=wandb_logger)
 
 
 ## 🤗 HuggingFace
-Just run a script using HuggingFace's Trainer in an environment where `wandb` is installed
-and we'll automatically log losses, evaluation metrics, model topology and gradients:
+Just run a script using HuggingFace's Trainer passing `--report_to wandb` to it
+in an environment where `wandb` is installed, and we'll automatically log losses,
+evaluation metrics, model topology, and gradients:
+
 ```shell
 # 1. Install the wandb library
 pip install wandb
 
 # 2. Run a script that has the Trainer to automatically logs metrics, model topology and gradients
 python run_glue.py \
+ --report_to wandb \
  --model_name_or_path bert-base-uncased \
  --task_name MRPC \
  --data_dir $GLUE_DIR/$TASK_NAME \
@@ -226,7 +229,7 @@ Use Weights & Biases Sweeps to automate hyperparameter optimization and explore 
 ### [Try Sweeps in PyTorch in a Colab →](http://wandb.me/sweeps-colab)
 
 ### Benefits of using W&B Sweeps
-- **Quick to setup:** With just a few lines of code you can run W&B sweeps.
+- **Quick to set up:** With just a few lines of code you can run W&B sweeps.
 - **Transparent:** We cite all the algorithms we're using, and our code is [open source](https://github.com/wandb/wandb/tree/master/wandb/sweeps).
 - **Powerful:** Our sweeps are completely customizable and configurable. You can launch a sweep across dozens of machines, and it's just as easy as starting a sweep on your laptop.
 
@@ -284,7 +287,7 @@ all directly linked to run.
 **Learn about Artifacts [here →](https://www.wandb.com/articles/announcing-artifacts) | Read the [Docs](https://docs.wandb.com/artifacts)**
 
 # 💻  Run W&B Server Locally
-W&amp;B Server is a self hosted hosted Weights &amp; Biases server.  Securely and quickly deploy a W&amp;B production server in Docker, Kubernettes, or in a privately-managed cloud.  Learn more about setting up a [production W&amp;B deployment →](https://docs.wandb.ai/guides/self-hosted/setup).
+W&amp;B Server is a self-hosted Weights &amp; Biases server.  Securely and quickly deploy a W&amp;B production server in Docker, Kubernetes, or in a privately-managed cloud.  Learn more about setting up a [production W&amp;B deployment →](https://docs.wandb.ai/guides/self-hosted/setup).
 
 ## Quickstart
 1. On a machine with [Docker](https://docker.com) and [Python](https://www.python.org/) installed, run:
