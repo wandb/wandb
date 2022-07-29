@@ -1,0 +1,24 @@
+plugin:
+  - wandb
+tag:
+  shard: standalone-cpu
+command:
+  program: two_runs.py
+  args:
+    - --resume
+    - "allow"
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][summary]: {"m1": 11, "m2": 22, "m3": 3, "m4": 44}
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 5  # resumed
+  - :op:not_contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 37  # maybe_run_overwrite
+# yea live mode doesnt support output yet
+#  - :op:contains_regex:
+#    - :wandb:runs[0][output][stdout]
+#    - "run resumed"

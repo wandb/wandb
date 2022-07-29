@@ -526,13 +526,13 @@ class SendManager:
             alive, status = self._pusher.get_status()
             file_counts = self._pusher.file_counts_by_category()
             resp = result.response.poll_exit_response
-            resp.pusher_stats.uploaded_bytes = status["uploaded_bytes"]
-            resp.pusher_stats.total_bytes = status["total_bytes"]
-            resp.pusher_stats.deduped_bytes = status["deduped_bytes"]
-            resp.file_counts.wandb_count = file_counts["wandb"]
-            resp.file_counts.media_count = file_counts["media"]
-            resp.file_counts.artifact_count = file_counts["artifact"]
-            resp.file_counts.other_count = file_counts["other"]
+            resp.pusher_stats.uploaded_bytes = status.uploaded_bytes
+            resp.pusher_stats.total_bytes = status.total_bytes
+            resp.pusher_stats.deduped_bytes = status.deduped_bytes
+            resp.file_counts.wandb_count = file_counts.wandb
+            resp.file_counts.media_count = file_counts.media
+            resp.file_counts.artifact_count = file_counts.artifact
+            resp.file_counts.other_count = file_counts.other
 
         if self._exit_result and not alive:
             # pusher join should not block as it was reported as not alive
@@ -802,7 +802,7 @@ class SendManager:
         ) - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
-        server_run, _, server_messages = self._api.upsert_run(
+        server_run, inserted, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
@@ -824,6 +824,15 @@ class SendManager:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
+        else:
+            # If the user is not resuming and we didnt insert on upsert_run then
+            # it is likely that we are overwriting the run which we might want to
+            # prevent in the future.  This could be a false signal since an upsert_run
+            # message which gets retried in the network could also show up as not
+            # inserted.
+            if not inserted:
+                # no need to flush this, it will get updated eventually
+                self._telemetry_obj.feature.maybe_run_overwrite = True
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
