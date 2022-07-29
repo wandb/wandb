@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 import wandb
 from wandb import util
 import wandb.filesync.step_prepare
+from wandb.sdk.internal.internal_api import CreateArtifactResponse
 
 from ..interface.artifacts import ArtifactEntry, ArtifactManifest
 
@@ -62,7 +63,7 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
 
 
 class ArtifactSaver:
-    _server_artifact: Optional[Dict]  # TODO better define this dict
+    _server_artifact: Optional[CreateArtifactResponse]
 
     def __init__(
         self,
@@ -94,7 +95,7 @@ class ArtifactSaver:
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
-    ) -> Optional[Dict]:
+    ) -> Optional[CreateArtifactResponse]:
         aliases = aliases or []
         alias_specs = []
         for alias in aliases:

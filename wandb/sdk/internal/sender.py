@@ -1247,7 +1247,7 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Optional[Dict]:
+    ) -> Optional[internal_api.CreateArtifactResponse]:
         assert self._pusher
         saver = artifacts.ArtifactSaver(
             api=self._api,

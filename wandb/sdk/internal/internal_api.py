@@ -70,6 +70,33 @@ if TYPE_CHECKING:
         mimetype: Optional[str]
         artifactManifestID: Optional[str]
 
+    class CreateArtifactResponseLatestArtifactInfo(TypedDict):
+        id: str
+        versionIndex: int
+
+    ArtifactState = Literal[
+        "PENDING",
+        "COMMITTED",
+        "DELETED",
+        "COMMITTING",  # removed from server in mid-2020
+        "FAILED",  # removed from server in mid-2020
+    ]
+
+    class CreateArtifactResponseArtifactAlias(TypedDict):
+        artifactCollectionName: str
+        alias: str
+
+    class CreateArtifactResponseArtifactSequence(TypedDict):
+        id: str
+        latestArtifact: CreateArtifactResponseLatestArtifactInfo
+
+    class CreateArtifactResponse(TypedDict):
+        id: str
+        digest: str
+        state: ArtifactState
+        aliases: Sequence[CreateArtifactResponseArtifactAlias]
+        artifactSequence: CreateArtifactResponseArtifactSequence
+
     class DefaultSettings(TypedDict):
         section: str
         git_remote: str
@@ -2520,7 +2547,7 @@ class Api:
         is_user_created: Optional[bool] = False,
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
-    ) -> Tuple[Dict, Dict]:
+    ) -> Tuple[CreateArtifactResponse, CreateArtifactResponseLatestArtifactInfo]:
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
