@@ -1201,7 +1201,7 @@ class SendManager:
             res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
+            logger.info(f"started logging artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
                 'error logging artifact "{}/{}": {}'.format(
@@ -1224,7 +1224,7 @@ class SendManager:
             res = self._send_artifact(artifact)
             assert res, "Unable to send artifact"
             done_msg.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
+            logger.info(f"started logging artifact {artifact.name} - {res}")
         except Exception as e:
             done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
@@ -1237,7 +1237,7 @@ class SendManager:
         artifact = record.artifact
         try:
             res = self._send_artifact(artifact)
-            logger.info(f"sent artifact {artifact.name} - {res}")
+            logger.info(f"started sending artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
