@@ -172,6 +172,13 @@ You can install `ffmpeg` with the following command using [homebrew](https://bre
 $ brew install ffmpeg
 ```
 
+- The `lightgbm` package might require build packages `cmake` and `libomp` to be installed.
+You can install `cmake` and `libomp` with the following command using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install cmake libomp
+```
+
 ## Code organization
 
 ```bash
