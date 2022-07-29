@@ -1,0 +1,13 @@
+plugin:
+  - wandb
+tag:
+  shard: standalone-cpu
+  skip: true
+command:
+  program: two_runs.py
+  args:
+    - --delete_run
+assert:
+  - :op:!=:
+    - :yea:exit
+    - 0
