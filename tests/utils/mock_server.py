@@ -13,7 +13,7 @@ import threading
 import time
 import urllib.parse
 
-from flask import Flask, request, g, jsonify
+from flask import Flask, request, g, jsonify, make_response
 import requests
 from werkzeug.exceptions import BadRequest
 import yaml
@@ -393,7 +393,9 @@ class SnoopRelay:
 
                 resp = requests.post(url, json=body)
                 data = resp.json()
-                run_obj = data.get("data", {}).get("upsertBucket", {}).get("bucket", {})
+                run_obj = ((data.get("data") or {}).get("upsertBucket") or {}).get(
+                    "bucket"
+                ) or {}
                 project_obj = run_obj.get("project", {})
 
                 run_id = run_obj.get("name")
@@ -416,7 +418,7 @@ class SnoopRelay:
                         # print("INJECT", self._inject_count, time_now, self._inject_time)
                         time.sleep(12)
                         raise HttpException("some error", status_code=500)
-                return data
+                return make_response(jsonify(data), resp.status_code)
             assert False  # we do not support get requests yet, and likely never will :)
 
             return func(*args, **kwargs)
@@ -2346,7 +2348,7 @@ class ParseCTX:
 
     @property
     def config_raw(self):
-        return self._ctx["config"][-1]
+        return (self._ctx.get("config") or [{}])[-1]
 
     @property
     def config_user(self):
