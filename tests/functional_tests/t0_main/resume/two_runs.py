@@ -33,7 +33,9 @@ def run_again(run_id: str, resume: Optional[str]) -> None:
 def delete_run(run_path: str) -> None:
     api = wandb.Api()
     run = api.run(run_path)
+    print(f"Deleting: {run_path}...")
     run.delete()
+    print("done.")
 
 
 def main() -> None:
