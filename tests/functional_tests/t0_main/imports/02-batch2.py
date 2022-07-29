@@ -21,22 +21,22 @@ assert:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 42  # elegy
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 43  # detectron2
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 49  # huggingface_hub
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 50  # hydra
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 44  # flair
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 45  # flax
 """
 

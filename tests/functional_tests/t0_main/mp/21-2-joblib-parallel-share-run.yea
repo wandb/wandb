@@ -24,7 +24,7 @@ assert:
     - 23  # service
 
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # import init
+    - :wandb:runs[0][telemetry][1]  # import init
     - 53  # joblib
 
   - :op:contains:

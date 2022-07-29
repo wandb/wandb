@@ -23,31 +23,31 @@ assert:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 34  # flash
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 35  # recbole
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 36  # optuna
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 37  # mmcv
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 38  # mmdet
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 48  # monai
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 39  # torchdrug
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 40  # torchtext
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 41  # torchvision
 """
 

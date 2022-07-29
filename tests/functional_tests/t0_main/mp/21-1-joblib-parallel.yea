@@ -57,7 +57,7 @@ assert:
     - 23  # service
 
   - :op:contains:
-    - :run_0[telemetry][2]  # import init
+    - :run_0[telemetry][1]  # import init
     - 53  # joblib
 
   - :op:contains:
@@ -65,7 +65,7 @@ assert:
     - 23  # service
 
   - :op:contains:
-    - :run_1[telemetry][2]  # import init
+    - :run_1[telemetry][1]  # import init
     - 53  # joblib
 
   - :op:contains:
@@ -73,7 +73,7 @@ assert:
     - 23  # service
 
   - :op:contains:
-    - :run_2[telemetry][2]  # import init
+    - :run_2[telemetry][1]  # import init
     - 53  # joblib
 
   - :op:contains:
@@ -81,7 +81,7 @@ assert:
     - 23  # service
 
   - :op:contains:
-    - :run_3[telemetry][2]  # import init
+    - :run_3[telemetry][1]  # import init
     - 53  # joblib
 
 

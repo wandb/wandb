@@ -594,14 +594,11 @@ class _WandbInit:
             if self.settings.launch:
                 tel.feature.launch = True
 
-            if active_start_method == "spawn":
-                tel.env.start_spawn = True
-            elif active_start_method == "fork":
-                tel.env.start_fork = True
-            elif active_start_method == "forkserver":
-                tel.env.start_forkserver = True
-            elif active_start_method == "thread":
-                tel.env.start_thread = True
+            for module_name in telemetry.list_telemetry_imports(only_imported=True):
+                setattr(tel.imports_init, module_name, True)
+
+            if active_start_method in ["spawn", "fork", "forkserver", "thread"]:
+                setattr(tel.env, f"start_{active_start_method}", True)
 
             if manager:
                 tel.feature.service = True

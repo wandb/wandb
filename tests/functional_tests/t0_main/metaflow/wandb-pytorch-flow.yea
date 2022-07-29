@@ -30,11 +30,11 @@ assert:
     - :wandb:runs[2][exitcode]: 0
     - :wandb:runs[3][exitcode]: 0
     - :wandb:runs[4][exitcode]: 0
-    - :op:contains: [":wandb:runs[0][telemetry][2]", 13]  # imports metaflow
-    - :op:contains: [":wandb:runs[1][telemetry][2]", 13]  # imports metaflow
-    - :op:contains: [":wandb:runs[2][telemetry][2]", 13]  # imports metaflow
-    - :op:contains: [":wandb:runs[3][telemetry][2]", 13]  # imports metaflow
-    - :op:contains: [":wandb:runs[4][telemetry][2]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[0][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[1][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[2][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[3][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[4][telemetry][1]", 13]  # imports metaflow
     - :op:contains: [":wandb:runs[0][telemetry][3]", 11]  # feature metaflow
     - :op:contains: [":wandb:runs[1][telemetry][3]", 11]  # feature metaflow
     - :op:contains: [":wandb:runs[2][telemetry][3]", 11]  # feature metaflow

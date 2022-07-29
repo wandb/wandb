@@ -18,13 +18,13 @@ assert:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 60  # mmseg
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 61  # mmocr
   - :op:contains:
-    - :wandb:runs[0][telemetry][2]  # imports finish
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 62  # mmcls
 """
 

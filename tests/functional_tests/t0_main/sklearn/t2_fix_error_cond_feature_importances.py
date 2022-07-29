@@ -21,6 +21,9 @@ assert:
     - :wandb:runs[0][output][stderr]
     - These importances will not be plotted
   - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports before
+    - 5  # sklearn
+  - :op:contains:
     - :wandb:runs[0][telemetry][2]  # imports after
     - 5  # sklearn
 """

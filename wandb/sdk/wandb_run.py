@@ -2012,21 +2012,26 @@ class Run:
         self._is_attached = True
         self._on_ready()
 
-    def _register_telemetry_import_hooks(self) -> None:
-        def _telemetry_import_hook(run: "Run", module: Any) -> None:
+    def _register_telemetry_import_hooks(
+        self,
+    ) -> None:
+        def _telemetry_import_hook(
+            run: "Run",
+            module: Any,
+        ) -> None:
             with telemetry.context(run=run) as tel:
-                setattr(tel.imports_finish, module.__name__, True)
+                try:
+                    name = getattr(module, "__name__", None)
+                    if name is not None:
+                        setattr(tel.imports_finish, name, True)
+                except AttributeError:
+                    return
 
-        import_telemetry_set = {
-            desc.name
-            for desc in telemetry.TelemetryImports.DESCRIPTOR.fields
-            if desc.type == desc.TYPE_BOOL
-        }
-
+        import_telemetry_set = telemetry.list_telemetry_imports()
+        import_hook_fn = functools.partial(_telemetry_import_hook, self)
         for module_name in import_telemetry_set:
-
             register_post_import_hook(
-                functools.partial(_telemetry_import_hook, self),
+                import_hook_fn,
                 self._run_id,
                 module_name,
             )
