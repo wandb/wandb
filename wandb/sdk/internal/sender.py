@@ -1198,7 +1198,7 @@ class SendManager:
         history_step = record.request.log_artifact.history_step
 
         try:
-            res = self._send_artifact(artifact, history_step)
+            ev, res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
             logger.info(f"started logging artifact {artifact.name} - {res}")
@@ -1209,7 +1209,11 @@ class SendManager:
                 )
             )
 
-        self._respond_result(result)
+        def wait_and_respond() -> None:
+            ev.wait()
+            self._respond_result(result)
+
+        threading.Thread(target=wait_and_respond).start()
 
     def send_request_artifact_send(self, record: "Record") -> None:
         # TODO: combine and eventually remove send_request_log_artifact()
@@ -1221,7 +1225,7 @@ class SendManager:
         done_msg = wandb_internal_pb2.ArtifactDoneRequest(xid=xid)
         artifact = record.request.artifact_send.artifact
         try:
-            res = self._send_artifact(artifact)
+            ev, res = self._send_artifact(artifact)
             assert res, "Unable to send artifact"
             done_msg.artifact_id = res["id"]
             logger.info(f"started logging artifact {artifact.name} - {res}")
@@ -1230,13 +1234,17 @@ class SendManager:
                 artifact.type, artifact.name, e
             )
 
-        logger.info("send artifact done")
-        self._interface._publish_artifact_done(done_msg)
+        def wait_and_respond() -> None:
+            ev.wait()
+            logger.info("send artifact done")
+            self._interface._publish_artifact_done(done_msg)
+
+        threading.Thread(target=wait_and_respond).start()
 
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
-            res = self._send_artifact(artifact)
+            _, res = self._send_artifact(artifact)
             logger.info(f"started sending artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
@@ -1247,7 +1255,7 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Optional[Dict]:
+    ) -> Tuple[threading.Event, Optional[Dict]]:
         assert self._pusher
         saver = artifacts.ArtifactSaver(
             api=self._api,
@@ -1266,7 +1274,9 @@ class SendManager:
                     "This W&B server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-                return None
+                committed = threading.Event()
+                committed.set()
+                return committed, None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         return saver.save_async(

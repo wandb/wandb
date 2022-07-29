@@ -3,7 +3,7 @@ import os
 import sys
 import tempfile
 import threading
-from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import wandb
 from wandb import util
@@ -94,7 +94,7 @@ class ArtifactSaver:
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
-    ) -> Optional[Dict]:
+    ) -> Tuple[threading.Event, Optional[Dict]]:
         aliases = aliases or []
         alias_specs = []
         for alias in aliases:
@@ -114,6 +114,8 @@ class ArtifactSaver:
                     "alias": tag,
                 }
             )
+
+        committed = threading.Event()
 
         """Returns the server artifact."""
         self._server_artifact, latest = self._api.create_artifact(
@@ -146,7 +148,8 @@ class ArtifactSaver:
             # TODO: update aliases, labels, description etc?
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
-            return self._server_artifact
+            committed.set()
+            return committed, self._server_artifact
         elif (
             self._server_artifact["state"] != "PENDING"
             and self._server_artifact["state"] != "DELETED"
@@ -234,6 +237,7 @@ class ArtifactSaver:
             if finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)
             step_prepare.shutdown()
+            committed.set()
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
@@ -243,7 +247,7 @@ class ArtifactSaver:
             on_commit=on_commit,
         )
 
-        return self._server_artifact
+        return committed, self._server_artifact
 
     def _resolve_client_id_manifest_references(self) -> None:
         for entry_path in self._manifest.entries:
