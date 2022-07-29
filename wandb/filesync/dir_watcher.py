@@ -183,7 +183,9 @@ class PolicyLive(FileEventHandler):
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
     def finish(self) -> None:
-        self.on_modified(force=True)
+        if self._last_sync == os.path.getmtime(self.file_path):
+            return
+        self.save_file()
 
     @property
     def policy(self) -> "PolicyName":
