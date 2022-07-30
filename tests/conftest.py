@@ -71,14 +71,12 @@ def start_mock_server(worker_id):
     """We start a flask server process for each pytest-xdist worker_id"""
     this_folder = os.path.dirname(__file__)
     path = os.path.join(this_folder, "utils", "mock_server.py")
-
     command = [sys.executable, "-u", path]
     env = os.environ
-    logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
-    port_file = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.port")
-
     env["PORT"] = "0"  # Let the server find its own port
     env["PYTHONPATH"] = os.path.abspath(os.path.join(this_folder, os.pardir))
+    logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
+    port_file = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.port")
     env["PORT_FILE"] = port_file
     logfile = open(logfname, "w")
     server = subprocess.Popen(
