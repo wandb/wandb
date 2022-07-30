@@ -528,13 +528,13 @@ class SendManager:
             alive, status = self._pusher.get_status()
             file_counts = self._pusher.file_counts_by_category()
             resp = result.response.poll_exit_response
-            resp.pusher_stats.uploaded_bytes = status["uploaded_bytes"]
-            resp.pusher_stats.total_bytes = status["total_bytes"]
-            resp.pusher_stats.deduped_bytes = status["deduped_bytes"]
-            resp.file_counts.wandb_count = file_counts["wandb"]
-            resp.file_counts.media_count = file_counts["media"]
-            resp.file_counts.artifact_count = file_counts["artifact"]
-            resp.file_counts.other_count = file_counts["other"]
+            resp.pusher_stats.uploaded_bytes = status.uploaded_bytes
+            resp.pusher_stats.total_bytes = status.total_bytes
+            resp.pusher_stats.deduped_bytes = status.deduped_bytes
+            resp.file_counts.wandb_count = file_counts.wandb
+            resp.file_counts.media_count = file_counts.media
+            resp.file_counts.artifact_count = file_counts.artifact
+            resp.file_counts.other_count = file_counts.other
 
         if self._exit_result and not alive:
             # pusher join should not block as it was reported as not alive
@@ -1186,13 +1186,7 @@ class SendManager:
         logger.debug(
             f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
         )
-        if (
-            (client_id or server_id)
-            and portfolio_name
-            and entity
-            and project
-            and aliases
-        ):
+        if (client_id or server_id) and portfolio_name and entity and project:
             try:
                 self._api.link_artifact(
                     client_id, server_id, portfolio_name, entity, project, aliases
