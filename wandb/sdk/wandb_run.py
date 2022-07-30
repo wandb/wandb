@@ -3380,8 +3380,8 @@ class Run:
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
-                    f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
+                    f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
+                    f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
                     level="warn",
                 )
 
