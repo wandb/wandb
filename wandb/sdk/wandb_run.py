@@ -2240,11 +2240,7 @@ class Run:
 
     @staticmethod
     def _unregister_telemetry_import_hooks(run_id: str) -> None:
-        import_telemetry_set = {
-            desc.name
-            for desc in telemetry.TelemetryImports.DESCRIPTOR.fields
-            if desc.type == desc.TYPE_BOOL
-        }
+        import_telemetry_set = telemetry.list_telemetry_imports()
         for module_name in import_telemetry_set:
             unregister_post_import_hook(module_name, run_id)
 
