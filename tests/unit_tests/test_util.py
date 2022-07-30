@@ -454,18 +454,39 @@ def test_check_retry_conflict():
     assert util.check_retry_conflict(e) is True
 
 
+def test_check_retry_conflict_or_gone():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    e.response.status_code = 400
+    assert util.check_retry_conflict_or_gone(e) is None
+
+    e.response.status_code = 410
+    assert util.check_retry_conflict_or_gone(e) is False
+
+    e.response.status_code = 500
+    assert util.check_retry_conflict_or_gone(e) is None
+
+    e.response.status_code = 409
+    assert util.check_retry_conflict_or_gone(e) is True
+
+
 def test_make_check_reply_fn_timeout():
     """Verify case where secondary check returns a new timeout."""
     e = mock.MagicMock(spec=requests.HTTPError)
     e.response = mock.MagicMock(spec=requests.Response)
 
     check_retry_fn = util.make_check_retry_fn(
-        check_fn=util.check_retry_conflict,
+        check_fn=util.check_retry_conflict_or_gone,
         check_timedelta=datetime.timedelta(minutes=3),
         fallback_retry_fn=util.no_retry_auth,
     )
 
     e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 410
     check = check_retry_fn(e)
     assert check is False
 
