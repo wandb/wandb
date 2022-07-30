@@ -80,20 +80,22 @@ DictNoValues = NewType("DictNoValues", Dict[str, Any])
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
-def _framework_priority(
-    imp: telemetry.TelemetryImports,
-) -> Generator[Tuple[bool, str], None, None]:
-    yield imp.lightgbm, "lightgbm"
-    yield imp.catboost, "catboost"
-    yield imp.xgboost, "xgboost"
-    yield imp.transformers_huggingface, "huggingface"
-    yield imp.pytorch_ignite, "ignite"
-    yield imp.pytorch_lightning, "lightning"
-    yield imp.fastai, "fastai"
-    yield imp.torch, "torch"
-    yield imp.keras, "keras"
-    yield imp.tensorflow, "tensorflow"
-    yield imp.sklearn, "sklearn"
+def _framework_priority() -> Generator[Tuple[str, str], None, None]:
+    yield from [
+        ("lightgbm", "lightgbm"),
+        ("catboost", "catboost"),
+        ("xgboost", "xgboost"),
+        ("transformers_huggingface", "huggingface"),  # backwards compatibility
+        ("transformers", "huggingface"),
+        ("pytorch_ignite", "ignite"),  # backwards compatibility
+        ("ignite", "ignite"),
+        ("pytorch_lightning", "lightning"),
+        ("fastai", "fastai"),
+        ("torch", "torch"),
+        ("keras", "keras"),
+        ("tensorflow", "tensorflow"),
+        ("sklearn", "sklearn"),
+    ]
 
 
 class ResumeState:
@@ -642,15 +644,16 @@ class SendManager:
     def _telemetry_get_framework(self) -> str:
         """Get telemetry data for internal config structure."""
         # detect framework by checking what is loaded
-        imp: telemetry.TelemetryImports
+        imports: telemetry.TelemetryImports
         if self._telemetry_obj.HasField("imports_finish"):
-            imp = self._telemetry_obj.imports_finish
+            imports = self._telemetry_obj.imports_finish
         elif self._telemetry_obj.HasField("imports_init"):
-            imp = self._telemetry_obj.imports_init
+            imports = self._telemetry_obj.imports_init
         else:
             return ""
-        priority = _framework_priority(imp)
-        framework = next((f for b, f in priority if b), "")
+        framework = next(
+            (n for f, n in _framework_priority() if getattr(imports, f, False)), ""
+        )
         return framework
 
     def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
@@ -1183,13 +1186,7 @@ class SendManager:
         logger.debug(
             f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
         )
-        if (
-            (client_id or server_id)
-            and portfolio_name
-            and entity
-            and project
-            and aliases
-        ):
+        if (client_id or server_id) and portfolio_name and entity and project:
             try:
                 self._api.link_artifact(
                     client_id, server_id, portfolio_name, entity, project, aliases
@@ -1269,7 +1266,7 @@ class SendManager:
                 max_cli_version
             ) < parse_version("0.10.16"):
                 logger.warning(
-                    "This W&B server doesn't support distributed artifacts, "
+                    "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
                 return None
