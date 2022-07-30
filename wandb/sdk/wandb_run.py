@@ -2427,7 +2427,7 @@ class Run:
         self,
         artifact: Union[public.Artifact, Artifact],
         target_path: str,
-        aliases: List[str],
+        aliases: Optional[List[str]] = None,
     ) -> None:
         """Links the given artifact to a portfolio (a promoted collection of artifacts).
 
@@ -2445,6 +2445,8 @@ class Run:
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+        if aliases is None:
+            aliases = []
 
         if self._backend and self._backend.interface:
             if not self._settings._offline:
