@@ -26,9 +26,9 @@ from typing import (
     TextIO,
     Tuple,
     Type,
+    TYPE_CHECKING,
     Union,
 )
-from typing import TYPE_CHECKING
 
 import requests
 import wandb
@@ -42,6 +42,10 @@ from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
     RunRecord,
+)
+from wandb.sdk.lib.import_hooks import (
+    register_post_import_hook,
+    unregister_post_import_hook,
 )
 from wandb.util import (
     _is_artifact_object,
@@ -615,27 +619,6 @@ class Run:
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
             raise Exception(f"Attribute {attr} is not supported on Run object.")
         super().__setattr__(attr, value)
-
-    @staticmethod
-    def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
-        telem_map = dict(
-            pytorch_ignite="ignite",
-            transformers_huggingface="transformers",
-        )
-
-        # calculate mod_map, a mapping from module_name to telem_name
-        mod_map = dict()
-        for desc in imp.DESCRIPTOR.fields:
-            if desc.type != desc.TYPE_BOOL:
-                continue
-            telem_name = desc.name
-            mod_name = telem_map.get(telem_name, telem_name)
-            mod_map[mod_name] = telem_name
-
-        # set telemetry field for every module loaded that we track
-        mods_set = set(sys.modules)
-        for mod in mods_set.intersection(mod_map):
-            setattr(imp, mod_map[mod], True)
 
     def _update_settings(self, settings: Settings) -> None:
         self._settings = settings
@@ -2029,8 +2012,34 @@ class Run:
         self._is_attached = True
         self._on_ready()
 
+    def _register_telemetry_import_hooks(
+        self,
+    ) -> None:
+        def _telemetry_import_hook(
+            run: "Run",
+            module: Any,
+        ) -> None:
+            with telemetry.context(run=run) as tel:
+                try:
+                    name = getattr(module, "__name__", None)
+                    if name is not None:
+                        setattr(tel.imports_finish, name, True)
+                except AttributeError:
+                    return
+
+        import_telemetry_set = telemetry.list_telemetry_imports()
+        import_hook_fn = functools.partial(_telemetry_import_hook, self)
+        for module_name in import_telemetry_set:
+            register_post_import_hook(
+                import_hook_fn,
+                self._run_id,
+                module_name,
+            )
+
     def _on_ready(self) -> None:
         """Event triggered when run is ready for the user."""
+        self._register_telemetry_import_hooks()
+
         # start reporting any telemetry changes
         self._telemetry_obj_active = True
         self._telemetry_flush()
@@ -2185,9 +2194,6 @@ class Run:
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
-        # populate final import telemetry
-        with telemetry.context(run=self) as tel:
-            self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
@@ -2198,9 +2204,6 @@ class Run:
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         if self._backend and self._backend.interface:
-            # telemetry could have changed, publish final data
-            self._telemetry_flush()
-
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
@@ -2232,6 +2235,14 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.join()
+
+        self._unregister_telemetry_import_hooks(self._run_id)
+
+    @staticmethod
+    def _unregister_telemetry_import_hooks(run_id: str) -> None:
+        import_telemetry_set = telemetry.list_telemetry_imports()
+        for module_name in import_telemetry_set:
+            unregister_post_import_hook(module_name, run_id)
 
     def _on_final(self) -> None:
         self._footer(
