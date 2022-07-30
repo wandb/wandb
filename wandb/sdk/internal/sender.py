@@ -80,6 +80,10 @@ DictNoValues = NewType("DictNoValues", Dict[str, Any])
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
+# Enable network tracing for debugging only
+NETTRACE = os.environ.get("WANDB_DEBUG_NETWORK_TRACE")
+
+
 def _framework_priority(
     imp: telemetry.TelemetryImports,
 ) -> Generator[Tuple[bool, str], None, None]:
@@ -285,6 +289,8 @@ class SendManager:
         return self._record_q.qsize()
 
     def retry_callback(self, status: int, response_text: str) -> None:
+        if NETTRACE:
+            logger.debug(f"nettrace_retry: {status} {response_text}")
         response = wandb_internal_pb2.HttpResponse()
         response.http_status_code = status
         response.http_response_text = response_text

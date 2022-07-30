@@ -86,6 +86,10 @@ if TYPE_CHECKING:
     Number = Union[int, float]
 
 
+# Enable network tracing for debugging only
+NETTRACE = os.environ.get("WANDB_DEBUG_NETWORK_TRACE")
+
+
 # class _MappingSupportsCopy(Protocol):
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
@@ -201,7 +205,12 @@ class Api:
     def execute(self, *args: Any, **kwargs: Any) -> "_Response":
         """Wrapper around execute that logs in cases of failure."""
         try:
-            return self.client.execute(*args, **kwargs)  # type: ignore
+            if NETTRACE:
+                logger.debug(f"nettrace_send: {args} {kwargs}")
+            resp = self.client.execute(*args, **kwargs)  # type: ignore
+            if NETTRACE:
+                logger.debug(f"nettrace_resp: {resp}")
+            return resp
         except requests.exceptions.HTTPError as err:
             res = err.response
             logger.error(f"{res.status_code} response executing GraphQL.")
