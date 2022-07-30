@@ -1183,13 +1183,7 @@ class SendManager:
         logger.debug(
             f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
         )
-        if (
-            (client_id or server_id)
-            and portfolio_name
-            and entity
-            and project
-            and aliases
-        ):
+        if (client_id or server_id) and portfolio_name and entity and project:
             try:
                 self._api.link_artifact(
                     client_id, server_id, portfolio_name, entity, project, aliases
@@ -1269,7 +1263,7 @@ class SendManager:
                 max_cli_version
             ) < parse_version("0.10.16"):
                 logger.warning(
-                    "This W&B server doesn't support distributed artifacts, "
+                    "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
                 return None

@@ -973,7 +973,9 @@ class Run:
 
             Advanced usage
             ```python
-            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            run.log_code(
+                "../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb")
+            )
             ```
 
         Returns:
@@ -1485,18 +1487,20 @@ class Run:
             <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'accuracy': 0.9, 'epoch': 5})
+            wandb.log({"accuracy": 0.9, "epoch": 5})
             ```
 
             ### Incremental logging
             <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'loss': 0.2}, commit=False)
+            wandb.log({"loss": 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
-            wandb.log({'accuracy': 0.8})
+            wandb.log({"accuracy": 0.8})
             ```
 
             ### Histogram
@@ -1572,15 +1576,20 @@ class Run:
 
             ### PR Curve
             ```python
-            wandb.log({'pr': wandb.plots.precision_recall(y_test, y_probas, labels)})
+            wandb.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
             ### 3D Object
             ```python
-            wandb.log({"generated_samples":
-            [wandb.Object3D(open("sample.obj")),
-                wandb.Object3D(open("sample.gltf")),
-                wandb.Object3D(open("sample.glb"))]})
+            wandb.log(
+                {
+                    "generated_samples": [
+                        wandb.Object3D(open("sample.obj")),
+                        wandb.Object3D(open("sample.gltf")),
+                        wandb.Object3D(open("sample.glb")),
+                    ]
+                }
+            )
             ```
 
         Raises:
@@ -2403,7 +2412,7 @@ class Run:
         self,
         artifact: Union[public.Artifact, Artifact],
         target_path: str,
-        aliases: List[str],
+        aliases: Optional[List[str]] = None,
     ) -> None:
         """Links the given artifact to a portfolio (a promoted collection of artifacts).
 
@@ -2421,6 +2430,8 @@ class Run:
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+        if aliases is None:
+            aliases = []
 
         if self._backend and self._backend.interface:
             if not self._settings._offline:
@@ -3358,8 +3369,8 @@ class Run:
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
-                    f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
+                    f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
+                    f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
                     level="warn",
                 )
 
