@@ -55,7 +55,7 @@ def test_magic(notebook):
                 text += out["data"]["text/html"]
             iframes += 1
         assert notebook.base_url in text
-        assert iframes == 4
+        assert iframes == 5
 
 
 @pytest.mark.flaky
