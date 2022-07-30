@@ -8,6 +8,7 @@ import logging
 import os
 import platform
 import re
+import socket
 import sys
 import threading
 import time
@@ -2441,6 +2442,30 @@ class ParseCTX:
         return d
 
 
+orig_socket_socket = socket.socket
+
+
+def mock_socket_socket(*args, **kwargs):
+    class MockSocket:
+        def __init__(self, sock):
+            self._sock = sock
+
+        def __getattr__(self, item):
+            return getattr(self._sock, item)
+
+        def bind(self, *args, **kwargs):
+            ret = self._sock.bind(*args, **kwargs)
+            port_file = os.environ.get("PORT_FILE")
+            if port_file:
+                _host, port = self._sock.getsockname()
+                with open(port_file, "w") as f:
+                    f.write(f"{port}\n")
+            return ret
+
+    sock = orig_socket_socket(*args, **kwargs)
+    return MockSocket(sock)
+
+
 if __name__ == "__main__":
     use_yea = "--yea" in sys.argv[1:]
     load_modules(use_yea=use_yea)
@@ -2454,4 +2479,5 @@ if __name__ == "__main__":
     if mockserver_bind:
         kwargs["host"] = mockserver_bind
 
+    socket.socket = mock_socket_socket
     app.run(debug=False, port=int(os.environ.get("PORT", 8547)), **kwargs)
