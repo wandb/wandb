@@ -51,6 +51,7 @@ api = wandb.Api()
 artifact = api.artifact(f"{run.project}/model-{run.name}:latest")
 download_dir = artifact.download()
 files = os.listdir(download_dir)
+print("FILES", files)
 assert files[0] == "variables"
 assert files[1] == "keras_metadata.pb"
 assert files[2] == "saved_model.pb"
