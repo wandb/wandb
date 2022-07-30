@@ -8,6 +8,7 @@ import logging
 import os
 import platform
 import re
+import socket
 import sys
 import threading
 import time
@@ -2439,23 +2440,6 @@ class ParseCTX:
         for k, v in items.items():
             d[k] = getattr(self, v)
         return d
-
-
-import socketserver
-
-original_socket_bind = socketserver.TCPServer.server_bind
-
-
-def socket_bind_wrapper(self):
-    ret = original_socket_bind(self)
-    print("******* Socket running at {}:{}".format(*self.socket.getsockname()))
-    # Recover original implementation
-    socketserver.TCPServer.server_bind = original_socket_bind
-    return ret
-
-
-from unittest import mock
-import socket
 
 
 orig_socket_socket = socket.socket
