@@ -1457,7 +1457,7 @@ class Api:
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
         check_retry_fn = util.make_check_retry_fn(
-            check_fn=util.is_conflict,
+            check_fn=util.check_retry_conflict_or_gone,
             check_timedelta=datetime.timedelta(minutes=2),
             fallback_retry_fn=util.no_retry_auth,
         )
@@ -2691,7 +2691,7 @@ class Api:
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
         check_retry_fn = util.make_check_retry_fn(
-            check_fn=util.is_conflict,
+            check_fn=util.check_retry_conflict,
             check_timedelta=datetime.timedelta(minutes=2),
             fallback_retry_fn=util.no_retry_auth,
         )

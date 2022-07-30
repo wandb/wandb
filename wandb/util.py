@@ -889,7 +889,7 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
-def is_conflict(e: Any) -> Optional[bool]:
+def check_retry_conflict(e: Any) -> Optional[bool]:
     """Check if the exception is a conflict type so it can be retried.
 
     Returns:
@@ -899,12 +899,27 @@ def is_conflict(e: Any) -> Optional[bool]:
     """
     if hasattr(e, "exception"):
         e = e.exception
-    if (
-        isinstance(e, requests.HTTPError)
-        and e.response is not None
-        and e.response.status_code == 409
-    ):
-        return True
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+    return None
+
+
+def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict or gone type so it can be retried or not.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+        if e.response.status_code == 410:
+            return False
     return None
 
 

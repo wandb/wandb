@@ -445,13 +445,13 @@ def test_check_retry_conflict():
     e.response = mock.MagicMock(spec=requests.Response)
 
     e.response.status_code = 400
-    assert util.is_conflict(e) is None
+    assert util.check_retry_conflict(e) is None
 
     e.response.status_code = 500
-    assert util.is_conflict(e) is None
+    assert util.check_retry_conflict(e) is None
 
     e.response.status_code = 409
-    assert util.is_conflict(e) is True
+    assert util.check_retry_conflict(e) is True
 
 
 def test_make_check_reply_fn_timeout():
@@ -460,7 +460,7 @@ def test_make_check_reply_fn_timeout():
     e.response = mock.MagicMock(spec=requests.Response)
 
     check_retry_fn = util.make_check_retry_fn(
-        check_fn=util.is_conflict,
+        check_fn=util.check_retry_conflict,
         check_timedelta=datetime.timedelta(minutes=3),
         fallback_retry_fn=util.no_retry_auth,
     )

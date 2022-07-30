@@ -2,7 +2,6 @@ plugin:
   - wandb
 tag:
   shard: standalone-cpu
-  skip: true
 command:
   program: two_runs.py
   args:
@@ -11,3 +10,6 @@ assert:
   - :op:!=:
     - :yea:exit
     - 0
+  - :op:<:
+    - :yea:time
+    - 360
