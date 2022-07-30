@@ -80,20 +80,22 @@ DictNoValues = NewType("DictNoValues", Dict[str, Any])
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
-def _framework_priority(
-    imp: telemetry.TelemetryImports,
-) -> Generator[Tuple[bool, str], None, None]:
-    yield imp.lightgbm, "lightgbm"
-    yield imp.catboost, "catboost"
-    yield imp.xgboost, "xgboost"
-    yield imp.transformers_huggingface, "huggingface"
-    yield imp.pytorch_ignite, "ignite"
-    yield imp.pytorch_lightning, "lightning"
-    yield imp.fastai, "fastai"
-    yield imp.torch, "torch"
-    yield imp.keras, "keras"
-    yield imp.tensorflow, "tensorflow"
-    yield imp.sklearn, "sklearn"
+def _framework_priority() -> Generator[Tuple[str, str], None, None]:
+    yield from [
+        ("lightgbm", "lightgbm"),
+        ("catboost", "catboost"),
+        ("xgboost", "xgboost"),
+        ("transformers_huggingface", "huggingface"),  # backwards compatibility
+        ("transformers", "huggingface"),
+        ("pytorch_ignite", "ignite"),  # backwards compatibility
+        ("ignite", "ignite"),
+        ("pytorch_lightning", "lightning"),
+        ("fastai", "fastai"),
+        ("torch", "torch"),
+        ("keras", "keras"),
+        ("tensorflow", "tensorflow"),
+        ("sklearn", "sklearn"),
+    ]
 
 
 class ResumeState:
@@ -642,15 +644,16 @@ class SendManager:
     def _telemetry_get_framework(self) -> str:
         """Get telemetry data for internal config structure."""
         # detect framework by checking what is loaded
-        imp: telemetry.TelemetryImports
+        imports: telemetry.TelemetryImports
         if self._telemetry_obj.HasField("imports_finish"):
-            imp = self._telemetry_obj.imports_finish
+            imports = self._telemetry_obj.imports_finish
         elif self._telemetry_obj.HasField("imports_init"):
-            imp = self._telemetry_obj.imports_init
+            imports = self._telemetry_obj.imports_init
         else:
             return ""
-        priority = _framework_priority(imp)
-        framework = next((f for b, f in priority if b), "")
+        framework = next(
+            (n for f, n in _framework_priority() if getattr(imports, f, False)), ""
+        )
         return framework
 
     def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
