@@ -4,6 +4,7 @@ import logging
 import os
 import platform
 import queue
+import random
 import shutil
 import subprocess
 import sys
@@ -67,16 +68,38 @@ def test_cleanup(*args, **kwargs):
     print(proc.open_files())
 
 
+def wait_for_port_file(port_file):
+    port = 0
+    start_time = time.time()
+    while not port:
+        try:
+            port = int(open(port_file).read().strip())
+            if port:
+                break
+        except Exception as e:
+            print(f"Problem parsing port file: {e}")
+        now = time.time()
+        if now > start_time + 30:
+            raise Exception(f"Could not start server {now} {start_time}")
+        time.sleep(0.5)
+    return port
+
+
 def start_mock_server(worker_id):
     """We start a flask server process for each pytest-xdist worker_id"""
-    port = utils.free_port()
     this_folder = os.path.dirname(__file__)
     path = os.path.join(this_folder, "utils", "mock_server.py")
     command = [sys.executable, "-u", path]
     env = os.environ
-    env["PORT"] = str(port)
+    env["PORT"] = "0"  # Let the server find its own port
     env["PYTHONPATH"] = os.path.abspath(os.path.join(this_folder, os.pardir))
     logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
+    pid = os.getpid()
+    rand = random.randint(0, 2**32)
+    port_file = os.path.join(
+        this_folder, "logs", f"live_mock_server-{worker_id}-{pid}-{rand}.port"
+    )
+    env["PORT_FILE"] = port_file
     logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
@@ -86,6 +109,8 @@ def start_mock_server(worker_id):
         bufsize=1,
         close_fds=True,
     )
+
+    port = wait_for_port_file(port_file)
     server._port = port
     server.base_url = f"http://localhost:{server._port}"
 

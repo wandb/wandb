@@ -21,7 +21,7 @@ assert:
     - 50
   - :op:<:
     - :yea:profile[:wandb:init][mean]
-    - 3
+    - 6
   - :op:<:
     - :yea:profile[:wandb:finish][mean]
     - 40
