@@ -2453,6 +2453,12 @@ def mock_socket_socket(*args, **kwargs):
         def __getattr__(self, item):
             return getattr(self._sock, item)
 
+        def __enter__(self):
+            return self._sock.__enter__()
+
+        def __exit__(self, *args):
+            self._sock.__exit__(*args)
+
         def bind(self, *args, **kwargs):
             ret = self._sock.bind(*args, **kwargs)
             port_file = os.environ.get("PORT_FILE")
@@ -2479,5 +2485,7 @@ if __name__ == "__main__":
     if mockserver_bind:
         kwargs["host"] = mockserver_bind
 
-    socket.socket = mock_socket_socket
+    # if a portfile is specified we need to mock socket to get the port
+    if os.environ.get("PORT_FILE"):
+        socket.socket = mock_socket_socket
     app.run(debug=False, port=int(os.environ.get("PORT", 8547)), **kwargs)
