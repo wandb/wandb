@@ -8,12 +8,13 @@ import logging
 import os
 import platform
 import re
+import socket
 import sys
 import threading
 import time
 import urllib.parse
 
-from flask import Flask, request, g, jsonify
+from flask import Flask, request, g, jsonify, make_response
 import requests
 from werkzeug.exceptions import BadRequest
 import yaml
@@ -394,7 +395,9 @@ class SnoopRelay:
 
                 resp = requests.post(url, json=body)
                 data = resp.json()
-                run_obj = data.get("data", {}).get("upsertBucket", {}).get("bucket", {})
+                run_obj = ((data.get("data") or {}).get("upsertBucket") or {}).get(
+                    "bucket"
+                ) or {}
                 project_obj = run_obj.get("project", {})
 
                 run_id = run_obj.get("name")
@@ -417,7 +420,7 @@ class SnoopRelay:
                         # print("INJECT", self._inject_count, time_now, self._inject_time)
                         time.sleep(12)
                         raise HttpException("some error", status_code=500)
-                return data
+                return make_response(jsonify(data), resp.status_code)
             assert False  # we do not support get requests yet, and likely never will :)
 
             return func(*args, **kwargs)
@@ -2372,7 +2375,7 @@ class ParseCTX:
 
     @property
     def config_raw(self):
-        return self._ctx["config"][-1]
+        return (self._ctx.get("config") or [{}])[-1]
 
     @property
     def config_user(self):
@@ -2465,6 +2468,36 @@ class ParseCTX:
         return d
 
 
+orig_socket_socket = socket.socket
+
+
+def mock_socket_socket(*args, **kwargs):
+    class MockSocket:
+        def __init__(self, sock):
+            self._sock = sock
+
+        def __getattr__(self, item):
+            return getattr(self._sock, item)
+
+        def __enter__(self):
+            return self._sock.__enter__()
+
+        def __exit__(self, *args):
+            self._sock.__exit__(*args)
+
+        def bind(self, *args, **kwargs):
+            ret = self._sock.bind(*args, **kwargs)
+            port_file = os.environ.get("PORT_FILE")
+            if port_file:
+                _host, port = self._sock.getsockname()
+                with open(port_file, "w") as f:
+                    f.write(f"{port}\n")
+            return ret
+
+    sock = orig_socket_socket(*args, **kwargs)
+    return MockSocket(sock)
+
+
 if __name__ == "__main__":
     use_yea = "--yea" in sys.argv[1:]
     load_modules(use_yea=use_yea)
@@ -2478,4 +2511,7 @@ if __name__ == "__main__":
     if mockserver_bind:
         kwargs["host"] = mockserver_bind
 
+    # if a portfile is specified we need to mock socket to get the port
+    if os.environ.get("PORT_FILE"):
+        socket.socket = mock_socket_socket
     app.run(debug=False, port=int(os.environ.get("PORT", 8547)), **kwargs)
