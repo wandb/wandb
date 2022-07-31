@@ -3,11 +3,7 @@
   <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
 </p>
 
-# Weights and Biases 
-[![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb)
-[![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb)
-[![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/master)](https://circleci.com/gh/wandb/wandb) 
-[![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
+# Weights and Biases [![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb) [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb) [![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/master)](https://circleci.com/gh/wandb/wandb) [![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
 
