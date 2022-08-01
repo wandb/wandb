@@ -1,3 +1,55 @@
+## 0.13.0 (August 4, 2022)
+
+#### :nail_care: Enhancement
+* Turns service on by default by @kptkin in https://github.com/wandb/wandb/pull/3895
+* Adds support logic for handling server provided messages by @kptkin in https://github.com/wandb/wandb/pull/3706
+* Allows runs to produce jobs on finish by @KyleGoyette in https://github.com/wandb/wandb/pull/3810
+* Adds Job, QueuedRun and job handling in launch by @KyleGoyette in https://github.com/wandb/wandb/pull/3809
+* Supports in launch agent of instance roles in ec2 and eks by @KyleGoyette in https://github.com/wandb/wandb/pull/3596
+* Adds default behavior to the Keras Callback: always save model checkpoints as artifacts by @vwrj in https://github.com/wandb/wandb/pull/3909
+* Sanitizes the artifact name in the KerasCallback for model artifact saving by @vwrj in https://github.com/wandb/wandb/pull/3927
+* Improves console logging by moving emulator to the service process by @raubitsj in https://github.com/wandb/wandb/pull/3828
+* Fixes data corruption issue when logging large sizes of data by @kptkin in https://github.com/wandb/wandb/pull/3920
+* Adds the state to the Sweep repr in the Public API by @hu-po in https://github.com/wandb/wandb/pull/3948
+* Adds an option to specify different root dir for git using settings or environment variables by @bcsherma in https://github.com/wandb/wandb/pull/3250
+* Adds an option to pass `remote url` and `commit hash` as arguments to settings or as environment variables by @kptkin in https://github.com/wandb/wandb/pull/3934
+* Improves time resolution for tracked metrics and for system metrics by @raubitsj in https://github.com/wandb/wandb/pull/3918
+* Defaults to project name from the sweep config when project is not specified in the `wandb.sweep()` call by @hu-po in https://github.com/wandb/wandb/pull/3919
+* Adds support to use namespace set user by the the launch agent by @KyleGoyette in https://github.com/wandb/wandb/pull/3950
+* Ensures `metadata` passed to `Artifact()` is a legal dict by @speezepearson in https://github.com/wandb/wandb/pull/3975
+* Adds telemetry to track when a run might be overwritten by @raubitsj in https://github.com/wandb/wandb/pull/3998
+* Adds a tool to export `wandb`'s history into `sqlite` by @raubitsj in https://github.com/wandb/wandb/pull/3999
+* Replaces some `Mapping[str, ...]` types with `NamedTuples` by @speezepearson in https://github.com/wandb/wandb/pull/3996
+* Adds import hook for run telemetry by @kptkin in https://github.com/wandb/wandb/pull/3988
+* Implements profiling support for IPUs by @cameron-martin in https://github.com/wandb/wandb/pull/3897
+#### :bug: Bug Fix
+* Fixes sweep agent with service by @raubitsj in https://github.com/wandb/wandb/pull/3899
+* Fixes an empty type equals invalid type and how artifact dictionaries are handled by @KyleGoyette in https://github.com/wandb/wandb/pull/3904
+* Fixes `wandb.Config` object to support default values when getting an attribute by @farizrahman4u in https://github.com/wandb/wandb/pull/3820
+* Removes default config from jobs by @KyleGoyette in https://github.com/wandb/wandb/pull/3973
+* Fixes an issue where patch is `None` by @KyleGoyette in https://github.com/wandb/wandb/pull/4003
+* Fixes requirements.txt parsing in nightly SDK installation checks by @dmitryduev in https://github.com/wandb/wandb/pull/4012
+* Fixes 409 Conflict handling when GraphQL requests timeout by @raubitsj in https://github.com/wandb/wandb/pull/4000
+* Fixes service teardown handling if user process has been terminated by @raubitsj in https://github.com/wandb/wandb/pull/4024
+* Adds `storage_path` and fixed `artifact.files` by @vanpelt in https://github.com/wandb/wandb/pull/3969
+* Fixes performance issue syncing runs with a large number of media files by @vanpelt in https://github.com/wandb/wandb/pull/3941
+#### :broom: Cleanup
+* Adds an escape hatch logic to disable service by @kptkin in https://github.com/wandb/wandb/pull/3829
+* Annotates `wandb/docker` and reverts change in the docker fixture by @dmitryduev in https://github.com/wandb/wandb/pull/3871
+* Fixes GFLOPS to GFLOPs in the Keras `WandbCallback` by @ayulockin in https://github.com/wandb/wandb/pull/3913
+* Adds type-annotate for `file_stream.py` by @dmitryduev in https://github.com/wandb/wandb/pull/3907
+* Renames repository from `client` to `wandb` by @dmitryduev in https://github.com/wandb/wandb/pull/3977
+* Updates documentation: adding `--report_to wandb` for HuggingFace Trainer by @ayulockin in https://github.com/wandb/wandb/pull/3959
+* Makes aliases optional in link_artifact by @vwrj in https://github.com/wandb/wandb/pull/3986
+* Renames `wandb local` to `wandb server` by @jsbroks in https://github.com/wandb/wandb/pull/3793
+* Updates README badges by @raubitsj in https://github.com/wandb/wandb/pull/4023
+
+## New Contributors
+* @bcsherma made their first contribution in https://github.com/wandb/wandb/pull/3250
+* @cameron-martin made their first contribution in https://github.com/wandb/wandb/pull/3897
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.12.21...v0.13.0
+
 ## 0.12.21 (July 5, 2022)
 
 #### :nail_care: Enhancement
