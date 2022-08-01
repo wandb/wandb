@@ -19,13 +19,15 @@ class _Service:
     _grpc_port: Optional[int]
     _sock_port: Optional[int]
     _service_interface: ServiceInterface
-    _internal_proc: Optional[subprocess.Popen] = None
+    _internal_proc: Optional[subprocess.Popen]
 
     def __init__(self, _use_grpc: bool = False) -> None:
         self._use_grpc = _use_grpc
         self._stub = None
         self._grpc_port = None
         self._sock_port = None
+        self._internal_proc = None
+
         # current code only supports grpc or socket server implementation, in the
         # future we might be able to support both
         if _use_grpc:
