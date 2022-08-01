@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
-from wandb.sdk.launch.utils import construct_launch_spec, validate_launch_spec_source
+from wandb.sdk.launch.utils import (
+    construct_launch_spec,
+    validate_launch_spec_source,
+    set_project_entity_defaults,
+)
 
 
 def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
@@ -33,6 +37,7 @@ def launch_add(
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
+    build: Optional[bool] = False,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -115,6 +120,7 @@ def _launch_add(
     resource_args: Optional[Dict[str, Any]] = None,
     cuda: Optional[bool] = None,
     run_id: Optional[str] = None,
+    build: Optional[bool] = False,
 ) -> "public.QueuedRun":
 
     resource = resource or "local"
@@ -147,6 +153,152 @@ def _launch_add(
         cuda,
         run_id,
     )
+
+    if build:
+        # To be refactored
+        from wandb.sdk.launch.builder.loader import load_builder
+        from wandb.sdk.launch._project_spec import (
+            create_project_from_spec,
+            EntryPoint,
+            EntrypointDefaults,
+        )
+
+        wandb.termlog("Building docker image and pushing to queue")
+
+        docker_args = {}
+        builder_config = {"type": "docker"}
+
+        builder = load_builder(builder_config)
+        project, entity = set_project_entity_defaults(
+            uri,
+            api,
+            project,
+            entity,
+            launch_config,
+        )
+
+        repository: Optional[str] = launch_config.get("url")
+        launch_project = create_project_from_spec(launch_spec, api)
+        entry_point = (
+            entry_point or launch_spec.get("entry_point") or EntrypointDefaults.PYTHON
+        )
+
+        entry_point = EntryPoint(*entry_point)
+
+        print(f"{entry_point=}, {entry_point.name=}, {entry_point.command=}")
+        launch_project.override_args = {}
+
+        image_uri = builder.build_image(
+            launch_project,
+            repository,  # Always None?
+            entry_point,
+            docker_args,  # docker_args
+        )
+
+        # Replace given URI with newly created docker image
+        launch_project.docker_image = image_uri
+        launch_spec["docker"]["docker_image"] = image_uri
+        if uri:  # delete given uri... TODO: move somwhere ?
+            # or perhaps if given image + uri, default to image?
+            wandb.termwarn(f"Overwriting given {uri=} with {image_uri=}")
+            launch_spec["uri"] = None
+
+        # from wandb.sdk.wandb_run import log_artifact  # JobSourceDict
+        # from wandb.sdk.wandb_artifacts import Artifact
+        # import os
+
+        # job_name = wandb.util.make_artifact_name_safe(f"{JOB}-{image_uri}")
+        # input_types = {}
+        # output_types = {}
+        # installed_packages_list = []
+        # # python_runtime = ""
+
+        # source_info = {
+        #     "_version": "v0",
+        #     "source_type": "image",
+        #     "source": {"image": docker_image_name},
+        #     "input_types": input_types,
+        #     "output_types": output_types,
+        #     # "runtime": python_runtime,
+        # }
+
+        # def _construct_job_artifact(
+        #     name: str,
+        #     source_dict: dict,  # "JobSourceDict",
+        #     installed_packages_list: List[str],
+        #     patch_path: Optional[os.PathLike] = None,
+        # ) -> "Artifact":
+        #     job_artifact = wandb.Artifact(name, type=JOB)
+        #     if patch_path and os.path.exists(patch_path):
+        #         job_artifact.add_file(patch_path, "diff.patch")
+        #     with job_artifact.new_file("requirements.frozen.txt") as f:
+        #         f.write("\n".join(installed_packages_list))
+        #     with job_artifact.new_file("wandb-job.json") as f:
+        #         f.write(json.dumps(source_dict))
+
+        #     return job_artifact
+
+        # job_artifact = _construct_job_artifact(
+        #     job_name, source_info, installed_packages_list
+        # )
+
+        # print(f"Constructed {job_artifact=}")
+
+        # job_artifact.finalize()  # what does this do?
+
+        # Create job from run?
+        # if wandb.run is not None:
+        #     run = wandb.run
+        # else:
+        #     run = wandb.init(
+        #         project=project, job_type=JOB, settings=wandb.Settings(silent="true")
+        #     )
+
+        # job_artifact = run._construct_job_artifact(
+        #     job_name, source_info, installed_packages_list
+        # )
+
+        # We create the artifact manually to get the current version
+        # res, _ = api.create_artifact(
+        #     type,
+        #     artifact_name,
+        #     artifact.digest,
+        #     client_id=artifact._client_id,
+        #     sequence_client_id=artifact._sequence_client_id,
+        #     entity_name=entity,
+        #     project_name=project,
+        #     run_name=run.id,
+        #     description=description,
+        #     aliases=[
+        #         {"artifactCollectionName": artifact_name, "alias": a} for a in alias
+        #     ],
+        # )
+
+        # run.log_artifact(art)  # , aliases=job_artifact.aliases, type=JOB)
+
+        # Can't import class function from wandb_run, but this is what I want
+        # log_artifact(job_artifact, job_name, type=JOB)
+
+        # Upload Job
+        # artifact_collection_name = job_name.split(":")[0]
+        # public_api.create_artifact(
+        #     job_artifact.type,
+        #     artifact_collection_name,
+        #     job_artifact.digest,
+        #     aliases=job_artifact.aliases,
+        # )
+
+        # from wandb.sdk.internal.internal_api import Api as InternalApi
+
+        # # temporarily experiment with the internal API for job logging/art creation
+        # InternalApi.create_artifact(
+        #     JOB,
+        #     artifact_collection_name=artifact_collection_name,
+        #     digest="",
+        #     entity_name=entity,
+        #     project_name=project,
+        # )
+
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue, launch_spec)
 
@@ -170,4 +322,5 @@ def _launch_add(
         res["runQueueItemId"],
         container_job,
     )
+
     return queued_run  # type: ignore
