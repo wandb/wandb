@@ -676,11 +676,7 @@ class _WandbInit:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
                 if active_start_method != "fork":
-                    error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
-                    error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
-                    error_message += (
-                        f"\nFor more info see: {wburls.get('doc_start_err')}"
-                    )
+                    error_message += f"\nFor more info see: {wburls.get('doc_start_err')}"
             elif run_result.error:
                 error_message = run_result.error.message
             if error_message:
