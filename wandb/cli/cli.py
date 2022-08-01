@@ -1088,6 +1088,15 @@ def sweep(
     help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
     "built by default and you must set --cuda=False to build a CPU-only image.",
 )
+@click.option(
+    "--build",
+    "-b",
+    is_flag=True,
+    help="(Experimental) Allow users to build image on queue using the Job artifact \
+        requires --queue to be set, \
+        default is false. \
+        addresses [WB-10393] -- ",
+)
 @display_error
 def launch(
     uri,
@@ -1105,6 +1114,7 @@ def launch(
     run_async,
     resource_args,
     cuda,
+    build,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a GitHub repo uri or a local path.
@@ -1165,6 +1175,8 @@ def launch(
         resource = config.get("resource")
     elif resource is None:
         resource = "local-container"
+    if build and queue is None:
+        raise LaunchError("Build flag requires a queue to be set")
 
     if queue is None:
         # direct launch
@@ -1193,6 +1205,7 @@ def launch(
             logger.error("=== %s ===", e)
             sys.exit(e)
     else:
+        # if build, build first THEN _launch_add?
         _launch_add(
             api,
             uri,
@@ -1209,6 +1222,7 @@ def launch(
             args_dict,
             resource_args,
             cuda=cuda,
+            build=build,
         )
 
 

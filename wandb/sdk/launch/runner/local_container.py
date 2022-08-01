@@ -126,6 +126,16 @@ class LocalContainerRunner(AbstractRunner):
                 entry_point,
                 docker_args,
             )
+            print(f"local_container.py:  {image_uri=}")
+            # Similar to --docker-image=image --> makes launch spec {
+            #    "overrides": {},
+            #   "docker": "docker-image"
+            # }
+            # 1. CLI .py?
+            # 2. Launch_add
+            # 3. Add a buch of build stuff
+            # launch_spec()
+
             command_str = " ".join(
                 get_docker_command(image_uri, env_vars, [""], docker_args)
             ).strip()
