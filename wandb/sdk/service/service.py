@@ -19,7 +19,7 @@ class _Service:
     _grpc_port: Optional[int]
     _sock_port: Optional[int]
     _service_interface: ServiceInterface
-    _internal_proc: Optional[subprocess.Popen]
+    _internal_proc: Optional[subprocess.Popen] = None
 
     def __init__(self, _use_grpc: bool = False) -> None:
         self._use_grpc = _use_grpc
@@ -117,6 +117,6 @@ class _Service:
 
     def join(self) -> int:
         ret = 0
-        if getattr(self, "_internal_proc", None) is not None:
+        if self._internal_proc:
             ret = self._internal_proc.wait()
         return ret
