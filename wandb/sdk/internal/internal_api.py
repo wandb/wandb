@@ -1455,7 +1455,19 @@ class Api:
             "summaryMetrics": summary_metrics,
         }
 
-        response = self.gql(mutation, variable_values=variable_values, **kwargs)
+        # retry conflict errors for 2 minutes, default to no_auth_retry
+        check_retry_fn = util.make_check_retry_fn(
+            check_fn=util.check_retry_conflict_or_gone,
+            check_timedelta=datetime.timedelta(minutes=2),
+            fallback_retry_fn=util.no_retry_auth,
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values=variable_values,
+            check_retry_fn=check_retry_fn,
+            **kwargs,
+        )
 
         run_obj: Dict[str, Dict[str, Dict[str, str]]] = response["upsertBucket"][
             "bucket"
@@ -2682,11 +2694,17 @@ class Api:
         """
         )
 
+        # retry conflict errors for 2 minutes, default to no_auth_retry
+        check_retry_fn = util.make_check_retry_fn(
+            check_fn=util.check_retry_conflict,
+            check_timedelta=datetime.timedelta(minutes=2),
+            fallback_retry_fn=util.no_retry_auth,
+        )
+
         response: "_Response" = self.gql(  # type: ignore
             mutation,
             variable_values={"artifactID": artifact_id},
-            check_retry_fn=util.check_retry_commit_artifact,
-            retry_timedelta=datetime.timedelta(minutes=2),
+            check_retry_fn=check_retry_fn,
         )
         return response
 

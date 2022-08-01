@@ -1,6 +1,7 @@
 import re
+import sys
 from types import TracebackType
-from typing import ContextManager, Dict, List, Optional, Type
+from typing import ContextManager, Dict, List, Optional, Set, Type
 from typing import TYPE_CHECKING
 
 import wandb
@@ -79,8 +80,21 @@ def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
     return ret
 
 
+def list_telemetry_imports(only_imported: bool = False) -> Set[str]:
+    import_telemetry_set = {
+        desc.name
+        for desc in TelemetryImports.DESCRIPTOR.fields
+        if desc.type == desc.TYPE_BOOL
+    }
+    if only_imported:
+        imported_modules_set = set(sys.modules)
+        return imported_modules_set.intersection(import_telemetry_set)
+    return import_telemetry_set
+
+
 __all__ = [
     "TelemetryImports",
     "TelemetryRecord",
     "context",
+    "list_telemetry_imports",
 ]
