@@ -26,7 +26,7 @@ def test_base_url_sanitization(runner):
     assert api.settings["base_url"] == "https://wandb.corp.net"
 
 
-def test_parse_project_path(api):
+def test_parse_project_path(api, mock_server):
     e, p = api._parse_project_path("user/proj")
     assert e == "user"
     assert p == "proj"
@@ -38,21 +38,21 @@ def test_parse_project_path_proj(api, mock_server):
     assert p == "proj"
 
 
-def test_parse_path_simple(api):
+def test_parse_path_simple(api, mock_server):
     u, p, r = api._parse_path("user/proj/run")
     assert u == "user"
     assert p == "proj"
     assert r == "run"
 
 
-def test_parse_path_leading(api):
+def test_parse_path_leading(api, mock_server):
     u, p, r = api._parse_path("/user/proj/run")
     assert u == "user"
     assert p == "proj"
     assert r == "run"
 
 
-def test_parse_path_docker(api):
+def test_parse_path_docker(api, mock_server):
     u, p, r = api._parse_path("user/proj:run")
     assert u == "user"
     assert p == "proj"
@@ -66,7 +66,7 @@ def test_parse_path_docker_proj(mock_server, api):
     assert r == "run"
 
 
-def test_parse_path_url(api):
+def test_parse_path_url(api, mock_server):
     u, p, r = api._parse_path("user/proj/runs/run")
     assert u == "user"
     assert p == "proj"
