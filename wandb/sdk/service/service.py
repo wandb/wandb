@@ -117,6 +117,6 @@ class _Service:
 
     def join(self) -> int:
         ret = 0
-        if self._internal_proc:
+        if getattr(self, "_internal_proc", None) is not None:
             ret = self._internal_proc.wait()
         return ret
