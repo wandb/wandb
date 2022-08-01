@@ -1,0 +1,32 @@
+plugin:
+  - wandb
+tag:
+  shard: standalone-cpu
+command:
+  program: log_data.py
+  args:
+    - --num-epochs
+    - "1000"
+    - --num-scalers
+    - "1000"
+env:
+  - WANDB_MODE: offline
+profile:
+  - :wandb:init
+  - :wandb:log
+  - :wandb:finish
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 0
+  - :op:<:
+    - :yea:time
+    - 120
+  - :op:<:
+    - :yea:profile[:wandb:init][mean]
+    - 6
+  - :op:<:
+    - :yea:profile[:wandb:log][mean]
+    - 0.100
+  - :op:<:
+    - :yea:profile[:wandb:finish][mean]
+    - 100

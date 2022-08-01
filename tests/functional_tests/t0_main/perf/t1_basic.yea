@@ -1,0 +1,28 @@
+plugin:
+  - wandb
+tag:
+  shard: standalone-cpu
+profile:
+  - :wandb:import
+  - :wandb:init
+  - :wandb:log
+  - :wandb:finish
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :op:<:
+    - :yea:time
+    - 25
+  - :op:<:
+    - :yea:profile[:wandb:import][mean]
+    - 3
+  - :op:<:
+    - :yea:profile[:wandb:init][mean]
+    - 8
+  - :op:<:
+    - :yea:profile[:wandb:log][mean]
+    - 0.001
+  - :op:<:
+    - :yea:profile[:wandb:finish][mean]
+    - 15
