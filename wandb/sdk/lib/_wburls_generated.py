@@ -12,7 +12,7 @@ URLS = Literal[
     "doc_run",
     "doc_require",
     "doc_start_err",
-    "upgrade_local",
+    "upgrade_server",
     "multiprocess",
     "wandb_init",
     "wandb_server",
