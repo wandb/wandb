@@ -81,6 +81,7 @@ class LocalContainerRunner(AbstractRunner):
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+
         if launch_project.cuda:
             docker_args["gpus"] = "all"
 
@@ -104,6 +105,7 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9002"
+
         if launch_project.docker_image:
             # user has provided their own docker image
             image_uri = launch_project.image_name
@@ -126,20 +128,10 @@ class LocalContainerRunner(AbstractRunner):
                 entry_point,
                 docker_args,
             )
-            print(f"local_container.py:  {image_uri=}")
-            # Similar to --docker-image=image --> makes launch spec {
-            #    "overrides": {},
-            #   "docker": "docker-image"
-            # }
-            # 1. CLI .py?
-            # 2. Launch_add
-            # 3. Add a buch of build stuff
-            # launch_spec()
 
             command_str = " ".join(
                 get_docker_command(image_uri, env_vars, [""], docker_args)
             ).strip()
-
         if not self.ack_run_queue_item(launch_project):
             return None
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
