@@ -39,6 +39,10 @@ class LaunchSource(enum.IntEnum):
     JOB: int = 5
 
 
+class EntrypointDefaults(enum.auto):
+    PYTHON = ["python", ["python", "main.py"]]
+
+
 class LaunchProject:
     """A launch project specification."""
 
@@ -296,12 +300,11 @@ class LaunchProject:
                     source_entity, source_project, source_run_name, internal_api
                 )
 
+                tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
+                    tag_string += patch
 
-                tag_string = (
-                    run_info["git"]["remote"] + run_info["git"]["commit"] + patch
-                )
                 self._image_tag = binascii.hexlify(tag_string.encode()).decode()
 
                 # For cases where the entry point wasn't checked into git
@@ -346,6 +349,9 @@ class LaunchProject:
                     entry_point = [command, program_name]
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
+
+                print(f"{entry_point=}")
+
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
@@ -358,7 +364,7 @@ class LaunchProject:
                 wandb.termlog(
                     "Entry point for repo not specified, defaulting to python main.py"
                 )
-                self.add_entry_point(["python", "main.py"])
+                self.add_entry_point(EntrypointDefaults.PYTHON)
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
@@ -460,7 +466,7 @@ def fetch_and_validate_project(
             wandb.termlog(
                 "Entry point for repo not specified, defaulting to `python main.py`"
             )
-            launch_project.add_entry_point(["python", "main.py"])
+            launch_project.add_entry_point(EntrypointDefaults.PYTHON)
     elif launch_project.source == LaunchSource.JOB:
         launch_project._fetch_job()
     else:
