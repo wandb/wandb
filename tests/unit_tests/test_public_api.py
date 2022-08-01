@@ -431,6 +431,21 @@ def test_artifact_file(runner, mock_server, api):
         assert path == os.path.join(".", "artifacts", part, "digits.h5")
 
 
+def test_artifact_files(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        mock_server.ctx["max_cli_version"] = "0.12.21"
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        assert str(art.files()) == "<ArtifactFiles entity/project/mnist:v0 (10)>"
+        paths = [f.storage_path for f in art.files()]
+        assert paths == ["x/y/z", "x/y/z"]
+        # Assert we don't break legacy local installs
+        mock_server.ctx["max_cli_version"] = "0.12.20"
+        # reset server info
+        art.client._server_info = None
+        file = art.files()[0]
+        assert "storagePath" not in file._attrs.keys()
+
+
 def test_artifact_download(runner, mock_server, api):
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
