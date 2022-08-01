@@ -26,6 +26,8 @@ class _Service:
         self._stub = None
         self._grpc_port = None
         self._sock_port = None
+        self._internal_proc = None
+
         # current code only supports grpc or socket server implementation, in the
         # future we might be able to support both
         if _use_grpc:
