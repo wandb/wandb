@@ -181,7 +181,6 @@ class Scheduler(ABC):
 
     def _add_to_launch_queue(
         self,
-        resource: Optional[str] = None,
         entry_point: Optional[List[str]] = None,
         run_id: Optional[str] = None,
         params: Optional[Dict[str, Any]] = None,
@@ -195,7 +194,6 @@ class Scheduler(ABC):
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,
-            resource=resource,
             entry_point=entry_point,
             resource=self._resource,
             resource_args=self._resource_args,
