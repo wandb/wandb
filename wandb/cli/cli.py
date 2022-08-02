@@ -915,7 +915,7 @@ def sweep(
         #     resource_args = {}
 
         if resource is None:
-            resource = "local-process"
+            resource = "kubernetes"
 
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
