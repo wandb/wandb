@@ -83,7 +83,7 @@ def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         return {}
     if not isinstance(metadata, dict):
         raise TypeError(f"metadata must be dict, not {type(metadata)}")
-    return cast(Dict[str, Any], json.loads(json.dumps(metadata)))
+    return cast(Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata))))
 
 
 class Artifact(ArtifactInterface):

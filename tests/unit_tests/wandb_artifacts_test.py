@@ -1420,8 +1420,11 @@ class TestArtifactChecksMetadata:
     def test_validates_metadata_ok(
         self, create_artifact: Callable[..., wandb.Artifact]
     ):
-        assert create_artifact(metadata=None).metadata == {}
+        assert create_artifact(metadata=None).metadata in (None, {})
         assert create_artifact(metadata={"foo": "bar"}).metadata == {"foo": "bar"}
+        assert create_artifact(metadata={"foo": {"bar": [1, 2, (3, None)]}}).metadata == {"foo": {"bar": [1, 2, (3, None)]}}
+        assert create_artifact(metadata={"foo": np.arange(3)}).metadata == {"foo": [0, 1, 2]}
+        assert create_artifact(metadata={"foo": slice(4, 9, 2)}).metadata == {"foo": {"slice_start": 4, "slice_stop": 9, "slice_step": 2}}
 
     def test_validates_metadata_err(
         self, create_artifact: Callable[..., wandb.Artifact]
