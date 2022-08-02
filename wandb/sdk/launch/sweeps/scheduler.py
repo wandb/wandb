@@ -52,11 +52,13 @@ class Scheduler(ABC):
         project: Optional[str] = None,
         queue: Optional[str] = None,
         job: Optional[str] = None,
+        resource_args: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ):
         self._api = api
         self._launch_queue = queue
         self._job = job
+        self._resource_args = resource_args
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -193,6 +195,7 @@ class Scheduler(ABC):
             queue=self._launch_queue,
             resource=resource,
             entry_point=entry_point,
+            resource_args=self._resource_args,
             # params=params,
             run_id=run_id,
         )

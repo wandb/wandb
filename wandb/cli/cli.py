@@ -666,6 +666,7 @@ def sync(
 @click.option("--program", default=None, help="Set sweep program")
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
+# ------- Begin Launch Options -------
 @click.option(
     "--queue",
     "-q",
@@ -682,6 +683,15 @@ def sync(
     default=None,
     help="The name of the job that encapsulates a single run in the sweep.",
 )
+@click.option(
+    "--resource-args",
+    "-R",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as resource args to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
+)
+# ------- End Launch Options -------
 @click.option(
     "--stop",
     is_flag=True,
@@ -720,6 +730,7 @@ def sweep(
     update,
     queue,
     job,
+    resource_args,
     stop,
     cancel,
     pause,
@@ -886,6 +897,13 @@ def sweep(
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
+        if resource_args is not None:
+            resource_args = util.load_json_yaml_dict(resource_args)
+        if resource_args is None:
+            raise LaunchError("Invalid format for resource-args")
+        else:
+            resource_args = {}
+
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
         # know until it is created,so we use this placeholder
@@ -917,10 +935,12 @@ def sweep(
                             project,
                             "--job",
                             job,
+                            "--resource_args",
+                            resource_args,
                         ],  # entry_point,
                         None,  # version,
                         None,  # parameters,
-                        None,  # resource_args,
+                        resource_args,  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
@@ -1339,6 +1359,14 @@ def agent(ctx, project, entity, count, sweep_id):
     default=None,
     help="The name of the job that encapsulates a single run in the sweep.",
 )
+@click.option(
+    "--resource-args",
+    "-R",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as resource args to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
+)
 @click.argument("sweep_id")
 @display_error
 def scheduler(
@@ -1347,6 +1375,7 @@ def scheduler(
     entity,
     queue,
     job,
+    resource_args,
     sweep_id,
 ):
     api = _get_cling_api()
@@ -1365,6 +1394,7 @@ def scheduler(
         queue=queue,
         sweep_id=sweep_id,
         job=job,
+        resource_args=resource_args,
     )
     _scheduler.start()
 
