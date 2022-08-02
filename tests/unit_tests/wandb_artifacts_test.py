@@ -1,7 +1,6 @@
 import base64
 import hashlib
 import os
-from typing import Any, Callable, Optional, Type
 import pytest
 from wandb import util
 import wandb
@@ -1336,7 +1335,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
 
         for setter in testable_setters_valid + testable_setters_invalid:
             with pytest.raises(ValueError):
-                setattr(art, setter, setter_data.get(setter, setter))
+                setattr(art, setter, "TEST")
 
         for method in testable_methods_valid + testable_methods_invalid:
             attr_method = getattr(art, method)
@@ -1350,7 +1349,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
             _ = getattr(art, getter)
 
         for setter in testable_setters_valid + testable_setters_invalid:
-            setattr(art, setter, setter_data.get(setter, setter))
+            setattr(art, setter, "TEST")
 
         for method in testable_methods_valid + testable_methods_invalid:
             attr_method = getattr(art, method)
@@ -1397,54 +1396,3 @@ def test_communicate_artifact(runner, publish_util, mocked_run):
         artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
         ctx_util = publish_util(artifacts=[artifact_publish])
         assert len(set(ctx_util.manifests_created_ids)) == 1
-
-
-def _create_artifact_and_set_metadata(metadata):
-    artifact = wandb.Artifact("foo", "dataset")
-    artifact.metadata = metadata
-    return artifact
-
-
-# All these metadata-validation tests should behave identically
-# regardless of whether we set the metadata by passing it into the constructor
-# or by setting the attribute after creation; so, parametrize how we build the
-# artifact, and run tests both ways.
-@pytest.mark.parametrize(
-    "create_artifact",
-    [
-        lambda metadata: wandb.Artifact("foo", "dataset", metadata=metadata),
-        _create_artifact_and_set_metadata,
-    ],
-)
-class TestArtifactChecksMetadata:
-    def test_validates_metadata_ok(
-        self, create_artifact: Callable[..., wandb.Artifact]
-    ):
-        assert create_artifact(metadata=None).metadata == {}
-        assert create_artifact(metadata={"foo": "bar"}).metadata == {"foo": "bar"}
-
-    def test_validates_metadata_err(
-        self, create_artifact: Callable[..., wandb.Artifact]
-    ):
-        with pytest.raises(TypeError):
-            create_artifact(metadata=123)
-
-        with pytest.raises(TypeError):
-            create_artifact(metadata=[])
-
-        with pytest.raises(TypeError):
-            create_artifact(metadata={"unserializable": object()})
-
-    def test_deepcopies_metadata(self, create_artifact: Callable[..., wandb.Artifact]):
-        orig_metadata = {"foo": ["original"]}
-        artifact = create_artifact(metadata=orig_metadata)
-
-        # ensure `artifact.metadata` isn't just a reference to the argument
-        assert artifact.metadata is not orig_metadata
-        orig_metadata["bar"] = "modifying the top-level value"
-        assert "bar" not in artifact.metadata
-
-        # ensure that any mutable sub-values are also copies
-        assert artifact.metadata["foo"] is not orig_metadata["foo"]
-        orig_metadata["foo"].append("modifying the sub-value")
-        assert artifact.metadata["foo"] == ["original"]
