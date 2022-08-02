@@ -299,7 +299,6 @@ class LaunchProject:
                 patch = utils.fetch_project_diff(
                     source_entity, source_project, source_run_name, internal_api
                 )
-
                 tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
                 if patch:
                     utils.apply_patch(patch, self.project_dir)

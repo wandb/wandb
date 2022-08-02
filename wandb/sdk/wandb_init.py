@@ -590,10 +590,12 @@ class _WandbInit:
                 tel.env.kaggle = True
             if self.settings._windows:
                 tel.env.windows = True
-            run._telemetry_imports(tel.imports_init)
 
             if self.settings.launch:
                 tel.feature.launch = True
+
+            for module_name in telemetry.list_telemetry_imports(only_imported=True):
+                setattr(tel.imports_init, module_name, True)
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -674,8 +676,6 @@ class _WandbInit:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
                 if active_start_method != "fork":
-                    error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
-                    error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
                     error_message += (
                         f"\nFor more info see: {wburls.get('doc_start_err')}"
                     )
