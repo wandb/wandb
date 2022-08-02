@@ -16,7 +16,6 @@
 * Improves time resolution for tracked metrics and for system metrics by @raubitsj in https://github.com/wandb/wandb/pull/3918
 * Defaults to project name from the sweep config when project is not specified in the `wandb.sweep()` call by @hu-po in https://github.com/wandb/wandb/pull/3919
 * Adds support to use namespace set user by the the launch agent by @KyleGoyette in https://github.com/wandb/wandb/pull/3950
-* Ensures `metadata` passed to `Artifact()` is a legal dict by @speezepearson in https://github.com/wandb/wandb/pull/3975
 * Adds telemetry to track when a run might be overwritten by @raubitsj in https://github.com/wandb/wandb/pull/3998
 * Adds a tool to export `wandb`'s history into `sqlite` by @raubitsj in https://github.com/wandb/wandb/pull/3999
 * Replaces some `Mapping[str, ...]` types with `NamedTuples` by @speezepearson in https://github.com/wandb/wandb/pull/3996
