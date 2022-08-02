@@ -17,6 +17,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.launch.builder.loader import load_builder
 
 from . import utils
 
@@ -40,7 +41,7 @@ class LaunchSource(enum.IntEnum):
 
 
 class EntrypointDefaults(enum.auto):
-    PYTHON = ["python", ["python", "main.py"]]
+    PYTHON = ["python", "main.py"]
 
 
 class LaunchProject:
@@ -508,3 +509,47 @@ def create_metadata_file(
             },
             f,
         )
+
+
+def build_image_from_project(
+    launch_project, launch_config={}, build_type="docker"
+) -> str:
+    """
+    Accepts a reference to the Api class and a pre-computed launch_spec
+    object, with an optional launch_config to set git-things like repository
+    which is used in naming the output docker image, and build_type defaulting
+    to docker (but could be used to build kube resource jobs w/ "kaniko")
+
+    updates launch_project with the newly created docker image uri and
+    returns the uri
+    """
+    assert launch_project.uri, "To build an image on queue a URI must be set."
+
+    repository: Optional[str] = launch_config.get("url")
+    builder_config = {"type": build_type}
+
+    entry_point_raw = EntrypointDefaults.PYTHON
+    entry_point = EntryPoint(name=entry_point_raw[-1], command=entry_point_raw)
+
+    print(f"{entry_point=}")
+
+    docker_args = {}
+    if launch_project.python_version:
+        docker_args["python_version"] = launch_project.python_version
+
+    if launch_project.cuda_version:
+        docker_args["cuda_version"] = launch_project.cuda_version
+
+    if launch_project.docker_user_id:
+        docker_args["user_id"] = launch_project.docker_user_id
+
+    wandb.termlog("Building docker image from uri source.")
+    builder = load_builder(builder_config)
+    image_uri = builder.build_image(
+        launch_project,
+        repository,
+        entry_point,
+        docker_args,
+    )
+
+    return image_uri
