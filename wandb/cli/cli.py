@@ -907,12 +907,12 @@ def sweep(
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
-        if resource_args is not None:
-            resource_args = util.load_json_yaml_dict(resource_args)
-        if resource_args is None:
-            raise LaunchError("Invalid format for resource-args")
-        else:
-            resource_args = {}
+        # if resource_args is not None:
+        #     resource_args = util.load_json_yaml_dict(resource_args)
+        # if resource_args is None:
+        #     raise LaunchError("Invalid format for resource-args")
+        # else:
+        #     resource_args = {}
 
         if resource is None:
             resource = "local-process"
@@ -930,7 +930,7 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        "placeholder-uri-scheduler",  # TODO(hupo): placeholder uri, remove in future
+                        '/home/launch_agent',  # TODO(hupo): placeholder uri, remove in future
                         None,  # TODO(hupo): Generic scheduler job (container)
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
@@ -948,14 +948,14 @@ def sweep(
                             project,
                             "--job",
                             job,
-                            "---resource",
+                            "--resource",
                             resource,
-                            "--resource_args",
-                            resource_args,
+                            # "--resource_args",
+                            # resource_args,
                         ],  # entry_point,
                         None,  # version,
                         None,  # parameters,
-                        resource_args,  # resource_args,
+                        None, # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
@@ -1375,6 +1375,15 @@ def agent(ctx, project, entity, count, sweep_id):
     help="The name of the job that encapsulates a single run in the sweep.",
 )
 @click.option(
+    "--resource",
+    "-r",
+    metavar="BACKEND",
+    default=None,
+    help="Execution resource to use for run. Supported values: 'local'."
+    " If passed in, will override the resource value passed in using a config file."
+    " Defaults to 'local'.",
+)
+@click.option(
     "--resource-args",
     "-R",
     metavar="FILE",
@@ -1411,7 +1420,7 @@ def scheduler(
         sweep_id=sweep_id,
         job=job,
         resource=resource,
-        resource_args=resource_args,
+        resource_args={"kubernetes": {}},
     )
     _scheduler.start()
 
