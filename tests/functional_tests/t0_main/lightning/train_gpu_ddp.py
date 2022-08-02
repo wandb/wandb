@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import pathlib
 
 from pl_base import BoringModel, RandomDataset
 from pytorch_lightning import Trainer
@@ -30,7 +31,10 @@ def main():
     # set up wandb
     config = dict(some_hparam="Logged Before Trainer starts DDP")
     wandb_logger = WandbLogger(
-        log_model=True, config=config, save_code=True, name=__file__
+        log_model=True,
+        config=config,
+        save_code=True,
+        name=pathlib.Path(__file__).stem,
     )
 
     # Initialize a trainer
