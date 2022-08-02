@@ -691,6 +691,15 @@ def sync(
     "as resource args to the compute resource. The exact content which should be "
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
+@click.option(
+    "--resource",
+    "-r",
+    metavar="BACKEND",
+    default=None,
+    help="Execution resource to use for run. Supported values: 'local'."
+    " If passed in, will override the resource value passed in using a config file."
+    " Defaults to 'local'.",
+)
 # ------- End Launch Options -------
 @click.option(
     "--stop",
@@ -730,6 +739,7 @@ def sweep(
     update,
     queue,
     job,
+    resource,
     resource_args,
     stop,
     cancel,
@@ -904,6 +914,9 @@ def sweep(
         else:
             resource_args = {}
 
+        if resource is None:
+            resource = "local-process"
+
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
         # know until it is created,so we use this placeholder
@@ -935,6 +948,8 @@ def sweep(
                             project,
                             "--job",
                             job,
+                            "---resource",
+                            resource,
                             "--resource_args",
                             resource_args,
                         ],  # entry_point,
@@ -1375,6 +1390,7 @@ def scheduler(
     entity,
     queue,
     job,
+    resource,
     resource_args,
     sweep_id,
 ):
@@ -1394,6 +1410,7 @@ def scheduler(
         queue=queue,
         sweep_id=sweep_id,
         job=job,
+        resource=resource,
         resource_args=resource_args,
     )
     _scheduler.start()

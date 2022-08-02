@@ -52,12 +52,14 @@ class Scheduler(ABC):
         project: Optional[str] = None,
         queue: Optional[str] = None,
         job: Optional[str] = None,
+        resource: Optional[str] = None,
         resource_args: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ):
         self._api = api
         self._launch_queue = queue
         self._job = job
+        self._resource = resource
         self._resource_args = resource_args
         self._entity = (
             entity
@@ -195,6 +197,7 @@ class Scheduler(ABC):
             queue=self._launch_queue,
             resource=resource,
             entry_point=entry_point,
+            resource=self._resource,
             resource_args=self._resource_args,
             # params=params,
             run_id=run_id,
