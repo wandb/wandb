@@ -1420,7 +1420,7 @@ class TestArtifactChecksMetadata:
     def test_validates_metadata_ok(
         self, create_artifact: Callable[..., wandb.Artifact]
     ):
-        assert create_artifact(metadata=None).metadata in (None, {})
+        assert create_artifact(metadata=None).metadata == {}
         assert create_artifact(metadata={"foo": "bar"}).metadata == {"foo": "bar"}
         assert create_artifact(
             metadata={"foo": {"bar": [1, 2, (3, None)]}}
