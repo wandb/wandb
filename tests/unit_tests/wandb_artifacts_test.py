@@ -1424,7 +1424,7 @@ class TestArtifactChecksMetadata:
         assert create_artifact(metadata={"foo": "bar"}).metadata == {"foo": "bar"}
         assert create_artifact(
             metadata={"foo": {"bar": [1, 2, (3, None)]}}
-        ).metadata == {"foo": {"bar": [1, 2, (3, None)]}}
+        ).metadata == {"foo": {"bar": [1, 2, [3, None]]}}
         assert create_artifact(metadata={"foo": np.arange(3)}).metadata == {
             "foo": [0, 1, 2]
         }
