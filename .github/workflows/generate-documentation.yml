@@ -4,15 +4,17 @@ env:
   # share an ssh-agent socket across jobs
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
-on: # Whenever a release is published,
-  release:
-    types: [published]
+on:
+  push:
+  #release:
+  #  types: [published]
 
 jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: wandb/docugen@v0.2.0
+      - uses: wandb/docugen@debug-ref-docs
         with:
-          gitbook-branch: en
+          client-branch: debug-ref-docs
+          gitbook-branch: debug
           access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
