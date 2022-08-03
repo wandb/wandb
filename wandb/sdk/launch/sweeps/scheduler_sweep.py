@@ -135,7 +135,6 @@ class SweepScheduler(Scheduler):
         _ = self._add_to_launch_queue(
             entry_point=entry_point,
             run_id=run.id,
-            params=run.args,
         )
 
     def _exit(self) -> None:

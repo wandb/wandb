@@ -120,9 +120,7 @@ class LaunchProject:
             _logger.info(f"URI {self.uri} indicates a local uri")
             # assume local
             if self.uri is not None and not os.path.exists(self.uri):
-                raise LaunchError(
-                    "Assumed URI supplied is a local path but path is not valid"
-                )
+                self.uri = os.getcwd()
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
         if launch_spec.get("resource_args"):

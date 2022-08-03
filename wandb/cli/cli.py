@@ -65,7 +65,14 @@ logging.basicConfig(
 )
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-CONTEXT = dict(default_map={})
+
+# Click Contexts
+CONTEXT = {"default_map": {}}
+RUN_CONTEXT = {
+    "default_map": {},
+    "allow_extra_args": True,
+    "ignore_unknown_options": True,
+}
 
 
 def cli_unsupported(argument):
@@ -684,14 +691,6 @@ def sync(
     help="The name of the job that encapsulates a single run in the sweep.",
 )
 @click.option(
-    "--resource-args",
-    "-R",
-    metavar="FILE",
-    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as resource args to the compute resource. The exact content which should be "
-    "provided is different for each execution backend. See documentation for layout of this file.",
-)
-@click.option(
     "--resource",
     "-r",
     metavar="BACKEND",
@@ -737,10 +736,11 @@ def sweep(
     program,
     settings,
     update,
+    # ------- Begin Launch Options -------
     queue,
     job,
     resource,
-    resource_args,
+    # ------- End Launch Options -------
     stop,
     cancel,
     pause,
@@ -906,16 +906,14 @@ def sweep(
             _msg = "Must specify --job flag when using launch queues"
             wandb.termerror(_msg)
             raise LaunchError(_msg)
-
-        # if resource_args is not None:
-        #     resource_args = util.load_json_yaml_dict(resource_args)
-        # if resource_args is None:
-        #     raise LaunchError("Invalid format for resource-args")
-        # else:
-        #     resource_args = {}
+        
+        if entity is None:
+            _msg = "Must specify --entity flag when using launch queues"
+            wandb.termerror(_msg)
+            raise LaunchError(_msg)
 
         if resource is None:
-            resource = "kubernetes"
+            resource = "local-process"
 
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
@@ -930,7 +928,7 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        '/home/launch_agent',  # TODO(hupo): placeholder uri, remove in future
+                        "placeholder-scheduler-uri",  # TODO(hupo): placeholder uri, remove in future
                         None,  # TODO(hupo): Generic scheduler job (container)
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
@@ -950,12 +948,10 @@ def sweep(
                             job,
                             "--resource",
                             resource,
-                            # "--resource_args",
-                            # resource_args,
                         ],  # entry_point,
                         None,  # version,
                         None,  # parameters,
-                        None, # resource_args,
+                        None,  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
@@ -1346,61 +1342,15 @@ def agent(ctx, project, entity, count, sweep_id):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
+    context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
 )
 @click.pass_context
-@click.option(
-    "--project",
-    "-p",
-    default=None,
-    help="Name of the project which the agent will watch. "
-    "If passed in, will override the project value passed in using a config file.",
-)
-@click.option(
-    "--entity",
-    "-e",
-    default=None,
-    help="The entity to use. Defaults to current logged-in user",
-)
-@click.option(
-    "--queue",
-    "-q",
-    default=None,
-    help="The queue to push sweep jobs to.",
-)
-@click.option(
-    "--job",
-    "-j",
-    default=None,
-    help="The name of the job that encapsulates a single run in the sweep.",
-)
-@click.option(
-    "--resource",
-    "-r",
-    metavar="BACKEND",
-    default=None,
-    help="Execution resource to use for run. Supported values: 'local'."
-    " If passed in, will override the resource value passed in using a config file."
-    " Defaults to 'local'.",
-)
-@click.option(
-    "--resource-args",
-    "-R",
-    metavar="FILE",
-    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as resource args to the compute resource. The exact content which should be "
-    "provided is different for each execution backend. See documentation for layout of this file.",
-)
+
 @click.argument("sweep_id")
 @display_error
 def scheduler(
     ctx,
-    project,
-    entity,
-    queue,
-    job,
-    resource,
-    resource_args,
+
     sweep_id,
 ):
     api = _get_cling_api()
@@ -1412,15 +1362,16 @@ def scheduler(
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
+    # Future-proofing hack to pull any kwargs that get passed in through the CLI
+    kwargs = {}
+    for i, _arg in enumerate(ctx.args):
+        if isinstance(_arg, str) and _arg.startswith("--"):
+            kwargs[_arg[2:]] = ctx.args[i + 1]
+
     _scheduler = load_scheduler("sweep")(
         api,
-        entity=entity,
-        project=project,
-        queue=queue,
         sweep_id=sweep_id,
-        job=job,
-        resource=resource,
-        resource_args={"kubernetes": {}},
+        **kwargs,
     )
     _scheduler.start()
 
@@ -1435,11 +1386,6 @@ def controller(verbose, sweep_id):
 
     tuner = wandb_controller(sweep_id)
     tuner.run(verbose=verbose)
-
-
-RUN_CONTEXT = copy.copy(CONTEXT)
-RUN_CONTEXT["allow_extra_args"] = True
-RUN_CONTEXT["ignore_unknown_options"] = True
 
 
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")

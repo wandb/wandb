@@ -50,17 +50,15 @@ class Scheduler(ABC):
         *args: Any,
         entity: Optional[str] = None,
         project: Optional[str] = None,
+        # ------- Begin Launch Options -------
         queue: Optional[str] = None,
         job: Optional[str] = None,
         resource: Optional[str] = None,
         resource_args: Optional[Dict[str, Any]] = None,
+        # ------- End Launch Options -------
         **kwargs: Any,
     ):
         self._api = api
-        self._launch_queue = queue
-        self._job = job
-        self._resource = resource
-        self._resource_args = resource_args
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -70,7 +68,15 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
-
+        # ------- Begin Launch Options -------
+        # TODO(hupo): Validation on these arguments.
+        self._launch_queue = queue
+        self._job = job
+        self._resource = resource
+        self._resource_args = resource_args
+        if resource == "kubernetes":
+            self._resource_args = {"kubernetes": {}}
+        # ------- End Launch Options -------
         self._state: SchedulerState = SchedulerState.PENDING
         self._runs: Dict[str, SweepRun] = {}
 
@@ -183,7 +189,6 @@ class Scheduler(ABC):
         self,
         entry_point: Optional[List[str]] = None,
         run_id: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None,
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
@@ -197,7 +202,6 @@ class Scheduler(ABC):
             entry_point=entry_point,
             resource=self._resource,
             resource_args=self._resource_args,
-            # params=params,
             run_id=run_id,
         )
         self._runs[run_id].queued_run = queued_run
