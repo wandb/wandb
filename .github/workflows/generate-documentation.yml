@@ -5,7 +5,7 @@ env:
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
 on: # Whenever a release is published,
-  push
+  push:
   #release:
   #  types: [published]
 
@@ -15,5 +15,6 @@ jobs: # update the docs.
     steps:
       - uses: wandb/docugen@debug-ref-docs
         with:
+          client-branch: debug-ref-docs
           gitbook-branch: debug
           access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
