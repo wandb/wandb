@@ -2182,9 +2182,6 @@ class Api:
             except UsageError as e:
                 raise e
             except Exception as e:
-                wandb.termwarn(
-                    f"Exception while upserting sweep, retrying with older format (potential back compat issue). Exception: {e}"
-                )
                 # graphql schema exception is generic
                 err = e
                 continue
