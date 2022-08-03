@@ -17,7 +17,6 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.launch.builder.loader import load_builder
 
 from . import utils
 
@@ -251,6 +250,10 @@ class LaunchProject:
             )
             program_name = run_info.get("codePath") or run_info["program"]
 
+            print(
+                f"{run_info.get('codePath')=}, {run_info['program']=}, {program_name=}"
+            )
+
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
 
@@ -357,6 +360,9 @@ class LaunchProject:
                 self.override_args, run_info["args"]
             )
         else:
+            print(
+                f"{self.source=}, {self.project_dir=}, {self.get_single_entry_point()=}"
+            )
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
             )
@@ -512,7 +518,7 @@ def create_metadata_file(
 
 
 def build_image_from_project(
-    launch_project, launch_config={}, build_type="docker"
+    launch_project: LaunchProject, launch_config={}, build_type="docker"
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec
@@ -523,15 +529,15 @@ def build_image_from_project(
     updates launch_project with the newly created docker image uri and
     returns the uri
     """
+    # circular dependency, TODO: #1 to chat with Kyle
+    from wandb.sdk.launch.builder.loader import load_builder
+
     assert launch_project.uri, "To build an image on queue a URI must be set."
 
     repository: Optional[str] = launch_config.get("url")
     builder_config = {"type": build_type}
 
-    entry_point_raw = EntrypointDefaults.PYTHON
-    entry_point = EntryPoint(name=entry_point_raw[-1], command=entry_point_raw)
-
-    print(f"{entry_point=}")
+    launch_project.add_entry_point(EntrypointDefaults.PYTHON)
 
     docker_args = {}
     if launch_project.python_version:
@@ -548,7 +554,7 @@ def build_image_from_project(
     image_uri = builder.build_image(
         launch_project,
         repository,
-        entry_point,
+        launch_project.get_single_entry_point(),
         docker_args,
     )
 

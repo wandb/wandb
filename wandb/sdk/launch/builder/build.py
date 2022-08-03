@@ -302,6 +302,7 @@ def get_entrypoint_setup(
     assert launch_project.project_dir is not None
     with open(os.path.join(launch_project.project_dir, DEFAULT_ENTRYPOINT), "w") as fp:
         fp.write(BASH_ENTRYPOINT)
+
     return ENTRYPOINT_TEMPLATE.format(
         workdir=workdir,
         entrypoint=join(entry_point.command),

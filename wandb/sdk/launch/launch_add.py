@@ -162,57 +162,49 @@ def _launch_add(
     )
 
     if build:
-        # Log
-        # Build base image from uri, return image
-        # If not JOB, put image in docker path overwrite uri
-        # Else make job with given docker image
-        launch_spec["job"] = None  # TEMPPPP
+        if launch_spec.get("job") is not None:
+            wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
+            launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
         docker_image_uri = build_image_from_project(launch_project)
 
+        # Remove passed in URI, using job artifact abstraction instead
         launch_spec["uri"] = None
-        # Hack for specifying you want to use experimental job run
-        # if you just pass job, we assume you already have a job
-        # if you pass build and job, we create a job for you
-        if not job:
-            wandb.termwarn(
-                "Overwriting given uri with created docker image:", docker_image_uri
-            )
-            launch_spec.uri = None
-            launch_spec.docker_image = docker_image_uri
+        JOB_BUILD = "launch_build"  # constant, TODO: #2 find better home
+
+        if wandb.run is not None:  # can this ever be true?
+            run = wandb.run
         else:
-            JOB_BUILD = "launch_build"
-            if wandb.run is not None:  # Create job from run?
-                run = wandb.run
-            else:
-                run = wandb.init(project=project, job_type=JOB_BUILD)
-                # settings=wandb.Settings(silent="true"),
-            _id = docker_image_uri.split(":")[-1]
-            name = f"{launch_spec.get('entity')}-{launch_spec.get('project')}-{_id}"
+            run = wandb.init(project=project, job_type=JOB_BUILD)
 
-            input_types = TypeRegistry.type_of(dict).to_json()
-            output_types = TypeRegistry.type_of(dict).to_json()
+        _id = docker_image_uri.split(":")[-1]
+        name = f"{launch_spec.get('entity')}-{launch_spec.get('project')}-{_id}"
 
-            source_info = {
-                "_version": "v0",
-                "source_type": "image",
-                "source": {"image": docker_image_uri},
-                "input_types": input_types,
-                "output_types": output_types,
-                # "runtime": self._settings._python,
-            }
-            job_artifact = run._construct_job_artifact(
-                name=name,
-                source_dict=source_info,
-                installed_packages_list=[],
-            )
+        # TODO: #3 @Kyle about this whole block!
+        input_types = TypeRegistry.type_of(dict).to_json()
+        output_types = TypeRegistry.type_of(dict).to_json()
+        python_runtime = None
+        installed_packages_list = []
 
-            run.log_artifact(job_artifact)
+        source_info = {
+            "_version": "v0",
+            "source_type": "image",
+            "source": {"image": docker_image_uri},
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": python_runtime,
+        }
+        job_artifact = run._construct_job_artifact(
+            name=name,
+            source_dict=source_info,
+            installed_packages_list=installed_packages_list,
+        )
+        run.log_artifact(job_artifact)
 
-            job_name = job_artifact.wait().name
-            job = job_name
-            launch_spec["job"] = job_name
+        job_name = job_artifact.wait().name
+        launch_spec["job"] = job_name
+        job = job_name
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue, launch_spec)
