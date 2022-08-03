@@ -4,10 +4,8 @@ env:
   # share an ssh-agent socket across jobs
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
-on: # Whenever a release is published,
+on:
   push:
-  #release:
-  #  types: [published]
 
 jobs: # update the docs.
   update-docs:
