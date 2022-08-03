@@ -12,8 +12,8 @@ from wandb.sdk.launch.utils import (
 from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     build_image_from_project,
+    log_job_from_run,
 )
-from wandb.sdk.data_types._dtypes import TypeRegistry
 
 
 def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
@@ -107,6 +107,7 @@ def launch_add(
         resource_args,
         cuda,
         run_id=run_id,
+        build=build,
     )
 
 
@@ -167,7 +168,7 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project)
+        docker_image_uri = build_image_from_project(launch_project, api)
 
         # Remove passed in URI, using job artifact abstraction instead
         launch_spec["uri"] = None
@@ -178,29 +179,8 @@ def _launch_add(
         else:
             run = wandb.init(project=project, job_type=JOB_BUILD)
 
-        _id = docker_image_uri.split(":")[-1]
-        name = f"{launch_spec.get('entity')}-{launch_spec.get('project')}-{_id}"
-
-        # TODO: #3 @Kyle about this whole block!
-        input_types = TypeRegistry.type_of(dict).to_json()
-        output_types = TypeRegistry.type_of(dict).to_json()
-        python_runtime = None
-        installed_packages_list = []
-
-        source_info = {
-            "_version": "v0",
-            "source_type": "image",
-            "source": {"image": docker_image_uri},
-            "input_types": input_types,
-            "output_types": output_types,
-            "runtime": python_runtime,
-        }
-        job_artifact = run._construct_job_artifact(
-            name=name,
-            source_dict=source_info,
-            installed_packages_list=installed_packages_list,
-        )
-        run.log_artifact(job_artifact)
+        entity, project = launch_spec.get("entity"), launch_spec.get("project")
+        job_artifact = log_job_from_run(run, entity, project, docker_image_uri)
 
         job_name = job_artifact.wait().name
         launch_spec["job"] = job_name

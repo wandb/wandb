@@ -355,6 +355,7 @@ def generate_dockerfile(
         workdir=workdir,
         entrypoint_setup=entrypoint_section,
     )
+
     return dockerfile_contents
 
 

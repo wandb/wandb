@@ -17,6 +17,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.data_types._dtypes import TypeRegistry
 
 from . import utils
 
@@ -250,6 +251,10 @@ class LaunchProject:
             )
             program_name = run_info.get("codePath") or run_info["program"]
 
+            if not program_name:
+                wandb.termwarn("Fetching project but no program name was set.")
+                program_name = "temp-program-name"
+
             print(
                 f"{run_info.get('codePath')=}, {run_info['program']=}, {program_name=}"
             )
@@ -353,16 +358,11 @@ class LaunchProject:
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
 
-                print(f"{entry_point=}")
-
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
             )
         else:
-            print(
-                f"{self.source=}, {self.project_dir=}, {self.get_single_entry_point()=}"
-            )
             assert utils._GIT_URI_REGEX.match(self.uri), (
                 "Non-wandb URI %s should be a Git URI" % self.uri
             )
@@ -518,7 +518,7 @@ def create_metadata_file(
 
 
 def build_image_from_project(
-    launch_project: LaunchProject, launch_config={}, build_type="docker"
+    launch_project: LaunchProject, api, launch_config={}, build_type="docker"
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec
@@ -537,8 +537,6 @@ def build_image_from_project(
     repository: Optional[str] = launch_config.get("url")
     builder_config = {"type": build_type}
 
-    launch_project.add_entry_point(EntrypointDefaults.PYTHON)
-
     docker_args = {}
     if launch_project.python_version:
         docker_args["python_version"] = launch_project.python_version
@@ -547,15 +545,54 @@ def build_image_from_project(
         docker_args["cuda_version"] = launch_project.cuda_version
 
     if launch_project.docker_user_id:
-        docker_args["user_id"] = launch_project.docker_user_id
+        docker_args["user"] = launch_project.docker_user_id
+
+    launch_project.add_entry_point(EntrypointDefaults.PYTHON)
+    entrypoint = launch_project.get_single_entry_point()
 
     wandb.termlog("Building docker image from uri source.")
+    fetch_and_validate_project(launch_project, api)
+
     builder = load_builder(builder_config)
     image_uri = builder.build_image(
         launch_project,
         repository,
-        launch_project.get_single_entry_point(),
+        entrypoint,
         docker_args,
     )
 
     return image_uri
+
+
+def log_job_from_run(run, entity: str, project: str, docker_image_uri: str) -> str:
+    """
+    Uses a wandb_run object to create and log a job artifact given a docker
+    image uri.
+
+    TODO: construct proper source_info dict :)
+    """
+    _id = docker_image_uri.split(":")[-1]
+    name = f"{entity}-{project}-{_id}"
+
+    # TODO: #3 @Kyle about this whole block!
+    input_types = TypeRegistry.type_of(dict).to_json()
+    output_types = TypeRegistry.type_of(dict).to_json()
+    python_runtime = None
+    installed_packages_list = []
+
+    source_info = {
+        "_version": "v0",
+        "source_type": "image",
+        "source": {"image": docker_image_uri},
+        "input_types": input_types,
+        "output_types": output_types,
+        "runtime": python_runtime,
+    }
+    job_artifact = run._construct_job_artifact(
+        name=name,
+        source_dict=source_info,
+        installed_packages_list=installed_packages_list,
+    )
+    run.log_artifact(job_artifact)
+
+    return job_artifact
