@@ -161,29 +161,34 @@ class Scheduler(ABC):
             self._stop_run(run_id)
 
     def _update_run_states(self) -> None:
-        for run_id, run in self._runs.items():
-            try:
-                _state = self._api.get_run_state(self._entity, self._project, run_id)
-                if _state is None or _state in [
-                    "crashed",
-                    "failed",
-                    "killed",
-                    "finished",
-                ]:
-                    run.state = SimpleRunState.DEAD
-                elif _state in [
-                    "running",
-                    "pending",
-                    "preempted",
-                    "preempting",
-                ]:
-                    run.state = SimpleRunState.ALIVE
-            except Exception as e:
-                _msg = f"Issue when getting RunState for Run {run_id}: {e}"
-                logger.debug(_msg)
-                wandb.termlog(_msg)
-                run.state = SimpleRunState.UNKNOWN
-                continue
+        try:
+            for run_id, run in self._runs.items():
+                try:
+                    _state = self._api.get_run_state(self._entity, self._project, run_id)
+                    if _state is None or _state in [
+                        "crashed",
+                        "failed",
+                        "killed",
+                        "finished",
+                    ]:
+                        run.state = SimpleRunState.DEAD
+                    elif _state in [
+                        "running",
+                        "pending",
+                        "preempted",
+                        "preempting",
+                    ]:
+                        run.state = SimpleRunState.ALIVE
+                except Exception as e:
+                    _msg = f"Issue when getting RunState for Run {run_id}: {e}"
+                    logger.debug(_msg)
+                    wandb.termlog(_msg)
+                    run.state = SimpleRunState.UNKNOWN
+                    continue
+        except Exception as e:
+            _msg = f"Error updating run states, trying again ..."
+            logger.debug(_msg)
+            wandb.termlog(_msg)
 
     def _add_to_launch_queue(
         self,
