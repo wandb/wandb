@@ -11,7 +11,7 @@ Usage:
 import argparse
 import csv
 import os
-from typing import Any, List
+from typing import Any, Dict, List, Optional
 
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
@@ -35,7 +35,8 @@ parser.add_argument("--output-issues", default="map_run_cli_issues.csv")
 args = parser.parse_args()
 
 
-def write_csv(record: str, fields: List[Any], mapping: dict = {}):
+def write_csv(record: str, fields: List[Any], mapping: Optional[Dict[str, str]] = None) -> None:
+    mapping = mapping or {}
     record_arg = f"output_{record}s"
     fname = os.path.join(args.output_dir, getattr(args, record_arg))
     print("Writing:", fname)
@@ -49,7 +50,7 @@ def write_csv(record: str, fields: List[Any], mapping: dict = {}):
             writer.writerow({record: mapping.get(f.name, f.name), "key": f.number})
 
 
-def main():
+def main() -> None:
     telemetry_records = list(tpb.TelemetryRecord.DESCRIPTOR.fields)
     write_csv(record="telemetry_record_type", fields=telemetry_records)
 
