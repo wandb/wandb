@@ -32,7 +32,7 @@ def main():
         logger=wandb_logger,
         accelerator="tpu",
         devices=8,
-        strategy="ddp_spawn",
+        strategy="ddp",
     )
 
     # Train the model
