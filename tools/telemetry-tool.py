@@ -35,7 +35,9 @@ parser.add_argument("--output-issues", default="map_run_cli_issues.csv")
 args = parser.parse_args()
 
 
-def write_csv(record: str, fields: List[Any], mapping: Optional[Dict[str, str]] = None) -> None:
+def write_csv(
+    record: str, fields: List[Any], mapping: Optional[Dict[str, str]] = None
+) -> None:
     mapping = mapping or {}
     record_arg = f"output_{record}s"
     fname = os.path.join(args.output_dir, getattr(args, record_arg))
