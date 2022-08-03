@@ -40,7 +40,8 @@ def main():
     # Initialize a trainer
     trainer = Trainer(
         max_epochs=2,
-        gpus=2,
+        devices=2,
+        accelerator="gpu",
         strategy="ddp",
         logger=wandb_logger,
     )
