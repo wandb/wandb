@@ -35,7 +35,7 @@ parser.add_argument("--output-issues", default="map_run_cli_issues.csv")
 args = parser.parse_args()
 
 
-def write_csv(record: str, fields: List[Any]):
+def write_csv(record: str, fields: List[Any], mapping: dict = {}):
     record_arg = f"output_{record}s"
     fname = os.path.join(args.output_dir, getattr(args, record_arg))
     print("Writing:", fname)
@@ -46,7 +46,7 @@ def write_csv(record: str, fields: List[Any]):
             # let's skip private fields
             if f.name.startswith("_"):
                 continue
-            writer.writerow({record: f.name, "key": f.number})
+            writer.writerow({record: mapping.get(f.name, f.name), "key": f.number})
 
 
 def main():
@@ -54,7 +54,14 @@ def main():
     write_csv(record="telemetry_record_type", fields=telemetry_records)
 
     import_records = list(tpb.Imports.DESCRIPTOR.fields)
-    write_csv(record="import", fields=import_records)
+    write_csv(
+        record="import",
+        fields=import_records,
+        mapping={
+            "ignite": "pytorch_ignite",
+            "transformers": "transformers_huggingface",
+        },
+    )
 
     feature_records = list(tpb.Feature.DESCRIPTOR.fields)
     write_csv(record="feature", fields=feature_records)
