@@ -2155,7 +2155,7 @@ class Run:
                 "artifact": f"wandb-artifact://_id/{artifact_client_id}",
                 "entrypoint": [
                     sys.executable.split("/")[-1],
-                    self._settings.program_relpath,
+                    self._settings.program,
                 ],
             },
             "input_types": input_types,
