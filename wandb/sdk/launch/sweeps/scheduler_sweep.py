@@ -17,11 +17,13 @@ from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class HeartbeatAgent:
     agent: dict
     id: str
     thread: threading.Thread
+
 
 class SweepScheduler(Scheduler):
     """A SweepScheduler is a controller/agent that will populate a Launch RunQueue with

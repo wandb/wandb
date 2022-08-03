@@ -906,7 +906,7 @@ def sweep(
             _msg = "Must specify --job flag when using launch queues"
             wandb.termerror(_msg)
             raise LaunchError(_msg)
-        
+
         if entity is None:
             _msg = "Must specify --entity flag when using launch queues"
             wandb.termerror(_msg)
@@ -1345,12 +1345,10 @@ def agent(ctx, project, entity, count, sweep_id):
     context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
 )
 @click.pass_context
-
 @click.argument("sweep_id")
 @display_error
 def scheduler(
     ctx,
-
     sweep_id,
 ):
     api = _get_cling_api()
