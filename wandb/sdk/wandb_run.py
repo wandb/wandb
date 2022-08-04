@@ -2067,6 +2067,7 @@ class Run:
                 input_types, output_types, installed_packages_list
             )
             if artifact:
+                logger.info(f"Created job using {job_creation_function.__name__}")
                 break
             else:
                 logger.info(
