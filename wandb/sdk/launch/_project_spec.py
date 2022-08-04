@@ -64,6 +64,7 @@ class LaunchProject:
             _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
+        wandb.termlog("Launch project got job", job)
         self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
@@ -159,10 +160,11 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
     def _initialize_image_job_tag(self) -> Optional[str]:
+        wandb.termlog("Calling _initilize_image_job_tag")
         if self.job is not None:
             job_name, alias = self.job.split(":")
             self._image_tag = f"{job_name}-{alias}"
-            print(f"setting image tag f{self._image_tag}")
+            wandb.termlog(f"setting image tag f{self._image_tag}")
             return alias
         return None
 
