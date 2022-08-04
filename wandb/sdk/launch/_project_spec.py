@@ -162,6 +162,7 @@ class LaunchProject:
         if self.job is not None:
             job_name, alias = self.job.split(":")
             self._image_tag = f"{job_name}-{alias}"
+            print(f"setting image tag f{self._image_tag}")
             return alias
         return None
 

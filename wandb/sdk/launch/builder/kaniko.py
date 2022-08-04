@@ -195,9 +195,10 @@ class KanikoBuilder(AbstractBuilder):
                 "AWS ECR requires boto3,  install with pip install wandb[launch]",
             )
             ecr_client = boto3.client("ecr", region_name=region)
+            repo_name = repository.split("/")[-1]
             try:
                 ecr_client.describe_image_scan_findings(
-                    repositoryName=repository,
+                    repositoryName=repo_name,
                     imageId={"imageTag": launch_project._image_tag},
                 )
                 return False
