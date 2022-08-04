@@ -4,7 +4,10 @@ Based on:
     https://docs.wandb.ai/guides/integrations/other/ray-tune
 """
 
+import random
+
 from _test_support import get_wandb_api_key
+import numpy as np
 from ray import tune
 from ray.tune.integration.wandb import wandb_mixin
 import wandb
@@ -16,6 +19,11 @@ def train_fn(config):
         loss = config["a"] + config["b"]
         wandb.log({"loss": loss})
         tune.report(loss=loss)
+
+
+# Make test deterministic
+random.seed(2022)
+np.random.seed(2022)
 
 
 tune.run(
