@@ -185,13 +185,16 @@ class KanikoBuilder(AbstractBuilder):
     def check_build_required(
         self, repository: str, launch_project: LaunchProject
     ) -> bool:
+        
         ecr_provider = self.cloud_provider.lower()
         if ecr_provider == "aws" and repository:
+            # TODO: pass in registry config
+            region = repository.split(".")[3]
             boto3 = get_module(
                 "boto3",
                 "AWS ECR requires boto3,  install with pip install wandb[launch]",
             )
-            ecr_client = boto3.client("ecr")
+            ecr_client = boto3.client("ecr", region_name=region)
             try:
                 ecr_client.describe_image_scan_findings(
                     {
