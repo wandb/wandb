@@ -160,8 +160,8 @@ class LaunchProject:
 
     def _initialize_image_job_tag(self) -> Optional[str]:
         if self.job is not None:
-            _, alias = self.job.split(":")
-            self._image_tag = alias
+            job_name, alias = self.job.split(":")
+            self._image_tag = f"{job_name}-{alias}"
             return alias
         return None
 
