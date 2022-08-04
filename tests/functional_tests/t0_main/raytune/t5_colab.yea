@@ -1,7 +1,7 @@
 plugin:
   - wandb
 tag:
-  shard: ray1.12
+  shard: ray1_12
 env:
   - WANDB_DISABLE_SERVICE: "true"
 depend:
