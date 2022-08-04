@@ -680,7 +680,6 @@ def sync(
     help="Path to JSON or YAML file which defines how to launch the sweep.",
 )
 @click.option(
-
     "--stop",
     is_flag=True,
     default=False,
@@ -876,7 +875,7 @@ def sweep(
 
     _launch_scheduler_spec = None
     if launch_config is not None:
-        launch_config = util.load_json_yaml_dict(config)
+        launch_config = util.load_json_yaml_dict(launch_config)
         if launch_config is None:
             raise LaunchError(f"Invalid format for launch config at {launch_config}")
         wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
@@ -898,8 +897,12 @@ def sweep(
                         f"Scheduler.WANDB_SWEEP_ID",  # name,
                         project,
                         entity,
-                        launch_config.get("scheduler", {}).get("docker_image", None),  # docker_image,
-                        launch_config.get("scheduler", {}).get("resource", "local-process"),  # resource,
+                        launch_config.get("scheduler", {}).get(
+                            "docker_image", None
+                        ),  # docker_image,
+                        launch_config.get("scheduler", {}).get(
+                            "resource", "local-process"
+                        ),  # resource,
                         [
                             "wandb",
                             "scheduler",
@@ -912,10 +915,14 @@ def sweep(
                             launch_config.get("job", "placeholder-job"),
                             "--resource",
                             launch_config.get("resource", "local-process"),
+                            "--num_workers",
+                            launch_config.get("scheduler", {}).get("num_workers", 1),
                         ],  # entry_point,
                         None,  # version,
                         None,  # parameters,
-                        launch_config.get("scheduler", {}).get("resource_args", None),  # resource_args,
+                        launch_config.get("scheduler", {}).get(
+                            "resource_args", None
+                        ),  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,

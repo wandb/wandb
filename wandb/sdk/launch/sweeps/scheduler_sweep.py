@@ -93,6 +93,7 @@ class SweepScheduler(Scheduler):
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
+            # TODO(hupo): Should be sub-set of _run_states specific to worker thread
             commands = self._api.agent_heartbeat(
                 self._heartbeat_agents[worker_idx].id, {}, _run_states
             )
