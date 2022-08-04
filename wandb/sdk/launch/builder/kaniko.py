@@ -185,7 +185,7 @@ class KanikoBuilder(AbstractBuilder):
     def check_build_required(
         self, repository: str, launch_project: LaunchProject
     ) -> bool:
-        
+
         ecr_provider = self.cloud_provider.lower()
         if ecr_provider == "aws" and repository:
             # TODO: pass in registry config
@@ -197,10 +197,8 @@ class KanikoBuilder(AbstractBuilder):
             ecr_client = boto3.client("ecr", region_name=region)
             try:
                 ecr_client.describe_image_scan_findings(
-                    {
-                        "repositoryName": repository,
-                        "imageId": {"imageTag": launch_project._image_tag},
-                    }
+                    repositoryName=repository,
+                    imageId={"imageTag": launch_project._image_tag},
                 )
                 return False
             except ecr_client.exceptions.ImageNotFoundException:
