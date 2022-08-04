@@ -182,6 +182,29 @@ class KanikoBuilder(AbstractBuilder):
         else:
             raise LaunchError("Unsupported storage provider")
 
+    def check_build_required(
+        self, repository: str, launch_project: LaunchProject
+    ) -> bool:
+        ecr_provider = self.cloud_provider.lower() == "aws"
+        if ecr_provider == "aws" and repository:
+            boto3 = get_module(
+                "boto3",
+                "AWS ECR requires boto3,  install with pip install wandb[launch]",
+            )
+            ecr_client = boto3.client("ecr")
+            try:
+                ecr_client.describe_image_scan_findings(
+                    {
+                        "repositoryName": repository,
+                        "imageId": {"imageTag": launch_project._image_tag},
+                    }
+                )
+                return False
+            except ecr_client.exceptions.ImageNotFoundException:
+                return True
+        else:
+            return True
+
     def build_image(
         self,
         launch_project: LaunchProject,
@@ -193,6 +216,8 @@ class KanikoBuilder(AbstractBuilder):
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.image_tag}"
+        if not self.heck_build_required(repository, launch_project):
+            return image_uri
         entry_cmd = " ".join(
             get_entry_point_command(entrypoint, launch_project.override_args)
         )
