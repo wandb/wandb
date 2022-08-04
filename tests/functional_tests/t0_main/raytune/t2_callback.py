@@ -4,23 +4,15 @@ Based on:
     https://docs.ray.io/en/master/tune/examples/tune-wandb.html
 """
 
+from _test_support import get_wandb_api_key_file
 import numpy as np
-import wandb
-
 from ray import air, tune
 from ray.air import session
-from ray.tune import Trainable
 from ray.air.callbacks.wandb import WandbLoggerCallback
-from ray.tune.integration.wandb import (
-    WandbTrainableMixin,
-    wandb_mixin,
-)
-
-from _test_support import get_wandb_api_key_file
 
 
 def objective(config, checkpoint_dir=None):
-    for i in range(30):
+    for _i in range(30):
         loss = config["mean"] + config["sd"] * np.random.randn()
         session.report({"loss": loss})
 

@@ -4,24 +4,17 @@ Based on:
     https://docs.ray.io/en/master/tune/examples/tune-wandb.html
 """
 
-import numpy as np
-import wandb
-
-from ray import air, tune
-from ray.air import session
-from ray.tune import Trainable
-from ray.air.callbacks.wandb import WandbLoggerCallback
-from ray.tune.integration.wandb import (
-    WandbTrainableMixin,
-    wandb_mixin,
-)
-
 from _test_support import get_wandb_api_key_file
+import numpy as np
+from ray import tune
+from ray.tune import Trainable
+from ray.tune.integration.wandb import WandbTrainableMixin
+import wandb
 
 
 class WandbTrainable(WandbTrainableMixin, Trainable):
     def step(self):
-        for i in range(30):
+        for _i in range(30):
             loss = self.config["mean"] + self.config["sd"] * np.random.randn()
             wandb.log({"loss": loss})
         return {"loss": loss, "done": True}

@@ -6,40 +6,30 @@ Based on:
 """
 
 import random
+
 import numpy as np
 from ray import tune
+from ray.tune.examples.mnist_pytorch import ConvNet, get_data_loaders, test, train
 from ray.tune.integration.wandb import wandb_mixin, WandbLogger
 import torch
 import torch.optim as optim
 import wandb
 
-from _test_support import get_wandb_api_key_file
-
-
-wandb.login()
-
-from ray.tune.examples.mnist_pytorch import ConvNet, get_data_loaders, test, train
-
-torch.backends.cudnn.deterministic = True
-random.seed(2022)
-np.random.seed(2022)
-torch.manual_seed(2022)
-torch.cuda.manual_seed_all(2022)
-
 
 @wandb_mixin
 def train_mnist(config):
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_loader, test_loader = get_data_loaders()
 
     model = ConvNet()
     model.to(device)
 
-    optimizer = optim.SGD(model.parameters(),
-                          lr=config["lr"], momentum=config["momentum"])
+    optimizer = optim.SGD(
+        model.parameters(), lr=config["lr"], momentum=config["momentum"]
+    )
 
-    for i in range(10):
+    for _i in range(10):
         train(model, optimizer, train_loader, device=device)
         acc = test(model, test_loader, device=device)
 
@@ -52,6 +42,11 @@ def train_mnist(config):
 
 
 def run():
+    torch.backends.cudnn.deterministic = True
+    random.seed(2022)
+    np.random.seed(2022)
+    torch.manual_seed(2022)
+    torch.cuda.manual_seed_all(2022)
     wandb.login()
 
     wandb_init = {"project": "raytune-colab"}
@@ -65,9 +60,9 @@ def run():
             "wandb": wandb_init,
             # hyperparameters are set by keyword arguments
             "lr": tune.grid_search([0.0001, 0.001, 0.1]),
-            "momentum": tune.grid_search([0.9, 0.99])
-            }
-        )
+            "momentum": tune.grid_search([0.9, 0.99]),
+        },
+    )
 
     print("Best config: ", analysis.get_best_config(metric="mean_accuracy", mode="max"))
 
