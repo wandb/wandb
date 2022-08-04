@@ -701,6 +701,7 @@ def sync(
 )
 # ------- End Launch Options -------
 @click.option(
+
     "--stop",
     is_flag=True,
     default=False,
@@ -928,7 +929,7 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        "placeholder-scheduler-uri",  # TODO(hupo): placeholder uri, remove in future
+                        "placeholder-uri-scheduler",  # TODO(hupo): placeholder uri, remove in future
                         None,  # TODO(hupo): Generic scheduler job (container)
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
