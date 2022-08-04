@@ -1006,7 +1006,7 @@ workflows:
                 - "tf21"
                 - "tf25"
                 - "tf26"
-                - "ray1_12"
+                - "ray112"
                 - "ray2"
                 - "service"
                 - "noml"
