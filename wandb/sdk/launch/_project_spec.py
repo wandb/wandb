@@ -251,13 +251,16 @@ class LaunchProject:
             )
             program_name = run_info.get("codePath") or run_info["program"]
 
-            if not program_name:
-                wandb.termwarn("Fetching project but no program name was set.")
-                program_name = "temp-program-name"
+            print(f"{run_info=}, {program_name=}, {self.project_dir=}")
 
-            print(
-                f"{run_info.get('codePath')=}, {run_info['program']=}, {program_name=}"
-            )
+            if not program_name:
+                if len(self._entry_points.values()) > 0:
+                    program_name = self.get_single_entry_point().name
+                else:
+                    wandb.termwarn(
+                        "No program name or entrypoint set. Defaulting to 'main.py'"
+                    )
+                    program_name = "main.py"
 
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
@@ -283,7 +286,6 @@ class LaunchProject:
                     )
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
-
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
                 source_project,
@@ -317,14 +319,31 @@ class LaunchProject:
 
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):
-                    downloaded_entrypoint = utils.download_entry_point(
-                        source_entity,
-                        source_project,
-                        source_run_name,
-                        internal_api,
-                        program_name,
-                        self.project_dir,
+                    # TODO: @Kyle When does this happen? When does a poperly crafted run
+                    # doesn't check in a program_name (or entrypoint?)
+
+                    print(
+                        f"{source_entity=},{source_project=},{source_run_name=},{program_name=} "
                     )
+
+                    print(f"{os.path.join(self.project_dir, program_name)=}")
+                    print(f"{os.listdir()=}\n")
+                    print(f"{os.listdir(self.project_dir)=}")
+
+                    try:
+                        downloaded_entrypoint = utils.download_entry_point(
+                            source_entity,
+                            source_project,
+                            source_run_name,
+                            internal_api,
+                            program_name,
+                            self.project_dir,
+                        )
+                    except Exception as e:
+                        print(e)
+                        wandb.termwarn("Attempt to download entrypoint failed")
+                        downloaded_entrypoint = program_name
+
                     if not downloaded_entrypoint:
                         raise LaunchError(
                             f"Entrypoint file: {program_name} does not exist, "
@@ -547,17 +566,15 @@ def build_image_from_project(
     if launch_project.docker_user_id:
         docker_args["user"] = launch_project.docker_user_id
 
-    launch_project.add_entry_point(EntrypointDefaults.PYTHON)
-    entrypoint = launch_project.get_single_entry_point()
-
     wandb.termlog("Building docker image from uri source.")
-    fetch_and_validate_project(launch_project, api)
+    launch_project = fetch_and_validate_project(launch_project, api)
+    print(f"{launch_project.project_dir=}")
 
     builder = load_builder(builder_config)
     image_uri = builder.build_image(
         launch_project,
         repository,
-        entrypoint,
+        launch_project.get_single_entry_point(),
         docker_args,
     )
 
