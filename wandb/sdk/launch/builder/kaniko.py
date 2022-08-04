@@ -185,7 +185,7 @@ class KanikoBuilder(AbstractBuilder):
     def check_build_required(
         self, repository: str, launch_project: LaunchProject
     ) -> bool:
-        ecr_provider = self.cloud_provider.lower() == "aws"
+        ecr_provider = self.cloud_provider.lower()
         if ecr_provider == "aws" and repository:
             boto3 = get_module(
                 "boto3",
@@ -216,6 +216,7 @@ class KanikoBuilder(AbstractBuilder):
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.image_tag}"
+        wandb.termlog(f"Checking for image {image_uri}")
         if not self.check_build_required(repository, launch_project):
             return image_uri
         entry_cmd = " ".join(
