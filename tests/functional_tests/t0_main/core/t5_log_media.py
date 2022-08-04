@@ -8,7 +8,7 @@ plugin:
     - numpy
 assert:
     - :wandb:runs_len: 1
-    - :wandb:runs[0][config]: {'a': 1, 'b': 6}
+    - :wandb:runs[0][config]: {}
     - :wandb:runs[0][summary][media][count]: 2
     - :wandb:runs[0][summary][media][_type]: images/separated
     - :wandb:runs[0][summary][media][format]: png
