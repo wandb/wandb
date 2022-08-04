@@ -5,7 +5,7 @@ tag:
 depend:
   requirements:
     - pandas
-    - ray>=2.0.0rc0  # ray1 would work, but limit the number of versions
+    - ray[tune]>=2.0.0rc0  # ray1 would work, but limit the number of versions
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 1

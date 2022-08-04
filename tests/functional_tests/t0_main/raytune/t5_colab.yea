@@ -9,7 +9,7 @@ depend:
     - pandas
     - torch
     - torchvision
-    - ray<1.13.0
+    - ray[tune]<1.13.0
 assert:
   - :yea:exit: 0
   - :wandb:runs_len: 6
