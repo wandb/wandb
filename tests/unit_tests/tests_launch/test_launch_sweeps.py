@@ -172,7 +172,7 @@ def test_launch_sweeps_scheduler_base_add_to_launch_queue(test_settings, monkeyp
     assert _scheduler.is_alive() == False
     assert len(_scheduler._runs) == 1
     assert isinstance(
-        _scheduler._runs["foo_run"].launch_job, wandb.apis.public.QueuedRun
+        _scheduler._runs["foo_run"].queued_run, wandb.apis.public.QueuedRun
     )
     assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
 
