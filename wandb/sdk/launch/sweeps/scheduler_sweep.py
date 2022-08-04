@@ -88,7 +88,7 @@ class SweepScheduler(Scheduler):
                 return
             # AgentHeartbeat wants dict of runs which are running or queued
             _run_states = {}
-            for run_id, run in self._runs.items():
+            for run_id, run in self._yield_runs():
                 if run.state == SimpleRunState.ALIVE:
                     _run_states[run_id] = True
             _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
@@ -112,7 +112,8 @@ class SweepScheduler(Scheduler):
                         logs=command.get("logs"),
                         program=command.get("program"),
                     )
-                    self._runs[run.id] = run
+                    with self._threading_lock:
+                        self._runs[run.id] = run
                     if _type in ["run", "resume"]:
                         self._heartbeat_queue.put(run)
                     elif _type == "stop":

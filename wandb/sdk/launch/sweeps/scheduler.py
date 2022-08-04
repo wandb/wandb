@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 import os
-from typing import Any, Dict, List, Optional
+import threading
+from typing import Any, Dict, List, Tuple, Optional
 
 import wandb
 from wandb.apis.internal import Api
@@ -78,6 +79,7 @@ class Scheduler(ABC):
             self._resource_args = {"kubernetes": {}}
         # ------- End Launch Options -------
         self._state: SchedulerState = SchedulerState.PENDING
+        self._threading_lock: threading.Lock = threading.Lock()
         self._runs: Dict[str, SweepRun] = {}
 
     @abstractmethod
@@ -162,11 +164,17 @@ class Scheduler(ABC):
             SchedulerState.CANCELLED,
         ]:
             self.state = SchedulerState.FAILED
-        for run_id in self._runs.keys():
+        for run_id, _ in self._yield_runs():
             self._stop_run(run_id)
 
+    def _yield_runs(self) -> Tuple[str, SweepRun]:
+        """ Thread-safe way to iterate over the runs."""
+        with self._threading_lock:
+            for run_id, run in self._runs.items():
+                yield run_id, run
+
     def _update_run_states(self) -> None:
-        for run_id, run in self._runs.items():
+        for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
                 if _state is None or _state in [
@@ -209,7 +217,8 @@ class Scheduler(ABC):
             resource_args=self._resource_args,
             run_id=run_id,
         )
-        self._runs[run_id].queued_run = queued_run
+        with self._threading_lock:
+            self._runs[run_id].queued_run = queued_run
         _msg = f"Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
@@ -219,6 +228,7 @@ class Scheduler(ABC):
         _msg = f"Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        run = self._runs.get(run_id, None)
-        if run is not None:
-            run.state = SimpleRunState.DEAD
+        with self._threading_lock:
+            run = self._runs.get(run_id, None)
+            if run is not None:
+                run.state = SimpleRunState.DEAD
