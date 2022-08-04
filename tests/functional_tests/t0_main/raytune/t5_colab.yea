@@ -6,6 +6,9 @@ env:
   - WANDB_DISABLE_SERVICE: "true"
 depend:
   requirements:
+    - pandas
+    - torch
+    - torchvision
     - ray<1.13.0
 assert:
   - :yea:exit: 0

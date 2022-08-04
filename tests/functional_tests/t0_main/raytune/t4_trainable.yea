@@ -4,6 +4,7 @@ tag:
   shard: ray2
 depend:
   requirements:
+    - pandas
     - ray>=2.0.0rc0
 assert:
   - :yea:exit: 0
