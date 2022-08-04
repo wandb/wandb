@@ -396,6 +396,27 @@ class KubernetesRunner(AbstractRunner):
         return submitted_job
 
 
+def check_build_required(registry_conifg, launch_project):
+    ecr_provider = registry_conifg.get("ecr-provider", "").lower()
+    if ecr_provider == "aws" and registry_conifg.get("url") is not None:
+        boto3 = get_module(
+            "boto3", "AWS ECR requires boto3,  install with pip install wandb[launch]"
+        )
+        ecr_client = boto3.client("ecr")
+        try:
+            ecr_client.describe_image_scan_findings(
+                {
+                    "repositoryName": registry_conifg.get("url"),
+                    "imageId": {"imageTag": launch_project._image_tag},
+                }
+            )
+            return False
+        except ecr_client.exceptions.ImageNotFoundException:
+            return True
+    else:
+        return True
+
+
 def maybe_create_imagepull_secret(
     core_api: "CoreV1Api",
     registry_config: Dict[str, Any],
