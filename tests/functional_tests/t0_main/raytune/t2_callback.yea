@@ -1,0 +1,10 @@
+plugin:
+  - wandb
+tag:
+  shard: ray2
+depend:
+  requirements:
+    - ray>=2.0.0rc0
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 5

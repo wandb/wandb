@@ -1,0 +1,12 @@
+plugin:
+  - wandb
+tag:
+  shard: ray1.12
+env:
+  - WANDB_DISABLE_SERVICE: "true"
+depend:
+  requirements:
+    - ray<1.13.0
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 6
