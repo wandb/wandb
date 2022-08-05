@@ -1,0 +1,74 @@
+version: 2.1
+
+parameters:
+  tox_version:
+    type: string
+    default: "3.24.0"
+  wandb_server_tag:
+    type: string
+#    default: "master"  # todo: fix this once PR is mergeable
+    default: "fix-fixture-teardown"
+
+jobs:
+  test:
+    parameters:
+      image:
+        type: string
+      path_fixtures:
+        type: string
+        default: ./tests/fixtures/linux-x86_64
+      toxenv:
+        type: string
+    docker:
+      - image: << parameters.image >>
+        environment:
+          WANDB_BASE_URL: http://localhost:8080
+      - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+        auth:
+          username: _json_key
+          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
+        environment:
+          CI: 1
+          DISABLE_TELEMETRY: true
+          GORILLA_EMAIL_SINK: mysql://wandb_local:wandb_local@127.0.0.1:3306/wandb_local
+          GORILLA_FRONTEND_HOST: http://localhost:8080
+          GOOGLE_APPLICATION_CREDENTIALS: /home/wandb/gcs-key.json
+          LOCAL_INTEGRATION_TEST_HELPERS: true
+          GORILLA_RAMP_WRITE_SESSION_TO_DB: 1.0
+          GORILLA_RAMP_READ_SESSION_FROM_DB: 1.0
+          WANDB_ENABLE_TEST_CONTAINER: true
+#    parallelism: 4
+    resource_class: xlarge
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install python dependencies
+          command: |
+            pip install tox==<< pipeline.parameters.tox_version >>
+            pip install -U pip
+            while ! curl http://localhost:8080/healthz; do sleep 1; done
+#            pip install -e .
+#            pip install click flask numpy pandas pytest pytest-xdist pytest-timeout pytest-mock requests responses
+#            pip install tqdm cloudpickle matplotlib plotly bokeh tensorflow torch keras jax jaxlib sklearn moviepy imageio boto3 metaflow fastcore rdkit soundfile ipython
+#            # while curl http://localhost:8080/healthz != "ready!"; do sleep 1; done
+
+          no_output_timeout: 5m
+      - run:
+          name: Run unit tests
+          no_output_timeout: 25m
+          command: |
+            tox -v -e << parameters.toxenv >> -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
+#            pytest tests/unit_tests/ -n10 -rxXf --wandb-server-tag << pipeline.parameters.wandb_server_tag >>
+
+workflows:
+  main:
+    jobs:
+      - test:
+          name: "unit-s_base-lin-py38"
+          image: "python:3.8"
+          toxenv: "py38,covercircle"

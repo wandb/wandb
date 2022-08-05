@@ -12,115 +12,25 @@ import platform
 import requests
 
 import wandb
-from wandb import Api
-from tests import utils
-
-
-def test_api_auto_login_no_tty(mocker):
-    with pytest.raises(wandb.UsageError):
-        Api()
-
-
-def test_base_url_sanitization(runner):
-    api = Api({"base_url": "https://wandb.corp.net///"})
-    assert api.settings["base_url"] == "https://wandb.corp.net"
-
-
-def test_parse_project_path(api, mock_server):
-    e, p = api._parse_project_path("user/proj")
-    assert e == "user"
-    assert p == "proj"
-
-
-def test_parse_project_path_proj(api, mock_server):
-    e, p = api._parse_project_path("proj")
-    assert e == "mock_server_entity"
-    assert p == "proj"
-
-
-def test_parse_path_simple(api, mock_server):
-    u, p, r = api._parse_path("user/proj/run")
-    assert u == "user"
-    assert p == "proj"
-    assert r == "run"
-
-
-def test_parse_path_leading(api, mock_server):
-    u, p, r = api._parse_path("/user/proj/run")
-    assert u == "user"
-    assert p == "proj"
-    assert r == "run"
-
-
-def test_parse_path_docker(api, mock_server):
-    u, p, r = api._parse_path("user/proj:run")
-    assert u == "user"
-    assert p == "proj"
-    assert r == "run"
-
-
-def test_parse_path_docker_proj(mock_server, api):
-    u, p, r = api._parse_path("proj:run")
-    assert u == "mock_server_entity"
-    assert p == "proj"
-    assert r == "run"
-
-
-def test_parse_path_url(api, mock_server):
-    u, p, r = api._parse_path("user/proj/runs/run")
-    assert u == "user"
-    assert p == "proj"
-    assert r == "run"
-
-
-def test_parse_path_user_proj(mock_server, api):
-    u, p, r = api._parse_path("proj/run")
-    assert u == "mock_server_entity"
-    assert p == "proj"
-    assert r == "run"
-
-
-def test_parse_path_proj(mock_server, api):
-    u, p, r = api._parse_path("proj")
-    assert u == "mock_server_entity"
-    assert p == "proj"
-    assert r == "proj"
+from tests.unit_tests import utils
 
 
 def test_from_path(mock_server, api):
-    project = api.from_path("test")
-    assert isinstance(project, wandb.apis.public.Project)
-    project = api.from_path("test/test")
-    assert isinstance(project, wandb.apis.public.Project)
+   
     run = api.from_path("test/test/test")
     assert isinstance(run, wandb.apis.public.Run)
     run = api.from_path("test/test/runs/test")
     assert isinstance(run, wandb.apis.public.Run)
     sweep = api.from_path("test/test/sweeps/test")
     assert isinstance(sweep, wandb.apis.public.Sweep)
-    report = api.from_path("test/test/reports/XXX")
-    assert isinstance(report, wandb.apis.public.BetaReport)
-    report = api.from_path("test/test/reports/Name-foo--XXX")
-    assert isinstance(report, wandb.apis.public.BetaReport)
-    with pytest.raises(wandb.Error):
-        api.from_path("test/test/barf/test")
-    with pytest.raises(wandb.Error):
-        api.from_path("test/test/test/test/test")
-    with pytest.raises(wandb.Error):
-        api.from_path("test/test/reports/test-foo")
-
+  
 
 def test_to_html(mock_server, api):
-    project = api.from_path("test")
-    assert "mock_server_entity/test/workspace?jupyter=true" in project.to_html()
     run = api.from_path("test/test/test")
     assert "test/test/runs/test?jupyter=true" in run.to_html()
     sweep = api.from_path("test/test/sweeps/test")
     assert "test/test/sweeps/test?jupyter=true" in sweep.to_html()
-    report = api.from_path("test/test/reports/My-Report--XXX")
-    report_html = report.to_html(hidden=True)
-    assert "test/test/reports/My-Report--XXX" in report_html
-    assert "<button" in report_html
+   
 
 
 def test_project_sweeps(mock_server, api):
@@ -144,18 +54,6 @@ def test_run_load(mock_server, api):
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
     assert run.url == "https://wandb.ai/test/test/runs/test"
-
-
-def test_run_from_tensorboard(runner, mock_server, api):
-    with runner.isolated_filesystem():
-        utils.fixture_copy("events.out.tfevents.1585769947.cvp")
-        run_id = wandb.util.generate_id()
-        api.sync_tensorboard(".", project="test", run_id=run_id)
-        assert mock_server.ctx["graphql"][-1]["variables"] == {
-            "entity": "mock_server_entity",
-            "name": run_id,
-            "project": "test",
-        }
 
 
 def test_run_retry(mock_server, api):

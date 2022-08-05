@@ -6,7 +6,7 @@ import glob
 
 import pytest
 
-from tests import utils
+from tests.unit_tests import utils
 
 
 @pytest.mark.flaky
@@ -80,15 +80,3 @@ def test_sync_in_progress(live_mock_server, test_dir):
     assert len(glob.glob(os.path.join(latest_run, "*.synced"))) == 1
     print("Number of upserts: ", live_mock_server.get_ctx()["upsert_bucket_count"])
     assert live_mock_server.get_ctx()["upsert_bucket_count"] >= 3
-
-
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky test")
-def test_sync_with_tensorboard(live_mock_server, test_dir, parse_ctx):
-    tf_event = utils.fixture_copy("events.out.tfevents.1585769947.cvp")
-    sync = subprocess.Popen(["wandb", "sync", tf_event], env=os.environ)
-    assert sync.wait() == 0
-    ctx_util = parse_ctx(live_mock_server.get_ctx())
-    history = ctx_util.history
-    assert all("_runtime" in step for step in history)
-    assert history[0]["_runtime"] == 0

@@ -18,7 +18,7 @@ from wandb.sdk.launch.builder.kaniko import (
 )
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
-from tests.utils import fixture_open
+from tests.unit_tests.utils  import fixture_open
 
 import pytest
 

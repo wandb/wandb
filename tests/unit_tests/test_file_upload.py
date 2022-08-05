@@ -6,16 +6,6 @@ file upload tests.
 import os
 
 
-def test_file_upload_good(mocked_run, publish_util, mock_server):
-    def begin_fn(interface):
-        with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
-            f.write("TEST TEST")
-
-    files = [dict(files_dict=dict(files=[("test.txt", "now")]))]
-    ctx_util = publish_util(files=files, begin_cb=begin_fn)
-    assert "test.txt" in ctx_util.file_names
-
-
 def test_file_upload_inject(mocked_run, publish_util, mock_server, inject_requests):
     def begin_fn(interface):
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:

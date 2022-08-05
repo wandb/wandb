@@ -19,7 +19,7 @@ from .test_launch import (
     mocked_fetchable_git_repo,
 )
 
-from tests import utils
+from tests.unit_tests import utils
 
 INPUT_TYPES = TypeRegistry.type_of(
     {"epochs": 2, "heavy": False, "sleep_every": 0}

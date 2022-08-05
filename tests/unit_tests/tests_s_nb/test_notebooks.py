@@ -7,7 +7,7 @@ import sys
 import wandb
 
 from wandb.errors import UsageError
-from tests import utils
+from tests.unit_tests import utils
 
 
 def test_login_timeout(notebook, monkeypatch):
