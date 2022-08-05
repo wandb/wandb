@@ -2,7 +2,6 @@
 telemetry full tests.
 """
 import platform
-import sys
 from unittest import mock
 
 import pytest
@@ -20,55 +19,44 @@ def test_telemetry_finish(runner, live_mock_server, parse_ctx):
         assert telemetry and 2 in telemetry.get("3", [])
 
 
-def test_telemetry_imports_hf(runner, live_mock_server, parse_ctx):
+def test_telemetry_imports(runner, live_mock_server, parse_ctx):
     with runner.isolated_filesystem():
-        run = wandb.init()
 
-        with mock.patch.dict("sys.modules", {"transformers": mock.Mock()}):
-            import transformers
+        transformers_mock = mock.MagicMock()
+        transformers_mock.__name__ = "transformers"
 
-            run.finish()
+        catboost_mock = mock.MagicMock()
+        catboost_mock.__name__ = "catboost"
 
-            ctx_util = parse_ctx(live_mock_server.get_ctx())
-            telemetry = ctx_util.telemetry
+        jax_mock = mock.MagicMock()
+        jax_mock.__name__ = "jax"
 
-            # hf in finish modules but not in init modules
-            assert telemetry and 11 not in telemetry.get("1", [])
-            assert telemetry and 11 in telemetry.get("2", [])
-
-
-def test_telemetry_imports_catboost(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        with mock.patch.dict("sys.modules", {"catboost": mock.Mock()}):
-            import catboost
-
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "jax": jax_mock,
+                "catboost": catboost_mock,
+            },
+        ):
+            __import__("jax")
             run = wandb.init()
+            __import__("catboost")
             run.finish()
-
-            ctx_util = parse_ctx(live_mock_server.get_ctx())
-            telemetry = ctx_util.telemetry
-
-            # catboost in both init and finish modules
-            assert telemetry and 7 in telemetry.get("1", [])
-            assert telemetry and 7 in telemetry.get("2", [])
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
-)
-def test_telemetry_imports_jax(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        import jax
-
-        wandb.init()
-        wandb.finish()
+            with mock.patch.dict(
+                "sys.modules",
+                {
+                    "transformers": transformers_mock,
+                },
+            ):
+                __import__("transformers")
 
         ctx_util = parse_ctx(live_mock_server.get_ctx())
         telemetry = ctx_util.telemetry
 
-        # jax in finish modules but not in init modules
-        assert telemetry and 12 in telemetry.get("1", [])
-        assert telemetry and 12 in telemetry.get("2", [])
+        assert telemetry
+        assert 12 in telemetry.get("2", [])  # jax
+        assert 7 in telemetry.get("2", [])  # catboost
+        assert 11 not in telemetry.get("2", [])  # transformers
 
 
 def test_telemetry_run_organizing_init(runner, live_mock_server, parse_ctx):

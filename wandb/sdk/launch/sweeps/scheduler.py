@@ -33,7 +33,7 @@ class SimpleRunState(Enum):
 class SweepRun:
     id: str
     state: SimpleRunState = SimpleRunState.ALIVE
-    launch_job: Optional[public.QueuedRun] = None
+    queued_run: Optional[public.QueuedRun] = None
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
     program: Optional[str] = None
@@ -51,10 +51,12 @@ class Scheduler(ABC):
         entity: Optional[str] = None,
         project: Optional[str] = None,
         queue: Optional[str] = None,
+        job: Optional[str] = None,
         **kwargs: Any,
     ):
         self._api = api
         self._launch_queue = queue
+        self._job = job
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -175,7 +177,6 @@ class Scheduler(ABC):
 
     def _add_to_launch_queue(
         self,
-        uri: Optional[str] = None,
         resource: Optional[str] = None,
         entry_point: Optional[List[str]] = None,
         run_id: Optional[str] = None,
@@ -183,8 +184,10 @@ class Scheduler(ABC):
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
-        job = launch_add(
-            uri or os.environ.get(wandb.env.DIR, os.getcwd()) or "",
+        queued_run = launch_add(
+            # TODO(hupo): If no Job is specified, use a placeholder URI to prevent Launch failure
+            uri=None if self._job is not None else "placeholder-uri-queuedrun",
+            job=self._job,
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,
@@ -193,11 +196,11 @@ class Scheduler(ABC):
             # params=params,
             run_id=run_id,
         )
-        self._runs[run_id].launch_job = job
-        _msg = f"Added job to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
+        self._runs[run_id].queued_run = queued_run
+        _msg = f"Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        return job
+        return queued_run
 
     def _stop_run(self, run_id: str) -> None:
         _msg = f"Stopping run {run_id}."
