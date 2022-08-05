@@ -2123,10 +2123,12 @@ class Api:
             mutation_str.replace(
                 "$controller: JSONString,",
                 "$controller: JSONString,$launchScheduler: JSONString,",
-            ).replace(
+            )
+            .replace(
                 "controller: $controller,",
                 "controller: $controller,launchScheduler: $launchScheduler,",
             )
+            .replace("_PROJECT_QUERY_", project_query)
         )
 
         # mutation 3 maps to backend that can support CLI version of at least 0.10.31

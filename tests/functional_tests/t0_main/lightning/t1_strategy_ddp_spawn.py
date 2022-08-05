@@ -26,7 +26,8 @@ def main():
     # Initialize a trainer
     trainer = Trainer(
         max_epochs=1,
-        num_processes=2,
+        devices=2,
+        accelerator="cpu",
         strategy="ddp_spawn",
         logger=wandb_logger,
     )
