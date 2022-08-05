@@ -38,7 +38,7 @@ from wandb.sdk.launch.utils import construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
-import wandb.sdk.verify.verifzy as wandb_verify
+import wandb.sdk.verify.verify as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
