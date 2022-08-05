@@ -130,6 +130,7 @@ class LocalContainerRunner(AbstractRunner):
             command_str = " ".join(
                 get_docker_command(image_uri, env_vars, [""], docker_args)
             ).strip()
+
         if not self.ack_run_queue_item(launch_project):
             return None
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)

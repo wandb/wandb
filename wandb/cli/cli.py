@@ -38,7 +38,7 @@ from wandb.sdk.launch.utils import construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
-import wandb.sdk.verify.verify as wandb_verify
+import wandb.sdk.verify.verifzy as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
@@ -1108,10 +1108,7 @@ def sweep(
     "--build",
     "-b",
     is_flag=True,
-    help="(Experimental) Allow users to build image on queue using the Job artifact \
-        requires --queue to be set, \
-        default is false. \
-        addresses [WB-10393] -- ",
+    help="Allow users to build image on queue then pushes a Job artifact. requires --queue to be set, default is false.",
 )
 @display_error
 def launch(
@@ -1221,7 +1218,6 @@ def launch(
             logger.error("=== %s ===", e)
             sys.exit(e)
     else:
-        # if build, build first THEN _launch_add?
         _launch_add(
             api,
             uri,

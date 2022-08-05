@@ -354,7 +354,6 @@ class LaunchProject:
                     entry_point = [command, program_name]
                 else:
                     raise LaunchError(f"Unsupported entrypoint: {program_name}")
-
                 self.add_entry_point(entry_point)
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
