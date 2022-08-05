@@ -6,6 +6,8 @@ env:
 
 on: # Whenever a release is published,
   push:
+  #release:
+  #  types: [published]
 
 jobs: # update the docs.
   update-docs:
