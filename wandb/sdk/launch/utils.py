@@ -12,7 +12,6 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, ExecutionError, LaunchError
 
-
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
 

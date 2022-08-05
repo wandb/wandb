@@ -81,7 +81,6 @@ class LocalContainerRunner(AbstractRunner):
     ) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-
         if launch_project.cuda:
             docker_args["gpus"] = "all"
 
@@ -104,7 +103,7 @@ class LocalContainerRunner(AbstractRunner):
             _, _, port = self._api.settings("base_url").split(":")
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
-            env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9009"
+            env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9009"  # was 9002
 
         if launch_project.docker_image:
             # user has provided their own docker image
@@ -128,7 +127,6 @@ class LocalContainerRunner(AbstractRunner):
                 entry_point,
                 docker_args,
             )
-
             command_str = " ".join(
                 get_docker_command(image_uri, env_vars, [""], docker_args)
             ).strip()

@@ -278,7 +278,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         requirements_line = CONDA_TEMPLATE.format(buildx_optional_prefix=prefix)
     else:
         # this means no deps file was found
-        requirements_line = "RUN mkdir -p env/"
+        requirements_line = ""
 
     return requirements_line
 
@@ -302,7 +302,6 @@ def get_entrypoint_setup(
     assert launch_project.project_dir is not None
     with open(os.path.join(launch_project.project_dir, DEFAULT_ENTRYPOINT), "w") as fp:
         fp.write(BASH_ENTRYPOINT)
-
     return ENTRYPOINT_TEMPLATE.format(
         workdir=workdir,
         entrypoint=join(entry_point.command),
@@ -355,7 +354,6 @@ def generate_dockerfile(
         workdir=workdir,
         entrypoint_setup=entrypoint_section,
     )
-
     return dockerfile_contents
 
 

@@ -5,15 +5,15 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
+from wandb.sdk.launch._project_spec import (
+    build_image_from_project,
+    create_project_from_spec,
+    LaunchType,
+    log_job_from_run,
+)
 from wandb.sdk.launch.utils import (
     construct_launch_spec,
     validate_launch_spec_source,
-)
-from wandb.sdk.launch._project_spec import (
-    create_project_from_spec,
-    build_image_from_project,
-    log_job_from_run,
-    LaunchType,
 )
 
 
@@ -195,7 +195,6 @@ def _launch_add(
     public_api = public.Api()
     queued_run_entity = launch_spec.get("entity")
     queued_run_project = launch_spec.get("project")
-
     container_job = False
     if job:
         job_artifact = public_api.job(job)
@@ -209,5 +208,4 @@ def _launch_add(
         res["runQueueItemId"],
         container_job,
     )
-
     return queued_run  # type: ignore

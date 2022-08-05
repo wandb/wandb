@@ -16,8 +16,8 @@ from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
-from wandb.sdk.lib.runid import generate_id
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.lib.runid import generate_id
 from wandb.sdk.wandb_run import Run
 
 from . import utils
@@ -41,7 +41,7 @@ class LaunchSource(enum.IntEnum):
     JOB: int = 5
 
 
-class EntrypointDefaults(enum.auto):
+class EntrypointDefaults(List[str]):
     PYTHON = ["python", "main.py"]
 
 
