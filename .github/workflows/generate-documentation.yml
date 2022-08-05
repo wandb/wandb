@@ -7,7 +7,7 @@ env:
 on:
   push
 
-jobs: # update the docs.
+jobs:
   update-docs:
     runs-on: ubuntu-latest
     steps:
