@@ -26,6 +26,12 @@ def test_run_step_property(fake_run):
 
     assert run.step == 2
 
+def test_log_avoids_mutation(fake_run):
+    run = fake_run()
+    d = dict(this=1)
+    run.log(d)
+    assert d == dict(this=1)
+
 
 def test_deprecated_run_log_sync(fake_run, capsys):
     run = fake_run()
@@ -868,3 +874,5 @@ def test_git_root(runner, live_mock_server, test_settings):
         ctx = live_mock_server.get_ctx()
         assert ctx["git"]["remote"] == repo.remote().url
         assert ctx["git"]["commit"] == repo.head.commit.hexsha
+
+
