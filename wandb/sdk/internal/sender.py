@@ -1382,7 +1382,8 @@ class SendManager:
 
     def send_request_propose_intent(self, record: wandb_internal_pb2.Record) -> None:
         run = record.request.propose_intent.intent.run
-        error = self._send_run(run=run)
+        _error = self._send_run(run=run)
+        _error = _error
 
         intent_id = record.request.propose_intent.intent_id
         propose_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(
@@ -1390,7 +1391,8 @@ class SendManager:
         )
         propose_intent_done.outcome.run_result.run.CopyFrom(self._run)
         propose_intent_done.outcome.is_resolved = True
-        # FIXME: remove this delay
+
+        # TODO: remove this delay
         time.sleep(5)
         self._interface._propose_intent_done(propose_intent_done)
 

@@ -37,6 +37,7 @@ from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
 
 if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2 as pb
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactDoneRequest,
         MetricSummary,
@@ -82,6 +83,7 @@ class HandleManager:
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
+    _intents: Dict[str, "Optional[pb.IntentOutcome]"]
 
     def __init__(
         self,
