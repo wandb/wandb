@@ -728,7 +728,7 @@ class SendManager:
     def send_run(self, record: "Record", file_dir: str = None) -> None:
         is_wandb_init = self._run is None
         error = self._send_run(
-            record=record.run, file_dir=file_dir, is_wandb_init=is_wandb_init
+            run=record.run, file_dir=file_dir, is_wandb_init=is_wandb_init
         )
         result = proto_util._result_from_record(record)
         if error:
@@ -742,13 +742,14 @@ class SendManager:
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
+            assert self._run  # TODO: is this right
             result.run_result.run.CopyFrom(self._run)
             self._respond_result(result)
 
     def _send_run(
         self, run: "RunRecord", file_dir: str = None, is_wandb_init: bool = True
-    ) -> str:
-        error = None
+    ) -> Optional[wandb_internal_pb2.ErrorInfo]:
+        error: Optional[wandb_internal_pb2.ErrorInfo] = None
 
         # save start time of a run
         self._start_time = run.start_time.ToMicroseconds() / 1e6
@@ -800,6 +801,7 @@ class SendManager:
             self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
+        return None
 
     def _init_run(
         self, run: "RunRecord", config_dict: Optional[DictWithValues]
@@ -1389,6 +1391,7 @@ class SendManager:
         propose_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(
             intent_id=intent_id
         )
+        assert self._run  # TODO: is this right?
         propose_intent_done.outcome.run_result.run.CopyFrom(self._run)
         propose_intent_done.outcome.is_resolved = True
 
@@ -1398,7 +1401,7 @@ class SendManager:
 
     def send_request_recall_intent(self, record: wandb_internal_pb2.Record) -> None:
         intent_id = record.request.recall_intent.intent_id
-        recall_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(
+        recall_intent_done = wandb_internal_pb2.RecallIntentDoneRequest(
             intent_id=intent_id
         )
         self._interface._recall_intent_done(recall_intent_done)
