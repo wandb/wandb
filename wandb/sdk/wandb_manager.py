@@ -8,11 +8,11 @@ import os
 from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 
 from wandb import env, trigger
+from wandb.sdk.lib import redirect
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
 
-from wandb.sdk.lib import redirect
 
 if TYPE_CHECKING:
     from wandb.sdk.service import service
@@ -92,6 +92,8 @@ class _Manager:
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
     _settings: "Settings"
+    _out_redir: Optional[redirect.Redirect]
+    _err_redir: Optional[redirect.Redirect]
 
     def __init__(self, settings: "Settings", _use_grpc: bool = False) -> None:
         # TODO: warn if user doesnt have grpc installed
@@ -138,29 +140,29 @@ class _Manager:
             print("BADBADBAD", e)
             raise e
 
-    def _redirect_install(self):
+    def _redirect_install(self) -> None:
         out_redir = redirect.Redirect(
             src="stdout",
             cbs=[
                 lambda data: self._redirect_cb("stdout", data),  # type: ignore
-                ## self._output_writer.write,  # type: ignore
+                # self._output_writer.write,  # type: ignore
             ],
         )
         err_redir = redirect.Redirect(
             src="stderr",
             cbs=[
                 lambda data: self._redirect_cb("stderr", data),  # type: ignore
-                ## self._output_writer.write,  # type: ignore
+                # self._output_writer.write,  # type: ignore
             ],
         )
         self._out_redir = out_redir
         self._err_redir = err_redir
-        out_redir.install()
-        err_redir.install()
+        out_redir.install()  # type: ignore
+        err_redir.install()  # type: ignore
 
-    def _redirect_uninstall(self):
-        self._out_redir.uninstall()
-        self._err_redir.uninstall()
+    def _redirect_uninstall(self) -> None:
+        self._out_redir.uninstall()  # type: ignore
+        self._err_redir.uninstall()  # type: ignore
         print("uninstalled")
         self._out_redir = None
         self._err_redir = None

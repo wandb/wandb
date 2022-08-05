@@ -74,3 +74,15 @@ class ServiceGrpcInterface(ServiceInterface):
 
         assert self._stub
         _ = self._stub.ServerInformTeardown(inform_teardown)
+
+    def _svc_inform_console_data(self, name: str, data: str) -> None:
+        # TODO: implement me
+        pass
+
+    def _svc_inform_console_start(self, run_id: str) -> None:
+        # TODO: implement me
+        pass
+
+    def _svc_inform_console_stop(self) -> None:
+        # TODO: implement me
+        pass

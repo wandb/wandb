@@ -2,7 +2,7 @@ import queue
 import socket
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -83,6 +83,7 @@ class SockServerReadThread(threading.Thread):
     _mux: StreamMux
     _stopped: "Event"
     _clients: ClientDict
+    _console_run_ids: List[str]
 
     def __init__(
         self, conn: socket.socket, mux: StreamMux, clients: ClientDict
