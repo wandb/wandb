@@ -12,6 +12,7 @@ import tempfile
 from typing import Any, Dict, List, Optional
 
 import wandb
+import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
 import wandb.docker as docker
@@ -166,7 +167,7 @@ class LaunchProject:
             job_name, alias = self.job.split(":")
             _image_tag = f"{alias}-{job_name}"
             wandb.termlog(f"setting image tag {_image_tag}")
-            return _image_tag
+            return util.make_docker_image_name_safe(_image_tag)
         return None
 
     @property
