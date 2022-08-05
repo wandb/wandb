@@ -13,6 +13,7 @@ from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     build_image_from_project,
     log_job_from_run,
+    LaunchType,
 )
 
 
@@ -172,19 +173,17 @@ def _launch_add(
 
         # Remove passed in URI, using job artifact abstraction instead
         launch_spec["uri"] = None
-        JOB_BUILD = "launch_build"  # constant, TODO: #2 find better home
 
-        if wandb.run is not None:  # can this ever be true?
+        if wandb.run is not None:
             run = wandb.run
         else:
-            run = wandb.init(project=project, job_type=JOB_BUILD)
+            run = wandb.init(project=project, job_type=LaunchType.JOB)
 
         entity, project = launch_spec.get("entity"), launch_spec.get("project")
         job_artifact = log_job_from_run(run, entity, project, docker_image_uri)
 
         job_name = job_artifact.wait().name
-        launch_spec["job"] = job_name
-        job = job_name
+        launch_spec["job"], job = job_name, job_name
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue, launch_spec)

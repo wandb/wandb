@@ -257,14 +257,11 @@ def fetch_wandb_project_run_info(
 def download_entry_point(
     entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: str
 ) -> bool:
-    print(f"dep: {entity=}, {project=}, {run_name=}, {entry_point=}, {dir=}")
     metadata = api.download_url(
         project, f"code/{entry_point}", run=run_name, entity=entity
     )
     if metadata is not None:
         _, response = api.download_file(metadata["url"])
-        print(f"in download entry point: {metadata['url']}")
-        print(f"{os.listdir()=}\n{os.listdir(dir)=}")
         with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)

@@ -18,6 +18,7 @@ import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 from wandb.sdk.data_types._dtypes import TypeRegistry
+from wandb.sdk.wandb_run import Run
 
 from . import utils
 
@@ -42,6 +43,10 @@ class LaunchSource(enum.IntEnum):
 
 class EntrypointDefaults(enum.auto):
     PYTHON = ["python", "main.py"]
+
+
+class LaunchType(str):
+    JOB = "launch_job"
 
 
 class LaunchProject:
@@ -251,17 +256,6 @@ class LaunchProject:
             )
             program_name = run_info.get("codePath") or run_info["program"]
 
-            print(f"{run_info=}, {program_name=}, {self.project_dir=}")
-
-            if not program_name:
-                if len(self._entry_points.values()) > 0:
-                    program_name = self.get_single_entry_point().name
-                else:
-                    wandb.termwarn(
-                        "No program name or entrypoint set. Defaulting to 'main.py'"
-                    )
-                    program_name = "main.py"
-
             if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
 
@@ -319,30 +313,14 @@ class LaunchProject:
 
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, program_name)):
-                    # TODO: @Kyle When does this happen? When does a poperly crafted run
-                    # doesn't check in a program_name (or entrypoint?)
-
-                    print(
-                        f"{source_entity=},{source_project=},{source_run_name=},{program_name=} "
+                    downloaded_entrypoint = utils.download_entry_point(
+                        source_entity,
+                        source_project,
+                        source_run_name,
+                        internal_api,
+                        program_name,
+                        self.project_dir,
                     )
-
-                    print(f"{os.path.join(self.project_dir, program_name)=}")
-                    print(f"{os.listdir()=}\n")
-                    print(f"{os.listdir(self.project_dir)=}")
-
-                    try:
-                        downloaded_entrypoint = utils.download_entry_point(
-                            source_entity,
-                            source_project,
-                            source_run_name,
-                            internal_api,
-                            program_name,
-                            self.project_dir,
-                        )
-                    except Exception as e:
-                        print(e)
-                        wandb.termwarn("Attempt to download entrypoint failed")
-                        downloaded_entrypoint = program_name
 
                     if not downloaded_entrypoint:
                         raise LaunchError(
@@ -537,7 +515,10 @@ def create_metadata_file(
 
 
 def build_image_from_project(
-    launch_project: LaunchProject, api, launch_config={}, build_type="docker"
+    launch_project: LaunchProject,
+    api: Api,
+    launch_config: Optional[Dict] = {},
+    build_type: Optional[str] = "docker",
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec
@@ -548,7 +529,7 @@ def build_image_from_project(
     updates launch_project with the newly created docker image uri and
     returns the uri
     """
-    # circular dependency, TODO: #1 to chat with Kyle
+    # circular dependency, TODO: chat with @Kyle
     from wandb.sdk.launch.builder.loader import load_builder
 
     assert launch_project.uri, "To build an image on queue a URI must be set."
@@ -568,8 +549,6 @@ def build_image_from_project(
 
     wandb.termlog("Building docker image from uri source.")
     launch_project = fetch_and_validate_project(launch_project, api)
-    print(f"{launch_project.project_dir=}")
-
     builder = load_builder(builder_config)
     image_uri = builder.build_image(
         launch_project,
@@ -581,21 +560,22 @@ def build_image_from_project(
     return image_uri
 
 
-def log_job_from_run(run, entity: str, project: str, docker_image_uri: str) -> str:
+def log_job_from_run(run: Run, entity: str, project: str, docker_image_uri: str) -> str:
     """
     Uses a wandb_run object to create and log a job artifact given a docker
     image uri.
 
-    TODO: construct proper source_info dict :)
     """
     _id = docker_image_uri.split(":")[-1]
     name = f"{entity}-{project}-{_id}"
+    input_types = TypeRegistry.type_of(run.config.as_dict()).to_json()
+    output_types = TypeRegistry.type_of(run.summary._as_dict()).to_json()
 
-    # TODO: #3 @Kyle about this whole block!
-    input_types = TypeRegistry.type_of(dict).to_json()
-    output_types = TypeRegistry.type_of(dict).to_json()
-    python_runtime = None
-    installed_packages_list = []
+    import pkg_resources
+
+    installed_packages_list = sorted(
+        f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
+    )
 
     source_info = {
         "_version": "v0",
@@ -603,7 +583,7 @@ def log_job_from_run(run, entity: str, project: str, docker_image_uri: str) -> s
         "source": {"image": docker_image_uri},
         "input_types": input_types,
         "output_types": output_types,
-        "runtime": python_runtime,
+        "runtime": run._settings._python,
     }
     job_artifact = run._construct_job_artifact(
         name=name,
