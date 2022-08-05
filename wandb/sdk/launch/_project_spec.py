@@ -295,13 +295,11 @@ class LaunchProject:
                 patch = utils.fetch_project_diff(
                     source_entity, source_project, source_run_name, internal_api
                 )
-
+                tag_string = run_info["git"]["remote"] + run_info["git"]["commit"]
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
+                    tag_string += patch
 
-                tag_string = (
-                    run_info["git"]["remote"] + run_info["git"]["commit"] + patch
-                )
                 self._image_tag = binascii.hexlify(tag_string.encode()).decode()
 
                 # For cases where the entry point wasn't checked into git

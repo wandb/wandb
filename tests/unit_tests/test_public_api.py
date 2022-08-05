@@ -26,7 +26,7 @@ def test_base_url_sanitization(runner):
     assert api.settings["base_url"] == "https://wandb.corp.net"
 
 
-def test_parse_project_path(api):
+def test_parse_project_path(api, mock_server):
     e, p = api._parse_project_path("user/proj")
     assert e == "user"
     assert p == "proj"
@@ -38,21 +38,21 @@ def test_parse_project_path_proj(api, mock_server):
     assert p == "proj"
 
 
-def test_parse_path_simple(api):
+def test_parse_path_simple(api, mock_server):
     u, p, r = api._parse_path("user/proj/run")
     assert u == "user"
     assert p == "proj"
     assert r == "run"
 
 
-def test_parse_path_leading(api):
+def test_parse_path_leading(api, mock_server):
     u, p, r = api._parse_path("/user/proj/run")
     assert u == "user"
     assert p == "proj"
     assert r == "run"
 
 
-def test_parse_path_docker(api):
+def test_parse_path_docker(api, mock_server):
     u, p, r = api._parse_path("user/proj:run")
     assert u == "user"
     assert p == "proj"
@@ -66,7 +66,7 @@ def test_parse_path_docker_proj(mock_server, api):
     assert r == "run"
 
 
-def test_parse_path_url(api):
+def test_parse_path_url(api, mock_server):
     u, p, r = api._parse_path("user/proj/runs/run")
     assert u == "user"
     assert p == "proj"
@@ -429,6 +429,21 @@ def test_artifact_file(runner, mock_server, api):
         else:
             part = "mnist:v0"
         assert path == os.path.join(".", "artifacts", part, "digits.h5")
+
+
+def test_artifact_files(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        mock_server.ctx["max_cli_version"] = "0.12.21"
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+        assert str(art.files()) == "<ArtifactFiles entity/project/mnist:v0 (10)>"
+        paths = [f.storage_path for f in art.files()]
+        assert paths == ["x/y/z", "x/y/z"]
+        # Assert we don't break legacy local installs
+        mock_server.ctx["max_cli_version"] = "0.12.20"
+        # reset server info
+        art.client._server_info = None
+        file = art.files()[0]
+        assert "storagePath" not in file._attrs.keys()
 
 
 def test_artifact_download(runner, mock_server, api):

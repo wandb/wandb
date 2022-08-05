@@ -142,7 +142,7 @@ commands:
       - setup_remote_docker:
           version: 20.10.12
           docker_layer_caching: << parameters.docker_layer_caching >>
-      - run: apk add docker-cli-buildx=0.8.2-r3  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+      - run: apk add docker-cli-buildx=0.8.2-r4  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
   setup_gcloud:
     parameters:
@@ -830,7 +830,7 @@ jobs:
           name: "Install stable version of wandb with pre-release versions of dependencies"
           command: |
             wget https://raw.githubusercontent.com/wandb/wandb/$CIRCLE_BRANCH/requirements.txt
-            for r in `grep -o '^[^#]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
+            for r in `grep -o '^[^(#,;)]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
             pip install wandb
             python -c "import wandb"
             pip freeze > deps_wandb_deps_pre.txt
@@ -839,7 +839,7 @@ jobs:
       - run:
           name: "Install pre-release version of wandb with pre-release versions of dependencies"
           command: |
-            for r in `grep -o '^[^#]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
+            for r in `grep -o '^[^(#,;)]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
             pip install --pre wandb
             python -c "import wandb"
           when: always

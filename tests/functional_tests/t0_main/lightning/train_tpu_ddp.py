@@ -27,7 +27,13 @@ def main():
     wandb_logger = WandbLogger(log_model=True, config=config, save_code=True)
 
     # Initialize a trainer
-    trainer = Trainer(max_epochs=1, logger=wandb_logger, tpu_cores=8)
+    trainer = Trainer(
+        max_epochs=1,
+        logger=wandb_logger,
+        accelerator="tpu",
+        devices=8,
+        strategy="ddp",
+    )
 
     # Train the model
     trainer.fit(model, train, val)
