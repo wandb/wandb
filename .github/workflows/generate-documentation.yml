@@ -11,8 +11,6 @@ jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
-      - name: Set the tag name
-        run: git describe --tags $(git rev-list --tags --max-count=1)
       - uses: wandb/docugen@debug-ref-docs
         with:
           client-branch: debug-ref-docs
