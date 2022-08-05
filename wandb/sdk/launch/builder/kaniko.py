@@ -197,9 +197,9 @@ class KanikoBuilder(AbstractBuilder):
             ecr_client = boto3.client("ecr", region_name=region)
             repo_name = repository.split("/")[-1]
             try:
-                ecr_client.describe_image_scan_findings(
+                ecr_client.describe_images(
                     repositoryName=repo_name,
-                    imageId={"imageTag": launch_project.image_tag},
+                    imageIds=[{"imageTag": launch_project.image_tag}],
                 )
                 return False
             except ecr_client.exceptions.ImageNotFoundException:
