@@ -523,19 +523,6 @@ class RedirectBase:
         _redirects[self.src] = None
 
 
-class _WrappedStream:
-    """
-    For python 2.7 only.
-    """
-
-    def __init__(self, stream, write_f):
-        object.__setattr__(self, "write", write_f)
-        object.__setattr__(self, "_stream", stream)
-
-    def __getattr__(self, attr):
-        return getattr(self._stream, attr)
-
-
 class StreamWrapper(RedirectBase):
     """
     Patches the write method of current sys.stdout/sys.stderr
@@ -584,11 +571,7 @@ class StreamWrapper(RedirectBase):
             self._old_write(data)
             self._queue.put(data)
 
-        if sys.version_info[0] > 2:
-            stream.write = write
-        else:
-            self._old_stream = stream
-            setattr(sys, self.src, _WrappedStream(stream, write))
+        stream.write = write
 
         self._queue = queue.Queue()
         self._stopped = threading.Event()
@@ -619,10 +602,7 @@ class StreamWrapper(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        if sys.version_info[0] > 2:
-            self.src_wrapped_stream.write = self._old_write
-        else:
-            setattr(sys, self.src, self._old_stream)
+        self.src_wrapped_stream.write = self._old_write
 
         self._stopped.set()
         self._emulator_write_thread.join(timeout=5)
@@ -632,6 +612,47 @@ class StreamWrapper(RedirectBase):
             wandb.termlog("Done.")
         self.flush()
 
+        self._installed = False
+        super().uninstall()
+
+
+class StreamRawWrapper(RedirectBase):
+    """
+    Patches the write method of current sys.stdout/sys.stderr
+
+    Captures data in a raw form rather than using the emulator
+    """
+
+    def __init__(self, src, cbs=()):
+        super().__init__(src=src, cbs=cbs)
+        self._installed = False
+
+    def install(self):
+        super().install()
+        if self._installed:
+            return
+        stream = self.src_wrapped_stream
+        old_write = stream.write
+        self._prev_callback_timestamp = time.time()
+        self._old_write = old_write
+
+        def write(data):
+            self._old_write(data)
+            for cb in self.cbs:
+                try:
+                    cb(data)
+                except Exception:
+                    # TODO: Figure out why this was needed and log or error out appropriately
+                    # it might have been strange terminals? maybe shutdown cases?
+                    pass
+
+        stream.write = write
+        self._installed = True
+
+    def uninstall(self):
+        if not self._installed:
+            return
+        self.src_wrapped_stream.write = self._old_write
         self._installed = False
         super().uninstall()
 
@@ -746,7 +767,7 @@ class Redirect(RedirectBase):
 
         self._emulator_write_thread.join(timeout=5)
         if self._emulator_write_thread.is_alive():
-            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            wandb.termlog(f"Processing terminal output ({self.src})...")
             self._emulator_write_thread.join()
             wandb.termlog("Done.")
         self.flush()

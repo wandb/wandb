@@ -51,6 +51,11 @@ class InterfaceShared(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
+        rec = pb.Record()
+        rec.output_raw.CopyFrom(outdata)
+        self._publish(rec)
+
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
@@ -246,7 +251,7 @@ class InterfaceShared(InterfaceBase):
         result = self._communicate(rec, timeout=timeout)
         if result is None:
             # TODO: friendlier error message here
-            raise wandb.Error(  # type: ignore[no-untyped-call]
+            raise wandb.Error(
                 "Couldn't communicate with backend after %s seconds" % timeout
             )
         login_response = result.response.login_response

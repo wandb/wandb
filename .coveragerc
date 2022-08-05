@@ -24,7 +24,6 @@ source =
     wandb/
 
 omit =
-    wandb/sweeps/*
     wandb/vendor/*
     wandb/proto/*
 
@@ -32,8 +31,8 @@ omit =
 exclude_lines =
     pragma: no cover
     if TYPE_CHECKING:
+    @abstractmethod
 
 omit =
-    wandb/sweeps/*
     wandb/vendor/*
     wandb/proto/*

@@ -59,9 +59,11 @@ class Image(BatchableMedia):
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
         caption: (string) Label for display of image.
 
+    Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
+
     Examples:
         ### Create a wandb.Image from a numpy array
-        <!--yeadoc-test:log-image-numpy->
+        <!--yeadoc-test:log-image-numpy-->
         ```python
         import numpy as np
         import wandb
@@ -76,7 +78,7 @@ class Image(BatchableMedia):
         ```
 
         ### Create a wandb.Image from a PILImage
-        <!--yeadoc-test:log-image-pil->
+        <!--yeadoc-test:log-image-pillow-->
         ```python
         import numpy as np
         from PIL import Image as PILImage

@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import hashlib
+import json
 import os
 import pathlib
 import re
@@ -9,7 +10,7 @@ import tempfile
 import time
 from typing import (
     Any,
-    Callable,
+    cast,
     Dict,
     Generator,
     IO,
@@ -32,8 +33,10 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
+from wandb.sdk.internal import progress
 
 from . import lib as wandb_lib
+from .data_types._dtypes import Type, TypeRegistry
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
@@ -73,6 +76,16 @@ class _AddedObj:
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
         self.entry = entry
         self.obj = obj
+
+
+def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise TypeError(f"metadata must be dict, not {type(metadata)}")
+    return cast(
+        Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
+    )
 
 
 class Artifact(ArtifactInterface):
@@ -137,6 +150,7 @@ class Artifact(ArtifactInterface):
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
                 'Invalid name: "%s"' % name
             )
+        metadata = _normalize_metadata(metadata)
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
         storage_layout = StorageLayout.V2
@@ -162,7 +176,7 @@ class Artifact(ArtifactInterface):
         self._type = type
         self._name = name
         self._description = description
-        self._metadata = metadata or {}
+        self._metadata = metadata
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
@@ -288,6 +302,7 @@ class Artifact(ArtifactInterface):
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
+        metadata = _normalize_metadata(metadata)
         if self._logged_artifact:
             self._logged_artifact.metadata = metadata
             return
@@ -350,16 +365,23 @@ class Artifact(ArtifactInterface):
         )
 
     @contextlib.contextmanager
-    def new_file(self, name: str, mode: str = "w") -> Generator[IO, None, None]:
+    def new_file(
+        self, name: str, mode: str = "w", encoding: Optional[str] = None
+    ) -> Generator[IO, None, None]:
         self._ensure_can_add()
         path = os.path.join(self._artifact_dir.name, name.lstrip("/"))
         if os.path.exists(path):
             raise ValueError(f'File with name "{name}" already exists at "{path}"')
 
         util.mkdir_exists_ok(os.path.dirname(path))
-        with util.fsync_open(path, mode) as f:
-            yield f
-
+        try:
+            with util.fsync_open(path, mode, encoding) as f:
+                yield f
+        except UnicodeEncodeError as e:
+            wandb.termerror(
+                f"Failed to open the provided file (UnicodeEncodeError: {e}). Please provide the proper encoding."
+            )
+            raise e
         self.add_file(path, name=name)
 
     def add_file(
@@ -756,7 +778,7 @@ class ArtifactManifestV1(ArtifactManifest):
     def __init__(
         self,
         artifact: ArtifactInterface,
-        storage_policy: StoragePolicy,
+        storage_policy: "WandbStoragePolicy",
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
     ) -> None:
         super().__init__(artifact, storage_policy, entries=entries)
@@ -958,7 +980,7 @@ class WandbStoragePolicy(StoragePolicy):
         artifact_manifest_id: str,
         entry: ArtifactEntry,
         preparer: "StepPrepare",
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
         # write-through cache
         cache_path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -1433,26 +1455,27 @@ class S3Handler(StorageHandler):
         multi = False
         try:
             objs[0].load()
+            # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
+            # trigger a recursive upload.
+            # we should check the object's metadata says it is a directory and do a multi file upload if it is
+            if "x-directory" in objs[0].content_type:
+                multi = True
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 multi = True
-                start_time = time.time()
-                termlog(
-                    'Generating checksum for up to %i objects with prefix "%s"... '
-                    % (max_objects, key),
-                    newline=False,
-                )
-                objs = (
-                    self._s3.Bucket(bucket)
-                    .objects.filter(Prefix=key)
-                    .limit(max_objects)
-                )
             else:
                 raise CommError(
                     "Unable to connect to S3 (%s): %s"
                     % (e.response["Error"]["Code"], e.response["Error"]["Message"])
                 )
-
+        if multi:
+            start_time = time.time()
+            termlog(
+                'Generating checksum for up to %i objects with prefix "%s"... '
+                % (max_objects, key),
+                newline=False,
+            )
+            objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
         entries = [
@@ -2019,3 +2042,11 @@ class WBLocalArtifactHandler(StorageHandler):
                 digest=target_entry.digest,
             )
         ]
+
+
+class _ArtifactVersionType(Type):
+    name = "artifactVersion"
+    types = [Artifact, PublicArtifact]
+
+
+TypeRegistry.add(_ArtifactVersionType)

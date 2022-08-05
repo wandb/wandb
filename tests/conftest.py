@@ -4,12 +4,14 @@ import logging
 import os
 import platform
 import queue
+import random
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import threading
+from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
 import urllib
@@ -66,16 +68,38 @@ def test_cleanup(*args, **kwargs):
     print(proc.open_files())
 
 
+def wait_for_port_file(port_file):
+    port = 0
+    start_time = time.time()
+    while not port:
+        try:
+            port = int(open(port_file).read().strip())
+            if port:
+                break
+        except Exception as e:
+            print(f"Problem parsing port file: {e}")
+        now = time.time()
+        if now > start_time + 30:
+            raise Exception(f"Could not start server {now} {start_time}")
+        time.sleep(0.5)
+    return port
+
+
 def start_mock_server(worker_id):
     """We start a flask server process for each pytest-xdist worker_id"""
-    port = utils.free_port()
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    path = os.path.join(root, "tests", "utils", "mock_server.py")
+    this_folder = os.path.dirname(__file__)
+    path = os.path.join(this_folder, "utils", "mock_server.py")
     command = [sys.executable, "-u", path]
     env = os.environ
-    env["PORT"] = str(port)
-    env["PYTHONPATH"] = root
-    logfname = os.path.join(root, "tests", "logs", f"live_mock_server-{worker_id}.log")
+    env["PORT"] = "0"  # Let the server find its own port
+    env["PYTHONPATH"] = os.path.abspath(os.path.join(this_folder, os.pardir))
+    logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
+    pid = os.getpid()
+    rand = random.randint(0, 2**32)
+    port_file = os.path.join(
+        this_folder, "logs", f"live_mock_server-{worker_id}-{pid}-{rand}.port"
+    )
+    env["PORT_FILE"] = port_file
     logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
@@ -85,6 +109,8 @@ def start_mock_server(worker_id):
         bufsize=1,
         close_fds=True,
     )
+
+    port = wait_for_port_file(port_file)
     server._port = port
     server.base_url = f"http://localhost:{server._port}"
 
@@ -147,8 +173,8 @@ def test_name(request):
 @pytest.fixture
 def test_dir(test_name):
     orig_dir = os.getcwd()
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    test_dir = os.path.join(root, "tests", "logs", test_name)
+    root = os.path.abspath(os.path.dirname(__file__))
+    test_dir = os.path.join(root, "logs", test_name)
     if os.path.exists(test_dir):
         shutil.rmtree(test_dir)
     mkdir_exists_ok(test_dir)
@@ -178,29 +204,23 @@ def git_repo(runner):
 
 
 @pytest.fixture
-def git_repo_with_remote(runner):
+def git_repo_fn(runner):
+    def git_repo_fn_helper(
+        path: str = ".",
+        remote_name: str = "origin",
+        remote_url: Optional[str] = "https://foo:bar@github.com/FooTest/Foo.git",
+        commit_msg: Optional[str] = None,
+    ):
+        with git.Repo.init(path) as repo:
+            mkdir_exists_ok("wandb")
+            if remote_url is not None:
+                repo.create_remote(remote_name, remote_url)
+            if commit_msg is not None:
+                repo.index.commit(commit_msg)
+            return GitRepo(lazy=False)
+
     with runner.isolated_filesystem():
-        with git.Repo.init(".") as repo:
-            repo.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
-            yield GitRepo(lazy=False)
-
-
-@pytest.fixture
-def git_repo_with_remote_and_port(runner):
-    with runner.isolated_filesystem():
-        with git.Repo.init(".") as repo:
-            repo.create_remote(
-                "origin", "https://foo:bar@github.com:8080/FooTest/Foo.git"
-            )
-            yield GitRepo(lazy=False)
-
-
-@pytest.fixture
-def git_repo_with_remote_and_empty_pass(runner):
-    with runner.isolated_filesystem():
-        with git.Repo.init(".") as repo:
-            repo.create_remote("origin", "https://foo:@github.com/FooTest/Foo.git")
-            yield GitRepo(lazy=False)
+        yield git_repo_fn_helper
 
 
 @pytest.fixture
@@ -223,7 +243,6 @@ def test_settings(test_dir, mocker, live_mock_server):
     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
     wandb_dir = os.path.join(test_dir, "wandb")
     mkdir_exists_ok(wandb_dir)
-    # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     settings = wandb.Settings(
         api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
@@ -265,13 +284,18 @@ def runner(monkeypatch, mocker):
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
-    mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", lambda x: DUMMY_API_KEY)
+    mocker.patch("wandb.wandb_lib.apikey.getpass", lambda x: DUMMY_API_KEY)
     return CliRunner()
 
 
 @pytest.fixture(autouse=True)
 def reset_setup():
-    wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+    def teardown():
+        wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+
+    getattr(wandb, "teardown", teardown)()
+    yield
+    getattr(wandb, "teardown", lambda: None)()
 
 
 @pytest.fixture(autouse=True)
@@ -778,7 +802,7 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
-                    collect_responses.local_info = poll_exit_resp.local_info
+                    collect_responses.poll_exit_resp = poll_exit_resp
                     break
             time.sleep(1)
         _internal_sender.join()

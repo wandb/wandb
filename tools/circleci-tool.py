@@ -21,6 +21,11 @@ Trigger (re)execution of a branch
 
     ```
 
+Trigger nightly run
+    ```
+    $ ./circleci-tool.py trigger-nightly --slack-notify
+    ```
+
 Download artifacts from an executed workflow
     ```
     $ ./circleci-tool download
@@ -42,14 +47,12 @@ CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
 platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
 py_name_dict = dict(
-    py27="py27",
     py36="py36",
     py37="py37",
     py38="py38",
     py39="py39",
 )
 py_image_dict = dict(
-    py27="python:2.7",
     py36="python:3.6",
     py37="python:3.7",
     py38="python:3.8",
@@ -86,7 +89,7 @@ def poll(args, pipeline_id=None, workflow_ids=None):
 
 
 def trigger(args):
-    url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
+    url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
     payload = {
         "branch": args.branch,
     }
@@ -140,7 +143,7 @@ def trigger(args):
     if args.dryrun:
         return
     r = requests.post(url, json=payload, auth=(args.api_token, ""))
-    assert r.status_code == 201, "Error making api requeest"
+    assert r.status_code == 201, "Error making api request"
     d = r.json()
     uuid = d["id"]
     print("CircleCI workflow started:", uuid)
@@ -148,10 +151,62 @@ def trigger(args):
         poll(args, pipeline_id=uuid)
 
 
+def trigger_nightly(args):
+    url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
+
+    default_shards = {
+        "standalone-cpu",
+        "standalone-gpu",
+        "standalone-tpu",
+        "standalone-local",
+        "kfp",
+    }
+    shards = {
+        f"manual_nightly_execute_shard_{shard.replace('-', '_')}": False
+        for shard in default_shards
+    }
+
+    requested_shards = set(args.shards.split(",")) if args.shards else default_shards
+
+    # check that all requested shards are valid and that there is at least one
+    if not requested_shards.issubset(default_shards):
+        raise ValueError(
+            f"Requested invalid shards: {requested_shards}. "
+            f"Valid shards are: {default_shards}"
+        )
+    # flip the requested shards to True
+    for shard in requested_shards:
+        shards[f"manual_nightly_execute_shard_{shard.replace('-', '_')}"] = True
+
+    payload = {
+        "branch": args.branch,
+        "parameters": {
+            **{
+                "manual": True,
+                "manual_nightly": True,
+                "manual_nightly_git_branch": args.branch,
+                "manual_nightly_slack_notify": args.slack_notify or False,
+            },
+            **shards,
+        },
+    }
+
+    print("Sending to CircleCI:", payload)
+    if args.dryrun:
+        return
+    r = requests.post(url, json=payload, auth=(args.api_token, ""))
+    assert r.status_code == 201, "Error making api request"
+    d = r.json()
+    uuid = d["id"]
+    print("CircleCI workflow started:", uuid)
+    if args.wait:
+        poll(args, pipeline_id=uuid)
+
+
 def get_ci_builds(args, completed=True):
     bname = args.branch
     # TODO: extend pagination if not done
-    url = "https://circleci.com/api/v1.1/project/gh/wandb/client?shallow=true&limit=100"
+    url = "https://circleci.com/api/v1.1/project/gh/wandb/wandb?shallow=true&limit=100"
     if completed:
         url = url + "&filter=completed"
     # print("SEND", url)
@@ -181,7 +236,7 @@ def get_ci_builds(args, completed=True):
 
 
 def grab(args, vhash, bnum):
-    # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/client/61238/artifacts
+    # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/wandb/61238/artifacts
     # curl -L  -o out.dat -H "Circle-Token: $CIRCLECI_TOKEN" https://61238-86031674-gh.circle-artifacts.com/0/cover-results/.coverage
     cachedir = ".circle_cache"
     cfbase = f"cover-{vhash}-{bnum}.xml"
@@ -191,7 +246,7 @@ def grab(args, vhash, bnum):
     if os.path.exists(cfname):
         return
     url = (
-        "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(
+        "https://circleci.com/api/v1.1/project/github/wandb/wandb/{}/artifacts".format(
             bnum
         )
     )
@@ -242,15 +297,13 @@ def process_args():
     )
     parser.add_argument("--api_token", help=argparse.SUPPRESS)
     parser.add_argument("--branch", help="git branch (autodetected)")
-    parser.add_argument("--dryrun", action="store_true", help="Dont do anything")
+    parser.add_argument("--dryrun", action="store_true", help="Don't do anything")
 
     parse_trigger = subparsers.add_parser("trigger")
     parse_trigger.add_argument(
-        "--platform", help="comma separated platform (linux,mac,win)"
+        "--platform", help="comma-separated platform (linux,mac,win)"
     )
-    parse_trigger.add_argument(
-        "--toxenv", help="single toxenv (py27,py36,py37,py38,py39)"
-    )
+    parse_trigger.add_argument("--toxenv", help="single toxenv (py36,py37,py38,py39)")
     parse_trigger.add_argument("--test-file", help="test file (ex: tests/test.py)")
     parse_trigger.add_argument("--test-name", help="test name (ex: test_dummy)")
     parse_trigger.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
@@ -258,6 +311,25 @@ def process_args():
     parse_trigger.add_argument("--xdist", type=int, help="pytest xdist parallelism")
     parse_trigger.add_argument("--loop", type=int, help="Outer loop (implies wait)")
     parse_trigger.add_argument(
+        "--wait", action="store_true", help="Wait for finish or error"
+    )
+
+    parse_trigger_nightly = subparsers.add_parser("trigger-nightly")
+    parse_trigger_nightly.add_argument(
+        "--slack-notify", action="store_true", help="post notifications to slack"
+    )
+    parse_trigger_nightly.add_argument(
+        "--shards",
+        default=(
+            "standalone-cpu,"
+            "standalone-gpu,"
+            "standalone-tpu,"
+            "standalone-local,"
+            "kfp"
+        ),
+        help="comma-separated shards (standalone-{cpu,gpu,tpu,local},kfp)",
+    )
+    parse_trigger_nightly.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"
     )
 
@@ -299,6 +371,8 @@ def main():
             if args.loop:
                 print(f"Loop: {i + 1} of {args.loop}")
             trigger(args)
+    elif args.action == "trigger-nightly":
+        trigger_nightly(args)
     elif args.action == "status":
         # find my workflow report status, wait on it (if specified)
         status(args)

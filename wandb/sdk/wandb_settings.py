@@ -33,6 +33,7 @@ from urllib.parse import quote, urlencode, urlparse, urlsplit
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
+import wandb.env
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -178,6 +179,8 @@ class SettingsConsole(enum.IntEnum):
     OFF = 0
     WRAP = 1
     REDIRECT = 2
+    WRAP_RAW = 3
+    WRAP_EMU = 4
 
 
 class Property:
@@ -375,6 +378,8 @@ class Settings:
     _jupyter_path: str
     _jupyter_root: str
     _kaggle: bool
+    _live_policy_rate_limit: int
+    _live_policy_wait_time: int
     _noop: bool
     _offline: bool
     _os: str
@@ -386,6 +391,9 @@ class Settings:
     _service_transport: str
     _start_datetime: datetime
     _start_time: float
+    _stats_pid: int  # (internal) base pid for system stats
+    _stats_sample_rate_seconds: float
+    _stats_samples_to_average: int
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -400,16 +408,22 @@ class Settings:
     deployment: str
     disable_code: bool
     disable_git: bool
+    disable_hints: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
     docker: str
     email: str
+    enable_job_creation: bool
     entity: str
     files_dir: str
     force: bool
+    git_commit: str
     git_remote: str
+    git_remote_url: str
+    git_root: str
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
+    init_timeout: int
     is_local: bool
     label_disable: bool
     launch: bool
@@ -470,6 +484,7 @@ class Settings:
     tmp_dir: str
     username: str
     wandb_dir: str
+    table_raise_on_max_row_limit_exceeded: bool
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -478,6 +493,9 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _disable_meta={"preprocessor": _str_as_bool},
+            _disable_stats={"preprocessor": _str_as_bool},
+            _disable_viewer={"preprocessor": _str_as_bool},
             _colab={
                 "hook": lambda _: "google.colab" in sys.modules,
                 "auto_hook": True,
@@ -500,7 +518,9 @@ class Settings:
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
-            _save_requirements={"value": True},
+            _save_requirements={"value": True, "preprocessor": _str_as_bool},
+            _stats_sample_rate_seconds={"value": 2.0},
+            _stats_samples_to_average={"value": 15},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
@@ -522,8 +542,10 @@ class Settings:
                 "auto_hook": True,
             },
             disable_code={"preprocessor": _str_as_bool},
+            disable_hints={"preprocessor": _str_as_bool},
             disable_git={"preprocessor": _str_as_bool},
             disabled={"value": False, "preprocessor": _str_as_bool},
+            enable_job_creation={"preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
                 "hook": lambda x: self._path_convert(
@@ -537,6 +559,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            init_timeout={"value": 30, "preprocessor": lambda x: int(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -582,6 +605,10 @@ class Settings:
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
             resumed={"value": "False", "preprocessor": _str_as_bool},
+            root_dir={
+                "preprocessor": lambda x: str(x),
+                "value": os.path.abspath(os.getcwd()),
+            },
             run_mode={
                 "hook": lambda _: "offline-run" if self._offline else "run",
                 "auto_hook": True,
@@ -635,6 +662,10 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            table_raise_on_max_row_limit_exceeded={
+                "value": False,
+                "preprocessor": _str_as_bool,
+            },
             timespec={
                 "hook": (
                     lambda _: (
@@ -724,8 +755,18 @@ class Settings:
     @staticmethod
     def _validate_console(value: str) -> bool:
         # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices: Set[str] = {"auto", "redirect", "off", "wrap"}
+        choices: Set[str] = {
+            "auto",
+            "redirect",
+            "off",
+            "wrap",
+            # internal console states
+            "wrap_emu",
+            "wrap_raw",
+        }
         if value not in choices:
+            # do not advertise internal console states
+            choices -= {"wrap_emu", "wrap_raw"}
             raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
         return True
 
@@ -871,6 +912,8 @@ class Settings:
         convert_dict: Dict[str, SettingsConsole] = dict(
             off=SettingsConsole.OFF,
             wrap=SettingsConsole.WRAP,
+            wrap_raw=SettingsConsole.WRAP_RAW,
+            wrap_emu=SettingsConsole.WRAP_EMU,
             redirect=SettingsConsole.REDIRECT,
         )
         console: str = str(self.console)
@@ -1033,10 +1076,6 @@ class Settings:
         # setup private attributes
         object.__setattr__(self, "_Settings_start_datetime", None)
         object.__setattr__(self, "_Settings_start_time", None)
-
-        if os.environ.get(wandb.env.DIR) is None:
-            # todo: double-check source, shouldn't it be Source.ENV?
-            self.update({"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE)
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
@@ -1233,6 +1272,11 @@ class Settings:
                 config[k] = config[k].split(",")
         return config
 
+    def _apply_base(self, pid: int, _logger: Optional[_EarlyLogger] = None) -> None:
+        if _logger is not None:
+            _logger.info(f"Configure stats pid to {pid}")
+        self.update({"_stats_pid": pid}, source=Source.SETUP)
+
     def _apply_config_files(self, _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): permit setting of config in system and workspace
         if self.settings_system is not None:
@@ -1288,7 +1332,6 @@ class Settings:
             _logger.info(
                 f"Loading settings from environment variables: {_redact_dict(env)}"
             )
-
         self.update(env, source=Source.ENV)
 
     def _infer_settings_from_environment(
@@ -1296,7 +1339,7 @@ class Settings:
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
 
-        settings: Dict[str, Union[bool, str, Sequence]] = dict()
+        settings: Dict[str, Union[bool, str, Sequence, None]] = dict()
         # disable symlinks if on windows (requires admin or developer setup)
         settings["symlink"] = True
         if self._windows:
@@ -1356,7 +1399,8 @@ class Settings:
         if os.path.exists("/usr/local/cuda/version.txt"):
             with open("/usr/local/cuda/version.txt") as f:
                 settings["_cuda"] = f.read().split(" ")[-1].strip()
-        settings["_args"] = sys.argv[1:]
+        if not self._jupyter:
+            settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
         # hack to make sure we don't hang on windows
@@ -1502,7 +1546,8 @@ class Settings:
             "sweep_id": "sweep_id",
             "host": "host",
             "resumed": "resumed",
-            "git.remote_url": "git_remote",
+            "git.remote_url": "git_remote_url",
+            "git.commit": "git_commit",
         }
         run_settings = {
             name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)

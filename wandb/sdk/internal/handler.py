@@ -5,7 +5,6 @@ import json
 import logging
 import math
 import numbers
-import os
 from queue import Queue
 from threading import Event
 import time
@@ -82,6 +81,7 @@ class HandleManager:
     _track_time: Optional[float]
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
+    _run_start_time: Optional[float]
 
     def __init__(
         self,
@@ -107,7 +107,7 @@ class HandleManager:
 
         self._track_time = None
         self._accumulate_time = 0
-        self._run_start_time = 0
+        self._run_start_time = None
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
@@ -197,6 +197,9 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_output(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_output_raw(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_files(self, record: Record) -> None:
@@ -657,7 +660,7 @@ class HandleManager:
         assert run_start
         assert run_start.run
 
-        self._run_start_time = run_start.run.start_time.ToSeconds()
+        self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
 
         self._track_time = time.time()
         if run_start.run.resumed and run_start.run.runtime:
@@ -666,8 +669,9 @@ class HandleManager:
             self._accumulate_time = 0
 
         if not self._settings._disable_stats:
-            pid = os.getpid()
-            self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
+            self._system_stats = stats.SystemStats(
+                settings=self._settings, interface=self._interface
+            )
             self._system_stats.start()
 
         if not self._settings._disable_meta and not run_start.run.resumed:
@@ -823,13 +827,11 @@ class HandleManager:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:
             return
-        # if it is offline sync, self._run_start_time is 0
+        # if it is offline sync, self._run_start_time is None
         # in that case set it to the first tfevent timestamp
-        if self._run_start_time == 0:
+        if self._run_start_time is None:
             self._run_start_time = history_dict["_timestamp"]
-        history_dict["_runtime"] = int(
-            history_dict["_timestamp"] - self._run_start_time
-        )
+        history_dict["_runtime"] = history_dict["_timestamp"] - self._run_start_time
         item = history.item.add()
         item.key = "_runtime"
         item.value_json = json.dumps(history_dict[item.key])

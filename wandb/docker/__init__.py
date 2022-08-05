@@ -1,8 +1,10 @@
+import json
 import logging
 import os
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from dockerpycreds.utils import find_executable  # type: ignore
 import requests
 from wandb.docker import auth
 from wandb.docker import www_authenticate
@@ -38,9 +40,12 @@ def is_buildx_installed() -> bool:
     """Returns `True` if docker buildx is installed and working."""
     global _buildx_installed
     if _buildx_installed is not None:
-        return _buildx_installed
-    help_output = shell(["buildx", "--help"])
-    _buildx_installed = help_output is not None and "buildx" in help_output
+        return _buildx_installed  # type: ignore
+    if not find_executable("docker"):
+        _buildx_installed = False
+    else:
+        help_output = shell(["buildx", "--help"])
+        _buildx_installed = help_output is not None and "buildx" in help_output
     return _buildx_installed
 
 
@@ -70,14 +75,8 @@ def run(
     subprocess_env.update(env or {})
     if args[1] == "buildx":
         subprocess_env["DOCKER_CLI_EXPERIMENTAL"] = "enabled"
-    if capture_stdout:
-        stdout_dest = subprocess.PIPE
-    else:
-        stdout_dest = None
-    if capture_stderr:
-        stderr_dest = subprocess.PIPE
-    else:
-        stderr_dest = None
+    stdout_dest: Optional[int] = subprocess.PIPE if capture_stdout else None
+    stderr_dest: Optional[int] = subprocess.PIPE if capture_stderr else None
 
     completed_process = subprocess.run(
         args, input=input, stdout=stdout_dest, stderr=stderr_dest, env=subprocess_env
@@ -102,35 +101,35 @@ def run(
 def _post_process_stream(stream: Optional[bytes]) -> str:
     if stream is None:
         return ""
-    stream = stream.decode()
-    if len(stream) != 0 and stream[-1] == "\n":
-        stream = stream[:-1]
-    return stream
+    decoded_stream = stream.decode()
+    if len(decoded_stream) != 0 and decoded_stream[-1] == "\n":
+        decoded_stream = decoded_stream[:-1]
+    return decoded_stream
 
 
-def default_image(gpu=False) -> str:
+def default_image(gpu: bool = False) -> str:
     tag = "all"
     if not gpu:
         tag += "-cpu"
     return "wandb/deepo:%s" % tag
 
 
-def parse_repository_tag(repo_name: str) -> Tuple[Optional[str]]:
+def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:
     parts = repo_name.rsplit("@", 1)
     if len(parts) == 2:
-        return tuple(parts)
+        return parts[0], parts[1]
     parts = repo_name.rsplit(":", 1)
     if len(parts) == 2 and "/" not in parts[1]:
-        return tuple(parts)
+        return parts[0], parts[1]
     return repo_name, None
 
 
-def parse(image_name: str) -> Tuple[str]:
+def parse(image_name: str) -> Tuple[str, str, str]:
     repository, tag = parse_repository_tag(image_name)
     registry, repo_name = auth.resolve_repository_name(repository)
     if registry == "docker.io":
         registry = "index.docker.io"
-    return registry, repo_name, tag or "latest"
+    return registry, repo_name, (tag or "latest")
 
 
 def auth_token(registry: str, repo: str) -> Dict[str, str]:
@@ -142,11 +141,16 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
     auth_info = auth_config.resolve_authconfig(registry)
     if auth_info:
         normalized = {k.lower(): v for k, v in auth_info.items()}
-        auth_info = (normalized.get("username"), normalized.get("password"))
+        normalized_auth_info: Optional[Tuple] = (
+            normalized.get("username"),
+            normalized.get("password"),
+        )
+    else:
+        normalized_auth_info = None
     response = requests.get(f"https://{registry}/v2/", timeout=3)
     if response.headers.get("www-authenticate"):
         try:
-            info = www_authenticate.parse(response.headers["www-authenticate"])
+            info: Dict = www_authenticate.parse(response.headers["www-authenticate"])
         except ValueError:
             info = {}
     else:
@@ -162,11 +166,12 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
             + "?service={}&scope=repository:{}:pull".format(
                 info["bearer"]["service"], repo
             ),
-            auth=auth_info,
+            auth=normalized_auth_info,
             timeout=3,
         )
         res.raise_for_status()
-        return res.json()
+        result_json: Dict[str, str] = res.json()
+        return result_json
     return {}
 
 
@@ -199,14 +204,20 @@ def image_id(image_name: str) -> Optional[str]:
     if "@sha256:" in image_name:
         return image_name
     else:
-        return shell(
-            ["inspect", image_name, "--format", "{{index .RepoDigests 0}}"]
-        ) or image_id_from_registry(image_name)
+        digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
+        try:
+            if digests is None:
+                raise ValueError()
+            im_id: str = json.loads(digests)[0]
+            return im_id
+        except (ValueError, IndexError):
+            return image_id_from_registry(image_name)
 
 
 def get_image_uid(image_name: str) -> int:
-    """Retreve the image default uid through brute force"""
-    return int(shell(["run", image_name, "id", "-u"]))
+    """Retrieve the image default uid through brute force"""
+    image_uid = shell(["run", image_name, "id", "-u"])
+    return int(image_uid) if image_uid else -1
 
 
 def push(image: str, tag: str) -> Optional[str]:

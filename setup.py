@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """wandb setup."""
 
 from setuptools import setup
@@ -11,7 +10,7 @@ with open("package_readme.md") as readme_file:
 with open("requirements.txt") as requirements_file:
     requirements = requirements_file.read().splitlines()
 
-with open("requirements.sweeps.txt") as sweeps_requirements_file:
+with open("requirements_sweeps.txt") as sweeps_requirements_file:
     sweeps_requirements = sweeps_requirements_file.read().splitlines()
 
 
@@ -34,15 +33,24 @@ media_requirements = [
 ]
 launch_requirements = [
     "nbconvert",
+    "nbformat",
     "chardet",
     "iso8601",
     "typing_extensions",
+    "boto3",
+    "botocore",
+    "google-cloud-storage",
+    "kubernetes",
+]
+
+models_requirements = [
+    "cloudpickle"
 ]
 
 
 setup(
     name="wandb",
-    version="0.12.16.dev1",
+    version="0.13.1.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -92,6 +100,7 @@ setup(
         "media": media_requirements,
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,
+        "models": models_requirements,
     },
 )
 

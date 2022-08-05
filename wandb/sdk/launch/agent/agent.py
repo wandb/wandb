@@ -4,20 +4,23 @@ Implementation of launch agent.
 
 import logging
 import os
+import pprint
 import time
-from typing import Any, Dict, Iterable, List, Union
+from typing import Any, Dict, List, Union
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.runner.local import LocalSubmittedRun
+from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
+from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    resolve_build_and_registry_config,
 )
 
 AGENT_POLLING_INTERVAL = 10
@@ -41,17 +44,10 @@ def _convert_access(access: str) -> str:
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    def __init__(
-        self,
-        entity: str,
-        project: str,
-        queues: Iterable[str] = None,
-        max_jobs: float = None,
-    ):
-        self._entity = entity
-        self._project = project
-        self._api = Api()
-        self._settings = wandb.Settings()
+    def __init__(self, api: Api, config: Dict[str, Any]):
+        self._entity = config.get("entity")
+        self._project = config.get("project")
+        self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[Union[int, str], AbstractRun] = {}
         self._ticks = 0
@@ -59,21 +55,25 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        if max_jobs == -1:
+        if config.get("max_jobs") == -1:
             self._max_jobs = float("inf")
         else:
-            self._max_jobs = max_jobs or 1
+            self._max_jobs = config.get("max_jobs") or 1
+        self.default_config: Dict[str, Any] = config
 
         # serverside creation
         self.gorilla_supports_agents = (
             self._api.launch_agent_introspection() is not None
         )
+        self._queues = config.get("queues", ["default"])
         create_response = self._api.create_launch_agent(
-            entity, project, queues, self.gorilla_supports_agents
+            self._entity,
+            self._project,
+            self._queues,
+            self.gorilla_supports_agents,
         )
         self._id = create_response["launchAgentId"]
-        self._name = ""  # hacky: want to display this to the user, but we don't get it back from gql until polling starts. fix later
-        self._queues = queues if queues else ["default"]
+        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
 
     @property
     def job_ids(self) -> List[Union[int, str]]:
@@ -145,9 +145,9 @@ class LaunchAgent:
 
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
-        # TODO: logger
-        wandb.termlog(f"agent: got job f{job}")
-        _logger.info(f"Agent job: {job}")
+        _msg = f"Launch agent received job:\n{pprint.pformat(job)}\n"
+        wandb.termlog(_msg)
+        _logger.info(_msg)
         # update agent status
         self.update_status(AGENT_RUNNING)
 
@@ -166,7 +166,7 @@ class LaunchAgent:
         _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, self._api)
         _logger.info("Fetching resource...")
-        resource = launch_spec.get("resource") or "local"
+        resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
@@ -174,10 +174,21 @@ class LaunchAgent:
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         _logger.info("Loading backend")
+        override_build_config = launch_spec.get("build")
+        override_registry_config = launch_spec.get("registry")
+
+        build_config, registry_config = resolve_build_and_registry_config(
+            self.default_config, override_build_config, override_registry_config
+        )
+        builder = load_builder(build_config)
+
+        default_runner = self.default_config.get("runner", {}).get("type")
+        if default_runner == resource:
+            backend_config["runner"] = self.default_config.get("runner")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
         _logger.info("Backend loaded...")
-        run = backend.run(project)
+        run = backend.run(project, builder, registry_config)
         if run:
             self._jobs[run.id] = run
             self._running += 1

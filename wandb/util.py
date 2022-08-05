@@ -3,7 +3,7 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import errno
 import functools
 import gzip
@@ -50,12 +50,13 @@ from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
-from sentry_sdk import capture_exception, capture_message
 import shortuuid  # type: ignore
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
 import yaml
+
+CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -99,18 +100,22 @@ def get_platform_name() -> str:
 
 
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
-# side effect of loading a module.
+#  side effect of loading a module.
+sentry_client: Optional["sentry_sdk.client.Client"] = None
+sentry_hub: Optional["sentry_sdk.hub.Hub"] = None
+sentry_default_dsn = (
+    "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+)
 if error_reporting_enabled():
-    default_dsn = (
-        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
-    )
-    sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
-    sentry_sdk.init(
+    sentry_dsn = os.environ.get(SENTRY_DSN, sentry_default_dsn)
+    sentry_client = sentry_sdk.Client(
         dsn=sentry_dsn,
-        release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
+        release=wandb.__version__,
     )
+
+    sentry_hub = sentry_sdk.Hub(sentry_client)
 
 POW_10_BYTES = [
     ("B", 10**0),
@@ -135,7 +140,8 @@ POW_2_BYTES = [
 
 def sentry_message(message: str) -> None:
     if error_reporting_enabled():
-        capture_message(message)
+        sentry_hub.capture_message(message)  # type: ignore
+    return None
 
 
 def sentry_exc(
@@ -153,11 +159,12 @@ def sentry_exc(
 ) -> None:
     if error_reporting_enabled():
         if isinstance(exc, str):
-            capture_exception(Exception(exc))
+            sentry_hub.capture_exception(Exception(exc))  # type: ignore
         else:
-            capture_exception(exc)
-        if delay:
-            time.sleep(2)
+            sentry_hub.capture_exception(exc)  # type: ignore
+    if delay:
+        time.sleep(2)
+    return None
 
 
 def sentry_reraise(exc: Any) -> None:
@@ -182,8 +189,8 @@ def sentry_set_scope(
     ] = None,
     process_context: Optional[str] = None,
 ) -> None:
-    # Using GLOBAL_HUB means these tags will persist between threads.
-    # Normally there is one hub per thread.
+    if not error_reporting_enabled():
+        return None
 
     # Tags come from two places: settings and args passed into this func.
     args = dict(locals())
@@ -206,7 +213,7 @@ def sentry_set_scope(
     def get(key: str) -> Any:
         return getattr(s, key, None)
 
-    with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
+    with sentry_hub.configure_scope() as scope:  # type: ignore
         scope.set_tag("platform", get_platform_name())
 
         # apply settings tags
@@ -882,6 +889,66 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
+def check_retry_conflict(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict type so it can be retried.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+    return None
+
+
+def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict or gone type so it can be retried or not.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+        if e.response.status_code == 410:
+            return False
+    return None
+
+
+def make_check_retry_fn(
+    fallback_retry_fn: CheckRetryFnType,
+    check_fn: Callable[[Exception], Optional[bool]],
+    check_timedelta: Optional[timedelta] = None,
+) -> CheckRetryFnType:
+    """Return a check_retry_fn which can be used by lib.Retry().
+
+    Arguments:
+        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
+        check_fn: Function which returns bool if retry should happen or None if unsure.
+        check_timedelta: Optional retry timeout if we check_fn matches the exception
+    """
+
+    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
+        check = check_fn(e)
+        if check is None:
+            return fallback_retry_fn(e)
+        if check is False:
+            return False
+        if check_timedelta:
+            return check_timedelta
+        return True
+
+    return check_retry_fn
+
+
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
@@ -1009,11 +1076,7 @@ def image_from_docker_args(args: List[str]) -> Optional[str]:
 
 
 def load_yaml(file: Any) -> Any:
-    """If pyyaml > 5.1 use full_load to avoid warning"""
-    if hasattr(yaml, "full_load"):
-        return yaml.full_load(file)
-    else:
-        return yaml.load(file)
+    return yaml.safe_load(file)
 
 
 def image_id_from_k8s() -> Optional[str]:
@@ -1089,7 +1152,9 @@ def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
     return wrapper
 
 
-def read_many_from_queue(q: "queue.Queue", max_items: int, queue_timeout: int) -> list:
+def read_many_from_queue(
+    q: "queue.Queue", max_items: int, queue_timeout: Union[int, float]
+) -> list:
     try:
         item = q.get(True, queue_timeout)
     except queue.Empty:
@@ -1412,13 +1477,13 @@ def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w"
+    path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
     """
     Opens a path for I/O, guaranteeing that the file is flushed and
     fsynced when the file's context expires.
     """
-    with open(path, mode) as f:
+    with open(path, mode, encoding=encoding) as f:
         yield f
 
         f.flush()
@@ -1634,7 +1699,7 @@ def _resolve_aliases(aliases: Optional[Union[str, List[str]]]) -> List[str]:
     return aliases
 
 
-def _is_artifact(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> bool:
     return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
 
 
@@ -1642,7 +1707,19 @@ def _is_artifact_string(v: Any) -> bool:
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
+def _is_artifact_version_weave_dict(v: Any) -> bool:
+    return isinstance(v, dict) and v.get("_type") == "artifactVersion"
+
+
+def _is_artifact_representation(v: Any) -> bool:
+    return (
+        _is_artifact_object(v)
+        or _is_artifact_string(v)
+        or _is_artifact_version_weave_dict(v)
+    )
+
+
+def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
     if not v.startswith("wandb-artifact://"):
         raise ValueError(f"Invalid artifact string: {v}")
     parsed_v = v[len("wandb-artifact://") :]
@@ -1657,7 +1734,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
         # for now can't fetch paths but this will be supported in the future
         # when we allow passing typed media objects, this can be extended
         # to include paths
-        return parts[1], base_uri
+        return parts[1], base_uri, True
 
     if len(parts) < 3:
         raise ValueError(f"Invalid artifact string: {v}")
@@ -1666,7 +1743,7 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     # when we allow passing typed media objects, this can be extended
     # to include paths
     entity, project, name_and_alias_or_version = parts[:3]
-    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
+    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri, False
 
 
 def _get_max_cli_version() -> Union[str, None]:
@@ -1690,3 +1767,19 @@ def ensure_text(
         return string
     else:
         raise TypeError(f"not expecting type '{type(string)}'")
+
+
+def make_artifact_name_safe(name: str) -> str:
+    """Make an artifact name safe for use in artifacts"""
+    # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
+    return re.sub(r"[^a-zA-Z0-9_\-.]", "_", name)
+
+
+def make_docker_image_name_safe(name: str) -> str:
+    """Make a docker image name safe for use in artifacts"""
+    return re.sub(r"[^a-z0-9_\-.]", "", name)
+
+
+def has_main_file(path: str) -> bool:
+    """Check if a directory has a main.py file"""
+    return path != "<python with no main file>"
