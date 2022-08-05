@@ -424,20 +424,28 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
     origin.fetch()
-    if version is not None:
+
+    if version:
         try:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
             raise ExecutionError(
                 "Unable to checkout version '%s' of git repo %s"
-                "- please ensure that the version exists in the repo. \n"
+                "- please ensure that the version exists in the repo. "
                 "Error: %s" % (version, uri, e)
             )
     else:
-        version = "master"  # change to "main" for current github practice?
+        # Check if main is in origin, else set branch to master
+        branches = [ref.name for ref in repo.references]
+        if "main" in branches or "origin/main" in branches:
+            version = "main"
+        else:
+            version = "master"
+
         try:
             repo.create_head(version, origin.refs[version])
             repo.heads[version].checkout()
+            wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
         except git.exc.GitCommandError as e:
             raise ExecutionError(
                 "Unable to checkout version '%s' of git repo %s"
@@ -450,6 +458,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
                 "- to specify a git version use: --git-version \n"
                 "Error: %s" % (version, uri, e)
             )
+
     repo.submodule_update(init=True, recursive=True)
 
 
