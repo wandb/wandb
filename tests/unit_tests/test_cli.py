@@ -870,7 +870,13 @@ def test_sweep_scheduler(runner, mock_server, test_settings):
         }
         sweep_id = wandb.sweep(sweep_config)
         assert sweep_id == "test"
-        assert runner.invoke(cli.sweep, ["--queue", "default", sweep_id]).exit_code == 0
+        assert (
+            runner.invoke(
+                cli.sweep,
+                ["--queue", "default", "--job", "mock_job_artifact", sweep_id],
+            ).exit_code
+            == 0
+        )
 
 
 def test_sync_gc(runner):
@@ -928,7 +934,7 @@ def test_sync_tensorboard(runner, live_mock_server):
 
         # Check the no sync tensorboard flag
         result = runner.invoke(cli.sync, [".", "--no-sync-tensorboard"])
-        assert result.output == "Skipping directory: {}\n".format(os.path.abspath("."))
+        assert "Skipping directory: {}\n".format(os.path.abspath(".")) in result.output
         assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
 
 
@@ -960,7 +966,7 @@ def test_sync_wandb_run(runner, live_mock_server):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
-        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert "mock_server_entity/test/runs/g9dvvkua ... done." in result.output
         assert (
             len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
             == 1
@@ -986,7 +992,7 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
-        assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
+        assert "mock_server_entity/test/runs/g9dvvkua ... done." in result.output
         assert (
             len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
             == 1

@@ -11,6 +11,7 @@ import copy
 import json
 import logging
 import os
+import pathlib
 import platform
 import sys
 import tempfile
@@ -590,10 +591,12 @@ class _WandbInit:
                 tel.env.kaggle = True
             if self.settings._windows:
                 tel.env.windows = True
-            run._telemetry_imports(tel.imports_init)
 
             if self.settings.launch:
                 tel.feature.launch = True
+
+            for module_name in telemetry.list_telemetry_imports(only_imported=True):
+                setattr(tel.imports_init, module_name, True)
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -674,8 +677,6 @@ class _WandbInit:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
                 if active_start_method != "fork":
-                    error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
-                    error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
                     error_message += (
                         f"\nFor more info see: {wburls.get('doc_start_err')}"
                     )
@@ -816,7 +817,7 @@ def _attach(
 
 def init(
     job_type: Optional[str] = None,
-    dir=None,
+    dir: Union[str, pathlib.Path, None] = None,
     config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -847,7 +848,7 @@ def init(
     script, and each piece would be tracked as a run in W&B.
 
     `wandb.init()` spawns a new background process to log data to a run, and it
-    also syncs data to wandb.ai by default so you can see live visualizations.
+    also syncs data to wandb.ai by default, so you can see live visualizations.
 
     Call `wandb.init()` to start a run before logging data with `wandb.log()`:
     <!--yeadoc-test:init-method-log-->
@@ -931,10 +932,10 @@ def init(
         notes: (str, optional) A longer description of the run, like a `-m` commit
             message in git. This helps you remember what you were doing when you
             ran this run.
-        dir: (str, optional) An absolute path to a directory where metadata will
-            be stored. When you call `download()` on an artifact, this is the
-            directory where downloaded files will be saved. By default, this is
-            the `./wandb` directory.
+        dir: (str or pathlib.Path, optional) An absolute path to a directory where
+            metadata will be stored. When you call `download()` on an artifact,
+            this is the directory where downloaded files will be saved. By default,
+            this is the `./wandb` directory.
         resume: (bool, str, optional) Sets the resuming behavior. Options:
             `"allow"`, `"must"`, `"never"`, `"auto"` or `None`. Defaults to `None`.
             Cases:
@@ -967,7 +968,7 @@ def init(
             `wandb.config`.
         anonymous: (str, optional) Controls anonymous data logging. Options:
             - `"never"` (default): requires you to link your W&B account before
-                tracking the run so you don't accidentally create an anonymous
+                tracking the run, so you don't accidentally create an anonymous
                 run.
             - `"allow"`: lets a logged-in user track runs with their account, but
                 lets someone who is running the script without a W&B account see

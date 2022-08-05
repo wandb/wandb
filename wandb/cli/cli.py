@@ -570,6 +570,7 @@ def sync(
             view=view,
             verbose=verbose,
             sync_tensorboard=_sync_tensorboard,
+            log_path=_wandb_log_path,
         )
         for p in _path:
             sm.add(p)
@@ -676,6 +677,12 @@ def sync(
     "name supplied, specified run queue must exist under the project and entity supplied.",
 )
 @click.option(
+    "--job",
+    "-j",
+    default=None,
+    help="The name of the job that encapsulates a single run in the sweep.",
+)
+@click.option(
     "--stop",
     is_flag=True,
     default=False,
@@ -712,6 +719,7 @@ def sweep(
     settings,
     update,
     queue,
+    job,
     stop,
     cancel,
     pause,
@@ -873,6 +881,11 @@ def sweep(
     if queue is not None:
         wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
+        if job is None:
+            _msg = "Must specify --job flag when using launch queues"
+            wandb.termerror(_msg)
+            raise LaunchError(_msg)
+
         # Because the launch job spec below is the Scheduler, it
         # will need to know the name of the sweep, which it wont
         # know until it is created,so we use this placeholder
@@ -886,7 +899,8 @@ def sweep(
                 "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        os.getcwd(),  # uri,
+                        "placeholder-uri-scheduler",  # TODO(hupo): placeholder uri, remove in future
+                        None,  # TODO(hupo): Generic scheduler job (container)
                         api,
                         f"Scheduler.{_sweep_id_placeholder}",  # name,
                         project,
@@ -901,9 +915,11 @@ def sweep(
                             queue,
                             "--project",
                             project,
+                            "--job",
+                            job,
                         ],  # entry_point,
                         None,  # version,
-                        None,  # params,
+                        None,  # parameters,
                         None,  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
@@ -1317,6 +1333,12 @@ def agent(ctx, project, entity, count, sweep_id):
     default=None,
     help="The queue to push sweep jobs to.",
 )
+@click.option(
+    "--job",
+    "-j",
+    default=None,
+    help="The name of the job that encapsulates a single run in the sweep.",
+)
 @click.argument("sweep_id")
 @display_error
 def scheduler(
@@ -1324,6 +1346,7 @@ def scheduler(
     project,
     entity,
     queue,
+    job,
     sweep_id,
 ):
     api = _get_cling_api()
@@ -1336,7 +1359,12 @@ def scheduler(
     from wandb.sdk.launch.sweeps import load_scheduler
 
     _scheduler = load_scheduler("sweep")(
-        api, entity=entity, project=project, queue=queue, sweep_id=sweep_id
+        api,
+        entity=entity,
+        project=project,
+        queue=queue,
+        sweep_id=sweep_id,
+        job=job,
     )
     _scheduler.start()
 
@@ -1643,14 +1671,12 @@ def start(ctx, port, env, daemon, upgrade, edge):
     if daemon:
         if code != 0:
             wandb.termerror(
-                "Failed to launch the W&B local container, see the above error."
+                "Failed to launch the W&B server container, see the above error."
             )
             exit(1)
         else:
-            wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
-            wandb.termlog(
-                "You can stop the server by running `docker stop wandb-local`"
-            )
+            wandb.termlog("W&B server started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog("You can stop the server by running `wandb server stop`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
                 time.sleep(2)

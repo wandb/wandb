@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 
 from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
+from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
 
 from wandb.sdk.lib import redirect
@@ -186,9 +187,12 @@ class _Manager:
 
     def _teardown(self, exit_code: int) -> None:
         self._console_teardown()
+        unregister_all_post_import_hooks()
+
         if self._atexit_lambda:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
+
         self._inform_teardown(exit_code)
         result = self._service.join()
         if result and not self._settings._jupyter:

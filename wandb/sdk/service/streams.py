@@ -243,7 +243,11 @@ class StreamMux:
             )
 
         streams_to_join, poll_exit_responses = {}, {}
-        while streams:
+        while streams and not self._stopped.is_set():
+            # Stop trying to sync data if our parent process has terminated
+            if self._check_orphaned():
+                self._stopped.set()
+                return
             # Note that we materialize the generator so we can modify the underlying list
             for sid, stream in list(streams.items()):
                 poll_exit_response = stream.interface.communicate_poll_exit()
