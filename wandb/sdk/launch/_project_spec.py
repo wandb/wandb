@@ -94,6 +94,7 @@ class LaunchProject:
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
         self._image_tag: str = self._initialize_image_job_tag() or self.run_id
+        wandb.termlog(f"IMAGE TAG {self._image_tag}")
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -163,9 +164,9 @@ class LaunchProject:
         wandb.termlog("Calling _initilize_image_job_tag")
         if self.job is not None:
             job_name, alias = self.job.split(":")
-            self._image_tag = f"{job_name}-{alias}"
-            wandb.termlog(f"setting image tag f{self._image_tag}")
-            return alias
+            _image_tag = f"{alias}-{job_name}"
+            wandb.termlog(f"setting image tag {_image_tag}")
+            return _image_tag
         return None
 
     @property
@@ -176,6 +177,7 @@ class LaunchProject:
 
     @property
     def image_tag(self) -> str:
+
         return self._image_tag[:IMAGE_TAG_MAX_LENGTH]
 
     @property

@@ -199,7 +199,7 @@ class KanikoBuilder(AbstractBuilder):
             try:
                 ecr_client.describe_image_scan_findings(
                     repositoryName=repo_name,
-                    imageId={"imageTag": launch_project._image_tag},
+                    imageId={"imageTag": launch_project.image_tag},
                 )
                 return False
             except ecr_client.exceptions.ImageNotFoundException:
@@ -219,6 +219,7 @@ class KanikoBuilder(AbstractBuilder):
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.image_tag}"
         wandb.termlog(f"Checking for image {image_uri}")
+        wandb.termlog(f"{launch_project.image_tag}")
         if not self.check_build_required(repository, launch_project):
             return image_uri
         entry_cmd = " ".join(
