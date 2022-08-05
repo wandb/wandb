@@ -5,17 +5,16 @@ env:
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
 on:
-  push:
+  push
 
 jobs: # update the docs.
   update-docs:
     runs-on: ubuntu-latest
     steps:
       - name: Set the tag name
-        run: echo "TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))" >> $GITHUB_ENV
+        run: git describe --tags $(git rev-list --tags --max-count=1)
       - uses: wandb/docugen@debug-ref-docs
         with:
-          tag-name: ${{ env.TAG_NAME }}
           client-branch: debug-ref-docs
           gitbook-branch: debug
           access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
