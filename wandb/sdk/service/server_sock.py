@@ -155,7 +155,7 @@ class SockServerReadThread(threading.Thread):
             elif name == "stderr":
                 otype = pb.OutputRecord.OutputType.STDERR
             else:
-                assert False
+                raise Exception(f"Invalid console name: {name}")
 
             o = pb.OutputRecord(output_type=otype, line=data)
             o.timestamp.GetCurrentTime()
@@ -167,7 +167,7 @@ class SockServerReadThread(threading.Thread):
             # print(f"SEND: {stream_id}, {record}")
             try:
                 iface = self._mux.get_stream(stream_id).interface
-            except Exception as e:
+            except Exception:
                 # TODO this might happen at shutdown, handle this better
                 continue
             assert iface.record_q
