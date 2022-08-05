@@ -80,7 +80,6 @@ class SystemStats:
         self.samples = 0
         self._shutdown = False
         self._telem = telemetry.TelemetryRecord()
-        print("STATS1")
         if psutil:
             net = psutil.net_io_counters()
             self.network_init = {"sent": net.bytes_sent, "recv": net.bytes_recv}
@@ -88,18 +87,14 @@ class SystemStats:
             wandb.termlog(
                 "psutil not installed, only GPU stats will be reported.  Install with pip install psutil"
             )
-        print("STATS2")
         self._thread = None
         self._tpu_profiler = None
 
-        print("STATS3")
         if tpu.is_tpu_available():
-            print("STATS3.1")
             try:
                 self._tpu_profiler = tpu.get_profiler()
             except Exception as e:
                 wandb.termlog("Error initializing TPUProfiler: " + str(e))
-        print("STATS4")
 
         self._ipu_profiler = None
 
