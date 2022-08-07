@@ -46,6 +46,3 @@ per-file-ignores =
    wandb/cli/cli.py:C901,I202
    wandb/wandb_controller.py:N803,N806
    wandb/filesync/step_checksum.py:B023
-
-[flake8:colors]
-    color = always

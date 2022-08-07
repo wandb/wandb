@@ -26,7 +26,9 @@ def check(n, sampled, samples):
     if len(sampled) < 2:
         return
     assert len(diffs) == 1
-    assert len(sampled) == n or (len(sampled) >= samples and len(sampled) <= samples * 3)
+    assert len(sampled) == n or (
+        len(sampled) >= samples and len(sampled) <= samples * 3
+    )
 
 
 def test_all():
