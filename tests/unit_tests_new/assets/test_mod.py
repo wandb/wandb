@@ -1,5 +1,6 @@
-import wandb
 import multiprocessing
+
+import wandb
 
 
 def mp_func():

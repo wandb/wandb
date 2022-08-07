@@ -15,6 +15,7 @@ def test_check_logged_in(wandb_init):
     assert wandb_verify.check_logged_in(InternalApi(), run.settings.base_url)
     run.finish()
 
+
 def test_print_results(capsys):
     failed_test_or_tests = ["test1", "test2"]
     wandb_verify.print_results(None, warning=True)
@@ -93,5 +94,3 @@ def test_check_wandb_version(capsys):
             wandb_verify.check_wandb_version(api)
             captured = capsys.readouterr().out
             assert "\u274C" in captured
-
-

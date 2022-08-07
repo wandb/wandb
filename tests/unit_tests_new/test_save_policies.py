@@ -2,7 +2,6 @@ import os
 import time
 
 import pytest
-
 from wandb.filesync.dir_watcher import PolicyLive
 
 
@@ -13,22 +12,22 @@ def mocked_live_policy(monkeypatch, wandb_init):
     with open(fpath, "w") as fp:
         fp.write("")
 
-    livePolicy = PolicyLive(fpath, "saved_file", None, None)
+    live_policy = PolicyLive(fpath, "saved_file", None, None)
 
-    def spoof_save(livePolicy):
-        livePolicy._last_sync = os.path.getmtime(livePolicy.file_path)
-        livePolicy._last_uploaded_time = time.time()
-        livePolicy._last_uploaded_size = livePolicy.current_size
+    def spoof_save(live_policy):
+        live_policy._last_sync = os.path.getmtime(live_policy.file_path)
+        live_policy._last_uploaded_time = time.time()
+        live_policy._last_uploaded_size = live_policy.current_size
 
-    def spoof_min_wait_for_size(livePolicy, size):
+    def spoof_min_wait_for_size(live_policy, size):
         return 1
 
     monkeypatch.setattr(PolicyLive, "save_file", spoof_save)
     monkeypatch.setattr(PolicyLive, "min_wait_for_size", spoof_min_wait_for_size)
     monkeypatch.setattr(PolicyLive, "RATE_LIMIT_SECONDS", 1)
 
-    livePolicy._last_uploaded_time = time.time() - 60
-    yield livePolicy
+    live_policy._last_uploaded_time = time.time() - 60
+    yield live_policy
     run.finish()
 
 

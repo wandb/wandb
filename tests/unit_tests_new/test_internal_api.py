@@ -1,7 +1,6 @@
 import pytest
-
-from wandb.errors import CommError
 from wandb.apis import internal
+from wandb.errors import CommError
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():

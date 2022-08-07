@@ -1,5 +1,4 @@
 import pytest
-
 from wandb.sdk.lib.printer import CRITICAL, DEBUG, NOTSET, PrinterTerm
 
 

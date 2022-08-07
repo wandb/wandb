@@ -1,10 +1,8 @@
 """Agent tests"""
 import os
-
-import pytest
+import unittest.mock
 
 import wandb
-import unittest.mock
 
 
 def test_agent_basic(wandb_init):

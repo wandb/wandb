@@ -1,3 +1,7 @@
+import time
+
+import pytest
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal import tb_watcher
 
 
@@ -61,22 +65,13 @@ class TestIsTfEventsFileCreatedBy:
         )
 
 
-import pytest
-
-import time
-from wandb.proto import wandb_internal_pb2 as pb
-import platform
-import os
-from functools import partial
-
-
 @pytest.fixture
 def tbwatcher_util(internal_hm, backend_interface):
     def tbwatcher_util_helper(
         run, write_function, logdir="./", save=True, root_dir="./"
     ):
 
-        with backend_interface(run=run) as interface:
+        with backend_interface(run=run):
             proto_run = pb.RunRecord()
             run._make_proto_run(proto_run)
 

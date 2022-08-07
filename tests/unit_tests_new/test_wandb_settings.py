@@ -13,9 +13,8 @@ import sys
 import tempfile
 from unittest import mock
 
-import pytest  # type: ignore
 from click.testing import CliRunner
-
+import pytest  # type: ignore
 import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_settings
@@ -45,9 +44,11 @@ def test_str_as_bool():
     with pytest.raises(UsageError):
         wandb_settings._str_as_bool("rubbish")
 
-#------------------------------------
+
+# ------------------------------------
 # test Property class
-#------------------------------------
+# ------------------------------------
+
 
 def test_property_init():
     p = Property(name="foo", value=1)
@@ -194,9 +195,11 @@ def test_property_repr():
     p = Property(name="foo", value=2, hook=lambda x: x**2)
     assert repr(p) == "<Property foo: value=4 _value=2 source=1 is_policy=False>"
 
-#------------------------------------
+
+# ------------------------------------
 # test Settings class
-#------------------------------------
+# ------------------------------------
+
 
 def test_attrib_get():
     s = Settings()
@@ -820,7 +823,6 @@ def test_run_urls():
     assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
 
 
-
 def test_code_saving_save_code_env_false(wandb_init, test_settings):
     settings = test_settings()
     settings.update({"save_code": None}, source=Source.BASE)
@@ -830,7 +832,6 @@ def test_code_saving_save_code_env_false(wandb_init, test_settings):
         run.finish()
 
 
-
 def test_code_saving_disable_code(wandb_init, test_settings):
     settings = test_settings()
     settings.update({"save_code": None}, source=Source.BASE)
@@ -838,7 +839,6 @@ def test_code_saving_disable_code(wandb_init, test_settings):
         run = wandb_init(settings=settings)
         assert run.settings.save_code is False
         run.finish()
-
 
 
 def test_offline(test_settings):
@@ -987,7 +987,6 @@ def test_console(runner, test_settings):
         run.finish()
 
 
-
 def test_resume_fname(test_settings):
     test_settings = test_settings()
     assert test_settings.resume_fname == os.path.abspath(
@@ -1026,6 +1025,7 @@ def test_log_user(test_settings):
     assert log_dir == "logs"
     assert fname == "debug.log"
 
+
 def test_log_internal(test_settings):
     test_settings = test_settings({"run_id": "test"})
     _, run_dir, log_dir, fname = os.path.abspath(
@@ -1035,7 +1035,6 @@ def test_log_internal(test_settings):
     assert run_id == test_settings.run_id
     assert log_dir == "logs"
     assert fname == "debug-internal.log"
-
 
 
 def test_override_login_settings(user, test_settings):
@@ -1061,11 +1060,12 @@ def test_setup_offline(user, test_settings):
     assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
 
 
-#--------------------------
+# --------------------------
 # test static settings
-#--------------------------
+# --------------------------
 
-def test_SettingsStatic():
+
+def test_settings_static():
     from wandb.sdk.internal.settings_static import SettingsStatic
 
     static_settings = SettingsStatic(Settings().make_static())

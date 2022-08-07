@@ -16,21 +16,20 @@ from tests.unit_tests import utils
 
 
 def test_from_path(mock_server, api):
-   
+
     run = api.from_path("test/test/test")
     assert isinstance(run, wandb.apis.public.Run)
     run = api.from_path("test/test/runs/test")
     assert isinstance(run, wandb.apis.public.Run)
     sweep = api.from_path("test/test/sweeps/test")
     assert isinstance(sweep, wandb.apis.public.Sweep)
-  
+
 
 def test_to_html(mock_server, api):
     run = api.from_path("test/test/test")
     assert "test/test/runs/test?jupyter=true" in run.to_html()
     sweep = api.from_path("test/test/sweeps/test")
     assert "test/test/sweeps/test?jupyter=true" in sweep.to_html()
-   
 
 
 def test_project_sweeps(mock_server, api):

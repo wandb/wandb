@@ -1,7 +1,6 @@
 """
 metric internal tests.
 """
-import pytest
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -144,7 +143,6 @@ def test_metric_mult(relay_server, user, publish_util, mock_run):
     assert summary.v3[0] == "pizza"
     assert summary.mystep[0] == 3
     assert summary._step[0] == 2
-
 
 
 def test_metric_again(relay_server, user, publish_util, mock_run):

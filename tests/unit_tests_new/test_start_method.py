@@ -5,7 +5,6 @@ start method tests.
 import platform
 
 import pytest
-
 from wandb.errors import UsageError
 
 

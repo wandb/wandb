@@ -14,7 +14,6 @@ import plotly
 import pytest
 import requests
 import tensorflow as tf
-
 import wandb
 from wandb import util
 
@@ -311,6 +310,7 @@ def test_to_human_size():
 # Test matplotlib utilities
 ###############################################################################
 
+
 def matplotlib_with_image():
     """Creates a matplotlib figure with an image"""
     fig, ax = plt.subplots(3)
@@ -318,6 +318,7 @@ def matplotlib_with_image():
     ax[1].imshow(np.random.rand(200, 200, 3))
     ax[2].plot([1, 2, 3])
     return fig
+
 
 def matplotlib_without_image():
     """Creates a matplotlib figure without an image"""

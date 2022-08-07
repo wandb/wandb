@@ -12,7 +12,8 @@ def doc_inject(relay_server, wandb_init):
     m = sys.modules.get("__main__")
     main_doc = getattr(m, "__doc__", None)
 
-    def fn(new_doc=None, labels=None, init_kwargs={}):
+    def fn(new_doc=None, labels=None, init_kwargs=None):
+        init_kwargs = init_kwargs or {}
         # clean up leading whitespace
         if new_doc is not None:
             m.__doc__ = inspect.cleandoc(new_doc)

@@ -11,7 +11,6 @@ import wandb
 from wandb.keras import WandbCallback
 
 
-
 @pytest.fixture
 def dummy_model(request):
     K.clear_session()

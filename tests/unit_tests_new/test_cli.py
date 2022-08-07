@@ -4,7 +4,6 @@ import os
 import traceback
 
 import pytest
-
 import wandb
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
@@ -68,8 +67,8 @@ def test_login_key_arg(runner, dummy_api_key):
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("netrc") as f:
-            generatedNetrc = f.read()
-        assert dummy_api_key in generatedNetrc
+            generated_netrc = f.read()
+        assert dummy_api_key in generated_netrc
 
 
 def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_settings):
@@ -81,8 +80,8 @@ def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_sett
         )
         assert result.exit_code == 0
         with open("netrc") as f:
-            generatedNetrc = f.read()
-        assert generatedNetrc == (
+            generated_netrc = f.read()
+        assert generated_netrc == (
             "machine google.com\n"
             "  login user\n"
             "  password {}\n".format(dummy_api_key)
@@ -113,8 +112,8 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("netrc") as f:
-            generatedNetrc = f.read()
-        assert onprem_key in generatedNetrc
+            generated_netrc = f.read()
+        assert onprem_key in generated_netrc
 
 
 def test_login_invalid_key_arg(runner, dummy_api_key):

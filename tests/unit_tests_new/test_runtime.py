@@ -2,8 +2,6 @@ import time
 
 import pytest
 
-from wandb.sdk.wandb_settings import Source
-
 
 def end_run_basic(interface):
     time.sleep(1)

@@ -1,15 +1,13 @@
-import sys
-
 import pytest
 import wandb
 
 try:
     import torch
     import torch.nn as nn
-    import torch.nn.functional as F
+    import torch.nn.functional as F  # noqa: N812
 except ImportError:
 
-    class nn:
+    class nn:  # noqa: N801
         Module = object
 
 
@@ -107,12 +105,12 @@ class Sequence(nn.Module):
         h_t2 = dummy_torch_tensor((input.size(0), 51))
         c_t2 = dummy_torch_tensor((input.size(0), 51))
 
-        for i, input_t in enumerate(input.chunk(input.size(1), dim=1)):
+        for _, input_t in enumerate(input.chunk(input.size(1), dim=1)):
             h_t, c_t = self.lstm1(input_t, (h_t, c_t))
             h_t2, c_t2 = self.lstm2(h_t, (h_t2, c_t2))
             output = self.linear(h_t2)
             outputs += [output]
-        for i in range(future):  # if we should predict the future
+        for _ in range(future):  # if we should predict the future
             h_t, c_t = self.lstm1(output, (h_t, c_t))
             h_t2, c_t2 = self.lstm2(h_t, (h_t2, c_t2))
             output = self.linear(h_t2)
@@ -158,7 +156,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 # TODO(jhr): does not work with --flake-finder
 @pytest.mark.xfail(reason="TODO: fix this test")
 def test_all_logging(relay_server, wandb_init):
-    N = 3
+    n = 3
     with relay_server() as relay:
         run = wandb_init()
         net = ConvNet()
@@ -167,7 +165,7 @@ def test_all_logging(relay_server, wandb_init):
             log="all",
             log_freq=1,
         )
-        for i in range(N):
+        for _ in range(n):
             output = net(
                 dummy_torch_tensor(
                     (32, 1, 28, 28),
@@ -179,9 +177,9 @@ def test_all_logging(relay_server, wandb_init):
         run.finish()
 
     history = relay.context.get_run_history(run.id, include_private=True)
-    assert history.shape == (N, 21)  # it's 21 instead of 20 since we add __run_id
+    assert history.shape == (n, 21)  # it's 21 instead of 20 since we add __run_id
     assert history["_step"].to_list() == [i for i in range(3)]
-    for i in range(N):
+    for i in range(n):
         assert len(history["parameters/fc2.bias"][i]["bins"]) == 65
         assert len(history["gradients/fc2.bias"][i]["bins"]) == 65
 

@@ -2,8 +2,8 @@
 
 import datetime
 from unittest import mock
-import pytest
 
+import pytest
 from wandb.sdk.lib import retry
 
 

@@ -3,14 +3,13 @@ import io
 import os
 import platform
 
+from bokeh.plotting import figure
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
+from PIL import Image
 import pytest
 import rdkit.Chem
-from bokeh.plotting import figure
-from PIL import Image
-
 import wandb
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
@@ -21,7 +20,7 @@ def subdict(d, expected_dict):
     return {k: v for k, v in d.items() if k in expected_dict}
 
 
-def matplotlib_multiple_axes_figures(total_plot_count=3, data=[1, 2, 3]):
+def matplotlib_multiple_axes_figures(total_plot_count=3, data=(1, 2, 3)):
     """Helper generator which  create a figure containing up to `total_plot_count`
     axes and optionally adds `data` to each axes in a permutation-style loop.
     """
@@ -318,7 +317,7 @@ def test_matplotlib_image_with_multiple_axes():
     for fig in matplotlib_multiple_axes_figures():
         wandb.Image(fig)  # this should not error.
 
-    for fig in matplotlib_multiple_axes_figures():
+    for _ in matplotlib_multiple_axes_figures():
         wandb.Image(plt)  # this should not error.
 
 
@@ -417,9 +416,9 @@ def test_audio_captions():
 def test_audio_to_json(mock_run):
     run = mock_run()
     audio = np.zeros(44100)
-    audioObj = wandb.Audio(audio, sample_rate=44100)
-    audioObj.bind_to_run(run, "test", 0)
-    meta = wandb.Audio.seq_to_json([audioObj], run, "test", 0)
+    audio_obj = wandb.Audio(audio, sample_rate=44100)
+    audio_obj.bind_to_run(run, "test", 0)
+    meta = wandb.Audio.seq_to_json([audio_obj], run, "test", 0)
     assert os.path.exists(os.path.join(run.dir, meta["audio"][0]["path"]))
 
     meta_expected = {
@@ -439,17 +438,17 @@ def test_audio_to_json(mock_run):
 
 
 def test_audio_refs():
-    audioObj = wandb.Audio(
+    audio_obj = wandb.Audio(
         "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
     )
     art = wandb.Artifact("audio_ref_test", "dataset")
-    art.add(audioObj, "audio_ref")
+    art.add(audio_obj, "audio_ref")
 
     audio_expected = {
         "_type": "audio-file",
         "caption": None,
     }
-    assert subdict(audioObj.to_json(art), audio_expected) == audio_expected
+    assert subdict(audio_obj.to_json(art), audio_expected) == audio_expected
 
 
 ################################################################################
@@ -465,7 +464,7 @@ def test_matplotlib_plotly_with_multiple_axes():
     for fig in matplotlib_multiple_axes_figures():
         wandb.Plotly(fig)  # this should not error.
 
-    for fig in matplotlib_multiple_axes_figures():
+    for _ in matplotlib_multiple_axes_figures():
         wandb.Plotly(plt)  # this should not error.
 
 
@@ -1001,8 +1000,8 @@ def test_table_column_style():
         == np.array([rand_1, rand_2, rand_3])
     )
     assert table2.get_column("image") == [img_1, img_2, img_3]
-    a = table2.get_column("image", convert_to="numpy")
-    b = np.array([rand_1, rand_2, rand_3])
+    _ = table2.get_column("image", convert_to="numpy")
+    _ = np.array([rand_1, rand_2, rand_3])
     assert np.all(
         table2.get_column("image", convert_to="numpy")
         == np.array([rand_1, rand_2, rand_3])
@@ -1133,7 +1132,7 @@ def test_object3d_dict(mock_run):
 
 def test_object3d_dict_invalid():
     with pytest.raises(ValueError):
-        obj = wandb.Object3D(
+        _ = wandb.Object3D(
             {
                 "type": "INVALID",
             }
@@ -1143,7 +1142,7 @@ def test_object3d_dict_invalid():
 
 def test_object3d_dict_invalid_string():
     with pytest.raises(ValueError):
-        obj = wandb.Object3D("INVALID")
+        _ = wandb.Object3D("INVALID")
     wandb.finish()
 
 
@@ -1165,9 +1164,9 @@ def test_object3d_obj(mock_run, assets_path, file_name):
 def test_object3d_io(mock_run, assets_path):
     run = mock_run()
     with open(assets_path("Box.gltf")) as f:
-        ioObj = io.StringIO(f.read())
+        io_obj = io.StringIO(f.read())
 
-    obj = wandb.Object3D(ioObj, file_type="obj")
+    obj = wandb.Object3D(io_obj, file_type="obj")
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
 
@@ -1193,9 +1192,9 @@ def test_object3d_unsupported_numpy(object3d):
 
 def test_object3d_unsupported_io(assets_path):
     with open(assets_path("Box.gltf")) as f:
-        ioObj = io.StringIO(f.read())
+        io_obj = io.StringIO(f.read())
     with pytest.raises(ValueError):
-        wandb.Object3D(ioObj)
+        wandb.Object3D(io_obj)
 
 
 def test_object3d_seq_to_json(mock_run, point_cloud_1, assets_path):
@@ -1311,8 +1310,6 @@ def test_partitioned_table():
     ],
 )
 def test_media_keys_escaped_as_glob_for_publish(mock_run, media):
-    import unittest.mock
-
     run = mock_run(use_magic_mock=True)
     weird_key = "[weirdkey]"
     media.bind_to_run(run, weird_key, 0)

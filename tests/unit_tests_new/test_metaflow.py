@@ -1,24 +1,22 @@
-import platform
 from pathlib import Path
+import platform
 
+from metaflow import FlowSpec, step
+import pandas as pd
 import pytest
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
 
 if platform.system() == "Windows":
     pytest.importorskip("metaflow", reason="metaflow does not support native Windows")
 
-import pandas as pd
-from metaflow import FlowSpec, step
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-
-from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
-
 try:
     import torch
     import torch.nn as nn
-    import torch.nn.functional as F
+    import torch.nn.functional as F  # noqa: N812
 except ImportError:
 
-    class nn:
+    class nn:  # noqa: N801
         Module = object
 
 
@@ -201,28 +199,28 @@ def test_track_other():
 
 
 def test_track_scalar():
-    BOOL = False
-    FLOAT = 1.1
-    INT = 1
-    STR = "wandb"
-    SET = {1, 2, 3}
-    LIST = [4, 5, 6]
-    DICT = {
-        "bool": BOOL,
-        "float": FLOAT,
-        "int": INT,
-        "str": STR,
-        "set": SET,
-        "list": LIST,
+    bool_value = False
+    float_value = 1.1
+    int_value = 1
+    str_value = "wandb"
+    set_value = {1, 2, 3}
+    list_value = [4, 5, 6]
+    dict_value = {
+        "bool": bool_value,
+        "float": float_value,
+        "int": int_value,
+        "str": str_value,
+        "set": set_value,
+        "list": list_value,
     }
 
-    assert wandb_track("bool", BOOL, testing=True) == "scalar"
-    assert wandb_track("float", FLOAT, testing=True) == "scalar"
-    assert wandb_track("int", INT, testing=True) == "scalar"
-    assert wandb_track("str", STR, testing=True) == "scalar"
-    assert wandb_track("set", SET, testing=True) == "scalar"
-    assert wandb_track("list", LIST, testing=True) == "scalar"
-    assert wandb_track("dict", DICT, testing=True) == "scalar"
+    assert wandb_track("bool", bool_value, testing=True) == "scalar"
+    assert wandb_track("float", float_value, testing=True) == "scalar"
+    assert wandb_track("int", int_value, testing=True) == "scalar"
+    assert wandb_track("str", str_value, testing=True) == "scalar"
+    assert wandb_track("set", set_value, testing=True) == "scalar"
+    assert wandb_track("list", list_value, testing=True) == "scalar"
+    assert wandb_track("dict", dict_value, testing=True) == "scalar"
 
 
 def test_use_datasets():

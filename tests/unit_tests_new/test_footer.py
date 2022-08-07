@@ -4,7 +4,6 @@ footer tests.
 
 import numpy as np
 import pytest
-
 import wandb
 
 LINE_PREFIX = "wandb: "
@@ -48,9 +47,11 @@ def check_output_fn(capsys):
         #     print("ERR =", l)
         # for l in captured.out.splitlines():
         #     print("OUT =", l)
-        lines = [remove_prefix(l, LINE_PREFIX).strip() for l in lines]
+        lines = [remove_prefix(line, LINE_PREFIX).strip() for line in lines]
 
-        footer_end = next(iter([l for l in lines if l.startswith(FOOTER_END_PREFIX)]))
+        footer_end = next(
+            iter([line for line in lines if line.startswith(FOOTER_END_PREFIX)])
+        )
         history_end = RUN_SUMMARY if exp_summary else footer_end
         check_keys(lines, RUN_HISTORY, history_end, exp_history)
         check_keys(lines, RUN_SUMMARY, footer_end, exp_summary)

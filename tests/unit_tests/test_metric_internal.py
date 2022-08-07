@@ -22,7 +22,6 @@ def _make_metrics(mitems):
     return metrics
 
 
-
 def test_metric_best(publish_util):
     history = _gen_history()
     m1 = pb.MetricRecord(name="mystep")
@@ -80,4 +79,3 @@ def test_metric_glob_twice_norm(publish_util):
         "metric": 1,
         "metric": {"best": 1, "max": 1, "min": 1},
     }
-

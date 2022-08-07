@@ -13,25 +13,25 @@ def doit(num, samples=None):
     return s.get()
 
 
-def diff(l):
+def diff(sampled):
     d = []
-    for n, v in enumerate(l[1:]):
-        d.append(v - l[n])
+    for n, v in enumerate(sampled[1:]):
+        d.append(v - sampled[n])
     return d
 
 
-def check(n, l, samples):
-    d = diff(l)
+def check(n, sampled, samples):
+    d = diff(sampled)
     diffs = set(d)
-    if len(l) < 2:
+    if len(sampled) < 2:
         return
     assert len(diffs) == 1
-    assert len(l) == n or (len(l) >= samples and len(l) <= samples * 3)
+    assert len(sampled) == n or (len(sampled) >= samples and len(sampled) <= samples * 3)
 
 
 def test_all():
     """Try all."""
     for s in range(1, 36, 7):
         for n in range(1000):
-            l = doit(n, samples=s)
-            check(n, l, samples=s)
+            sampled = doit(n, samples=s)
+            check(n, sampled, samples=s)

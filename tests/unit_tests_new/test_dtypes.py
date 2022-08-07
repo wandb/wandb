@@ -2,10 +2,24 @@ import datetime
 
 import numpy as np
 import pytest
-
 import wandb
 from wandb import data_types
-from wandb.sdk.data_types._dtypes import *
+from wandb.sdk.data_types._dtypes import (
+    AnyType,
+    BooleanType,
+    ConstType,
+    InvalidType,
+    ListType,
+    NoneType,
+    NumberType,
+    OptionalType,
+    StringType,
+    TimestampType,
+    TypedDictType,
+    TypeRegistry,
+    UnionType,
+    UnknownType,
+)
 
 
 def test_none_type():
@@ -491,11 +505,11 @@ def test_tables_with_dicts():
         ],
     ]
 
-    table = wandb.Table(columns=["A"], data=good_data, allow_mixed_types=True)
-    table = wandb.Table(columns=["A"], data=bad_data, allow_mixed_types=True)
-    table = wandb.Table(columns=["A"], data=good_data)
+    _ = wandb.Table(columns=["A"], data=good_data, allow_mixed_types=True)
+    _ = wandb.Table(columns=["A"], data=bad_data, allow_mixed_types=True)
+    _ = wandb.Table(columns=["A"], data=good_data)
     with pytest.raises(TypeError):
-        table = wandb.Table(columns=["A"], data=bad_data)
+        _ = wandb.Table(columns=["A"], data=bad_data)
 
 
 def test_table_explicit_types():

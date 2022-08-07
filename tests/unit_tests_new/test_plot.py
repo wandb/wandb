@@ -1,6 +1,5 @@
 import pytest
 from sklearn.naive_bayes import MultinomialNB
-
 from wandb.plot import confusion_matrix, line_series, pr_curve, roc_curve
 
 

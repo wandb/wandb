@@ -17,4 +17,3 @@ def test_runtime_resume(
 
     ctx_util = publish_util(end_cb=end_run_basic, initial_start=True)
     assert ctx_util.summary_wandb["runtime"] >= 53
-

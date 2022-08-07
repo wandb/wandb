@@ -5,9 +5,7 @@ import wandb
 
 def main():
     wandb.init()
-    test_dir = os.path.dirname(
-            os.path.abspath(__file__)
-    )
+    test_dir = os.path.dirname(os.path.abspath(__file__))
     summary_pb_filename = os.path.join(
         test_dir,
         "wandb_tensorflow_summary.pb",

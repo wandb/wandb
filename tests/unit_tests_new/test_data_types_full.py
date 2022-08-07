@@ -3,9 +3,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
-
 import wandb
-from wandb import data_types
 
 
 def test_big_table_throws_error_that_can_be_overridden(wandb_init):
@@ -28,12 +26,11 @@ def test_big_table_throws_error_that_can_be_overridden(wandb_init):
                 # should no longer raise
                 run.log({"table": table})
             except Exception as e:
-                assert (
-                    False
-                ), f"Logging a big table with an overridden limit raised with {e}"
+                raise AssertionError(
+                    f"Logging a big table with an overridden limit raised with {e}"
+                )
 
         run.finish()
-
 
 
 def test_table_logging(
@@ -115,8 +112,7 @@ def test_image_array_old_wandb(relay_server, wandb_init, monkeypatch, capsys):
         run.finish()
         outerr = capsys.readouterr()
 
-        assert "Unable to log image array filenames. In some cases, this can prevent images from being"
-        "viewed in the UI. Please upgrade your wandb server." in outerr.err
+        assert "Unable to log image array filenames." in outerr.err
 
         assert "filenames" not in relay.context.summary["logged_images"][0]
 

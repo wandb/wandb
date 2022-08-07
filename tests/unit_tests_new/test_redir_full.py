@@ -2,15 +2,14 @@ import os
 import time
 from unittest import mock
 
+from click.testing import CliRunner
 import numpy as np
 import pytest
 import tqdm
-from click.testing import CliRunner
-
 import wandb
+from wandb.cli import cli
 import wandb.sdk.lib.redirect
 import wandb.util
-from wandb.cli import cli
 
 console_modes = ["wrap"]
 if os.name != "nt":
@@ -24,7 +23,7 @@ def test_run_with_console_redirect(wandb_init, capfd, console):
 
         print(np.random.randint(64, size=(40, 40, 40, 40)))
 
-        for i in tqdm.tqdm(range(100)):
+        for _ in tqdm.tqdm(range(100)):
             time.sleep(0.02)
 
         print("\n" * 1000)
@@ -146,7 +145,7 @@ def test_memory_leak2(wandb_init, capfd, console):
         console = "wrap_emu"
     with capfd.disabled():
         run = wandb_init(settings={"console": console})
-        for i in range(1000):
+        for _ in range(1000):
             print("ABCDEFGH")
         time.sleep(3)
         assert len(run._out_redir._emulator.buffer) < 1000

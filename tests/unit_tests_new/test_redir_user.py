@@ -8,7 +8,6 @@ import time
 import numpy as np
 import pytest
 import tqdm
-
 import wandb
 
 impls = [wandb.wandb_sdk.lib.redirect.StreamWrapper]
@@ -22,7 +21,7 @@ class CapList(list):
             return
         lines = re.split(b"\r\n|\n", x)
         if len(lines) > 1:
-            [self.append(l) for l in lines]
+            [self.append(line) for line in lines]
             return
         if x.startswith(b"\r"):
             if self:
@@ -70,7 +69,7 @@ def test_tqdm_progbar(cls, capfd):
         o = CapList()
         r = cls("stderr", cbs=[o.append])
         r.install()
-        for i in tqdm.tqdm(range(10)):
+        for _ in tqdm.tqdm(range(10)):
             time.sleep(0.1)
         r.uninstall()
         assert len(o) == 1 and o[0].startswith(b"100%")

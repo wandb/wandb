@@ -4,9 +4,7 @@ import time
 import unittest.mock
 
 import pytest
-
 import wandb
-from wandb.sdk.lib.printer import INFO
 from wandb.util import mkdir_exists_ok
 
 

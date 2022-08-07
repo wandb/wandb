@@ -11,11 +11,10 @@ import time
 from unittest import mock
 
 import pytest
-
 import wandb
 import wandb.env as env
 
-reloadFn = importlib.reload
+reload_fn = importlib.reload
 
 # TODO: better debugging, if the backend process fails to start we currently
 #  don't get any debug information even in the internal logs.  For now I'm writing
@@ -23,10 +22,12 @@ reloadFn = importlib.reload
 #  having tests just hang forever, I suggest running test/test_sender to see backend
 #  errors until we ensure we propagate the errors up.
 
+
 def test_resume_auto_success(wandb_init):
     run = wandb_init(reinit=True, resume=True)
     run.finish()
     assert not os.path.exists(run.settings.resume_fname)
+
 
 def test_include_exclude_config_keys(wandb_init):
     config = {
@@ -73,6 +74,7 @@ def test_ignore_globs_wandb_files(relay_server, wandb_init):
         ["wandb-metadata.json", "config.yaml", "wandb-summary.json"]
     )
 
+
 def _remove_dir_if_exists(path):
     """Recursively removes directory. Be careful"""
     if os.path.isdir(path):
@@ -86,7 +88,7 @@ def test_dir_on_import():
 
     # Test for the base case
     _remove_dir_if_exists(default_path)
-    reloadFn(wandb)
+    reload_fn(wandb)
     assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
         default_path
     )
@@ -94,7 +96,7 @@ def test_dir_on_import():
     # test for the case that the env variable is set
     with mock.patch.dict(os.environ, {"WANDB_DIR": custom_env_path}):
         _remove_dir_if_exists(default_path)
-        reloadFn(wandb)
+        reload_fn(wandb)
         assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
             default_path
         )
@@ -112,7 +114,7 @@ def test_dir_on_init(wandb_init):
     modified_environ = {k: v for k, v in os.environ.items() if k not in names_to_remove}
     with mock.patch.dict("os.environ", modified_environ, clear=True):
         # Test for the base case
-        reloadFn(wandb)
+        reload_fn(wandb)
         _remove_dir_if_exists(default_path)
         run = wandb_init()
         run.finish()
@@ -130,7 +132,7 @@ def test_dir_on_init_env(wandb_init):
     with mock.patch.dict(os.environ, {env.DIR: custom_env_path}):
         if not os.path.isdir(custom_env_path):
             os.makedirs(custom_env_path)
-        reloadFn(wandb)
+        reload_fn(wandb)
         _remove_dir_if_exists(default_path)
         run = wandb_init()
         run.finish()
@@ -159,7 +161,7 @@ def test_dir_on_init_dir(wandb_init):
     custom_dir_path = os.path.join(os.getcwd(), dir_name)
 
     # test for the case that the dir is set
-    reloadFn(wandb)
+    reload_fn(wandb)
     _remove_dir_if_exists(default_path)
     if not os.path.isdir(custom_dir_path):
         os.makedirs(custom_dir_path)

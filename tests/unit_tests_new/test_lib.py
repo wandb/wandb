@@ -1,5 +1,5 @@
 import os
-import pytest
+
 from wandb import wandb_lib
 
 

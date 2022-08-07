@@ -1,7 +1,13 @@
+from collections import defaultdict
+from collections.abc import Sequence
+from contextlib import contextmanager
+from copy import deepcopy
 import dataclasses
 import json
 import logging
 import os
+from pathlib import Path
+from queue import Empty, Queue
 import secrets
 import shutil
 import socket
@@ -9,16 +15,7 @@ import string
 import subprocess
 import threading
 import time
-import unittest.mock
-import urllib.parse
-from collections import defaultdict
-from collections.abc import Sequence
-from contextlib import contextmanager
-from copy import deepcopy
-from pathlib import Path
-from queue import Empty, Queue
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -27,26 +24,28 @@ from typing import (
     List,
     Mapping,
     Optional,
+    TYPE_CHECKING,
     Union,
 )
+import unittest.mock
+import urllib.parse
 
+from click.testing import CliRunner
 import flask
 import git
 import pandas as pd
 import pytest
 import requests
 import responses
-from click.testing import CliRunner
-
 import wandb
-import wandb.old.settings
-import wandb.util
 from wandb import Api
+import wandb.old.settings
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.git import GitRepo
+import wandb.util
 
 try:
     from typing import Literal, TypedDict
@@ -476,7 +475,7 @@ def start_send_thread(
                         send_manager.send(payload)
                     elif stopped_event.is_set():
                         break
-            except Exception as e:
+            except Exception:
                 stopped_event.set()
                 internal_process._alive = False
 
@@ -629,7 +628,8 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--wandb-server-tag",
-        default="master",
+        # default="master",
+        default="fix-fixture-teardown",
         help="Image tag to use for the wandb server",
     )
 
@@ -637,8 +637,8 @@ def pytest_addoption(parser):
 def random_string(length: int = 12) -> str:
     """
     Generate a random string of a given length.
-    :param length:
-    :return:
+    :param length: Length of the string to generate.
+    :return: Random string.
     """
     return "".join(
         secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
@@ -807,7 +807,7 @@ def user(worker_id: str, fixture_fn) -> str:
         fixture_fn(command)
 
 
-class DeliberateHTTPException(Exception):
+class DeliberateHTTPError(Exception):
     def __init__(self, message, status_code: int = 500):
         Exception.__init__(self)
         self.message = message
@@ -817,7 +817,7 @@ class DeliberateHTTPException(Exception):
         return flask.Response(self.message, status=self.status_code)
 
     def __repr__(self):
-        return f"DeliberateHTTPException({self.message!r}, {self.status_code!r})"
+        return f"DeliberateHTTPError({self.message!r}, {self.status_code!r})"
 
 
 class Timer:
@@ -1109,15 +1109,26 @@ class QueryResolver:
             return data
         return None
 
-    def resolve_create_artifact(self, request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any) -> Optional[Dict[str, Any]]:
+    def resolve_create_artifact(
+        self, request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict):
             return None
-        query = "createArtifact(" in request_data.get("query", "") and request_data.get("variables") is not None and response_data is not None
+        query = (
+            "createArtifact(" in request_data.get("query", "")
+            and request_data.get("variables") is not None
+            and response_data is not None
+        )
         if query:
             name = request_data["variables"]["runName"]
             post_processed_data = {
                 "name": name,
-                "create_artifact": [{"variables": request_data["variables"], "response": response_data['data']['createArtifact']['artifact']}],
+                "create_artifact": [
+                    {
+                        "variables": request_data["variables"],
+                        "response": response_data["data"]["createArtifact"]["artifact"],
+                    }
+                ],
             }
             return post_processed_data
         return None
@@ -1185,9 +1196,7 @@ class RelayServer:
         #  - async app will allow for better failure injection/poor network perf
         self.app = flask.Flask(__name__)
         self.app.logger.setLevel(logging.INFO)
-        self.app.register_error_handler(
-            DeliberateHTTPException, self.handle_http_exception
-        )
+        self.app.register_error_handler(DeliberateHTTPError, self.handle_http_exception)
         self.app.add_url_rule(
             rule="/graphql",
             endpoint="graphql",
@@ -1424,7 +1433,9 @@ def dict_factory():
 @pytest.fixture(scope="function")
 def test_settings():
     def update_test_settings(
-        extra_settings: Union[dict, wandb.sdk.wandb_settings.Settings] = dict_factory()
+        extra_settings: Union[
+            dict, wandb.sdk.wandb_settings.Settings
+        ] = dict_factory()  # noqa: B008
     ):
         settings = wandb.Settings(
             # project="test",
@@ -1518,7 +1529,7 @@ def inject_file_stream_response(base_url, user):
         # breakpoint()
         if status > 299:
             message = body if isinstance(body, str) else "::".join(body.args)
-            body = DeliberateHTTPException(status_code=status, message=message)
+            body = DeliberateHTTPError(status_code=status, message=message)
         return InjectedResponse(
             method="POST",
             url=(

@@ -2,7 +2,7 @@
 summary test.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from typing import Any, Dict, Tuple, TYPE_CHECKING
 
 from wandb import wandb_sdk
 
@@ -35,7 +35,7 @@ class MockCallback:
             if item.key == key and item.value == value:
                 return self
 
-        assert False
+        raise AssertionError()
 
     def check_removes(self, key: Tuple[str]) -> "MockCallback":
         assert self.summary_record is not None
@@ -44,7 +44,7 @@ class MockCallback:
             if item.key == key:
                 return self
 
-        assert False
+        raise AssertionError()
 
 
 def create_summary_and_mock(

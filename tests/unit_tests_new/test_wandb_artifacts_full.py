@@ -1,5 +1,5 @@
-import time
 from datetime import datetime, timedelta, timezone
+import time
 
 import numpy as np
 import pytest
@@ -45,7 +45,6 @@ def test_add_table_from_dataframe(wandb_init):
     run.log_artifact(artifact)
 
     run.finish()
-
 
 
 def test_artifact_error_for_invalid_aliases(wandb_init):
@@ -178,7 +177,6 @@ def test_artifact_finish_distributed_id(wandb_init):
 #         assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
-
 def test_local_references(wandb_init):
 
     run = wandb_init()
@@ -195,4 +193,3 @@ def test_local_references(wandb_init):
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
     run.finish()
-

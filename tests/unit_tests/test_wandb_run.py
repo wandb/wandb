@@ -11,6 +11,7 @@ import pytest
 import wandb
 from wandb import env
 
+
 def test_log_code_settings(live_mock_server, test_settings):
     with open("test.py", "w") as f:
         f.write('print("test")')
@@ -55,6 +56,7 @@ def test_log_code_env(live_mock_server, test_settings, save_code):
         else:
             assert len(artifact_names) == 0
 
+
 @pytest.mark.parametrize("empty_query", [True, False])
 @pytest.mark.parametrize("local_none", [True, False])
 @pytest.mark.parametrize("outdated", [True, False])
@@ -76,7 +78,6 @@ def test_local_warning(
         assert msg not in captured
     else:
         assert msg in captured if outdated else msg not in captured
-
 
 
 def test_use_artifact(live_mock_server, test_settings):
@@ -146,7 +147,6 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "sequenceName": logged_artifact.name.split(":")[0],
         "usedAs": "logged_artifact",
     }
-
 
 
 def test_artifact_string_run_config_init(live_mock_server, test_settings, parse_ctx):

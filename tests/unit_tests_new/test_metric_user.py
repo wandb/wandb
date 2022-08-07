@@ -3,7 +3,6 @@ metric user tests.
 """
 
 import pytest
-
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 

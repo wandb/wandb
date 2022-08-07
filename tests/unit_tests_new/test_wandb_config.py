@@ -3,9 +3,8 @@ config tests.
 """
 
 import pytest
-import yaml
-
 from wandb import wandb_sdk
+import yaml
 
 
 def get_callback(d):
@@ -111,7 +110,7 @@ def test_load_config_default():
 
 def test_load_empty_config_default(capsys):
     test_path = "config-defaults.yaml"
-    with open(test_path, "w") as f:
+    with open(test_path, "w"):
         pass
     _ = wandb_sdk.Config()
     err_log = capsys.readouterr().err

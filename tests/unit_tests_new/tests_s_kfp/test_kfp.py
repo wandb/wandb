@@ -1,11 +1,11 @@
-import inspect
 from importlib import reload
+import inspect
 from unittest.mock import patch
 
 import kfp
-import wandb
-from kfp.components import InputPath, OutputPath, create_component_from_func
+from kfp.components import create_component_from_func, InputPath, OutputPath
 from kfp.components._structures import InputSpec, OutputSpec
+import wandb
 from wandb.integration.kfp import unpatch_kfp, wandb_log
 
 
@@ -31,26 +31,26 @@ def test_noop_decorator_does_not_modify_inputs():
 
         @wandb_log
         def train_model(
-            X_train_path: InputPath("np_array"),
-            y_train_path: InputPath("np_array"),
-            model_path: OutputPath("sklearn_model"),
+            x_train_path: InputPath("np_array"),  # noqa: F821
+            y_train_path: InputPath("np_array"),  # noqa: F821
+            model_path: OutputPath("sklearn_model"),  # noqa: F821
         ):
             import joblib
             import numpy as np
             from sklearn.ensemble import RandomForestClassifier
 
-            with open(X_train_path, "rb") as f:
-                X_train = np.load(f)
+            with open(x_train_path, "rb") as f:
+                x_train = np.load(f)
 
             with open(y_train_path, "rb") as f:
                 y_train = np.load(f)
 
             model = RandomForestClassifier()
-            model.fit(X_train, y_train)
+            model.fit(x_train, y_train)
 
             joblib.dump(model, model_path)
 
-        assert train_model.__annotations__["X_train_path"].type == "np_array"
+        assert train_model.__annotations__["x_train_path"].type == "np_array"
         assert train_model.__annotations__["y_train_path"].type == "np_array"
         assert train_model.__annotations__["model_path"].type == "sklearn_model"
 
@@ -73,26 +73,26 @@ def test_correct_annotations_and_signature():
 def test_decorator_does_not_modify_inputs():
     @wandb_log
     def train_model(
-        X_train_path: InputPath("np_array"),
-        y_train_path: InputPath("np_array"),
-        model_path: OutputPath("sklearn_model"),
+        x_train_path: InputPath("np_array"),  # noqa: F821
+        y_train_path: InputPath("np_array"),  # noqa: F821
+        model_path: OutputPath("sklearn_model"),  # noqa: F821
     ):
         import joblib
         import numpy as np
         from sklearn.ensemble import RandomForestClassifier
 
-        with open(X_train_path, "rb") as f:
-            X_train = np.load(f)
+        with open(x_train_path, "rb") as f:
+            x_train = np.load(f)
 
         with open(y_train_path, "rb") as f:
             y_train = np.load(f)
 
         model = RandomForestClassifier()
-        model.fit(X_train, y_train)
+        model.fit(x_train, y_train)
 
         joblib.dump(model, model_path)
 
-    assert train_model.__annotations__["X_train_path"].type == "np_array"
+    assert train_model.__annotations__["x_train_path"].type == "np_array"
     assert train_model.__annotations__["y_train_path"].type == "np_array"
     assert train_model.__annotations__["model_path"].type == "sklearn_model"
 

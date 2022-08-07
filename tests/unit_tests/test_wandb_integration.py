@@ -107,6 +107,7 @@ def test_resume_never_failure(runner, live_mock_server, test_settings):
             wandb.init(reinit=True, resume="never", settings=test_settings)
             assert "resume='never' but run" in e.value.message
 
+
 def test_resume_auto_failure(live_mock_server, test_settings):
     # env vars have a higher priority than the BASE settings
     # so that if that is set (e.g. by some other test/fixture),
@@ -151,6 +152,7 @@ def test_network_fault_files(live_mock_server, test_settings):
         ]
     )
 
+
 # TODO(jhr): look into why this timeout needed to be extend for windows
 @pytest.mark.timeout(120)
 def test_network_fault_graphql(live_mock_server, test_settings):
@@ -172,6 +174,7 @@ def test_network_fault_graphql(live_mock_server, test_settings):
             "wandb-summary.json",
         ]
     )
+
 
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")

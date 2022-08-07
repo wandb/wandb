@@ -1,17 +1,14 @@
 import os
+import pickle
 import platform
 import sys
+from unittest import mock
 
 import numpy as np
 import pytest
-from unittest import mock
-import pickle
-
-
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import MultiprocessError, UsageError
-
 
 
 @pytest.mark.skipif(
@@ -66,7 +63,6 @@ def test_log_code_custom_root(wandb_init):
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
     run.finish()
 
-from wandb.errors import UsageError
 
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
 def test_invalid_project_name(user, project_name):
@@ -75,19 +71,18 @@ def test_invalid_project_name(user, project_name):
         assert 'Invalid project name "{project_name}"' in str(e.value)
 
 
-
 def test_run_step_property(mock_run):
     run = mock_run()
     run.log(dict(this=1))
     run.log(dict(this=2))
     assert run.step == 2
 
+
 def test_log_avoids_mutation(mock_run):
     run = mock_run()
     d = dict(this=1)
     run.log(d)
     assert d == dict(this=1)
-
 
 
 def test_display(mock_run):
@@ -205,6 +200,7 @@ def test_mark_preempting(mock_run, parse_records, record_q):
     assert len(parsed.preempting) == 1
     assert parsed.records[-1].HasField("preempting")
 
+
 def test_run_pub_config(mock_run, record_q, parse_records):
     run = mock_run()
     run.config.t = 1
@@ -260,7 +256,6 @@ def test_use_artifact_offline(mock_run):
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
 
 
-
 def test_run_basic():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
@@ -287,11 +282,15 @@ def test_run_sweep_overlap():
 def test_except_hook(test_settings):
     # Test to make sure we respect excepthooks by 3rd parties like pdb
     errs = []
-    hook = lambda etype, val, tb: errs.append(str(val))
+
+    def hook(etype, val, tb):
+        return errs.append(str(val))
+
     sys.excepthook = hook
 
     # We cant use raise statement in pytest context
-    raise_ = lambda exc: sys.excepthook(type(exc), exc, None)
+    def raise_(exc):
+        return sys.excepthook(type(exc), exc, None)
 
     raise_(Exception("Before wandb.init()"))
 
@@ -351,6 +350,7 @@ def test_unlogged_artifact_in_config(user, test_settings):
         )
     run.finish()
 
+
 def test_media_in_config(runner, user, test_settings):
     with runner.isolated_filesystem():
         run = wandb.init(settings=test_settings())
@@ -383,7 +383,6 @@ def test_attach_same_process(user, test_settings):
     assert "attach in the same process is not supported" in str(excinfo.value)
 
 
-
 def test_deprecated_feature_telemetry(relay_server, test_settings, user):
     with relay_server() as relay:
         run = wandb.init(
@@ -391,7 +390,7 @@ def test_deprecated_feature_telemetry(relay_server, test_settings, user):
             settings=test_settings(),
         )
         # use deprecated features
-        deprecated_features = [
+        _ = [
             run.mode,
             run.save(),
             run.join(),
@@ -410,9 +409,7 @@ def test_deprecated_feature_telemetry(relay_server, test_settings, user):
 
 
 # test that information about validation errors in wandb.Settings is included in telemetry
-def test_settings_validation_telemetry(
-    relay_server, test_settings, capsys, user
-):
+def test_settings_validation_telemetry(relay_server, test_settings, capsys, user):
     test_settings = test_settings()
     test_settings.update(api_key=123)
     captured = capsys.readouterr().err
@@ -429,15 +426,15 @@ def test_settings_validation_telemetry(
 
 
 # test that information about validation errors in wandb.Settings is included in telemetry
-def test_settings_preprocessing_telemetry(
-    relay_server, test_settings, capsys, user
-):
+def test_settings_preprocessing_telemetry(relay_server, test_settings, capsys, user):
     with mock.patch.dict("os.environ", WANDB_QUIET="cat"):
         with relay_server() as relay:
             run = wandb.init(settings=test_settings())
             captured = capsys.readouterr().err
             msg = "Unable to preprocess value for property quiet: cat"
-            assert msg in captured and "This will raise an error in the future" in captured
+            assert (
+                msg in captured and "This will raise an error in the future" in captured
+            )
             telemetry = relay.context.get_run_telemetry(run.id)
             # TelemetryRecord field 11 is Issues,
             # whose field 3 corresponds to preprocessing warnings in Settings
@@ -445,9 +442,7 @@ def test_settings_preprocessing_telemetry(
             run.finish()
 
 
-def test_settings_unexpected_args_telemetry(
-    runner, relay_server, capsys, user
-):
+def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
     with runner.isolated_filesystem():
         with relay_server() as relay:
             run = wandb.init(settings=wandb.Settings(blah=3))
@@ -459,6 +454,3 @@ def test_settings_unexpected_args_telemetry(
             # whose field 2 corresponds to unexpected arguments in Settings
             assert 2 in telemetry.get("11", [])
             run.finish()
-
-
-

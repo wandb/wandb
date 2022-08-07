@@ -1,10 +1,9 @@
 import sys
 
 import pytest
-from tensorflow.keras import backend as K
-from tensorflow.keras.layers import LSTM, Concatenate, Dense, Embedding, Flatten, Input
+from tensorflow.keras import backend as K  # noqa: N812
+from tensorflow.keras.layers import Concatenate, Dense, Embedding, Flatten, Input, LSTM
 from tensorflow.keras.models import Model, Sequential
-
 import wandb
 from wandb.keras import WandbCallback
 

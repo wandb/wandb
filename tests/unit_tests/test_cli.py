@@ -37,7 +37,6 @@ def docker(request, mock_server, mocker, monkeypatch):
     return docker
 
 
-
 def test_artifact_download(runner, git_repo, mock_server):
     result = runner.invoke(cli.artifact, ["get", "test/mnist:v0"])
     print(result.output)
@@ -75,7 +74,6 @@ def test_artifact_ls(runner, git_repo, mock_server):
     assert result.exit_code == 0
     assert "10.0KB" in result.output
     assert "mnist:v2" in result.output
-
 
 
 @pytest.mark.skipif(

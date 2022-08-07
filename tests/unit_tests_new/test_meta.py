@@ -2,10 +2,9 @@ import os
 import platform
 import queue
 import subprocess
+import unittest.mock
 
 import pytest
-
-import unittest.mock
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.meta import Meta
 from wandb.sdk.internal.sender import SendManager

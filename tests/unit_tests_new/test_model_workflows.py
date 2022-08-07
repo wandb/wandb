@@ -1,7 +1,6 @@
 import tempfile
 
 import pytest
-
 import wandb
 from wandb.beta.workflows import _add_any, use_model
 

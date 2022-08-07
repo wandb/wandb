@@ -2,6 +2,7 @@
 file_stream tests.
 """
 
+
 def generate_history():
     history = []
     history.append(dict(step=0, data=dict(v1=1, v2=2, v3="dog", mystep=1)))
@@ -27,7 +28,6 @@ def assert_history(publish_util, dropped=None):
     assert ctx_util.history == converted_history
     if dropped is not None:
         assert ctx_util.dropped_chunks == dropped
-
 
 
 def test_fstream_status_404(publish_util, mock_server, inject_requests, capsys):

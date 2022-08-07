@@ -3,15 +3,12 @@ import getpass
 import importlib
 import netrc
 import os
-import platform
 import subprocess
 import traceback
 from unittest import mock
 
 import pytest
-
 import wandb
-from wandb.apis.internal import InternalApi
 from wandb.cli import cli
 
 DOCKER_SHA = (
@@ -85,10 +82,10 @@ def test_init_reinit(runner, empty_netrc, user):
         debug_result(result, "init")
         assert result.exit_code == 0
         with open("netrc") as f:
-            generatedNetrc = f.read()
+            generated_netrc = f.read()
         with open("wandb/settings") as f:
             generated_wandb = f.read()
-        assert user in generatedNetrc
+        assert user in generated_netrc
         assert user in generated_wandb
 
 
@@ -147,6 +144,7 @@ def test_pull(runner, wandb_init):
         assert f"Downloading: {project_name}/{run.id}" in result.output
         assert os.path.isfile(file_name)
         assert f"File {file_name}" in result.output
+
 
 def test_docker_run_digest(runner, docker, monkeypatch):
     result = runner.invoke(

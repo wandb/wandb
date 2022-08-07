@@ -5,7 +5,6 @@ import json
 import os
 
 import pytest
-
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 

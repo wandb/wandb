@@ -1,16 +1,16 @@
 import wandb
-from wandb.sdk.internal.stats import SystemStats
 from wandb.sdk.internal.ipu import IPUProfiler
+from wandb.sdk.internal.stats import SystemStats
 
 CURRENT_PID = 123
 OTHER_PID = 456
 
 
 class MockGcIpuInfo:
-    def setUpdateMode(self, update_mode: bool):
+    def setUpdateMode(self, update_mode: bool):  # noqa: N802
         pass
 
-    def getDevices(self):
+    def getDevices(self):  # noqa: N802
         return [
             {
                 "user process id": str(OTHER_PID),

@@ -2,10 +2,9 @@ import os
 import platform
 
 import pytest
+from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
 import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
-from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
-
 import wandb
 from wandb.errors import term
 
@@ -220,6 +219,6 @@ def test_tensorflow_log_error(assets_path):
 
     with pytest.raises(
         wandb.Error,
-        match="You must call `wandb.init\(\)` before calling `wandb.tensorflow.log`",
+        match=r"You must call `wandb.init\(\)` before calling `wandb.tensorflow.log`",
     ):
         wandb.tensorboard.log(summary_pb)

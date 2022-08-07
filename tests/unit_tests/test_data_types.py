@@ -92,4 +92,3 @@ def test_reference_table_artifacts(
 
     run.finish()
     assert True
-

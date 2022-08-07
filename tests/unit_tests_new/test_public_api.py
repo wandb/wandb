@@ -4,10 +4,9 @@
 from unittest import mock
 
 import pytest
-
 import wandb
-import wandb.util
 from wandb import Api
+import wandb.util
 
 
 def test_api_auto_login_no_tty():
@@ -120,8 +119,8 @@ def test_from_path_bad_report_path(user):
 @pytest.mark.parametrize(
     "path",
     [
-        "test/test/reports/XXX",
-        "test/test/reports/Name-foo--XXX",
+        "test/test/reports/XYZ",
+        "test/test/reports/Name-foo--XYZ",
     ],
 )
 def test_from_path_report_type(user, path):
@@ -137,10 +136,10 @@ def test_project_to_html(user):
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_report_to_html():
-    path = "test/test/reports/My-Report--XXX"
+    path = "test/test/reports/My-Report--XYZ"
     report = Api().from_path(path)
     report_html = report.to_html(hidden=True)
-    assert "test/test/reports/My-Report--XXX" in report_html
+    assert "test/test/reports/My-Report--XYZ" in report_html
     assert "<button" in report_html
 
 
@@ -154,4 +153,3 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
         uploaded_files = relay.context.get_run_uploaded_files(run_id)
         assert uploaded_files[0].endswith(tb_file_name)
         assert len(uploaded_files) == 17
-

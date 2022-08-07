@@ -6,6 +6,7 @@ import pytest
 
 import wandb
 
+
 @pytest.mark.parametrize("utfText", ["my first hint", ""])
 @pytest.mark.parametrize("messageType", ["footer", ""])
 @pytest.mark.parametrize("messageLevel", ["20", "", 20])

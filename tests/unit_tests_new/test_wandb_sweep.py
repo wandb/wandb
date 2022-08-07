@@ -1,8 +1,6 @@
 """Sweep tests"""
+
 import pytest
-
-import os
-
 import wandb
 
 
@@ -25,7 +23,8 @@ def test_sweep_entity_project_callable(user, relay_server):
         "parameters": {"parameter1": {"values": [1, 2, 3]}},
     }
 
-    sweep_callable = lambda: sweep_config
+    def sweep_callable():
+        return sweep_config
 
     with relay_server() as relay:
         sweep_id = wandb.sweep(sweep_callable, project="test", entity=user)

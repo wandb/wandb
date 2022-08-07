@@ -1,6 +1,6 @@
 import base64
 import hashlib
-from typing import  Callable
+from typing import Callable
 import pytest
 from wandb import util
 import wandb
@@ -8,7 +8,6 @@ import numpy as np
 from wandb.proto import wandb_internal_pb2 as pb
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
-
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -135,7 +134,6 @@ def md5_string(string):
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")
-
 
 
 @pytest.mark.timeout(120)

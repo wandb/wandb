@@ -8,9 +8,9 @@ import tempfile
 from unittest import mock
 
 import pytest
-
 import wandb
 from wandb.viz import custom_chart
+
 
 def test_nice_log_error():
     with pytest.raises(wandb.Error):
@@ -222,7 +222,6 @@ def test_log_step_committed_same_dropped(relay_server, wandb_init):
     assert len(history.columns) == 1
 
 
-
 @pytest.mark.wandb_args(
     tf_config={
         "cluster": {"master": ["trainer-4dsl7-master-0:2222"]},
@@ -305,6 +304,7 @@ def test_anonymous_mode(wandb_init, capsys, local_settings):
         in err
     )
 
+
 @pytest.mark.xfail(reason="Backend race condition")
 def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
     copied_env = os.environ.copy()
@@ -332,7 +332,6 @@ def test_login_invalid_key():
             wandb.login()
 
 
-
 def test_save_invalid_path(wandb_init):
     run = wandb_init()
     root = tempfile.gettempdir()
@@ -348,7 +347,6 @@ def test_save_invalid_path(wandb_init):
 def test_restore_no_path():
     with pytest.raises(ValueError, match="run_path required"):
         wandb.restore("weights.h5")
-
 
 
 def test_run_id(wandb_init):

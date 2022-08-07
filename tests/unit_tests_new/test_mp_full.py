@@ -9,7 +9,6 @@ import sys
 import time
 
 import pytest
-
 import wandb
 from wandb.errors import UsageError
 
@@ -48,7 +47,7 @@ def test_multiproc_ignore(relay_server, wandb_init):
         train(run, 0)
 
         procs = []
-        for i in range(2):
+        for _ in range(2):
             procs.append(
                 multiprocessing.Process(
                     target=train,
@@ -88,7 +87,7 @@ def test_multiproc_strict(relay_server, wandb_init):
         train(run, 0)
 
         procs = []
-        for i in range(2):
+        for _ in range(2):
             procs.append(
                 multiprocessing.Process(
                     target=train,

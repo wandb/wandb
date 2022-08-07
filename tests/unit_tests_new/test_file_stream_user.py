@@ -1,8 +1,8 @@
+from dataclasses import dataclass
 import itertools
 import os
 import random
 import string
-from dataclasses import dataclass
 
 from wandb import util
 from wandb.sdk.internal.file_stream import CRDedupeFilePolicy

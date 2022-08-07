@@ -2,6 +2,7 @@ import os
 import platform
 import pytest
 
+
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",

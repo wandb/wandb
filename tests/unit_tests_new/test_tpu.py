@@ -1,7 +1,6 @@
-import os
-import pytest
 import time
 
+import pytest
 import wandb
 from wandb.sdk.internal.stats import SystemStats
 from wandb.sdk.internal.tpu import TPUProfiler

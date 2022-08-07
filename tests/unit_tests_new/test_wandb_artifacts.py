@@ -1,15 +1,14 @@
 import base64
+from datetime import datetime, timezone
 import hashlib
 import os
 import shutil
-from datetime import datetime, timezone
 
 import numpy as np
 import pytest
-
 import wandb
-import wandb.data_types as data_types
 from wandb import util
+import wandb.data_types as data_types
 
 
 def mock_boto(artifact, path=False, content_type=None):
@@ -49,20 +48,20 @@ def mock_boto(artifact, path=False, content_type=None):
             self.objects = S3Objects()
 
     class S3Resource:
-        def Object(self, bucket, key):
+        def Object(self, bucket, key):  # noqa: N802
             return S3Object()
 
-        def ObjectVersion(self, bucket, key, version):
+        def ObjectVersion(self, bucket, key, version):  # noqa: N802
             class Version:
-                def Object(self):
+                def Object(self):  # noqa: N802
                     return S3Object(version_id=version)
 
             return Version()
 
-        def Bucket(self, bucket):
+        def Bucket(self, bucket):  # noqa: N802
             return S3Bucket()
 
-        def BucketVersioning(self, bucket):
+        def BucketVersioning(self, bucket):  # noqa: N802
             class BucketStatus:
                 status = "Enabled"
 
@@ -108,7 +107,9 @@ def mock_gcs(artifact, path=False):
     return mock
 
 
-def mock_http(artifact, path=False, headers={}):
+def mock_http(artifact, path=False, headers=None):
+    headers = headers or {}
+
     class Response:
         def __init__(self, headers):
             self.headers = headers
@@ -727,7 +728,7 @@ def test_add_obj_using_brackets(assets_path):
     }
 
     with pytest.raises(ValueError):
-        image = artifact["my-image"]
+        _ = artifact["my-image"]
 
 
 def test_artifact_interface_link():
@@ -739,7 +740,7 @@ def test_artifact_interface_link():
 def test_artifact_interface_get_item():
     art = wandb.wandb_sdk.interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
-        image = art["my-image"]
+        _ = art["my-image"]
 
 
 def test_artifact_interface_set_item():
