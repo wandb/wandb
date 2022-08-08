@@ -60,8 +60,9 @@ def check_host(host: str) -> bool:
     return True
 
 
-def check_logged_in(api: Api, host: str) -> bool:
-    print("Checking if logged in".ljust(72, "."), end="")
+def check_logged_in(api: Api, host: str, verbose: bool = True) -> bool:
+    if verbose:
+        print("Checking if logged in".ljust(72, "."), end="")
     login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
@@ -79,8 +80,8 @@ def check_logged_in(api: Api, host: str) -> bool:
                 "Could not get viewer with default API key. "
                 f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
             )
-
-    print_results(fail_string, False)
+    if verbose:
+        print_results(fail_string, False)
     return fail_string is None
 
 

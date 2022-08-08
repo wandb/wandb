@@ -97,12 +97,6 @@ def set_project_entity_defaults(
             config_entity = launch_config.get("entity")
         entity = config_entity or api.default_entity
 
-    if entity is None:
-        raise LaunchError(
-            "Unable to resolve entity. Has the api-key been set properly? "
-            "Use `wandb login --relogin` to force login"
-        )
-
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
