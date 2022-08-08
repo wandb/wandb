@@ -81,7 +81,8 @@ parameters:
     default: false
   wandb_server_tag:
     type: string
-    default: "master"
+    # default: "master"  # todo: switch to this once core/10381 is merged
+    default: "fix-fixture-teardown"
 
 commands:
   save-kfp-cache:
@@ -239,7 +240,7 @@ jobs:
         default: false
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-    resource_class: large
+    resource_class: xlarge
     working_directory: /mnt/ramdisk
     steps:
       - checkout
@@ -330,47 +331,6 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  pytest-mock-server:
-    resource_class: xlarge
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 7
-      notify_on_failure:
-        type: boolean
-        default: false
-    docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-    working_directory: /mnt/ramdisk
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - run:
-          name: Install python dependencies
-          command: |
-            pip install tox==<< pipeline.parameters.tox_version >>
-      - run:
-          name: Run tests
-          command: |
-            tox -v -e py<<parameters.python_version_major>><<parameters.python_version_minor>>,covercircle
-          no_output_timeout: 25m
-      - save-test-results
-      # conditionally post a notification to slack if the job failed
-      - when:
-          condition: << parameters.notify_on_failure >>
-          steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-
 workflows:
   main:
     when:
@@ -381,10 +341,16 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
+      #
+      # Linting
+      #
       - tox-base:
           name: "code-check"
           python_version_minor: 8
           toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
+      #
+      # Unit tests with pytest on Linux, using real wandb server
+      #
       - pytest:
           matrix:
             parameters:
@@ -392,13 +358,23 @@ workflows:
               python_version_minor: [ 6, 7, 8, 9, 10 ]
           name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
-      # functional linux tests
+      # Unit tests with pytest on Linux, using the old mock server
       #
       - tox-base:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 7, 10 ]
+              python_version_minor: [ 6, 7, 8, 9, 10 ]
+          name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+      #
+      # Functional tests with yea on Linux
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7 ]
               shard:
                 - "base"
                 - "sklearn"
@@ -413,7 +389,9 @@ workflows:
                 - "docs"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+      #
       # import tests
+      #
       - tox-base:
           matrix:
             parameters:

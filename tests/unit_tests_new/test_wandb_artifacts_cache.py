@@ -50,8 +50,8 @@ def test_check_etag_obj_path():
     assert contents == "hi"
 
 
-def test_check_write_parallel():
-    with CliRunner().isolated_filesystem() as t:
+def test_check_write_parallel(runner):
+    with runner.isolated_filesystem() as t:
         cache = os.path.join(t, "cache")
         num_parallel = 5
 
