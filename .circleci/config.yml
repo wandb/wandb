@@ -383,7 +383,7 @@ workflows:
     jobs:
       - tox-base:
           name: "code-check"
-          image: "python:3.8"
+          python_version_minor: 8
           toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
       - pytest:
           matrix:
