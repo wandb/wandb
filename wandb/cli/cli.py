@@ -1230,12 +1230,13 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.option(
-    "--project",
-    "-p",
+@click.argument(
+    "project",
+    nargs=1,
+    required=False,
     default=None,
-    help="Name of the project which the agent will watch. "
-    "If passed in, will override the project value passed in using a config file.",
+    # help="Name of the project which the agent will watch. "
+    # "If passed in, will override the project value passed in using a config file.",
 )
 @click.option(
     "--entity",

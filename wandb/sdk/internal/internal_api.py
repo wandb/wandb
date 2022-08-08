@@ -992,8 +992,9 @@ class Api:
         res = self.gql(query, variable_values)
         if res.get("project") is None:
             raise Exception(
-                f"Error fetching run queues for {entity}/{project} "
-                "check that you have access to this entity and project"
+                f"Error fetching run queues for {entity}/{project}"
+                ". Check that you have entered the correct project name and "
+                "have access to this entity and project"
             )
 
         project_run_queues: List[Dict[str, str]] = res["project"]["runQueues"]
