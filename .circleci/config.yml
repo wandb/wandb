@@ -223,10 +223,17 @@ commands:
 jobs:
   tox-base:
     parameters:
-      image:
-        type: string
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
       toxenv:
         type: string
+      shard:
+        type: string
+        default: "base"
       notify_on_failure:
         type: boolean
         default: false
@@ -323,6 +330,47 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
+  pytest-mock-server:
+    resource_class: xlarge
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
+      notify_on_failure:
+        type: boolean
+        default: false
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install python dependencies
+          command: |
+            pip install tox==<< pipeline.parameters.tox_version >>
+      - run:
+          name: Run tests
+          command: |
+            tox -v -e py<<parameters.python_version_major>><<parameters.python_version_minor>>,covercircle
+          no_output_timeout: 25m
+      - save-test-results
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
 workflows:
   main:
     when:
@@ -343,3 +391,47 @@ workflows:
               python_version_major: [ 3 ]
               python_version_minor: [ 6, 7, 8, 9, 10 ]
           name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #
+      # functional linux tests
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 10 ]
+              shard:
+                - "base"
+                - "sklearn"
+                - "metaflow"
+                - "tf115"
+                - "tf21"
+                - "tf25"
+                - "tf26"
+                - "service"
+                - "noml"
+                - "grpc"
+                - "docs"
+          name: "func-s_<<matrix.shard>>-lin-py<<parameters.python_version_major>><<parameters.python_version_minor>>"
+          image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>,func-covercircle"
+      # import tests
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7 ]
+              shard:
+                - "imports1"
+                - "imports2"
+                - "imports3"
+                - "imports4"
+                - "imports5"
+                - "imports6"
+                - "imports7"
+                - "imports8"
+                - "imports9"
+                - "imports10"
+                - "imports11"
+          name: "func-s_<<matrix.shard>>-lin-py<<parameters.python_version_major>><<parameters.python_version_minor>>"
+          image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>"

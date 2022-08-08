@@ -41,3 +41,4 @@ rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.mac
 .[azure]
 cloudpickle
 responses
+kfp
