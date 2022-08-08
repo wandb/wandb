@@ -96,7 +96,6 @@ def set_project_entity_defaults(
         if launch_config:
             config_entity = launch_config.get("entity")
         entity = config_entity or api.default_entity
-
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
