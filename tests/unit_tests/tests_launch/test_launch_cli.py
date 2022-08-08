@@ -508,3 +508,21 @@ def test_launch_agent_launch_error_continue(
         )
         assert "blah blah" in result.output
         assert "except caught, acked item" in result.output
+
+
+def test_launch_name_run_id_environment_variable(
+    runner,
+    mocked_fetchable_git_repo,
+    monkeypatch,
+):
+    args = [
+        "https://github.com/test/repo.git",
+        "--entry-point",
+        "train.py",
+    ]
+    monkeypatch.setenv("WANDB_RUN_ID", "run_id_test")
+    monkeypatch.setenv("WANDB_NAME", "display_name_test")
+    result = runner.invoke(cli.launch, args)
+
+    assert "WANDB_RUN_ID=run_id_test" in str(result.output)
+    assert "WANDB_NAME=display_name_test" in str(result.output)
