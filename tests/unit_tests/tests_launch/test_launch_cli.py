@@ -94,7 +94,7 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
+                # "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -113,7 +113,7 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
+                # "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -142,7 +142,7 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
+                # "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -166,7 +166,7 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
+                # "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
@@ -500,7 +500,7 @@ def test_launch_agent_launch_error_continue(
         result = runner.invoke(
             cli.launch_agent,
             [
-                "--project",
+                # "--project",
                 "test_project",
                 "--entity",
                 "mock_server_entity",
