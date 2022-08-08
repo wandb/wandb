@@ -4,7 +4,6 @@ import os
 import random
 import time
 
-from click.testing import CliRunner
 from wandb import wandb_sdk
 
 
