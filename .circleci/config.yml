@@ -238,7 +238,7 @@ jobs:
         type: boolean
         default: false
     docker:
-      - image: << parameters.image >>
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     resource_class: large
     working_directory: /mnt/ramdisk
     steps:
@@ -412,7 +412,6 @@ workflows:
                 - "grpc"
                 - "docs"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          image: "python:<<matrix.python_version_major>>.<<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
       # import tests
       - tox-base:
@@ -433,5 +432,4 @@ workflows:
                 - "imports10"
                 - "imports11"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          image: "python:<<matrix.python_version_major>>.<<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
