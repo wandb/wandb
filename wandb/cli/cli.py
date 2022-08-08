@@ -1230,13 +1230,12 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.argument(
-    "project",
-    nargs=1,
-    required=False,
+@click.option(
+    "--project",
+    "-p",
     default=None,
-    # help="Name of the project which the agent will watch. "
-    # "If passed in, will override the project value passed in using a config file.",
+    help="Name of the project which the agent will watch. "
+    "If passed in, will override the project value passed in using a config file.",
 )
 @click.option(
     "--entity",
@@ -1280,7 +1279,7 @@ def launch_agent(
     )
     if agent_config.get("project") is None:
         raise LaunchError(
-            "You must specify a project name or set WANDB_PROJECT environment variable."
+            "WANDB_PROJECT environment variable not found. Specify a project name with --project or set envirnoment variable WANDB_PROJECT"
         )
 
     wandb.termlog("Starting launch agent ✨")
