@@ -788,7 +788,7 @@ def fixture_fn(base_url, wandb_server_tag):
 
 
 @pytest.fixture(scope=determine_scope)
-def user(worker_id: str, fixture_fn) -> str:
+def user(worker_id: str, fixture_fn, base_url) -> str:
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
     fixture_fn(command)
@@ -799,6 +799,7 @@ def user(worker_id: str, fixture_fn) -> str:
             "WANDB_API_KEY": username,
             "WANDB_ENTITY": username,
             "WANDB_USERNAME": username,
+            "WANDB_BASE_URL": base_url,
         },
     ):
         yield username
