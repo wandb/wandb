@@ -411,9 +411,9 @@ workflows:
                 - "noml"
                 - "grpc"
                 - "docs"
-          name: "func-s_<<matrix.shard>>-lin-py<<parameters.python_version_major>><<parameters.python_version_minor>>"
-          image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>,func-covercircle"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          image: "python:<<matrix.python_version_major>>.<<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
       # import tests
       - tox-base:
           matrix:
@@ -432,6 +432,6 @@ workflows:
                 - "imports9"
                 - "imports10"
                 - "imports11"
-          name: "func-s_<<matrix.shard>>-lin-py<<parameters.python_version_major>><<parameters.python_version_minor>>"
-          image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-          toxenv: "func-s_<<matrix.shard>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          image: "python:<<matrix.python_version_major>>.<<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
