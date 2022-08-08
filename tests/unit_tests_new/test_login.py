@@ -145,3 +145,23 @@ def test_login_anonymous():
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         wandb.login(anonymous="must")
         assert wandb.api.api_key == "ANONYMOOSE" * 4
+
+
+def test_login_sets_api_base_url(local_settings):
+    with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
+        base_url = "https://api.test.host.ai"
+        wandb.login(anonymous="must", host=base_url)
+        api = wandb.Api()
+        assert api.settings["base_url"] == base_url
+        base_url = "https://api.wandb.ai"
+        wandb.login(anonymous="must", host=base_url)
+        api = wandb.Api()
+        assert api.settings["base_url"] == base_url
+
+
+@pytest.mark.skip(reason="We dont validate keys in `wandb.login()` right now")
+def test_login_invalid_key():
+    with mock.patch.dict("os.environ", WANDB_API_KEY="B" * 40):
+        wandb.ensure_configured()
+        with pytest.raises(wandb.UsageError):
+            wandb.login()
