@@ -1080,7 +1080,7 @@ workflows:
           parallelism: 1
           xdist: 1
       #
-      # Unit tests with yea on Windows and MacOS
+      # Unit tests with pytest on Windows and MacOS
       #
       - win:
           matrix:
@@ -1088,7 +1088,7 @@ workflows:
               python_version_major: [ 3 ]
               python_version_minor: [ 7 ]
           name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests_new"
       - mac:
           matrix:
             parameters:
