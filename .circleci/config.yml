@@ -1006,6 +1006,8 @@ workflows:
                 - "tf21"
                 - "tf25"
                 - "tf26"
+                - "ray112"
+                - "ray2"
                 - "service"
                 - "noml"
                 - "grpc"
