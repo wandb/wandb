@@ -1246,6 +1246,7 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
+        row = row.copy()
         if row:
             row = self._visualization_hack(row)
             now = time.time()
