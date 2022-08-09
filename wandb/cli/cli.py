@@ -65,14 +65,7 @@ logging.basicConfig(
 )
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-
-# Click Contexts
-CONTEXT = {"default_map": {}}
-RUN_CONTEXT = {
-    "default_map": {},
-    "allow_extra_args": True,
-    "ignore_unknown_options": True,
-}
+CONTEXT = dict(default_map={})
 
 
 def cli_unsupported(argument):
@@ -674,10 +667,20 @@ def sync(
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
-    "--launch_config",
-    "-c",
-    metavar="FILE",
-    help="Path to JSON or YAML file which defines how to launch the sweep.",
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of launch run queue to push sweep runs into. If supplied without "
+    "an argument (`--queue`), defaults to classic sweep behavior. Else, if "
+    "name supplied, specified run queue must exist under the project and entity supplied.",
+)
+@click.option(
+    "--job",
+    "-j",
+    default=None,
+    help="The name of the job that encapsulates a single run in the sweep.",
 )
 @click.option(
     "--stop",
@@ -715,7 +718,8 @@ def sweep(
     program,
     settings,
     update,
-    launch_config,
+    queue,
+    job,
     stop,
     cancel,
     pause,
@@ -874,55 +878,49 @@ def sweep(
     )
 
     _launch_scheduler_spec = None
-    if launch_config is not None:
-        launch_config = util.load_json_yaml_dict(launch_config)
-        if launch_config is None:
-            raise LaunchError(f"Invalid format for launch config at {launch_config}")
-        wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
+    if queue is not None:
+        wandb.termlog("Using launch 🚀 queue: %s" % queue)
 
-        if entity is None or project is None:
-            _msg = "Must specify --entity and --project flags when using launch."
+        if job is None:
+            _msg = "Must specify --job flag when using launch queues"
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
+        # Because the launch job spec below is the Scheduler, it
+        # will need to know the name of the sweep, which it wont
+        # know until it is created,so we use this placeholder
+        # and replace inside UpsertSweep in the backend (mutation.go)
+        _sweep_id_placeholder = "WANDB_SWEEP_ID"
+
         # Launch job spec for the Scheduler
+        # TODO: Keep up to date with Launch Job Spec
         _launch_scheduler_spec = json.dumps(
             {
-                "queue": launch_config.get("queue", "default"),
+                "queue": queue,
                 "run_spec": json.dumps(
                     construct_launch_spec(
-                        "placeholder-uri-scheduler",  # uri
-                        None,  # job
+                        "placeholder-uri-scheduler",  # TODO(hupo): placeholder uri, remove in future
+                        None,  # TODO(hupo): Generic scheduler job (container)
                         api,
-                        f"Scheduler.WANDB_SWEEP_ID",  # name,
+                        f"Scheduler.{_sweep_id_placeholder}",  # name,
                         project,
                         entity,
-                        launch_config.get("scheduler", {}).get(
-                            "docker_image", None
-                        ),  # docker_image,
-                        launch_config.get("scheduler", {}).get(
-                            "resource", "local-process"
-                        ),  # resource,
+                        None,  # docker_image,
+                        "local-process",  # resource,
                         [
                             "wandb",
                             "scheduler",
-                            "WANDB_SWEEP_ID",
+                            _sweep_id_placeholder,
                             "--queue",
-                            launch_config.get("queue", "default"),
+                            queue,
                             "--project",
                             project,
                             "--job",
-                            launch_config.get("job", "placeholder-job"),
-                            "--resource",
-                            launch_config.get("resource", "local-process"),
-                            # "--num_workers",
-                            # launch_config.get("scheduler", {}).get("num_workers", 1),
+                            job,
                         ],  # entry_point,
                         None,  # version,
                         None,  # parameters,
-                        launch_config.get("scheduler", {}).get(
-                            "resource_args", None
-                        ),  # resource_args,
+                        None,  # resource_args,
                         None,  # launch_config,
                         None,  # cuda,
                         None,  # run_id,
@@ -968,8 +966,12 @@ def sweep(
     if sweep_path.find(" ") >= 0:
         sweep_path = f'"{sweep_path}"'
 
-    if launch_config is not None:
-        wandb.termlog("Scheduler added to launch queue. Starting sweep...")
+    if queue is not None:
+        wandb.termlog(
+            "If no launch agent is running, run launch agent with: {}".format(
+                click.style(f"wandb launch-agent -q {queue} -p {project}", fg="yellow")
+            )
+        )
     else:
         wandb.termlog(
             "Run sweep agent with: {}".format(
@@ -1309,13 +1311,42 @@ def agent(ctx, project, entity, count, sweep_id):
 
 
 @cli.command(
-    context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
+    context_settings=CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
 )
 @click.pass_context
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    help="Name of the project which the agent will watch. "
+    "If passed in, will override the project value passed in using a config file.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
+@click.option(
+    "--queue",
+    "-q",
+    default=None,
+    help="The queue to push sweep jobs to.",
+)
+@click.option(
+    "--job",
+    "-j",
+    default=None,
+    help="The name of the job that encapsulates a single run in the sweep.",
+)
 @click.argument("sweep_id")
 @display_error
 def scheduler(
     ctx,
+    project,
+    entity,
+    queue,
+    job,
     sweep_id,
 ):
     api = _get_cling_api()
@@ -1327,16 +1358,13 @@ def scheduler(
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
-    # Future-proofing hack to pull any kwargs that get passed in through the CLI
-    kwargs = {}
-    for i, _arg in enumerate(ctx.args):
-        if isinstance(_arg, str) and _arg.startswith("--"):
-            kwargs[_arg[2:]] = ctx.args[i + 1]
-
     _scheduler = load_scheduler("sweep")(
         api,
+        entity=entity,
+        project=project,
+        queue=queue,
         sweep_id=sweep_id,
-        **kwargs,
+        job=job,
     )
     _scheduler.start()
 
@@ -1351,6 +1379,11 @@ def controller(verbose, sweep_id):
 
     tuner = wandb_controller(sweep_id)
     tuner.run(verbose=verbose)
+
+
+RUN_CONTEXT = copy.copy(CONTEXT)
+RUN_CONTEXT["allow_extra_args"] = True
+RUN_CONTEXT["ignore_unknown_options"] = True
 
 
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
