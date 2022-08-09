@@ -238,7 +238,7 @@ jobs:
           no_output_timeout: 5m
       - run:
           name: Run tests
-          no_output_timeout: 5m
+          no_output_timeout: 10m
           command: |
             tox -v -e << parameters.toxenv >>
       - save-test-results
@@ -272,13 +272,6 @@ jobs:
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
         environment:
           CI: 1
-          DISABLE_TELEMETRY: true
-          GORILLA_EMAIL_SINK: mysql://wandb_local:wandb_local@127.0.0.1:3306/wandb_local
-          GORILLA_FRONTEND_HOST: http://localhost:8080
-          GOOGLE_APPLICATION_CREDENTIALS: /home/wandb/gcs-key.json
-          LOCAL_INTEGRATION_TEST_HELPERS: true
-          GORILLA_RAMP_WRITE_SESSION_TO_DB: 1.0
-          GORILLA_RAMP_READ_SESSION_FROM_DB: 1.0
           WANDB_ENABLE_TEST_CONTAINER: true
     resource_class: xlarge
     working_directory: /mnt/ramdisk
@@ -297,7 +290,7 @@ jobs:
           no_output_timeout: 5m
       - run:
           name: Run tests
-          no_output_timeout: 5m
+          no_output_timeout: 10m
           command: |
             tox -v -e py<<parameters.python_version_major>><<parameters.python_version_minor>>,covercircle \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests_new
@@ -348,6 +341,9 @@ jobs:
           name: Run tests
           shell: bash.exe
           command: |
+            echo $GCLOUD_SERVICE_KEY > key.json
+            gcloud auth activate-service-account --key-file=key.json
+            yes | gcloud auth configure-docker
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
           no_output_timeout: 10m
       - save-test-results
@@ -912,7 +908,7 @@ workflows:
           context: slack-secrets
           notify_on_failure: true
       #
-      # stanalone tests on gke
+      # standalone tests on gke
       #
       - slack_notify:
           name: "slack-notify-on-start"

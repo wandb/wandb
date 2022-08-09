@@ -165,8 +165,7 @@ class Table(Media):
     import pandas as pd
     import wandb
 
-    data = {"users": ["geoff", "juergen", "ada"],
-            "feature_01": [1, 117, 42]}
+    data = {"users": ["geoff", "juergen", "ada"], "feature_01": [1, 117, 42]}
     df = pd.DataFrame(data)
 
     tbl = wandb.Table(data=df)
@@ -188,7 +187,11 @@ class Table(Media):
     [tbl.add_data(user) for user in users]
     assert tbl.get_column("user") == users
 
-    def get_user_name_length(index, row): return {"feature_01": len(row["user"])}
+
+    def get_user_name_length(index, row):
+        return {"feature_01": len(row["user"])}
+
+
     tbl.add_computed_columns(get_user_name_length)
     assert tbl.get_column("feature_01") == [5, 7, 3]
     ```
@@ -289,8 +292,6 @@ class Table(Media):
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
-        if sys.version_info.major < 3:
-            valid_col_types.append(unicode)  # noqa: F821 (unicode is in py2)
         assert type(columns) is list, "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
             [type(col) in valid_col_types for col in columns]
