@@ -789,6 +789,11 @@ def fixture_fn(base_url, wandb_server_tag):
 
 @pytest.fixture(scope=determine_scope)
 def user(worker_id: str, fixture_fn, base_url) -> str:
+
+    # todo: remove this once testcontainer is available on Win in CI
+    if os.environ.get("CI") == "true" and os.name == "nt":
+        pytest.skip("wandb server is not running on Windows in CI yet")
+
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
     fixture_fn(command)
