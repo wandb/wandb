@@ -508,3 +508,15 @@ def test_launch_agent_launch_error_continue(
         )
         assert "blah blah" in result.output
         assert "except caught, acked item" in result.output
+
+
+def test_launch_bad_api_key(runner, monkeypatch):
+    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            ["https://github.com/test/repo.git"],
+        )
+
+    # assert result.exit_code != 0
+    assert "Could not load viewer with current API key" in result.output
