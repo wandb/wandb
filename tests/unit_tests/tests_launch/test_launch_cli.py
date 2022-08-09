@@ -513,16 +513,19 @@ def test_launch_agent_launch_error_continue(
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
-    monkeypatch,
 ):
+    run_id = "test_run_id"
+    run_name = "test_run_name"
     args = [
         "https://github.com/test/repo.git",
         "--entry-point",
         "train.py",
+        "-c",
+        json.dumps({"run_id": run_id}),
+        "--name",
+        run_name,
     ]
-    monkeypatch.setenv("WANDB_RUN_ID", "run_id_test")
-    monkeypatch.setenv("WANDB_NAME", "display_name_test")
     result = runner.invoke(cli.launch, args)
 
-    assert "WANDB_RUN_ID=run_id_test" in str(result.output)
-    assert "WANDB_NAME=display_name_test" in str(result.output)
+    assert f"WANDB_RUN_ID={run_id}" in str(result.output)
+    assert f"WANDB_NAME={run_name}" in str(result.output)
