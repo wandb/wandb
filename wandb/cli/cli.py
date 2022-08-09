@@ -34,7 +34,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.utils import construct_launch_spec
+from wandb.sdk.launch.utils import construct_launch_spec, check_logged_in
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
@@ -1182,14 +1182,7 @@ def launch(
     elif resource is None:
         resource = "local-container"
 
-    res = api.api.viewer()  # Costs 0.1-0.2 seconds here
-    if not res:
-        host = api.settings("base_url")
-        fail_string = (
-            "Could not get viewer with default API key. "
-            f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
-        )
-        raise LaunchError(fail_string)
+    check_logged_in(api)
 
     if queue is None:
         # direct launch

@@ -563,3 +563,20 @@ def resolve_build_and_registry_config(
         resolved_registry_config = registry_config
     validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
     return resolved_build_config, resolved_registry_config
+
+
+def check_logged_in(api: Api) -> bool:
+    """
+    Uses an internal api reference to check if a user is logged in
+    raises an error if the viewer doesn't load, likely broken API key
+    expected time cost is 0.1-0.2 seconds
+    """
+    res = api.api.viewer()
+    if not res:
+        host = api.settings("base_url")
+        raise LaunchError(
+            "Could not get viewer with default API key. "
+            f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
+        )
+
+    return True
