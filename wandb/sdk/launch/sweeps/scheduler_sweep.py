@@ -17,6 +17,7 @@ from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun, LOG_
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class HeartbeatAgent:
     agent: dict
@@ -89,7 +90,9 @@ class SweepScheduler(Scheduler):
             for run_id, run in self._yield_runs():
                 if run.state == SimpleRunState.ALIVE:
                     _run_states[run_id] = True
-            _msg = f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
+            _msg = (
+                f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
+            )
             logger.debug(_msg)
             # TODO(hupo): Should be sub-set of _run_states specific to worker thread
             commands = self._api.agent_heartbeat(

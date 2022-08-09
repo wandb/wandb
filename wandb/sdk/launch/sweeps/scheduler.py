@@ -16,6 +16,7 @@ from wandb.sdk.lib.runid import generate_id
 logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('sched:', fg='cyan')}: "
 
+
 class SchedulerState(Enum):
     PENDING = 0
     STARTING = 1
@@ -102,7 +103,9 @@ class Scheduler(ABC):
 
     @state.setter
     def state(self, value: SchedulerState) -> None:
-        logger.debug(f"{LOG_PREFIX}Changing Scheduler state from {self.state.name} to {value.name}")
+        logger.debug(
+            f"{LOG_PREFIX}Changing Scheduler state from {self.state.name} to {value.name}"
+        )
         self._state = value
 
     def is_alive(self) -> bool:

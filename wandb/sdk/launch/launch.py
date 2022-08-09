@@ -23,6 +23,7 @@ from .utils import (
 
 _logger = logging.getLogger(__name__)
 
+
 def resolve_agent_config(
     api: Api,
     entity: Optional[str],

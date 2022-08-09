@@ -226,7 +226,9 @@ class AWSSagemakerRunner(AbstractRunner):
         )
         if command_args:
             command_str = " ".join(command_args)
-            wandb.termlog(f"{LOG_PREFIX}Launching run on sagemaker with entrypoint: {command_str}")
+            wandb.termlog(
+                f"{LOG_PREFIX}Launching run on sagemaker with entrypoint: {command_str}"
+            )
         else:
             wandb.termlog(
                 f"{LOG_PREFIX}Launching run on sagemaker with user-provided entrypoint in image"
@@ -372,7 +374,9 @@ def launch_sagemaker_job(
         raise LaunchError("Unable to create training job")
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
-    wandb.termlog(f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}")
+    wandb.termlog(
+        f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}"
+    )
     url = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}".format(
         region=sagemaker_client.meta.region_name, job_name=training_job_name
     )

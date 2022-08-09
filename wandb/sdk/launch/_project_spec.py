@@ -122,7 +122,9 @@ class LaunchProject:
             _logger.info(f"URI {self.uri} indicates a local uri")
             if self.uri is not None and not os.path.exists(self.uri):
                 # This case will occur when 'placeholder-FOO' is used for the URI
-                wandb.termlog(f'{LOG_PREFIX}Launch received no valid job or uri that does not exist, defaulting to local path.')
+                wandb.termlog(
+                    f"{LOG_PREFIX}Launch received no valid job or uri that does not exist, defaulting to local path."
+                )
                 self.uri = os.getcwd()
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
@@ -165,7 +167,7 @@ class LaunchProject:
         if self.job is not None:
             job_name, alias = self.job.split(":")
             _image_tag = f"{alias}-{job_name}"
-            _logger.debug(f"Setting image tag {_image_tag}")
+            _logger.debug(f"{LOG_PREFIX}Setting image tag {_image_tag}")
             return wandb.util.make_docker_image_name_safe(_image_tag)
         return None
 
