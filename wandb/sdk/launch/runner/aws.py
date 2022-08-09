@@ -27,6 +27,7 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     run_shell,
     to_camel_case,
+    LOG_PREFIX,
 )
 
 
@@ -50,7 +51,7 @@ class SagemakerSubmittedRun(AbstractRun):
         while True:
             status_state = self.get_status().state
             wandb.termlog(
-                f"Training job {self.training_job_name} status: {status_state}"
+                f"{LOG_PREFIX}Training job {self.training_job_name} status: {status_state}"
             )
             if status_state in ["stopped", "failed", "finished"]:
                 break
@@ -225,10 +226,10 @@ class AWSSagemakerRunner(AbstractRunner):
         )
         if command_args:
             command_str = " ".join(command_args)
-            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_str}")
+            wandb.termlog(f"{LOG_PREFIX}Launching run on sagemaker with entrypoint: {command_str}")
         else:
             wandb.termlog(
-                "Launching run on sagemaker with user-provided entrypoint in image"
+                f"{LOG_PREFIX}Launching run on sagemaker with user-provided entrypoint in image"
             )
         sagemaker_args = build_sagemaker_args(
             launch_project, self._api, role_arn, image, default_output_path
@@ -371,11 +372,11 @@ def launch_sagemaker_job(
         raise LaunchError("Unable to create training job")
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
-    wandb.termlog("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
+    wandb.termlog(f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}")
     url = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}".format(
         region=sagemaker_client.meta.region_name, job_name=training_job_name
     )
-    wandb.termlog(f"See training job status at: {url}")
+    wandb.termlog(f"{LOG_PREFIX}See training job status at: {url}")
     return run
 
 

@@ -16,6 +16,7 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
     validate_wandb_python_deps,
+    LOG_PREFIX,
 )
 
 
@@ -38,9 +39,11 @@ class LocalProcessRunner(AbstractRunner):
         **kwargs,
     ) -> Optional[AbstractRun]:
         if args is not None:
-            _logger.warning(f"LocalProcessRunner.run received unused args {args}")
+            _msg = f"{LOG_PREFIX}LocalProcessRunner.run received unused args {args}"
+            _logger.warning(_msg)
         if kwargs is not None:
-            _logger.warning(f"LocalProcessRunner.run received unused kwargs {kwargs}")
+            _msg = f"{LOG_PREFIX}LocalProcessRunner.run received unused kwargs {kwargs}"
+            _logger.warning(_msg)
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         entry_point = launch_project.get_single_entry_point()
@@ -83,11 +86,8 @@ class LocalProcessRunner(AbstractRunner):
         cmd += entry_cmd
 
         command_str = " ".join(cmd).strip()
-        wandb.termlog(
-            "Launching run as a local process with command: {}".format(
-                sanitize_wandb_api_key(command_str)
-            )
-        )
+        _msg = f"{LOG_PREFIX}Launching run as a local-process with command {sanitize_wandb_api_key(command_str)}"
+        wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()

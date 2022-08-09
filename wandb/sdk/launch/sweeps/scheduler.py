@@ -14,7 +14,7 @@ from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
 
 logger = logging.getLogger(__name__)
-LOG_SUFFIX = f"{click.style('sched:', fg='cyan')}: "
+LOG_PREFIX = f"{click.style('sched:', fg='cyan')}: "
 
 class SchedulerState(Enum):
     PENDING = 0
@@ -97,12 +97,12 @@ class Scheduler(ABC):
 
     @property
     def state(self) -> SchedulerState:
-        logger.debug(f"{LOG_SUFFIX}Scheduler state is {self._state.name}")
+        logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
         return self._state
 
     @state.setter
     def state(self, value: SchedulerState) -> None:
-        logger.debug(f"{LOG_SUFFIX}Changing Scheduler state from {self.state.name} to {value.name}")
+        logger.debug(f"{LOG_PREFIX}Changing Scheduler state from {self.state.name} to {value.name}")
         self._state = value
 
     def is_alive(self) -> bool:
@@ -115,7 +115,7 @@ class Scheduler(ABC):
         return True
 
     def start(self) -> None:
-        _msg = f"{LOG_SUFFIX}Scheduler starting."
+        _msg = f"{LOG_PREFIX}Scheduler starting."
         logger.debug(_msg)
         wandb.termlog(_msg)
         self._state = SchedulerState.STARTING
@@ -123,7 +123,7 @@ class Scheduler(ABC):
         self.run()
 
     def run(self) -> None:
-        _msg = f"{LOG_SUFFIX}Scheduler Running."
+        _msg = f"{LOG_PREFIX}Scheduler Running."
         logger.debug(_msg)
         wandb.termlog(_msg)
         self.state = SchedulerState.RUNNING
@@ -135,18 +135,18 @@ class Scheduler(ABC):
                     self._update_run_states()
                     self._run()
                 except RuntimeError as e:
-                    _msg = f"{LOG_SUFFIX}Scheduler encountered Runtime Error. Trying again."
+                    _msg = f"{LOG_PREFIX}Scheduler encountered Runtime Error. Trying again."
                     logger.debug(_msg)
                     wandb.termlog(_msg)
         except KeyboardInterrupt:
-            _msg = f"{LOG_SUFFIX}Scheduler received KeyboardInterrupt. Exiting."
+            _msg = f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = SchedulerState.CANCELLED
             self.exit()
             return
         except Exception as e:
-            _msg = f"{LOG_SUFFIX}Scheduler failed with exception {e}"
+            _msg = f"{LOG_PREFIX}Scheduler failed with exception {e}"
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = SchedulerState.FAILED
@@ -193,7 +193,7 @@ class Scheduler(ABC):
                 ]:
                     run.state = SimpleRunState.ALIVE
             except Exception as e:
-                _msg = f"{LOG_SUFFIX}Issue when getting RunState for Run {run_id}: {e}"
+                _msg = f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
                 logger.debug(_msg)
                 wandb.termlog(_msg)
                 run.state = SimpleRunState.UNKNOWN
@@ -220,13 +220,13 @@ class Scheduler(ABC):
         )
         with self._threading_lock:
             self._runs[run_id].queued_run = queued_run
-        _msg = f"{LOG_SUFFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
+        _msg = f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
         return queued_run
 
     def _stop_run(self, run_id: str) -> None:
-        _msg = f"{LOG_SUFFIX}Stopping run {run_id}."
+        _msg = f"{LOG_PREFIX}Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
         with self._threading_lock:

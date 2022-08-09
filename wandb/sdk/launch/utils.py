@@ -1,6 +1,7 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import logging
 import os
+import click
 import platform
 import re
 import subprocess
@@ -42,6 +43,7 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
+LOG_PREFIX = f"{click.style('launch:', fg='magenta')}: "
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -99,7 +101,7 @@ def set_project_entity_defaults(
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog(f"{prefix}Launching run into {entity}/{project}")
+    wandb.termlog(f"{LOG_PREFIX}{prefix}Launching run into {entity}/{project}")
     return project, entity
 
 

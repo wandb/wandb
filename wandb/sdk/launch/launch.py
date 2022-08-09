@@ -1,5 +1,6 @@
 import logging
 import os
+import click
 from typing import Any, Dict, List, Optional, Tuple
 
 from wandb.apis.internal import Api
@@ -21,7 +22,6 @@ from .utils import (
 )
 
 _logger = logging.getLogger(__name__)
-
 
 def resolve_agent_config(
     api: Api,

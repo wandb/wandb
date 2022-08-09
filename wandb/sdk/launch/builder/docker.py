@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 import wandb
 import wandb.docker as docker
 from wandb.errors import DockerError, LaunchError
+from wandb.sdk.launch.launch import LOG_PREFIX
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
 from .build import (
@@ -65,13 +66,12 @@ class DockerBuilder(AbstractBuilder):
         try:
             os.remove(build_ctx_path)
         except Exception:
-            _logger.info(
-                "Temporary docker context file %s was not deleted.", build_ctx_path
-            )
+            _msg = f"{LOG_PREFIX}Temporary docker context file {build_ctx_path} was not deleted."
+            _logger.info(_msg)
 
         if repository:
             reg, tag = image_uri.split(":")
-            wandb.termlog(f"Pushing image {image_uri}")
+            wandb.termlog(f"{LOG_PREFIX}Pushing image {image_uri}")
             push_resp = docker.push(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")

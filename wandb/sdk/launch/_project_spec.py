@@ -19,7 +19,7 @@ from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
-
+from .utils import LOG_PREFIX
 
 _logger = logging.getLogger(__name__)
 
@@ -61,10 +61,10 @@ class LaunchProject:
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
-            _logger.info(f"Updating uri with base uri: {uri}")
+            _logger.info(f"{LOG_PREFIX}Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
-        wandb.termlog("Launch project got job", job)
+        wandb.termlog(f"{LOG_PREFIX}Launch project got job {job}")
         self._job_artifact: Optional[PublicArtifact] = None
         self.api = api
         self.launch_spec = launch_spec
@@ -81,7 +81,7 @@ class LaunchProject:
         uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
-            _logger.info(f"Retrieved base image uid {uid}")
+            _logger.info(f"{LOG_PREFIX}Retrieved base image uid {uid}")
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
@@ -94,7 +94,7 @@ class LaunchProject:
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
         self._image_tag: str = self._initialize_image_job_tag() or self.run_id
-        wandb.termlog(f"IMAGE TAG {self._image_tag}")
+        wandb.termlog(f"{LOG_PREFIX}Launch project using image tag {self._image_tag}")
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -120,8 +120,9 @@ class LaunchProject:
             self.project_dir = tempfile.mkdtemp()
         else:
             _logger.info(f"URI {self.uri} indicates a local uri")
-            # assume local
             if self.uri is not None and not os.path.exists(self.uri):
+                # This case will occur when 'placeholder-FOO' is used for the URI
+                wandb.termlog(f'{LOG_PREFIX}Launch received no valid job or uri that does not exist, defaulting to local path.')
                 self.uri = os.getcwd()
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
@@ -161,11 +162,10 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
     def _initialize_image_job_tag(self) -> Optional[str]:
-        wandb.termlog("Calling _initilize_image_job_tag")
         if self.job is not None:
             job_name, alias = self.job.split(":")
             _image_tag = f"{alias}-{job_name}"
-            wandb.termlog(f"setting image tag {_image_tag}")
+            _logger.debug(f"Setting image tag {_image_tag}")
             return wandb.util.make_docker_image_name_safe(_image_tag)
         return None
 
@@ -255,9 +255,7 @@ class LaunchProject:
                 if self.cuda is None:
                     # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
                     wandb.termlog(
-                        "Original wandb run {} was run with cuda version {}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False".format(
-                            source_run_name, original_cuda_version
-                        )
+                        f"{LOG_PREFIX}Original wandb run {source_run_name} was run with cuda version {original_cuda_version}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False"
                     )
                     self.cuda_version = original_cuda_version
                     self.cuda = True
@@ -267,9 +265,7 @@ class LaunchProject:
                     and self.cuda_version != original_cuda_version
                 ):
                     wandb.termlog(
-                        "Specified cuda version {} differs from original cuda version {}. Running with specified version {}".format(
-                            self.cuda_version, original_cuda_version, self.cuda_version
-                        )
+                        f"{LOG_PREFIX}Specified cuda version {self.cuda_version} differs from original cuda version {original_cuda_version}. Running with specified version {self.cuda_version}"
                     )
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
@@ -357,7 +353,7 @@ class LaunchProject:
             )
             if not self._entry_points:
                 wandb.termlog(
-                    "Entry point for repo not specified, defaulting to python main.py"
+                    f"{LOG_PREFIX}Entry point for repo not specified, defaulting to python main.py"
                 )
                 self.add_entry_point(["python", "main.py"])
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
@@ -459,7 +455,7 @@ def fetch_and_validate_project(
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:
             wandb.termlog(
-                "Entry point for repo not specified, defaulting to `python main.py`"
+                f"{LOG_PREFIX}Entry point for repo not specified, defaulting to `python main.py`"
             )
             launch_project.add_entry_point(["python", "main.py"])
     elif launch_project.source == LaunchSource.JOB:

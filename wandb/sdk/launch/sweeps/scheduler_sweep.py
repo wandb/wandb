@@ -13,7 +13,7 @@ from wandb import wandb_lib  # type: ignore
 from wandb.errors import SweepError
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
-from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun, LOG_SUFFIX
+from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun, LOG_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class SweepScheduler(Scheduler):
         )
         if not found:
             raise SweepError(
-                f"{LOG_SUFFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
+                f"{LOG_PREFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
             )
         self._sweep_id = sweep_id
         self._num_workers: int = num_workers
@@ -62,7 +62,7 @@ class SweepScheduler(Scheduler):
         # Emulation of N agents in a classic sweeps setup
         self._heartbeat_agents: List[HeartbeatAgent] = []
         for worker_idx in range(self._num_workers):
-            logger.debug(f"{LOG_SUFFIX}Starting AgentHeartbeat worker {worker_idx}\n")
+            logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_idx}\n")
             _agent = self._api.register_agent(
                 f"{socket.gethostname()}-{worker_idx}",  # host
                 sweep_id=self._sweep_id,
@@ -89,14 +89,14 @@ class SweepScheduler(Scheduler):
             for run_id, run in self._yield_runs():
                 if run.state == SimpleRunState.ALIVE:
                     _run_states[run_id] = True
-            _msg = f"{LOG_SUFFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
+            _msg = f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             logger.debug(_msg)
             # TODO(hupo): Should be sub-set of _run_states specific to worker thread
             commands = self._api.agent_heartbeat(
                 self._heartbeat_agents[worker_idx].id, {}, _run_states
             )
             if commands:
-                _msg = f"{LOG_SUFFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
+                _msg = f"{LOG_PREFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
                 logger.debug(_msg)
                 for command in commands:
                     _type = command.get("type")
@@ -126,7 +126,7 @@ class SweepScheduler(Scheduler):
                 timeout=self._heartbeat_queue_timeout
             )
         except queue.Empty:
-            _msg = f"{LOG_SUFFIX}No jobs in Sweeps RunQueue, waiting..."
+            _msg = f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting..."
             logger.debug(_msg)
             wandb.termlog(_msg)
             time.sleep(self._main_thread_sleep)
@@ -137,7 +137,7 @@ class SweepScheduler(Scheduler):
             SimpleRunState.UNKNOWN,
         ]:
             return
-        _msg = f"{LOG_SUFFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
+        _msg = f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
         logger.debug(_msg)
         wandb.termlog(_msg)
         # This is actually what populates the wandb config
@@ -148,7 +148,9 @@ class SweepScheduler(Scheduler):
             f"sweep-{self._sweep_id}",
             f"config-{run.id}.yaml",
         )
-        wandb.termlog(f"{LOG_SUFFIX}Saving params to {sweep_param_path}")
+        _msg = f"{LOG_PREFIX}Saving params to {sweep_param_path}"
+        logger.debug(_msg)
+        wandb.termlog(_msg)
         wandb_lib.config_util.save_config_file_from_dict(sweep_param_path, run.args)
         # Construct entry point using legacy sweeps utilities
         command_args = LegacySweepAgent._create_command_args({"args": run.args})["args"]
