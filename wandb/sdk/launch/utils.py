@@ -189,6 +189,8 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 
     if not bool(uri) and not bool(job) and not bool(docker_image):
         raise LaunchError("Must specify a uri, job or docker image")
+    elif bool(uri) and bool(docker_image):
+        raise LaunchError("Found both uri and docker-image, only one can be set")
     elif sum(map(bool, [uri, job, docker_image])) > 1:
         raise LaunchError("Must specify exactly one of uri, job or image")
 
