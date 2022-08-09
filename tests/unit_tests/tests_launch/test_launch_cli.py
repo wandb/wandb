@@ -518,5 +518,4 @@ def test_launch_bad_api_key(runner, monkeypatch):
             ["https://github.com/test/repo.git"],
         )
 
-    # assert result.exit_code != 0
-    assert "Could not load viewer with current API key" in result.output
+    assert "Could not connect with current API key." in result.output
