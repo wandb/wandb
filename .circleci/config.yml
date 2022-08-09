@@ -81,8 +81,7 @@ parameters:
     default: false
   wandb_server_tag:
     type: string
-    # default: "master"  # todo: switch to this once core/10381 is merged
-    default: "fix-fixture-teardown"
+    default: "master"
 
 commands:
   save-test-results:

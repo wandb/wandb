@@ -15,10 +15,6 @@ from .test_launch import (
 )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 5),
-    reason="wandb launch is not available for python versions < 3.5",
-)
 def test_launch_local_process_base_case(
     live_mock_server,
     test_settings,
