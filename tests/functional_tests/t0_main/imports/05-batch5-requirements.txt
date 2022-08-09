@@ -1,8 +1,6 @@
 # spleeter
 # stable-baselines3
-# syft
-# todo: update once syft releases a fix
-git+https://github.com/OpenMined/PySyft@dev#egg=syft
+syft
 # tensorflow
 # tensorforce
 # TensorLayer
