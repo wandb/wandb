@@ -414,40 +414,40 @@ def test_add_s3_reference_object_with_name():
     }
 
 
-def test_add_s3_reference_path(capsys):
+def test_add_s3_reference_path(runner, capsys):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact, path=True)
+        artifact.add_reference("s3://my-bucket/")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact, path=True)
-    artifact.add_reference("s3://my-bucket/")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
-    }
-    _, err = capsys.readouterr()
-    assert "Generating checksum" in err
+        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
+        _, err = capsys.readouterr()
+        assert "Generating checksum" in err
 
 
-def test_add_s3_reference_path_with_content_type(capsys):
+def test_add_s3_reference_path_with_content_type(runner, capsys):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_boto(artifact, path=False, content_type="application/x-directory")
+        artifact.add_reference("s3://my-bucket/")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact, path=False, content_type="application/x-directory")
-    artifact.add_reference("s3://my-bucket/")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
-    }
-    _, err = capsys.readouterr()
-    assert "Generating checksum" in err
+        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
+        _, err = capsys.readouterr()
+        assert "Generating checksum" in err
 
 
 def test_add_s3_max_objects():
@@ -523,22 +523,22 @@ def test_add_gs_reference_object_with_name():
     }
 
 
-def test_add_gs_reference_path(capsys):
+def test_add_gs_reference_path(runner, capsys):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        mock_gcs(artifact, path=True)
+        artifact.add_reference("gs://my-bucket/")
 
-    artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_gcs(artifact, path=True)
-    artifact.add_reference("gs://my-bucket/")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
-    }
-    _, err = capsys.readouterr()
-    assert "Generating checksum" in err
+        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+        manifest = artifact.manifest.to_manifest_json()
+        assert manifest["contents"]["my_object.pb"] == {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
+        _, err = capsys.readouterr()
+        assert "Generating checksum" in err
 
 
 def test_add_http_reference_path():
