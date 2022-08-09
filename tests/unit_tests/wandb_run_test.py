@@ -31,7 +31,7 @@ def test_log_avoids_mutation(fake_run):
     run = fake_run()
     d = dict(this=1)
     run.log(d)
-    assert d == dict(this=1)
+    assert d.get("this", None) == 1
 
 
 def test_deprecated_run_log_sync(fake_run, capsys):

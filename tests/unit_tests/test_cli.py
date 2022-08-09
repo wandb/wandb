@@ -873,7 +873,8 @@ def test_sweep_scheduler(runner, mock_server, test_settings):
                     "scheduler": {
                         "resource": "local-process",
                     },
-                }
+                },
+                f,
             )
         sweep_config = {
             "name": "My Sweep",
