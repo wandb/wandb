@@ -7,13 +7,13 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
 from queue import Empty, Queue
 import secrets
 import shutil
 import socket
 import string
 import subprocess
-import sys
 import threading
 import time
 from typing import (
@@ -782,6 +782,10 @@ def fixture_fn(base_url, wandb_server_tag):
             return False
         return True
 
+    # todo: remove this once testcontainer is available on Win
+    if platform.system() == "Windows":
+        pytest.skip("testcontainer is not available on Win")
+
     if not check_server_up(base_url, wandb_server_tag):
         pytest.fail("wandb server is not running")
 
@@ -790,11 +794,6 @@ def fixture_fn(base_url, wandb_server_tag):
 
 @pytest.fixture(scope=determine_scope)
 def user(worker_id: str, fixture_fn, base_url) -> str:
-    # todo: remove this once testcontainer is available on Win
-    pytest.mark.skipif(
-        sys.platform == "win32", reason="testcontainer is not available on Win"
-    )
-
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
     fixture_fn(command)
