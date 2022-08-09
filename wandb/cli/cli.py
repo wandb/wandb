@@ -1182,14 +1182,14 @@ def launch(
     elif resource is None:
         resource = "local-container"
 
-    host = api.settings("base_url")
-    if not wandb_verify.check_logged_in(api, host, verbose=False):
-        login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
-        raise LaunchError(
-            "Not logged in. Please log in using `wandb login --relogin`. See the docs: {}".format(
-                click.style(login_doc_url, underline=True, fg="blue")
-            )
+    res = api.api.viewer()  # Costs 0.1-0.2 seconds here
+    if not res:
+        host = api.settings("base_url")
+        fail_string = (
+            "Could not get viewer with default API key. "
+            f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
         )
+        raise LaunchError(fail_string)
 
     if queue is None:
         # direct launch
