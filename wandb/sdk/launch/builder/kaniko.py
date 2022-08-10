@@ -185,27 +185,33 @@ class KanikoBuilder(AbstractBuilder):
     def check_build_required(
         self, repository: str, launch_project: LaunchProject
     ) -> bool:
-
-        ecr_provider = self.cloud_provider.lower()
-        if ecr_provider == "aws" and repository:
-            # TODO: pass in registry config
-            region = repository.split(".")[3]
-            boto3 = get_module(
-                "boto3",
-                "AWS ECR requires boto3,  install with pip install wandb[launch]",
-            )
-            ecr_client = boto3.client("ecr", region_name=region)
-            repo_name = repository.split("/")[-1]
-            try:
-                ecr_client.describe_images(
-                    repositoryName=repo_name,
-                    imageIds=[{"imageTag": launch_project.image_tag}],
+        # TODO(kyle): Robustify to remote the trycatch
+        try:
+            ecr_provider = self.cloud_provider.lower()
+            if ecr_provider == "aws" and repository:
+                # TODO: pass in registry config
+                region = repository.split(".")[3]
+                boto3 = get_module(
+                    "boto3",
+                    "AWS ECR requires boto3,  install with pip install wandb[launch]",
                 )
-                return False
-            except ecr_client.exceptions.ImageNotFoundException:
+                ecr_client = boto3.client("ecr", region_name=region)
+                repo_name = repository.split("/")[-1]
+                try:
+                    ecr_client.describe_images(
+                        repositoryName=repo_name,
+                        imageIds=[{"imageTag": launch_project.image_tag}],
+                    )
+                    return False
+                except ecr_client.exceptions.ImageNotFoundException:
+                    return True
+            else:
                 return True
-        else:
-            return True
+        except Exception as e:
+            wandb.termlog(
+                f"{LOG_PREFIX}Failed while checking if build is required, defaulting to building: {e}"
+            )
+            return False
 
     def build_image(
         self,
