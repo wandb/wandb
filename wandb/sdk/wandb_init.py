@@ -494,9 +494,6 @@ class _WandbInit:
     def _on_init_progress(self) -> None:
         wandb.termlog("Waiting for wandb.init()...")
 
-    def _on_init_timeout(self) -> None:
-        pass
-
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
@@ -678,14 +675,10 @@ class _WandbInit:
             logger.info(
                 f"communicating run to backend with {self.settings.init_timeout} second timeout"
             )
-            intent = intents.Intent(run=run, interface=backend.interface)
-            intent.wait(
-                timeout=self.settings.init_timeout,
-                on_progress=self._on_init_progress,
-                on_timeout=self._on_init_timeout,
-            )
-            if intent.outcome:
-                run_result = intent.outcome.run_result
+            intent = intents.create_run(run=run, interface=backend.interface)
+            intent.wait(on_progress=self._on_init_progress)
+            if intent.is_resolved:
+                run_result = intent.resolved.run_result
 
             if not run_result:
                 logger.error("backend process timed out")

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 
 def get_random_intent_id(length: int = 12) -> str:
+    # TODO(jhr): use secure hash?
     intent_id = "".join(
         secrets.choice(string.ascii_lowercase + string.digits) for i in range(length)
     )
@@ -28,7 +29,7 @@ class Intent:
 
     def __init__(self, run: "Run", interface: "InterfaceShared") -> None:
         self._interface = interface
-        self._submitted = False
+        self._proposed = False
         proto_run = self._interface._make_run(run)
         self._intent_id = get_random_intent_id()
         self._intent_request = pb.ProposeIntentRequest()
@@ -37,10 +38,10 @@ class Intent:
         self._outcome = None
 
     def propose(self) -> None:
-        if self._submitted:
+        if self._proposed:
             return
         self._interface._propose_intent(self._intent_request)
-        self._submitted = True
+        self._proposed = True
 
     def wait(
         self,
@@ -62,17 +63,16 @@ class Intent:
                 on_progress()
             time.sleep(1)
 
-    def recall(self) -> None:
-        pass
-
     @property
-    def outcome(self) -> Optional[pb.IntentOutcome]:
+    def resolved(self) -> Optional[pb.IntentOutcome]:
+        assert self._outcome
         return self._outcome
 
     @property
     def is_resolved(self) -> bool:
-        return True
+        return self._outcome is not None
 
-    @property
-    def is_cancelled(self) -> bool:
-        return False
+
+def create_run(run: "Run", interface: "InterfaceShared") -> Intent:
+    intent = Intent(run=run, interface=interface)
+    return intent
