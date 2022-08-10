@@ -59,9 +59,13 @@ logger = logging.getLogger(__name__)
 # Context variable for setting API settings (api keys, etc.) for internal and public apis thread-locally
 class _ThreadLocalApiSettings(threading.local):
     api_key: typing.Optional[str]
+    cookies: typing.Optional[typing.Dict]
+    headers: typing.Optional[typing.Dict]
 
     def __init__(self) -> None:
         self.api_key = None
+        self.cookies = None
+        self.headers = None
 
 
 _thread_local_api_settings: _ThreadLocalApiSettings = _ThreadLocalApiSettings()
@@ -169,6 +173,7 @@ class Api:
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+                    **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -176,6 +181,7 @@ class Api:
                 timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key or ""),
                 url=f"{self.settings('base_url')}/graphql",
+                cookies=_thread_local_api_settings.cookies,
             )
         )
         self.retry_callback = retry_callback
