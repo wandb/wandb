@@ -220,6 +220,8 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars["WANDB_RUN_ID"] = launch_project.run_id
     if launch_project.docker_image:
         env_vars["WANDB_DOCKER"] = launch_project.docker_image
+    if launch_project.name is not None:
+        env_vars["WANDB_NAME"] = launch_project.name
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)

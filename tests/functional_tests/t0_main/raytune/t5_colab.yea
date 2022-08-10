@@ -1,0 +1,39 @@
+plugin:
+  - wandb
+tag:
+  shard: ray112
+env:
+  - WANDB_DISABLE_SERVICE: "true"
+depend:
+  requirements:
+    - pandas
+    - torch
+    - torchvision
+    - ray[tune]<1.13.0
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 6
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[1][exitcode]: 0
+  - :wandb:runs[2][exitcode]: 0
+  - :wandb:runs[3][exitcode]: 0
+  - :wandb:runs[4][exitcode]: 0
+  - :wandb:runs[5][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[1][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[2][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[3][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[4][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[5][telemetry][1]  # imports_init
+    - 30  # ray
