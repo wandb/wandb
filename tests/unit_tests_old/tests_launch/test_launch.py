@@ -24,7 +24,7 @@ from wandb.sdk.launch.utils import (
 )
 import wandb.util as util
 
-from tests.unit_tests.utils import fixture_open, notebook_path
+from tests.unit_tests_old.utils import fixture_open, notebook_path
 
 
 EMPTY_BACKEND_CONFIG = {

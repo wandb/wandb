@@ -18,7 +18,7 @@ from wandb.sdk.launch.runner.aws import (
 )
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
-from tests.unit_tests.utils import fixture_open
+from tests.unit_tests_old.utils import fixture_open
 
 import pytest
 
