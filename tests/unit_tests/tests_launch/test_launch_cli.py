@@ -510,16 +510,18 @@ def test_launch_agent_launch_error_continue(
         assert "except caught, acked item" in result.output
 
 
-def test_launch_bad_api_key(runner, monkeypatch):
+def test_launch_bad_api_key(
+    runner, mocked_fetchable_git_repo, live_mock_server, monkeypatch
+):
+    args = [
+        "https://wandb.ai/mock_server_entity/test_project/runs/run",
+        "--project",
+        "test_project",
+        "--entity",
+        "mock_server_entity",
+    ]
     monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
     with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            [
-                "https://wandb.ai/mock_server_entity/test_project/runs/run",
-                "--project",
-                "test_project",
-            ],
-        )
+        result = runner.invoke(cli.launch, args)
 
     assert "Could not connect with current API-key." in result.output
