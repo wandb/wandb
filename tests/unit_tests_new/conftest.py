@@ -843,8 +843,14 @@ class Timer:
 
 
 class Context:
+    """
+    Implements a container used to store the snooped state/data of a test,
+    including raw requests and responses; parsed and processed data; and
+    a number of convenience methods and properties for accessing the data.
+    """
+
     def __init__(self) -> None:
-        # parsed/merged data:
+        # parsed/merged data. keys are the individual wandb run id's.
         self._entries = defaultdict(dict)
         # container for raw requests and responses:
         self.raw_data: List["RawRequestResponse"] = []
@@ -858,6 +864,9 @@ class Context:
     def _merge(
         cls, source: Dict[str, Any], destination: Dict[str, Any]
     ) -> Dict[str, Any]:
+        """
+        Recursively merge two dictionaries.
+        """
         for key, value in source.items():
             if isinstance(value, dict):
                 # get node or create one
@@ -953,6 +962,7 @@ class Context:
     #     )
     #     return telemetry
 
+    # convenience data access methods
     def get_run_telemetry(self, run_id: str) -> Dict[str, Any]:
         return self.config.get(run_id, {}).get("_wandb", {}).get("value", {}).get("t")
 
