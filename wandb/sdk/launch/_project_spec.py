@@ -118,14 +118,20 @@ class LaunchProject:
             _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
+        elif self.uri is not None and "placeholder-" in self.uri:
+            wandb.termlog(
+                f"{LOG_PREFIX}Launch received placeholder URI, replacing with local path."
+            )
+            self.uri = os.getcwd()
+            self.source = LaunchSource.LOCAL
+            self.project_dir = self.uri
         else:
             _logger.info(f"URI {self.uri} indicates a local uri")
+            # assume local
             if self.uri is not None and not os.path.exists(self.uri):
-                # This case will occur when 'placeholder-FOO' is used for the URI
-                wandb.termlog(
-                    f"{LOG_PREFIX}Launch received no valid job or uri that does not exist, defaulting to local path."
+                raise LaunchError(
+                    "Assumed URI supplied is a local path but path is not valid"
                 )
-                self.uri = os.getcwd()
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
         if launch_spec.get("resource_args"):
