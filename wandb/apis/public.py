@@ -2236,37 +2236,39 @@ class QueuedRun:
 
     @property
     def state(self):
+        item = self.get_item()
+        if item:
+            return item["state"].lower()
+
+        raise ValueError(
+            f"Could not find QueuedRunItem associated with id: {self.id} on queue id {self.queue_id} at itemId: {self.id}"
+        )
+
+    @normalize_exceptions
+    def get_item(self):
         query = gql(
             """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
                 project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    associatedRunId
-                                }
-                            }
+                    runQueue(name: $runQueue) {
+                        runQueueItem(id: $itemId) {
+                            id
+                            state
+                            associatedRunId
                         }
                     }
                 }
             }
-        """
+            """
         )
         variable_values = {
             "projectName": self.project,
             "entityName": self._entity,
             "runQueue": self.queue_id,
+            "itemId": self.id,
         }
         res = self.client.execute(query, variable_values)
-        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-            if str(item["node"]["id"]) == str(self.id):
-                return item["node"]["state"].lower()
-        raise ValueError(
-            f"Could not find QueuedRun associated with id: {self.id} on queue id {self.queue_id}"
-        )
+        return res["project"]["runQueue"].get("runQueueItem")
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -2308,56 +2310,26 @@ class QueuedRun:
             return self._run
         if self.container_job:
             raise LaunchError("Container jobs cannot be waited on")
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    associatedRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        variable_values = {
-            "projectName": self.project,
-            "entityName": self._entity,
-            "runQueue": self.queue_id,
-        }
 
         while True:
             # sleep here to hide an ugly warning
             time.sleep(2)
-            res = self.client.execute(query, variable_values)
-            # TODO: add fetch run queue by item end point
-            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-                if (
-                    item["node"]["id"] == self.id
-                    and item["node"]["associatedRunId"] is not None
-                ):
-                    # TODO: this should be changed once the ack occurs within the docker container.
-                    try:
-                        self._run = Run(
-                            self.client,
-                            self._entity,
-                            self.project,
-                            item["node"]["associatedRunId"],
-                            None,
-                        )
-                        self._run_id = item["node"]["associatedRunId"]
-                        return self._run
-                    except ValueError as e:
-                        print(e)
-                elif item["node"]["id"] == self.id:
-                    wandb.termlog("Waiting for run to start")
+            item = self.get_item()
+            if item and item["associatedRunId"] is not None:
+                try:
+                    self._run = Run(
+                        self.client,
+                        self._entity,
+                        self.project,
+                        item["associatedRunId"],
+                        None,
+                    )
+                    self._run_id = item["associatedRunId"]
+                    return self._run
+                except ValueError as e:
+                    print(e)
+            elif item:
+                wandb.termlog("Waiting for run to start")
 
             time.sleep(3)
 
