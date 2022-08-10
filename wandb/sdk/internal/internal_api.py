@@ -56,18 +56,15 @@ from .progress import Progress
 logger = logging.getLogger(__name__)
 
 
-# Context variable for setting API keys for internal and public apis thread-locally
-class _ThreadLocalApiKey(threading.local):
-    api_key: typing.Optional[str] = None
+# Context variable for setting API settings (api keys, etc.) for internal and public apis thread-locally
+class _ThreadLocalApiSettings(threading.local):
+    api_key: typing.Optional[str]
 
     def __init__(self) -> None:
         self.api_key = None
 
-    def set(self, value: str) -> None:
-        self.api_key = value
 
-
-_api_key_threadlocal: _ThreadLocalApiKey = _ThreadLocalApiKey()
+_thread_local_api_settings: _ThreadLocalApiSettings = _ThreadLocalApiSettings()
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -267,7 +264,7 @@ class Api:
         env_key: Optional[str] = self._environ.get(env.API_KEY)
         sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
         default_key: Optional[str] = self.default_settings.get("api_key")
-        ctx_key: Optional[str] = _api_key_threadlocal.api_key
+        ctx_key: Optional[str] = _thread_local_api_settings.api_key
         return env_key or key or sagemaker_key or ctx_key or default_key
 
     @property
