@@ -36,8 +36,18 @@ def load_modules(use_yea=False):
         from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
         from yea_wandb.artifact_emu import ArtifactEmulator
     else:
-        from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
-        from tests.utils.artifact_emu import ArtifactEmulator
+        try:
+            from .mock_requests import (
+                RequestsMock,
+                InjectRequestsParse,
+            )
+            from .artifact_emu import ArtifactEmulator
+        except ImportError:
+            from mock_requests import (
+                RequestsMock,
+                InjectRequestsParse,
+            )
+            from artifact_emu import ArtifactEmulator
 
 
 # global (is this safe?)

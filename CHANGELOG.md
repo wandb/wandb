@@ -1,3 +1,10 @@
+## 0.13.1 (August 5, 2022)
+
+#### :bug: Bug Fix
+* Prevents run.log() from mutating passed in arguments by @kptkin in https://github.com/wandb/wandb/pull/4058
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.0...v0.13.1
+
 ## 0.13.0 (August 4, 2022)
 
 #### :nail_care: Enhancement
