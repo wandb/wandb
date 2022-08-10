@@ -15,8 +15,8 @@ wandb.egg-info
 docs/themes/
 docs/.generated-files.txt
 docs/config.toml
-tests/logs/*
-!tests/logs/cleanup.sh
+tests/unit_tests_old/logs/*
+!tests/unit_tests_old/logs/cleanup.sh
 pip-wheel-metadata
 .vscode/.ropeproject
 xcuserdata/
