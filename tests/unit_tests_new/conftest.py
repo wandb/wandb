@@ -1003,6 +1003,11 @@ class Context:
 
 
 class QueryResolver:
+    """
+    Resolves request/response pairs against a set of known patterns
+    to extract and process useful data, to be later stored in a Context object.
+    """
+
     def __init__(self):
         self.resolvers: List["Resolver"] = [
             {
@@ -1304,11 +1309,9 @@ class RelayServer:
         ).prepare()
 
         for injected_response in self.inject:
-            # print(injected_response.method, request.method, injected_response.url, url)
-            # check if the injected response matches the request
+            # check if an injected response matches the request
             if injected_response == prepared_relayed_request:
                 with responses.RequestsMock() as mocked_responses:
-                    # print("ОПА!!")
                     # do the actual injection
                     mocked_responses.add(**injected_response.to_dict())
                     # ensure we don't apply this more times than requested
@@ -1421,6 +1424,10 @@ class RelayServer:
 
 @pytest.fixture(scope="function")
 def relay_server(base_url):
+    """
+    Creates a new relay server.
+    """
+
     @contextmanager
     def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
         _relay_server = RelayServer(base_url=base_url, inject=inject)
@@ -1454,8 +1461,6 @@ def test_settings():
         ] = dict_factory()  # noqa: B008
     ):
         settings = wandb.Settings(
-            # project="test",
-            # root_dir=test_dir,
             console="off",
             save_code=False,
         )
@@ -1541,8 +1546,8 @@ def inject_file_stream_response(base_url, user):
         body: Union[str, Exception] = "{}",
         status: int = 200,
         counter: int = -1,
-    ):
-        # breakpoint()
+    ) -> InjectedResponse:
+
         if status > 299:
             message = body if isinstance(body, str) else "::".join(body.args)
             body = DeliberateHTTPError(status_code=status, message=message)
