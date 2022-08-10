@@ -1,15 +1,16 @@
+import logging
+import os
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-import logging
-import os
+from typing import Any, Dict, Iterator, List, Optional, Tuple
+
 import click
-import threading
-from typing import Any, Dict, List, Tuple, Optional
 
 import wandb
-from wandb.apis.internal import Api
 import wandb.apis.public as public
+from wandb.apis.internal import Api
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
 
@@ -171,7 +172,7 @@ class Scheduler(ABC):
         for run_id, _ in self._yield_runs():
             self._stop_run(run_id)
 
-    def _yield_runs(self) -> Tuple[str, SweepRun]:
+    def _yield_runs(self) -> Iterator[Tuple[str, SweepRun]]:
         """Thread-safe way to iterate over the runs."""
         with self._threading_lock:
             for run_id, run in self._runs.items():

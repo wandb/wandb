@@ -5,11 +5,11 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
+from wandb.errors import LaunchError
 from wandb.sdk.launch.utils import (
     construct_launch_spec,
     validate_launch_spec_source,
     LOG_PREFIX,
-    LaunchError,
 )
 
 

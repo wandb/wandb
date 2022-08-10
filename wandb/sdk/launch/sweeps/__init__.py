@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Callable, Dict
 
-
 log = logging.getLogger(__name__)
 
 

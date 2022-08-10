@@ -226,9 +226,7 @@ class KubernetesRunner(AbstractRunner):
 
         pod_names = [pi.metadata.name for pi in pods.items]
         wandb.termlog(
-            "{LOG_PREFIX}Job {job} created on pod(s) {pod_names}. See logs with e.g. `kubectl logs {first_pod}`.".format(
-                job=job_name, pod_names=", ".join(pod_names), first_pod=pod_names[0]
-            )
+            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]}`."
         )
         return pod_names
 

@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+
 import os
 import pprint
 import queue
@@ -13,7 +14,7 @@ from wandb import wandb_lib  # type: ignore
 from wandb.errors import SweepError
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
-from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun, LOG_PREFIX
+from .scheduler import LOG_PREFIX, Scheduler, SchedulerState, SimpleRunState, SweepRun
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +36,9 @@ class SweepScheduler(Scheduler):
         *args: Any,
         sweep_id: Optional[str] = None,
         num_workers: int = 4,
-        heartbeat_thread_sleep: int = 0.5,
-        heartbeat_queue_timeout: int = 1,
-        main_thread_sleep: int = 1,
+        heartbeat_thread_sleep: float = 0.5,
+        heartbeat_queue_timeout: float = 1,
+        main_thread_sleep: float = 1,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
@@ -51,9 +52,9 @@ class SweepScheduler(Scheduler):
             )
         self._sweep_id = sweep_id
         self._num_workers: int = num_workers
-        self._heartbeat_thread_sleep: int = heartbeat_thread_sleep
-        self._heartbeat_queue_timeout: int = heartbeat_queue_timeout
-        self._main_thread_sleep: int = main_thread_sleep
+        self._heartbeat_thread_sleep: float = heartbeat_thread_sleep
+        self._heartbeat_queue_timeout: float = heartbeat_queue_timeout
+        self._main_thread_sleep: float = main_thread_sleep
 
     def _start(self) -> None:
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
