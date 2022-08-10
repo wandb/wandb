@@ -18,9 +18,9 @@ from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     get_kube_context_and_api_client,
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
-    LOG_PREFIX,
 )
 
 TIMEOUT = 5

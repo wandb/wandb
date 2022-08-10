@@ -20,7 +20,7 @@ from .._project_spec import (
     get_entry_point_command,
     LaunchProject,
 )
-from ..utils import get_kube_context_and_api_client, sanitize_wandb_api_key, LOG_PREFIX
+from ..utils import get_kube_context_and_api_client, LOG_PREFIX, sanitize_wandb_api_key
 
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout

@@ -18,10 +18,10 @@ from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     resolve_build_and_registry_config,
-    LOG_PREFIX,
 )
 
 AGENT_POLLING_INTERVAL = 10

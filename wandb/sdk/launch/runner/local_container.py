@@ -19,10 +19,10 @@ from ..builder.build import (
 from ..utils import (
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
-    LOG_PREFIX,
 )
 
 

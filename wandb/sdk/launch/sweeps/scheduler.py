@@ -1,16 +1,15 @@
-import logging
-import os
-import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+import logging
+import os
+import threading
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
-
 import wandb
-import wandb.apis.public as public
 from wandb.apis.internal import Api
+import wandb.apis.public as public
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
 
@@ -139,7 +138,7 @@ class Scheduler(ABC):
                     self._update_run_states()
                     self._run()
                 except RuntimeError as e:
-                    _msg = f"{LOG_PREFIX}Scheduler encountered Runtime Error. Trying again."
+                    _msg = f"{LOG_PREFIX}Scheduler encountered Runtime Error. {e} Trying again."
                     logger.debug(_msg)
                     wandb.termlog(_msg)
         except KeyboardInterrupt:

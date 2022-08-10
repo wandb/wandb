@@ -19,10 +19,10 @@ from ..builder.build import (
     get_env_vars_dict,
 )
 from ..utils import (
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     run_shell,
-    LOG_PREFIX,
 )
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"

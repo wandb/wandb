@@ -12,11 +12,11 @@ from ..builder.build import get_env_vars_dict
 from ..utils import (
     _is_wandb_uri,
     download_wandb_python_deps,
+    LOG_PREFIX,
     parse_wandb_uri,
     PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
     validate_wandb_python_deps,
-    LOG_PREFIX,
 )
 
 

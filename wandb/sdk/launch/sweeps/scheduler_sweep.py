@@ -1,6 +1,5 @@
-import logging
 from dataclasses import dataclass
-
+import logging
 import os
 import pprint
 import queue

@@ -1,6 +1,5 @@
 import logging
 import os
-import click
 from typing import Any, Dict, List, Optional, Tuple
 
 from wandb.apis.internal import Api

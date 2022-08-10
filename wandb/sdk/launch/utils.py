@@ -1,13 +1,13 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import logging
 import os
-import click
 import platform
 import re
 import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
+import click
 import wandb
 from wandb import util
 from wandb.apis.internal import Api

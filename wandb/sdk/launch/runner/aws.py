@@ -23,11 +23,11 @@ from ..builder.build import (
     get_env_vars_dict,
 )
 from ..utils import (
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     run_shell,
     to_camel_case,
-    LOG_PREFIX,
 )
 
 
