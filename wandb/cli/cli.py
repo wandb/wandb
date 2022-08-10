@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import configparser
-import copy
 import datetime
 from functools import wraps
 import getpass
@@ -894,7 +893,7 @@ def sweep(
                         "placeholder-uri-scheduler",  # uri
                         None,  # job
                         api,
-                        f"Scheduler.WANDB_SWEEP_ID",  # name,
+                        "Scheduler.WANDB_SWEEP_ID",  # name,
                         project,
                         entity,
                         launch_config.get("scheduler", {}).get(
