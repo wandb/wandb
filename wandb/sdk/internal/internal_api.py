@@ -1,3 +1,4 @@
+import typing
 from abc import ABC
 from typing import (
     IO,
@@ -23,6 +24,7 @@ from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import ast
 import base64
 from copy import deepcopy
+import contextvars
 import datetime
 from io import BytesIO
 import json
@@ -52,6 +54,13 @@ from ..lib.git import GitRepo
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
+
+
+# Context variable for setting API keys for internal and public apis thread-locally
+_api_key_ctxvar: contextvars.ContextVar[typing.Optional[str]] = contextvars.ContextVar(
+    "api_key", default=None
+)
+
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -251,7 +260,8 @@ class Api:
         env_key: Optional[str] = self._environ.get(env.API_KEY)
         sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
         default_key: Optional[str] = self.default_settings.get("api_key")
-        return env_key or key or sagemaker_key or default_key
+        ctx_key: Optional[str] = _api_key_ctxvar.get()
+        return env_key or key or sagemaker_key or ctx_key or default_key
 
     @property
     def api_url(self) -> str:
