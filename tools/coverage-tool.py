@@ -121,6 +121,20 @@ def parallelism_expand(cov_list, par_dict):
     return ret
 
 
+def augment_circle_config(data: dict):
+    """pytest jobs have implicit toxenv."""
+    data = copy.deepcopy(data)
+    jobs = data.get("workflows", {}).get("main", {}).get("jobs")
+    special_job_name = "pytest"
+    for job in jobs:
+        special_job = job.get(special_job_name)
+        if special_job:
+            special_job[
+                "toxenv"
+            ] = "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+    return data
+
+
 def coverage_tasks(args: argparse.Namespace):
 
     ci_fname = args.circleci_yaml
@@ -130,7 +144,8 @@ def coverage_tasks(args: argparse.Namespace):
 
         parallelism = find_list_of_key_locations_and_dicts(data, "parallelism")
         parallelism_defaults = filter(find_parallelism_defaults, parallelism)
-        toxenv = find_list_of_key_locations_and_dicts(data, "toxenv")
+        augmented_data = augment_circle_config(data)
+        toxenv = find_list_of_key_locations_and_dicts(augmented_data, "toxenv")
         toxenv_cov = filter(lambda x: "covercircle" in x[1]["toxenv"], toxenv)
         toxenv_cov_matrix = matrix_expand(toxenv_cov)
         par_default_dict = create_parallelism_defaults_dict(parallelism_defaults)
