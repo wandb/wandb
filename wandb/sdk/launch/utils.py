@@ -573,10 +573,10 @@ def check_logged_in(api: Api) -> bool:
     """
     res = api.api.viewer()
     if not res:
-        host = api.settings("base_url")
         raise LaunchError(
-            "Could not connect with current API key. "
-            f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
+            "Could not connect with current API-key. "
+            "Please relogin using `wandb login --relogin`"
+            " and try again (see `wandb login --help` for more options)"
         )
 
     return True

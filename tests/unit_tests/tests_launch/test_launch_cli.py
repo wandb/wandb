@@ -515,7 +515,11 @@ def test_launch_bad_api_key(runner, monkeypatch):
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
-            ["https://github.com/test/repo.git"],
+            [
+                "https://wandb.ai/mock_server_entity/test_project/runs/run",
+                "--project",
+                "test_project",
+            ],
         )
 
-    assert "Could not connect with current API key." in result.output
+    assert "Could not connect with current API-key." in result.output

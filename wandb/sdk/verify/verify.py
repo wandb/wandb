@@ -61,6 +61,7 @@ def check_host(host: str) -> bool:
 
 
 def check_logged_in(api: Api, host: str) -> bool:
+    print("Checking if logged in".ljust(72, "."), end="")
     login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
