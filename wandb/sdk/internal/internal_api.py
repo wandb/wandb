@@ -60,14 +60,14 @@ logger = logging.getLogger(__name__)
 class _ThreadLocalApiKey(threading.local):
     api_key: typing.Optional[str] = None
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_key = None
 
     def set(self, value: str) -> None:
         self.api_key = value
 
 
-_api_key_threadlocal = _ThreadLocalApiKey()
+_api_key_threadlocal: _ThreadLocalApiKey = _ThreadLocalApiKey()
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
