@@ -294,7 +294,7 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            tox -v -e <<parameters.toxenv>  \
+            tox -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
       - save-test-results
       # conditionally post a notification to slack if the job failed
