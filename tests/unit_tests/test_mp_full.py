@@ -125,7 +125,7 @@ def test_multiproc_spawn(runner, user):
     # WB5640. Before the WB5640 fix this code fragment would raise an
     # exception, this test checks that it runs without error
     with runner.isolated_filesystem():
-        from tests.unit_tests_new.assets import test_mod
+        from tests.unit_tests.assets import test_mod
 
         test_mod.main()
         sys.modules["__main__"].__spec__ = importlib.machinery.ModuleSpec(

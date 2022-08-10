@@ -261,6 +261,8 @@ jobs:
       python_version_minor:
         type: integer
         default: 7
+      toxenv:
+        type: string
       notify_on_failure:
         type: boolean
         default: false
@@ -292,8 +294,8 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            tox -v -e py<<parameters.python_version_major>><<parameters.python_version_minor>>,covercircle \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests_new
+            tox -v -e <<parameters.toxenv>  \
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -919,7 +921,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: [ "3.6", "3.7", "3.8", "3.9", "3.10" ]
+              python_version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
           context: slack-secrets
           notify_on_failure: true
           requires:
@@ -999,24 +1001,25 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 8
-          toxenv: "protocheck,generatecheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
+          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
       #
       # Unit tests with pytest on Linux, using real wandb server
       #
       - pytest:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 6, 7, 8, 9, 10 ]
+              python_version_major: [3]
+              python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 6, 7, 8, 9, 10 ]
+              python_version_major: [3]
+              python_version_minor: [6, 7, 8, 9, 10]
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1025,8 +1028,8 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - "base"
                 - "sklearn"
@@ -1049,8 +1052,8 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - "imports1"
                 - "imports2"
@@ -1071,8 +1074,8 @@ workflows:
       - win:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
@@ -1083,15 +1086,15 @@ workflows:
       - win:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
           name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests_new"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
       - mac:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "unit-s_base-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
@@ -1107,15 +1110,15 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 6 ]
+              python_version_major: [3]
+              python_version_minor: [6]
           name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7 ]
+              python_version_major: [3]
+              python_version_minor: [7]
           name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
@@ -1123,41 +1126,41 @@ workflows:
       - mac:
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
 
-# todo: needs love
-#  manual_test:
-#    when: << pipeline.parameters.manual_test >>
-#    jobs:
-#      - test:
-#          name: << pipeline.parameters.manual_test_name >>
-#          image: << pipeline.parameters.manual_test_image >>
-#          toxenv: << pipeline.parameters.manual_test_toxenv >>
-#          parallelism: << pipeline.parameters.manual_parallelism >>
-#          xdist: << pipeline.parameters.manual_xdist >>
-#
-#  manual_win:
-#    when: << pipeline.parameters.manual_win >>
-#    jobs:
-#      - win:
-#          name: << pipeline.parameters.manual_win_name >>
-#          toxenv: << pipeline.parameters.manual_win_toxenv >>
-#          parallelism: << pipeline.parameters.manual_parallelism >>
-#          xdist: << pipeline.parameters.manual_xdist >>
-#
-#  manual_mac:
-#    when: << pipeline.parameters.manual_mac >>
-#    jobs:
-#      - mac:
-#          name: << pipeline.parameters.manual_mac_name >>
-#          toxenv: << pipeline.parameters.manual_mac_toxenv >>
-#          parallelism: << pipeline.parameters.manual_parallelism >>
-#          xdist: << pipeline.parameters.manual_xdist >>
+  # todo: needs love
+  #  manual_test:
+  #    when: << pipeline.parameters.manual_test >>
+  #    jobs:
+  #      - test:
+  #          name: << pipeline.parameters.manual_test_name >>
+  #          image: << pipeline.parameters.manual_test_image >>
+  #          toxenv: << pipeline.parameters.manual_test_toxenv >>
+  #          parallelism: << pipeline.parameters.manual_parallelism >>
+  #          xdist: << pipeline.parameters.manual_xdist >>
+  #
+  #  manual_win:
+  #    when: << pipeline.parameters.manual_win >>
+  #    jobs:
+  #      - win:
+  #          name: << pipeline.parameters.manual_win_name >>
+  #          toxenv: << pipeline.parameters.manual_win_toxenv >>
+  #          parallelism: << pipeline.parameters.manual_parallelism >>
+  #          xdist: << pipeline.parameters.manual_xdist >>
+  #
+  #  manual_mac:
+  #    when: << pipeline.parameters.manual_mac >>
+  #    jobs:
+  #      - mac:
+  #          name: << pipeline.parameters.manual_mac_name >>
+  #          toxenv: << pipeline.parameters.manual_mac_toxenv >>
+  #          parallelism: << pipeline.parameters.manual_parallelism >>
+  #          xdist: << pipeline.parameters.manual_xdist >>
 
   manual_nightly:
     when: << pipeline.parameters.manual_nightly >>
