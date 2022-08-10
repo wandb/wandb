@@ -24,7 +24,7 @@ from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import ast
 import base64
 from copy import deepcopy
-import contextvars
+import threading
 import datetime
 from io import BytesIO
 import json
@@ -57,10 +57,17 @@ logger = logging.getLogger(__name__)
 
 
 # Context variable for setting API keys for internal and public apis thread-locally
-_api_key_ctxvar: contextvars.ContextVar[typing.Optional[str]] = contextvars.ContextVar(
-    "api_key", default=None
-)
+class _ThreadLocalApiKey(threading.local):
+    api_key: typing.Optional[str] = None
 
+    def __init__(self):
+        self.api_key = None
+
+    def set(self, value: str) -> None:
+        self.api_key = value
+
+
+_api_key_threadlocal = _ThreadLocalApiKey()
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -260,7 +267,7 @@ class Api:
         env_key: Optional[str] = self._environ.get(env.API_KEY)
         sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
         default_key: Optional[str] = self.default_settings.get("api_key")
-        ctx_key: Optional[str] = _api_key_ctxvar.get()
+        ctx_key: Optional[str] = _api_key_threadlocal.api_key
         return env_key or key or sagemaker_key or ctx_key or default_key
 
     @property

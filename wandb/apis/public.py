@@ -37,7 +37,7 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.interface import artifacts
-from wandb.sdk.internal.internal_api import _api_key_ctxvar
+from wandb.sdk.internal.internal_api import _api_key_threadlocal
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
@@ -499,7 +499,7 @@ class Api:
             return self._api_key
         auth = requests.utils.get_netrc_auth(self.settings["base_url"])
         key = None
-        ctx_key = _api_key_ctxvar.get()
+        ctx_key = _api_key_threadlocal.api_key
         if ctx_key:
             key = ctx_key
         if auth:
