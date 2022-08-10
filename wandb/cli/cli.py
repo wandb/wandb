@@ -1184,6 +1184,8 @@ def launch(
 
     check_logged_in(api)
 
+    run_id = config.get("run_id")
+
     if queue is None:
         # direct launch
         try:
@@ -1203,6 +1205,7 @@ def launch(
                 config=config,
                 synchronous=(not run_async),
                 cuda=cuda,
+                run_id=run_id,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1227,6 +1230,7 @@ def launch(
             args_dict,
             resource_args,
             cuda=cuda,
+            run_id=run_id,
         )
 
 
@@ -1283,6 +1287,8 @@ def launch_agent(
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
+    
+    check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
     wandb_launch.create_and_run_agent(api, agent_config)
