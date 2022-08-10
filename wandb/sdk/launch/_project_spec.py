@@ -4,6 +4,7 @@ into a runnable wandb launch script
 """
 import binascii
 import enum
+from gettext import install
 import json
 import logging
 import os
@@ -513,82 +514,22 @@ def create_metadata_file(
         )
 
 
-def build_image_from_project(
-    launch_project: LaunchProject,
-    api: Api,
-    launch_config: Optional[Dict] = {},
-    build_type: Optional[str] = "docker",
-) -> str:
-    """
-    Accepts a reference to the Api class and a pre-computed launch_spec
-    object, with an optional launch_config to set git-things like repository
-    which is used in naming the output docker image, and build_type defaulting
-    to docker (but could be used to build kube resource jobs w/ "kaniko")
-
-    updates launch_project with the newly created docker image uri and
-    returns the uri
-    """
-    # circular dependency, TODO: chat with @Kyle
-    from wandb.sdk.launch.builder.loader import load_builder
-
-    assert launch_project.uri, "To build an image on queue a URI must be set."
-
-    repository: Optional[str] = launch_config.get("url")
-    builder_config = {"type": build_type}
-
-    docker_args = {}
-    if launch_project.python_version:
-        docker_args["python_version"] = launch_project.python_version
-
-    if launch_project.cuda_version:
-        docker_args["cuda_version"] = launch_project.cuda_version
-
-    if launch_project.docker_user_id:
-        docker_args["user"] = launch_project.docker_user_id
-
-    wandb.termlog("Building docker image from uri source.")
-    launch_project = fetch_and_validate_project(launch_project, api)
-    builder = load_builder(builder_config)
-    image_uri = builder.build_image(
-        launch_project,
-        repository,
-        launch_project.get_single_entry_point(),
-        docker_args,
-    )
-
-    return image_uri
-
-
-def log_job_from_run(run: Run, entity: str, project: str, docker_image_uri: str) -> str:
+def log_job_from_run(run: Run, docker_image_uri: str) -> str:
     """
     Uses a wandb_run object to create and log a job artifact given a docker
     image uri.
 
     """
-    _id = docker_image_uri.split(":")[-1]
-    name = f"{entity}-{project}-{_id}"
-    input_types = TypeRegistry.type_of(run.config.as_dict()).to_json()
-    output_types = TypeRegistry.type_of(run.summary._as_dict()).to_json()
-
     import pkg_resources
 
     installed_packages_list = sorted(
         f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
     )
+    input_types = TypeRegistry.type_of(run.config.as_dict()).to_json()
+    output_types = TypeRegistry.type_of(run.summary._as_dict()).to_json()
 
-    source_info = {
-        "_version": "v0",
-        "source_type": "image",
-        "source": {"image": docker_image_uri},
-        "input_types": input_types,
-        "output_types": output_types,
-        "runtime": run._settings._python,
-    }
-    job_artifact = run._construct_job_artifact(
-        name=name,
-        source_dict=source_info,
-        installed_packages_list=installed_packages_list,
+    job_artifact = run._create_image_job(
+        docker_image_uri, input_types, output_types, installed_packages_list
     )
-    run.log_artifact(job_artifact)
 
     return job_artifact

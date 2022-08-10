@@ -6,11 +6,10 @@ import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
 from wandb.sdk.launch._project_spec import (
-    build_image_from_project,
     create_project_from_spec,
     LaunchType,
-    log_job_from_run,
 )
+from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.utils import (
     construct_launch_spec,
     validate_launch_spec_source,
@@ -170,20 +169,12 @@ def _launch_add(
 
         launch_project = create_project_from_spec(launch_spec, api)
         docker_image_uri = build_image_from_project(launch_project, api)
+        run = wandb.run or wandb.init(project=project, job_type=LaunchType.JOB)
 
-        # Remove passed in URI, using job artifact abstraction instead
-        launch_spec["uri"] = None
-
-        if wandb.run is not None:
-            run = wandb.run
-        else:
-            run = wandb.init(project=project, job_type=LaunchType.JOB)
-
-        entity, project = launch_spec.get("entity"), launch_spec.get("project")
-        job_artifact = log_job_from_run(run, entity, project, docker_image_uri)
-
+        job_artifact = run.log_job_artifact(docker_image_uri)
         job_name = job_artifact.wait().name
         launch_spec["job"], job = job_name, job_name
+        launch_spec["uri"] = None
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue, launch_spec)

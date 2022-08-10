@@ -2048,16 +2048,24 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
-    def _log_job(self) -> None:
-        artifact = None
-        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
-        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
-
+    def _make_job_source_reqs(self) -> Union[str, str, str]:
         import pkg_resources
 
         installed_packages_list = sorted(
             f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
         )
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
+        return installed_packages_list, input_types, output_types
+
+    def _log_job(self) -> None:
+        artifact = None
+        (
+            installed_packages_list,
+            input_types,
+            output_types,
+        ) = self._make_job_source_reqs()
 
         for job_creation_function in [
             self._create_repo_job,
@@ -2174,8 +2182,9 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
+        docker_image_name: Optional[str],
     ) -> "Optional[Artifact]":
-        docker_image_name = os.getenv("WANDB_DOCKER")
+        docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
         if docker_image_name is None:
             return None
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
@@ -2193,6 +2202,16 @@ class Run:
         )
         artifact = self.log_artifact(job_artifact)
         return artifact
+
+    def log_job_artifact(
+        self,
+        docker_image_name: str,
+    ) -> Artifact:
+        packages, in_types, out_types = self._make_job_source_reqs()
+        job_artifact = self._create_image_job(
+            in_types, out_types, packages, docker_image_name
+        )
+        return job_artifact
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
