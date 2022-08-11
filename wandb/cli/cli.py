@@ -1182,6 +1182,8 @@ def launch(
     elif resource is None:
         resource = "local-container"
 
+    run_id = config.get("run_id")
+
     if queue is None:
         # direct launch
         try:
@@ -1201,6 +1203,7 @@ def launch(
                 config=config,
                 synchronous=(not run_async),
                 cuda=cuda,
+                run_id=run_id,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1225,6 +1228,7 @@ def launch(
             args_dict,
             resource_args,
             cuda=cuda,
+            run_id=run_id,
         )
 
 
