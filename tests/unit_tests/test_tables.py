@@ -1,15 +1,15 @@
-import wandb
-import pytest
+import datetime
 
 import numpy as np
-import datetime
+import pytest
+import wandb
 
 
 def test_basic_ndx():
     # Base Case
     table_a = wandb.Table(columns=["b"], data=[["a"], ["b"]])
     table = wandb.Table(columns=["fi", "c"])
-    for _ndx, row in table_a.iterrows():
+    for _ndx, _ in table_a.iterrows():
         table.add_data(_ndx, "x")
     assert all([row[0]._table == table_a for row in table.data])
 

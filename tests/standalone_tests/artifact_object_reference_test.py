@@ -800,10 +800,10 @@ def test_joined_table_add_by_path():
 
 def test_image_reference_with_preferred_path():
     orig_im_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), os.pardir, "assets", "test.png"
+        os.path.dirname(os.path.realpath(__file__)), "assets", "test.png"
     )
     orig_im_path_2 = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), os.pardir, "assets", "test2.png"
+        os.path.dirname(os.path.realpath(__file__)), "assets", "test2.png"
     )
     desired_artifact_path = "images/sample.png"
     with wandb.init() as run:
