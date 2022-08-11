@@ -109,7 +109,7 @@ commands:
       - setup_remote_docker:
           version: 20.10.12
           docker_layer_caching: << parameters.docker_layer_caching >>
-      - run: apk add docker-cli-buildx=0.8.2-r2  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+      - run: apk add docker-cli-buildx=0.8.2-r4  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
   setup_gcloud:
     parameters:
@@ -149,7 +149,7 @@ commands:
       machine_type:
         description: "GKE cluster machine type"
         type: string
-        default: "n1-standard-4"
+        default: "n1-standard-8"
       disk_size:
         description: "GKE cluster disk size"
         type: integer
@@ -266,6 +266,9 @@ jobs:
       notify_on_failure:
         type: boolean
         default: false
+      xdist:
+        type: integer
+        default: 6
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -294,6 +297,7 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
       - save-test-results

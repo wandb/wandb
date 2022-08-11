@@ -245,6 +245,7 @@ def test_launch_kube(
                 "preemption_policy": "Never",
                 "node_name": "test-node-name",
                 "node_selectors": {"test-selector": "test-value"},
+                "tolerations": [{"key": "test-key", "value": "test-value"}],
             },
         },
     }
@@ -269,6 +270,7 @@ def test_launch_kube(
     assert job.spec.template.spec.restart_policy == args["restart_policy"]
     assert job.spec.template.spec.preemption_policy == args["preemption_policy"]
     assert job.spec.template.spec.node_name == args["node_name"]
+    assert job.spec.template.spec.tolerations == args["tolerations"]
     assert (
         job.spec.template.spec.node_selector["test-selector"]
         == args["node_selectors"]["test-selector"]
