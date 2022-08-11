@@ -149,7 +149,7 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
             ],
         )
 
-        assert "Failed to update agent status" in result.output
+        assert "Aborted!" in result.output
 
 
 def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
