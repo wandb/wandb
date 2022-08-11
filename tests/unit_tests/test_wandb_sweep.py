@@ -42,6 +42,7 @@ VALID_SWEEP_CONFIGS: List[Dict[str, Any]] = [
     SWEEP_CONFIG_RANDOM,
 ]
 
+
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS)
 def test_sweep_create(relay_server, sweep_config):
     with relay_server() as relay:
