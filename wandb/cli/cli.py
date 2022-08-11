@@ -914,6 +914,7 @@ def sweep(
                             launch_config.get("job", "placeholder-job"),
                             "--resource",
                             launch_config.get("resource", "local-process"),
+                            # TODO(hupo): Add num-workers as option in launch config
                             # "--num_workers",
                             # launch_config.get("scheduler", {}).get("num_workers", 1),
                         ],  # entry_point,
