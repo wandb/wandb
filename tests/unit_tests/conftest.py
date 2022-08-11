@@ -107,6 +107,7 @@ def copy_asset(assets_path) -> Callable:
 
 @pytest.fixture(scope="session", autouse=True)
 def env_teardown():
+    wandb.teardown()
     yield
     wandb.teardown()
     if not os.environ.get("CI") == "true":
@@ -117,8 +118,8 @@ def env_teardown():
 
 @pytest.fixture(scope="function", autouse=True)
 def clean_up():
-    wandb.teardown()
     yield
+    wandb.teardown()
 
 
 @pytest.fixture(scope="function", autouse=True)
