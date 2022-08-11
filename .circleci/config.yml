@@ -266,6 +266,9 @@ jobs:
       notify_on_failure:
         type: boolean
         default: false
+      xdist:
+        type: integer
+        default: 8
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
@@ -294,6 +297,7 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
       - save-test-results
