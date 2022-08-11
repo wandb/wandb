@@ -43,9 +43,7 @@ launch_requirements = [
     "kubernetes",
 ]
 
-models_requirements = [
-    "cloudpickle"
-]
+models_requirements = ["cloudpickle"]
 
 
 setup(
