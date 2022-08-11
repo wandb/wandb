@@ -6,10 +6,31 @@ test_git_repo
 
 Tests for the `wandb.GitRepo` module.
 """
+from typing import Callable, Optional
+
+import git
 import pytest
 import wandb
 
 GitRepo = wandb.wandb_lib.git.GitRepo
+
+
+@pytest.fixture
+def git_repo_fn() -> Callable:
+    def git_repo_fn_helper(
+        path: str = ".",
+        remote_name: str = "origin",
+        remote_url: Optional[str] = "https://foo:bar@github.com/FooTest/Foo.git",
+        commit_msg: Optional[str] = None,
+    ):
+        with git.Repo.init(path) as repo:
+            if remote_url is not None:
+                repo.create_remote(remote_name, remote_url)
+            if commit_msg is not None:
+                repo.index.commit(commit_msg)
+            return GitRepo(lazy=False)
+
+    yield git_repo_fn_helper
 
 
 class TestGitRepo:
@@ -28,8 +49,9 @@ class TestGitRepo:
         repo = git_repo_fn(remote_url=None)
         assert repo.remote_url is None
 
-    def test_create_tag(self, git_repo):
+    def test_create_tag(self, git_repo_fn):
         # TODO: assert git / not git
+        git_repo = git_repo_fn()
         tag = git_repo.tag("foo", "My great tag")
         assert tag is None or tag.name == "wandb/foo"
 
