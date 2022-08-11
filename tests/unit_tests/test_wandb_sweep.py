@@ -1,34 +1,61 @@
-"""Sweep tests"""
+"""Sweep tests."""
+from typing import Any, Dict, List
 
 import pytest
 import wandb
 
+# Sweep configs used for testing
+SWEEP_CONFIG_GRID: Dict[str, Any] = {
+    "name": "mock-sweep-grid",
+    "method": "grid",
+    "parameters": {"param1": {"values": [1, 2, 3]}},
+}
+SWEEP_CONFIG_GRID_HYPERBAND: Dict[str, Any] = {
+    "name": "mock-sweep-grid-hyperband",
+    "method": "grid",
+    "early_terminate": {
+        "type": "hyperband",
+        "max_iter": 27,
+        "s": 2,
+        "eta": 3,
+    },
+    "metric": {"name": "metric1", "goal": "maximize"},
+    "parameters": {"param1": {"values": [1, 2, 3]}},
+}
+SWEEP_CONFIG_BAYES: Dict[str, Any] = {
+    "name": "mock-sweep-bayes",
+    "method": "bayes",
+    "metric": {"name": "metric1", "goal": "maximize"},
+    "parameters": {"param1": {"values": [1, 2, 3]}},
+}
+SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
+    "name": "mock-sweep-random",
+    "method": "random",
+    "parameters": {"param1": {"values": [1, 2, 3]}},
+}
 
-def test_create_sweep(user, relay_server):
+# List of all valid base configurations
+VALID_SWEEP_CONFIGS: List[Dict[str, Any]] = [
+    SWEEP_CONFIG_GRID,
+    SWEEP_CONFIG_GRID_HYPERBAND,
+    SWEEP_CONFIG_BAYES,
+    SWEEP_CONFIG_RANDOM,
+]
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS)
+def test_sweep_create(relay_server, sweep_config):
     with relay_server() as relay:
-        sweep_config = {
-            "name": "My Sweep",
-            "method": "grid",
-            "parameters": {"parameter1": {"values": [1, 2, 3]}},
-        }
         sweep_id = wandb.sweep(sweep_config)
-
     assert sweep_id in relay.context.entries
 
 
-def test_sweep_entity_project_callable(user, relay_server):
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "grid",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS)
+def test_sweep_entity_project_callable(user, relay_server, sweep_config):
     def sweep_callable():
         return sweep_config
 
     with relay_server() as relay:
         sweep_id = wandb.sweep(sweep_callable, project="test", entity=user)
-
     sweep_response = relay.context.entries[sweep_id]
     assert sweep_response["project"]["entity"]["name"] == user
     assert sweep_response["project"]["name"] == "test"
