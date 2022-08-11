@@ -16,8 +16,9 @@ def test_api_auto_login_no_tty():
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_base_url_sanitization():
-    api = Api({"base_url": "https://wandb.corp.net///"})
-    assert api.settings["base_url"] == "https://wandb.corp.net"
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        api = Api({"base_url": "https://wandb.corp.net///"})
+        assert api.settings["base_url"] == "https://wandb.corp.net"
 
 
 @pytest.mark.parametrize(
@@ -31,17 +32,19 @@ def test_base_url_sanitization():
 )
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_path(path):
-    user, project, run = Api()._parse_path(path)
-    assert user == "user"
-    assert project == "proj"
-    assert run == "run"
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        user, project, run = Api()._parse_path(path)
+        assert user == "user"
+        assert project == "proj"
+        assert run == "run"
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path():
-    enitty, project = Api()._parse_project_path("user/proj")
-    assert enitty == "user"
-    assert project == "proj"
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        enitty, project = Api()._parse_project_path("user/proj")
+        assert enitty == "user"
+        assert project == "proj"
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
@@ -95,8 +98,9 @@ def test_direct_specification_of_api_key():
 )
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_from_path_project_type(path):
-    project = Api().from_path(path)
-    assert isinstance(project, wandb.apis.public.Project)
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        project = Api().from_path(path)
+        assert isinstance(project, wandb.apis.public.Project)
 
 
 @pytest.mark.parametrize(
