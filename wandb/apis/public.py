@@ -362,10 +362,10 @@ class Api:
         api_key: Optional[str] = None,
     ) -> None:
         self.settings = InternalApi().settings()
+        _overrides = overrides or {}
         self._api_key = api_key
         if self.api_key is None:
-            wandb.login()
-        _overrides = overrides or {}
+            wandb.login(host=_overrides.get("base_url"))
         self.settings.update(_overrides)
         if "username" in _overrides and "entity" not in _overrides:
             wandb.termwarn(
