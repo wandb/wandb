@@ -427,7 +427,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     origin = repo.create_remote("origin", uri)
     origin.fetch()
 
-    if version:
+    if version is not None:
         try:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
@@ -437,8 +437,13 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
                 "Error: %s" % (version, uri, e)
             )
     else:
+        if repo.getattr("references", None) is not None:
+            print(repo)
+            print(repo.references)
+            branches = [ref.name for ref in repo.references]
+        else:
+            branches = []
         # Check if main is in origin, else set branch to master
-        branches = [ref.name for ref in repo.references]
         if "main" in branches or "origin/main" in branches:
             version = "main"
         else:
@@ -449,13 +454,13 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
             repo.heads[version].checkout()
             wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
         except git.exc.GitCommandError as e:
-            raise ExecutionError(
+            raise LaunchError(
                 "Unable to checkout version '%s' of git repo %s"
                 "- please ensure that the version exists in the repo. \n"
                 "Error: %s" % (version, uri, e)
             )
         except (AttributeError, IndexError) as e:
-            raise ExecutionError(
+            raise LaunchError(
                 "Unable to checkout default version '%s' of git repo %s "
                 "- to specify a git version use: --git-version \n"
                 "Error: %s" % (version, uri, e)

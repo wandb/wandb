@@ -37,18 +37,26 @@ EMPTY_BACKEND_CONFIG = {
 def mocked_fetchable_git_repo():
     m = mock.Mock()
 
-    def populate_dst_dir(dst_dir):
-        with open(os.path.join(dst_dir, "train.py"), "w") as f:
-            f.write(fixture_open("train.py").read())
-        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
-        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
-            f.write("test")
-        return mock.Mock()
+    def mock_specific_branch(branch_name):
+        def populate_dst_dir(dst_dir):
+            repo = mock.Mock()
+            reference = mock.Mock()
+            reference.name = branch_name
+            repo.references = [reference]
+            with open(os.path.join(dst_dir, "train.py"), "w") as f:
+                f.write(fixture_open("train.py").read())
+            with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+                f.write(fixture_open("requirements.txt").read())
+            with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+                f.write("test")
+            return repo
 
-    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    with mock.patch.dict("sys.modules", git=m):
-        yield m
+        m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+
+        with mock.patch.dict("sys.modules", git=m):
+            yield m
+
+    return mock_specific_branch
 
 
 @pytest.fixture
@@ -1459,3 +1467,23 @@ def test_launch_no_url_job_or_docker_image(
         )
     except wandb.errors.LaunchError as e:
         assert "Must specify a uri, job or docker image" in str(e)
+
+
+def test_launch_git_version_master(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    with mocked_fetchable_git_repo("master"):
+        try:
+            launch.run(
+                api=api,
+                uri="https://foo:bar@github.com/FooTest/Foo.git",
+                job=None,
+                project="new-test",
+            )
+        except wandb.errors.LaunchError as e:
+            assert "No git branch passed. Defaulted to branch: master" in str(e)
