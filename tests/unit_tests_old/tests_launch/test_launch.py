@@ -38,13 +38,25 @@ def mocked_fetchable_git_repo():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = mock.Mock()
+        reference.name = "master"
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -1461,41 +1473,9 @@ def test_launch_no_url_job_or_docker_image(
         assert "Must specify a uri, job or docker image" in str(e)
 
 
-""" Gross fixture for explicit branch name -- TODO: fix using parameterization (?)"""
-
-
-@pytest.fixture
-def mocked_fetchable_git_repo_master():
-    m = mock.Mock()
-
-    def populate_dst_dir(dst_dir):
-        repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "master"
-        repo.references = [reference]
-
-        def create_remote(o, r):
-            origin = mock.Mock()
-            origin.refs = {"master": mock.Mock()}
-            return origin
-
-        repo.create_remote = create_remote
-        repo.heads = {"master": mock.Mock()}
-        with open(os.path.join(dst_dir, "train.py"), "w") as f:
-            f.write(fixture_open("train.py").read())
-        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
-            f.write(fixture_open("requirements.txt").read())
-        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
-            f.write("test")
-        return repo
-
-    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
-    with mock.patch.dict("sys.modules", git=m):
-        yield m
-
-
 @pytest.fixture
 def mocked_fetchable_git_repo_main():
+    """Gross fixture for explicit branch name -- TODO: fix using parameterization (?)"""
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
@@ -1526,7 +1506,7 @@ def mocked_fetchable_git_repo_main():
 
 
 def test_launch_git_version_branch_set(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_master, mock_load_backend
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -1539,7 +1519,7 @@ def test_launch_git_version_branch_set(
 
 
 def test_launch_git_version_default_master(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_master, mock_load_backend
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
