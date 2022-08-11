@@ -4,6 +4,7 @@ a live backend server.
 """
 from contextlib import contextmanager
 import glob
+import inspect
 import os
 from pathlib import Path
 import tempfile
@@ -11,7 +12,17 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.sdk.wandb_init import init as real_wandb_init
 from wandb.viz import custom_chart
+
+
+def test_wandb_init_fixture_args(wandb_init):
+    """Test that the fixture args are in sync with the real wandb.init()."""
+    # comparing lists of args as order also matters
+    assert (
+        inspect.getfullargspec(real_wandb_init).args
+        == inspect.getfullargspec(wandb_init).args
+    )
 
 
 def test_sagemaker_key():
