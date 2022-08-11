@@ -153,3 +153,11 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
         uploaded_files = relay.context.get_run_uploaded_files(run_id)
         assert uploaded_files[0].endswith(tb_file_name)
         assert len(uploaded_files) == 17
+
+
+def test_override_base_url_passed_to_login():
+    base_url = "https://wandb.space"
+    with mock.patch.object(wandb, "login", mock.MagicMock()) as mock_login:
+        api = wandb.Api(api_key=None, overrides={"base_url": base_url})
+        assert mock_login.call_args[1]["host"] == base_url
+        assert api.settings["base_url"] == base_url
