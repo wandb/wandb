@@ -411,7 +411,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
-def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
+def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
     checks out commit ``version`` (or defaults to the head commit of the repository's
@@ -438,8 +438,6 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
             )
     else:
         if repo.getattr("references", None) is not None:
-            print(repo)
-            print(repo.references)
             branches = [ref.name for ref in repo.references]
         else:
             branches = []
@@ -453,12 +451,6 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
             repo.create_head(version, origin.refs[version])
             repo.heads[version].checkout()
             wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
-        except git.exc.GitCommandError as e:
-            raise LaunchError(
-                "Unable to checkout version '%s' of git repo %s"
-                "- please ensure that the version exists in the repo. \n"
-                "Error: %s" % (version, uri, e)
-            )
         except (AttributeError, IndexError) as e:
             raise LaunchError(
                 "Unable to checkout default version '%s' of git repo %s "
@@ -467,6 +459,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
             )
 
     repo.submodule_update(init=True, recursive=True)
+    return version
 
 
 def merge_parameters(
