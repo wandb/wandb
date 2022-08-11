@@ -176,50 +176,6 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
     assert "Shutting down, active jobs" in result.output
 
 
-def test_launch_sweep_scheduler(runner, test_settings, live_mock_server):
-    # Create a test sweep
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "grid",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-    sweep_id = wandb.sweep(sweep_config)
-    assert sweep_id == "test"
-    # Create the default queue
-    result = runner.invoke(
-        cli.launch,
-        [
-            "https://wandb.ai/mock_server_entity/test_project/runs/run",
-            "--project",
-            "test_project",
-            "--entity",
-            "mock_server_entity",
-            "--queue",
-            "default",
-        ],
-    )
-    assert result.exit_code == 0
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-    # Run the launch sweep scheduler CLI command
-    result = runner.invoke(
-        cli.scheduler,
-        [
-            "--project",
-            "test_project",
-            "--entity",
-            "mock_server_entity",
-            "--queue",
-            "default",
-            # TODO(hupo): No mock job artifacts for now
-            # "--job",
-            # "mock_job_artifact",
-            sweep_id,
-        ],
-    )
-    assert result.exit_code == 0
-
-
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)

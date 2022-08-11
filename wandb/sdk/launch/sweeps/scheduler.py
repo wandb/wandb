@@ -174,8 +174,7 @@ class Scheduler(ABC):
     def _yield_runs(self) -> Iterator[Tuple[str, SweepRun]]:
         """Thread-safe way to iterate over the runs."""
         with self._threading_lock:
-            for run_id, run in self._runs.items():
-                yield run_id, run
+            yield from self._runs.items()
 
     def _update_run_states(self) -> None:
         for run_id, run in self._yield_runs():
