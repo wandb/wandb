@@ -268,7 +268,7 @@ jobs:
         default: false
       xdist:
         type: integer
-        default: 8
+        default: 6
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
