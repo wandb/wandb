@@ -82,7 +82,7 @@ def test_log_avoids_mutation(mock_run):
     run = mock_run()
     d = dict(this=1)
     run.log(d)
-    assert d.get("this", None) == 1
+    assert d == dict(this=1)
 
 
 def test_display(mock_run):
