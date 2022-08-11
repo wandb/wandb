@@ -8,8 +8,6 @@ from typing import Callable, TYPE_CHECKING
 from unittest.mock import Mock, patch
 
 import pytest
-
-from wandb import Settings
 import wandb.filesync.dir_watcher
 from wandb.filesync.dir_watcher import DirWatcher, PolicyEnd, PolicyLive, PolicyNow
 from wandb.sdk.internal.file_pusher import FilePusher

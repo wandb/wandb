@@ -1,137 +1,56 @@
 import os
-import pytest
-import queue
-import threading
-import time
 import shutil
+import time
+import unittest.mock
 
+import pytest
 import wandb
 from wandb.util import mkdir_exists_ok
-from wandb.sdk.lib.printer import INFO
-
-from tests import utils
 
 
-def test_send_status_request_stopped(mock_server, backend_interface):
-    mock_server.ctx["stopped"] = True
+def test_save_live_existing_file(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    file_name = "wandb.rules"
 
-    with backend_interface() as interface:
-        status_resp = interface.communicate_stop_status()
-        assert status_resp is not None
-        assert status_resp.run_should_stop
+    with relay_server() as relay, backend_interface(run) as interface:
+        with open(os.path.join(run.dir, file_name), "w") as f:
+            f.write("BOOM BOOM")
+        interface.publish_files({"files": [(file_name, "live")]})
 
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
 
-def test_parallel_requests(mock_server, backend_interface):
-    mock_server.ctx["stopped"] = True
-    work_queue = queue.Queue()
-
-    with backend_interface() as interface:
-
-        def send_sync_request(i):
-            work_queue.get()
-            if i % 3 == 0:
-                status_resp = interface.communicate_stop_status()
-                assert status_resp is not None
-                assert status_resp.run_should_stop
-            elif i % 3 == 2:
-                summary_resp = interface.communicate_get_summary()
-                assert summary_resp is not None
-                assert hasattr(summary_resp, "item")
-            work_queue.task_done()
-
-        for i in range(10):
-            work_queue.put(None)
-            t = threading.Thread(target=send_sync_request, args=(i,))
-            t.daemon = True
-            t.start()
-
-        work_queue.join()
+    assert file_name in uploaded_files
+    assert uploaded_files.count(file_name) == 1
 
 
-def test_send_status_request_network(mock_server, backend_interface):
-    mock_server.ctx["rate_limited_times"] = 3
+def test_save_live_write_after_policy(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    file_name = "wandb.rules"
 
-    with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "live")]})
-
-        status_resp = interface.communicate_network_status()
-        assert status_resp is not None
-        assert len(status_resp.network_responses) > 0
-        assert status_resp.network_responses[0].http_status_code == 429
-
-
-def test_resume_success(mocked_run, test_settings, mock_server, backend_interface):
-    test_settings.update(resume="allow", source=wandb.sdk.wandb_settings.Source.INIT)
-    mock_server.ctx["resume"] = True
-    with backend_interface(initial_run=False) as interface:
-        run_result = interface.communicate_run(mocked_run)
-        assert run_result.HasField("error") is False
-        assert run_result.run.starting_step == 16
-
-
-def test_resume_error_never(mocked_run, test_settings, mock_server, backend_interface):
-    test_settings.update(resume="never", source=wandb.sdk.wandb_settings.Source.INIT)
-    mock_server.ctx["resume"] = True
-    with backend_interface(initial_run=False) as interface:
-        run_result = interface.communicate_run(mocked_run)
-        assert run_result.HasField("error")
-        assert (
-            run_result.error.message
-            == "resume='never' but run (%s) exists" % mocked_run.id
-        )
-
-
-def test_resume_error_must(mocked_run, test_settings, mock_server, backend_interface):
-    test_settings.update(resume="must", source=wandb.sdk.wandb_settings.Source.INIT)
-    mock_server.ctx["resume"] = False
-    with backend_interface(initial_run=False) as interface:
-        run_result = interface.communicate_run(mocked_run)
-        assert run_result.HasField("error")
-        assert (
-            run_result.error.message
-            == "resume='must' but run (%s) doesn't exist" % mocked_run.id
-        )
-
-
-def test_save_live_existing_file(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
-        with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
-            f.write("TEST TEST")
-        interface.publish_files({"files": [("test.txt", "live")]})
-
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
-    assert any(
-        [
-            "test.txt" in request_dict.get("uploaded", [])
-            for request_dict in mock_server.ctx["file_stream"]
-        ]
-    )
-
-
-def test_save_live_write_after_policy(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "live")]})
-        with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
+    with relay_server() as relay, backend_interface(run) as interface:
+        interface.publish_files({"files": [(file_name, "live")]})
+        with open(os.path.join(run.dir, file_name), "w") as f:
             f.write("TEST TEST")
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count(file_name) == 1
 
 
-def test_preempting_sent_to_server(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+def test_preempting_sent_to_server(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_preempting()
-    assert any(
-        [
-            "preempting" in request_dict
-            for request_dict in mock_server.ctx["file_stream"]
-        ]
-    )
+
+    assert relay.context.entries[run.id].get("preempting") is not None
 
 
-def test_save_live_multi_write(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "live")]})
-        test_file = os.path.join(mocked_run.dir, "test.txt")
+def test_save_live_multi_write(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    file_name = "wandb.rules"
+
+    with relay_server() as relay, backend_interface(run) as interface:
+        interface.publish_files({"files": [(file_name, "live")]})
+        test_file = os.path.join(run.dir, file_name)
         with open(test_file, "w") as f:
             f.write("TEST TEST")
         # File system polling happens every second
@@ -139,23 +58,28 @@ def test_save_live_multi_write(mocked_run, mock_server, backend_interface):
         with open(test_file, "w") as f:
             f.write("TEST TEST TEST TEST")
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 2
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+
+    assert file_name in uploaded_files
+    assert uploaded_files.count(file_name) == 2
 
 
-def test_save_live_glob_multi_write(mocked_run, mock_server, mocker, backend_interface):
-    def mock_min_size(self, size):
-        return 1
+@pytest.mark.xfail(reason="TODO: fix this test")
+def test_save_live_glob_multi_write(
+    relay_server, user, mock_run, backend_interface, mocker
+):
+    run = mock_run(use_magic_mock=True)
 
     mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 1)
     mocker.patch(
-        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", lambda self, size: 1
     )
 
-    with backend_interface() as interface:
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("checkpoints/*", "live")]})
-        mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
-        test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
-        test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
+        mkdir_exists_ok(os.path.join(run.dir, "checkpoints"))
+        test_file_1 = os.path.join(run.dir, "checkpoints", "test_1.txt")
+        test_file_2 = os.path.join(run.dir, "checkpoints", "test_2.txt")
         # To debug this test adds some prints to the dir_watcher.py _on_file_* handlers
         print("Wrote file 1")
         with open(test_file_1, "w") as f:
@@ -174,51 +98,56 @@ def test_save_live_glob_multi_write(mocked_run, mock_server, mocker, backend_int
             f.write("TEST TEST TEST TEST TEST TEST")
         print("Stopping backend")
 
-    print("Backend stopped")
-    print(
-        "CTX:", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
-    )
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
 
-    assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 3
-    assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
+    assert uploaded_files.count("checkpoints/test_1.txt") == 3
+    assert uploaded_files.count("checkpoints/test_2.txt") == 1
 
 
-def test_save_rename_file(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+def test_save_rename_file(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("test.txt", "live")]})
-        test_file = os.path.join(mocked_run.dir, "test.txt")
+        test_file = os.path.join(run.dir, "test.txt")
         with open(test_file, "w") as f:
             f.write("TEST TEST")
         # File system polling happens every second
         time.sleep(1.5)
         shutil.copy(test_file, test_file.replace("test.txt", "test-copy.txt"))
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
-    assert len(mock_server.ctx["storage?file=test-copy.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+
+    assert uploaded_files.count("test.txt") == 1
+    assert uploaded_files.count("test-copy.txt") == 1
 
 
-def test_save_end_write_after_policy(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+def test_save_end_write_after_policy(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("test.txt", "end")]})
-        with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
+        with open(os.path.join(run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("test.txt") == 1
 
 
-def test_save_end_existing_file(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
-        with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
+def test_save_end_existing_file(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
+        with open(os.path.join(run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
         interface.publish_files({"files": [("test.txt", "end")]})
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("test.txt") == 1
 
 
-def test_save_end_multi_write(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("test.txt", "end")]})
-        test_file = os.path.join(mocked_run.dir, "test.txt")
+        test_file = os.path.join(run.dir, "test.txt")
         with open(test_file, "w") as f:
             f.write("TEST TEST")
         # File system polling happens every second
@@ -226,31 +155,40 @@ def test_save_end_multi_write(mocked_run, mock_server, backend_interface):
         with open(test_file, "w") as f:
             f.write("TEST TEST TEST TEST")
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("test.txt") == 1
 
 
-def test_save_now_write_after_policy(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+@pytest.mark.xfail(reason="This test is flakey")
+def test_save_now_write_after_policy(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("test.txt", "now")]})
-        with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
+        with open(os.path.join(run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
+        time.sleep(1.5)
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("test.txt") == 1
 
 
-def test_save_now_existing_file(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
-        with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
+def test_save_now_existing_file(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
+        with open(os.path.join(run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
         interface.publish_files({"files": [("test.txt", "now")]})
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("test.txt") == 1
 
 
-def test_save_now_multi_write(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+@pytest.mark.xfail(reason="This test is flakey")
+def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("test.txt", "now")]})
-        test_file = os.path.join(mocked_run.dir, "test.txt")
+        test_file = os.path.join(run.dir, "test.txt")
         with open(test_file, "w") as f:
             f.write("TEST TEST")
         # File system polling happens every second
@@ -258,15 +196,17 @@ def test_save_now_multi_write(mocked_run, mock_server, backend_interface):
         with open(test_file, "w") as f:
             f.write("TEST TEST TEST TEST")
 
-    assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("test.txt") == 1
 
 
-def test_save_glob_multi_write(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("checkpoints/*", "now")]})
-        mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
-        test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
-        test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
+        mkdir_exists_ok(os.path.join(run.dir, "checkpoints"))
+        test_file_1 = os.path.join(run.dir, "checkpoints", "test_1.txt")
+        test_file_2 = os.path.join(run.dir, "checkpoints", "test_2.txt")
         print("Wrote file 1")
         with open(test_file_1, "w") as f:
             f.write("TEST TEST")
@@ -278,31 +218,33 @@ def test_save_glob_multi_write(mocked_run, mock_server, backend_interface):
         time.sleep(1.5)
         print("Stopping backend")
 
-    print("Backend stopped")
-    print(
-        "CTX", [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
-    )
-    assert len(mock_server.ctx["storage?file=checkpoints/test_1.txt"]) == 1
-    assert len(mock_server.ctx["storage?file=checkpoints/test_2.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("checkpoints/test_1.txt") == 1
+    assert uploaded_files.count("checkpoints/test_2.txt") == 1
 
 
-def test_save_now_relative_path(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+@pytest.mark.xfail(reason="This test is flakey")
+def test_save_now_relative_path(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         interface.publish_files({"files": [("foo/test.txt", "now")]})
-        test_file = os.path.join(mocked_run.dir, "foo", "test.txt")
+        test_file = os.path.join(run.dir, "foo", "test.txt")
         mkdir_exists_ok(os.path.dirname(test_file))
         with open(test_file, "w") as f:
             f.write("TEST TEST")
+        time.sleep(1.5)
 
-    print("DAMN DUDE", mock_server.ctx)
-    assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 1
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("foo/test.txt") == 1
 
 
-def test_save_now_twice(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
+@pytest.mark.xfail(reason="TODO: This test is flakey")
+def test_save_now_twice(relay_server, user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay, backend_interface(run) as interface:
         file_path = os.path.join("foo", "test.txt")
         interface.publish_files({"files": [(file_path, "now")]})
-        test_file = os.path.join(mocked_run.dir, file_path)
+        test_file = os.path.join(run.dir, file_path)
         mkdir_exists_ok(os.path.dirname(test_file))
         with open(test_file, "w") as f:
             f.write("TEST TEST")
@@ -310,192 +252,138 @@ def test_save_now_twice(mocked_run, mock_server, backend_interface):
         with open(test_file, "w") as f:
             f.write("TEST TEST TEST TEST")
         interface.publish_files({"files": [(file_path, "now")]})
+        time.sleep(1.5)
 
-    print("DAMN DUDE", mock_server.ctx)
-    assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2
-
-
-def test_output(mocked_run, mock_server, backend_interface):
-    with backend_interface() as interface:
-        for i in range(100):
-            interface.publish_output("stdout", "\rSome recurring line")
-        interface.publish_output("stdout", "\rFinal line baby\n")
-
-    print("DUDE!", mock_server.ctx)
-    stream = utils.first_filestream(mock_server.ctx)
-    assert "Final line baby" in stream["files"]["output.log"]["content"][0]
-
-
-def test_sync_spell_run(mocked_run, mock_server, backend_interface, parse_ctx):
-    try:
-        os.environ["SPELL_RUN_URL"] = "https://spell.run/foo"
-        with backend_interface() as interface:
-            pass
-        print("CTX", mock_server.ctx)
-        ctx = parse_ctx(mock_server.ctx)
-        assert ctx.config["_wandb"]["value"]["spell_url"] == "https://spell.run/foo"
-        # Check that we pinged spells API
-        assert mock_server.ctx["spell_data"] == {
-            "access_token": None,
-            "url": "{}/mock_server_entity/test/runs/{}".format(
-                mocked_run._settings.base_url, mocked_run.id
-            ),
-        }
-    finally:
-        del os.environ["SPELL_RUN_URL"]
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert uploaded_files.count("foo/test.txt") == 2
 
 
 def test_upgrade_upgraded(
-    mocked_run,
-    mock_server,
+    mock_run,
     backend_interface,
-    restore_version,
+    user,
 ):
-    wandb.__version__ = "0.0.6"
-    wandb.__hack_pypi_latest_version__ = "0.0.8"
-    with backend_interface(initial_run=False) as interface:
-        ret = interface.communicate_check_version()
-        assert ret
-        assert (
-            ret.upgrade_message
-            == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-        )
-        assert not ret.delete_message
-        assert not ret.yank_message
+    run = mock_run(use_magic_mock=True)
+    with backend_interface(run, initial_run=False) as interface:
+        with unittest.mock.patch.object(
+            wandb,
+            "__version__",
+            "0.0.6",
+        ), unittest.mock.patch.object(
+            wandb.sdk.internal.sender.update,
+            "_find_available",
+            lambda current_version: ("0.0.8", False, False, False, ""),
+        ):
+            ret = interface.communicate_check_version()
+            assert ret
+            assert (
+                ret.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+            )
+            assert not ret.delete_message
+            assert not ret.yank_message
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(mocked_run)
+        run_result = interface.communicate_run(run)
         assert run_result.HasField("error") is False
 
 
 def test_upgrade_yanked(
-    mocked_run,
-    mock_server,
+    mock_run,
     backend_interface,
-    restore_version,
+    user,
 ):
-    wandb.__version__ = "0.0.2"
-    wandb.__hack_pypi_latest_version__ = "0.0.8"
-    with backend_interface(initial_run=False) as interface:
-        ret = interface.communicate_check_version()
-        assert ret
-        assert (
-            ret.upgrade_message
-            == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-        )
-        assert not ret.delete_message
-        assert (
-            ret.yank_message
-            == "wandb version 0.0.2 has been recalled!  Please upgrade."
-        )
+    run = mock_run(use_magic_mock=True)
+    with backend_interface(run, initial_run=False) as interface:
+        with unittest.mock.patch.object(
+            wandb,
+            "__version__",
+            "0.0.2",
+        ), unittest.mock.patch.object(
+            wandb.sdk.internal.sender.update,
+            "_find_available",
+            lambda current_version: ("0.0.8", False, False, True, ""),
+        ):
+
+            ret = interface.communicate_check_version()
+            assert ret
+            assert (
+                ret.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+            )
+            assert not ret.delete_message
+            assert (
+                ret.yank_message
+                == "wandb version 0.0.2 has been recalled!  Please upgrade."
+            )
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(mocked_run)
+        run_result = interface.communicate_run(run)
         assert run_result.HasField("error") is False
 
 
 def test_upgrade_yanked_message(
-    mocked_run,
-    mock_server,
+    mock_run,
     backend_interface,
-    restore_version,
+    user,
 ):
-    wandb.__version__ = "0.0.3"
-    wandb.__hack_pypi_latest_version__ = "0.0.8"
-    with backend_interface(initial_run=False) as interface:
-        ret = interface.communicate_check_version()
-        assert ret
-        assert (
-            ret.upgrade_message
-            == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-        )
-        assert not ret.delete_message
-        assert (
-            ret.yank_message
-            == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
-        )
+    run = mock_run(use_magic_mock=True)
+    with backend_interface(run, initial_run=False) as interface:
+        with unittest.mock.patch.object(
+            wandb,
+            "__version__",
+            "0.0.3",
+        ), unittest.mock.patch.object(
+            wandb.sdk.internal.sender.update,
+            "_find_available",
+            lambda current_version: ("0.0.8", False, False, True, "just cuz"),
+        ):
+
+            ret = interface.communicate_check_version()
+            assert ret
+            assert (
+                ret.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+            )
+            assert not ret.delete_message
+            assert (
+                ret.yank_message
+                == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
+            )
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(mocked_run)
+        run_result = interface.communicate_run(run)
         assert run_result.HasField("error") is False
 
 
 def test_upgrade_removed(
-    mocked_run,
-    mock_server,
+    mock_run,
     backend_interface,
-    restore_version,
+    user,
 ):
-    wandb.__version__ = "0.0.4"
-    wandb.__hack_pypi_latest_version__ = "0.0.8"
-    with backend_interface(initial_run=False) as interface:
-        ret = interface.communicate_check_version()
-        assert ret
-        assert (
-            ret.upgrade_message
-            == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-        )
-        assert (
-            ret.delete_message
-            == "wandb version 0.0.4 has been retired!  Please upgrade."
-        )
-        assert not ret.yank_message
+    run = mock_run(use_magic_mock=True)
+    with backend_interface(run, initial_run=False) as interface:
+        with unittest.mock.patch.object(
+            wandb,
+            "__version__",
+            "0.0.4",
+        ), unittest.mock.patch.object(
+            wandb.sdk.internal.sender.update,
+            "_find_available",
+            lambda current_version: ("0.0.8", False, True, False, ""),
+        ):
+            ret = interface.communicate_check_version()
+            assert ret
+            assert (
+                ret.upgrade_message
+                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+            )
+            assert (
+                ret.delete_message
+                == "wandb version 0.0.4 has been retired!  Please upgrade."
+            )
+            assert not ret.yank_message
 
         # We need a run to cleanly shutdown backend
-        run_result = interface.communicate_run(mocked_run)
+        run_result = interface.communicate_run(run)
         assert run_result.HasField("error") is False
-
-
-# TODO: test other sender methods
-
-
-@pytest.mark.parametrize("empty_query", [True, False])
-@pytest.mark.parametrize("local_none", [True, False])
-@pytest.mark.parametrize("outdated", [True, False])
-def test_exit_poll_local(
-    publish_util, mock_server, collect_responses, empty_query, local_none, outdated
-):
-    mock_server.ctx["out_of_date"] = outdated
-    mock_server.ctx["empty_query"] = empty_query
-    mock_server.ctx["local_none"] = local_none
-    publish_util()
-
-    out_of_date = collect_responses.poll_exit_resp.local_info.out_of_date
-    if empty_query:
-        assert out_of_date
-    elif local_none:
-        assert not out_of_date
-    else:
-        assert out_of_date == outdated
-
-
-@pytest.mark.parametrize("messageLevel", ["a20", "None", ""])
-def test_server_response_message_malformed_level(
-    publish_util, mock_server, collect_responses, messageLevel
-):
-    mock_server.ctx["server_settings"] = True
-    mock_server.ctx["server_messages"] = [
-        {
-            "messageLevel": messageLevel,
-        },
-    ]
-    publish_util()
-    server_messages = collect_responses.poll_exit_resp.server_messages.item
-    assert len(server_messages) == 1
-    assert server_messages[0].level == INFO
-
-
-@pytest.mark.parametrize("messageLevel", ["30", 40])
-def test_server_response_message_level(
-    publish_util, mock_server, collect_responses, messageLevel
-):
-    mock_server.ctx["server_settings"] = True
-    mock_server.ctx["server_messages"] = [
-        {
-            "messageLevel": messageLevel,
-        },
-    ]
-    publish_util()
-    server_messages = collect_responses.poll_exit_resp.server_messages.item
-    assert len(server_messages) == 1
-    assert server_messages[0].level == int(messageLevel)
