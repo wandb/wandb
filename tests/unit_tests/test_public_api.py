@@ -16,8 +16,9 @@ def test_api_auto_login_no_tty():
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_base_url_sanitization():
-    api = Api({"base_url": "https://wandb.corp.net///"})
-    assert api.settings["base_url"] == "https://wandb.corp.net"
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        api = Api({"base_url": "https://wandb.corp.net///"})
+        assert api.settings["base_url"] == "https://wandb.corp.net"
 
 
 @pytest.mark.parametrize(
@@ -31,17 +32,19 @@ def test_base_url_sanitization():
 )
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_path(path):
-    user, project, run = Api()._parse_path(path)
-    assert user == "user"
-    assert project == "proj"
-    assert run == "run"
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        user, project, run = Api()._parse_path(path)
+        assert user == "user"
+        assert project == "proj"
+        assert run == "run"
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path():
-    enitty, project = Api()._parse_project_path("user/proj")
-    assert enitty == "user"
-    assert project == "proj"
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        enitty, project = Api()._parse_project_path("user/proj")
+        assert enitty == "user"
+        assert project == "proj"
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
@@ -95,8 +98,9 @@ def test_direct_specification_of_api_key():
 )
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_from_path_project_type(path):
-    project = Api().from_path(path)
-    assert isinstance(project, wandb.apis.public.Project)
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        project = Api().from_path(path)
+        assert isinstance(project, wandb.apis.public.Project)
 
 
 @pytest.mark.parametrize(
@@ -153,3 +157,11 @@ def test_run_from_tensorboard(runner, relay_server, user, api, copy_asset):
         uploaded_files = relay.context.get_run_uploaded_files(run_id)
         assert uploaded_files[0].endswith(tb_file_name)
         assert len(uploaded_files) == 17
+
+
+def test_override_base_url_passed_to_login():
+    base_url = "https://wandb.space"
+    with mock.patch.object(wandb, "login", mock.MagicMock()) as mock_login:
+        api = wandb.Api(api_key=None, overrides={"base_url": base_url})
+        assert mock_login.call_args[1]["host"] == base_url
+        assert api.settings["base_url"] == base_url
