@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import subprocess
@@ -222,6 +223,18 @@ def test_sweep_pause(runner, mock_server, test_settings, stop_method):
 
 def test_sweep_scheduler(runner, mock_server, test_settings):
     with runner.isolated_filesystem():
+        with open("mock_launch_config.json", "w") as f:
+            json.dump(
+                {
+                    "queue": "default",
+                    "resource": "local-process",
+                    "job": "mock-launch-job",
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
+                },
+                f,
+            )
         sweep_config = {
             "name": "My Sweep",
             "method": "grid",
@@ -232,7 +245,7 @@ def test_sweep_scheduler(runner, mock_server, test_settings):
         assert (
             runner.invoke(
                 cli.sweep,
-                ["--queue", "default", "--job", "mock_job_artifact", sweep_id],
+                ["--launch_config", "mock_launch_config.json", sweep_id],
             ).exit_code
             == 0
         )
