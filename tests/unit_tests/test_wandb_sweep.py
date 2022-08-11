@@ -4,63 +4,16 @@ from typing import Any, Dict
 import pytest
 import wandb
 
-# Sweep configs used for testing
-SWEEP_CONFIG_GRID: Dict[str, Any] = {
-    "name": "mock-sweep-grid",
-    "method": "grid",
-    "parameters": {"param1": {"values": [1, 2, 3]}},
-}
-SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
-    "name": "mock-sweep-grid-nested",
-    "method": "grid",
-    "parameters": {"parameter1": {"values": [1, 2, 3]}},
-}
-SWEEP_CONFIG_GRID_HYPERBAND: Dict[str, Any] = {
-    "name": "mock-sweep-grid-hyperband",
-    "method": "grid",
-    "early_terminate": {
-        "type": "hyperband",
-        "max_iter": 27,
-        "s": 2,
-        "eta": 3,
-    },
-    "metric": {"name": "metric1", "goal": "maximize"},
-    "parameters": {"param1": {"values": [1, 2, 3]}},
-}
-SWEEP_CONFIG_BAYES: Dict[str, Any] = {
-    "name": "mock-sweep-bayes",
-    "method": "bayes",
-    "metric": {"name": "metric1", "goal": "maximize"},
-    "parameters": {"param1": {"values": [1, 2, 3]}},
-}
-SWEEP_CONFIG_BAYES_NESTED: Dict[str, Any] = {
-    "name": "mock-sweep-bayes",
-    "method": "bayes",
-}
-SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
-    "name": "mock-sweep-random",
-    "method": "random",
-}
+from .assets.sweep_configs import get_valid_sweep_configs, get_invalid_sweep_configs
 
-# Convenience lists of sweep configs
-_LIST_SWEEP_CONFIGS = [
-    SWEEP_CONFIG_GRID,
-    SWEEP_CONFIG_GRID_NESTED,
-    SWEEP_CONFIG_GRID_HYPERBAND,
-    SWEEP_CONFIG_BAYES,
-    SWEEP_CONFIG_BAYES_NESTED,
-    SWEEP_CONFIG_RANDOM,
-]
-
-
-@pytest.mark.parametrize("sweep_config", _LIST_SWEEP_CONFIGS)
+@pytest.mark.parametrize("sweep_config", get_valid_sweep_configs())
 def test_sweep_create(relay_server, sweep_config):
     with relay_server() as relay:
         sweep_id = wandb.sweep(sweep_config)
     assert sweep_id in relay.context.entries
 
 
-@pytest.mark.parametrize("sweep_config", _LIST_SWEEP_CONFIGS)
+@pytest.mark.parametrize("sweep_config", get_valid_sweep_configs())
 def test_sweep_entity_project_callable(user, relay_server, sweep_config):
     def sweep_callable():
         return sweep_config
