@@ -254,41 +254,39 @@ def test_launch_no_docker_exec(
 
 
 def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "grid",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-    sweep_config_path = os.path.expanduser("sweep-config.yaml")
     with runner.isolated_filesystem():
-        with open(sweep_config_path, "w") as f:
-            json.dump(sweep_config, f)
+        with open("sweep-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "name": "My Sweep",
+                    "method": "grid",
+                    "parameters": {"parameter1": {"values": [1, 2, 3]}},
+                },
+                f,
+            )
+        with open("launch-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "queue": "default",
+                    "resource": "local-process",
+                    "job": "mock-launch-job",
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
+                },
+                f,
+            )
         result = runner.invoke(
             cli.sweep,
             [
-                sweep_config_path,
-                "--queue",
-                "default",
-                "--job",
-                "mock_job_artifact",
+                "sweep-config.yaml",
+                "--launch_config",
+                "launch-config.yaml",
                 "--entity",
                 "mock_server_entity",
             ],
         )
         assert result.exit_code == 0
-        # If no --job is specified this should error out
-        result = runner.invoke(
-            cli.sweep,
-            [
-                sweep_config_path,
-                "--queue",
-                "default",
-                "--entity",
-                "mock_server_entity",
-            ],
-        )
-        assert result.exit_code != 0
-        assert "Must specify --job flag" in result.output
 
 
 @pytest.mark.timeout(320)
