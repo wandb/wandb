@@ -1246,6 +1246,7 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
+        row = row.copy()
         if row:
             row = self._visualization_hack(row)
             now = time.time()
@@ -2155,7 +2156,7 @@ class Run:
                 "artifact": f"wandb-artifact://_id/{artifact_client_id}",
                 "entrypoint": [
                     sys.executable.split("/")[-1],
-                    self._settings.program,
+                    self._settings.program_relpath,
                 ],
             },
             "input_types": input_types,
