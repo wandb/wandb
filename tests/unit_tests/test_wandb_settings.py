@@ -139,6 +139,54 @@ def test_property_strict_validation(capsys):
     assert msg in captured
 
 
+def test_settings_validator_method_names():
+    # settings validator methods should be named `_validate_<setting_name>`
+    s = wandb.Settings()
+    prefix = "_validate_"
+    symbols = set(dir(s))
+    validator_methods = tuple(m for m in symbols if m.startswith(prefix))
+
+    assert all(tuple(m.split(prefix)[1] in symbols for m in validator_methods))
+
+
+def test_settings_modification_order():
+    # settings should be modified in the order that respects the dependencies
+    # between settings manifested in validator methods and runtime hooks.
+    # run it a few times as DFS-based topological sort may produce different valid orderings
+    for _ in range(100):
+        s = wandb.Settings()
+        modification_order = s._Settings__modification_order
+        assert (
+            modification_order.index("base_url")
+            < modification_order.index("is_local")
+            < modification_order.index("api_key")
+        )
+
+
+def test_settings_detect_cycle_in_dependencies():
+    # settings should detect cycles in dependencies between settings
+
+    def _mock_default_props(self):
+        props = dict(
+            api_key={"validator": self._validate_api_key},
+            base_url={
+                "hook": lambda _: "https://localhost"
+                if self.is_local
+                else "https://api.wandb.ai",
+                "auto_hook": True,
+            },
+            is_local={
+                "hook": lambda _: self.base_url is not None,
+                "auto_hook": True,
+            },
+        )
+        return props
+
+    with mock.patch.object(Settings, "_default_props", _mock_default_props):
+        with pytest.raises(wandb.UsageError):
+            wandb.Settings()
+
+
 def test_property_update():
     p = Property(name="foo", value=1)
     p.update(value=2)
