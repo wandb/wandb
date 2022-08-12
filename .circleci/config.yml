@@ -433,7 +433,7 @@ jobs:
         type: boolean
         default: false
     machine:
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
     resource_class: large
     steps:
