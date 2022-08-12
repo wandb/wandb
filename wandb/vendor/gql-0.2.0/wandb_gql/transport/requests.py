@@ -35,7 +35,6 @@ class RequestsHTTPTransport(HTTPTransport):
             'timeout': timeout or self.default_timeout,
             data_key: payload
         }
-        print(post_args, flush=True)
         request = requests.post(self.url, **post_args)
         request.raise_for_status()
 
