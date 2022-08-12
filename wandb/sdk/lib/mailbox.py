@@ -21,12 +21,27 @@ def _generate_address(length: int = 12) -> str:
 class _MailboxSlot:
     _result: Optional[pb.Result]
     _event: threading.Event
+    _lock: threading.Lock
     _address: str
 
     def __init__(self, address: str) -> None:
         self._result = None
         self._event = threading.Event()
+        self._lock = threading.Lock()
         self._address = address
+
+    def _get_and_clear(self, timeout: float) -> Optional[pb.Result]:
+        found = None
+        with self._lock:
+            if self._event.wait(timeout=timeout):
+                found = self._result
+                self._event.clear()
+        return found
+
+    def _deliver(self, result: pb.Result) -> None:
+        with self._lock:
+            self._result = result
+            self._event.set()
 
 
 class MailboxProgressHandle:
@@ -58,8 +73,8 @@ class MailboxHandle:
         start_time = time.time()
         percent_done = 0.0
         while True:
-            if self._slot._event.wait(timeout=1):
-                found = self._slot._result
+            found = self._slot._get_and_clear(timeout=1)
+            if found:
                 break
             now = time.time()
             if timeout is not None:
@@ -93,8 +108,7 @@ class Mailbox:
         slot = self._slots.get(mailbox)
         if not slot:
             return
-        slot._result = result
-        slot._event.set()
+        slot._deliver(result)
 
     def _allocate_slot(self) -> _MailboxSlot:
         address = _generate_address()
