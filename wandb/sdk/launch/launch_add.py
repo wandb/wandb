@@ -5,10 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
-from wandb.sdk.launch._project_spec import (
-    create_project_from_spec,
-    LaunchType,
-)
+from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -171,7 +168,7 @@ def _launch_add(
 
         launch_project = create_project_from_spec(launch_spec, api)
         docker_image_uri = build_image_from_project(launch_project, api)
-        run = wandb.run or wandb.init(project=project, job_type=LaunchType.JOB)
+        run = wandb.run or wandb.init(project=project, job_type="launch_job")
 
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
         job_name = job_artifact.wait().name
