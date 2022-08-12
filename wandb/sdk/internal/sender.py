@@ -729,6 +729,7 @@ class SendManager:
         run = record.run
         error = None
         is_wandb_init = self._run is None
+
         # save start time of a run
         self._start_time = run.start_time.ToMicroseconds() / 1e6
 
@@ -750,10 +751,10 @@ class SendManager:
             # Only check resume status on `wandb.init`
             error = self._maybe_setup_resume(run)
 
-        result = proto_util._result_from_record(record)
         if error is not None:
             if record.control.req_resp or record.control.mailbox_slot:
-                result.run_result.run.CopyFrom(record.run)
+                result = proto_util._result_from_record(record)
+                result.run_result.run.CopyFrom(run)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
             else:
@@ -782,10 +783,10 @@ class SendManager:
         assert self._run  # self._run is configured in _init_run()
 
         if record.control.req_resp or record.control.mailbox_slot:
+            result = proto_util._result_from_record(record)
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
-            assert self._run  # TODO: is this right
             result.run_result.run.CopyFrom(self._run)
             self._respond_result(result)
 
