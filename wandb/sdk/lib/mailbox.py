@@ -19,7 +19,7 @@ def _generate_address(length: int = 12) -> str:
 
 
 class MailboxSlot:
-    _mailbox: "Mailbox"
+    _mailbox: Optional["Mailbox"]
     _result: Optional[pb.Result]
     _event: threading.Event
     _address: str
@@ -31,25 +31,34 @@ class MailboxSlot:
         self._event = threading.Event()
 
     def wait(
-        self, timeout: Optional[float] = None, on_progress: Callable[[], None] = None
+        self,
+        timeout: Optional[float] = None,
+        on_progress: Callable[[], None] = None,
+        release: bool = True,
     ) -> Optional[pb.Result]:
-
+        found: Optional[pb.Result] = None
         start_time = time.time()
         while True:
             if self._event.wait(timeout=1):
-                self.release()
-                return self._result
+                found = self._result
+                break
             if timeout is not None:
                 now = time.time()
                 if now > start_time + timeout:
                     break
             if on_progress:
                 on_progress()
-        self.release()
-        return None
+        if release:
+            self.release()
+        return found
 
     def release(self) -> None:
-        self._mailbox.release_slot(self._address)
+        if self._mailbox:
+            self._mailbox.release_slot(self._address)
+
+    def _forget(self) -> None:
+        # remove circular reference so child slot can be gc'ed
+        self._mailbox = None
 
 
 class Mailbox:
@@ -73,4 +82,6 @@ class Mailbox:
         return slot
 
     def release_slot(self, address: str) -> None:
-        self._slots.pop(address, None)
+        found = self._slots.pop(address, None)
+        if found:
+            found._forget()
