@@ -164,7 +164,7 @@ class Backend:
 
             svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
             stub = svc_iface_grpc._get_stub()
-            grpc_interface = InterfaceGrpc()
+            grpc_interface = InterfaceGrpc(mailbox=self._mailbox)
             grpc_interface._connect(stub=stub)
             self.interface = grpc_interface
         else:

@@ -16,7 +16,7 @@ from wandb.proto import wandb_telemetry_pb2 as tpb
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .message_future_poll import MessageFuturePoll
-from ..lib.mailbox import MailboxHandle
+from ..lib.mailbox import Mailbox, MailboxHandle
 
 
 if TYPE_CHECKING:
@@ -27,15 +27,16 @@ logger = logging.getLogger("wandb")
 
 
 class InterfaceGrpc(InterfaceBase):
-
     _stub: Optional[pbgrpc.InternalServiceStub]
     _stream_id: Optional[str]
+    _mailbox: Mailbox
 
-    def __init__(self) -> None:
+    def __init__(self, mailbox: Mailbox) -> None:
         super().__init__()
         self._stub = None
         self._process_check = None
         self._stream_id = None
+        self._mailbox = mailbox
 
     def _hack_set_run(self, run: "Run") -> None:
         super()._hack_set_run(run)
@@ -292,8 +293,22 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(resume)
         _ = self._stub.Resume(resume)
 
+    def _deliver(self, result: pb.Result) -> MailboxHandle:
+        # TODO: rework grpc implementation to be asynchronous?
+        # for now we will just emulate the mailbox protocol
+        handle = self._mailbox.get_handle()
+        mailbox_slot = handle.address
+        result.control.mailbox_slot = mailbox_slot
+        self._mailbox.deliver(result)
+        return handle
+
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
-        raise RuntimeError("Implement me")
+        assert self._stub
+        self._assign(run)
+        run_result = self._stub.RunUpdate(run)
+        result = pb.Result(run_result=run_result)
+        handle = self._deliver(result)
+        return handle
 
     def join(self) -> None:
         super().join()
