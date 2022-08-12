@@ -33,7 +33,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.utils import construct_launch_spec, check_logged_in
+from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
