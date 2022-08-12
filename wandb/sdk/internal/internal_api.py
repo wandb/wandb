@@ -179,7 +179,6 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                # auth=("api", self.api_key or ""),
                 url=f"{self.settings('base_url')}/graphql",
                 cookies=_thread_local_api_settings.cookies,
             )

@@ -918,7 +918,6 @@ class WandbStoragePolicy(StoragePolicy):
 
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
-            # auth=("api", self._api.api_key),
             stream=True,
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
