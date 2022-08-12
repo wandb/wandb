@@ -7,6 +7,7 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
+import click
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
@@ -42,6 +43,7 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
+LOG_PREFIX = f"{click.style('launch:', fg='magenta')}: "
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -99,7 +101,7 @@ def set_project_entity_defaults(
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog(f"{prefix}Launching run into {entity}/{project}")
+    wandb.termlog(f"{LOG_PREFIX}{prefix}Launching run into {entity}/{project}")
     return project, entity
 
 
@@ -187,6 +189,8 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 
     if not bool(uri) and not bool(job) and not bool(docker_image):
         raise LaunchError("Must specify a uri, job or docker image")
+    elif bool(uri) and bool(docker_image):
+        raise LaunchError("Found both uri and docker-image, only one can be set")
     elif sum(map(bool, [uri, job, docker_image])) > 1:
         raise LaunchError("Must specify exactly one of uri, job or image")
 
