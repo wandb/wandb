@@ -33,7 +33,7 @@ from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
-from wandb.sdk.launch.utils import construct_launch_spec
+from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
 
 # from wandb.old.core import wandb_dir
@@ -1189,6 +1189,8 @@ def launch(
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
 
+    check_logged_in(api)
+
     run_id = config.get("run_id")
 
     if queue is None:
@@ -1293,6 +1295,8 @@ def launch_agent(
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
+
+    check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
     wandb_launch.create_and_run_agent(api, agent_config)

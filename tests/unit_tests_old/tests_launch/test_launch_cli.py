@@ -307,7 +307,7 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
 
 
 @pytest.mark.timeout(320)
-def test_launch_local_dir(runner):
+def test_launch_local_dir(runner, live_mock_server):
     with runner.isolated_filesystem():
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
@@ -368,6 +368,7 @@ def test_launch_supplied_docker_image(
             ],
         )
 
+    print(result)
     assert result.exit_code == 0
     assert "-e WANDB_DOCKER=test:tag" in result.output
     assert " -e WANDB_CONFIG='{}'" in result.output
@@ -376,7 +377,9 @@ def test_launch_supplied_docker_image(
 
 
 @pytest.mark.timeout(320)
-def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
+def test_launch_cuda_flag(
+    runner, live_mock_server, monkeypatch, mocked_fetchable_git_repo
+):
     args = [
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entry-point",
@@ -499,9 +502,25 @@ def test_launch_build_push_job(
     assert len(str(result.output).split("job")[1].split("overrides")[0]) > 6
 
 
+def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
+    args = [
+        "https://wandb.ai/mock_server_entity/test_project/runs/run",
+        "--entity",
+        "mock_server_entity",
+        "--queue",
+    ]
+    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
+    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args)
+
+        assert "Could not connect with current API-key." in result.output
+
+
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
+    live_mock_server,
 ):
     run_id = "test_run_id"
     run_name = "test_run_name"
@@ -514,7 +533,8 @@ def test_launch_name_run_id_environment_variable(
         "--name",
         run_name,
     ]
-    result = runner.invoke(cli.launch, args)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args)
 
     assert f"WANDB_RUN_ID={run_id}" in str(result.output)
     assert f"WANDB_NAME={run_name}" in str(result.output)
