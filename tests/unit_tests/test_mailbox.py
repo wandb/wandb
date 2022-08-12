@@ -1,8 +1,5 @@
-import pytest
-import time
-
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.lib.mailbox import Mailbox, MailboxHandle
+from wandb.sdk.lib.mailbox import Mailbox
 
 
 def get_test_setup():
