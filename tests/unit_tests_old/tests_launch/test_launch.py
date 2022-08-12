@@ -1547,3 +1547,28 @@ def test_launch_git_version_default_main(
     )
 
     assert "main" in str(mock_with_run_info.args[0].git_version)
+
+
+def test_launch_build_on_queue(
+    monkeypatch, live_mock_server, mocked_fetchable_git_repo, mock_load_backend
+):
+    # Do we need to mock job creation?
+    def job_patch(_, name):
+        if name == "mnist:v2":
+            return mock.Mock()
+        return None
+
+    monkeypatch.setattr("wandb.apis.public.Api.job", job_patch)
+    monkeypatch.setattr("wandb.apis.public.Job.__init__", None)
+    kwargs = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "queue": "default",
+        "job": "overwrite me pls",
+        "build": True,
+    }
+    live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
+    queued_run = launch_add(**kwargs)
+    run = queued_run.wait_until_finished()
+    assert isinstance(run, Run)
