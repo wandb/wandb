@@ -10,10 +10,15 @@ from typing import Any, List, Optional
 
 import wandb
 from wandb import wandb_lib  # type: ignore
-from wandb.errors import SweepError
+from wandb.sdk.launch.sweeps import SchedulerError
+from wandb.sdk.launch.sweeps.scheduler import (
+    LOG_PREFIX,
+    Scheduler,
+    SchedulerState,
+    SimpleRunState,
+    SweepRun,
+)
 from wandb.wandb_agent import Agent as LegacySweepAgent
-
-from .scheduler import LOG_PREFIX, Scheduler, SchedulerState, SimpleRunState, SweepRun
 
 logger = logging.getLogger(__name__)
 
@@ -46,22 +51,23 @@ class SweepScheduler(Scheduler):
             sweep_id, "{}", entity=self._entity, project=self._project
         )
         if not found:
-            raise SweepError(
+            raise SchedulerError(
                 f"{LOG_PREFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
             )
         self._sweep_id = sweep_id
+        # Threading is used to run multiple workers in parallel
         self._num_workers: int = num_workers
         self._heartbeat_thread_sleep: float = heartbeat_thread_sleep
         self._heartbeat_queue_timeout: float = heartbeat_queue_timeout
         self._main_thread_sleep: float = main_thread_sleep
-
-    def _start(self) -> None:
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue
         self._heartbeat_queue: "queue.Queue[SweepRun]" = queue.Queue()
         # Emulation of N agents in a classic sweeps setup
         self._heartbeat_agents: List[HeartbeatAgent] = []
+
+    def _start(self) -> None:
         for worker_idx in range(self._num_workers):
             logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_idx}\n")
             _agent = self._api.register_agent(
@@ -108,6 +114,11 @@ class SweepScheduler(Scheduler):
                         self.state = SchedulerState.COMPLETED
                         self.exit()
                         return
+                    if _type == "stop":
+                        # TODO(hupo): Debug edge cases while stopping with active runs
+                        self.state = SchedulerState.COMPLETED
+                        self.exit()
+                        return
                     run = SweepRun(
                         id=command.get("run_id"),
                         args=command.get("args"),
@@ -118,8 +129,6 @@ class SweepScheduler(Scheduler):
                         self._runs[run.id] = run
                     if _type in ["run", "resume"]:
                         self._heartbeat_queue.put(run)
-                    elif _type == "stop":
-                        self._stop_run(run.id)
                         continue
             time.sleep(self._heartbeat_thread_sleep)
 

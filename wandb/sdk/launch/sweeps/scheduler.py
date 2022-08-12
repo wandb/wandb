@@ -23,7 +23,7 @@ class SchedulerState(Enum):
     RUNNING = 2
     COMPLETED = 3
     FAILED = 4
-    CANCELLED = 5
+    STOPPED = 5
 
 
 class SimpleRunState(Enum):
@@ -112,7 +112,7 @@ class Scheduler(ABC):
         if self.state in [
             SchedulerState.COMPLETED,
             SchedulerState.FAILED,
-            SchedulerState.CANCELLED,
+            SchedulerState.STOPPED,
         ]:
             return False
         return True
@@ -145,7 +145,7 @@ class Scheduler(ABC):
             _msg = f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self.state = SchedulerState.CANCELLED
+            self.state = SchedulerState.STOPPED
             self.exit()
             return
         except Exception as e:
@@ -165,7 +165,7 @@ class Scheduler(ABC):
         self._exit()
         if self.state not in [
             SchedulerState.COMPLETED,
-            SchedulerState.CANCELLED,
+            SchedulerState.STOPPED,
         ]:
             self.state = SchedulerState.FAILED
         for run_id, _ in self._yield_runs():
@@ -220,8 +220,7 @@ class Scheduler(ABC):
             resource_args=self._resource_args,
             run_id=run_id,
         )
-        with self._threading_lock:
-            self._runs[run_id].queued_run = queued_run
+        self._runs[run_id].queued_run = queued_run
         _msg = f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
@@ -231,7 +230,6 @@ class Scheduler(ABC):
         _msg = f"{LOG_PREFIX}Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
-        with self._threading_lock:
-            run = self._runs.get(run_id, None)
-            if run is not None:
-                run.state = SimpleRunState.DEAD
+        run = self._runs.get(run_id, None)
+        if run is not None:
+            run.state = SimpleRunState.DEAD
