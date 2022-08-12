@@ -18,7 +18,7 @@ def _generate_address(length: int = 12) -> str:
     return address
 
 
-class MailboxSlot:
+class _MailboxSlot:
     _result: Optional[pb.Result]
     _event: threading.Event
     _address: str
@@ -42,9 +42,9 @@ class MailboxProgressHandle:
 
 class MailboxHandle:
     _mailbox: "Mailbox"
-    _slot: MailboxSlot
+    _slot: _MailboxSlot
 
-    def __init__(self, mailbox: "Mailbox", slot: MailboxSlot) -> None:
+    def __init__(self, mailbox: "Mailbox", slot: _MailboxSlot) -> None:
         self._mailbox = mailbox
         self._slot = slot
 
@@ -83,7 +83,7 @@ class MailboxHandle:
 
 
 class Mailbox:
-    _slots: Dict[str, MailboxSlot]
+    _slots: Dict[str, _MailboxSlot]
 
     def __init__(self) -> None:
         self._slots = {}
@@ -96,9 +96,9 @@ class Mailbox:
         slot._result = result
         slot._event.set()
 
-    def _allocate_slot(self) -> MailboxSlot:
+    def _allocate_slot(self) -> _MailboxSlot:
         address = _generate_address()
-        slot = MailboxSlot(address=address)
+        slot = _MailboxSlot(address=address)
         self._slots[address] = slot
         return slot
 
