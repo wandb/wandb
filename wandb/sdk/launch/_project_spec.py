@@ -295,11 +295,13 @@ class LaunchProject:
                     raise LaunchError(
                         "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
                     )
-                utils._fetch_git_repo(
+                branch_name = utils._fetch_git_repo(
                     self.project_dir,
                     run_info["git"]["remote"],
                     run_info["git"]["commit"],
                 )
+                if self.git_version is None:
+                    self.git_version = branch_name
                 patch = utils.fetch_project_diff(
                     source_entity, source_project, source_run_name, internal_api
                 )
@@ -365,7 +367,11 @@ class LaunchProject:
                     f"{LOG_PREFIX}Entry point for repo not specified, defaulting to python main.py"
                 )
                 self.add_entry_point(["python", "main.py"])
-            utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
+            branch_name = utils._fetch_git_repo(
+                self.project_dir, self.uri, self.git_version
+            )
+            if self.git_version is None:
+                self.git_version = branch_name
 
 
 class EntryPoint:
