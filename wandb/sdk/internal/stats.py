@@ -10,6 +10,7 @@ import wandb
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
+from . import ipu
 from . import tpu
 from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
@@ -94,6 +95,14 @@ class SystemStats:
                 self._tpu_profiler = tpu.get_profiler()
             except Exception as e:
                 wandb.termlog("Error initializing TPUProfiler: " + str(e))
+
+        self._ipu_profiler = None
+
+        if ipu.is_ipu_available():
+            try:
+                self._ipu_profiler = ipu.IPUProfiler(self._pid)
+            except Exception as e:
+                wandb.termlog("Error initializing IPUProfiler: " + str(e))
 
     def start(self) -> None:
         if self._thread is None:
@@ -270,4 +279,7 @@ class SystemStats:
             tpu_utilization = self._tpu_profiler.get_tpu_utilization()
             if tpu_utilization is not None:
                 stats["tpu"] = tpu_utilization
+
+        if self._ipu_profiler:
+            stats.update(self._ipu_profiler.get_metrics())
         return stats

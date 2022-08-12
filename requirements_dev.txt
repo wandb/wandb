@@ -1,7 +1,5 @@
 pytest
 coverage
-tox==3.24.0
-pip
 Pillow
 pandas
 matplotlib!=3.5.2
@@ -42,3 +40,5 @@ rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.mac
 .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
 cloudpickle
+responses
+kfp

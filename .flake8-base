@@ -8,13 +8,18 @@ exclude =
     __pycache__
     build/
     dist/
-    tests/
     codemod/
     *.pyc
     *.egg-info
     .cache
     .eggs
-    ./functional_tests/metaflow/
+    ./tests/conftest.py
+    ./tests/assets/fixtures/train.py
+    ./tests/utils/
+    ./tests/logs/
+    ./tests/unit_tests_old/
+    ./tests/functional_tests/t0_main/metaflow/
+    ./tests/functional_tests/t0_main/fastai/t1_v1.py
     ./wandb/__init__.py
     ./wandb/wandb_torch.py
     ./wandb/bin

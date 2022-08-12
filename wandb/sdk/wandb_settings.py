@@ -605,6 +605,10 @@ class Settings:
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
             resumed={"value": "False", "preprocessor": _str_as_bool},
+            root_dir={
+                "preprocessor": lambda x: str(x),
+                "value": os.path.abspath(os.getcwd()),
+            },
             run_mode={
                 "hook": lambda _: "offline-run" if self._offline else "run",
                 "auto_hook": True,
@@ -1072,10 +1076,6 @@ class Settings:
         # setup private attributes
         object.__setattr__(self, "_Settings_start_datetime", None)
         object.__setattr__(self, "_Settings_start_time", None)
-
-        if os.environ.get(wandb.env.DIR) is None:
-            # todo: double-check source, shouldn't it be Source.ENV?
-            self.update({"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE)
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True

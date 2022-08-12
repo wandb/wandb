@@ -9,14 +9,14 @@ Example usage:
 import wandb
 from wandb.integration.prodigy import upload_dataset
 
-run = wandb.init(project='prodigy')
+run = wandb.init(project="prodigy")
 upload_dataset("name_of_dataset")
 wandb.finish()
 ```
 """
 
 import base64
-import collections
+import collections.abc
 from copy import deepcopy
 import io
 import urllib
@@ -31,7 +31,7 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 def named_entity(docs):
     """Creates a named entity visualization.
-    Taken from https://github.com/wandb/client/blob/master/wandb/plots/named_entity.py
+    Taken from https://github.com/wandb/wandb/blob/master/wandb/plots/named_entity.py
     """
 
     spacy = util.get_module(
@@ -58,7 +58,7 @@ def merge(dict1, dict2):
     result = deepcopy(dict1)
 
     for key, value in dict2.items():
-        if isinstance(value, collections.Mapping):
+        if isinstance(value, collections.abc.Mapping):
             result[key] = merge(result.get(key, {}), value)
         else:
             result[key] = deepcopy(dict2[key])

@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import hashlib
+import json
 import os
 import pathlib
 import re
@@ -9,6 +10,7 @@ import tempfile
 import time
 from typing import (
     Any,
+    cast,
     Dict,
     Generator,
     IO,
@@ -77,6 +79,16 @@ class _AddedObj:
         self.obj = obj
 
 
+def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise TypeError(f"metadata must be dict, not {type(metadata)}")
+    return cast(
+        Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
+    )
+
+
 class Artifact(ArtifactInterface):
     """
     Flexible and lightweight building block for dataset and model versioning.
@@ -139,6 +151,7 @@ class Artifact(ArtifactInterface):
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
                 'Invalid name: "%s"' % name
             )
+        metadata = _normalize_metadata(metadata)
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
         storage_layout = StorageLayout.V2
@@ -164,7 +177,7 @@ class Artifact(ArtifactInterface):
         self._type = type
         self._name = name
         self._description = description
-        self._metadata = metadata or {}
+        self._metadata = metadata
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
@@ -290,6 +303,7 @@ class Artifact(ArtifactInterface):
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
+        metadata = _normalize_metadata(metadata)
         if self._logged_artifact:
             self._logged_artifact.metadata = metadata
             return

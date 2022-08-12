@@ -167,6 +167,8 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeName"] = resource_args.get("node_name")
         if resource_args.get("node_selectors"):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        if resource_args.get("tolerations"):
+            pod_spec["tolerations"] = resource_args.get("tolerations")
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -233,6 +235,13 @@ class KubernetesRunner(AbstractRunner):
         )
         return pod_names
 
+    def get_namespace(
+        self, resource_args: Dict[str, Any]
+    ) -> Optional[str]:  # noqa: C901
+        return self.backend_config.get("runner", {}).get(
+            "namespace"
+        ) or resource_args.get("namespace")
+
     def run(
         self,
         launch_project: LaunchProject,
@@ -272,13 +281,10 @@ class KubernetesRunner(AbstractRunner):
         # begin pulling resource arg overrides. all of these are optional
 
         # allow top-level namespace override, otherwise take namespace specified at the job level, or default in current context
-        default = (
+        default_namespace = (
             context["context"].get("namespace", "default") if context else "default"
         )
-        namespace = resource_args.get(
-            "namespace",
-            job_metadata.get("namespace", default),
-        )
+        namespace = self.get_namespace(resource_args) or default_namespace
 
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))

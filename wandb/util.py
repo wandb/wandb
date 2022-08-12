@@ -3,7 +3,7 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import errno
 import functools
 import gzip
@@ -55,6 +55,8 @@ import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
 import yaml
+
+CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -887,16 +889,64 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
-def check_retry_commit_artifact(e: Any) -> bool:
+def check_retry_conflict(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict type so it can be retried.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
     if hasattr(e, "exception"):
         e = e.exception
-    if (
-        isinstance(e, requests.HTTPError)
-        and e.response is not None
-        and e.response.status_code == 409
-    ):
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+    return None
+
+
+def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict or gone type so it can be retried or not.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+        if e.response.status_code == 410:
+            return False
+    return None
+
+
+def make_check_retry_fn(
+    fallback_retry_fn: CheckRetryFnType,
+    check_fn: Callable[[Exception], Optional[bool]],
+    check_timedelta: Optional[timedelta] = None,
+) -> CheckRetryFnType:
+    """Return a check_retry_fn which can be used by lib.Retry().
+
+    Arguments:
+        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
+        check_fn: Function which returns bool if retry should happen or None if unsure.
+        check_timedelta: Optional retry timeout if we check_fn matches the exception
+    """
+
+    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
+        check = check_fn(e)
+        if check is None:
+            return fallback_retry_fn(e)
+        if check is False:
+            return False
+        if check_timedelta:
+            return check_timedelta
         return True
-    return no_retry_auth(e)
+
+    return check_retry_fn
 
 
 def find_runner(program: str) -> Union[None, list, List[str]]:
@@ -1102,7 +1152,9 @@ def async_call(target: Callable, timeout: Optional[int] = None) -> Callable:
     return wrapper
 
 
-def read_many_from_queue(q: "queue.Queue", max_items: int, queue_timeout: int) -> list:
+def read_many_from_queue(
+    q: "queue.Queue", max_items: int, queue_timeout: Union[int, float]
+) -> list:
     try:
         item = q.get(True, queue_timeout)
     except queue.Empty:

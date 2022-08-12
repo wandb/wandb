@@ -1,3 +1,4 @@
+import datetime
 import os
 import platform
 import random
@@ -7,18 +8,13 @@ import tempfile
 import time
 from unittest import mock
 
-import pytest
-
-import wandb
-
-import tensorflow as tf
-
 import matplotlib.pyplot as plt
-import numpy
+import numpy as np
 import plotly
+import pytest
 import requests
-
-from tests import utils
+import tensorflow as tf
+import wandb
 from wandb import util
 
 try:
@@ -27,14 +23,15 @@ except ImportError:
     pass
 
 
+###############################################################################
+# Test util.json_friendly
+###############################################################################
+
+
 def pt_variable(nested_list, requires_grad=True):
     v = torch.autograd.Variable(torch.Tensor(nested_list))
     v.requires_grad = requires_grad
     return v
-
-
-def r():
-    return random.random()
 
 
 def nested_list(*shape):
@@ -44,120 +41,98 @@ def nested_list(*shape):
     if not shape:
         # reduce precision so we can use == for comparison regardless
         # of conversions between other libraries
-        return [float(numpy.float16(random.random()))]
+        return [float(np.float16(random.random()))]
     else:
         return [nested_list(*shape[1:]) for _ in range(shape[0])]
 
 
+def assert_deep_lists_equal(a, b, indices=None):
+    try:
+        assert a == b
+    except ValueError:
+        assert len(a) == len(b)
+
+        # pytest's list diffing breaks at 4d, so we track them ourselves
+        if indices is None:
+            indices = []
+            top = True
+        else:
+            top = False
+
+        for i, (x, y) in enumerate(zip(a, b)):
+            try:
+                assert_deep_lists_equal(x, y, indices)
+            except AssertionError:
+                indices.append(i)
+                raise
+            finally:
+                if top and indices:
+                    print("Diff at index: %s" % list(reversed(indices)))
+
+
 def json_friendly_test(orig_data, obj):
     data, converted = util.json_friendly(obj)
-    utils.assert_deep_lists_equal(orig_data, data)
+    assert_deep_lists_equal(orig_data, data)
     assert converted
 
 
-def tensorflow_json_friendly_test(orig_data):
-    json_friendly_test(orig_data, tf.convert_to_tensor(orig_data))
-    v = tf.Variable(tf.convert_to_tensor(orig_data))
-    json_friendly_test(orig_data, v)
-
-
-def test_pytorch_json_0d():
-    a = nested_list()
+@pytest.mark.parametrize(
+    "array_shape",
+    [
+        (),  # 0d
+        (1,),  # 1d 1x1
+        (3,),  # 1d
+        (300,),  # 1d large
+        (3,) * 2,  # 2d
+        (300,) * 2,  # 2d large
+        (3,) * 3,  # 3d
+        (1,) * 4,  # 4d
+        (1,) * 8,  # 8d
+        (3,) * 8,  # 8d large
+    ],
+)
+def test_pytorch_json_nd(array_shape):
+    a = nested_list(*array_shape)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-def test_pytorch_json_1d_1x1():
-    a = nested_list(1)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_1d():
-    a = nested_list(3)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_1d_large():
-    a = nested_list(300)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_2d():
-    a = nested_list(3, 3)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_2d_large():
-    a = nested_list(300, 300)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_3d():
-    a = nested_list(3, 3, 3)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_4d():
-    a = nested_list(1, 1, 1, 1)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_nd():
-    a = nested_list(1, 1, 1, 1, 1, 1, 1, 1)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_pytorch_json_nd_large():
-    a = nested_list(3, 3, 3, 3, 3, 3, 3, 3)
-    json_friendly_test(a, torch.Tensor(a))
-    json_friendly_test(a, pt_variable(a))
-
-
-def test_tensorflow_json_0d():
-    tensorflow_json_friendly_test(nested_list())
-
-
-def test_tensorflow_json_1d_1x1():
-    tensorflow_json_friendly_test(nested_list(1))
-
-
-def test_tensorflow_json_1d():
-    tensorflow_json_friendly_test(nested_list(3))
-
-
-def test_tensorflow_json_1d_large():
-    tensorflow_json_friendly_test(nested_list(300))
-
-
-def test_tensorflow_json_2d():
-    tensorflow_json_friendly_test(nested_list(3, 3))
-
-
-def test_tensorflow_json_2d_large():
-    tensorflow_json_friendly_test(nested_list(300, 300))
-
-
-def test_tensorflow_json_nd():
-    tensorflow_json_friendly_test(nested_list(1, 1, 1, 1, 1, 1, 1, 1))
-
-
-def test_tensorflow_json_nd_large():
-    tensorflow_json_friendly_test(nested_list(3, 3, 3, 3, 3, 3, 3, 3))
+@pytest.mark.parametrize(
+    "array_shape",
+    [
+        (),  # 0d
+        (1,),  # 1d 1x1
+        (3,),  # 1d
+        (300,),  # 1d large
+        (3,) * 2,  # 2d
+        (300,) * 2,  # 2d large
+        (3,) * 3,  # 3d
+        (1,) * 4,  # 4d
+        (1,) * 8,  # 8d
+        (3,) * 8,  # 8d large
+    ],
+)
+def test_tensorflow_json_nd(array_shape):
+    a = nested_list(*array_shape)
+    json_friendly_test(a, tf.convert_to_tensor(a))
+    v = tf.Variable(tf.convert_to_tensor(a))
+    json_friendly_test(a, v)
 
 
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
 )
 @pytest.mark.parametrize(
-    "array_shape", [(), (1,), (3,), (300,), (300, 300), (1,) * 8, (3,) * 8]
+    "array_shape",
+    [
+        (),
+        (1,),
+        (3,),
+        (300,),
+        (300,) * 2,
+        (1,) * 8,
+        (3,) * 8,
+    ],
 )
 def test_jax_json(array_shape):
     from jax import numpy as jnp
@@ -166,6 +141,45 @@ def test_jax_json(array_shape):
     jax_array = jnp.asarray(orig_data)
     json_friendly_test(orig_data, jax_array)
     assert util.is_jax_tensor_typename(util.get_full_typename(jax_array))
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+def test_bfloat16_to_float():
+    import jax.numpy as jnp
+
+    array = jnp.array(1.0, dtype=jnp.bfloat16)
+    # array to scalar bfloat16
+    array_cast = util.json_friendly(array)
+    assert array_cast[1] is True
+    assert array_cast[0].__class__.__name__ == "bfloat16"
+    # scalar bfloat16 to float
+    array_cast = util.json_friendly(array_cast[0])
+    assert array_cast[0] == 1.0
+    assert array_cast[1] is True
+    assert isinstance(array_cast[0], float)
+
+
+###############################################################################
+# Test util.make_json_if_not_number
+###############################################################################
+
+
+def test_make_json_if_not_number():
+    assert util.make_json_if_not_number(1) == 1
+    assert util.make_json_if_not_number(1.0) == 1.0
+    assert util.make_json_if_not_number("1") == '"1"'
+    assert util.make_json_if_not_number("1.0") == '"1.0"'
+    assert util.make_json_if_not_number({"a": 1}) == '{"a": 1}'
+    assert util.make_json_if_not_number({"a": 1.0}) == '{"a": 1.0}'
+    assert util.make_json_if_not_number({"a": "1"}) == '{"a": "1"}'
+    assert util.make_json_if_not_number({"a": "1.0"}) == '{"a": "1.0"}'
+
+
+###############################################################################
+# Test util.image_from_docker_args
+###############################################################################
 
 
 def test_image_from_docker_args_simple():
@@ -203,14 +217,23 @@ def test_image_from_docker_args_sha():
     assert image == dsha
 
 
+###############################################################################
+# Test util.app_url
+###############################################################################
+
+
 def test_app_url():
-    os.environ["WANDB_APP_URL"] = "https://foo.com/bar/"
-    assert util.app_url("https://api.foo.com") == "https://foo.com/bar"
-    del os.environ["WANDB_APP_URL"]
+    with mock.patch.dict("os.environ", {"WANDB_APP_URL": "https://foo.com/bar/"}):
+        assert util.app_url("https://api.foo.com") == "https://foo.com/bar"
     assert util.app_url("http://api.wandb.test") == "http://app.wandb.test"
     assert util.app_url("https://api.wandb.ai") == "https://wandb.ai"
     assert util.app_url("https://api.foo/bar") == "https://app.foo/bar"
     assert util.app_url("https://wandb.foo") == "https://wandb.foo"
+
+
+###############################################################################
+# Test util.make_safe_for_json
+###############################################################################
 
 
 def test_safe_for_json():
@@ -234,6 +257,11 @@ def test_safe_for_json():
     }
 
 
+###############################################################################
+# Test util.find_runner
+###############################################################################
+
+
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="find_runner is broken on Windows"
 )
@@ -242,10 +270,20 @@ def test_find_runner():
     assert "python" in res[0]
 
 
+###############################################################################
+# Test util.parse_sweep_id
+###############################################################################
+
+
 def test_parse_sweep_id():
     parts = {"name": "test/test/test"}
     util.parse_sweep_id(parts)
     assert parts == {"name": "test", "entity": "test", "project": "test"}
+
+
+###############################################################################
+# Test util.from_human_size and util.to_human_size
+###############################################################################
 
 
 def test_from_human_size():
@@ -268,26 +306,48 @@ def test_to_human_size():
     assert util.to_human_size(5000000) == "5.0MB"
 
 
+###############################################################################
+# Test matplotlib utilities
+###############################################################################
+
+
+def matplotlib_with_image():
+    """Creates a matplotlib figure with an image"""
+    fig, ax = plt.subplots(3)
+    ax[0].plot([1, 2, 3])
+    ax[1].imshow(np.random.rand(200, 200, 3))
+    ax[2].plot([1, 2, 3])
+    return fig
+
+
+def matplotlib_without_image():
+    """Creates a matplotlib figure without an image"""
+    fig, ax = plt.subplots(2)
+    ax[0].plot([1, 2, 3])
+    ax[1].plot([1, 2, 3])
+    return fig
+
+
 def test_matplotlib_contains_images():
     """Ensures that the utility function can properly detect if immages are in a
     matplotlib figure"""
     # fig true
-    fig = utils.matplotlib_with_image()
+    fig = matplotlib_with_image()
     assert util.matplotlib_contains_images(fig)
     plt.close()
 
     # plt true
-    fig = utils.matplotlib_with_image()
+    fig = matplotlib_with_image()
     assert util.matplotlib_contains_images(plt)
     plt.close()
 
     # fig false
-    fig = utils.matplotlib_without_image()
+    fig = matplotlib_without_image()
     assert not util.matplotlib_contains_images(fig)
     plt.close()
 
     # plt false
-    fig = utils.matplotlib_without_image()
+    fig = matplotlib_without_image()
     assert not util.matplotlib_contains_images(plt)
     plt.close()
 
@@ -295,11 +355,11 @@ def test_matplotlib_contains_images():
 def test_matplotlib_to_plotly():
     """Ensures that the utility function can properly transform a pyplot object to a
     plotly object (not the wandb.* versions"""
-    fig = utils.matplotlib_without_image()
+    fig = matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(fig)) == plotly.graph_objs._figure.Figure
     plt.close()
 
-    fig = utils.matplotlib_without_image()
+    fig = matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(plt)) == plotly.graph_objs._figure.Figure
     plt.close()
 
@@ -308,6 +368,18 @@ def test_apple_gpu_stats_binary():
     assert util.apple_gpu_stats_binary().endswith(
         os.path.join("bin", "apple_gpu_stats")
     )
+
+
+def test_convert_plots():
+    fig = matplotlib_without_image()
+    obj = util.convert_plots(fig)
+    assert obj.get("plot")
+    assert obj.get("_type") == "plotly"
+
+
+###############################################################################
+# Test uri and path resolution utilities
+###############################################################################
 
 
 def test_is_uri():
@@ -364,6 +436,11 @@ def test_make_tarfile():
         assert tarfile.is_tarfile(tmpfile)
 
 
+###############################################################################
+# Test tensor type utilities
+###############################################################################
+
+
 def test_is_tf_tensor():
     assert util.is_tf_tensor(tf.constant(1))
     assert not util.is_tf_tensor(tf.Variable(1))
@@ -377,11 +454,9 @@ def test_is_pytorch_tensor():
     assert not util.is_pytorch_tensor(None)
 
 
-def test_convert_plots():
-    fig = utils.matplotlib_without_image()
-    obj = util.convert_plots(fig)
-    assert obj.get("plot")
-    assert obj.get("_type") == "plotly"
+###############################################################################
+# Test launch utilities
+###############################################################################
 
 
 def test_launch_browser():
@@ -405,15 +480,9 @@ def test_parse_tfjob_config():
     assert util.parse_tfjob_config() is False
 
 
-def test_make_json_if_not_number():
-    assert util.make_json_if_not_number(1) == 1
-    assert util.make_json_if_not_number(1.0) == 1.0
-    assert util.make_json_if_not_number("1") == '"1"'
-    assert util.make_json_if_not_number("1.0") == '"1.0"'
-    assert util.make_json_if_not_number({"a": 1}) == '{"a": 1}'
-    assert util.make_json_if_not_number({"a": 1.0}) == '{"a": 1.0}'
-    assert util.make_json_if_not_number({"a": "1"}) == '{"a": "1"}'
-    assert util.make_json_if_not_number({"a": "1.0"}) == '{"a": "1.0"}'
+###############################################################################
+# Test retry utilities
+###############################################################################
 
 
 def test_no_retry_auth():
@@ -439,18 +508,120 @@ def test_no_retry_auth():
     assert util.no_retry_auth(e)
 
 
-def test_check_retry_commit_artifact_retries_on_conflict():
+def test_check_retry_conflict():
     e = mock.MagicMock(spec=requests.HTTPError)
     e.response = mock.MagicMock(spec=requests.Response)
 
     e.response.status_code = 400
-    assert not util.check_retry_commit_artifact(e)
+    assert util.check_retry_conflict(e) is None
 
     e.response.status_code = 500
-    assert util.check_retry_commit_artifact(e)
+    assert util.check_retry_conflict(e) is None
 
     e.response.status_code = 409
-    assert util.check_retry_commit_artifact(e)
+    assert util.check_retry_conflict(e) is True
+
+
+def test_check_retry_conflict_or_gone():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    e.response.status_code = 400
+    assert util.check_retry_conflict_or_gone(e) is None
+
+    e.response.status_code = 410
+    assert util.check_retry_conflict_or_gone(e) is False
+
+    e.response.status_code = 500
+    assert util.check_retry_conflict_or_gone(e) is None
+
+    e.response.status_code = 409
+    assert util.check_retry_conflict_or_gone(e) is True
+
+
+def test_make_check_reply_fn_timeout():
+    """Verify case where secondary check returns a new timeout."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    check_retry_fn = util.make_check_retry_fn(
+        check_fn=util.check_retry_conflict_or_gone,
+        check_timedelta=datetime.timedelta(minutes=3),
+        fallback_retry_fn=util.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 410
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check
+    assert check == datetime.timedelta(minutes=3)
+
+
+def test_make_check_reply_fn_false():
+    """Verify case where secondary check forces no retry."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    def is_special(e):
+        if e.response.status_code == 500:
+            return False
+        return None
+
+    check_retry_fn = util.make_check_retry_fn(
+        check_fn=is_special,
+        fallback_retry_fn=util.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is False
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check is False
+
+
+def test_make_check_reply_fn_true():
+    """Verify case where secondary check allows retry."""
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+
+    def is_special(e):
+        if e.response.status_code == 400:
+            return True
+        return None
+
+    check_retry_fn = util.make_check_retry_fn(
+        check_fn=is_special,
+        fallback_retry_fn=util.no_retry_auth,
+    )
+
+    e.response.status_code = 400
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 500
+    check = check_retry_fn(e)
+    assert check is True
+
+    e.response.status_code = 409
+    check = check_retry_fn(e)
+    assert check is False
 
 
 def test_downsample():
@@ -459,11 +630,10 @@ def test_downsample():
     assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
 
 
-def test_get_log_file_path(live_mock_server, test_settings):
+def test_get_log_file_path(mock_run):
     assert util.get_log_file_path() == os.path.join("wandb", "debug-internal.log")
-    run = wandb.init(settings=test_settings)
-    assert util.get_log_file_path() == wandb.run._settings.log_internal
-    run.finish()
+    run = mock_run()
+    assert util.get_log_file_path() == run._settings.log_internal
 
 
 def test_stopwatch_now():
@@ -518,21 +688,3 @@ def test_resolve_aliases():
 
     aliases = util._resolve_aliases("boom")
     assert aliases == ["boom", "latest"]
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
-)
-def test_bfloat16_to_float():
-    import jax.numpy as jnp
-
-    array = jnp.array(1.0, dtype=jnp.bfloat16)
-    # array to scalar bfloat16
-    array_cast = util.json_friendly(array)
-    assert array_cast[1] is True
-    assert array_cast[0].__class__.__name__ == "bfloat16"
-    # scalar bfloat16 to float
-    array_cast = util.json_friendly(array_cast[0])
-    assert array_cast[0] == 1.0
-    assert array_cast[1] is True
-    assert isinstance(array_cast[0], float)

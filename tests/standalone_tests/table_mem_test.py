@@ -1,8 +1,8 @@
+import pathlib
 import time
 
-import numpy as np
 from memory_profiler import profile
-
+import numpy as np
 import wandb
 
 
@@ -18,7 +18,7 @@ def main(count: int, size=(32, 32, 3)) -> wandb.Table:
 
 
 if __name__ == "__main__":
-    run = wandb.init(name=__file__)
+    run = wandb.init(name=pathlib.Path(__file__).stem)
     for c in range(4):
         cnt = 2 * (10**c)
         start = time.time()

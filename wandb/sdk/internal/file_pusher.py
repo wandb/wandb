@@ -3,7 +3,7 @@ import os
 import queue
 import tempfile
 import time
-from typing import Mapping, Optional, Tuple, TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING
 
 import wandb
 from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
@@ -71,7 +71,7 @@ class FilePusher:
         )
         self._step_upload.start()
 
-    def get_status(self) -> Tuple[bool, Mapping[str, int]]:
+    def get_status(self) -> Tuple[bool, stats.Summary]:
         running = self.is_alive()
         summary = self._stats.summary()
         return running, summary
@@ -85,9 +85,9 @@ class FilePusher:
                 stop = True
             summary = self._stats.summary()
             line = " {:.2f}MB of {:.2f}MB uploaded ({:.2f}MB deduped)\r".format(
-                summary["uploaded_bytes"] / 1048576.0,
-                summary["total_bytes"] / 1048576.0,
-                summary["deduped_bytes"] / 1048576.0,
+                summary.uploaded_bytes / 1048576.0,
+                summary.total_bytes / 1048576.0,
+                summary.deduped_bytes / 1048576.0,
             )
             line = spinner_states[step % 4] + line
             step += 1
@@ -96,8 +96,8 @@ class FilePusher:
                 break
             time.sleep(0.25)
         dedupe_fraction = (
-            summary["deduped_bytes"] / float(summary["total_bytes"])
-            if summary["total_bytes"] > 0
+            summary.deduped_bytes / float(summary.total_bytes)
+            if summary.total_bytes > 0
             else 0
         )
         if dedupe_fraction > 0.01:
@@ -109,7 +109,7 @@ class FilePusher:
         # clear progress line.
         wandb.termlog(" " * 79, prefix=prefix)
 
-    def file_counts_by_category(self) -> Mapping[str, int]:
+    def file_counts_by_category(self) -> stats.FileCountsByCategory:
         return self._stats.file_counts_by_category()
 
     def file_changed(

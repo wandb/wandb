@@ -1,6 +1,8 @@
 id: 2.jobs.repo-creation
 plugin:
   - wandb
+tag:
+  skip: true
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0

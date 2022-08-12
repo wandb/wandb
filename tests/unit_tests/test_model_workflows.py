@@ -1,7 +1,8 @@
-import wandb
-import pytest
-from wandb.beta.workflows import use_model, _add_any
 import tempfile
+
+import pytest
+import wandb
+from wandb.beta.workflows import _add_any, use_model
 
 
 def test_use_model():
@@ -30,8 +31,8 @@ def test_add_any():
     assert True
 
 
-def test_offline_link_artifact(test_settings):
-    run = wandb.init(mode="offline", settings=test_settings)
+def test_offline_link_artifact(wandb_init):
+    run = wandb_init(mode="offline")
     with pytest.raises(NotImplementedError):
         run.link_artifact(None, "entity/project/portfolio", "latest")
     run.finish()

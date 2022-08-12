@@ -1,21 +1,17 @@
 codecov:
   require_ci_to_pass: no
   notify:
-    # after_n_builds calculation
-    # 20 =  3 (lin-py{36, 38, 310})
-    #       4 (win-py37)
-    #       1 (pylaunch)
-    #      10 (func-s_{base,tf115,tf21,tf25,tf26,service,noml,grpc,py310,docs}-lin-*)
-    #       2 (unit-s_{nb,kfp}-{lin}-*)
+    # To calculate after_n_builds use
+    # ./tools/coverage-tool.py jobs | wc -l
     # also change comment block after_n_builds just below
-    after_n_builds: 20
+    after_n_builds: 33
     wait_for_ci: no
 
 comment:
   layout: "reach, diff, flags, files"
   behavior: default
   require_changes: no
-  after_n_builds: 20
+  after_n_builds: 33
 
 ignore:
   - "wandb/vendor"
