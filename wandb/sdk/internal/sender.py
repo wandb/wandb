@@ -1394,8 +1394,6 @@ class SendManager:
         intent_update.outcome.is_resolved = True
         intent_update.mailbox = record.request.intent_propose.mailbox
 
-        # TODO: remove this delay
-        time.sleep(5)
         self._interface._intent_update(intent_update)
 
     def send_request_intent_inspect(self, record: wandb_internal_pb2.Record) -> None:

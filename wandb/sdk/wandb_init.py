@@ -501,7 +501,7 @@ class _WandbInit:
     def _on_init_progress(self) -> None:
         assert self.printer
         line = "waiting for wandb.init()...\r"
-        self.printer.progress_update(line)
+        self.printer.progress_update(line, percentage=0)
 
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         if logger is None:
