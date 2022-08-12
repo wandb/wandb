@@ -240,6 +240,8 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
+        from pkg_resources import parse_version
+
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
         )
