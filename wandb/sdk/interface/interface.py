@@ -14,8 +14,8 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Iterable, NewType, Optional, Tuple, Union
-from typing import TYPE_CHECKING
+import time
+from typing import Any, Iterable, NewType, Optional, Tuple, TYPE_CHECKING, Union
 
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
@@ -541,11 +541,17 @@ class InterfaceBase:
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
+        # add timestamp to the history request, if not already present
+        # the timestamp might come from the tensorboard log logic
+        if "_timestamp" not in data:
+            data["_timestamp"] = time.time()
+
         partial_history = pb.PartialHistoryRequest()
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
+
         if publish_step and step is not None:
             partial_history.step.num = step
         if flush is not None:
