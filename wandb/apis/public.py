@@ -25,7 +25,6 @@ import time
 from typing import List, Optional
 import urllib
 
-from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -2944,6 +2943,9 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
+
+    from pkg_resources import parse_version
+
     def __init__(self, run_set):
         self.run_set = run_set
         self.panel_metrics_helper = PanelMetricsHelper()

@@ -141,7 +141,7 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
     auth_info = auth_config.resolve_authconfig(registry)
     if auth_info:
         normalized = {k.lower(): v for k, v in auth_info.items()}
-        normalized_auth_info: Optional[Tuple[str, str]] = (
+        normalized_auth_info: Optional[Tuple[str, str]] = (  # type: ignore
             normalized.get("username"),
             normalized.get("password"),
         )

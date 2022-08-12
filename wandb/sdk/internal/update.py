@@ -1,6 +1,5 @@
 from typing import Dict, Optional, Tuple
 
-from pkg_resources import parse_version
 import requests
 import wandb
 
@@ -8,6 +7,8 @@ import wandb
 def _find_available(
     current_version: str,
 ) -> Optional[Tuple[str, bool, bool, bool, Optional[str]]]:
+    from pkg_resources import parse_version
+
     pypi_url = f"https://pypi.org/pypi/{wandb._wandb_module}/json"
 
     yanked_dict = {}
