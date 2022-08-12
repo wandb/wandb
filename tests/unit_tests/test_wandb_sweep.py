@@ -22,6 +22,11 @@ SWEEP_CONFIG_GRID_HYPERBAND: Dict[str, Any] = {
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
+SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
+    "name": "mock-sweep-grid",
+    "method": "grid",
+    "parameters": {"param1": {"parameters": {"param2": {"values": [1, 2, 3]}}}},
+}
 SWEEP_CONFIG_BAYES: Dict[str, Any] = {
     "name": "mock-sweep-bayes",
     "method": "bayes",
@@ -38,15 +43,16 @@ SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
 VALID_SWEEP_CONFIGS: List[Dict[str, Any]] = [
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_HYPERBAND,
+    SWEEP_CONFIG_GRID_NESTED,
     SWEEP_CONFIG_BAYES,
     SWEEP_CONFIG_RANDOM,
 ]
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS)
-def test_sweep_create(relay_server, sweep_config):
+def test_sweep_create(user, relay_server, sweep_config):
     with relay_server() as relay:
-        sweep_id = wandb.sweep(sweep_config)
+        sweep_id = wandb.sweep(sweep_config, entity=user)
     assert sweep_id in relay.context.entries
 
 
