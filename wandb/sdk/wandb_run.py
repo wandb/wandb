@@ -2200,7 +2200,7 @@ class Run:
         artifact = self.log_artifact(job_artifact)
         return artifact
 
-    def log_job_artifact(self, docker_image_name: str) -> Artifact:
+    def _log_job_artifact_with_image(self, docker_image_name: str) -> Artifact:
         packages, in_types, out_types = self._make_job_source_reqs()
         job_artifact = self._create_image_job(
             in_types, out_types, packages, docker_image_name

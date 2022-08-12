@@ -520,24 +520,3 @@ def create_metadata_file(
             },
             f,
         )
-
-
-def log_job_from_run(run: Run, docker_image_uri: str) -> str:
-    """
-    Uses a wandb_run object to create and log a job artifact given a docker
-    image uri.
-
-    """
-    import pkg_resources
-
-    installed_packages_list = sorted(
-        f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
-    )
-    input_types = TypeRegistry.type_of(run.config.as_dict()).to_json()
-    output_types = TypeRegistry.type_of(run.summary._as_dict()).to_json()
-
-    job_artifact = run._create_image_job(
-        docker_image_uri, input_types, output_types, installed_packages_list
-    )
-
-    return job_artifact
