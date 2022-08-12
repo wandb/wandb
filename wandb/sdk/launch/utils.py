@@ -588,3 +588,20 @@ def resolve_build_and_registry_config(
         resolved_registry_config = registry_config
     validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
     return resolved_build_config, resolved_registry_config
+
+
+def check_logged_in(api: Api) -> bool:
+    """
+    Uses an internal api reference to check if a user is logged in
+    raises an error if the viewer doesn't load, likely broken API key
+    expected time cost is 0.1-0.2 seconds
+    """
+    res = api.api.viewer()
+    if not res:
+        raise LaunchError(
+            "Could not connect with current API-key. "
+            "Please relogin using `wandb login --relogin`"
+            " and try again (see `wandb login --help` for more options)"
+        )
+
+    return True
