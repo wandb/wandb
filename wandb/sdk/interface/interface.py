@@ -34,7 +34,7 @@ from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
 from ..data_types.utils import history_dict_to_json, val_to_json
-from ..lib.mailbox import Mailbox, MailboxSlot
+from ..lib.mailbox import MailboxSlot
 from ..wandb_artifacts import Artifact
 
 GlobStr = NewType("GlobStr", str)

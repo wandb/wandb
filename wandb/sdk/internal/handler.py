@@ -37,7 +37,6 @@ from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
 
 if TYPE_CHECKING:
-    from wandb.proto import wandb_internal_pb2 as pb
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactDoneRequest,
         MetricSummary,

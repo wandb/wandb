@@ -726,31 +726,9 @@ class SendManager:
         # TODO: do something if sync spell is not successful?
 
     def send_run(self, record: "Record", file_dir: str = None) -> None:
+        run = record.run
+        error = None
         is_wandb_init = self._run is None
-        error = self._send_run(
-            run=record.run, file_dir=file_dir, is_wandb_init=is_wandb_init
-        )
-        result = proto_util._result_from_record(record)
-        if error:
-            if record.control.req_resp or record.control.mailbox_slot:
-                result.run_result.run.CopyFrom(record.run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            return
-
-        if record.control.req_resp or record.control.mailbox_slot:
-            # TODO: we could do self._interface.publish_defer(resp) to notify
-            # the handler not to actually perform server updates for this uuid
-            # because the user process will send a summary update when we resume
-            assert self._run  # TODO: is this right
-            result.run_result.run.CopyFrom(self._run)
-            self._respond_result(result)
-
-    def _send_run(
-        self, run: "RunRecord", file_dir: str = None, is_wandb_init: bool = True
-    ) -> Optional[wandb_internal_pb2.ErrorInfo]:
-        error: Optional[wandb_internal_pb2.ErrorInfo] = None
-
         # save start time of a run
         self._start_time = run.start_time.ToMicroseconds() / 1e6
 
@@ -772,8 +750,15 @@ class SendManager:
             # Only check resume status on `wandb.init`
             error = self._maybe_setup_resume(run)
 
-        if error:
-            return error
+        result = proto_util._result_from_record(record)
+        if error is not None:
+            if record.control.req_resp or record.control.mailbox_slot:
+                result.run_result.run.CopyFrom(record.run)
+                result.run_result.error.CopyFrom(error)
+                self._respond_result(result)
+            else:
+                logger.error("Got error in async mode: %s", error.message)
+            return
 
         # Save the resumed config
         if self._resume_state.config is not None:
@@ -796,12 +781,19 @@ class SendManager:
         self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
 
+        if record.control.req_resp or record.control.mailbox_slot:
+            # TODO: we could do self._interface.publish_defer(resp) to notify
+            # the handler not to actually perform server updates for this uuid
+            # because the user process will send a summary update when we resume
+            assert self._run  # TODO: is this right
+            result.run_result.run.CopyFrom(self._run)
+            self._respond_result(result)
+
         # Only spin up our threads on the first run message
         if is_wandb_init:
             self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
-        return None
 
     def _init_run(
         self, run: "RunRecord", config_dict: Optional[DictWithValues]

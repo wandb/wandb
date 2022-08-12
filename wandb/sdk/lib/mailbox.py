@@ -1,5 +1,5 @@
 """
-intents.
+mailbox.
 """
 
 import threading
