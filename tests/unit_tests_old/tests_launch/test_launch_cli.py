@@ -307,7 +307,10 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
 
 
 @pytest.mark.timeout(320)
-def test_launch_local_dir(runner):
+def test_launch_local_dir(runner, monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
+    )
     with runner.isolated_filesystem():
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
@@ -351,6 +354,9 @@ def test_launch_supplied_docker_image(
         return cmd  # noop
 
     monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
+    )
+    monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container.pull_docker_image",
         lambda docker_image: None,
     )
@@ -368,6 +374,7 @@ def test_launch_supplied_docker_image(
             ],
         )
 
+    print(result)
     assert result.exit_code == 0
     assert "-e WANDB_DOCKER=test:tag" in result.output
     assert " -e WANDB_CONFIG='{}'" in result.output
@@ -376,7 +383,12 @@ def test_launch_supplied_docker_image(
 
 
 @pytest.mark.timeout(320)
-def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
+def test_launch_cuda_flag(
+    runner, live_mock_server, monkeypatch, mocked_fetchable_git_repo
+):
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
+    )
     args = [
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entry-point",
@@ -443,6 +455,9 @@ def test_launch_agent_launch_error_continue(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
+    )
+    monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",
         lambda a, b: raise_(LaunchError("blah blah")),
     )
@@ -482,7 +497,11 @@ def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
+    monkeypatch,
 ):
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
+    )
     run_id = "test_run_id"
     run_name = "test_run_name"
     args = [
