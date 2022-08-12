@@ -79,6 +79,8 @@ def check_logged_in(api: Api, host: str) -> bool:
                 "Could not get viewer with default API key. "
                 f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
             )
+
+    print_results(fail_string, False)
     return fail_string is None
 
 
