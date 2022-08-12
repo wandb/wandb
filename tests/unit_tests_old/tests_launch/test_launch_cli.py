@@ -307,10 +307,7 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
 
 
 @pytest.mark.timeout(320)
-def test_launch_local_dir(runner, monkeypatch):
-    monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
-    )
+def test_launch_local_dir(runner, live_mock_server):
     with runner.isolated_filesystem():
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
@@ -354,9 +351,6 @@ def test_launch_supplied_docker_image(
         return cmd  # noop
 
     monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
-    )
-    monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container.pull_docker_image",
         lambda docker_image: None,
     )
@@ -386,9 +380,6 @@ def test_launch_supplied_docker_image(
 def test_launch_cuda_flag(
     runner, live_mock_server, monkeypatch, mocked_fetchable_git_repo
 ):
-    monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
-    )
     args = [
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entry-point",
@@ -455,9 +446,6 @@ def test_launch_agent_launch_error_continue(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
-    )
-    monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.run_job",
         lambda a, b: raise_(LaunchError("blah blah")),
     )
@@ -497,11 +485,8 @@ def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
-    monkeypatch,
+    live_mock_server,
 ):
-    monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.viewer", lambda a: {"im a": "viewer"}
-    )
     run_id = "test_run_id"
     run_name = "test_run_name"
     args = [
@@ -513,7 +498,8 @@ def test_launch_name_run_id_environment_variable(
         "--name",
         run_name,
     ]
-    result = runner.invoke(cli.launch, args)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args)
 
     assert f"WANDB_RUN_ID={run_id}" in str(result.output)
     assert f"WANDB_NAME={run_name}" in str(result.output)
