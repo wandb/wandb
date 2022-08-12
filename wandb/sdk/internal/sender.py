@@ -782,6 +782,7 @@ class SendManager:
         self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
 
+        time.sleep(5)
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
             # TODO: we could do self._interface.publish_defer(resp) to notify

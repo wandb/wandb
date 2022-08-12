@@ -19,46 +19,67 @@ def _generate_address(length: int = 12) -> str:
 
 
 class MailboxSlot:
-    _mailbox: Optional["Mailbox"]
     _result: Optional[pb.Result]
     _event: threading.Event
     _address: str
 
-    def __init__(self, mailbox: "Mailbox", address: str) -> None:
-        self._mailbox = mailbox
-        self._address = address
+    def __init__(self, address: str) -> None:
         self._result = None
         self._event = threading.Event()
+        self._address = address
+
+
+class MailboxProgressHandle:
+    _percent_done: float
+
+    def __init__(self, percent_done: float) -> None:
+        self._percent_done = percent_done
+
+    @property
+    def percent_done(self) -> float:
+        return self._percent_done
+
+
+class MailboxHandle:
+    _mailbox: "Mailbox"
+    _slot: MailboxSlot
+
+    def __init__(self, mailbox: "Mailbox", slot: MailboxSlot) -> None:
+        self._mailbox = mailbox
+        self._slot = slot
 
     def wait(
         self,
         timeout: Optional[float] = None,
-        on_progress: Callable[[], None] = None,
+        on_progress: Callable[[MailboxProgressHandle], None] = None,
         release: bool = True,
     ) -> Optional[pb.Result]:
         found: Optional[pb.Result] = None
         start_time = time.time()
+        percent_done = 0.0
         while True:
-            if self._event.wait(timeout=1):
-                found = self._result
+            if self._slot._event.wait(timeout=1):
+                found = self._slot._result
                 break
+            now = time.time()
             if timeout is not None:
-                now = time.time()
-                if now > start_time + timeout:
+                if now >= start_time + timeout:
                     break
             if on_progress:
-                on_progress()
+                if timeout:
+                    percent_done = min((now - start_time) / timeout, 1.0)
+                progress = MailboxProgressHandle(percent_done=percent_done)
+                on_progress(progress)
         if release:
-            self.release()
+            self._release()
         return found
 
-    def release(self) -> None:
-        if self._mailbox:
-            self._mailbox.release_slot(self._address)
+    def _release(self) -> None:
+        self._mailbox._release_slot(self.address)
 
-    def _forget(self) -> None:
-        # remove circular reference so child slot can be gc'ed
-        self._mailbox = None
+    @property
+    def address(self) -> str:
+        return self._slot._address
 
 
 class Mailbox:
@@ -75,13 +96,16 @@ class Mailbox:
         slot._result = result
         slot._event.set()
 
-    def allocate_slot(self) -> MailboxSlot:
+    def _allocate_slot(self) -> MailboxSlot:
         address = _generate_address()
-        slot = MailboxSlot(mailbox=self, address=address)
+        slot = MailboxSlot(address=address)
         self._slots[address] = slot
         return slot
 
-    def release_slot(self, address: str) -> None:
-        found = self._slots.pop(address, None)
-        if found:
-            found._forget()
+    def _release_slot(self, address: str) -> None:
+        self._slots.pop(address, None)
+
+    def get_handle(self) -> MailboxHandle:
+        slot = self._allocate_slot()
+        handle = MailboxHandle(mailbox=self, slot=slot)
+        return handle

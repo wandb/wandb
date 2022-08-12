@@ -45,7 +45,9 @@ class InterfaceQueue(InterfaceShared):
 
     def _init_router(self) -> None:
         if self.record_q and self.result_q:
-            self._router = MessageQueueRouter(self.record_q, self.result_q, mailbox=self._mailbox)
+            self._router = MessageQueueRouter(
+                self.record_q, self.result_q, mailbox=self._mailbox
+            )
 
     def _publish(self, record: "pb.Record", local: bool = None) -> None:
         if self._process_check and self._process and not self._process.is_alive():

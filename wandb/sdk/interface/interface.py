@@ -34,7 +34,7 @@ from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
 from ..data_types.utils import history_dict_to_json, val_to_json
-from ..lib.mailbox import MailboxSlot
+from ..lib.mailbox import MailboxHandle
 from ..wandb_artifacts import Artifact
 
 GlobStr = NewType("GlobStr", str)
@@ -696,10 +696,10 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run_obj: "Run") -> MailboxSlot:
+    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
         run = self._make_run(run_obj)
         return self._deliver_run(run)
 
     @abstractmethod
-    def _deliver_run(self, run: pb.RunRecord) -> MailboxSlot:
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError

@@ -21,7 +21,7 @@ from wandb.util import (
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
-from ..lib.mailbox import Mailbox, MailboxSlot
+from ..lib.mailbox import Mailbox, MailboxHandle
 
 
 logger = logging.getLogger("wandb")
@@ -485,16 +485,17 @@ class InterfaceShared(InterfaceBase):
         assert mailbox
         return mailbox
 
-    def _deliver(self, record: pb.Record, slot: MailboxSlot) -> None:
-        record.control.mailbox_slot = slot._address
+    def _deliver(self, record: pb.Record, slot_address: str) -> None:
+        record.control.mailbox_slot = slot_address
         self._publish(record)
 
-    def _deliver_run(self, run: pb.RunRecord) -> MailboxSlot:
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         mailbox = self._get_mailbox()
         rec = self._make_record(run=run)
-        slot = mailbox.allocate_slot()
-        self._deliver(rec, slot)
-        return slot
+        handle = mailbox.get_handle()
+        slot_address = handle.address
+        self._deliver(rec, slot_address)
+        return handle
 
     def join(self) -> None:
         super().join()

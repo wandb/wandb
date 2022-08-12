@@ -31,7 +31,7 @@ from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .lib.deprecate import deprecate, Deprecated
-from .lib.mailbox import Mailbox
+from .lib.mailbox import Mailbox, MailboxHandle
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
@@ -497,11 +497,11 @@ class _WandbInit:
         )
         return drun
 
-    def _on_init_progress(self) -> None:
+    def _on_init_progress(self, handle: MailboxHandle) -> None:
         assert self.printer
         line = "waiting for wandb.init()...\r"
-        percent_done = 0
-        self.printer.progress_update(line, percent_done)
+        percent_done = handle.percent_done
+        self.printer.progress_update(line, percent_done=percent_done)
 
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         if logger is None:
