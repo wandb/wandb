@@ -1382,29 +1382,29 @@ class SendManager:
             )
         return local_info
 
-    def send_request_propose_intent(self, record: wandb_internal_pb2.Record) -> None:
-        run = record.request.propose_intent.intent.run
+    def send_request_intent_propose(self, record: wandb_internal_pb2.Record) -> None:
+        run = record.request.intent_propose.intent.run
         _error = self._send_run(run=run)
         _error = _error
 
-        intent_id = record.request.propose_intent.intent_id
-        propose_intent_done = wandb_internal_pb2.ProposeIntentDoneRequest(
-            intent_id=intent_id
-        )
+        intent_id = record.request.intent_propose.intent_id
+        intent_update = wandb_internal_pb2.IntentUpdate(intent_id=intent_id)
         assert self._run  # TODO: is this right?
-        propose_intent_done.outcome.run_result.run.CopyFrom(self._run)
-        propose_intent_done.outcome.is_resolved = True
+        intent_update.outcome.run_result.run.CopyFrom(self._run)
+        intent_update.outcome.is_resolved = True
+        intent_update.mailbox = record.request.intent_propose.mailbox
 
         # TODO: remove this delay
         time.sleep(5)
-        self._interface._propose_intent_done(propose_intent_done)
+        self._interface._intent_update(intent_update)
 
-    def send_request_recall_intent(self, record: wandb_internal_pb2.Record) -> None:
-        intent_id = record.request.recall_intent.intent_id
-        recall_intent_done = wandb_internal_pb2.RecallIntentDoneRequest(
-            intent_id=intent_id
-        )
-        self._interface._recall_intent_done(recall_intent_done)
+    def send_request_intent_inspect(self, record: wandb_internal_pb2.Record) -> None:
+        pass
+        # intent_id = record.request.intent_inspect.intent_id
+        # recall_intent_done = wandb_internal_pb2.RecallIntentDoneRequest(
+        #     intent_id=intent_id
+        # )
+        # self._interface._recall_intent_done(recall_intent_done)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)

@@ -13,6 +13,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 
 from .interface_queue import InterfaceQueue
 from .router_relay import MessageRelayRouter
+from ..lib.mailbox import Mailbox
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -40,7 +41,7 @@ class InterfaceRelay(InterfaceQueue):
             process_check=process_check,
         )
 
-    def _init_router(self) -> None:
+    def _init_router(self, mailbox: Optional[Mailbox] = None) -> None:
         if self.record_q and self.result_q and self.relay_q:
             self._router = MessageRelayRouter(
                 self.record_q, self.result_q, self.relay_q

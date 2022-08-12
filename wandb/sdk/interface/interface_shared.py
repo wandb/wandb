@@ -21,6 +21,7 @@ from wandb.util import (
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
+from ..lib.mailbox import Mailbox
 
 
 logger = logging.getLogger("wandb")
@@ -30,20 +31,23 @@ class InterfaceShared(InterfaceBase):
     process: Optional[BaseProcess]
     _process_check: bool
     _router: Optional[MessageRouter]
+    _mailbox: Optional[Mailbox]
 
     def __init__(
         self,
         process: BaseProcess = None,
         process_check: bool = True,
+        mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
         self._process = process
         self._router = None
         self._process_check = process_check
-        self._init_router()
+        self._mailbox = mailbox
+        self._init_router(mailbox=mailbox)
 
     @abstractmethod
-    def _init_router(self) -> None:
+    def _init_router(self, mailbox: Optional[Mailbox]) -> None:
         raise NotImplementedError
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
@@ -114,8 +118,6 @@ class InterfaceShared(InterfaceBase):
         artifact_send: pb.ArtifactSendRequest = None,
         artifact_poll: pb.ArtifactPollRequest = None,
         artifact_done: pb.ArtifactDoneRequest = None,
-        propose_intent_done: pb.ProposeIntentDoneRequest = None,
-        recall_intent_done: pb.RecallIntentDoneRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -154,10 +156,6 @@ class InterfaceShared(InterfaceBase):
             request.artifact_poll.CopyFrom(artifact_poll)
         elif artifact_done:
             request.artifact_done.CopyFrom(artifact_done)
-        elif propose_intent_done:
-            request.propose_intent_done.CopyFrom(propose_intent_done)
-        elif recall_intent_done:
-            request.recall_intent_done.CopyFrom(recall_intent_done)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -482,47 +480,25 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(request=request)
         _ = self._communicate(record)
 
-    def _propose_intent(
-        self, propose_intent: pb.ProposeIntentRequest
-    ) -> Optional[pb.ProposeIntentResponse]:
-        request = pb.Request(propose_intent=propose_intent)
+    def _intent_propose(self, intent_propose: pb.IntentPropose) -> None:
+        request = pb.Request(intent_propose=intent_propose)
         record = self._make_record(request=request)
-        result = self._communicate(record)
-        if result is None:
-            return None
-        return result.response.propose_intent_response
+        self._publish(record)
 
-    def _propose_intent_done(
-        self, propose_intent_done: pb.ProposeIntentDoneRequest
-    ) -> None:
-        rec = self._make_request(propose_intent_done=propose_intent_done)
-        self._publish(rec)
-
-    def _recall_intent(
-        self, recall_intent: pb.RecallIntentRequest
-    ) -> Optional[pb.RecallIntentResponse]:
-        request = pb.Request(recall_intent=recall_intent)
+    def _intent_inspect(self, intent_inspect: pb.IntentInspect) -> None:
+        request = pb.Request(intent_inspect=intent_inspect)
         record = self._make_record(request=request)
-        result = self._communicate(record)
-        if result is None:
-            return None
-        return result.response.recall_intent_response
+        self._publish(record)
 
-    def _recall_intent_done(
-        self, recall_intent_done: pb.RecallIntentDoneRequest
-    ) -> None:
-        rec = self._make_request(recall_intent_done=recall_intent_done)
-        self._publish(rec)
-
-    def _inspect_intent(
-        self, intent: pb.InspectIntentRequest
-    ) -> Optional[pb.InspectIntentResponse]:
-        request = pb.Request(inspect_intent=intent)
+    def _intent_release(self, intent_release: pb.IntentRelease) -> None:
+        request = pb.Request(intent_release=intent_release)
         record = self._make_record(request=request)
-        result = self._communicate(record)
-        if result is None:
-            return None
-        return result.response.inspect_intent_response
+        self._publish(record)
+
+    def _intent_update(self, intent_update: pb.IntentUpdate) -> None:
+        request = pb.Request(intent_update=intent_update)
+        record = self._make_record(request=request)
+        self._publish(record)
 
     def join(self) -> None:
         super().join()

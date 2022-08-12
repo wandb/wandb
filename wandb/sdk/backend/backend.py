@@ -19,6 +19,7 @@ import wandb
 from ..interface.interface import InterfaceBase
 from ..interface.interface_queue import InterfaceQueue
 from ..internal.internal import wandb_internal
+from ..lib.mailbox import Mailbox
 from ..wandb_manager import _Manager
 from ..wandb_settings import Settings
 
@@ -56,9 +57,14 @@ class Backend:
     _settings: Optional[Settings]
     record_q: Optional["multiprocessing.Queue[Record]"]
     result_q: Optional["multiprocessing.Queue[Result]"]
+    _mailbox: Optional[Mailbox]
 
     def __init__(
-        self, settings: Settings = None, log_level: int = None, manager: _Manager = None
+        self,
+        settings: Settings = None,
+        log_level: int = None,
+        manager: _Manager = None,
+        mailbox=None,
     ) -> None:
         self._done = False
         self.record_q = None
@@ -69,6 +75,7 @@ class Backend:
         self._settings = settings
         self._log_level = log_level
         self._manager = manager
+        self._mailbox = mailbox
 
         self._multiprocessing = multiprocessing  # type: ignore
         self._multiprocessing_setup()
@@ -150,7 +157,7 @@ class Backend:
 
             svc_iface_sock = cast("ServiceSockInterface", svc_iface)
             sock_client = svc_iface_sock._get_sock_client()
-            sock_interface = InterfaceSock(sock_client)
+            sock_interface = InterfaceSock(sock_client, mailbox=self._mailbox)
             self.interface = sock_interface
         elif svc_transport == "grpc":
             from ..interface.interface_grpc import InterfaceGrpc

@@ -84,6 +84,7 @@ class HandleManager:
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
     _run_start_time: Optional[float]
     _intents: Dict[str, "Optional[pb.IntentOutcome]"]
+    _intents_save: Dict[str, "Optional[pb.Record]"]
 
     def __init__(
         self,
@@ -125,6 +126,7 @@ class HandleManager:
 
         # TODO: use managed object instead of simple dict
         self._intents = dict()
+        self._intents_save = dict()
 
     def __len__(self) -> int:
         return self._record_q.qsize()
@@ -838,42 +840,55 @@ class HandleManager:
         item.key = "_runtime"
         item.value_json = json.dumps(history_dict[item.key])
 
-    def handle_request_propose_intent(self, record: Record) -> None:
-        assert record.control.req_resp
+    def handle_request_intent_propose(self, record: Record) -> None:
+        # assert record.control.req_resp
 
-        intent_id = record.request.propose_intent.intent_id
+        intent_id = record.request.intent_propose.intent_id
         if intent_id in self._intents:
             print(f"intent already active: {intent_id}")
             return None
         self._intents[intent_id] = None
+        self._intents_save[intent_id] = record
 
         self._dispatch_record(record)
 
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
+        # result = proto_util._result_from_record(record)
+        # self._respond_result(result)
 
-    def handle_request_propose_intent_done(self, record: Record) -> None:
-        intent_id = record.request.propose_intent_done.intent_id
-        outcome = record.request.propose_intent_done.outcome
+    def handle_request_intent_inspect(self, record: Record) -> None:
+        pass
+        # assert record.control.req_resp
+
+        # intent_id = record.request.intent_inspect.intent_id
+
+        # result = proto_util._result_from_record(record)
+        # data = self._intents.get(intent_id)
+        # if data:
+        #     result.response.inspect_intent_response.outcome.CopyFrom(data)
+        # self._respond_result(result)
+
+    def handle_request_intent_release(self, record: Record) -> None:
+        # assert record.control.req_resp
+        self._dispatch_record(record)
+
+        # result = proto_util._result_from_record(record)
+        # self._respond_result(result)
+
+    def handle_request_intent_update(self, record: Record) -> None:
+        intent_id = record.request.intent_update.intent_id
+        outcome = record.request.intent_update.outcome
         self._intents[intent_id] = outcome
 
-    def handle_request_recall_intent(self, record: Record) -> None:
-        assert record.control.req_resp
-        self._dispatch_record(record)
+        intent_record = self._intents_save[intent_id]
+        assert intent_record
+        self._respond_intent(
+            record.request.intent_update, control=intent_record.control
+        )
 
-        result = proto_util._result_from_record(record)
-        self._respond_result(result)
-
-    def handle_request_recall_intent_done(self, record: Record) -> None:
-        pass
-
-    def handle_request_inspect_intent(self, record: Record) -> None:
-        assert record.control.req_resp
-
-        intent_id = record.request.inspect_intent.intent_id
-
-        result = proto_util._result_from_record(record)
-        data = self._intents.get(intent_id)
-        if data:
-            result.response.inspect_intent_response.outcome.CopyFrom(data)
+    def _respond_intent(
+        self, intent_update: "pb.IntentUpdate", control: "pb.Control"
+    ) -> None:
+        result = Result(control=control)
+        result.response.intent_update.CopyFrom(intent_update)
+        result.mailbox = intent_update.mailbox
         self._respond_result(result)

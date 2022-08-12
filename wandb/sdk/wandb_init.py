@@ -29,7 +29,7 @@ from wandb.util import _is_artifact_representation, sentry_exc
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
-from .lib import intents
+from .lib import intents, mailbox
 from .lib import RunDisabled, SummaryDisabled
 from .lib.deprecate import deprecate, Deprecated
 from .lib.printer import get_printer
@@ -113,6 +113,11 @@ class _WandbInit:
 
         self.deprecated_features_used: Dict[str, str] = dict()
 
+    def _setup_printer(self, settings: Settings) -> None:
+        if self.printer:
+            return
+        self.printer = get_printer(settings._jupyter)
+
     def setup(self, kwargs) -> None:  # noqa: C901
         """Completes setup for `wandb.init()`.
 
@@ -125,7 +130,7 @@ class _WandbInit:
         # in between, they will be ignored, which we need to inform the user about.
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
-            self.printer = get_printer(singleton._settings._jupyter)
+            self._setup_printer(settings=singleton._settings)
             exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
             # check if environment variables have changed
             singleton_env = {
@@ -160,6 +165,7 @@ class _WandbInit:
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
 
+        self._setup_printer(settings)
         self._reporter = reporting.setup_reporter(settings=settings)
 
         sagemaker_config: Dict = (
@@ -492,7 +498,9 @@ class _WandbInit:
         return drun
 
     def _on_init_progress(self) -> None:
-        wandb.termlog("Waiting for wandb.init()...")
+        assert self.printer
+        line = "waiting for wandb.init()...\r"
+        self.printer.progress_update(line)
 
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         if logger is None:
@@ -557,7 +565,8 @@ class _WandbInit:
             logger.info("setting up manager")
             manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
-        backend = Backend(settings=self.settings, manager=manager)
+        mbox = mailbox.Mailbox()
+        backend = Backend(settings=self.settings, manager=manager, mailbox=mbox)
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")

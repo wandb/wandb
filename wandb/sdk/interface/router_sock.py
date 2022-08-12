@@ -17,9 +17,9 @@ if TYPE_CHECKING:
 class MessageSockRouter(MessageRouter):
     _sock_client: SockClient
 
-    def __init__(self, sock_client: SockClient) -> None:
+    def __init__(self, sock_client: SockClient, mailbox: str) -> None:
         self._sock_client = sock_client
-        super().__init__()
+        super().__init__(mailbox=mailbox)
 
     def _read_message(self) -> "Optional[pb.Result]":
         try:

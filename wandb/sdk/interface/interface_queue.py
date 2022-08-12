@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from .interface_shared import InterfaceShared
 from .router_queue import MessageQueueRouter
 from ..lib import tracelog
+from ..lib.mailbox import Mailbox
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -40,7 +41,7 @@ class InterfaceQueue(InterfaceShared):
             tracelog.annotate_queue(self.result_q, "result_q")
         super().__init__(process=process, process_check=process_check)
 
-    def _init_router(self) -> None:
+    def _init_router(self, mailbox: Optional[Mailbox] = None) -> None:
         if self.record_q and self.result_q:
             self._router = MessageQueueRouter(self.record_q, self.result_q)
 
