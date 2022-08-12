@@ -7,6 +7,7 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE
 import pytest
 
+from unittest.mock import patch
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
 
@@ -464,21 +465,19 @@ def test_launch_agent_launch_error_continue(
         assert "except caught, acked item" in result.output
 
 
-# def test_launch_bad_api_key(
-#     runner, mocked_fetchable_git_repo, live_mock_server, monkeypatch
-# ):
-#     args = [
-#         "https://wandb.ai/mock_server_entity/test_project/runs/run",
-#         "--project",
-#         "test_project",
-#         "--entity",
-#         "mock_server_entity",
-#     ]
-#     monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
-#     with runner.isolated_filesystem():
-#         result = runner.invoke(cli.launch, args)
+def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
+    args = [
+        "https://wandb.ai/mock_server_entity/test_project/runs/run",
+        "--entity",
+        "mock_server_entity",
+        "--queue",
+    ]
+    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
+    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args)
 
-#     assert "Could not connect with current API-key." in result.output
+        assert "Could not connect with current API-key." in result.output
 
 
 def test_launch_name_run_id_environment_variable(
