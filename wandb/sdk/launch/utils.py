@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, ExecutionError, LaunchError
+from wandb.errors import CommError, LaunchError
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
