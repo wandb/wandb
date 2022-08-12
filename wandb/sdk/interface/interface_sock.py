@@ -36,8 +36,8 @@ class InterfaceSock(InterfaceShared):
         self._process_check = False
         self._stream_id = None
 
-    def _init_router(self, mailbox: Mailbox) -> None:
-        self._router = MessageSockRouter(self._sock_client, mailbox=mailbox)
+    def _init_router(self) -> None:
+        self._router = MessageSockRouter(self._sock_client, mailbox=self._mailbox)
 
     def _hack_set_run(self, run: "Run") -> None:
         super()._hack_set_run(run)

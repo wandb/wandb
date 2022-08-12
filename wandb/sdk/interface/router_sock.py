@@ -8,6 +8,7 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 from .router import MessageRouter, MessageRouterClosedError
+from ..lib.mailbox import Mailbox
 from ..lib.sock_client import SockClient, SockClientClosedError
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 class MessageSockRouter(MessageRouter):
     _sock_client: SockClient
 
-    def __init__(self, sock_client: SockClient, mailbox: str) -> None:
+    def __init__(self, sock_client: SockClient, mailbox: Mailbox) -> None:
         self._sock_client = sock_client
         super().__init__(mailbox=mailbox)
 

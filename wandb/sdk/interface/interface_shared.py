@@ -44,10 +44,10 @@ class InterfaceShared(InterfaceBase):
         self._router = None
         self._process_check = process_check
         self._mailbox = mailbox
-        self._init_router(mailbox=mailbox)
+        self._init_router()
 
     @abstractmethod
-    def _init_router(self, mailbox: Optional[Mailbox]) -> None:
+    def _init_router(self) -> None:
         raise NotImplementedError
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:

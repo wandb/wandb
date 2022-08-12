@@ -57,14 +57,14 @@ class Backend:
     _settings: Optional[Settings]
     record_q: Optional["multiprocessing.Queue[Record]"]
     result_q: Optional["multiprocessing.Queue[Result]"]
-    _mailbox: Optional[Mailbox]
+    _mailbox: Mailbox
 
     def __init__(
         self,
+        mailbox: Mailbox,
         settings: Settings = None,
         log_level: int = None,
         manager: _Manager = None,
-        mailbox=None,
     ) -> None:
         self._done = False
         self.record_q = None
@@ -234,6 +234,7 @@ class Backend:
             process=self.wandb_process,
             record_q=self.record_q,
             result_q=self.result_q,
+            mailbox=self._mailbox,
         )
 
     def server_connect(self) -> None:

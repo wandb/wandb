@@ -4,7 +4,6 @@ intents.
 
 import threading
 from typing import Dict, Optional
-from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -24,8 +23,7 @@ class Mailbox:
     def __init__(self) -> None:
         self._boxes = {}
 
-    def deliver(self, result):
-        # print("GOT result!!!!!!!!!!!!!", result)
+    def deliver(self, result: pb.Result) -> None:
         mailbox = result.mailbox
         self._boxes[mailbox]._result = result
         self._boxes[mailbox]._event.set()
@@ -35,10 +33,12 @@ class Mailbox:
         self._boxes[address] = _Box()
         return address
 
-    def release_box(self, address):
+    def release_box(self, address: str) -> None:
         pass
 
-    def wait_box(self, address, timeout: Optional[float] = None) -> Optional[pb.Result]:
+    def wait_box(
+        self, address: str, timeout: Optional[float] = None
+    ) -> Optional[pb.Result]:
         box = self._boxes.get(address)
         assert box
         found = box._event.wait(timeout=timeout)

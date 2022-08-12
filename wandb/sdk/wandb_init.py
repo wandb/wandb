@@ -29,9 +29,10 @@ from wandb.util import _is_artifact_representation, sentry_exc
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
-from .lib import intents, mailbox
+from .lib import intents
 from .lib import RunDisabled, SummaryDisabled
 from .lib.deprecate import deprecate, Deprecated
+from .lib.mailbox import Mailbox
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
@@ -565,8 +566,8 @@ class _WandbInit:
             logger.info("setting up manager")
             manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
-        mbox = mailbox.Mailbox()
-        backend = Backend(settings=self.settings, manager=manager, mailbox=mbox)
+        mailbox = Mailbox()
+        backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")

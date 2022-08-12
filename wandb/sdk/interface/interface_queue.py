@@ -32,6 +32,7 @@ class InterfaceQueue(InterfaceShared):
         result_q: "Queue[pb.Result]" = None,
         process: BaseProcess = None,
         process_check: bool = True,
+        mailbox: Optional[Mailbox] = None,
     ) -> None:
         self.record_q = record_q
         self.result_q = result_q
@@ -39,9 +40,9 @@ class InterfaceQueue(InterfaceShared):
             tracelog.annotate_queue(self.record_q, "record_q")
         if self.result_q:
             tracelog.annotate_queue(self.result_q, "result_q")
-        super().__init__(process=process, process_check=process_check)
+        super().__init__(process=process, process_check=process_check, mailbox=mailbox)
 
-    def _init_router(self, mailbox: Optional[Mailbox] = None) -> None:
+    def _init_router(self) -> None:
         if self.record_q and self.result_q:
             self._router = MessageQueueRouter(self.record_q, self.result_q)
 
