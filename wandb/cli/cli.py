@@ -1285,7 +1285,7 @@ def launch_agent(
         raise LaunchError(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
-    
+
     check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
