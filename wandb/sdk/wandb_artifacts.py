@@ -34,6 +34,7 @@ import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 from wandb.sdk.internal import progress
+from wandb.sdk.internal.internal_api import _thread_local_api_settings
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
@@ -917,8 +918,10 @@ class WandbStoragePolicy(StoragePolicy):
 
         response = self._session.get(
             self._file_url(self._api, artifact.entity, manifest_entry),
-            auth=("api", self._api.api_key),
+            # auth=("api", self._api.api_key),
             stream=True,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
         )
         response.raise_for_status()
 
@@ -1807,7 +1810,12 @@ class HTTPHandler(StorageHandler):
             return path
 
         assert manifest_entry.ref is not None
-        response = self._session.get(manifest_entry.ref, stream=True)
+        response = self._session.get(
+            manifest_entry.ref,
+            stream=True,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
+        )
         response.raise_for_status()
 
         digest, size, extra = self._entry_from_headers(response.headers)
@@ -1835,7 +1843,12 @@ class HTTPHandler(StorageHandler):
         if not checksum:
             return [ArtifactManifestEntry(name, path, digest=path)]
 
-        with self._session.get(path, stream=True) as response:
+        with self._session.get(
+            path,
+            stream=True,
+            cookies=_thread_local_api_settings.cookies,
+            headers=_thread_local_api_settings.headers,
+        ) as response:
             response.raise_for_status()
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
