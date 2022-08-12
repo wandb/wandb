@@ -149,7 +149,7 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
             ],
         )
 
-        assert "Failed to update agent status" in result.output
+        assert "Aborted!" in result.output
 
 
 def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
@@ -174,60 +174,6 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         )
 
     assert "Shutting down, active jobs" in result.output
-
-
-def test_launch_sweep_scheduler(runner, test_settings, live_mock_server):
-    with runner.isolated_filesystem():
-        with open("mock_launch_config.json", "w") as f:
-            json.dump(
-                {
-                    "queue": "default",
-                    "resource": "local-process",
-                    "job": "mock-launch-job",
-                    "scheduler": {
-                        "resource": "local-process",
-                    },
-                },
-                f,
-            )
-        # Create a test sweep
-        sweep_config = {
-            "name": "My Sweep",
-            "method": "grid",
-            "parameters": {"parameter1": {"values": [1, 2, 3]}},
-        }
-        sweep_id = wandb.sweep(sweep_config)
-        assert sweep_id == "test"
-        # Create the default queue
-        result = runner.invoke(
-            cli.launch,
-            [
-                "https://wandb.ai/mock_server_entity/test_project/runs/run",
-                "--project",
-                "test_project",
-                "--entity",
-                "mock_server_entity",
-                "--queue",
-                "default",
-            ],
-        )
-        assert result.exit_code == 0
-        ctx = live_mock_server.get_ctx()
-        assert len(ctx["run_queues"]["1"]) == 1
-        # Run the launch sweep scheduler CLI command
-        result = runner.invoke(
-            cli.scheduler,
-            [
-                "--project",
-                "test_project",
-                "--entity",
-                "mock_server_entity",
-                "--launch_config",
-                "mock_launch_config.json",
-                sweep_id,
-            ],
-        )
-        assert result.exit_code == 0
 
 
 # this test includes building a docker container which can take some time.
