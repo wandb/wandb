@@ -2445,6 +2445,9 @@ class Run:
 
         if self._backend and self._backend.interface:
             if not self._settings._offline:
+                # If if's a local artifact, log it first before linking
+                if isinstance(artifact, Artifact):
+                    self._log_artifact(artifact)
                 self._backend.interface.publish_link_artifact(
                     self,
                     artifact,
