@@ -1,14 +1,13 @@
 import os
-import pytest
 import platform
 import queue
 import subprocess
-import wandb
+import unittest.mock
 
-
+import pytest
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.meta import Meta
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 
 @pytest.fixture()
@@ -27,35 +26,40 @@ def interface(record_q):
 
 
 @pytest.fixture()
-def meta(test_settings, interface):
-    return Meta(settings=test_settings, interface=interface)
+def meta(interface):
+    def meta_helper(settings):
+        return Meta(settings=settings, interface=interface)
+
+    yield meta_helper
 
 
 @pytest.fixture()
-def sm(
+def send_manager(
     runner,
     git_repo,
     record_q,
     result_q,
-    test_settings,
-    meta,
-    mock_server,
-    mocked_run,
     interface,
 ):
-    test_settings.update(save_code=True, source=wandb.sdk.wandb_settings.Source.INIT)
-    sm = SendManager(
-        settings=test_settings,
-        record_q=record_q,
-        result_q=result_q,
-        interface=interface,
-    )
-    meta._interface.publish_run(mocked_run)
-    sm.send(record_q.get())
-    yield sm
+    def sand_manager_helper(run, meta):
+        # test_settings.update(save_code=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        sm = SendManager(
+            settings=run.settings,
+            record_q=record_q,
+            result_q=result_q,
+            interface=interface,
+        )
+
+        meta._interface.publish_run(run)
+        sm.send(record_q.get())
+        return sm
+
+    yield sand_manager_helper
 
 
-def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
+def test_meta_probe(
+    relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
+):
     orig_exists = os.path.exists
     orig_call = subprocess.call
     monkeypatch.setattr(
@@ -72,39 +76,43 @@ def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     )
     with open("README", "w") as f:
         f.write("Testing")
-    meta.probe()
-    meta.write()
-    sm.send(record_q.get())
-    sm.finish()
-    print(mock_server.ctx)
-    assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1
-    assert len(mock_server.ctx["storage?file=requirements.txt"]) == 1
-    assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
-    assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
+    with relay_server() as relay:
+        run = mock_run(use_magic_mock=True, settings={"save_code": True})
+        meta = meta(run.settings)
+        sm = send_manager(run, meta)
+        meta.probe()
+        meta.write()
+        sm.send(record_q.get())
+        sm.finish()
 
-
-def test_executable_outside_cwd(mock_server, meta):
-    meta._settings.update(
-        program="asdf.py", source=wandb.sdk.wandb_settings.Source.INIT
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert sorted(uploaded_files) == sorted(
+        [
+            "wandb-metadata.json",
+            "requirements.txt",
+            "config.yaml",
+            "conda-environment.yaml",
+            "diff.patch",
+        ]
     )
+
+
+def test_executable_outside_cwd(meta, test_settings):
+    meta = meta(test_settings(dict(program="asdf.py")))
     meta.probe()
     assert meta.data.get("codePath") is None
     assert meta.data["program"] == "asdf.py"
 
 
-def test_jupyter_name(meta, mocked_ipython):
-    meta._settings.update(
-        notebook_name="test_nb", source=wandb.sdk.wandb_settings.Source.INIT
-    )
+def test_jupyter_name(meta, test_settings, mocked_ipython):
+    meta = meta(test_settings(dict(notebook_name="test_nb")))
     meta.probe()
     assert meta.data["program"] == "test_nb"
 
 
-def test_jupyter_path(meta, mocked_ipython):
+def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     # not actually how jupyter setup works but just to test the meta paths
-    meta._settings.update(
-        _jupyter_path="dummy/path", source=wandb.sdk.wandb_settings.Source.INIT
-    )
+    meta = meta(test_settings(dict(_jupyter_path="dummy/path")))
     meta.probe()
     assert meta.data["program"] == "dummy/path"
     assert meta.data.get("root") is not None
@@ -116,10 +124,10 @@ def test_jupyter_path(meta, mocked_ipython):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commmit_hash_sent_correctly(test_settings, git_repo):
+def test_commmit_hash_sent_correctly(wandb_init, git_repo):
     # disable_git is False is by default
     # so run object should have git info
-    run = wandb.init(settings=test_settings)
+    run = wandb_init()
     assert run._commit is not None
     assert run._commit == git_repo.last_commit
     assert run._remote_url is None
@@ -131,8 +139,9 @@ def test_commmit_hash_sent_correctly(test_settings, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commit_hash_not_sent_when_disable(test_settings, git_repo, disable_git_save):
-    run = wandb.init(settings=test_settings)
-    assert git_repo.last_commit
-    assert run._commit is None
-    run.finish()
+def test_commit_hash_not_sent_when_disable(wandb_init, git_repo):
+    with unittest.mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
+        run = wandb_init()
+        assert git_repo.last_commit
+        assert run._commit is None
+        run.finish()
