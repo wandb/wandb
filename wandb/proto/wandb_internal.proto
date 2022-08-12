@@ -57,6 +57,7 @@ message Control {
   bool req_resp = 1;  // record is expecting a result
   bool local = 2;     // should not be persisted or synchronized
   string relay_id = 3;  // used by service transport to identify correct stream
+  string mailbox_slot = 4;  // mailbox slot
 }
 
 /*
@@ -75,7 +76,6 @@ message Result {
   }
   Control             control = 16;
   string              uuid = 24;
-  string              mailbox = 25;
   _ResultInfo _info = 200;
 }
 
@@ -492,10 +492,6 @@ message Request {
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
-    IntentPropose         intent_propose = 67;
-    IntentInspect         intent_inspect = 69;
-    IntentRelease         intent_release = 70;
-    IntentUpdate          intent_update = 71;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -519,7 +515,6 @@ message Response {
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
-    IntentUpdate           intent_update = 67;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -822,50 +817,4 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
-}
-
-/************************
- * Intents
- *
- * Verbs:
- *   propose
- *   inspect
- *   release
- *
- ************************/
-
-
-message IntentDefinition {
-  oneof intent_type {
-    RunRecord run = 2;
-  }
-}
-
-message IntentOutcome {
-  oneof intent_outcome_type {
-    RunUpdateResult run_result = 1;
-  }
-  string error = 2;
-  bool is_resolved = 3;
-}
-
-message IntentPropose {
-  string intent_id = 1;
-  string mailbox = 2;
-  IntentDefinition intent = 3;
-}
-
-message IntentInspect {
-  string intent_id = 1;
-  string mailbox = 2;
-}
-
-message IntentRelease {
-  string intent_id = 1;
-}
-
-message IntentUpdate {
-  string intent_id = 1;
-  string mailbox = 2;
-  IntentOutcome outcome = 3;
 }

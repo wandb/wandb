@@ -102,7 +102,7 @@ class MessageRouter:
 
     def _handle_msg_rcv(self, msg: "pb.Result") -> None:
         # deliver mailbox addressed messages to mailbox
-        if msg.mailbox and self._mailbox:
+        if self._mailbox and msg.control.mailbox_slot:
             self._mailbox.deliver(msg)
             return
         with self._lock:

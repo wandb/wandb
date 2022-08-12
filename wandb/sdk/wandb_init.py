@@ -29,7 +29,6 @@ from wandb.util import _is_artifact_representation, sentry_exc
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
-from .lib import intents
 from .lib import RunDisabled, SummaryDisabled
 from .lib.deprecate import deprecate, Deprecated
 from .lib.mailbox import Mailbox
@@ -685,10 +684,12 @@ class _WandbInit:
             logger.info(
                 f"communicating run to backend with {self.settings.init_timeout} second timeout"
             )
-            intent = intents.create_run(run=run, interface=backend.interface)
-            intent.wait(on_progress=self._on_init_progress)
-            if intent.is_resolved:
-                run_result = intent.resolved.run_result
+            handle = backend.interface.deliver_run(run)
+            result = handle.wait(
+                timeout=self.settings.init_timeout, on_progress=self._on_init_progress
+            )
+            if result:
+                run_result = result.run_result
 
             if not run_result:
                 logger.error("backend process timed out")
@@ -805,7 +806,8 @@ def _attach(
     )
 
     # TODO: consolidate this codepath with wandb.init()
-    backend = Backend(settings=settings, manager=manager)
+    mailbox = Mailbox()
+    backend = Backend(settings=settings, manager=manager, mailbox=mailbox)
     backend.ensure_launched()
     backend.server_connect()
     logger.info("attach backend started and connected")

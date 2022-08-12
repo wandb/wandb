@@ -21,7 +21,7 @@ from wandb.util import (
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
-from ..lib.mailbox import Mailbox
+from ..lib.mailbox import Mailbox, MailboxSlot
 
 
 logger = logging.getLogger("wandb")
@@ -480,25 +480,21 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(request=request)
         _ = self._communicate(record)
 
-    def _intent_propose(self, intent_propose: pb.IntentPropose) -> None:
-        request = pb.Request(intent_propose=intent_propose)
-        record = self._make_record(request=request)
+    def _get_mailbox(self) -> Mailbox:
+        mailbox = self._mailbox
+        assert mailbox
+        return mailbox
+
+    def _deliver(self, record: pb.Record, slot: MailboxSlot) -> None:
+        record.control.mailbox_slot = slot._address
         self._publish(record)
 
-    def _intent_inspect(self, intent_inspect: pb.IntentInspect) -> None:
-        request = pb.Request(intent_inspect=intent_inspect)
-        record = self._make_record(request=request)
-        self._publish(record)
-
-    def _intent_release(self, intent_release: pb.IntentRelease) -> None:
-        request = pb.Request(intent_release=intent_release)
-        record = self._make_record(request=request)
-        self._publish(record)
-
-    def _intent_update(self, intent_update: pb.IntentUpdate) -> None:
-        request = pb.Request(intent_update=intent_update)
-        record = self._make_record(request=request)
-        self._publish(record)
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxSlot:
+        mailbox = self._get_mailbox()
+        rec = self._make_record(run=run)
+        slot = mailbox.allocate_slot()
+        self._deliver(rec, slot)
+        return slot
 
     def join(self) -> None:
         super().join()

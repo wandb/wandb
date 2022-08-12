@@ -16,6 +16,7 @@ from wandb.proto import wandb_telemetry_pb2 as tpb
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .message_future_poll import MessageFuturePoll
+from ..lib.mailbox import MailboxSlot
 
 
 if TYPE_CHECKING:
@@ -290,6 +291,9 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(resume)
         _ = self._stub.Resume(resume)
+
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxSlot:
+        raise RuntimeError("Implement me")
 
     def join(self) -> None:
         super().join()

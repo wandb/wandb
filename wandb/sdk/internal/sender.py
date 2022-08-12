@@ -732,13 +732,13 @@ class SendManager:
         )
         result = proto_util._result_from_record(record)
         if error:
-            if record.control.req_resp:
+            if record.control.req_resp or record.control.mailbox_slot:
                 result.run_result.run.CopyFrom(record.run)
                 result.run_result.error.CopyFrom(error)
                 self._respond_result(result)
             return
 
-        if record.control.req_resp:
+        if record.control.req_resp or record.control.mailbox_slot:
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
@@ -1381,28 +1381,6 @@ class SendManager:
                 "latestVersionString", latest_local_version
             )
         return local_info
-
-    def send_request_intent_propose(self, record: wandb_internal_pb2.Record) -> None:
-        run = record.request.intent_propose.intent.run
-        _error = self._send_run(run=run)
-        _error = _error
-
-        intent_id = record.request.intent_propose.intent_id
-        intent_update = wandb_internal_pb2.IntentUpdate(intent_id=intent_id)
-        assert self._run  # TODO: is this right?
-        intent_update.outcome.run_result.run.CopyFrom(self._run)
-        intent_update.outcome.is_resolved = True
-        intent_update.mailbox = record.request.intent_propose.mailbox
-
-        self._interface._intent_update(intent_update)
-
-    def send_request_intent_inspect(self, record: wandb_internal_pb2.Record) -> None:
-        pass
-        # intent_id = record.request.intent_inspect.intent_id
-        # recall_intent_done = wandb_internal_pb2.RecallIntentDoneRequest(
-        #     intent_id=intent_id
-        # )
-        # self._interface._recall_intent_done(recall_intent_done)
 
     def __next__(self) -> "Record":
         return self._record_q.get(block=True)
