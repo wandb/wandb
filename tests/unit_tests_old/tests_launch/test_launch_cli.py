@@ -149,7 +149,7 @@ def test_agent_update_failed(runner, test_settings, live_mock_server, monkeypatc
             ],
         )
 
-        assert "Failed to update agent status" in result.output
+        assert "Aborted!" in result.output
 
 
 def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
@@ -174,50 +174,6 @@ def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
         )
 
     assert "Shutting down, active jobs" in result.output
-
-
-def test_launch_sweep_scheduler(runner, test_settings, live_mock_server):
-    # Create a test sweep
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "grid",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-    sweep_id = wandb.sweep(sweep_config)
-    assert sweep_id == "test"
-    # Create the default queue
-    result = runner.invoke(
-        cli.launch,
-        [
-            "https://wandb.ai/mock_server_entity/test_project/runs/run",
-            "--project",
-            "test_project",
-            "--entity",
-            "mock_server_entity",
-            "--queue",
-            "default",
-        ],
-    )
-    assert result.exit_code == 0
-    ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
-    # Run the launch sweep scheduler CLI command
-    result = runner.invoke(
-        cli.scheduler,
-        [
-            "--project",
-            "test_project",
-            "--entity",
-            "mock_server_entity",
-            "--queue",
-            "default",
-            # TODO(hupo): No mock job artifacts for now
-            # "--job",
-            # "mock_job_artifact",
-            sweep_id,
-        ],
-    )
-    assert result.exit_code == 0
 
 
 # this test includes building a docker container which can take some time.
@@ -298,41 +254,39 @@ def test_launch_no_docker_exec(
 
 
 def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
-    sweep_config = {
-        "name": "My Sweep",
-        "method": "grid",
-        "parameters": {"parameter1": {"values": [1, 2, 3]}},
-    }
-    sweep_config_path = os.path.expanduser("sweep-config.yaml")
     with runner.isolated_filesystem():
-        with open(sweep_config_path, "w") as f:
-            json.dump(sweep_config, f)
+        with open("sweep-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "name": "My Sweep",
+                    "method": "grid",
+                    "parameters": {"parameter1": {"values": [1, 2, 3]}},
+                },
+                f,
+            )
+        with open("launch-config.yaml", "w") as f:
+            json.dump(
+                {
+                    "queue": "default",
+                    "resource": "local-process",
+                    "job": "mock-launch-job",
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
+                },
+                f,
+            )
         result = runner.invoke(
             cli.sweep,
             [
-                sweep_config_path,
-                "--queue",
-                "default",
-                "--job",
-                "mock_job_artifact",
+                "sweep-config.yaml",
+                "--launch_config",
+                "launch-config.yaml",
                 "--entity",
                 "mock_server_entity",
             ],
         )
         assert result.exit_code == 0
-        # If no --job is specified this should error out
-        result = runner.invoke(
-            cli.sweep,
-            [
-                sweep_config_path,
-                "--queue",
-                "default",
-                "--entity",
-                "mock_server_entity",
-            ],
-        )
-        assert result.exit_code != 0
-        assert "Must specify --job flag" in result.output
 
 
 @pytest.mark.timeout(320)
@@ -353,7 +307,7 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
 
 
 @pytest.mark.timeout(320)
-def test_launch_local_dir(runner):
+def test_launch_local_dir(runner, live_mock_server):
     with runner.isolated_filesystem():
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
@@ -414,6 +368,7 @@ def test_launch_supplied_docker_image(
             ],
         )
 
+    print(result)
     assert result.exit_code == 0
     assert "-e WANDB_DOCKER=test:tag" in result.output
     assert " -e WANDB_CONFIG='{}'" in result.output
@@ -422,7 +377,9 @@ def test_launch_supplied_docker_image(
 
 
 @pytest.mark.timeout(320)
-def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
+def test_launch_cuda_flag(
+    runner, live_mock_server, monkeypatch, mocked_fetchable_git_repo
+):
     args = [
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entry-point",
@@ -510,9 +467,25 @@ def test_launch_agent_launch_error_continue(
         assert "except caught, acked item" in result.output
 
 
+def test_launch_bad_api_key(runner, live_mock_server, monkeypatch):
+    args = [
+        "https://wandb.ai/mock_server_entity/test_project/runs/run",
+        "--entity",
+        "mock_server_entity",
+        "--queue",
+    ]
+    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
+    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args)
+
+        assert "Could not connect with current API-key." in result.output
+
+
 def test_launch_name_run_id_environment_variable(
     runner,
     mocked_fetchable_git_repo,
+    live_mock_server,
 ):
     run_id = "test_run_id"
     run_name = "test_run_name"
@@ -525,7 +498,8 @@ def test_launch_name_run_id_environment_variable(
         "--name",
         run_name,
     ]
-    result = runner.invoke(cli.launch, args)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args)
 
     assert f"WANDB_RUN_ID={run_id}" in str(result.output)
     assert f"WANDB_NAME={run_name}" in str(result.output)
