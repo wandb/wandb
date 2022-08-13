@@ -1027,7 +1027,7 @@ workflows:
           name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
-      # Functional tests with yea on Linux
+      # Functional tests with yea on Linux (base only)
       #
       - tox-base:
           matrix:
@@ -1036,6 +1036,18 @@ workflows:
               python_version_minor: [7]
               shard:
                 - "base"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+          parallelism: 4
+      #
+      # Functional tests with yea on Linux
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
+              shard:
                 - "sklearn"
                 - "metaflow"
                 - "tf115"
@@ -1082,7 +1094,7 @@ workflows:
               python_version_minor: [9]
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 1
+          parallelism: 4
           xdist: 1
       #
       # Unit tests with pytest on Windows and MacOS, using real wandb server
