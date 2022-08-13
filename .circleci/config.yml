@@ -244,7 +244,7 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            tox -v -e << parameters.toxenv >>
+            CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -1098,7 +1098,7 @@ workflows:
               python_version_minor: [9]
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          parallelism: 4
+          parallelism: 6
           xdist: 1
       #
       # Unit tests with pytest on Windows and MacOS, using real wandb server
