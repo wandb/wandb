@@ -499,7 +499,7 @@ class _WandbInit:
 
     def _on_init_progress(self, handle: MailboxHandle) -> None:
         assert self.printer
-        line = "waiting for wandb.init()...\r"
+        line = "Waiting for wandb.init()...\r"
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
