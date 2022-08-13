@@ -14,9 +14,9 @@ spec:
       # do not restart the container if it exits
       resources:
         limits:
-          cpu: 1.999
+          cpu: 3.999
           nvidia.com/gpu: 2
         requests:
-          cpu: 1.5
+          cpu: 3.5
   #    ports:
   #    - containerPort: 80

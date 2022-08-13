@@ -18,6 +18,7 @@ from .._project_spec import get_entry_point_command, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..utils import (
     get_kube_context_and_api_client,
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -61,7 +62,7 @@ class KubernetesSubmittedRun(AbstractRun):
     def wait(self) -> bool:
         while True:
             status = self.get_status()
-            wandb.termlog(f"Job {self.name} status: {status}")
+            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
             if status.state != "running":
                 break
             time.sleep(5)
@@ -81,9 +82,7 @@ class KubernetesSubmittedRun(AbstractRun):
         except Exception as e:
             if self._fail_count == 1:
                 wandb.termlog(
-                    "Failed to get pod status for job: {}. Will wait up to 10 minutes for job to start.".format(
-                        self.name
-                    )
+                    f"{LOG_PREFIX}Failed to get pod status for job: {self.name}. Will wait up to 10 minutes for job to start."
                 )
             self._fail_count += 1
             if self._fail_count > MAX_KUBERNETES_RETRIES:
@@ -167,6 +166,8 @@ class KubernetesRunner(AbstractRunner):
             pod_spec["nodeName"] = resource_args.get("node_name")
         if resource_args.get("node_selectors"):
             pod_spec["nodeSelectors"] = resource_args.get("node_selectors")
+        if resource_args.get("tolerations"):
+            pod_spec["tolerations"] = resource_args.get("tolerations")
 
     def populate_container_resources(
         self, containers: List[Dict[str, Any]], resource_args: Dict[str, Any]
@@ -201,7 +202,7 @@ class KubernetesRunner(AbstractRunner):
             }
         if multi_container_override:
             wandb.termwarn(
-                "Container overrides (e.g. resource limits) were provided with multiple containers specified: overrides will be applied to all containers."
+                "{LOG_PREFIX}Container overrides (e.g. resource limits) were provided with multiple containers specified: overrides will be applied to all containers."
             )
 
     def wait_job_launch(
@@ -227,9 +228,7 @@ class KubernetesRunner(AbstractRunner):
 
         pod_names = [pi.metadata.name for pi in pods.items]
         wandb.termlog(
-            "Job {job} created on pod(s) {pod_names}. See logs with e.g. `kubectl logs {first_pod}`.".format(
-                job=job_name, pod_names=", ".join(pod_names), first_pod=pod_names[0]
-            )
+            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]}`."
         )
         return pod_names
 
@@ -253,7 +252,7 @@ class KubernetesRunner(AbstractRunner):
         resource_args = launch_project.resource_args.get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
-                "Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
+                f"{LOG_PREFIX}Note: no resource args specified. Add a Kubernetes yaml spec or other options in a json file with --resource-args <json>."
             )
         context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
 
@@ -307,7 +306,7 @@ class KubernetesRunner(AbstractRunner):
         secret = None
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
-                "Docker args are not supported for Kubernetes. Not using docker args"
+                f"{LOG_PREFIX}Docker args are not supported for Kubernetes. Not using docker args"
             )
         # only need to do this if user is providing image, on build, our image sets an entrypoint
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
@@ -343,7 +342,7 @@ class KubernetesRunner(AbstractRunner):
             if repository is None:
                 # allow local registry usage for eg local clusters but throw a warning
                 wandb.termwarn(
-                    "Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
+                    f"{LOG_PREFIX}Warning: No Docker repository specified. Image will be hosted on local registry, which may not be accessible to your training cluster."
                 )
             assert entry_point is not None
             image_uri = builder.build_image(

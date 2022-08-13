@@ -1246,11 +1246,9 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
+        row = row.copy()
         if row:
             row = self._visualization_hack(row)
-            now = time.time()
-            row["_timestamp"] = row.get("_timestamp", now)
-            row["_runtime"] = row.get("_runtime", now - self._get_start_time())
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0

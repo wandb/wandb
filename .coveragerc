@@ -2,18 +2,18 @@
 canonicalsrc =
     wandb/
     .tox/func-s_base-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_docs-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_noml-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_ray112-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_ray2-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_service-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_sklearn-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf115-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf21-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf25-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf26-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_service-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_py310-py310/lib/python3.10/site-packages/wandb/
-    .tox/func-s_docs-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_imports-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_noml-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_grpc-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_sklearn-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-s_metaflow-py37/lib/python3.7/site-packages/wandb/
 
 [run]
 # TODO(jhr): enable this in the future

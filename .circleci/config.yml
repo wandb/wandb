@@ -79,44 +79,11 @@ parameters:
   manual_nightly_execute_shard_kfp:
     type: boolean
     default: false
+  wandb_server_tag:
+    type: string
+    default: "master"
 
 commands:
-  save-tox-cache:
-    description: "Save tox environment to cache"
-    steps:
-      - unless:
-          condition: << pipeline.parameters.manual >>
-          steps:
-            - save_cache:
-                paths:
-                  - ./.tox
-                key: v0.31-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-
-  restore-tox-cache:
-    description: "Restore tox environment from cache"
-    steps:
-      - restore_cache:
-          keys:
-            - v0.31-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-            - v0.31-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-
-  save-kfp-cache:
-    description: "Save kfp environment to cache"
-    steps:
-      - save_cache:
-          paths:
-            - /opt/circleci/.pyenv/
-            - ./.tox
-          key: v0.31-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-
-  restore-kfp-cache:
-    description: "Restore kfp environment from cache"
-    steps:
-      - restore_cache:
-          keys:
-            - v0.31-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-            - v0.31-kfpenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-
   save-test-results:
     description: "Save test results"
     steps:
@@ -182,7 +149,7 @@ commands:
       machine_type:
         description: "GKE cluster machine type"
         type: string
-        default: "n1-standard-4"
+        default: "n1-standard-8"
       disk_size:
         description: "GKE cluster disk size"
         type: integer
@@ -237,44 +204,102 @@ commands:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
 jobs:
-  test:
-    resource_class: xlarge
+  tox-base:
     parameters:
-      image:
-        type: string
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
       toxenv:
         type: string
       shard:
         type: string
         default: "base"
-      parallelism:
-        type: integer
-        default: 1
-      xdist:
-        type: integer
-        default: 1
       notify_on_failure:
         type: boolean
         default: false
     docker:
-      - image: << parameters.image >>
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: xlarge
     working_directory: /mnt/ramdisk
     steps:
       - checkout
       - run:
           name: Install system deps
-          command: apt-get update && apt-get install -y libsndfile1 ffmpeg
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
       - run:
           name: Install python dependencies
           command: |
             pip install tox==<< pipeline.parameters.tox_version >>
-      - restore-tox-cache
+            pip install -U pip
+          no_output_timeout: 5m
       - run:
           name: Run tests
+          no_output_timeout: 10m
           command: |
             tox -v -e << parameters.toxenv >>
-          no_output_timeout: 25m
-      - save-tox-cache
+      - save-test-results
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
+  pytest:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
+      toxenv:
+        type: string
+      notify_on_failure:
+        type: boolean
+        default: false
+      xdist:
+        type: integer
+        default: 6
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+      - image: gcr.io/wandb-production/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+        auth:
+          username: _json_key
+          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
+        environment:
+          CI: 1
+          WANDB_ENABLE_TEST_CONTAINER: true
+    resource_class: xlarge
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install python dependencies
+          command: |
+            pip install tox==<< pipeline.parameters.tox_version >>
+            pip install -U pip
+            while ! curl http://localhost:8080/healthz; do sleep 1; done
+          no_output_timeout: 5m
+      - run:
+          name: Run tests
+          no_output_timeout: 10m
+          command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
+            tox -v -e <<parameters.toxenv>>  \
+              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> tests/unit_tests
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -289,6 +314,12 @@ jobs:
 
   win:
     parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
       toxenv:
         type: string
       parallelism:
@@ -307,7 +338,6 @@ jobs:
           name: Install python dependencies
           command: |
             pip install tox==<< pipeline.parameters.tox_version >>
-      - restore-tox-cache
       - run:
           name: Temporary conda hack
           shell: bash.exe
@@ -317,14 +347,21 @@ jobs:
           name: Run tests
           shell: bash.exe
           command: |
+            echo $GCLOUD_SERVICE_KEY > key.json
+            gcloud auth activate-service-account --key-file=key.json
+            yes | gcloud auth configure-docker
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
           no_output_timeout: 10m
-      - save-tox-cache
       - save-test-results
 
   mac:
-    # TODO: how to set resource class?
     parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 7
       toxenv:
         type: string
       parallelism:
@@ -343,7 +380,6 @@ jobs:
           name: Install python dependencies
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
-      - restore-tox-cache
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
@@ -351,7 +387,6 @@ jobs:
             ulimit -n 4096
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
           no_output_timeout: 10m
-      - save-tox-cache
       - save-test-results
 
   launch:
@@ -377,13 +412,11 @@ jobs:
           command: |
             docker pull nvidia/cuda:10.0-runtime
             docker pull python:3.6-buster
-      - restore-tox-cache
       - run:
           name: Run tests
           command: |
             python3 -m tox -vv -e << parameters.toxenv >>
           no_output_timeout: 10m
-      - save-tox-cache
       - save-test-results
 
   kfp:
@@ -400,7 +433,7 @@ jobs:
         type: boolean
         default: false
     machine:
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
     resource_class: large
     steps:
@@ -410,16 +443,15 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-            - restore-kfp-cache
             - run:
                 name: Install system deps
                 command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
             - run:
                 name: Use py37
                 command: |
-                  pyenv install -s 3.7.9
+                  pyenv install -s 3.7.13
                   pyenv versions
-                  pyenv global 3.7.9
+                  pyenv global 3.7.13
             - run:
                 name: Install python dependencies
                 command: |
@@ -471,7 +503,6 @@ jobs:
                       template: basic_success_1
                       # taken from slack-secrets context
                       channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-            - save-kfp-cache
             - save-test-results
 
   slack_notify:
@@ -883,7 +914,7 @@ workflows:
           context: slack-secrets
           notify_on_failure: true
       #
-      # stanalone tests on gke
+      # standalone tests on gke
       #
       - slack_notify:
           name: "slack-notify-on-start"
@@ -968,36 +999,41 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - test:
+      #
+      # Linting
+      #
+      - tox-base:
           name: "code-check"
-          image: "python:3.8"
+          python_version_minor: 8
           toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
-      - test:
-          name: "unit-s_base-lin-py36"
-          image: "python:3.6"
-          toxenv: "py36,covercircle"
-      - test:
-          name: "unit-s_base-lin-py37"
-          image: "python:3.7"
-          toxenv: "py37"
-      - test:
-          name: "unit-s_base-lin-py38"
-          image: "python:3.8"
-          toxenv: "py38,covercircle"
-      - test:
-          name: "unit-s_base-lin-py39"
-          image: "python:3.9"
-          toxenv: "py39"
-      - test:
-          name: "unit-s_base-lin-py310"
-          image: "python:3.10"
-          toxenv: "py310,covercircle"
       #
-      # functional linux tests
+      # Unit tests with pytest on Linux, using real wandb server
       #
-      - test:
+      - pytest:
           matrix:
             parameters:
+              python_version_major: [3]
+              python_version_minor: [6, 7, 8, 9, 10]
+          name: "unit-s_base-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+      #
+      # Unit tests with pytest on Linux, using the old mock server
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [6, 7, 8, 9, 10]
+          name: "unit-s_base_mock_server-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
+      #
+      # Functional tests with yea on Linux
+      #
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - "base"
                 - "sklearn"
@@ -1006,21 +1042,22 @@ workflows:
                 - "tf21"
                 - "tf25"
                 - "tf26"
+                - "ray112"
+                - "ray2"
                 - "service"
                 - "noml"
                 - "grpc"
                 - "docs"
-          name: "func-s_<<matrix.shard>>-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_<<matrix.shard>>-py37,func-covercircle"
-      - test:
-          name: "func-s_py310-lin-py310"
-          image: "python:3.10"
-          toxenv: "func-s_py310-py310,func-covercircle"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,func-covercircle"
+      #
       # import tests
-      - test:
+      #
+      - tox-base:
           matrix:
             parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
               shard:
                 - "imports1"
                 - "imports2"
@@ -1033,93 +1070,101 @@ workflows:
                 - "imports9"
                 - "imports10"
                 - "imports11"
-          name: "func-s_<<matrix.shard>>-lin-py37"
-          image: "python:3.7"
-          toxenv: "func-s_<<matrix.shard>>-py37"
+          name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
-      # functional win tests
+      # Functional tests with yea on Windows
       #
       - win:
-          name: "func-s_base-win-py39"
-          toxenv: "func-s_base-py39"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
       #
-      # unit win/mac tests
+      # Unit tests with pytest on Windows and MacOS, using real wandb server
       #
       - win:
-          name: "unit-s_base-win-py37"
-          toxenv: "py37,wincovercircle -- --timeout 300"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
+          name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
       - mac:
-          name: "unit-s_base-mac-py39"
-          toxenv: "py39"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-s_base-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
-      # launch tests
+      # wandb launch tests
       #
       - launch:
           name: "mach-launch"
           toxenv: "pylaunch,covercircle"
       #
-      # sharded unittests
+      # sharded unit tests
       #
       # s_nb: notebook tests
-      - test:
-          name: "unit-s_nb-lin-py36"
-          image: "python:3.6"
-          toxenv: "unit-s_nb-py36,unit-covercircle"
+      - tox-base:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [6]
+          name: "unit-s_nb-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>,unit-covercircle"
       - win:
-          name: "unit-s_nb-win-py37"
-          toxenv: "unit-s_nb-py37"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
+          name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
       - mac:
-          name: "unit-s_nb-mac-py39"
-          toxenv: "unit-s_nb-py39"
-          parallelism: 1
-          xdist: 1
-      # s_kfp: kubeflow pipeline tests
-      - test:
-          name: "unit-s_kfp-lin-py36"
-          image: "python:3.6"
-          toxenv: "unit-s_kfp-py36,unit-covercircle"
-      - win:
-          name: "unit-s_kfp-win-py37"
-          toxenv: "unit-s_kfp-py37"
-          parallelism: 1
-          xdist: 1
-      - mac:
-          name: "unit-s_kfp-mac-py39"
-          toxenv: "unit-s_kfp-py39"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-s_nb-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
 
-  manual_test:
-    when: << pipeline.parameters.manual_test >>
-    jobs:
-      - test:
-          name: << pipeline.parameters.manual_test_name >>
-          image: << pipeline.parameters.manual_test_image >>
-          toxenv: << pipeline.parameters.manual_test_toxenv >>
-          parallelism: << pipeline.parameters.manual_parallelism >>
-          xdist: << pipeline.parameters.manual_xdist >>
-
-  manual_win:
-    when: << pipeline.parameters.manual_win >>
-    jobs:
-      - win:
-          name: << pipeline.parameters.manual_win_name >>
-          toxenv: << pipeline.parameters.manual_win_toxenv >>
-          parallelism: << pipeline.parameters.manual_parallelism >>
-          xdist: << pipeline.parameters.manual_xdist >>
-
-  manual_mac:
-    when: << pipeline.parameters.manual_mac >>
-    jobs:
-      - mac:
-          name: << pipeline.parameters.manual_mac_name >>
-          toxenv: << pipeline.parameters.manual_mac_toxenv >>
-          parallelism: << pipeline.parameters.manual_parallelism >>
-          xdist: << pipeline.parameters.manual_xdist >>
+  # todo: needs love
+  #  manual_test:
+  #    when: << pipeline.parameters.manual_test >>
+  #    jobs:
+  #      - test:
+  #          name: << pipeline.parameters.manual_test_name >>
+  #          image: << pipeline.parameters.manual_test_image >>
+  #          toxenv: << pipeline.parameters.manual_test_toxenv >>
+  #          parallelism: << pipeline.parameters.manual_parallelism >>
+  #          xdist: << pipeline.parameters.manual_xdist >>
+  #
+  #  manual_win:
+  #    when: << pipeline.parameters.manual_win >>
+  #    jobs:
+  #      - win:
+  #          name: << pipeline.parameters.manual_win_name >>
+  #          toxenv: << pipeline.parameters.manual_win_toxenv >>
+  #          parallelism: << pipeline.parameters.manual_parallelism >>
+  #          xdist: << pipeline.parameters.manual_xdist >>
+  #
+  #  manual_mac:
+  #    when: << pipeline.parameters.manual_mac >>
+  #    jobs:
+  #      - mac:
+  #          name: << pipeline.parameters.manual_mac_name >>
+  #          toxenv: << pipeline.parameters.manual_mac_toxenv >>
+  #          parallelism: << pipeline.parameters.manual_parallelism >>
+  #          xdist: << pipeline.parameters.manual_xdist >>
 
   manual_nightly:
     when: << pipeline.parameters.manual_nightly >>
