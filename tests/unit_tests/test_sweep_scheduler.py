@@ -204,14 +204,39 @@ def test_sweep_scheduler_base_add_to_launch_queue(
         assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
 
 
-@patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_scheduler_sweeps(user, relay_server, sweep_config, monkeypatch):
+def test_sweep_scheduler_sweeps_add_to_launch_queue(user, relay_server, sweep_config, monkeypatch):
     with relay_server():
         _entity = user
         _project = "test-project"
         api = internal.Api()
         sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+def test_sweep_scheduler_sweeps_single_threading(user, relay_server, sweep_config, monkeypatch):
+    with relay_server():
+        _entity = user
+        _project = "test-project"
+        api = internal.Api()
+        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+
+    _scheduler = SweepScheduler(
+        api, sweep_id=sweep_id, entity=_entity, project=_project, num_workers=1
+    )
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+def test_sweep_scheduler_sweeps_multi_threading(user, relay_server, sweep_config, monkeypatch):
+    with relay_server():
+        _entity = user
+        _project = "test-project"
+        api = internal.Api()
+        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+
+    _scheduler = SweepScheduler(
+        api, sweep_id=sweep_id, entity=_entity, project=_project, num_workers=4
+    )
+
 
     # api.agent_heartbeat = Mock(
     #     side_effect=[

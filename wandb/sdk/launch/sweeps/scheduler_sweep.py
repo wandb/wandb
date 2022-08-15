@@ -39,7 +39,7 @@ class SweepScheduler(Scheduler):
     def __init__(
         self,
         *args: Any,
-        num_workers: int = 2,
+        num_workers: int = 4,
         worker_sleep: float = 0.1,
         heartbeat_queue_timeout: float = 0.1,
         heartbeat_queue_sleep: float = 0.1,
