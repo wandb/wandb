@@ -3,8 +3,10 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 import os
-from typing import Any, Dict, List, Optional
+import threading
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+import click
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
@@ -12,6 +14,7 @@ from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.lib.runid import generate_id
 
 logger = logging.getLogger(__name__)
+LOG_PREFIX = f"{click.style('sched:', fg='cyan')}: "
 
 
 class SchedulerState(Enum):
@@ -20,7 +23,7 @@ class SchedulerState(Enum):
     RUNNING = 2
     COMPLETED = 3
     FAILED = 4
-    CANCELLED = 5
+    STOPPED = 5
 
 
 class SimpleRunState(Enum):
@@ -50,13 +53,15 @@ class Scheduler(ABC):
         *args: Any,
         entity: Optional[str] = None,
         project: Optional[str] = None,
+        # ------- Begin Launch Options -------
         queue: Optional[str] = None,
         job: Optional[str] = None,
+        resource: Optional[str] = None,
+        resource_args: Optional[Dict[str, Any]] = None,
+        # ------- End Launch Options -------
         **kwargs: Any,
     ):
         self._api = api
-        self._launch_queue = queue
-        self._job = job
         self._entity = (
             entity
             or os.environ.get("WANDB_ENTITY")
@@ -66,8 +71,17 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
-
+        # ------- Begin Launch Options -------
+        # TODO(hupo): Validation on these arguments.
+        self._launch_queue = queue
+        self._job = job
+        self._resource = resource
+        self._resource_args = resource_args
+        if resource == "kubernetes":
+            self._resource_args = {"kubernetes": {}}
+        # ------- End Launch Options -------
         self._state: SchedulerState = SchedulerState.PENDING
+        self._threading_lock: threading.Lock = threading.Lock()
         self._runs: Dict[str, SweepRun] = {}
 
     @abstractmethod
@@ -84,25 +98,27 @@ class Scheduler(ABC):
 
     @property
     def state(self) -> SchedulerState:
-        logger.debug(f"Scheduler state is {self._state.name}")
+        logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
         return self._state
 
     @state.setter
     def state(self, value: SchedulerState) -> None:
-        logger.debug(f"Changing Scheduler state from {self.state.name} to {value.name}")
+        logger.debug(
+            f"{LOG_PREFIX}Changing Scheduler state from {self.state.name} to {value.name}"
+        )
         self._state = value
 
     def is_alive(self) -> bool:
         if self.state in [
             SchedulerState.COMPLETED,
             SchedulerState.FAILED,
-            SchedulerState.CANCELLED,
+            SchedulerState.STOPPED,
         ]:
             return False
         return True
 
     def start(self) -> None:
-        _msg = "Scheduler starting."
+        _msg = f"{LOG_PREFIX}Scheduler starting."
         logger.debug(_msg)
         wandb.termlog(_msg)
         self._state = SchedulerState.STARTING
@@ -110,7 +126,7 @@ class Scheduler(ABC):
         self.run()
 
     def run(self) -> None:
-        _msg = "Scheduler Running."
+        _msg = f"{LOG_PREFIX}Scheduler Running."
         logger.debug(_msg)
         wandb.termlog(_msg)
         self.state = SchedulerState.RUNNING
@@ -118,17 +134,22 @@ class Scheduler(ABC):
             while True:
                 if not self.is_alive():
                     break
-                self._update_run_states()
-                self._run()
+                try:
+                    self._update_run_states()
+                    self._run()
+                except RuntimeError as e:
+                    _msg = f"{LOG_PREFIX}Scheduler encountered Runtime Error. {e} Trying again."
+                    logger.debug(_msg)
+                    wandb.termlog(_msg)
         except KeyboardInterrupt:
-            _msg = "Scheduler received KeyboardInterrupt. Exiting."
+            _msg = f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting."
             logger.debug(_msg)
             wandb.termlog(_msg)
-            self.state = SchedulerState.CANCELLED
+            self.state = SchedulerState.STOPPED
             self.exit()
             return
         except Exception as e:
-            _msg = f"Scheduler failed with exception {e}"
+            _msg = f"{LOG_PREFIX}Scheduler failed with exception {e}"
             logger.debug(_msg)
             wandb.termlog(_msg)
             self.state = SchedulerState.FAILED
@@ -144,14 +165,19 @@ class Scheduler(ABC):
         self._exit()
         if self.state not in [
             SchedulerState.COMPLETED,
-            SchedulerState.CANCELLED,
+            SchedulerState.STOPPED,
         ]:
             self.state = SchedulerState.FAILED
-        for run_id in self._runs.keys():
+        for run_id, _ in self._yield_runs():
             self._stop_run(run_id)
 
+    def _yield_runs(self) -> Iterator[Tuple[str, SweepRun]]:
+        """Thread-safe way to iterate over the runs."""
+        with self._threading_lock:
+            yield from self._runs.items()
+
     def _update_run_states(self) -> None:
-        for run_id, run in self._runs.items():
+        for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
                 if _state is None or _state in [
@@ -169,7 +195,7 @@ class Scheduler(ABC):
                 ]:
                     run.state = SimpleRunState.ALIVE
             except Exception as e:
-                _msg = f"Issue when getting RunState for Run {run_id}: {e}"
+                _msg = f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
                 logger.debug(_msg)
                 wandb.termlog(_msg)
                 run.state = SimpleRunState.UNKNOWN
@@ -177,10 +203,8 @@ class Scheduler(ABC):
 
     def _add_to_launch_queue(
         self,
-        resource: Optional[str] = None,
         entry_point: Optional[List[str]] = None,
         run_id: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None,
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
@@ -191,19 +215,19 @@ class Scheduler(ABC):
             project=self._project,
             entity=self._entity,
             queue=self._launch_queue,
-            resource=resource,
             entry_point=entry_point,
-            # params=params,
+            resource=self._resource,
+            resource_args=self._resource_args,
             run_id=run_id,
         )
         self._runs[run_id].queued_run = queued_run
-        _msg = f"Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
+        _msg = f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
         return queued_run
 
     def _stop_run(self, run_id: str) -> None:
-        _msg = f"Stopping run {run_id}."
+        _msg = f"{LOG_PREFIX}Stopping run {run_id}."
         logger.debug(_msg)
         wandb.termlog(_msg)
         run = self._runs.get(run_id, None)
