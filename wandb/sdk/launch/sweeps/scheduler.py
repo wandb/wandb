@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 import logging
-from multiprocessing.sharedctypes import Value
 import os
 import threading
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -96,7 +95,7 @@ class Scheduler(ABC):
         pass
 
     @abstractmethod
-    def _kill_worker(self) -> None:
+    def _kill_worker(self, worker_id: int) -> None:
         pass
 
     @property
@@ -171,10 +170,10 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
             self._stop_run(run_id)
 
-    def _stop_run(self, run_id) -> None:
+    def _stop_run(self, run_id: str) -> None:
         """Stops a run and removes it from the scheduler"""
         if run_id in self._runs:
-            run = self._runs[run_id]
+            run: SweepRun = self._runs[run_id]
             if run.worker_id is not None:
                 self._kill_worker(run.worker_id)
             wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")

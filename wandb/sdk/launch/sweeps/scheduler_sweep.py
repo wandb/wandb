@@ -39,10 +39,10 @@ class SweepScheduler(Scheduler):
     def __init__(
         self,
         *args: Any,
-        num_workers: int = 4,
+        num_workers: int = 2,
         worker_sleep: float = 0.5,
-        heartbeat_queue_timeout: float = 1,
-        heartbeat_queue_sleep: float = 1,
+        heartbeat_queue_timeout: float = 0.5,
+        heartbeat_queue_sleep: float = 0.5,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
@@ -50,7 +50,7 @@ class SweepScheduler(Scheduler):
         # actually run training workloads, they simply send heartbeat messages
         # (emulating a real agent) and add new runs to the launch queue. The
         # launch agent is the one that actually runs the training workloads.
-        self._workers: Dict[int, _Worker] = []
+        self._workers: Dict[int, _Worker] = {}
         self._num_workers: int = num_workers
         self._worker_sleep: float = worker_sleep
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
@@ -168,7 +168,9 @@ class SweepScheduler(Scheduler):
         if _worker and _worker.thread.is_alive():
             # Set threading event to stop the worker thread
             _worker.stop.set()
-        _worker.thread.join()
+            print(f"{LOG_PREFIX}Killing AgentHeartbeat worker {worker_id}")
+            _worker.thread.join()
+            print(f"{LOG_PREFIX}AgentHeartbeat worker {worker_id} killed")
 
     def _exit(self) -> None:
         self.state = SchedulerState.COMPLETED
