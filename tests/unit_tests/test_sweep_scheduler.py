@@ -246,7 +246,7 @@ def test_sweep_scheduler_sweeps(monkeypatch):
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
     _scheduler.start()
-    for _heartbeat_agent in _scheduler._heartbeat_agents:
+    for _heartbeat_agent in _scheduler._workers:
         assert not _heartbeat_agent.thread.is_alive()
     assert _scheduler.state == SchedulerState.COMPLETED
     assert len(_scheduler._runs) == 1

@@ -41,6 +41,9 @@ class SweepRun:
     args: Optional[Dict[str, Any]] = None
     logs: Optional[List[str]] = None
     program: Optional[str] = None
+    # Threading can be used to run multiple workers in parallel
+    worker_id: Optional[int] = None
+    worker_thread: Optional[threading.Thread] = None
 
 
 class Scheduler(ABC):
@@ -159,19 +162,21 @@ class Scheduler(ABC):
             SchedulerState.STOPPED,
         ]:
             self.state = SchedulerState.FAILED
-        for run_id, _ in self._yield_runs():
-            self._stop_run(run_id)
+        self._stop_runs()
 
     def _yield_runs(self) -> Iterator[Tuple[str, SweepRun]]:
         """Thread-safe way to iterate over the runs."""
         with self._threading_lock:
             yield from self._runs.items()
 
+    def _stop_runs(self) -> None:
+        for run_id, _ in self._yield_runs():
+            wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
+            self._stop_run(run_id)
+
+    @abstractmethod
     def _stop_run(self, run_id: str) -> None:
-        wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
-        run = self._runs.get(run_id, None)
-        if run is not None:
-            run.state = SimpleRunState.DEAD
+        pass
 
     def _update_run_states(self) -> None:
         for run_id, run in self._yield_runs():
