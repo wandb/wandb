@@ -439,7 +439,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
                 "Error: %s" % (version, uri, e)
             )
     else:
-        if repo.getattr("references", None) is not None:
+        if getattr(repo, "references", None) is not None:
             branches = [ref.name for ref in repo.references]
         else:
             branches = []
