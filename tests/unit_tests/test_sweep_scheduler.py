@@ -111,7 +111,7 @@ def test_sweep_scheduler_base_scheduler_states(
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
-def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monkeypatch):
+def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config):
     with relay_server():
         _entity = user
         _project = "test-project"
@@ -129,12 +129,11 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
             "run7": ("preempted", SimpleRunState.ALIVE),
             "run8": ("preempting", SimpleRunState.ALIVE),
         }
+
         def mock_get_run_state(entity, project, run_id, *args, **kwargs):
-            print('GOT HERE')
             return mock_run_states[run_id][0]
 
-        monkeypatch.setattr("wandb.apis.internal.Api.get_run_state", mock_get_run_state)
-
+        api.get_run_state = mock_get_run_state
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
         # Load up the runs into the Scheduler run dict
         for run_id in mock_run_states.keys():
@@ -151,19 +150,29 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config, monke
         def mock_get_run_state_raise_exception(*args, **kwargs):
             raise Exception("Generic Exception")
 
-        monkeypatch.setattr("wandb.apis.internal.Api.get_run_state", mock_get_run_state_raise_exception)
-
+        api.get_run_state = mock_get_run_state_raise_exception
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        _scheduler._runs["foo_run_1"] = SweepRun(id="foo_run_1", state=SimpleRunState.ALIVE)
-        _scheduler._runs["foo_run_2"] = SweepRun(id="foo_run_2", state=SimpleRunState.ALIVE)
+        _scheduler._runs["foo_run_1"] = SweepRun(
+            id="foo_run_1", state=SimpleRunState.ALIVE
+        )
+        _scheduler._runs["foo_run_2"] = SweepRun(
+            id="foo_run_2", state=SimpleRunState.ALIVE
+        )
         _scheduler._update_run_states()
         assert _scheduler._runs["foo_run_1"].state == SimpleRunState.UNKNOWN
         assert _scheduler._runs["foo_run_2"].state == SimpleRunState.UNKNOWN
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-def test_sweep_scheduler_base_add_to_launch_queue(monkeypatch):
-    api = internal.Api()
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
+def test_sweep_scheduler_base_add_to_launch_queue(
+    user, relay_server, sweep_config, monkeypatch
+):
+    with relay_server():
+        _entity = user
+        _project = "test-project"
+        api = internal.Api()
+        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
     def mock_launch_add(*args, **kwargs):
         return Mock(spec=public.QueuedRun)
@@ -184,7 +193,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(monkeypatch):
         mock_run_add_to_launch_queue,
     )
 
-    _scheduler = Scheduler(api, entity="foo", project="bar")
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive() is True
     _scheduler.start()

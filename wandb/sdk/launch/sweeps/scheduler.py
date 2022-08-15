@@ -45,7 +45,6 @@ class SweepRun:
     program: Optional[str] = None
     # Threading can be used to run multiple workers in parallel
     worker_id: Optional[int] = None
-    worker_thread: Optional[threading.Thread] = None
 
 
 class Scheduler(ABC):
@@ -97,7 +96,7 @@ class Scheduler(ABC):
         pass
 
     @abstractmethod
-    def _stop_run(self, run_id: str) -> None:
+    def _kill_worker(self) -> None:
         pass
 
     @property
@@ -172,12 +171,20 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
             self._stop_run(run_id)
 
+    def _stop_run(self, run_id) -> None:
+        """Stops a run and removes it from the scheduler"""
+        if run_id in self._runs:
+            run = self._runs[run_id]
+            if run.worker_id is not None:
+                self._kill_worker(run.worker_id)
+            wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
+            run.state = SimpleRunState.DEAD
+
     def _update_run_states(self) -> None:
         _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
-                print(f'{LOG_PREFIX}Run {run_id} is {_state}')
                 if _state is None or _state in [
                     "crashed",
                     "failed",
@@ -194,15 +201,15 @@ class Scheduler(ABC):
                 ]:
                     run.state = SimpleRunState.ALIVE
             except Exception as e:
-                wandb.termlog(f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}")
+                wandb.termlog(
+                    f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
+                )
                 run.state = SimpleRunState.UNKNOWN
                 continue
-        print(f'{LOG_PREFIX}Removing {len(_runs_to_remove)} runs.')
         # Remove any runs that are dead
         with self._threading_lock:
             for run_id in _runs_to_remove:
-                wandb.termlog(f"{LOG_PREFIX}Removing dead run {run_id}.")
-                print(f"deleting {run_id}")
+                wandb.termlog(f"{LOG_PREFIX}Cleaning up dead run {run_id}.")
                 del self._runs[run_id]
 
     def _add_to_launch_queue(

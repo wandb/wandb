@@ -163,14 +163,12 @@ class SweepScheduler(Scheduler):
             run_id=run.id,
         )
 
-    def _stop_run(self, run_id: str) -> None:
-        run = self._runs.get(run_id, None)
-        if run is not None:
-            _worker = self._workers.get(run.worker_id, None)
-            if _worker and _worker.thread.is_alive():
-                # Set threading event to stop the worker thread
-                _worker.stop.set()
-            run.state = SimpleRunState.DEAD
+    def _kill_worker(self, worker_id: int) -> None:
+        _worker = self._workers.get(worker_id, None)
+        if _worker and _worker.thread.is_alive():
+            # Set threading event to stop the worker thread
+            _worker.stop.set()
+        _worker.thread.join()
 
     def _exit(self) -> None:
         self.state = SchedulerState.COMPLETED
