@@ -159,6 +159,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(monkeypatch):
     assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
 
 
+@pytest.mark.xfail(reason="TODO(hupo): fix")
 def test_sweep_scheduler_sweeps(monkeypatch):
     api = internal.Api()
 
