@@ -12,6 +12,7 @@ import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
 from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ class Scheduler(ABC):
         self,
         api: Api,
         *args: Optional[Any],
+        sweep_id: str = None,
         entity: Optional[str] = None,
         project: Optional[str] = None,
         **kwargs: Optional[Any],
@@ -69,6 +71,15 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
+        # Make sure the provided sweep_id corresponds to a valid sweep
+        found = self._api.sweep(
+            sweep_id, "{}", entity=self._entity, project=self._project
+        )
+        if not found:
+            raise SchedulerError(
+                f"{LOG_PREFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
+            )
+        self._sweep_id: str = sweep_id or "empty-sweep-id"
         self._state: SchedulerState = SchedulerState.PENDING
         self._threading_lock: threading.Lock = threading.Lock()
         # List of the runs managed by the scheduler
@@ -207,6 +218,8 @@ class Scheduler(ABC):
         if _job is None and _uri is None:
             # If no Job is specified, use a placeholder URI to prevent Launch failure
             _uri = "placeholder-uri-queuedrun-from-scheduler"
+        # Queue is required
+        _queue = self._kwargs.get("queue", "default")
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,
@@ -214,12 +227,11 @@ class Scheduler(ABC):
             job=_job,
             project=self._project,
             entity=self._entity,
-            queue=self._kwargs.get("queue", None),
-            resource=self._kwargs.get("resource", None),
-            resource_args=self._kwargs.get("resource_args", None),
+            queue=_queue,
+            **self._kwargs,
         )
-        self._runs[run_id].queued_run: public.QueuedRun = queued_run
+        self._runs[run_id].queued_run = queued_run
         wandb.termlog(
-            f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
+            f"{LOG_PREFIX}Added run to Launch RunQueue: {_queue} RunID:{run_id}."
         )
         return queued_run

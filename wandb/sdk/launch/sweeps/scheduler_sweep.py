@@ -7,11 +7,10 @@ import queue
 import socket
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import wandb
 from wandb import wandb_lib  # type: ignore
-from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
     Scheduler,
@@ -40,7 +39,6 @@ class SweepScheduler(Scheduler):
     def __init__(
         self,
         *args: Any,
-        sweep_id: Optional[str] = None,
         num_workers: int = 4,
         worker_sleep: float = 0.5,
         heartbeat_queue_timeout: float = 1,
@@ -48,20 +46,11 @@ class SweepScheduler(Scheduler):
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
-        # Make sure the provided sweep_id corresponds to a valid sweep
-        found = self._api.sweep(
-            sweep_id, "{}", entity=self._entity, project=self._project
-        )
-        if not found:
-            raise SchedulerError(
-                f"{LOG_PREFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
-            )
-        self._sweep_id: str = sweep_id
         # Threading is used to run multiple workers in parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages
         # (emulating a real agent) and add new runs to the launch queue. The
         # launch agent is the one that actually runs the training workloads.
-        self._workers: List[_Worker] = []
+        self._workers: Dict[int, _Worker] = []
         self._num_workers: int = num_workers
         self._worker_sleep: float = worker_sleep
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
@@ -83,14 +72,12 @@ class SweepScheduler(Scheduler):
             # Worker threads call heartbeat function
             _thread = threading.Thread(target=self._heartbeat, args=[worker_id])
             _thread.daemon = True
-            self._workers.append(
-                _Worker(
-                    agent_config=agent_config,
-                    agent_id=agent_config["id"],
-                    thread=_thread,
-                    # Worker threads will be killed with an Event
-                    stop=threading.Event(),
-                )
+            self._workers[worker_id] = _Worker(
+                agent_config=agent_config,
+                agent_id=agent_config["id"],
+                thread=_thread,
+                # Worker threads will be killed with an Event
+                stop=threading.Event(),
             )
             _thread.start()
 
@@ -129,9 +116,9 @@ class SweepScheduler(Scheduler):
                         return
                     if _type in ["run", "resume"]:
                         run = SweepRun(
-                            id=command.get("run_id"),
-                            args=command.get("args"),
-                            logs=command.get("logs"),
+                            id=command.get("run_id", "empty-run-id"),
+                            args=command.get("args", {}),
+                            logs=command.get("logs", []),
                             program=command.get("program"),
                             worker_id=worker_id,
                         )
