@@ -57,7 +57,10 @@ class SweepScheduler(Scheduler):
                 f"{LOG_PREFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
             )
         self._sweep_id: str = sweep_id
-        # Threading is used to run multiple workers in parallel
+        # Threading is used to run multiple workers in parallel. Workers do not
+        # actually run training workloads, they simply send heartbeat messages
+        # (emulating a real agent) and add new runs to the launch queue. The
+        # launch agent is the one that actually runs the training workloads.
         self._workers: List[_Worker] = []
         self._num_workers: int = num_workers
         self._worker_sleep: float = worker_sleep
@@ -99,44 +102,37 @@ class SweepScheduler(Scheduler):
             # Check to see if worker thread has been orderred to stop
             if self._workers[worker_id].stop.is_set():
                 return
-            # AgentHeartbeat wants dict of runs which are running or queued
-            _run_states = {}
+            # AgentHeartbeat wants a Dict of runs which are running or queued
+            _run_states: Dict[str, bool] = {}
             for run_id, run in self._yield_runs():
                 # Filter out runs that are from a different worker thread
                 if run.worker_id == worker_id and run.state == SimpleRunState.ALIVE:
                     _run_states[run_id] = True
-            _msg = (
-                f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
+            logger.debug(f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n")
+            commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
+                self._workers[worker_id].agent_id, # agent_id: str
+                {}, # metrics: dict
+                _run_states # run_states: dict
             )
-            logger.debug(_msg)
-            # TODO(hupo): Should be sub-set of _run_states specific to worker thread
-            commands = self._api.agent_heartbeat(
-                self._workers[worker_id].agent_id, {}, _run_states
-            )
+            logger.debug(f"{LOG_PREFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n")
             if commands:
-                _msg = f"{LOG_PREFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
-                logger.debug(_msg)
                 for command in commands:
+                    # The command "type" can be one of "run", "resume", "stop", "exit"
                     _type = command.get("type")
-                    # type can be one of "run", "resume", "stop", "exit"
-                    if _type == "exit":
+                    if _type in ["exit", "stop"]:
+                        # (virtual) agent should stop running
+                        self._workers[worker_id].stop.set()
                         self.state = SchedulerState.COMPLETED
                         self.exit()
                         return
-                    if _type == "stop":
-                        # TODO(hupo): Debug edge cases while stopping with active runs
-                        self.state = SchedulerState.COMPLETED
-                        self.exit()
-                        return
-                    run = SweepRun(
-                        id=command.get("run_id"),
-                        args=command.get("args"),
-                        logs=command.get("logs"),
-                        program=command.get("program"),
-                    )
-                    with self._threading_lock:
-                        self._runs[run.id] = run
                     if _type in ["run", "resume"]:
+                        run = SweepRun(
+                            id=command.get("run_id"),
+                            args=command.get("args"),
+                            logs=command.get("logs"),
+                            program=command.get("program"),
+                        )
+                        self._runs[run.id] = run
                         self._heartbeat_queue.put(run)
                         continue
             time.sleep(self._worker_sleep)
