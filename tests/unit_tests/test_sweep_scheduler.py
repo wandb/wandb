@@ -225,6 +225,12 @@ def test_sweep_scheduler_sweeps_single_threading(user, relay_server, sweep_confi
         api, sweep_id=sweep_id, entity=_entity, project=_project, num_workers=1
     )
 
+    def mock_get_run_state(*args, **kwargs):
+        return "finished"
+
+    api.get_run_state = mock_get_run_state
+
+
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_sweeps_multi_threading(user, relay_server, sweep_config, monkeypatch):
     with relay_server():
