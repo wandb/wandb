@@ -3189,7 +3189,7 @@ class Run:
             return
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        total_files = sum(
+        total_files: int = sum(
             sum(
                 [
                     response.file_counts.wandb_count,
@@ -3199,17 +3199,17 @@ class Run:
                 ]
             )
             for response in poll_exit_responses
-            if response and response.file_counts
+            if response is not None and response.file_counts is not None
         )
         uploaded = sum(
             response.pusher_stats.uploaded_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
         total = sum(
             response.pusher_stats.total_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
 
         line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"

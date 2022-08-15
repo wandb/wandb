@@ -6,7 +6,7 @@ import platform
 import sys
 from typing import Callable, List, Optional, Tuple, Union
 
-import click  # type: ignore
+import click
 import wandb
 
 from . import ipython, sparkline

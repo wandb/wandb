@@ -32,7 +32,7 @@ import logging
 import socket
 import sys
 
-import click  # type: ignore
+import click
 import yaml
 
 import wandb
@@ -2331,7 +2331,7 @@ class Api:
                 else:
                     length = os.fstat(open_file.fileno()).st_size
                     with click.progressbar(
-                        file=progress,
+                        file=progress,  # type: ignore
                         length=length,
                         label=f"Uploading file: {file_name}",
                         fill_char=click.style("&", fg="green"),
