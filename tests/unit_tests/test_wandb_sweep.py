@@ -40,7 +40,14 @@ SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
 }
 
 # List of all valid base configurations
-VALID_SWEEP_CONFIGS: List[Dict[str, Any]] = [
+VALID_SWEEP_CONFIGS_SMALL: List[Dict[str, Any]] = [
+    SWEEP_CONFIG_GRID,
+    # SWEEP_CONFIG_GRID_HYPERBAND,
+    # SWEEP_CONFIG_GRID_NESTED,
+    # SWEEP_CONFIG_BAYES,
+    # SWEEP_CONFIG_RANDOM,
+]
+VALID_SWEEP_CONFIGS_FULL: List[Dict[str, Any]] = [
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_HYPERBAND,
     SWEEP_CONFIG_GRID_NESTED,
@@ -49,14 +56,14 @@ VALID_SWEEP_CONFIGS: List[Dict[str, Any]] = [
 ]
 
 
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_FULL)
 def test_sweep_create(user, relay_server, sweep_config):
     with relay_server() as relay:
         sweep_id = wandb.sweep(sweep_config, entity=user)
     assert sweep_id in relay.context.entries
 
 
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
 def test_sweep_entity_project_callable(user, relay_server, sweep_config):
     def sweep_callable():
         return sweep_config

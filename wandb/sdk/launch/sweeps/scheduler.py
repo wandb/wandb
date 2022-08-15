@@ -17,7 +17,7 @@ from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
 
 logger = logging.getLogger(__name__)
-LOG_PREFIX = f"{click.style('sched:', fg='cyan')}: "
+LOG_PREFIX = f"{click.style('sched:', fg='cyan')} "
 
 
 class SchedulerState(Enum):
@@ -173,9 +173,11 @@ class Scheduler(ABC):
             self._stop_run(run_id)
 
     def _update_run_states(self) -> None:
+        _runs_to_remove: List[str] = []
         for run_id, run in self._yield_runs():
             try:
                 _state = self._api.get_run_state(self._entity, self._project, run_id)
+                print(f'{LOG_PREFIX}Run {run_id} is {_state}')
                 if _state is None or _state in [
                     "crashed",
                     "failed",
@@ -183,6 +185,7 @@ class Scheduler(ABC):
                     "finished",
                 ]:
                     run.state = SimpleRunState.DEAD
+                    _runs_to_remove.append(run_id)
                 elif _state in [
                     "running",
                     "pending",
@@ -191,17 +194,16 @@ class Scheduler(ABC):
                 ]:
                     run.state = SimpleRunState.ALIVE
             except Exception as e:
-                _msg = f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
-                logger.debug(_msg)
-                wandb.termlog(_msg)
+                wandb.termlog(f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}")
                 run.state = SimpleRunState.UNKNOWN
                 continue
+        print(f'{LOG_PREFIX}Removing {len(_runs_to_remove)} runs.')
         # Remove any runs that are dead
         with self._threading_lock:
-            for run_id, run in self._runs.items():
-                if run.state == SimpleRunState.DEAD:
-                    wandb.termlog(f"{LOG_PREFIX}Removing dead run {run_id}.")
-                    del self._runs[run_id]
+            for run_id in _runs_to_remove:
+                wandb.termlog(f"{LOG_PREFIX}Removing dead run {run_id}.")
+                print(f"deleting {run_id}")
+                del self._runs[run_id]
 
     def _add_to_launch_queue(
         self,
