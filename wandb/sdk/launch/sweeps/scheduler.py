@@ -1,3 +1,4 @@
+"""Abstract Scheduler class."""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -126,9 +127,7 @@ class Scheduler(ABC):
         self.run()
 
     def run(self) -> None:
-        _msg = f"{LOG_PREFIX}Scheduler Running."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
+        wandb.termlog(f"{LOG_PREFIX}Scheduler Running.")
         self.state = SchedulerState.RUNNING
         try:
             while True:
@@ -138,27 +137,19 @@ class Scheduler(ABC):
                     self._update_run_states()
                     self._run()
                 except RuntimeError as e:
-                    _msg = f"{LOG_PREFIX}Scheduler encountered Runtime Error. {e} Trying again."
-                    logger.debug(_msg)
-                    wandb.termlog(_msg)
+                    wandb.termlog(f"{LOG_PREFIX}Scheduler encountered Runtime Error. {e} Trying again.")
         except KeyboardInterrupt:
-            _msg = f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting."
-            logger.debug(_msg)
-            wandb.termlog(_msg)
+            wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
             self.state = SchedulerState.STOPPED
             self.exit()
             return
         except Exception as e:
-            _msg = f"{LOG_PREFIX}Scheduler failed with exception {e}"
-            logger.debug(_msg)
-            wandb.termlog(_msg)
+            wandb.termlog(f"{LOG_PREFIX}Scheduler failed with exception {e}")
             self.state = SchedulerState.FAILED
             self.exit()
             raise e
         else:
-            _msg = "Scheduler completed."
-            logger.debug(_msg)
-            wandb.termlog(_msg)
+            wandb.termlog(f"{LOG_PREFIX}Scheduler completed.")
             self.exit()
 
     def exit(self) -> None:
@@ -175,6 +166,12 @@ class Scheduler(ABC):
         """Thread-safe way to iterate over the runs."""
         with self._threading_lock:
             yield from self._runs.items()
+
+    def _stop_run(self, run_id: str) -> None:
+        wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
+        run = self._runs.get(run_id, None)
+        if run is not None:
+            run.state = SimpleRunState.DEAD
 
     def _update_run_states(self) -> None:
         for run_id, run in self._yield_runs():
@@ -220,16 +217,8 @@ class Scheduler(ABC):
             resource_args=self._resource_args,
             run_id=run_id,
         )
-        self._runs[run_id].queued_run = queued_run
-        _msg = f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
+        self._runs[run_id].queued_run: public.QueuedRun = queued_run
+        wandb.termlog(f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}.")
         return queued_run
 
-    def _stop_run(self, run_id: str) -> None:
-        _msg = f"{LOG_PREFIX}Stopping run {run_id}."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
-        run = self._runs.get(run_id, None)
-        if run is not None:
-            run.state = SimpleRunState.DEAD
+

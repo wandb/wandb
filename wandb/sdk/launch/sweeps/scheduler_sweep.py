@@ -1,3 +1,4 @@
+"""Scheduler for classic wandb Sweeps."""
 from dataclasses import dataclass
 import logging
 import os
