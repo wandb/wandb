@@ -54,16 +54,10 @@ class Scheduler(ABC):
     def __init__(
         self,
         api: Api,
-        *args: Any,
+        *args: Optional[Any],
         entity: Optional[str] = None,
         project: Optional[str] = None,
-        # ------- Begin Launch Options -------
-        queue: Optional[str] = None,
-        job: Optional[str] = None,
-        resource: Optional[str] = None,
-        resource_args: Optional[Dict[str, Any]] = None,
-        # ------- End Launch Options -------
-        **kwargs: Any,
+        **kwargs: Optional[Any],
     ):
         self._api = api
         self._entity = (
@@ -75,18 +69,10 @@ class Scheduler(ABC):
         self._project = (
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
-        # ------- Begin Launch Options -------
-        # TODO(hupo): Validation on these arguments.
-        self._launch_queue = queue
-        self._job = job
-        self._resource = resource
-        self._resource_args = resource_args
-        if resource == "kubernetes":
-            self._resource_args = {"kubernetes": {}}
-        # ------- End Launch Options -------
         self._state: SchedulerState = SchedulerState.PENDING
         self._threading_lock: threading.Lock = threading.Lock()
         self._runs: Dict[str, SweepRun] = {}
+        self._kwargs: Dict[str, Any] = kwargs
 
     @abstractmethod
     def _start(self) -> None:
@@ -107,9 +93,7 @@ class Scheduler(ABC):
 
     @state.setter
     def state(self, value: SchedulerState) -> None:
-        logger.debug(
-            f"{LOG_PREFIX}Changing Scheduler state from {self.state.name} to {value.name}"
-        )
+        logger.debug(f"{LOG_PREFIX}Scheduler was {self.state.name} is {value.name}")
         self._state = value
 
     def is_alive(self) -> bool:
@@ -122,9 +106,7 @@ class Scheduler(ABC):
         return True
 
     def start(self) -> None:
-        _msg = f"{LOG_PREFIX}Scheduler starting."
-        logger.debug(_msg)
-        wandb.termlog(_msg)
+        wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
         self._state = SchedulerState.STARTING
         self._start()
         self.run()
@@ -140,7 +122,9 @@ class Scheduler(ABC):
                     self._update_run_states()
                     self._run()
                 except RuntimeError as e:
-                    wandb.termlog(f"{LOG_PREFIX}Scheduler encountered Runtime Error. {e} Trying again.")
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Scheduler encountered Runtime Error. {e} Trying again."
+                    )
         except KeyboardInterrupt:
             wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
             self.state = SchedulerState.STOPPED
@@ -210,20 +194,25 @@ class Scheduler(ABC):
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
+        # One of Job and URI is required
+        _job = self._kwargs.get("job", None)
+        _uri = self._kwargs.get("uri", None)
+        if _job is None and _uri is None:
+            # If no Job is specified, use a placeholder URI to prevent Launch failure
+            _uri = "placeholder-uri-queuedrun-from-scheduler"
         queued_run = launch_add(
-            # TODO(hupo): If no Job is specified, use a placeholder URI to prevent Launch failure
-            uri=None if self._job is not None else "placeholder-uri-queuedrun",
-            job=self._job,
+            run_id=run_id,
+            entry_point=entry_point,
+            uri=_uri,
+            job=_job,
             project=self._project,
             entity=self._entity,
-            queue=self._launch_queue,
-            entry_point=entry_point,
-            resource=self._resource,
-            resource_args=self._resource_args,
-            run_id=run_id,
+            queue=self._kwargs.get("queue", None),
+            resource=self._kwargs.get("resource", None),
+            resource_args=self._kwargs.get("resource_args", None),
         )
         self._runs[run_id].queued_run: public.QueuedRun = queued_run
-        wandb.termlog(f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}.")
+        wandb.termlog(
+            f"{LOG_PREFIX}Added run to Launch RunQueue: {self._launch_queue} RunID:{run_id}."
+        )
         return queued_run
-
-

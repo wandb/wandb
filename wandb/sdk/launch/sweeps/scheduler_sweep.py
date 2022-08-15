@@ -56,7 +56,7 @@ class SweepScheduler(Scheduler):
             raise SchedulerError(
                 f"{LOG_PREFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
             )
-        self._sweep_id = sweep_id
+        self._sweep_id: str = sweep_id
         # Threading is used to run multiple workers in parallel
         self._workers: List[_Worker] = []
         self._num_workers: int = num_workers
@@ -86,7 +86,7 @@ class SweepScheduler(Scheduler):
                     agent_id=agent_config["id"],
                     thread=_thread,
                     # Worker threads will be killed with an Event
-                    stop = threading.Event(),
+                    stop=threading.Event(),
                 )
             )
             _thread.start()
@@ -156,7 +156,9 @@ class SweepScheduler(Scheduler):
             SimpleRunState.UNKNOWN,
         ]:
             return
-        wandb.termlog(f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job")
+        wandb.termlog(
+            f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
+        )
         # This is actually what populates the wandb config
         # since it is used in wandb.init()
         sweep_param_path = os.path.join(
@@ -182,7 +184,6 @@ class SweepScheduler(Scheduler):
             if self._workers[run.worker_id].thread.is_alive():
                 self._workers[run.worker_id].stop.set()
             run.state = SimpleRunState.DEAD
-
 
     def _exit(self) -> None:
         self.state = SchedulerState.COMPLETED
