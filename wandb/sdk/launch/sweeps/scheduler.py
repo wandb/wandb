@@ -30,7 +30,7 @@ class SchedulerState(Enum):
 class SimpleRunState(Enum):
     ALIVE = 0
     DEAD = 1
-    UNKNOWN = 3
+    UNKNOWN = 2
 
 
 @dataclass
@@ -71,6 +71,7 @@ class Scheduler(ABC):
         )
         self._state: SchedulerState = SchedulerState.PENDING
         self._threading_lock: threading.Lock = threading.Lock()
+        # List of the runs managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
         self._kwargs: Dict[str, Any] = kwargs
 
@@ -186,6 +187,12 @@ class Scheduler(ABC):
                 wandb.termlog(_msg)
                 run.state = SimpleRunState.UNKNOWN
                 continue
+        # Remove any runs that are dead
+        with self._threading_lock:
+            for run_id, run in self._runs.items():
+                if run.state == SimpleRunState.DEAD:
+                    wandb.termlog(f"{LOG_PREFIX}Removing dead run {run_id}.")
+                    del self._runs[run_id]
 
     def _add_to_launch_queue(
         self,

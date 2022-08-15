@@ -108,21 +108,23 @@ class SweepScheduler(Scheduler):
                 # Filter out runs that are from a different worker thread
                 if run.worker_id == worker_id and run.state == SimpleRunState.ALIVE:
                     _run_states[run_id] = True
-            logger.debug(f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n")
-            commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
-                self._workers[worker_id].agent_id, # agent_id: str
-                {}, # metrics: dict
-                _run_states # run_states: dict
+            logger.debug(
+                f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
             )
-            logger.debug(f"{LOG_PREFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n")
+            commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
+                self._workers[worker_id].agent_id,  # agent_id: str
+                {},  # metrics: dict
+                _run_states,  # run_states: dict
+            )
+            logger.debug(
+                f"{LOG_PREFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
+            )
             if commands:
                 for command in commands:
                     # The command "type" can be one of "run", "resume", "stop", "exit"
                     _type = command.get("type")
                     if _type in ["exit", "stop"]:
-                        # (virtual) agent should stop running
-                        self._workers[worker_id].stop.set()
-                        self.state = SchedulerState.COMPLETED
+                        # Tell (virtual) agent to stop running
                         self.exit()
                         return
                     if _type in ["run", "resume"]:
@@ -131,6 +133,7 @@ class SweepScheduler(Scheduler):
                             args=command.get("args"),
                             logs=command.get("logs"),
                             program=command.get("program"),
+                            worker_id=worker_id,
                         )
                         self._runs[run.id] = run
                         self._heartbeat_queue.put(run)
@@ -176,9 +179,10 @@ class SweepScheduler(Scheduler):
     def _stop_run(self, run_id: str) -> None:
         run = self._runs.get(run_id, None)
         if run is not None:
-            # Set threading event to stop the worker thread
-            if self._workers[run.worker_id].thread.is_alive():
-                self._workers[run.worker_id].stop.set()
+            _worker = self._workers.get(run.worker_id, None)
+            if _worker and _worker.thread.is_alive():
+                # Set threading event to stop the worker thread
+                _worker.stop.set()
             run.state = SimpleRunState.DEAD
 
     def _exit(self) -> None:
