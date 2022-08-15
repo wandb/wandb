@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 import logging
+from multiprocessing.sharedctypes import Value
 import os
 import threading
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -72,13 +73,10 @@ class Scheduler(ABC):
             project or os.environ.get("WANDB_PROJECT") or api.settings("project")
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
-        found = self._api.sweep(
-            sweep_id, "{}", entity=self._entity, project=self._project
-        )
-        if not found:
-            raise SchedulerError(
-                f"{LOG_PREFIX}Could not find sweep {self._entity}/{self._project}/{sweep_id}"
-            )
+        try:
+            self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+        except Exception as e:
+            raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
         self._sweep_id: str = sweep_id or "empty-sweep-id"
         self._state: SchedulerState = SchedulerState.PENDING
         self._threading_lock: threading.Lock = threading.Lock()
@@ -96,6 +94,10 @@ class Scheduler(ABC):
 
     @abstractmethod
     def _exit(self) -> None:
+        pass
+
+    @abstractmethod
+    def _stop_run(self, run_id: str) -> None:
         pass
 
     @property
@@ -169,10 +171,6 @@ class Scheduler(ABC):
         for run_id, _ in self._yield_runs():
             wandb.termlog(f"{LOG_PREFIX}Stopping run {run_id}.")
             self._stop_run(run_id)
-
-    @abstractmethod
-    def _stop_run(self, run_id: str) -> None:
-        pass
 
     def _update_run_states(self) -> None:
         for run_id, run in self._yield_runs():
