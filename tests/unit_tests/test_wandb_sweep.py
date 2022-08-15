@@ -39,31 +39,31 @@ SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
 
-# List of all valid base configurations
-VALID_SWEEP_CONFIGS_SMALL: List[Dict[str, Any]] = [
-    SWEEP_CONFIG_GRID,
-    SWEEP_CONFIG_GRID_HYPERBAND,
-    SWEEP_CONFIG_GRID_NESTED,
+# Minimal list of valid sweep configs
+VALID_SWEEP_CONFIGS_MINIMAL: List[Dict[str, Any]] = [
     SWEEP_CONFIG_BAYES,
     SWEEP_CONFIG_RANDOM,
+    SWEEP_CONFIG_GRID_HYPERBAND,
+    SWEEP_CONFIG_GRID_NESTED,
 ]
-VALID_SWEEP_CONFIGS_FULL: List[Dict[str, Any]] = [
-    SWEEP_CONFIG_GRID,
-    SWEEP_CONFIG_GRID_HYPERBAND,
-    SWEEP_CONFIG_GRID_NESTED,
-    SWEEP_CONFIG_BAYES,
+# All valid sweep configs, be careful as this will slow down tests
+VALID_SWEEP_CONFIGS_ALL: List[Dict[str, Any]] = [
     SWEEP_CONFIG_RANDOM,
+    SWEEP_CONFIG_BAYES,
+    SWEEP_CONFIG_GRID,
+    SWEEP_CONFIG_GRID_NESTED,
+    SWEEP_CONFIG_GRID_HYPERBAND,
 ]
 
 
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_FULL)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_ALL)
 def test_sweep_create(user, relay_server, sweep_config):
     with relay_server() as relay:
         sweep_id = wandb.sweep(sweep_config, entity=user)
     assert sweep_id in relay.context.entries
 
 
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_entity_project_callable(user, relay_server, sweep_config):
     def sweep_callable():
         return sweep_config

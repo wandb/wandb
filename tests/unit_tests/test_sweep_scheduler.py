@@ -13,7 +13,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
 )
 from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
 
-from .test_wandb_sweep import VALID_SWEEP_CONFIGS_SMALL
+from .test_wandb_sweep import VALID_SWEEP_CONFIGS_MINIMAL
 
 
 def test_sweep_scheduler_load():
@@ -24,7 +24,7 @@ def test_sweep_scheduler_load():
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_config):
     with relay_server():
         _entity = user
@@ -41,7 +41,7 @@ def test_sweep_scheduler_entity_project_sweep_id(user, relay_server, sweep_confi
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_base_scheduler_states(
     user, relay_server, sweep_config, monkeypatch
 ):
@@ -110,7 +110,7 @@ def test_sweep_scheduler_base_scheduler_states(
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config):
     with relay_server():
         _entity = user
@@ -164,7 +164,7 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config):
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_base_add_to_launch_queue(
     user, relay_server, sweep_config, monkeypatch
 ):
@@ -205,7 +205,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_SMALL)
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_scheduler_sweeps(user, relay_server, sweep_config, monkeypatch):
     with relay_server():
         _entity = user
