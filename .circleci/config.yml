@@ -332,11 +332,11 @@ jobs:
       xdist:
         type: integer
         default: 3
-      executor:
+      machine_executor:
         type: string
         default: "default"  # "default" or "server-2019-cuda"
     executor:
-      name: win/<< parameters.executor >>
+      name: win/<< parameters.machine_executor >>
       size: "large"
     parallelism: << parameters.parallelism >>
     steps:
@@ -352,7 +352,7 @@ jobs:
             cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
       - when:
           condition:
-            equal: [ << parameters.executor >>, "server-2019-cuda" ]
+            equal: [ "server-2019-cuda", << parameters.machine_executor >> ]
           steps:
             - run:
                 name: Update tox.ini on a GPU machine to install the proper pytorch version
@@ -1111,12 +1111,13 @@ workflows:
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 6
           xdist: 1
+      # standalone GPU tests
       - win:
-          executor: server-2019-cuda
+          machine_executor: server-2019-cuda
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 8 ]
+              python_version_minor: [ 9 ]
           name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 2
