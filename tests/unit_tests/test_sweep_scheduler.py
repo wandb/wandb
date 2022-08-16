@@ -165,203 +165,11 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config):
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_scheduler_base_add_to_launch_queue(
-    user, relay_server, sweep_config, monkeypatch
-):
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
+def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatch):
+    api = internal.Api()
 
-        def mock_launch_add(*args, **kwargs):
-            return Mock(spec=public.QueuedRun)
-
-        monkeypatch.setattr(
-            "wandb.sdk.launch.launch_add._launch_add",
-            mock_launch_add,
-        )
-
-        def mock_run_add_to_launch_queue(self, *args, **kwargs):
-            self._runs["foo_run"] = SweepRun(id="foo_run", state=SimpleRunState.ALIVE)
-            self._add_to_launch_queue(run_id="foo_run")
-            self.state = SchedulerState.COMPLETED
-            self.exit()
-
-        monkeypatch.setattr(
-            "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
-            mock_run_add_to_launch_queue,
-        )
-
-        _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
-        assert _scheduler.state == SchedulerState.PENDING
-        assert _scheduler.is_alive() is True
-        _scheduler.start()
-        assert _scheduler.state == SchedulerState.COMPLETED
-        assert _scheduler.is_alive() is False
-        assert len(_scheduler._runs) == 1
-        assert isinstance(_scheduler._runs["foo_run"].queued_run, public.QueuedRun)
-        assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
-
-
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-@pytest.mark.parametrize("num_workers", [1, 3, 8])
-def test_sweep_scheduler_sweeps_kill_threads(
-    user, relay_server, sweep_config, num_workers, monkeypatch
-):
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-
-        def mock_agent_heartbeat(*args, **kwargs):
-            return [{"type": "run", "run_id": "mock-run-id"}]
-
-        def mock_get_run_state(*args, **kwargs):
-            return "running"
-
-        def mock_register_agent(*args, **kwargs):
-            return {"id": "mock-agent-id"}
-
-        def mock_launch_add(*args, **kwargs):
-            return Mock(spec=public.QueuedRun)
-
-        api.get_run_state = mock_get_run_state
-        api.register_agent = mock_register_agent
-        api.agent_heartbeat = mock_agent_heartbeat
-        monkeypatch.setattr(
-            "wandb.sdk.launch.launch_add._launch_add",
-            mock_launch_add,
-        )
-
-        _scheduler = SweepScheduler(
-            api, sweep_id=sweep_id, entity=_entity, project=_project, num_workers=num_workers
-        )
-        _scheduler.start()
-        _scheduler.exit()
-        assert _scheduler.state == SchedulerState.COMPLETED
-        assert _scheduler.is_alive() is False
-
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
-    user, relay_server, sweep_config
-):
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-
-        def mock_agent_heartbeat(*args, **kwargs):
-            return [{"type": "foo"}]
-
-        def mock_register_agent(*args, **kwargs):
-            return {"id": "mock-agent-id"}
-
-        api.register_agent = mock_register_agent
-        api.agent_heartbeat = mock_agent_heartbeat
-
-        with pytest.raises(SchedulerError) as e:
-            _scheduler = SweepScheduler(
-                api, sweep_id=sweep_id, entity=_entity, project=_project, num_workers=1
-            )
-            _scheduler.start()
-        
-        assert "Unknown command" in str(e.value)
-        assert _scheduler.state == SchedulerState.FAILED
-        assert _scheduler.is_alive() is False
-
-        def mock_agent_heartbeat(*args, **kwargs):
-            return [{"type": "run"}] # No run_id should throw error
-
-        api.agent_heartbeat = mock_agent_heartbeat
-
-        with pytest.raises(SchedulerError) as e:
-            _scheduler = SweepScheduler(
-                api, sweep_id=sweep_id, entity=_entity, project=_project, num_workers=1
-            )
-            _scheduler.start()
-        
-        assert "missing run_id" in str(e.value)
-        assert _scheduler.state == SchedulerState.FAILED
-        assert _scheduler.is_alive() is False
-
-@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-@pytest.mark.parametrize("num_workers", [1, 3])
-def test_sweep_scheduler_sweeps_run_and_heartbeat(
-    user, relay_server, sweep_config, num_workers, monkeypatch
-):
-    with relay_server():
-        _entity = user
-        _project = "test-project"
-        api = internal.Api()
-        sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
-
-    _scheduler = SweepScheduler(
-        api, sweep_id=sweep_id, entity=_entity, project=_project, num_workers=num_workers
-    )
-    assert _scheduler.state == SchedulerState.PENDING
-    assert _scheduler.is_alive() is True
-    _scheduler.start()
-
-    # api.agent_heartbeat = Mock(
-    #     side_effect=[
-    #         [
-    #             {
-    #                 "type": "run",
-    #                 "run_id": "foo_run_1",
-    #                 "args": {"foo_arg": {"value": 1}},
-    #                 "program": "train.py",
-    #             }
-    #         ],
-    #         [
-    #             {
-    #                 "type": "stop",
-    #                 "run_id": "foo_run_1",
-    #             }
-    #         ],
-    #         [
-    #             {
-    #                 "type": "resume",
-    #                 "run_id": "foo_run_1",
-    #                 "args": {"foo_arg": {"value": 1}},
-    #                 "program": "train.py",
-    #             }
-    #         ],
-    #         [
-    #             {
-    #                 "type": "exit",
-    #             }
-    #         ],
-    #     ]
-    # )
-
-    # # Mock api.get_run_state() to return running and finally finished runs
-    # mock_run_state_counter: int = 0
-    # def mock_get_run_state(*args, **kwargs):
-    #     if mock_run_state_counter < 4:
-    #         mock_run_state_counter += 1
-    #         return "running"
-    #     return "finished"
-
-    # def mock_register_agent(*args, **kwargs):
-    #     return {"id": "foo_agent_pid"}
-
-    # monkeypatch.setattr("wandb.apis.internal.Api.register_agent", mock_register_agent)
-
-    # def mock_add_to_launch_queue(self, *args, **kwargs):
-    #     assert "entry_point" in kwargs
-    #     assert kwargs["entry_point"] == [
-    #         "python",
-    #         "train.py",
-    #         "--foo_arg=1",
-    #     ]
-
-    # monkeypatch.setattr(
-    #     "wandb.sdk.launch.sweeps.scheduler.Scheduler._add_to_launch_queue",
-    #     mock_add_to_launch_queue,
-    # )
+    _project = "test-project"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
     def mock_launch_add(*args, **kwargs):
         return Mock(spec=public.QueuedRun)
@@ -371,12 +179,137 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
         mock_launch_add,
     )
 
-    _scheduler = SweepScheduler(
-        api, sweep_id=sweep_id, entity=_entity, project=_project
+    def mock_run_add_to_launch_queue(self, *args, **kwargs):
+        self._runs["foo_run"] = SweepRun(id="foo_run", state=SimpleRunState.ALIVE)
+        self._add_to_launch_queue(run_id="foo_run")
+        self.state = SchedulerState.COMPLETED
+        self.exit()
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.sweeps.scheduler.Scheduler._run",
+        mock_run_add_to_launch_queue,
     )
 
-    # for _heartbeat_agent in _scheduler._workers:
-    #     assert not _heartbeat_agent.thread.is_alive()
+    _scheduler = Scheduler(api, sweep_id=sweep_id, entity=user, project=_project)
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive() is True
+    _scheduler.start()
     assert _scheduler.state == SchedulerState.COMPLETED
-    # assert len(_scheduler._runs) == 1
-    # assert _scheduler._runs["foo_run_1"].state == SimpleRunState.DEAD
+    assert _scheduler.is_alive() is False
+    assert len(_scheduler._runs) == 1
+    assert isinstance(_scheduler._runs["foo_run"].queued_run, public.QueuedRun)
+    assert _scheduler._runs["foo_run"].state == SimpleRunState.DEAD
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+@pytest.mark.parametrize("num_workers", [1, 3, 8])
+def test_sweep_scheduler_sweeps_stop_agent_hearbeat(user, sweep_config, num_workers):
+    api = internal.Api()
+
+    def mock_agent_heartbeat(*args, **kwargs):
+        return [{"type": "stop"}]
+
+    api.agent_heartbeat = mock_agent_heartbeat
+
+    _project = "test-project"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    scheduler = SweepScheduler(
+        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers
+    )
+    scheduler.start()
+    assert scheduler.state == SchedulerState.STOPPED
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+@pytest.mark.parametrize("num_workers", [1, 3, 8])
+def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
+    user, sweep_config, num_workers
+):
+    api = internal.Api()
+    _project = "test-project"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    def mock_agent_heartbeat(*args, **kwargs):
+        return [{"type": "foo"}]
+
+    api.agent_heartbeat = mock_agent_heartbeat
+
+    with pytest.raises(SchedulerError) as e:
+        _scheduler = SweepScheduler(
+            api,
+            sweep_id=sweep_id,
+            entity=user,
+            project=_project,
+            num_workers=num_workers,
+        )
+        _scheduler.start()
+
+    assert "unknown command" in str(e.value)
+    assert _scheduler.state == SchedulerState.FAILED
+    assert _scheduler.is_alive() is False
+
+    def mock_agent_heartbeat(*args, **kwargs):
+        return [{"type": "run"}]  # No run_id should throw error
+
+    api.agent_heartbeat = mock_agent_heartbeat
+
+    with pytest.raises(SchedulerError) as e:
+        _scheduler = SweepScheduler(
+            api,
+            sweep_id=sweep_id,
+            entity=user,
+            project=_project,
+            num_workers=num_workers,
+        )
+        _scheduler.start()
+
+    assert "missing run_id" in str(e.value)
+    assert _scheduler.state == SchedulerState.FAILED
+    assert _scheduler.is_alive() is False
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+@pytest.mark.parametrize("num_workers", [1, 3])
+def test_sweep_scheduler_sweeps_run_and_heartbeat(
+    user, sweep_config, num_workers, monkeypatch
+):
+    api = internal.Api()
+    # Mock agent heartbeat stops after 10 heartbeats
+    api.agent_heartbeat = Mock(
+        side_effect=[
+            [
+                {
+                    "type": "run",
+                    "run_id": "mock-run-id-1",
+                    "args": {"foo_arg": {"value": 1}},
+                    "program": "train.py",
+                }
+            ]
+        ]
+        * 10
+        + [[{"type": "stop"}]]
+    )
+
+    def mock_launch_add(*args, **kwargs):
+        return Mock(spec=public.QueuedRun)
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.launch_add._launch_add",
+        mock_launch_add,
+    )
+
+    def mock_get_run_state(*args, **kwargs):
+        return "runnning"
+
+    api.get_run_state = mock_get_run_state
+
+    _project = "test-project"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    _scheduler = SweepScheduler(
+        api, sweep_id=sweep_id, entity=user, project=_project, num_workers=num_workers
+    )
+    assert _scheduler.state == SchedulerState.PENDING
+    assert _scheduler.is_alive() is True
+    _scheduler.start()
+    assert _scheduler._runs["mock-run-id-1"].state == SimpleRunState.DEAD

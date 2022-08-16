@@ -96,10 +96,6 @@ class Scheduler(ABC):
     def _exit(self) -> None:
         pass
 
-    @abstractmethod
-    def _kill_worker(self, worker_id: int) -> None:
-        pass
-
     @property
     def state(self) -> SchedulerState:
         logger.debug(f"{LOG_PREFIX}Scheduler state is {self._state.name}")
@@ -132,13 +128,8 @@ class Scheduler(ABC):
             while True:
                 if not self.is_alive():
                     break
-                try:
-                    self._update_run_states()
-                    self._run()
-                except RuntimeError as e:
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Scheduler encountered Runtime Error. {e} Trying again."
-                    )
+                self._update_run_states()
+                self._run()
         except KeyboardInterrupt:
             wandb.termlog(f"{LOG_PREFIX}Scheduler received KeyboardInterrupt. Exiting.")
             self.state = SchedulerState.STOPPED
@@ -176,10 +167,9 @@ class Scheduler(ABC):
         """Stops a run and removes it from the scheduler"""
         if run_id in self._runs:
             run: SweepRun = self._runs[run_id]
-            if run.worker_id is not None:
-                self._kill_worker(run.worker_id)
-            wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
             run.state = SimpleRunState.DEAD
+            # TODO(hupo): Send command to backend to stop run
+            wandb.termlog(f"{LOG_PREFIX} Stopped run {run_id}.")
 
     def _update_run_states(self) -> None:
         _runs_to_remove: List[str] = []
