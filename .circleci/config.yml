@@ -323,7 +323,7 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       toxenv:
         type: string
       parallelism:
@@ -1133,7 +1133,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
+              python_version_minor: [9]
           name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
       - mac:
@@ -1164,7 +1164,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
+              python_version_minor: [9]
           name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
