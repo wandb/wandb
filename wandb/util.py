@@ -1261,7 +1261,7 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)
+    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
     response.raise_for_status()
 
     if os.sep in dest_path:
@@ -1472,7 +1472,7 @@ def _has_internet() -> bool:
 
 def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
     rand = rand or random
-    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))  # type: ignore
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
@@ -1516,7 +1516,7 @@ def _is_databricks() -> bool:
     if "dbutils" in sys.modules:
         dbutils = sys.modules["dbutils"]
         if hasattr(dbutils, "shell"):
-            shell = dbutils.shell  # type: ignore
+            shell = dbutils.shell
             if hasattr(shell, "sc"):
                 sc = shell.sc
                 if hasattr(sc, "appName"):

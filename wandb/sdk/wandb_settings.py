@@ -122,7 +122,7 @@ def _get_program() -> Optional[Any]:
     if program is not None:
         return program
     try:
-        import __main__  # type: ignore
+        import __main__
 
         if __main__.__spec__ is None:
             return __main__.__file__
