@@ -2104,7 +2104,7 @@ class Run:
         return job_artifact
 
     def _get_job_name(self, default_name: str) -> str:
-        return self._settings.job_name or default_name
+        return self._job_name or default_name
 
     def _create_repo_job(
         self,
