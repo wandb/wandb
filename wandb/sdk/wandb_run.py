@@ -371,6 +371,7 @@ class Run:
     _project: Optional[str]
     _group: Optional[str]
     _job_type: Optional[str]
+    _job_name: Optional[str]
     _name: Optional[str]
     _notes: Optional[str]
 
@@ -472,6 +473,7 @@ class Run:
         self._project = None
         self._group = None
         self._job_type = None
+        self._job_name = None
         self._run_id = self._settings.run_id
         self._starting_step = 0
         self._name = None
@@ -639,6 +641,8 @@ class Run:
             self._group = settings.run_group
         if settings.run_job_type is not None:
             self._job_type = settings.run_job_type
+        if settings.job_name is not None:
+            self._job_name = settings.job_name
         if settings.run_name is not None:
             self._name = settings.run_name
         if settings.run_notes is not None:
@@ -2112,7 +2116,7 @@ class Run:
             return None
         assert self._remote_url is not None
         assert self._commit is not None
-        name = wandb.util.make_artifact_name_safe(
+        name = self._job_name or wandb.util.make_artifact_name_safe(
             f"job-{self._remote_url}_{program_relpath}"
         )
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
@@ -2154,7 +2158,7 @@ class Run:
         ):
             return None
         artifact_client_id = self._code_artifact_info.get("client_id")
-        name = f"job-{self._code_artifact_info['name']}"
+        name = self._job_name or f"job-{self._code_artifact_info['name']}"
 
         source_info: JobSourceDict = {
             "_version": "v0",
@@ -2185,7 +2189,7 @@ class Run:
         docker_image_name = os.getenv("WANDB_DOCKER")
         if docker_image_name is None:
             return None
-        name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
+        name = self._job_name or wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
 
         source_info: JobSourceDict = {
             "_version": "v0",

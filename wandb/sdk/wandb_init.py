@@ -837,6 +837,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
+    job_name: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Starts a new run to track and log to W&B.
 
@@ -993,6 +994,7 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
+        job_name: (str, optional) Specify the name of the output wandb Job.
 
     Examples:
     ### Set where the run is logged

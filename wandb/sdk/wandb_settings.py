@@ -425,6 +425,7 @@ class Settings:
     ignore_globs: Tuple[str]
     init_timeout: int
     is_local: bool
+    job_name: str
     label_disable: bool
     launch: bool
     launch_config_path: str
@@ -1478,6 +1479,7 @@ class Settings:
             id="run_id",
             tags="run_tags",
             group="run_group",
+            job_name="job_name",
             job_type="run_job_type",
             notes="run_notes",
             dir="root_dir",
