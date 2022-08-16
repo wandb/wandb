@@ -42,9 +42,9 @@ SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
 # Minimal list of valid sweep configs
 VALID_SWEEP_CONFIGS_MINIMAL: List[Dict[str, Any]] = [
     SWEEP_CONFIG_BAYES,
-    SWEEP_CONFIG_RANDOM,
-    SWEEP_CONFIG_GRID_HYPERBAND,
-    SWEEP_CONFIG_GRID_NESTED,
+    # SWEEP_CONFIG_RANDOM,
+    # SWEEP_CONFIG_GRID_HYPERBAND,
+    # SWEEP_CONFIG_GRID_NESTED,
 ]
 # All valid sweep configs, be careful as this will slow down tests
 VALID_SWEEP_CONFIGS_ALL: List[Dict[str, Any]] = [

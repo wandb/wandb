@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 
 import wandb
 from wandb import wandb_lib  # type: ignore
+from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
     Scheduler,
@@ -69,9 +70,16 @@ class SweepScheduler(Scheduler):
                 project_name=self._project,
                 entity=self._entity,
             )
+
+            def excepthook(args):
+                print(f"In excepthook {args}")
+
+            threading.excepthook = excepthook
+
             # Worker threads call heartbeat function
             _thread = threading.Thread(target=self._heartbeat, args=[worker_id])
-            _thread.daemon = True
+
+            # _thread.daemon = True
             self._workers[worker_id] = _Worker(
                 agent_config=agent_config,
                 agent_id=agent_config["id"],
@@ -109,25 +117,37 @@ class SweepScheduler(Scheduler):
             if commands:
                 for command in commands:
                     # The command "type" can be one of "run", "resume", "stop", "exit"
-                    _type = command.get("type")
+                    _type = command.get("type", None)
                     if _type in ["exit", "stop"]:
                         # Tell (virtual) agent to stop running
                         self.exit()
                         return
-                    if _type in ["run", "resume"]:
+                    elif _type in ["run", "resume"]:
+                        _run_id = command.get("run_id", None)
+                        if _run_id is None:
+                            raise SchedulerError(
+                                f"{LOG_PREFIX}AgentHeartbeat command {command} missing run_id"
+                            )
                         run = SweepRun(
-                            id=command.get("run_id", "empty-run-id"),
+                            id=_run_id,
                             args=command.get("args", {}),
                             logs=command.get("logs", []),
-                            program=command.get("program"),
+                            program=command.get("program", None),
                             worker_id=worker_id,
                         )
                         self._runs[run.id] = run
                         self._heartbeat_queue.put(run)
                         continue
+                    else:
+                        raise SchedulerError(
+                            f"{LOG_PREFIX}Unknown command type {_type}"
+                        )
             time.sleep(self._worker_sleep)
 
     def _run(self) -> None:
+        # # Join worker threads to check for exceptions
+        # for worker_id in self._workers:
+        #     self._workers[worker_id].thread.join(timeout=0.1)
         try:
             run: SweepRun = self._heartbeat_queue.get(
                 timeout=self._heartbeat_queue_timeout
@@ -164,6 +184,7 @@ class SweepScheduler(Scheduler):
         )
 
     def _kill_worker(self, worker_id: int) -> None:
+        print(f"{LOG_PREFIX}Killing AgentHeartbeat worker {worker_id}")
         _worker = self._workers.get(worker_id, None)
         if _worker and _worker.thread.is_alive():
             # Set threading event to stop the worker thread
@@ -173,4 +194,7 @@ class SweepScheduler(Scheduler):
             print(f"{LOG_PREFIX}AgentHeartbeat worker {worker_id} killed")
 
     def _exit(self) -> None:
+        # Kill all the worker threads
+        for worker_id in self._workers:
+            self._kill_worker(worker_id)
         self.state = SchedulerState.COMPLETED

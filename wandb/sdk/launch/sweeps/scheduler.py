@@ -77,9 +77,11 @@ class Scheduler(ABC):
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
         self._sweep_id: str = sweep_id or "empty-sweep-id"
         self._state: SchedulerState = SchedulerState.PENDING
-        self._threading_lock: threading.Lock = threading.Lock()
-        # List of the runs managed by the scheduler
+        # Dictionary of the runs being managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
+        # Threading lock to ensure thread-safe access to the runs dictionary
+        self._threading_lock: threading.Lock = threading.Lock()
+        # Scheduler may receive additional kwargs which will be piped into the launch command
         self._kwargs: Dict[str, Any] = kwargs
 
     @abstractmethod
