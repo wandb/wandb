@@ -335,9 +335,12 @@ jobs:
       machine_executor:
         type: string
         default: "default"  # "default" or "server-2019-cuda"
+      executor_size:
+        type: string
+        default: "large"  # could only be "medium" for "server-2019-cuda"
     executor:
       name: win/<< parameters.machine_executor >>
-      size: "large"
+      size: << parameters.executor_size >>
     parallelism: << parameters.parallelism >>
     steps:
       - checkout
@@ -1113,7 +1116,8 @@ workflows:
           xdist: 1
       # standalone GPU tests
       - win:
-          machine_executor: server-2019-cuda
+          machine_executor: "server-2019-cuda"
+          executor_size: "medium"
           matrix:
             parameters:
               python_version_major: [ 3 ]
