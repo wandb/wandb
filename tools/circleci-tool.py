@@ -160,6 +160,7 @@ def trigger_nightly(args):
         "standalone-tpu",
         "standalone-local",
         "kfp",
+        "win-standalone-gpu",
     }
     shards = {
         f"manual_nightly_execute_shard_{shard.replace('-', '_')}": False
