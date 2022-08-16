@@ -2267,8 +2267,39 @@ class QueuedRun:
             "runQueue": self.queue_id,
             "itemId": self.id,
         }
-        res = self.client.execute(query, variable_values)
-        return res["project"]["runQueue"].get("runQueueItem")
+        try:
+            res = self.client.execute(query, variable_values)  # exception for old servr
+            return res["project"]["runQueue"].get("runQueueItem")
+        except Exception as e:
+            if "Cannot query field" not in str(e):
+                raise LaunchError(f"Unknown exception: {e}")
+
+        query = """
+        query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+            project(name: $projectName, entityName: $entityName) {
+                runQueue(name:$runQueue) {
+                    runQueueItems {
+                        edges {
+                            node {
+                                id
+                                state
+                                associatedRunId
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        del variable_values["itemId"]
+        try:
+            res = self.client.execute(query, variable_values)
+        except Exception as e:
+            raise LaunchError(e)
+
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            if str(item["node"]["id"]) == str(self.id):
+                return item["node"]
 
     @normalize_exceptions
     def wait_until_finished(self):
