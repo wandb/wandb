@@ -33,6 +33,44 @@ SWEEP_CONFIG_BAYES: Dict[str, Any] = {
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
+SWEEP_CONFIG_BAYES_PROBABILITIES: Dict[str, Any] = {
+    "name": "mock-sweep-bayes",
+    "method": "bayes",
+    "metric": {"name": "metric1", "goal": "maximize"},
+    "parameters": {
+        "param1": {"values": [1, 2, 3]},
+        "param2": {"values": [1, 2, 3], "probabilities": [0.1, 0.2, 0.1]},
+    },
+}
+SWEEP_CONFIG_BAYES_DISTRIBUTION: Dict[str, Any] = {
+    "name": "mock-sweep-bayes",
+    "method": "bayes",
+    "metric": {"name": "metric1", "goal": "maximize"},
+    "parameters": {
+        "param1": {"distribution": "normal", "mu": 100, "sigma": 10},
+    },
+}
+SWEEP_CONFIG_BAYES_DISTRIBUTION_NESTED: Dict[str, Any] = {
+    "name": "mock-sweep-bayes",
+    "method": "bayes",
+    "metric": {"name": "metric1", "goal": "maximize"},
+    "parameters": {
+        "param1": {"values": [1, 2, 3]},
+        "param2": {
+            "parameters": {
+                "param3": {"distribution": "q_uniform", "min": 0, "max": 256, "q": 1}
+            },
+        },
+    },
+}
+SWEEP_CONFIG_BAYES_TARGET: Dict[str, Any] = {
+    "name": "mock-sweep-bayes",
+    "method": "bayes",
+    "metric": {"name": "metric1", "goal": "maximize", "target": 0.99},
+    "parameters": {
+        "param1": {"distribution": "normal", "mu": 100, "sigma": 10},
+    },
+}
 SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
     "name": "mock-sweep-random",
     "method": "random",
@@ -42,14 +80,19 @@ SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
 # Minimal list of valid sweep configs
 VALID_SWEEP_CONFIGS_MINIMAL: List[Dict[str, Any]] = [
     SWEEP_CONFIG_BAYES,
-    # SWEEP_CONFIG_RANDOM,
-    # SWEEP_CONFIG_GRID_HYPERBAND,
-    # SWEEP_CONFIG_GRID_NESTED,
+    SWEEP_CONFIG_RANDOM,
+    SWEEP_CONFIG_GRID_HYPERBAND,
+    SWEEP_CONFIG_GRID_NESTED,
 ]
 # All valid sweep configs, be careful as this will slow down tests
 VALID_SWEEP_CONFIGS_ALL: List[Dict[str, Any]] = [
     SWEEP_CONFIG_RANDOM,
     SWEEP_CONFIG_BAYES,
+    # TODO: Probabilities seem to error out?
+    # SWEEP_CONFIG_BAYES_PROBABILITIES,
+    SWEEP_CONFIG_BAYES_DISTRIBUTION,
+    SWEEP_CONFIG_BAYES_DISTRIBUTION_NESTED,
+    SWEEP_CONFIG_BAYES_TARGET,
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_NESTED,
     SWEEP_CONFIG_GRID_HYPERBAND,

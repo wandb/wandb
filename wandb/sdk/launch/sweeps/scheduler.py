@@ -226,7 +226,8 @@ class Scheduler(ABC):
             project=self._project,
             entity=self._entity,
             queue=_queue,
-            **self._kwargs,
+            resource=self._kwargs.get("resource", None),
+            resource_args=self._kwargs.get("resource_args", None),
         )
         self._runs[run_id].queued_run = queued_run
         wandb.termlog(

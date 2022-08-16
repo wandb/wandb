@@ -202,7 +202,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-@pytest.mark.parametrize("num_workers", [1, 3, 8])
+@pytest.mark.parametrize("num_workers", [1, 8])
 def test_sweep_scheduler_sweeps_stop_agent_hearbeat(user, sweep_config, num_workers):
     api = internal.Api()
 
@@ -221,7 +221,7 @@ def test_sweep_scheduler_sweeps_stop_agent_hearbeat(user, sweep_config, num_work
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-@pytest.mark.parametrize("num_workers", [1, 3, 8])
+@pytest.mark.parametrize("num_workers", [1, 8])
 def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
     user, sweep_config, num_workers
 ):
@@ -269,7 +269,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-@pytest.mark.parametrize("num_workers", [1, 3])
+@pytest.mark.parametrize("num_workers", [1, 8])
 def test_sweep_scheduler_sweeps_run_and_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
