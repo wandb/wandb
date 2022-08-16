@@ -128,7 +128,7 @@ class HandleManager:
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
@@ -136,7 +136,7 @@ class HandleManager:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "handle_request_" + request_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         if request_type != "network_status":
             logger.debug(f"handle_request: {request_type}")
         assert handler, f"unknown handle: {handler_str}"

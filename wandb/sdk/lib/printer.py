@@ -174,13 +174,16 @@ class PrinterTerm(_Printer):
         wandb.termlog(" " * 79)
 
     def code(self, text: str) -> str:
-        return click.style(text, bold=True)
+        ret: str = click.style(text, bold=True)
+        return ret
 
     def name(self, text: str) -> str:
-        return click.style(text, fg="yellow")
+        ret: str = click.style(text, fg="yellow")
+        return ret
 
     def link(self, link: str, text: Optional[str] = None) -> str:
-        return click.style(link, fg="blue", underline=True)
+        ret: str = click.style(link, fg="blue", underline=True)
+        return ret
 
     def emoji(self, name: str) -> str:
         emojis = dict()
@@ -191,10 +194,12 @@ class PrinterTerm(_Printer):
 
     def status(self, text: str, failure: Optional[bool] = None) -> str:
         color = "red" if failure else "green"
-        return click.style(text, fg=color)
+        ret: str = click.style(text, fg=color)
+        return ret
 
     def files(self, text: str) -> str:
-        return click.style(text, fg="magenta", bold=True)
+        ret: str = click.style(text, fg="magenta", bold=True)
+        return ret
 
     def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
         max_len = max(len(row[0]) for row in rows)

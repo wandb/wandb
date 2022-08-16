@@ -28,7 +28,7 @@ class ExitHooks:
             != sys.__excepthook__  # respect hooks by other libraries like pdb
             else None
         )
-        sys.excepthook = self.exc_handler
+        sys.excepthook = self.exc_handler  # type: ignore
 
     def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
