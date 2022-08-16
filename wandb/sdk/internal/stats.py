@@ -78,7 +78,7 @@ class SystemStats:
         self._interface = interface
         self.sampler = {}
         self.samples = 0
-        self._shutdown = False
+        self._shutdown: bool = False
         self._telem = telemetry.TelemetryRecord()
         if psutil:
             net = psutil.net_io_counters()
@@ -150,7 +150,7 @@ class SystemStats:
                 time.sleep(0.1)
                 seconds += 0.1
                 if self._shutdown:
-                    self.flush()
+                    self.flush()  # type: ignore
                     return
 
     def shutdown(self) -> None:

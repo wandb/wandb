@@ -241,7 +241,10 @@ class _run_decorator:  # noqa: N801
             ):
 
                 if cls._is_attaching:
-                    message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{cls._is_attaching}`"
+                    message = (
+                        f"Trying to attach `{func.__name__}` "
+                        f"while in the middle of attaching `{cls._is_attaching}`"
+                    )
                     raise RuntimeError(message)
                 cls._is_attaching = func.__name__
                 try:
@@ -261,10 +264,12 @@ class _run_decorator:  # noqa: N801
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
             # `_attach_id` is only assigned in service hence for all service cases
-            # it will be a passthrough. We don't pickle non-service so again a way to see that we are in non-service case
+            # it will be a passthrough. We don't pickle non-service so again a way
+            # to see that we are in non-service case
             if getattr(self, "_attach_id", None) is None:
                 # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
-                #   - for non-fork case the object is shared through pickling and we don't pickle non-service so will be None
+                #   - for non-fork case the object is shared through pickling,
+                #     and we don't pickle non-service so will be None
                 #   - for fork case the new process share mem space hence the value would be of parent process.
                 _init_pid = getattr(self, "_init_pid", None)
                 if _init_pid != os.getpid():
@@ -274,7 +279,8 @@ class _run_decorator:  # noqa: N801
                         _init_pid,
                         wburls.get("multiprocess"),
                     )
-                    # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
+                    # - if this process was pickled in non-service case,
+                    #   we ignore the attributes (since pickle is not supported)
                     # - for fork case will use the settings of the parent process
                     # - only point of inconsistent behavior from forked and non-forked cases
                     settings = getattr(self, "_settings", None)
@@ -1374,7 +1380,8 @@ class Run:
         if step is not None:
             if os.getpid() != self._init_pid or self._is_attached:
                 wandb.termwarn(
-                    "Note that setting step in multiprocessing can result in data loss. Please log your step values as a metric such as 'global_step'",
+                    "Note that setting step in multiprocessing can result in data loss. "
+                    "Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             # if step is passed in when tensorboard_sync is used we honor the step passed
@@ -1382,7 +1389,8 @@ class Run:
             # this history later on in publish_history()
             if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    "Step cannot be set when using syncing with tensorboard. "
+                    "Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             if step > self._step:
@@ -1983,9 +1991,11 @@ class Run:
         logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
-        # would like to move _set_global to _on_ready to unify _on_start and _on_attach (we want to do the set globals after attach)
+        # would like to move _set_global to _on_ready to unify _on_start and _on_attach
+        # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses `wandb.run` and hence breaks
+        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses
+        #               `wandb.run` and hence breaks
         self._set_globals()
         self._header(
             self._check_version, settings=self._settings, printer=self._printer
@@ -2363,7 +2373,15 @@ class Run:
 
     # TODO(jhr): annotate this
     @_run_decorator._attach
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
+    def watch(  # type: ignore
+        self,
+        models,
+        criterion=None,
+        log="gradients",
+        log_freq=100,
+        idx=None,
+        log_graph=False,
+    ) -> None:
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
@@ -2387,7 +2405,8 @@ class Run:
             return f"{entity}/{project}/{new_name}"
         elif replacement_artifact_info is None and use_as is None:
             wandb.termwarn(
-                f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
+                f"Could not find {artifact_name} in launch artifact mapping. "
+                f"Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
             unique_artifact_replacement_info = (
@@ -2432,7 +2451,8 @@ class Run:
             artifact: the (public or local) artifact which will be linked
             target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
                 or {entity}/{project}/{portfolio}
-            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact inside the portfolio.
+            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
+                                   inside the portfolio.
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
@@ -3189,7 +3209,7 @@ class Run:
             return
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        total_files = sum(
+        total_files: int = sum(
             sum(
                 [
                     response.file_counts.wandb_count,
@@ -3199,20 +3219,23 @@ class Run:
                 ]
             )
             for response in poll_exit_responses
-            if response and response.file_counts
+            if response is not None and response.file_counts is not None
         )
         uploaded = sum(
             response.pusher_stats.uploaded_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
         total = sum(
             response.pusher_stats.total_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
 
-        line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        line = (
+            f"Processing {len(poll_exit_responses)} runs with {total_files} files "
+            f"({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        )
         # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
         printer.progress_update(line)  # type: ignore [call-arg]
 

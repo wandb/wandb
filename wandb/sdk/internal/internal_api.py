@@ -24,10 +24,8 @@ import ast
 import base64
 from copy import deepcopy
 import datetime
-from io import BytesIO
 import json
 import os
-from pkg_resources import parse_version
 import re
 import requests
 import logging
@@ -1767,7 +1765,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)
+        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 
@@ -2535,6 +2533,8 @@ class Api:
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
+        from pkg_resources import parse_version
+
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
