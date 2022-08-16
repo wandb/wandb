@@ -1985,39 +1985,44 @@ def _LoadNvmlLibrary():
     """
     global nvmlLib
 
-    if nvmlLib == None:
+    if nvmlLib is None:
         # lock to ensure only one caller loads the library
         libLoadLock.acquire()
 
         try:
             # ensure the library still isn't loaded
-            if nvmlLib == None:
-                try:
-                    if sys.platform[:3] == "win":
-                        # cdecl calling convention
+            if nvmlLib is None:
+                if sys.platform[:3] == "win":
+                    # cdecl calling convention
+                    # First, check for nvml.dll in System32 first for DCH drivers.
+                    # If nvml.dll is not found in System32, it should be in ProgramFiles
+                    # load nvml.dll from %ProgramFiles%/NVIDIA Corporation/NVSMI/nvml.dll
+                    search_paths = [
+                        os.path.join(
+                            os.getenv("WINDIR", "C:/Windows"), "System32/nvml.dll"
+                        ),
+                        os.path.join(
+                            os.getenv("ProgramFiles", "C:/Program Files"),
+                            "NVIDIA Corporation/NVSMI/nvml.dll",
+                        ),
+                    ]
+                    # Finally, it may be overridden by an environment variable
+                    nvml_path = os.getenv("NVML_DLL_PATH")
+                    if nvml_path is not None:
+                        search_paths.append(nvml_path)
+                    for dll_path in search_paths:
                         try:
-                            # Check for nvml.dll in System32 first for DCH drivers
-                            nvmlLib = CDLL(
-                                os.path.join(
-                                    os.getenv("WINDIR", "C:/Windows"),
-                                    "System32/nvml.dll",
-                                )
-                            )
+                            nvmlLib = CDLL(dll_path)
                         except OSError as ose:
-                            # If nvml.dll is not found in System32, it should be in ProgramFiles
-                            # load nvml.dll from %ProgramFiles%/NVIDIA Corporation/NVSMI/nvml.dll
-                            nvmlLib = CDLL(
-                                os.path.join(
-                                    os.getenv("ProgramFiles", "C:/Program Files"),
-                                    "NVIDIA Corporation/NVSMI/nvml.dll",
-                                )
-                            )
-                    else:
-                        # assume linux
+                            continue
+                        break
+                else:
+                    # assume linux
+                    try:
                         nvmlLib = CDLL("libnvidia-ml.so.1")
-                except OSError as ose:
-                    _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
-                if nvmlLib == None:
+                    except OSError as ose:
+                        _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
+                if nvmlLib is None:
                     _nvmlCheckReturn(NVML_ERROR_LIBRARY_NOT_FOUND)
         finally:
             # lock is always freed
