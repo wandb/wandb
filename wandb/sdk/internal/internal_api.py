@@ -141,7 +141,7 @@ class Api:
             load_settings=load_settings,
             root_dir=self.default_settings.get("root_dir"),
         )
-        self.git = GitRepo(remote=self.settings("git_remote"))
+        self.git = GitRepo(remote=self.settings("git_remote"), disabled=self.settings("disable_git"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
             "system_sample_seconds": 2,

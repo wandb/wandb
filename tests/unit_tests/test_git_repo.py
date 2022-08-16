@@ -6,6 +6,7 @@ test_git_repo
 
 Tests for the `wandb.GitRepo` module.
 """
+import os
 from typing import Callable, Optional
 
 import git
@@ -22,18 +23,27 @@ def git_repo_fn() -> Callable:
         remote_name: str = "origin",
         remote_url: Optional[str] = "https://foo:bar@github.com/FooTest/Foo.git",
         commit_msg: Optional[str] = None,
+        invalid: bool = False,
     ):
         with git.Repo.init(path) as repo:
             if remote_url is not None:
                 repo.create_remote(remote_name, remote_url)
             if commit_msg is not None:
                 repo.index.commit(commit_msg)
+            if invalid:
+                head = os.path.join(path, ".git", "HEAD")
+                with open(os.path.join(head), "w") as f:
+                    f.write("bar")
             return GitRepo(lazy=False)
 
     yield git_repo_fn_helper
 
 
 class TestGitRepo:
+    def test_invalid_repo(self, git_repo_fn):
+        git_repo = git_repo_fn(invalid=True)
+        assert git_repo.root is None
+
     def test_last_commit(self, git_repo_fn):
         git_repo = git_repo_fn(commit_msg="My commit message")
         assert len(git_repo.last_commit) == 40

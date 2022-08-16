@@ -17,17 +17,21 @@ class GitRepo:
         lazy: bool = True,
         remote_url: Optional[str] = None,
         commit: Optional[str] = None,
+        disabled: bool = False,
     ) -> None:
         self.remote_name = remote if remote_url is None else None
         self._root = root
         self._remote_url = remote_url
         self._commit = commit
         self._repo = None
+        self._disabled = disabled
         if not lazy:
             self.repo
 
     @property
     def repo(self):
+        if self._disabled:
+            self._repo = False
         if self._repo is None:
             if self.remote_name is None:
                 self._repo = False
@@ -62,7 +66,11 @@ class GitRepo:
     def root(self) -> Optional[str]:
         if not self.repo:
             return None
-        return self.repo.git.rev_parse("--show-toplevel")
+        try:
+            return self.repo.git.rev_parse("--show-toplevel")
+        except Exception:
+            logger.exception("Unable to detect git root")
+            return None
 
     @property
     def dirty(self) -> bool:
@@ -119,7 +127,10 @@ class GitRepo:
     def has_submodule_diff(self) -> bool:
         if not self.repo:
             return False
-        return self.repo.git.version_info >= (2, 11, 0)
+        try:
+            return self.repo.git.version_info >= (2, 11, 0)
+        except Exception:
+            return False
 
     @property
     def remote_url(self):
@@ -140,7 +151,10 @@ class GitRepo:
     def root_dir(self):
         if not self.repo:
             return None
-        return self.repo.git.rev_parse("--show-toplevel")
+        try:
+            return self.repo.git.rev_parse("--show-toplevel")
+        except Exception:
+            return None
 
     def get_upstream_fork_point(self):
         """Get the most recent ancestor of HEAD that occurs on an upstream

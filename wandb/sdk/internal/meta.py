@@ -42,6 +42,7 @@ class Meta:
             remote=self._settings.git_remote,
             remote_url=self._settings.git_remote_url,
             commit=self._settings.git_commit,
+            disabled=self._settings.disable_git,
         )
         # Location under "code" directory in files where program was saved.
         self._saved_program = None
