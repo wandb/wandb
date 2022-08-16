@@ -2347,7 +2347,6 @@ class QueuedRun:
             # sleep here to hide an ugly warning
             time.sleep(2)
             item = self.get_item()
-            print(f"in while true: {item=}")
             if item and item["associatedRunId"] is not None:
                 try:
                     self._run = Run(
