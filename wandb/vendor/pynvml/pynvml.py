@@ -1,4 +1,11 @@
 #####
+#
+# Based on nvidia-ml-py version 11.515.48
+# Sourced from https://pypi.org/project/nvidia-ml-py/
+# Modifications:
+# - Added `NVML_DLL_PATH` env var check to the library initialization path
+# - Applied black formatting to improve readability
+#
 # Copyright (c) 2011-2022, NVIDIA Corporation.  All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
