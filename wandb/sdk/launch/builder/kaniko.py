@@ -252,6 +252,7 @@ class KanikoBuilder(AbstractBuilder):
         config_map_name = f"{self.config_map_name}-{run_id}"
 
         build_context = self._upload_build_context(run_id, context_path)
+        wandb.termlog(f"Build context {build_context}")
         dockerfile_config_map = _create_dockerfile_configmap(
             config_map_name, context_path
         )
@@ -355,10 +356,11 @@ class KanikoBuilder(AbstractBuilder):
             f"--cache-repo={repository}",
             "--snapshotMode=redo",
         ]
+        wandb.termlog(f"{args}")
         if env is not None:
             container = client.V1Container(
                 name="wandb-container-build",
-                image="gcr.io/kaniko-project/executor:latest",
+                image="gcr.io/kaniko-project/executor:v1.8.1",
                 args=args,
                 volume_mounts=volume_mounts,
                 env=[env],
@@ -366,7 +368,7 @@ class KanikoBuilder(AbstractBuilder):
         else:
             container = client.V1Container(
                 name="wandb-container-build",
-                image="gcr.io/kaniko-project/executor:latest",
+                image="gcr.io/kaniko-project/executor:v1.8.1",
                 args=args,
                 volume_mounts=volume_mounts,
             )
