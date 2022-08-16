@@ -2270,7 +2270,8 @@ class QueuedRun:
         }
         try:
             res = self.client.execute(query, variable_values)  # exception w/ old server
-            return res["project"]["runQueue"].get("runQueueItem")
+            if item := res["project"]["runQueue"].get("runQueueItem"):
+                return item
         except Exception as e:
             if "Cannot query field" not in str(e):
                 raise LaunchError(f"Unknown exception: {e}")
