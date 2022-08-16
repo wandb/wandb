@@ -368,7 +368,7 @@ jobs:
             echo $GCLOUD_SERVICE_KEY > key.json
             gcloud auth activate-service-account --key-file=key.json
             yes | gcloud auth configure-docker
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+            UTC_DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
           no_output_timeout: 10m
       - save-test-results
 
