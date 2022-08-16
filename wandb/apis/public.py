@@ -25,7 +25,6 @@ import time
 from typing import List, Optional
 import urllib
 
-from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import __version__, env, util
@@ -241,6 +240,8 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
+        from pkg_resources import parse_version
+
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
         )
@@ -2944,6 +2945,9 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
+
+    from pkg_resources import parse_version
+
     def __init__(self, run_set):
         self.run_set = run_set
         self.panel_metrics_helper = PanelMetricsHelper()

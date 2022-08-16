@@ -24,7 +24,6 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from pkg_resources import parse_version
 import requests
 import wandb
 from wandb import util
@@ -1251,6 +1250,8 @@ class SendManager:
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
+        from pkg_resources import parse_version
+
         assert self._pusher
         saver = artifacts.ArtifactSaver(
             api=self._api,
@@ -1288,6 +1289,8 @@ class SendManager:
         )
 
     def send_alert(self, record: "Record") -> None:
+        from pkg_resources import parse_version
+
         alert = record.alert
         max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(
