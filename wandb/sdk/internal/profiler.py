@@ -1,7 +1,6 @@
 """Integration with pytorch profiler."""
 import os
 
-from pkg_resources import parse_version
 import wandb
 from wandb.errors import Error, UsageError
 from wandb.sdk.lib import telemetry
@@ -15,7 +14,7 @@ def torch_trace_handler():
 
      Provide as an argument to `torch.profiler.profile`:
      ```python
-     torch.profiler.profile(..., on_trace_ready = wandb.profiler.torch_trace_handler())
+     torch.profiler.profile(..., on_trace_ready=wandb.profiler.torch_trace_handler())
      ```
 
     Calling this function ensures that profiler charts & tables can be viewed in your run dashboard
@@ -53,6 +52,8 @@ def torch_trace_handler():
             prof.step()
     ```
     """
+    from pkg_resources import parse_version
+
     torch = wandb.util.get_module(PYTORCH_MODULE, required=True)
     torch_profiler = wandb.util.get_module(PYTORCH_PROFILER_MODULE, required=True)
 
