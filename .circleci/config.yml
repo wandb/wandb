@@ -1,9 +1,9 @@
 version: 2.1
 
 orbs:
-  win: circleci/windows@2.4.0
-  slack: circleci/slack@4.9.3
-  go: circleci/go@1.3.0
+  win: circleci/windows@5.0.0
+  slack: circleci/slack@4.10.1
+  go: circleci/go@1.7.1
   gke: circleci/gcp-gke@1.4.0
 
 parameters:
@@ -332,8 +332,11 @@ jobs:
       xdist:
         type: integer
         default: 3
+      executor:
+        type: string
+        default: "default"  # "default" or "server-2019-cuda"
     executor:
-      name: win/default
+      name: win/<< parameters.executor >>
       size: "large"
     parallelism: << parameters.parallelism >>
     steps:
@@ -347,6 +350,14 @@ jobs:
           shell: bash.exe
           command: |
             cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
+      - when:
+          condition:
+            equal: [ << parameters.executor >>, "server-2019-cuda" ]
+          steps:
+            - run:
+                name: Update tox.ini on a GPU machine to install the proper pytorch version
+                command: |
+                  sed -i -e 's/whl\/cpu/whl\/cu113/g' tox.ini
       - run:
           name: Run tests
           shell: bash.exe
@@ -1099,6 +1110,15 @@ workflows:
           name: "func-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 6
+          xdist: 1
+      - win:
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 8 ]
+          name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          parallelism: 2
           xdist: 1
       #
       # Unit tests with pytest on Windows and MacOS, using real wandb server
