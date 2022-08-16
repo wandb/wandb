@@ -11,6 +11,7 @@ import click
 import wandb
 from wandb.apis.internal import Api
 import wandb.apis.public as public
+from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.lib.runid import generate_id
@@ -191,7 +192,7 @@ class Scheduler(ABC):
                     "preempting",
                 ]:
                     run.state = SimpleRunState.ALIVE
-            except Exception as e:
+            except CommError as e:
                 wandb.termlog(
                     f"{LOG_PREFIX}Issue when getting RunState for Run {run_id}: {e}"
                 )

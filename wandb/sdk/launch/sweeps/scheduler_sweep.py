@@ -38,9 +38,8 @@ class SweepScheduler(Scheduler):
         self,
         *args: Any,
         num_workers: int = 4,
-        worker_sleep: float = 0.1,
-        heartbeat_queue_timeout: float = 0.1,
-        heartbeat_queue_sleep: float = 0.1,
+        heartbeat_queue_timeout: float = 1.0,
+        heartbeat_queue_sleep: float = 1.0,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)

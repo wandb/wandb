@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 import wandb
 from wandb.apis import internal, public
+from wandb.errors import CommError
 from wandb.sdk.launch.sweeps import load_scheduler, SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     Scheduler,
@@ -148,7 +149,7 @@ def test_sweep_scheduler_base_run_states(user, relay_server, sweep_config):
 
         # ---- If get_run_state errors out, runs should have the state UNKNOWN
         def mock_get_run_state_raise_exception(*args, **kwargs):
-            raise Exception("Generic Exception")
+            raise CommError("Generic Exception")
 
         api.get_run_state = mock_get_run_state_raise_exception
         _scheduler = Scheduler(api, sweep_id=sweep_id, entity=_entity, project=_project)
