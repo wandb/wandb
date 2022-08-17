@@ -751,7 +751,7 @@ class SendManager:
             error = self._maybe_setup_resume(run)
 
         if error is not None:
-            if record.control.req_resp:
+            if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
                 result.run_result.error.CopyFrom(error)
@@ -781,7 +781,7 @@ class SendManager:
         self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
 
-        if record.control.req_resp:
+        if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
