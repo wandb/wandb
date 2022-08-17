@@ -3,12 +3,6 @@
 
 ---
 id: 0.core.07-invalid-git
-tag:
-  platforms:
-    - win
-    - linux
-  skips:
-    - platform: mac
 plugin:
   - wandb
 assert:
@@ -20,12 +14,22 @@ assert:
   - :wandb:runs[0][exitcode]: 0
 """
 
-import wandb
 import os
+import tempfile
 
-with open(os.path.join(".git", "HEAD"), "w") as f:
-    f.write("INVALID")
+import wandb
 
-wandb.init()
-wandb.log(dict(m1=1))
-wandb.log(dict(m2=2))
+# TODO: build this kind of isolation into yea
+cwd = os.getcwd()
+dt = tempfile.mkdtemp()
+os.chdir(dt)
+
+try:
+    os.system("git init")
+    with open(os.path.join(".git", "HEAD"), "w") as f:
+        f.write("INVALID")
+    wandb.init()
+    wandb.log(dict(m1=1))
+    wandb.log(dict(m2=2))
+finally:
+    os.chdir(cwd)

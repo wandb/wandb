@@ -69,14 +69,19 @@ class GitRepo:
         try:
             return self.repo.git.rev_parse("--show-toplevel")
         except Exception:
-            logger.exception("Unable to detect git root")
+            wandb.termwarn(
+                "git repository is invalid, unable to track code", repeat=False
+            )
             return None
 
     @property
     def dirty(self) -> bool:
         if not self.repo:
             return False
-        return self.repo.is_dirty()
+        try:
+            return self.repo.is_dirty()
+        except Exception:
+            return False
 
     @property
     def email(self) -> Optional[str]:
@@ -146,15 +151,6 @@ class GitRepo:
 
             return urlunparse(parsed._replace(netloc=f"{parsed.username}:@{hostname}"))
         return urlunparse(parsed._replace(netloc=hostname))
-
-    @property
-    def root_dir(self):
-        if not self.repo:
-            return None
-        try:
-            return self.repo.git.rev_parse("--show-toplevel")
-        except Exception:
-            return None
 
     def get_upstream_fork_point(self):
         """Get the most recent ancestor of HEAD that occurs on an upstream
