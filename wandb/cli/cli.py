@@ -2083,7 +2083,7 @@ def online():
     except configparser.Error:
         pass
     click.echo(
-        "W&B online, running your script from this directory will now sync to the cloud."
+        "W&B online. Running your script from this directory will now sync to the cloud."
     )
 
 
@@ -2095,11 +2095,11 @@ def offline():
         api.set_setting("disabled", "true", persist=True)
         api.set_setting("mode", "offline", persist=True)
         click.echo(
-            "W&B offline, running your script from this directory will only write metadata locally."
+            "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."
         )
     except configparser.Error:
         click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=dryrun"
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=offline"
         )
 
 
@@ -2151,7 +2151,7 @@ def enabled():
         click.echo("W&B enabled.")
     except configparser.Error:
         click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
+            "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
         )
 
 
