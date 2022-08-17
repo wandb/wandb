@@ -79,7 +79,7 @@ parameters:
   manual_nightly_execute_shard_kfp:
     type: boolean
     default: false
-  manual_nightly_execute_shard_win_standalone_gpu:
+  manual_nightly_execute_shard_standalone_gpu_win:
     type: boolean
     default: false
   wandb_server_tag:
@@ -1242,7 +1242,7 @@ workflows:
       - win:
           machine_executor: "server-2019-cuda"
           executor_size: "medium"
-          execute: << pipeline.parameters.manual_nightly_execute_shard_win_standalone_gpu >>
+          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu_win >>
           matrix:
             parameters:
               python_version_major: [ 3 ]

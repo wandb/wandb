@@ -50,7 +50,7 @@ NIGHTLY_SHARDS = (
     "standalone-tpu",
     "standalone-local",
     "kfp",
-    "win-standalone-gpu",
+    "standalone-gpu-win",
 )
 
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
@@ -324,7 +324,7 @@ def process_args():
     parse_trigger_nightly.add_argument(
         "--shards",
         default=",".join(NIGHTLY_SHARDS),
-        help="comma-separated shards (standalone-{cpu,gpu,tpu,local},kfp)",
+        help="comma-separated shards (standalone-{cpu,gpu,tpu,local,gpu-win},kfp)",
     )
     parse_trigger_nightly.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"
