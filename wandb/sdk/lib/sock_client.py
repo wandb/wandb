@@ -20,18 +20,18 @@ class SockClientClosedError(Exception):
 
 
 class SockBuffer:
-    _buffer_list: List[bytes]
-    _buffer_lens: List[int]
-    _buffer_total: int
+    _buf_list: List[bytes]
+    _buf_lengths: List[int]
+    _buf_total: int
 
     def __init__(self) -> None:
-        self._buffer_list = []
-        self._buffer_lens = []
-        self._buffer_total = 0
+        self._buf_list = []
+        self._buf_lengths = []
+        self._buf_total = 0
 
     @property
     def length(self) -> int:
-        return self._buffer_total
+        return self._buf_total
 
     def get(self, start: int, end: int, peek: bool = False) -> bytes:
         index: Optional[int] = None
@@ -39,9 +39,7 @@ class SockBuffer:
         need = end
 
         # compute buffers needed
-        for i, (buf_len, buf_data) in enumerate(
-            zip(self._buffer_lens, self._buffer_list)
-        ):
+        for i, (buf_len, buf_data) in enumerate(zip(self._buf_lengths, self._buf_list)):
             buffers.append(buf_data[:need] if need < buf_len else buf_data)
             if need <= buf_len:
                 index = i
@@ -49,28 +47,29 @@ class SockBuffer:
             need -= buf_len
 
         # buffer not large enough, caller should have made sure there was enough data
-        assert index is not None
+        if index is None:
+            raise IndexError("SockBuffer index out of range")
 
         # advance buffer internals if we are not peeking into the data
         if not peek:
-            self._buffer_total -= end
+            self._buf_total -= end
             if need < buf_len:
                 # update partially used buffer list
-                self._buffer_list = self._buffer_list[index:]
-                self._buffer_lens = self._buffer_lens[index:]
-                self._buffer_list[0] = self._buffer_list[0][need:]
-                self._buffer_lens[0] -= need
+                self._buf_list = self._buf_list[index:]
+                self._buf_lengths = self._buf_lengths[index:]
+                self._buf_list[0] = self._buf_list[0][need:]
+                self._buf_lengths[0] -= need
             else:
                 # update fully used buffer list
-                self._buffer_list = self._buffer_list[index + 1 :]
-                self._buffer_lens = self._buffer_lens[index + 1 :]
+                self._buf_list = self._buf_list[index + 1 :]
+                self._buf_lengths = self._buf_lengths[index + 1 :]
 
         return b"".join(buffers)[start:end]
 
     def append(self, data: bytes, data_len: int) -> None:
-        self._buffer_list.append(data)
-        self._buffer_lens.append(data_len)
-        self._buffer_total += data_len
+        self._buf_list.append(data)
+        self._buf_lengths.append(data_len)
+        self._buf_total += data_len
 
 
 class SockClient:
