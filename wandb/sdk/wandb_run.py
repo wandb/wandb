@@ -119,13 +119,16 @@ if TYPE_CHECKING:
         remote: str
         commit: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ArtifactSourceDict(TypedDict):
         artifact: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ImageSourceDict(TypedDict):
         image: str
+        args: Sequence[str]
 
     class JobSourceDict(TypedDict, total=False):
         _version: str
@@ -2116,9 +2119,11 @@ class Run:
             f"job-{self._remote_url}_{program_relpath}"
         )
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
+        args = self._settings._args
+        print(args)
 
         source_info: JobSourceDict = {
-            "_version": "v0",
+            "_version": "v1",
             "source_type": "repo",
             "source": {
                 "git": {
@@ -2129,6 +2134,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     program_relpath,
                 ],
+                "args": args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2165,6 +2171,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     self._settings.program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2190,7 +2197,7 @@ class Run:
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "source": {"image": docker_image_name},
+            "source": {"image": docker_image_name, "args": self._settings._args},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
