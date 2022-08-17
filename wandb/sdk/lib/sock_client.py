@@ -212,7 +212,6 @@ class SockClient:
         # Do we have enough data to read the header?
         start_offset = self.HEADLEN
         if self._buffer.length >= start_offset:
-            # header = self._data[:start_offset]
             header = self._buffer.peek(0, start_offset)
             fields = struct.unpack("<BI", header)
             magic, dlength = fields
@@ -221,8 +220,6 @@ class SockClient:
             end_offset = self.HEADLEN + dlength
             if self._buffer.length >= end_offset:
                 rec_data = self._buffer.get(start_offset, end_offset)
-                # rec_data = self._data[start_offset:end_offset]
-                # self._data = self._data[end_offset:]
                 return rec_data
         return None
 
