@@ -153,27 +153,37 @@ class SockClient:
         server_req.record_publish.CopyFrom(record)
         self.send_server_request(server_req)
 
-    def _buffer_get(self, start: int, end: int, advance: bool = False) -> bytes:
-        if advance:
-            data = b"".join(self._buffer_list)
-            requested = data[start:end]
-            leftover = data[end:]
-            self._buffer_total = len(leftover)
-            self._buffer_list = [leftover]
-            self._buffer_lens = [self._buffer_total]
-            return requested
-
+    def _buffer_get(self, start: int, end: int, peek: bool = False) -> bytes:
+        index: Optional[int] = None
         buffers = []
         need = end
-        for buf_len, buf_data in zip(self._buffer_lens, self._buffer_list):
-            buffers.append(buf_data if need >= buf_len else buf_data[:need])
-            need -= buf_len
-            if need <= 0:
-                break
-        data = b"".join(buffers)
-        requested = data[start:end]
 
-        return requested
+        # compute buffers needed
+        for i, (buf_len, buf_data) in enumerate(zip(self._buffer_lens, self._buffer_list)):
+            buffers.append(buf_data[:need] if need < buf_len else buf_data)
+            if need <= buf_len:
+                index = i
+                break
+            need -= buf_len
+
+        # buffer not large enough, caller should have made sure there was enough data
+        assert index is not None
+
+        # advance buffer internals if we are not peeking into the data
+        if not peek:
+            self._buffer_total -= end
+            if need < buf_len:
+                # update partially used buffer list
+                self._buffer_list = self._buffer_list[index:]
+                self._buffer_lens = self._buffer_lens[index:]
+                self._buffer_list[0] = self._buffer_list[0][need:]
+                self._buffer_lens[0] -= need
+            else:
+                # update fully used buffer list
+                self._buffer_list = self._buffer_list[index + 1:]
+                self._buffer_lens = self._buffer_lens[index + 1:]
+
+        return b"".join(buffers)[start:end]
 
     def _buffer_append(self, data: bytes, data_len: int) -> None:
         self._buffer_list.append(data)
@@ -185,14 +195,14 @@ class SockClient:
         start_offset = self.HEADLEN
         if self._buffer_total >= start_offset:
             # header = self._data[:start_offset]
-            header = self._buffer_get(0, start_offset)
+            header = self._buffer_get(0, start_offset, peek=True)
             fields = struct.unpack("<BI", header)
             magic, dlength = fields
             assert magic == ord("W")
             # Do we have enough data to read the full record?
             end_offset = self.HEADLEN + dlength
             if self._buffer_total >= end_offset:
-                rec_data = self._buffer_get(start_offset, end_offset, advance=True)
+                rec_data = self._buffer_get(start_offset, end_offset)
                 # rec_data = self._data[start_offset:end_offset]
                 # self._data = self._data[end_offset:]
                 return rec_data
