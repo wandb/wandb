@@ -1,9 +1,11 @@
 import datetime
 import functools
+import inspect
 import logging
 import os
 import random
 import time
+import traceback
 from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
@@ -125,6 +127,27 @@ class Retry(Generic[_R]):
                         )
                 return result
             except self._retryable_exceptions as e:
+
+                funcname = self._call_fn.__name__
+                if funcname == '<lambda>':
+                    try:
+                        funcname = f'({inspect.getsource(self._call_fn)})'
+                    except Exception:
+                        pass
+                try:
+                    gql_op = str(args[0].definitions[0].name.value)
+                except Exception:
+                    gql_op = None
+                msg = f"SRP: call failed{f' ({gql_op!r})' if gql_op else ''} : {self._call_fn.__name__}({args}, {kwargs}) -> {e}"
+                logger.warn(msg)
+                wandb.termwarn(msg)
+
+                if 'ReadTimeout' in str(e):
+                    msg = f"SRP: found a ReadTimeout!\n\n{traceback.format_stack()}"
+                    logger.warn(msg)
+                    wandb.termwarn(msg)
+
+
                 # if the secondary check fails, re-raise
                 retry_timedelta_triggered = check_retry_fn(e)
                 if not retry_timedelta_triggered:
