@@ -97,8 +97,11 @@ def test_watch_graph_torch_jit(mock_run, capsys):
     outerr = capsys.readouterr()
     assert "skipping graph tracking" in outerr.err
 
+
 def test_watch_bad_argument(mock_run):
     run = mock_run(use_magic_mock=True)
     net = nn.Linear(10, 2)
-    with pytest.raises(ValueError, match="log must be one of 'gradients', 'parameters', 'all', or None"):
+    with pytest.raises(
+        ValueError, match="log must be one of 'gradients', 'parameters', 'all', or None"
+    ):
         run.watch(net, log="bad_argument")
