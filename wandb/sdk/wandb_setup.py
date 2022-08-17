@@ -83,10 +83,12 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     _manager: Optional[wandb_manager._Manager]
     _pid: int
+    _threadid: int
 
     def __init__(
         self,
         pid: int,
+        threadid: int,
         settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         environ: Optional[Dict[str, Any]] = None,
     ):
@@ -96,6 +98,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._server = None
         self._manager = None
         self._pid = pid
+        self._threadid = threadid
 
         # keep track of multiple runs, so we can unwind with join()s
         self._global_run_stack = []
@@ -294,11 +297,12 @@ class _WandbSetup:
     _instance = None
 
     def __init__(self, settings=None) -> None:
+        threadid = threading.get_ident()
         pid = os.getpid()
-        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
+        if _WandbSetup._instance and _WandbSetup._instance._pid == pid and _WandbSetup._instance._threadid == threadid:
             _WandbSetup._instance._update(settings=settings)
             return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
+        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid, threadid=threadid)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
