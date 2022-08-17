@@ -369,7 +369,10 @@ jobs:
                   - run:
                       name: Update tox.ini on a GPU machine to install the proper pytorch version
                       command: |
-                        sed -i -e 's/whl\/cpu/whl\/cu113/g' tox.ini
+                        CUDA_VERSION=`ls "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA"`
+                        CUDA_VERSION_NO_DOT=`echo "${CUDA_VERSION//./}"`
+                        v=${CUDA_VERSION_NO_DOT:1}
+                        sed -i -e "s/whl\/cpu/whl\/cu$v/g" tox.ini
             - run:
                 name: Run tests
                 shell: bash.exe

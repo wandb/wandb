@@ -44,6 +44,15 @@ import requests
 
 CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 
+NIGHTLY_SHARDS = (
+    "standalone-cpu",
+    "standalone-gpu",
+    "standalone-tpu",
+    "standalone-local",
+    "kfp",
+    "win-standalone-gpu",
+)
+
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
 platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
 py_name_dict = dict(
@@ -154,14 +163,7 @@ def trigger(args):
 def trigger_nightly(args):
     url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
 
-    default_shards = {
-        "standalone-cpu",
-        "standalone-gpu",
-        "standalone-tpu",
-        "standalone-local",
-        "kfp",
-        "win-standalone-gpu",
-    }
+    default_shards = set(NIGHTLY_SHARDS)
     shards = {
         f"manual_nightly_execute_shard_{shard.replace('-', '_')}": False
         for shard in default_shards
@@ -321,13 +323,7 @@ def process_args():
     )
     parse_trigger_nightly.add_argument(
         "--shards",
-        default=(
-            "standalone-cpu,"
-            "standalone-gpu,"
-            "standalone-tpu,"
-            "standalone-local,"
-            "kfp"
-        ),
+        default=",".join(NIGHTLY_SHARDS),
         help="comma-separated shards (standalone-{cpu,gpu,tpu,local},kfp)",
     )
     parse_trigger_nightly.add_argument(
