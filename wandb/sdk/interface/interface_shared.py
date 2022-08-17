@@ -21,6 +21,7 @@ from wandb.util import (
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
+from ..lib.mailbox import Mailbox, MailboxHandle
 
 
 logger = logging.getLogger("wandb")
@@ -30,16 +31,19 @@ class InterfaceShared(InterfaceBase):
     process: Optional[BaseProcess]
     _process_check: bool
     _router: Optional[MessageRouter]
+    _mailbox: Optional[Mailbox]
 
     def __init__(
         self,
         process: BaseProcess = None,
         process_check: bool = True,
+        mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
         self._process = process
         self._router = None
         self._process_check = process_check
+        self._mailbox = mailbox
         self._init_router()
 
     @abstractmethod
@@ -475,6 +479,23 @@ class InterfaceShared(InterfaceBase):
         request = pb.Request(shutdown=pb.ShutdownRequest())
         record = self._make_record(request=request)
         _ = self._communicate(record)
+
+    def _get_mailbox(self) -> Mailbox:
+        mailbox = self._mailbox
+        assert mailbox
+        return mailbox
+
+    def _deliver(self, record: pb.Record, slot_address: str) -> None:
+        record.control.mailbox_slot = slot_address
+        self._publish(record)
+
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        mailbox = self._get_mailbox()
+        rec = self._make_record(run=run)
+        handle = mailbox.get_handle()
+        slot_address = handle.address
+        self._deliver(rec, slot_address)
+        return handle
 
     def join(self) -> None:
         super().join()
