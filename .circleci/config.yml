@@ -1182,7 +1182,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>> -- --timeout 300"
+          toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
           xdist: 1
       - mac:
