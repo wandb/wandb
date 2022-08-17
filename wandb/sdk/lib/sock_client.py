@@ -19,26 +19,76 @@ class SockClientClosedError(Exception):
     pass
 
 
-class SockClient:
-    _sock: socket.socket
+class SockBuffer:
     _buffer_list: List[bytes]
     _buffer_lens: List[int]
     _buffer_total: int
-    _sockid: str
-    _retry_delay: float
-    _lock: "threading.Lock"
-
-    # current header is magic byte "W" followed by 4 byte length of the message
-    HEADLEN = 1 + 4
 
     def __init__(self) -> None:
         self._buffer_list = []
         self._buffer_lens = []
         self._buffer_total = 0
+
+    @property
+    def length(self) -> int:
+        return self._buffer_total
+
+    def get(self, start: int, end: int, peek: bool = False) -> bytes:
+        index: Optional[int] = None
+        buffers = []
+        need = end
+
+        # compute buffers needed
+        for i, (buf_len, buf_data) in enumerate(
+            zip(self._buffer_lens, self._buffer_list)
+        ):
+            buffers.append(buf_data[:need] if need < buf_len else buf_data)
+            if need <= buf_len:
+                index = i
+                break
+            need -= buf_len
+
+        # buffer not large enough, caller should have made sure there was enough data
+        assert index is not None
+
+        # advance buffer internals if we are not peeking into the data
+        if not peek:
+            self._buffer_total -= end
+            if need < buf_len:
+                # update partially used buffer list
+                self._buffer_list = self._buffer_list[index:]
+                self._buffer_lens = self._buffer_lens[index:]
+                self._buffer_list[0] = self._buffer_list[0][need:]
+                self._buffer_lens[0] -= need
+            else:
+                # update fully used buffer list
+                self._buffer_list = self._buffer_list[index + 1 :]
+                self._buffer_lens = self._buffer_lens[index + 1 :]
+
+        return b"".join(buffers)[start:end]
+
+    def append(self, data: bytes, data_len: int) -> None:
+        self._buffer_list.append(data)
+        self._buffer_lens.append(data_len)
+        self._buffer_total += data_len
+
+
+class SockClient:
+    _sock: socket.socket
+    _sockid: str
+    _retry_delay: float
+    _lock: "threading.Lock"
+    _buffer: SockBuffer
+
+    # current header is magic byte "W" followed by 4 byte length of the message
+    HEADLEN = 1 + 4
+
+    def __init__(self) -> None:
         # TODO: use safe uuid's (python3.7+) or emulate this
         self._sockid = uuid.uuid4().hex
         self._retry_delay = 0.1
         self._lock = threading.Lock()
+        self._buffer = SockBuffer()
 
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -153,58 +203,19 @@ class SockClient:
         server_req.record_publish.CopyFrom(record)
         self.send_server_request(server_req)
 
-    def _buffer_get(self, start: int, end: int, peek: bool = False) -> bytes:
-        index: Optional[int] = None
-        buffers = []
-        need = end
-
-        # compute buffers needed
-        for i, (buf_len, buf_data) in enumerate(
-            zip(self._buffer_lens, self._buffer_list)
-        ):
-            buffers.append(buf_data[:need] if need < buf_len else buf_data)
-            if need <= buf_len:
-                index = i
-                break
-            need -= buf_len
-
-        # buffer not large enough, caller should have made sure there was enough data
-        assert index is not None
-
-        # advance buffer internals if we are not peeking into the data
-        if not peek:
-            self._buffer_total -= end
-            if need < buf_len:
-                # update partially used buffer list
-                self._buffer_list = self._buffer_list[index:]
-                self._buffer_lens = self._buffer_lens[index:]
-                self._buffer_list[0] = self._buffer_list[0][need:]
-                self._buffer_lens[0] -= need
-            else:
-                # update fully used buffer list
-                self._buffer_list = self._buffer_list[index + 1 :]
-                self._buffer_lens = self._buffer_lens[index + 1 :]
-
-        return b"".join(buffers)[start:end]
-
-    def _buffer_append(self, data: bytes, data_len: int) -> None:
-        self._buffer_list.append(data)
-        self._buffer_lens.append(data_len)
-        self._buffer_total += data_len
-
     def _extract_packet_bytes(self) -> Optional[bytes]:
         # Do we have enough data to read the header?
         start_offset = self.HEADLEN
-        if self._buffer_total >= start_offset:
+        if self._buffer.length >= start_offset:
             # header = self._data[:start_offset]
-            header = self._buffer_get(0, start_offset, peek=True)
+            header = self._buffer.get(0, start_offset, peek=True)
             fields = struct.unpack("<BI", header)
             magic, dlength = fields
             assert magic == ord("W")
             # Do we have enough data to read the full record?
             end_offset = self.HEADLEN + dlength
-            if self._buffer_total >= end_offset:
-                rec_data = self._buffer_get(start_offset, end_offset)
+            if self._buffer.length >= end_offset:
+                rec_data = self._buffer.get(start_offset, end_offset)
                 # rec_data = self._data[start_offset:end_offset]
                 # self._data = self._data[end_offset:]
                 return rec_data
@@ -242,7 +253,7 @@ class SockClient:
                 # socket.recv() will return 0 bytes if socket was shutdown
                 # caller will handle this condition like other connection problems
                 raise SockClientClosedError()
-            self._buffer_append(data, data_len)
+            self._buffer.append(data, data_len)
         return None
 
     def read_server_request(self) -> Optional[spb.ServerRequest]:
