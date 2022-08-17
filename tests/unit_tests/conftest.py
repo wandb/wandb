@@ -1480,6 +1480,7 @@ def wandb_init(user, test_settings, request):
     # mirror wandb.sdk.wandb_init.init args, overriding name and entity defaults
     def init(
         job_type: Optional[str] = None,
+        job_name: Optional[str] = None,
         dir: Optional[str] = None,
         config: Union[Dict, str, None] = None,
         project: Optional[str] = None,
