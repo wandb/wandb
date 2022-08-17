@@ -57,6 +57,7 @@ message Control {
   bool req_resp = 1;  // record is expecting a result
   bool local = 2;     // should not be persisted or synchronized
   string relay_id = 3;  // used by service transport to identify correct stream
+  string mailbox_slot = 4;  // mailbox slot
 }
 
 /*
