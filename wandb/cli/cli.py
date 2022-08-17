@@ -884,6 +884,15 @@ def sweep(
             wandb.termerror(_msg)
             raise LaunchError(_msg)
 
+        # Try and get job from sweep config
+        _job = config.get("job", None)
+        if _job is None:
+            wandb.termlog("No job found in sweep config, looking in launch config.")
+            _job = launch_config.get("job", None)
+            if _job is None:
+                wandb.termlog("No job found in launch config, using placeholder.")
+                _job = "placeholder-job"
+
         # Launch job spec for the Scheduler
         _launch_scheduler_spec = json.dumps(
             {
@@ -911,7 +920,7 @@ def sweep(
                             "--project",
                             project,
                             "--job",
-                            launch_config.get("job", "placeholder-job"),
+                            _job,
                             "--resource",
                             launch_config.get("resource", "local-process"),
                             # TODO(hupo): Add num-workers as option in launch config
