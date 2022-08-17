@@ -68,7 +68,14 @@ class _Service:
         # - https://github.com/wandb/wandb/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
 
-        kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
+        import platform
+        kwargs: Dict[str, Any] = dict(close_fds=True)
+        if platform.system() == 'Windows':
+            CREATE_NEW_PROCESS_GROUP = 0x00000200  # note: could get it from subprocess
+            DETACHED_PROCESS = 0x00000008          # 0x8 | 0x200 == 0x208
+            kwargs.update(creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+        else:
+            kwargs.update(start_new_session=True)
 
         pid = os.getpid()
 
