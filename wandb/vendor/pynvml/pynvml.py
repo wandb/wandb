@@ -5,6 +5,10 @@
 # Modifications:
 # - Added `NVML_DLL_PATH` env var check to the library initialization path
 # - Applied black formatting to improve readability
+# - Try different versions ("_v3", "_v2", "") of the functions:
+#   nvmlDeviceGetComputeRunningProcesses,
+#   nvmlDeviceGetGraphicsRunningProcesses, and
+#   nvmlDeviceGetMPSComputeRunningProcesses
 #
 # Copyright (c) 2011-2022, NVIDIA Corporation.  All rights reserved.
 #
@@ -2887,7 +2891,17 @@ def nvmlDeviceGetVbiosVersion(handle):
 def nvmlDeviceGetComputeRunningProcesses_v3(handle):
     # first call to get the size
     c_count = c_uint(0)
-    fn = _nvmlGetFunctionPointer("nvmlDeviceGetComputeRunningProcesses_v3")
+    fn = None
+    for suffix in ("_v3", "_v2", ""):
+        try:
+            fn = _nvmlGetFunctionPointer(
+                f"nvmlDeviceGetComputeRunningProcesses{suffix}"
+            )
+            break
+        except NVMLError:
+            pass
+    if fn is None:
+        raise NVMLError(NVML_ERROR_FUNCTION_NOT_FOUND)
     ret = fn(handle, byref(c_count), None)
 
     if ret == NVML_SUCCESS:
@@ -2926,7 +2940,17 @@ def nvmlDeviceGetComputeRunningProcesses(handle):
 def nvmlDeviceGetGraphicsRunningProcesses_v3(handle):
     # first call to get the size
     c_count = c_uint(0)
-    fn = _nvmlGetFunctionPointer("nvmlDeviceGetGraphicsRunningProcesses_v3")
+    fn = None
+    for suffix in ("_v3", "_v2", ""):
+        try:
+            fn = _nvmlGetFunctionPointer(
+                f"nvmlDeviceGetGraphicsRunningProcesses{suffix}"
+            )
+            break
+        except NVMLError:
+            pass
+    if fn is None:
+        raise NVMLError(NVML_ERROR_FUNCTION_NOT_FOUND)
     ret = fn(handle, byref(c_count), None)
 
     if ret == NVML_SUCCESS:
@@ -2969,7 +2993,18 @@ def nvmlDeviceGetMPSComputeRunningProcesses(handle):
 def nvmlDeviceGetMPSComputeRunningProcesses_v3(handle):
     # first call to get the size
     c_count = c_uint(0)
-    fn = _nvmlGetFunctionPointer("nvmlDeviceGetMPSComputeRunningProcesses_v3")
+    fn = None
+    for suffix in ("_v3", "_v2", ""):
+        try:
+            fn = _nvmlGetFunctionPointer(
+                f"nvmlDeviceGetMPSComputeRunningProcesses{suffix}"
+            )
+            break
+        except NVMLError:
+            pass
+    if fn is None:
+        raise NVMLError(NVML_ERROR_FUNCTION_NOT_FOUND)
+
     ret = fn(handle, byref(c_count), None)
 
     if ret == NVML_SUCCESS:
