@@ -159,7 +159,9 @@ class SockClient:
         need = end
 
         # compute buffers needed
-        for i, (buf_len, buf_data) in enumerate(zip(self._buffer_lens, self._buffer_list)):
+        for i, (buf_len, buf_data) in enumerate(
+            zip(self._buffer_lens, self._buffer_list)
+        ):
             buffers.append(buf_data[:need] if need < buf_len else buf_data)
             if need <= buf_len:
                 index = i
@@ -180,8 +182,8 @@ class SockClient:
                 self._buffer_lens[0] -= need
             else:
                 # update fully used buffer list
-                self._buffer_list = self._buffer_list[index + 1:]
-                self._buffer_lens = self._buffer_lens[index + 1:]
+                self._buffer_list = self._buffer_list[index + 1 :]
+                self._buffer_lens = self._buffer_lens[index + 1 :]
 
         return b"".join(buffers)[start:end]
 
