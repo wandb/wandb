@@ -25,7 +25,6 @@ class SockClient:
     _sockid: str
     _retry_delay: float
     _lock: "threading.Lock"
-    _buffer: SockBuffer
     _bufsize: int
 
     # current header is magic byte "W" followed by 4 byte length of the message
@@ -37,7 +36,6 @@ class SockClient:
         self._sockid = uuid.uuid4().hex
         self._retry_delay = 0.1
         self._lock = threading.Lock()
-        self._buffer = SockBuffer()
         self._bufsize = 4096
 
     def connect(self, port: int) -> None:
