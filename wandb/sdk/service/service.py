@@ -70,7 +70,7 @@ class _Service:
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
 
         kwargs: Dict[str, Any] = dict(close_fds=True)
-        # flags to handle keyboard interrupt signal taht causing a hang
+        # flags to handle keyboard interrupt signal that is causing a hang
         if platform.system() == "Windows":
             kwargs.update(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)  # type: ignore [attr-defined]
         else:
