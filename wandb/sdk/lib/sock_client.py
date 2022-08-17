@@ -33,7 +33,7 @@ class SockBuffer:
     def length(self) -> int:
         return self._buf_total
 
-    def get(self, start: int, end: int, peek: bool = False) -> bytes:
+    def _get(self, start: int, end: int, peek: bool = False) -> bytes:
         index: Optional[int] = None
         buffers = []
         need = end
@@ -66,7 +66,13 @@ class SockBuffer:
 
         return b"".join(buffers)[start:end]
 
-    def append(self, data: bytes, data_len: int) -> None:
+    def get(self, start: int, end: int) -> bytes:
+        return self._get(start, end)
+
+    def peek(self, start: int, end: int) -> bytes:
+        return self._get(start, end, peek=True)
+
+    def put(self, data: bytes, data_len: int) -> None:
         self._buf_list.append(data)
         self._buf_lengths.append(data_len)
         self._buf_total += data_len
@@ -207,7 +213,7 @@ class SockClient:
         start_offset = self.HEADLEN
         if self._buffer.length >= start_offset:
             # header = self._data[:start_offset]
-            header = self._buffer.get(0, start_offset, peek=True)
+            header = self._buffer.peek(0, start_offset)
             fields = struct.unpack("<BI", header)
             magic, dlength = fields
             assert magic == ord("W")
@@ -252,7 +258,7 @@ class SockClient:
                 # socket.recv() will return 0 bytes if socket was shutdown
                 # caller will handle this condition like other connection problems
                 raise SockClientClosedError()
-            self._buffer.append(data, data_len)
+            self._buffer.put(data, data_len)
         return None
 
     def read_server_request(self) -> Optional[spb.ServerRequest]:
