@@ -144,7 +144,7 @@ class Api:
         # TODO: ensure wandb.Settings is getting passed in from setup or wandb.init
         self.git = GitRepo(
             remote=self.settings("git_remote"),
-            disabled=self.default_settings.get("disable_git", False),
+            disabled=bool(self.default_settings.get("disable_git", False)),
         )
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
