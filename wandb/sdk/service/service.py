@@ -71,9 +71,9 @@ class _Service:
         import platform
         kwargs: Dict[str, Any] = dict(close_fds=True)
         if platform.system() == 'Windows':
-            CREATE_NEW_PROCESS_GROUP = 0x00000200  # note: could get it from subprocess
-            DETACHED_PROCESS = 0x00000008          # 0x8 | 0x200 == 0x208
-            kwargs.update(creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+            # CREATE_NEW_PROCESS_GROUP = 0x00000200  # note: could get it from subprocess
+            # DETACHED_PROCESS = 0x00000008          # 0x8 | 0x200 == 0x208
+            kwargs.update(creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
         else:
             kwargs.update(start_new_session=True)
 
