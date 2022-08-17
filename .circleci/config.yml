@@ -355,6 +355,7 @@ jobs:
           steps:
             - run:
                 name: Install python dependencies
+                shell: bash.exe
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
             - run:
@@ -368,6 +369,7 @@ jobs:
                 steps:
                   - run:
                       name: Update tox.ini on a GPU machine to install the proper pytorch version
+                      shell: bash.exe
                       command: |
                         CUDA_VERSION=`ls "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA"`
                         CUDA_VERSION_NO_DOT=`echo "${CUDA_VERSION//./}"`
