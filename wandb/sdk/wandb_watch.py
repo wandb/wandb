@@ -3,6 +3,11 @@
 import logging
 from typing import Optional
 
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
 import wandb
 
 from .lib import telemetry
@@ -15,7 +20,7 @@ _global_watch_idx = 0
 def watch(
     models,
     criterion=None,
-    log: Optional[str] = "gradients",
+    log: Optional[Literal["gradients", "parameters", "all"]] = "gradients",
     log_freq: int = 1000,
     idx: Optional[int] = None,
     log_graph: bool = False,
