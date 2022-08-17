@@ -2984,6 +2984,7 @@ class Run:
                     f"Run {printer.code('`wandb offline`')} to turn off syncing."
                 )
             printer.display(info, off=settings.quiet or settings.silent)
+            printer.display('Hi, Spencer!')
 
     @staticmethod
     def _header_run_info(
