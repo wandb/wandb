@@ -423,6 +423,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
+    init_start: bool
     init_timeout: int
     is_local: bool
     label_disable: bool
@@ -559,6 +560,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            init_start={"preprocessor": _str_as_bool},
             init_timeout={"value": 30, "preprocessor": lambda x: int(x)},
             is_local={
                 "hook": (
@@ -1481,6 +1483,7 @@ class Settings:
             job_type="run_job_type",
             notes="run_notes",
             dir="root_dir",
+            start="init_start",
         )
         init_settings = {
             param_map.get(k, k): v for k, v in init_settings.items() if v is not None

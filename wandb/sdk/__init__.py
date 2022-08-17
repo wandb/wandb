@@ -6,7 +6,7 @@ from . import wandb_helper as helper  # noqa: F401
 from .wandb_alerts import AlertLevel  # noqa: F401
 from .wandb_artifacts import Artifact  # noqa: F401
 from .wandb_config import Config  # noqa: F401
-from .wandb_init import _attach, init  # noqa: F401
+from .wandb_init import _attach, init, start  # noqa: F401
 from .wandb_login import login  # noqa: F401
 from .wandb_require import require  # noqa: F401
 from .wandb_run import finish  # noqa: F401

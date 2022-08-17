@@ -299,10 +299,16 @@ class _WandbSetup:
     def __init__(self, settings=None) -> None:
         threadid = threading.get_ident()
         pid = os.getpid()
-        if _WandbSetup._instance and _WandbSetup._instance._pid == pid and _WandbSetup._instance._threadid == threadid:
+        if (
+            _WandbSetup._instance
+            and _WandbSetup._instance._pid == pid
+            and _WandbSetup._instance._threadid == threadid
+        ):
             _WandbSetup._instance._update(settings=settings)
             return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid, threadid=threadid)
+        _WandbSetup._instance = _WandbSetup__WandbSetup(
+            settings=settings, pid=pid, threadid=threadid
+        )
 
     def __getattr__(self, name):
         return getattr(self._instance, name)

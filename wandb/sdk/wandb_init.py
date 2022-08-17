@@ -552,6 +552,9 @@ class _WandbInit:
                 if current_pid != wandb.run._init_pid:
                     # We shouldn't return a stale global run if we are in a new pid
                     allow_return_run = False
+                if self.settings.init_start:
+                    # start always creates a new run
+                    allow_return_run = False
 
             if allow_return_run:
                 logger.info("wandb.init() called when a run is still active")
@@ -832,7 +835,7 @@ def _attach(
     return run
 
 
-def init(
+def _init(
     job_type: Optional[str] = None,
     dir: Union[str, pathlib.Path, None] = None,
     config: Union[Dict, str, None] = None,
@@ -855,6 +858,7 @@ def init(
     sync_tensorboard=None,
     monitor_gym=None,
     save_code=None,
+    start=None,  # this is temporary, maybe it will be wandb.start()
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
@@ -1101,3 +1105,64 @@ def init(
                 os._exit(-1)
             raise Exception("problem") from error_seen
     return run
+
+
+def start(
+    job_type: Optional[str] = None,
+    dir: Union[str, pathlib.Path, None] = None,
+    config: Union[Dict, str, None] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    reinit: bool = None,
+    tags: Optional[Sequence] = None,
+    group: Optional[str] = None,
+    name: Optional[str] = None,
+    notes: Optional[str] = None,
+    magic: Union[dict, str, bool] = None,
+    config_exclude_keys=None,
+    config_include_keys=None,
+    anonymous: Optional[str] = None,
+    mode: Optional[str] = None,
+    allow_val_change: Optional[bool] = None,
+    resume: Optional[Union[bool, str]] = None,
+    force: Optional[bool] = None,
+    tensorboard=None,  # alias for sync_tensorboard
+    sync_tensorboard=None,
+    monitor_gym=None,
+    save_code=None,
+    id=None,
+    settings: Union[Settings, Dict[str, Any], None] = None,
+) -> Union[Run, RunDisabled, None]:
+    kwargs = dict(locals())
+    kwargs["start"] = True
+    return _init(**kwargs)
+
+
+def init(
+    job_type: Optional[str] = None,
+    dir: Union[str, pathlib.Path, None] = None,
+    config: Union[Dict, str, None] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    reinit: bool = None,
+    tags: Optional[Sequence] = None,
+    group: Optional[str] = None,
+    name: Optional[str] = None,
+    notes: Optional[str] = None,
+    magic: Union[dict, str, bool] = None,
+    config_exclude_keys=None,
+    config_include_keys=None,
+    anonymous: Optional[str] = None,
+    mode: Optional[str] = None,
+    allow_val_change: Optional[bool] = None,
+    resume: Optional[Union[bool, str]] = None,
+    force: Optional[bool] = None,
+    tensorboard=None,  # alias for sync_tensorboard
+    sync_tensorboard=None,
+    monitor_gym=None,
+    save_code=None,
+    id=None,
+    settings: Union[Settings, Dict[str, Any], None] = None,
+) -> Union[Run, RunDisabled, None]:
+    kwargs = dict(locals())
+    return _init(**kwargs)
