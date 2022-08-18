@@ -83,6 +83,7 @@ class SockClient:
     _sockid: str
     _retry_delay: float
     _lock: "threading.Lock"
+    _bufsize: int
     _buffer: SockBuffer
 
     # current header is magic byte "W" followed by 4 byte length of the message
@@ -93,12 +94,19 @@ class SockClient:
         self._sockid = uuid.uuid4().hex
         self._retry_delay = 0.1
         self._lock = threading.Lock()
+        self._bufsize = 4096
         self._buffer = SockBuffer()
 
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect(("localhost", port))
         self._sock = s
+        self._detect_bufsize()
+
+    def _detect_bufsize(self) -> None:
+        sndbuf_size = self._sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+        rcvbuf_size = self._sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+        self._bufsize = min(sndbuf_size, rcvbuf_size, 65536)
 
     def close(self) -> None:
         self._sock.close()
@@ -108,6 +116,7 @@ class SockClient:
 
     def set_socket(self, sock: socket.socket) -> None:
         self._sock = sock
+        self._detect_bufsize()
 
     def _sendall_with_error_handle(self, data: bytes) -> None:
         # This is a helper function for sending data in a retry fashion.
@@ -243,7 +252,7 @@ class SockClient:
             if timeout:
                 self._sock.settimeout(timeout)
             try:
-                data = self._sock.recv(4096)
+                data = self._sock.recv(self._bufsize)
             except socket.timeout:
                 break
             except ConnectionResetError:
