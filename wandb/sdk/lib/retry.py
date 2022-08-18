@@ -138,15 +138,9 @@ class Retry(Generic[_R]):
                     gql_op = str(args[0].definitions[0].name.value)
                 except Exception:
                     gql_op = None
-                msg = f"SRP: call failed{f' ({gql_op!r})' if gql_op else ''} : {self._call_fn.__name__}({args}, {kwargs}) -> {e}"
+                msg = f"SRP: call failed{f' ({gql_op!r})' if gql_op else ''} : {self._call_fn.__name__}({args}, {kwargs}) -> {e}\n\n{''.join(traceback.format_stack())}\n"
                 logger.warn(msg)
                 wandb.termwarn(msg)
-
-                if 'ReadTimeout' in str(e):
-                    msg = f"SRP: found a ReadTimeout!\n\n{traceback.format_stack()}"
-                    logger.warn(msg)
-                    wandb.termwarn(msg)
-
 
                 # if the secondary check fails, re-raise
                 retry_timedelta_triggered = check_retry_fn(e)
