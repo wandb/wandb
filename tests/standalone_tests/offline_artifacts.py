@@ -7,8 +7,9 @@ rm -rf wandb \
 
 import sys
 
-from click.testing import CliRunner
 import numpy as np
+from click.testing import CliRunner
+
 import wandb
 from wandb.cli import cli
 

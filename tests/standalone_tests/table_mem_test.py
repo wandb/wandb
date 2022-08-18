@@ -1,8 +1,9 @@
 import pathlib
 import time
 
-from memory_profiler import profile
 import numpy as np
+from memory_profiler import profile
+
 import wandb
 
 

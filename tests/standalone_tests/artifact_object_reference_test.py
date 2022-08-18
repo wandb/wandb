@@ -1,16 +1,16 @@
 # Suggest running as: WANDB_BASE_URL=http://api.wandb.test python artifact_object_reference_test.py
 import base64
 import binascii
-from math import cos, pi, sin
 import os
 import shutil
 import time
+from math import cos, pi, sin
 
-from bokeh.plotting import figure
 import numpy as np
+from bokeh.plotting import figure
+
 import wandb
 from wandb.sdk.interface import artifacts
-
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:

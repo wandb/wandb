@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 import numpy
 import pandas
 import PIL
-from pkg_resources import parse_version
 import plotly.graph_objs as go
 import tensorflow
 import torch
+from pkg_resources import parse_version
+
 import wandb
 
 

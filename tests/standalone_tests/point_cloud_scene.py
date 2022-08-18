@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+
 import wandb
 
 os.environ.setdefault("WANDB_PROJECT", "lidar-scene-test")

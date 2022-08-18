@@ -25,8 +25,6 @@ TODO:
 """
 
 import argparse
-from collections import defaultdict
-from datetime import datetime
 import multiprocessing
 import os
 import queue
@@ -35,8 +33,11 @@ import string
 import sys
 import tempfile
 import time
+from collections import defaultdict
+from datetime import datetime
 
 from tqdm import tqdm
+
 import wandb
 
 parser = argparse.ArgumentParser(description="artifacts load test")
