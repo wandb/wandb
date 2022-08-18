@@ -38,9 +38,7 @@ from wandb.sdk.internal import progress
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
-from .interface.artifacts import (
-    Artifact as ArtifactInterface,
-)
+from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.artifacts import (  # noqa: F401
     ArtifactEntry,
     ArtifactManifest,
