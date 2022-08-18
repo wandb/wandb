@@ -15,8 +15,8 @@ class TPUProfiler:
         gcp_project=None,
         duration_ms=1000,
     ):
-        from tensorflow.python.distribute.cluster_resolver import (
-            tpu_cluster_resolver,  # type: ignore
+        from tensorflow.python.distribute.cluster_resolver import (  # type: ignore
+            tpu_cluster_resolver,
         )
         from tensorflow.python.profiler import profiler_client  # type: ignore
 

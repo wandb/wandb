@@ -26,7 +26,6 @@ from ..interface.interface_relay import InterfaceRelay
 # from wandb.sdk.wandb_settings import Settings
 
 
-
 class StreamThread(threading.Thread):
     """Class to running internal process as a thread."""
 
