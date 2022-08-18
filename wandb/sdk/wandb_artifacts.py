@@ -167,7 +167,7 @@ class Artifact(ArtifactInterface):
         self._api = InternalApi()
         self._final = False
         self._digest = ""
-        self._file_entries = None
+        self._manifest_path = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_objs = {}
@@ -680,21 +680,23 @@ class Artifact(ArtifactInterface):
             return None
         return entry.path
 
-    def finalize(self) -> None:
+    def finalize(self) -> Optional[str]:
         """
         Marks this artifact as final, which disallows further additions to the artifact.
         This happens automatically when calling `log_artifact`.
 
 
         Returns:
-            None
+            A file path to the manifest file if one was created, otherwise None
         """
         if self._final:
-            return self._file_entries
+            return self._manifest_path
 
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
+        self._manifest_path = self._manifest.persist(self._api)
+        return self._manifest_path
 
     def json_encode(self) -> Dict[str, Any]:
         if not self._logged_artifact:
@@ -781,10 +783,42 @@ class ArtifactManifestV1(ArtifactManifest):
         artifact: ArtifactInterface,
         storage_policy: "WandbStoragePolicy",
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
+        manifest_path: Optional[str] = None,
     ) -> None:
-        super().__init__(artifact, storage_policy, entries=entries)
+        super().__init__(
+            artifact, storage_policy, entries=entries, manifest_path=manifest_path
+        )
 
-    def to_manifest_json(self) -> Dict:
+    def persist(self, api: InternalApi):
+        if len(self.entries) > ArtifactManifest.MAX_ENTRIES_BUFFER:
+            # TODO: handle disk space error?
+            with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
+                self.manifest_path = os.path.abspath(fp.name)
+                print("DUMPING ARTY TO: ", self.manifest_path)
+                json.dump(self.to_manifest_json(api), fp, indent=4)
+            self._entries = None
+        return self.manifest_path
+
+    def _resolve_client_id_manifest_references(
+        self, entry: ArtifactEntry, api: Optional[InternalApi] = None
+    ) -> None:
+        if entry.ref is not None:
+            if entry.ref.startswith("wandb-client-artifact:"):
+                client_id = util.host_from_path(entry.ref)
+                artifact_file_path = util.uri_from_path(entry.ref)
+                # TODO: we should not be doing this in the user process
+                # maybe don't do the fancy flushing to disk in this case?
+                if api is None:
+                    artifact_id = None
+                else:
+                    artifact_id = api._resolve_client_id(client_id)
+                if artifact_id is None:
+                    raise RuntimeError(f"Could not resolve client id {client_id}")
+                entry.ref = "wandb-artifact://{}/{}".format(
+                    util.b64_to_hex_id(artifact_id), artifact_file_path
+                )
+
+    def to_manifest_json(self, api: Optional[InternalApi] = None) -> Dict:
         """This is the JSON that's stored in wandb_manifest.json
 
         If include_local is True we also include the local paths to files. This is
@@ -794,6 +828,7 @@ class ArtifactManifestV1(ArtifactManifest):
         """
         contents = {}
         for entry in sorted(self.entries.values(), key=lambda k: k.path):
+            self._resolve_client_id_manifest_references(entry, api)
             json_entry: Dict[str, Any] = {
                 "digest": entry.digest,
             }
