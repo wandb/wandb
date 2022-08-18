@@ -43,7 +43,7 @@ class ArtifactSaver:
         self._digest = artifact.digest
         self._manifest_path: str = artifact.manifest.manifest_path
         self._manifest = ArtifactManifest.from_artifact_pb(artifact)
-        self._is_user_created = artifact.is_user_created
+        self._is_user_created = artifact.user_created
         self._server_artifact = None
 
     def save(

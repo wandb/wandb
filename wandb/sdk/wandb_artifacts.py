@@ -34,7 +34,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-from wandb.sdk.internal import progress
+from wandb.sdk.internal import progress, internal_api
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
@@ -167,7 +167,7 @@ class Artifact(ArtifactInterface):
         self._api = InternalApi()
         self._final = False
         self._digest = ""
-        self._manifest_path = None
+        self._manifest_path: Optional[str] = None
         self._manifest = ArtifactManifestV1(self, self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_objs = {}
@@ -695,7 +695,7 @@ class Artifact(ArtifactInterface):
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
-        self._manifest_path = self._manifest.persist(self._api)
+        self._manifest_path = self._manifest.persist()
         return self._manifest_path
 
     def json_encode(self) -> Dict[str, Any]:
@@ -789,18 +789,23 @@ class ArtifactManifestV1(ArtifactManifest):
             artifact, storage_policy, entries=entries, manifest_path=manifest_path
         )
 
-    def persist(self, api: InternalApi):
+    def persist(self) -> str:
         if len(self.entries) > ArtifactManifest.MAX_ENTRIES_BUFFER:
             # TODO: handle disk space error?
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 self.manifest_path = os.path.abspath(fp.name)
-                print("DUMPING ARTY TO: ", self.manifest_path)
-                json.dump(self.to_manifest_json(api), fp, indent=4)
-            self._entries = None
+                try:
+                    json.dump(self.to_manifest_json(), fp, indent=4)
+                except RuntimeError:
+                    # TODO: this can happen if we have a big artifact with client id refs
+                    self.manifest_path = ""
+            # Free up that memory
+            if self.manifest_path != "":
+                self._entries = None
         return self.manifest_path
 
     def _resolve_client_id_manifest_references(
-        self, entry: ArtifactEntry, api: Optional[InternalApi] = None
+        self, entry: ArtifactEntry, api: Optional[internal_api.Api] = None
     ) -> None:
         if entry.ref is not None:
             if entry.ref.startswith("wandb-client-artifact:"):
@@ -818,7 +823,7 @@ class ArtifactManifestV1(ArtifactManifest):
                     util.b64_to_hex_id(artifact_id), artifact_file_path
                 )
 
-    def to_manifest_json(self, api: Optional[InternalApi] = None) -> Dict:
+    def to_manifest_json(self, api: Optional[internal_api.Api] = None) -> Dict:
         """This is the JSON that's stored in wandb_manifest.json
 
         If include_local is True we also include the local paths to files. This is

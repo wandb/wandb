@@ -198,10 +198,10 @@ def test_local_references(wandb_init):
 
 
 def test_buffer_to_disk(wandb_init, runner):
-    MANI = wandb.wandb_sdk.interface.artifacts.ArtifactManifest
-    DEFAULT_BUFFER = MANI.MAX_ENTRIES_BUFFER
+    mani = wandb.wandb_sdk.interface.artifacts.ArtifactManifest
+    default_buffer = mani.MAX_ENTRIES_BUFFER
     try:
-        MANI.MAX_ENTRIES_BUFFER = 10
+        mani.MAX_ENTRIES_BUFFER = 10
         with runner.isolated_filesystem():
             for i in range(15):
                 with open(f"file_{i}.txt", "w") as f:
@@ -213,4 +213,4 @@ def test_buffer_to_disk(wandb_init, runner):
             assert art._manifest_path != ""
             run.finish()
     finally:
-        MANI.MAX_ENTRIES_BUFFER = DEFAULT_BUFFER
+        mani.MAX_ENTRIES_BUFFER = default_buffer

@@ -26,7 +26,7 @@ from wandb.data_types import WBValue
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     from wandb.sdk import wandb_artifacts
-    from wandb.sdk.internal import progress
+    from wandb.sdk.internal import progress, internal_api
     from wandb.proto import wandb_internal_pb2
 
 
@@ -180,10 +180,10 @@ class ArtifactManifest:
                 self._entries = {}
         return self._entries
 
-    def persist(self):
+    def persist(self) -> str:
         raise NotImplementedError()
 
-    def to_manifest_json(self):
+    def to_manifest_json(self, api: Optional["internal_api.Api"]):
         raise NotImplementedError()
 
     def digest(self):
