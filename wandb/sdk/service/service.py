@@ -4,6 +4,7 @@ Backend server process can be connected to using tcp sockets or grpc transport.
 """
 
 import os
+import platform
 import subprocess
 import sys
 import tempfile
@@ -68,7 +69,12 @@ class _Service:
         # - https://github.com/wandb/wandb/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
 
-        kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
+        kwargs: Dict[str, Any] = dict(close_fds=True)
+        # flags to handle keyboard interrupt signal that is causing a hang
+        if platform.system() == "Windows":
+            kwargs.update(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)  # type: ignore [attr-defined]
+        else:
+            kwargs.update(start_new_session=True)
 
         pid = os.getpid()
 
