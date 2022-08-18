@@ -2,7 +2,7 @@
 line-length = 88
 include = '\.pyi?$'
 exclude = '''
-  wandb/vendor/
+wandb/vendor/
 | wandb/old/
 | wandb/bin/
 | wandb/proto/
@@ -10,12 +10,11 @@ exclude = '''
 | wandb/sdk/launch/deploys/
 | wandb/run*
 | wandb/offline-run*
-| tests/fixtures/
-| tests/logs/
-| tests/notebooks/
+| tests/unit_tests_old/
 | __pycache__
 | .pyc
 '''
 
 [tool.isort]
 profile = "black"
+extend_skip_glob = ["wandb/vendor/**", "wandb/proto/*.py", "wandb/proto_check/*.py","tests/unit_tests_old/**"]
