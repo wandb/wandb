@@ -145,6 +145,8 @@ class ArtifactSaver:
         step_prepare.start()
 
         # Upload Artifact "L1" files, the actual artifact contents
+        # TODO: we could detect if we had any real files to store and not need
+        # to load everything in memory
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
@@ -160,13 +162,14 @@ class ArtifactSaver:
         commit_event = threading.Event()
 
         def before_commit() -> None:
-            # TODO: we might need to do the client id resolution here
             if self._manifest_path == "":
                 with tempfile.NamedTemporaryFile(
                     "w+", suffix=".json", delete=False
                 ) as fp:
                     self._manifest_path = os.path.abspath(fp.name)
                     json.dump(self._manifest.to_manifest_json(self._api), fp, indent=4)
+            # Always free up the memory, store_manifest_files loads everything from disk
+            self._manifest._entries = None
             digest = wandb.util.md5_file(self._manifest_path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the

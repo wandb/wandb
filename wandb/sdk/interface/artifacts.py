@@ -133,9 +133,12 @@ class ArtifactManifest:
             }
         )
         if artifact.manifest.manifest_path == "":
-            cls.from_manifest_json(
+            manifest = cls.from_manifest_json(
                 artifact, _manifest_json_from_proto(artifact.manifest)
             )
+            # Free up that memory
+            del artifact.manifest.contents[:]
+            return manifest
         else:
             # This avoids loading all entries into ram, generally for larger artifacts
             return cls(artifact, policy, manifest_path=artifact.manifest.manifest_path)

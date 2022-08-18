@@ -34,7 +34,7 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-from wandb.sdk.internal import progress, internal_api
+from wandb.sdk.internal import internal_api, progress
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
