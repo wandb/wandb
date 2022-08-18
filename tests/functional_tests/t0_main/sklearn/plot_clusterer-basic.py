@@ -22,6 +22,7 @@ assert:
 import numpy as np
 from sklearn import datasets
 from sklearn.cluster import KMeans
+
 import wandb
 
 wandb.init("my-scikit-integration")

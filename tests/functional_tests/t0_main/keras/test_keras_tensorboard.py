@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.callbacks import TensorBoard
+
 import wandb
 from wandb.keras import WandbCallback
 

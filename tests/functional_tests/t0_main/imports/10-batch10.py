@@ -50,9 +50,9 @@ import fairseq  # noqa: F401
 import merlin  # noqa: F401
 import sparseml  # noqa: F401
 import timm  # noqa: F401
-import wandb
 import zenml  # noqa: F401
 
+import wandb
 
 run = wandb.init()
 wandb.log(dict(loss=1))

@@ -3,6 +3,7 @@ import sys
 import time
 
 import tqdm
+
 import wandb
 
 run = wandb.init()

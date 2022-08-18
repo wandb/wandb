@@ -3,12 +3,13 @@
 example usage of `run.log` with user provide step greater than the internal step"""
 
 
-from contextlib import redirect_stderr
 import io
 import multiprocessing as mp
+from contextlib import redirect_stderr
+
+import yea
 
 import wandb
-import yea
 
 
 def process_child(run, check_warning=False):

@@ -3,7 +3,8 @@
 # based on issue https://wandb.atlassian.net/browse/CLI-548
 from math import sqrt
 
-from joblib import delayed, Parallel
+from joblib import Parallel, delayed
+
 import wandb
 
 

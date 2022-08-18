@@ -8,11 +8,12 @@ Based on:
 import random
 
 import numpy as np
-from ray import tune
-from ray.tune.examples.mnist_pytorch import ConvNet, get_data_loaders, test, train
-from ray.tune.integration.wandb import wandb_mixin, WandbLogger
 import torch
 import torch.optim as optim
+from ray import tune
+from ray.tune.examples.mnist_pytorch import ConvNet, get_data_loaders, test, train
+from ray.tune.integration.wandb import WandbLogger, wandb_mixin
+
 import wandb
 
 

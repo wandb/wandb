@@ -5,8 +5,9 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel
 import torch.optim as optim
+from torch.nn.parallel import DistributedDataParallel
+
 import wandb
 
 

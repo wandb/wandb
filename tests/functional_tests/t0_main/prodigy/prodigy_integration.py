@@ -57,6 +57,7 @@ from unittest.mock import Mock
 from zipfile import ZipFile
 
 from prodigy_connect import Connect
+
 import wandb
 from wandb.integration.prodigy import upload_dataset
 

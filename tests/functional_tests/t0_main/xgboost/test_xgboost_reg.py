@@ -3,12 +3,13 @@
 
 import numpy as np
 import pandas as pd
+import xgboost as xgb
 from sklearn.datasets import fetch_california_housing
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+
 import wandb
 from wandb.integration.xgboost import WandbCallback
-import xgboost as xgb
 
 # load data
 housing = fetch_california_housing()

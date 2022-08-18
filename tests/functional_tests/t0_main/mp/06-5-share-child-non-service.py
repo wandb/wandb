@@ -3,8 +3,9 @@
 In the non-service case all the ops in the child process on the run should be no-op"""
 import multiprocessing as mp
 
-import wandb
 import yea
+
+import wandb
 
 
 def process_parent():
