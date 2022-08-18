@@ -159,6 +159,8 @@ def test_artifact_finish_distributed_id(wandb_init):
     run = wandb_init()
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     run.finish_artifact(artifact, distributed_id=group_name)
+    # we never want to persist to disk with distributed
+    assert artifact._manifest_path == ""
     run.finish()
 
 
@@ -193,3 +195,22 @@ def test_local_references(wandb_init):
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
     run.finish()
+
+
+def test_buffer_to_disk(wandb_init, runner):
+    mani = wandb.wandb_sdk.interface.artifacts.ArtifactManifest
+    default_buffer = mani.MAX_ENTRIES_BUFFER
+    try:
+        mani.MAX_ENTRIES_BUFFER = 10
+        with runner.isolated_filesystem():
+            for i in range(15):
+                with open(f"file_{i}.txt", "w") as f:
+                    f.write(f"Sick file #{i}")
+            run = wandb_init()
+            art = wandb.Artifact("test_buffer", "test")
+            art.add_reference("file://.")
+            run.log_artifact(art)
+            assert art._manifest_path != ""
+            run.finish()
+    finally:
+        mani.MAX_ENTRIES_BUFFER = default_buffer
