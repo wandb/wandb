@@ -1,5 +1,6 @@
 """Agent tests"""
 import pytest
+
 from wandb.wandb_agent import Agent
 
 

@@ -1,6 +1,7 @@
 import unittest.mock
 
 import pytest
+
 from wandb.cli import cli
 from wandb.util import generate_id
 

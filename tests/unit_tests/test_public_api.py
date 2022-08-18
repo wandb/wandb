@@ -4,9 +4,10 @@
 from unittest import mock
 
 import pytest
+
 import wandb
-from wandb import Api
 import wandb.util
+from wandb import Api
 
 
 def test_api_auto_login_no_tty():

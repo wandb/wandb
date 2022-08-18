@@ -3,8 +3,9 @@ config tests.
 """
 
 import pytest
-from wandb import wandb_sdk
 import yaml
+
+from wandb import wandb_sdk
 
 
 def get_callback(d):

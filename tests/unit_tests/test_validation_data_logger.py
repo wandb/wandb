@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 import wandb
 from wandb.sdk.integration_utils.data_logging import (
     CAN_INFER_IMAGE_AND_VIDEO,

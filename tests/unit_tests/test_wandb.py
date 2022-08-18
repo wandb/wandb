@@ -2,15 +2,16 @@
 See wandb_integration_test.py for tests that launch a real backend against
 a live backend server.
 """
-from contextlib import contextmanager
 import glob
 import inspect
 import os
-from pathlib import Path
 import tempfile
+from contextlib import contextmanager
+from pathlib import Path
 from unittest import mock
 
 import pytest
+
 import wandb
 from wandb.sdk.wandb_init import init as real_wandb_init
 from wandb.viz import custom_chart

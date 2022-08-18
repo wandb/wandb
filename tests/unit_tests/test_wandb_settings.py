@@ -13,8 +13,9 @@ import sys
 import tempfile
 from unittest import mock
 
-from click.testing import CliRunner
 import pytest  # type: ignore
+from click.testing import CliRunner
+
 import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_settings

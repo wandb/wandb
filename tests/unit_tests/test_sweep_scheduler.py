@@ -2,10 +2,11 @@
 from unittest.mock import Mock, patch
 
 import pytest
+
 import wandb
 from wandb.apis import internal, public
 from wandb.errors import CommError
-from wandb.sdk.launch.sweeps import load_scheduler, SchedulerError
+from wandb.sdk.launch.sweeps import SchedulerError, load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import (
     Scheduler,
     SchedulerState,
