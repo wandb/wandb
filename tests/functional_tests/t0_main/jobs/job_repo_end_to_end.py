@@ -11,20 +11,23 @@ from wandb.util import to_forward_slash_path
 
 # this test is kind of hacky, it piggy backs off of the existing wandb/client git repo to construct the job
 # should probably have it use wandb_examples or something
-cmd = ["python", "job_repo_creation.py"]
+cmd = ["python", "job_repo_creation.py", "--log-test"]
 
 subprocess.check_call(cmd)
 
 api = wandb.Api()
-job = api.job("job-gitgithub.comwandbclient.git_job_repo_creation.py:v0")
+job = api.job(
+    "job-git_github.com_wandb_client.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0"
+)
 
 assert job._job_artifact is not None
-assert job.name == "job-gitgithub.comwandbclient.git_job_repo_creation.py:v0"
+assert (
+    job.name
+    == "job-git_github.com_wandb_client.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0"
+)
 assert job._source_info["source_type"] == "repo"
 assert job._input_types == TypeRegistry.type_of({"foo": "bar", "lr": 0.1, "epochs": 5})
 
-# manually insert defaults since mock server doesn't support metadata
-job._job_artifact.metadata["config_defaults"] = {"epochs": 5, "lr": 0.1, "foo": "bar"}
 with pytest.raises(TypeError):
     job.call(config={"batch_size": 64})
 
@@ -32,7 +35,7 @@ with pytest.raises(TypeError):
 internal_api = InternalApi()
 kwargs = {
     "uri": None,
-    "job": "job-gitgithub.comwandbclient.git_job_repo_creation.py:v0",
+    "job": "job-git_github.com_wandb_client.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0",
     "api": internal_api,
     "launch_spec": {},
     "target_entity": api.default_entity,
@@ -44,6 +47,7 @@ kwargs = {
     "resource": "local",
     "resource_args": {},
     "cuda": False,
+    "run_id": None,
 }
 lp = LaunchProject(**kwargs)
 
