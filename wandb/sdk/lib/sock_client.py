@@ -106,7 +106,7 @@ class SockClient:
     def _detect_bufsize(self) -> None:
         sndbuf_size = self._sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
         rcvbuf_size = self._sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
-        self._bufsize = min(sndbuf_size, rcvbuf_size, 131072)
+        self._bufsize = min(sndbuf_size, rcvbuf_size, 65536)
 
     def close(self) -> None:
         self._sock.close()
