@@ -3,12 +3,14 @@ import binascii
 import codecs
 import contextlib
 import hashlib
+import json
 import os
 import random
 from typing import (
     Callable,
     Dict,
     List,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -24,7 +26,8 @@ from wandb.data_types import WBValue
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
     from wandb.sdk import wandb_artifacts
-    from wandb.sdk.internal import progress
+    from wandb.sdk.internal import progress, internal_api
+    from wandb.proto import wandb_internal_pb2
 
 
 if TYPE_CHECKING:
@@ -78,8 +81,67 @@ def bytes_to_hex(bytestr):
     return codecs.getencoder("hex")(bytestr)[0]
 
 
+def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
+    if manifest.version == 1:
+        contents = {
+            content.path: {
+                "digest": content.digest,
+                "birthArtifactID": content.birth_artifact_id
+                if content.birth_artifact_id
+                else None,
+                "ref": content.ref if content.ref else None,
+                "size": content.size if content.size is not None else None,
+                "local_path": content.local_path if content.local_path else None,
+                "extra": {
+                    extra.key: json.loads(extra.value_json) for extra in content.extra
+                },
+            }
+            for content in manifest.contents
+        }
+    else:
+        raise Exception(f"unknown artifact manifest version: {manifest.version}")
+
+    return {
+        "version": manifest.version,
+        "storagePolicy": manifest.storage_policy,
+        "storagePolicyConfig": {
+            config.key: json.loads(config.value_json)
+            for config in manifest.storage_policy_config
+        },
+        "contents": contents,
+    }
+
+
 class ArtifactManifest:
-    entries: Dict[str, "ArtifactEntry"]
+    # Currently this constant determines when we flush our manifest to disk
+    # from the user process.  Eventually we should alway buffer to disk in
+    # the user process.
+    MAX_ENTRIES_BUFFER = 10000
+    manifest_path: str
+
+    @classmethod
+    def from_artifact_pb(
+        cls, artifact: "wandb_internal_pb2.ArtifactRecord"
+    ) -> "ArtifactManifest":
+        storage_policy_cls = StoragePolicy.lookup_by_name(
+            artifact.manifest.storage_policy
+        )
+        policy = storage_policy_cls.from_config(
+            {
+                config.key: json.loads(config.value_json)
+                for config in artifact.manifest.storage_policy_config
+            }
+        )
+        if artifact.manifest.manifest_path == "":
+            manifest = cls.from_manifest_json(
+                artifact, _manifest_json_from_proto(artifact.manifest)
+            )
+            # Free up that memory
+            del artifact.manifest.contents[:]
+            return manifest
+        else:
+            # This avoids loading all entries into ram, generally for larger artifacts
+            return cls(artifact, policy, manifest_path=artifact.manifest.manifest_path)
 
     @classmethod
     # TODO: we don't need artifact here.
@@ -100,13 +162,31 @@ class ArtifactManifest:
         self,
         artifact,
         storage_policy: "wandb_artifacts.WandbStoragePolicy",
-        entries=None,
+        entries: Optional[Mapping[str, "ArtifactEntry"]] = None,
+        manifest_path: Optional[str] = None,
     ) -> None:
         self.artifact = artifact
         self.storage_policy = storage_policy
-        self.entries = entries or {}
+        self._entries = entries
+        self.manifest_path = manifest_path or ""
 
-    def to_manifest_json(self):
+    @property
+    def entries(self) -> Dict[str, "ArtifactEntry"]:
+        if self._entries is None:
+            if self.manifest_path != "":
+                # TODO: this doesn't belong here and should be implementation specific
+                with open(self.manifest_path) as mani:
+                    self._entries = ArtifactManifest.from_manifest_json(
+                        self.artifact, json.load(mani)
+                    ).entries
+            else:
+                self._entries = {}
+        return self._entries
+
+    def persist(self) -> str:
+        raise NotImplementedError()
+
+    def to_manifest_json(self, api: Optional["internal_api.Api"]):
         raise NotImplementedError()
 
     def digest(self):

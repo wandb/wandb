@@ -6,11 +6,9 @@ import threading
 from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import wandb
-from wandb import util
 import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactEntry, ArtifactManifest
-
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -30,53 +28,22 @@ if TYPE_CHECKING:
             pass
 
 
-def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
-    if manifest.version == 1:
-        contents = {
-            content.path: {
-                "digest": content.digest,
-                "birthArtifactID": content.birth_artifact_id
-                if content.birth_artifact_id
-                else None,
-                "ref": content.ref if content.ref else None,
-                "size": content.size if content.size is not None else None,
-                "local_path": content.local_path if content.local_path else None,
-                "extra": {
-                    extra.key: json.loads(extra.value_json) for extra in content.extra
-                },
-            }
-            for content in manifest.contents
-        }
-    else:
-        raise Exception(f"unknown artifact manifest version: {manifest.version}")
-
-    return {
-        "version": manifest.version,
-        "storagePolicy": manifest.storage_policy,
-        "storagePolicyConfig": {
-            config.key: json.loads(config.value_json)
-            for config in manifest.storage_policy_config
-        },
-        "contents": contents,
-    }
-
-
 class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
     def __init__(
         self,
+        artifact: "wandb_internal_pb2.ArtifactRecord",
         api: "InternalApi",
-        digest: str,
-        manifest_json: Dict,
         file_pusher: "FilePusher",
-        is_user_created: bool = False,
     ) -> None:
+
         self._api = api
         self._file_pusher = file_pusher
-        self._digest = digest
-        self._manifest = ArtifactManifest.from_manifest_json(None, manifest_json)
-        self._is_user_created = is_user_created
+        self._digest = artifact.digest
+        self._manifest_path: str = artifact.manifest.manifest_path
+        self._manifest = ArtifactManifest.from_artifact_pb(artifact)
+        self._is_user_created = artifact.user_created
         self._server_artifact = None
 
     def save(
@@ -178,6 +145,8 @@ class ArtifactSaver:
         step_prepare.start()
 
         # Upload Artifact "L1" files, the actual artifact contents
+        # TODO: we could detect if we had any real files to store and not need
+        # to load everything in memory
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
@@ -193,11 +162,15 @@ class ArtifactSaver:
         commit_event = threading.Event()
 
         def before_commit() -> None:
-            self._resolve_client_id_manifest_references()
-            with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
-                path = os.path.abspath(fp.name)
-                json.dump(self._manifest.to_manifest_json(), fp, indent=4)
-            digest = wandb.util.md5_file(path)
+            if self._manifest_path == "":
+                with tempfile.NamedTemporaryFile(
+                    "w+", suffix=".json", delete=False
+                ) as fp:
+                    self._manifest_path = os.path.abspath(fp.name)
+                    json.dump(self._manifest.to_manifest_json(self._api), fp, indent=4)
+            # Always free up the memory, store_manifest_files loads everything from disk
+            self._manifest._entries = None
+            digest = wandb.util.md5_file(self._manifest_path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
@@ -225,12 +198,15 @@ class ArtifactSaver:
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
-            with open(path, "rb") as fp2:
+            with open(self._manifest_path, "rb") as fp2:
                 self._api.upload_file_retry(
                     upload_url,
                     fp2,
                     extra_headers=extra_headers,
                 )
+            # we don't need our mega manifest anymore
+            os.remove(self._manifest_path)
+            self._manifest_path = ""
 
         def on_commit() -> None:
             if finalize and use_after_commit:
@@ -252,17 +228,3 @@ class ArtifactSaver:
             commit_event.wait()
 
         return self._server_artifact
-
-    def _resolve_client_id_manifest_references(self) -> None:
-        for entry_path in self._manifest.entries:
-            entry = self._manifest.entries[entry_path]
-            if entry.ref is not None:
-                if entry.ref.startswith("wandb-client-artifact:"):
-                    client_id = util.host_from_path(entry.ref)
-                    artifact_file_path = util.uri_from_path(entry.ref)
-                    artifact_id = self._api._resolve_client_id(client_id)
-                    if artifact_id is None:
-                        raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = "wandb-artifact://{}/{}".format(
-                        util.b64_to_hex_id(artifact_id), artifact_file_path
-                    )
