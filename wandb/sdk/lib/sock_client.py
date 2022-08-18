@@ -114,14 +114,17 @@ class SockClient:
         # Similar to the sendall() function in the socket module, but with a
         # an error handling in case of timeout.
         total_sent = 0
-        while total_sent < len(data):
+        total_data = len(data)
+        while total_sent < total_data:
             start_time = time.monotonic()
             try:
-                sent = self._sock.send(data[total_sent:])
+                sent = self._sock.send(data)
                 # sent equal to 0 indicates a closed socket
                 if sent == 0:
                     raise SockClientClosedError("socket connection broken")
                 total_sent += sent
+                # truncate our data to save memory
+                data = data[sent:]
             # we handle the timeout case for the cases when timeout is set
             # on a system level by another application
             except socket.timeout:
