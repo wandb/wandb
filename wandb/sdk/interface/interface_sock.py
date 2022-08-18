@@ -5,19 +5,17 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-from typing import Any, Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
-
+from ..lib.mailbox import Mailbox
+from ..lib.sock_client import SockClient
 from .interface_shared import InterfaceShared
 from .message_future import MessageFuture
 from .router_sock import MessageSockRouter
-from ..lib.mailbox import Mailbox
-from ..lib.sock_client import SockClient
-
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
+
     from ..wandb_run import Run
 
 

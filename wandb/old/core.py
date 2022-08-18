@@ -6,12 +6,12 @@ The purpose of this module is to break circular imports.
 
 import os
 import sys
-import time
 import tempfile
+import time
 
 import click
-import wandb
 
+import wandb
 from wandb import env
 
 # We use the hidden version if it already exists, otherwise non-hidden.

@@ -7,17 +7,17 @@ import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
-
-from dockerpycreds.utils import find_executable  # type: ignore
 import pkg_resources
+from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.docker as docker
+from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from .._project_spec import compute_command_args, EntryPoint, LaunchProject
 from ...lib.git import GitRepo
+from .._project_spec import EntryPoint, LaunchProject, compute_command_args
 
 _logger = logging.getLogger(__name__)
 

@@ -2,5 +2,4 @@
 
 from .blocks import *
 from .panels import *
-
-from .reports import RGBA, LineKey, Report, RunSet, PCColumn
+from .reports import RGBA, LineKey, PCColumn, Report, RunSet

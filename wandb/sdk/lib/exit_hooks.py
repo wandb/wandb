@@ -1,8 +1,7 @@
 import sys
 import traceback
 from types import TracebackType
-from typing import Optional, Type
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Type
 
 import wandb
 from wandb.errors import Error

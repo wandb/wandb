@@ -2,22 +2,22 @@
 apikey util.
 """
 
-from functools import partial
 import os
 import stat
 import sys
 import textwrap
+from functools import partial
 from urllib.parse import urlparse
 
 import click
 import requests
+
 import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
 from wandb.util import _is_databricks, isatty, prompt_choices
 
 from .wburls import wburls
-
 
 LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
 LOGIN_CHOICE_NEW = "Create a W&B account"

@@ -6,12 +6,9 @@ from wandb_gql import gql
 
 import wandb
 from wandb import util
-from wandb.sdk.data_types.utils import val_to_json
 from wandb.apis.internal import Api
-
-
 from wandb.sdk import lib as wandb_lib
-
+from wandb.sdk.data_types.utils import val_to_json
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
