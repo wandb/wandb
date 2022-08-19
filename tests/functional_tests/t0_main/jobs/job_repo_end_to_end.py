@@ -8,7 +8,6 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.util import to_forward_slash_path
 
-
 # this test is kind of hacky, it piggy backs off of the existing wandb/client git repo to construct the job
 # should probably have it use wandb_examples or something
 cmd = ["python", "job_repo_creation.py", "--log-test"]
