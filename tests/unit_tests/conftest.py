@@ -897,9 +897,9 @@ class Context:
         dfs = []
 
         for entry_id in self._entries:
-            # - extract the history from wandb-events.jsonl
+            # - extract the content from `file_name`
             # - sort by offset (will be useful when relay server goes async)
-            # - extract content, merge into a list of dicts and convert to a pandas dataframe
+            # - extract data, merge into a list of dicts and convert to a pandas dataframe
             content_list = self._entries[entry_id].get("files", {}).get(file_name, [])
             content_list.sort(key=lambda x: x["offset"])
             content_list = [item["content"] for item in content_list]
@@ -938,7 +938,20 @@ class Context:
         if self._summary is not None:
             return deepcopy(self._summary)
 
-        self._summary = self.get_file_contents("wandb-summary.json")
+        _summary = self.get_file_contents("wandb-summary.json")
+
+        # run summary may be updated multiple times,
+        # but we are only interested in the last one.
+        # we can have multiple runs saved to context,
+        # so we need to group by run id and take the
+        # last one for each run.
+        self._summary = (
+            _summary.groupby("__run_id")
+            .apply(lambda x: x.tail(1))
+            .droplevel("__run_id")
+            .reset_index(drop=True)
+        )
+
         return deepcopy(self._summary)
 
     @property
@@ -971,14 +984,17 @@ class Context:
 
     def get_run_summary(
         self, run_id: str, include_private: bool = False
-    ) -> pd.DataFrame:
+    ) -> Dict[str, Any]:
+        # run summary dataframe must have only one row
+        # for the given run id, so we convert it to dict
+        # and extract the first (and only) row.
         mask_run = self.summary["__run_id"] == run_id
         run_summary = self.summary[mask_run]
         return (
             run_summary.filter(regex="^[^_]", axis=1)
             if not include_private
             else run_summary
-        )
+        ).to_dict(orient="records")[0]
 
     def get_run_history(
         self, run_id: str, include_private: bool = False
