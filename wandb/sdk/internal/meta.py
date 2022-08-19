@@ -180,7 +180,7 @@ class Meta:
             pynvml.nvmlInit()
             self.data["gpu"] = pynvml.nvmlDeviceGetName(
                 pynvml.nvmlDeviceGetHandleByIndex(0)
-            ).decode("utf8")
+            )
             self.data["gpu_count"] = pynvml.nvmlDeviceGetCount()
         except pynvml.NVMLError:
             pass
