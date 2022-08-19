@@ -1,7 +1,6 @@
 """
 metric full tests.
 """
-import pytest
 
 
 def test_metric_default(relay_server, wandb_init):
