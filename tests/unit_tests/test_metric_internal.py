@@ -229,9 +229,9 @@ def test_metric_stepsync(relay_server, user, publish_util, mock_run):
     summary = relay.context.get_run_summary(run.id, include_private=True)
     history = relay.context.get_run_history(run.id)
 
-    assert summary.s1[0] == 8
-    assert summary.a1[0] == 9
-    assert summary._step[0] == 5
+    assert summary["s1"] == 8
+    assert summary["a1"] == 9
+    assert summary["_step"] == 5
 
     history_val = history[history["a1"].notnull()].reset_index(drop=True)
     assert history_val.a1.tolist() == [1, 3, 5, 7, 9]
@@ -352,9 +352,9 @@ def test_metric_dot_flat_escaped(relay_server, user, publish_util, mock_run):
     assert metrics and len(metrics) == 1
     assert metrics[0] == {"1": r"this\.also", "7": [2]}
 
-    assert summary["this.also"][0] == {"max": 2}
-    assert summary["nodots"][0] == 2
-    assert summary["this.has.dots"][0] == 2
+    assert summary["this.also"] == {"max": 2}
+    assert summary["nodots"] == 2
+    assert summary["this.has.dots"] == 2
     assert summary["_step"] == 3
 
 
