@@ -1,7 +1,8 @@
+# syntax=docker/dockerfile:1.0.0
 FROM python:3.9-slim-bullseye
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 LABEL version="0.1"
-LABEL scheduler_type="classic"
+LABEL scheduler_type="optuna"
 
 # install git
 RUN apt-get update && apt-get upgrade -y \
@@ -11,6 +12,7 @@ RUN apt-get update && apt-get upgrade -y \
 
 # required pip packages
 RUN pip install --no-cache-dir wandb[launch]
+RUN pip install --no-cache-dir optuna
 
 # user set up
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 wandb_scheduler

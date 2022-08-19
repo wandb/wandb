@@ -15,9 +15,16 @@ def _import_sweep_scheduler() -> Any:
 
     return SweepScheduler
 
+def _import_optuna_scheduler() -> Any:
+    from .scheduler_optuna import OptunaScheduler
+
+    return OptunaScheduler
+
 
 _WANDB_SCHEDULERS: Dict[str, Callable] = {
     "sweep": _import_sweep_scheduler,
+    "classic": _import_sweep_scheduler,
+    "optuna": _import_optuna_scheduler,
 }
 
 
