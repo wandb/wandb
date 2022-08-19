@@ -2,13 +2,14 @@ import base64
 import configparser
 import json
 import os
-from unittest.mock import MagicMock
 import sys
+from unittest.mock import MagicMock
 
 import boto3
-from google.cloud import storage
 import kubernetes
+import pytest
 import wandb
+from google.cloud import storage
 from wandb.errors import LaunchError
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko import (
@@ -17,10 +18,9 @@ from wandb.sdk.launch.builder.kaniko import (
     _wait_for_completion,
 )
 
-from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 from tests.unit_tests_old.utils import fixture_open
 
-import pytest
+from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 
 
 def return_kwargs(**kwargs):

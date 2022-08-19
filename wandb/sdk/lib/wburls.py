@@ -10,9 +10,7 @@ Usage:
     ```
 """
 
-from typing import Dict, Optional
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from ._wburls_generated import URLS

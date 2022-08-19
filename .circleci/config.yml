@@ -1009,7 +1009,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 8
-          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
+          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
       #
       # Unit tests with pytest on Linux, using real wandb server
       #
@@ -1115,7 +1115,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_base-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
       # wandb launch tests

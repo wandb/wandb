@@ -2,14 +2,14 @@ import os
 import time
 from unittest import mock
 
-from click.testing import CliRunner
 import numpy as np
 import pytest
 import tqdm
 import wandb
-from wandb.cli import cli
 import wandb.sdk.lib.redirect
 import wandb.util
+from click.testing import CliRunner
+from wandb.cli import cli
 
 console_modes = ["wrap"]
 if os.name != "nt":

@@ -1,11 +1,11 @@
 """Scheduler for classic wandb Sweeps."""
-from dataclasses import dataclass
 import logging
 import os
 import pprint
 import queue
 import socket
 import time
+from dataclasses import dataclass
 from typing import Any, Dict, List
 
 import wandb

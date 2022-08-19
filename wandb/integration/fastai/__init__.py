@@ -35,9 +35,9 @@ Examples:
         learn.fit(..., callbacks=WandbCallback(learn, ...))
     ```
 """
-from pathlib import Path
 import random
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 if sys.version_info >= (3, 8):
@@ -47,6 +47,7 @@ else:
 
 import fastai  # type: ignore[import]
 from fastai.callbacks import TrackerCallback  # type: ignore[import]
+
 import wandb
 
 try:

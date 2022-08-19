@@ -5,15 +5,15 @@ Router to manage responses from a queue.
 """
 
 import queue
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from .router import MessageRouter
 from ..lib import tracelog
 from ..lib.mailbox import Mailbox
+from .router import MessageRouter
 
 if TYPE_CHECKING:
     from queue import Queue
+
     from wandb.proto import wandb_internal_pb2 as pb
 
 

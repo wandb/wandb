@@ -1,29 +1,22 @@
 """
 Utilities for wandb verify
 """
-from functools import partial
 import getpass
 import os
 import time
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
-from pkg_resources import parse_version
 import requests
-import wandb
+from pkg_resources import parse_version
 from wandb_gql import gql  # type: ignore
 
-from ..wandb_artifacts import Artifact
+import wandb
+
 from ...apis.internal import Api
 from ...apis.public import Artifact as ArtifactAPI
+from ..wandb_artifacts import Artifact
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
