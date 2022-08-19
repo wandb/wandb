@@ -287,6 +287,7 @@ SYMBOLS_WANDB_INIT = {
     "save_code",
     "notes",
     "job_type",
+    "job_name",
     "reinit",
 }
 
