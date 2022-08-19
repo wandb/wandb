@@ -2699,6 +2699,7 @@ class Api:
             mutation,
             variable_values={"artifactID": artifact_id},
             check_retry_fn=check_retry_fn,
+            timeout=60,
         )
         return response
 
