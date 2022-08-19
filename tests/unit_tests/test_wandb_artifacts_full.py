@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
-
 import wandb
 
 sm = wandb.wandb_sdk.internal.sender.SendManager

@@ -4,9 +4,8 @@ import platform
 import pytest
 import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
-from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
-
 import wandb
+from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
 from wandb.errors import term
 
 PR_CURVE_PANEL_CONFIG = {
