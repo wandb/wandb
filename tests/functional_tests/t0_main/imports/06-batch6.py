@@ -24,7 +24,6 @@ assert:
 
 
 import TTS  # noqa: F401
-
 import wandb
 
 run = wandb.init()

@@ -5,7 +5,6 @@
 import platform
 
 import numpy as np
-
 import wandb
 
 height = width = 2

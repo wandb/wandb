@@ -4,9 +4,8 @@
 import multiprocessing as mp
 import os
 
-import yea
-
 import wandb
+import yea
 
 
 def process_child():

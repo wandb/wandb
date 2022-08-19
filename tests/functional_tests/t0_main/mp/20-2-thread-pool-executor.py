@@ -5,9 +5,8 @@
 import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor
 
-import yea
-
 import wandb
+import yea
 
 
 def worker(initial: int):

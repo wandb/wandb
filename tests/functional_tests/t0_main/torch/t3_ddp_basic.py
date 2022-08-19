@@ -6,9 +6,8 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn.parallel import DistributedDataParallel
-
 import wandb
+from torch.nn.parallel import DistributedDataParallel
 
 
 def setup(rank, world_size):

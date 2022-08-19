@@ -1,7 +1,6 @@
 from numpy.random import permutation
 from sacred import Experiment
 from sklearn import datasets, svm
-
 from wandb.sacred import WandbObserver
 
 ex = Experiment("iris_rbf_svm")

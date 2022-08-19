@@ -2,7 +2,6 @@
 """Log a bfloat16 tensor."""
 
 import jax.numpy as jnp
-
 import wandb
 
 if __name__ == "__main__":
