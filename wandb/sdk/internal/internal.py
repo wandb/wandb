@@ -14,7 +14,6 @@ Threads:
 
 
 import atexit
-from datetime import datetime
 import logging
 import os
 import queue
@@ -22,28 +21,27 @@ import sys
 import threading
 import time
 import traceback
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import psutil
+
 import wandb
 from wandb.util import sentry_exc, sentry_set_scope
 
-from . import handler
-from . import internal_util
-from . import sender
-from . import settings_static
-from . import writer
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog
-
+from . import handler, internal_util, sender, settings_static, writer
 
 if TYPE_CHECKING:
-    from .settings_static import SettingsDict, SettingsStatic
-    from typing import Any, List, Optional
     from queue import Queue
-    from .internal_util import RecordLoopThread
-    from wandb.proto.wandb_internal_pb2 import Record, Result
     from threading import Event
+    from typing import Any, List, Optional
+
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+
+    from .internal_util import RecordLoopThread
+    from .settings_static import SettingsDict, SettingsStatic
 
 
 logger = logging.getLogger(__name__)

@@ -1,14 +1,14 @@
 import base64
-from datetime import datetime, timezone
 import hashlib
 import os
 import shutil
+from datetime import datetime, timezone
 
 import numpy as np
 import pytest
 import wandb
-from wandb import util
 import wandb.data_types as data_types
+from wandb import util
 
 
 def mock_boto(artifact, path=False, content_type=None):

@@ -5,9 +5,10 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
+
 import wandb
 from wandb import util
 from wandb.apis.internal import Api

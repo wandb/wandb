@@ -1,12 +1,13 @@
 # Note: this is a helper printer class, this file might go away once we switch to rich console printing
 
-from abc import abstractmethod
 import itertools
 import platform
 import sys
+from abc import abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
 
 import click
+
 import wandb
 
 from . import ipython, sparkline

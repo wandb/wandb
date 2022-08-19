@@ -1,15 +1,15 @@
 import json
 import os
+import sys
 from unittest import mock
 from unittest.mock import MagicMock
-import sys
 
 import pytest
 import wandb
 from wandb.errors import DockerError
 from wandb.sdk.launch._project_spec import (
-    create_project_from_spec,
     EntryPoint,
+    create_project_from_spec,
     fetch_and_validate_project,
 )
 from wandb.sdk.launch.builder.build import (

@@ -5,19 +5,18 @@ Manage backend sender.
 """
 
 import logging
-from typing import Any, Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import grpc
+
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .message_future_poll import MessageFuturePoll
-from ..lib.mailbox import Mailbox, MailboxHandle
-
 
 if TYPE_CHECKING:
     from ..wandb_run import Run
