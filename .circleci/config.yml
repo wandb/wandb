@@ -1115,7 +1115,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_base-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
       # wandb launch tests
