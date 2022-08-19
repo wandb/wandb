@@ -249,8 +249,7 @@ def test_dataset_functional(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run.id)
     assert (
-        graph_json(run_dir, summary["graph"][0])["nodes"][0]["class_name"]
-        == "InputLayer"
+        graph_json(run_dir, summary["graph"])["nodes"][0]["class_name"] == "InputLayer"
     )
 
 

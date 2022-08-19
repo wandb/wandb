@@ -29,11 +29,11 @@ def test_metric_none(relay_server, user, publish_util, mock_run):
         publish_util(run=run, history=history)
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == 3
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == 3
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_step(relay_server, user, publish_util, mock_run):
@@ -47,11 +47,11 @@ def test_metric_step(relay_server, user, publish_util, mock_run):
         publish_util(run=run, metrics=metrics, history=history)
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == 3
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == 3
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_max(relay_server, user, publish_util, mock_run):
@@ -65,11 +65,11 @@ def test_metric_max(relay_server, user, publish_util, mock_run):
         publish_util(run=run, metrics=metrics, history=history)
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == {"max": 8}
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == {"max": 8}
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_min(relay_server, user, publish_util, mock_run):
@@ -83,11 +83,11 @@ def test_metric_min(relay_server, user, publish_util, mock_run):
         publish_util(run=run, metrics=metrics, history=history)
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == {"min": 2}
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == {"min": 2}
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_min_str(relay_server, user, publish_util, mock_run):
@@ -101,10 +101,10 @@ def test_metric_min_str(relay_server, user, publish_util, mock_run):
         publish_util(run=run, metrics=metrics, history=history)
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == 3
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == 3
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_sum_none(relay_server, user, publish_util, mock_run):
@@ -116,12 +116,11 @@ def test_metric_sum_none(relay_server, user, publish_util, mock_run):
         publish_util(run=run, history=history, metrics=metrics)
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
-
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == 3
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == 3
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_mult(relay_server, user, publish_util, mock_run):
@@ -138,11 +137,11 @@ def test_metric_mult(relay_server, user, publish_util, mock_run):
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
 
-    assert summary.v1[0] == {"max": 3}
-    assert summary.v2[0] == {"min": 2}
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == {"max": 3}
+    assert summary["v2"] == {"min": 2}
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_again(relay_server, user, publish_util, mock_run):
@@ -159,11 +158,11 @@ def test_metric_again(relay_server, user, publish_util, mock_run):
     summary = relay.context.get_run_summary(run.id, include_private=True)
     metrics = relay.context.get_run_metrics(run.id)
 
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == 3
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == 3
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
     assert metrics and len(metrics) == 3
 
 
@@ -179,11 +178,11 @@ def test_metric_mean(relay_server, user, publish_util, mock_run):
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
 
-    assert summary.v1[0] == 2
-    assert summary.v2[0] == {"mean": 13.0 / 3}
-    assert summary.v3[0] == "pizza"
-    assert summary.mystep[0] == 3
-    assert summary._step[0] == 2
+    assert summary["v1"] == 2
+    assert summary["v2"] == {"mean": 13.0 / 3}
+    assert summary["v3"] == "pizza"
+    assert summary["mystep"] == 3
+    assert summary["_step"] == 2
 
 
 def test_metric_stepsync(relay_server, user, publish_util, mock_run):
@@ -309,8 +308,8 @@ def test_metric_glob_twice_over(relay_server, user, publish_util, mock_run):
     assert metrics and len(metrics) == 1
     assert metrics[0] == {"1": "metric", "7": [1]}
 
-    assert summary.metric[0] == {"min": 1}
-    assert summary._step[0] == 0
+    assert summary["metric"] == {"min": 1}
+    assert summary["_step"] == 0
 
 
 def test_metric_nan_max(relay_server, user, publish_util, mock_run):
@@ -328,7 +327,7 @@ def test_metric_nan_max(relay_server, user, publish_util, mock_run):
         publish_util(run=run, metrics=metrics, history=history)
 
     summary = relay.context.get_run_summary(run.id)
-    assert summary.v2[0] == {"max": 8}
+    assert summary["v2"] == {"max": 8}
 
 
 def test_metric_dot_flat_escaped(relay_server, user, publish_util, mock_run):
@@ -356,7 +355,7 @@ def test_metric_dot_flat_escaped(relay_server, user, publish_util, mock_run):
     assert summary["this.also"][0] == {"max": 2}
     assert summary["nodots"][0] == 2
     assert summary["this.has.dots"][0] == 2
-    assert summary._step[0] == 3
+    assert summary["_step"] == 3
 
 
 def test_metric_dot_flat_notescaped(relay_server, user, publish_util, mock_run):
@@ -381,10 +380,10 @@ def test_metric_dot_flat_notescaped(relay_server, user, publish_util, mock_run):
     assert metrics and len(metrics) == 1
     assert metrics[0] == {"1": "this.also", "7": [2]}
 
-    assert summary["this.also"][0] == 1
-    assert summary["nodots"][0] == 2
-    assert summary["this.has.dots"][0] == 2
-    assert summary._step[0] == 3
+    assert summary["this.also"] == 1
+    assert summary["nodots"] == 2
+    assert summary["this.has.dots"] == 2
+    assert summary["_step"] == 3
 
 
 # def test_metric_dot_step_sync(publish_util):
@@ -425,7 +424,7 @@ def test_metric_dot_glob(relay_server, user, publish_util, mock_run):
     assert metrics[0] == {"1": "this\\.also", "7": [2], "6": [3]}
     assert metrics[1] == {"1": "this\\.has\\.dots", "7": [1]}
     assert metrics[2] == {"1": "nodots", "7": [1]}
-    assert summary["this.also"][0] == {"max": 2}
-    assert summary["this.has.dots"][0] == {"min": 2}
-    assert summary["nodots"][0] == {"min": 3}
-    assert summary["_step"][0] == 3
+    assert summary["this.also"] == {"max": 2}
+    assert summary["this.has.dots"] == {"min": 2}
+    assert summary["nodots"] == {"min": 3}
+    assert summary["_step"] == 3
