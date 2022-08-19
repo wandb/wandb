@@ -4,7 +4,6 @@ import logging
 
 from . import datastore
 
-
 logger = logging.getLogger(__name__)
 
 

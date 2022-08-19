@@ -2,20 +2,19 @@ import queue
 import socket
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from wandb.proto import wandb_server_pb2 as spb
 
-from .service_base import _pbmap_apply_dict
-from .streams import StreamMux
 from ..lib import tracelog
 from ..lib.proto_util import settings_dict_from_pbmap
 from ..lib.sock_client import SockClient, SockClientClosedError
-
+from .service_base import _pbmap_apply_dict
+from .streams import StreamMux
 
 if TYPE_CHECKING:
     from threading import Event
+
     from ..interface.interface_relay import InterfaceRelay
 
 

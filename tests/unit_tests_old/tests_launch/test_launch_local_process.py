@@ -3,15 +3,12 @@ import sys
 import pytest
 import wandb
 import wandb.sdk.launch.launch as launch
-from wandb.sdk.launch.utils import (
-    PROJECT_DOCKER_ARGS,
-    PROJECT_SYNCHRONOUS,
-)
+from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
 
 from .test_launch import (
-    mocked_fetchable_git_repo,
     mock_download_url,
     mock_file_download_request,
+    mocked_fetchable_git_repo,
 )
 
 

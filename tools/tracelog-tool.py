@@ -10,9 +10,9 @@ Usage:
 """
 
 import argparse
-from dataclasses import dataclass
 import pathlib
 import sys
+from dataclasses import dataclass
 from typing import List
 
 

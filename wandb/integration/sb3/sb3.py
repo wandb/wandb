@@ -58,9 +58,9 @@ else:
     from typing_extensions import Literal
 
 from stable_baselines3.common.callbacks import BaseCallback  # type: ignore
+
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
-
 
 logger = logging.getLogger(__name__)
 

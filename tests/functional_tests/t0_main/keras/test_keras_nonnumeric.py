@@ -2,7 +2,6 @@ import pandas as pd
 import tensorflow as tf
 import wandb
 
-
 dftrain = pd.read_csv("https://storage.googleapis.com/tf-datasets/titanic/train.csv")
 y_train = dftrain.pop("survived")
 dftrain = dftrain[["sex", "class", "age", "fare", "n_siblings_spouses", "parch"]]

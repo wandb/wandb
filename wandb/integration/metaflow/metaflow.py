@@ -9,10 +9,10 @@ This integration lets users apply decorators to Metaflow flows and steps to auto
 Examples can be found at wandb/wandb/functional_tests/metaflow
 """
 
-from functools import wraps
 import inspect
-from pathlib import Path
 import pickle
+from functools import wraps
+from pathlib import Path
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry

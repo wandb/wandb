@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     List,
@@ -13,7 +14,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
     Union,
 )
 

@@ -19,6 +19,7 @@ import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
+
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
@@ -28,9 +29,16 @@ from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, ipython, module, reporting, telemetry
-from .lib import RunDisabled, SummaryDisabled
-from .lib.deprecate import deprecate, Deprecated
+from .lib import (
+    RunDisabled,
+    SummaryDisabled,
+    filesystem,
+    ipython,
+    module,
+    reporting,
+    telemetry,
+)
+from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxHandle
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
@@ -38,7 +46,6 @@ from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
-
 
 logger = None  # logger configured during wandb.init()
 

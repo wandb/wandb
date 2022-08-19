@@ -4,6 +4,7 @@ import queue
 import sys
 import threading
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     MutableMapping,
@@ -11,7 +12,6 @@ from typing import (
     MutableSet,
     NamedTuple,
     Optional,
-    TYPE_CHECKING,
     Union,
 )
 

@@ -1,16 +1,17 @@
 """Abstract Scheduler class."""
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import Enum
 import logging
 import os
 import threading
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.apis.public as public
+from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError

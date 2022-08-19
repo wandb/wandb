@@ -6,16 +6,16 @@ See interface.py for how interface classes relate to each other.
 
 import logging
 from multiprocessing.process import BaseProcess
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from .interface_shared import InterfaceShared
-from .router_queue import MessageQueueRouter
 from ..lib import tracelog
 from ..lib.mailbox import Mailbox
+from .interface_shared import InterfaceShared
+from .router_queue import MessageQueueRouter
 
 if TYPE_CHECKING:
     from queue import Queue
+
     from wandb.proto import wandb_internal_pb2 as pb
 
 

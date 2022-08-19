@@ -1,8 +1,8 @@
 import os
-import pytest
 import queue
 import threading
 
+import pytest
 import wandb
 from wandb.sdk.lib.printer import INFO
 
