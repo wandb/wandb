@@ -20,6 +20,5 @@ extend_skip_glob = [
     "wandb/vendor/**",
     "wandb/proto/*.py",
     "wandb/proto_check/*.py",
-    "tests/**",
-    "tools/**",
 ]
+skip_gitignore = "True"
