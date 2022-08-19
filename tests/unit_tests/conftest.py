@@ -630,8 +630,7 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--wandb-server-tag",
-        # default="master",
-        default="fix-fixture-teardown",
+        default="master",
         help="Image tag to use for the wandb server",
     )
 
