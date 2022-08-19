@@ -4,7 +4,6 @@ import shutil
 import time
 
 import numpy as np
-
 import wandb
 
 run_name_base = pathlib.Path(__file__).stem
