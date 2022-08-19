@@ -314,3 +314,41 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
     assert _scheduler.is_alive() is True
     _scheduler.start()
     assert _scheduler._runs["mock-run-id-1"].state == SimpleRunState.DEAD
+
+
+def test_optuna_scheduler(user):
+
+    def objective_func(trial):
+        # Report an objective function value for a given step.
+        trial.report(value, step)
+        # Set system attributes to the trial.
+        trial.set_system_attr(key, value)
+        # Set user attributes to the trial.
+        trial.set_user_attr(key, value)
+        # Suggest whether the trial should be pruned or not.
+        trial.should_prune()
+        # Suggest a value for the categorical parameter.
+        trial.suggest_categorical(name, choices)
+        # Suggest a value for the discrete parameter.
+        trial.suggest_discrete_uniform(name, low, high, q)
+        # Suggest a value for the floating point parameter.
+        trial.suggest_float(name, low, high, *[, step, log])
+        # Suggest a value for the integer parameter.
+        trial.suggest_int(name, low, high[, step, log])
+        # Suggest a value for the continuous parameter.
+        trial.suggest_loguniform(name, low, high)
+        # Suggest a value for the continuous parameter.
+        trial.suggest_uniform(name, low, high)
+
+    api = internal.Api()
+    _project = "test-project"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    _scheduler = SweepScheduler(
+        api,
+        sweep_id=sweep_id,
+        entity=user,
+        project=_project,
+        objective_func=objective_func,
+    )
+    _scheduler.start()

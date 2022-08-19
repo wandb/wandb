@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
+import yaml
 
 import wandb
 import wandb.apis.public as public
@@ -74,10 +75,12 @@ class Scheduler(ABC):
         )
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            self._sweep_id: str = sweep_id
+            self._sweep_obj: Dict[str, Any] = self._api.sweep(sweep_id, "{}", entity=self._entity, project=self._project)
+            self._sweep_config = yaml.safe_load(self._sweep_obj["config"])
+            self._sweep_metric = self._sweep_config["metric"]["name"]
         except Exception as e:
             raise SchedulerError(f"{LOG_PREFIX}Exception when finding sweep: {e}")
-        self._sweep_id: str = sweep_id or "empty-sweep-id"
         self._state: SchedulerState = SchedulerState.PENDING
         # Dictionary of the runs being managed by the scheduler
         self._runs: Dict[str, SweepRun] = {}
@@ -118,7 +121,7 @@ class Scheduler(ABC):
         return True
 
     def start(self) -> None:
-        wandb.termlog(f"{LOG_PREFIX}Scheduler starting.")
+        wandb.termlog(f"{LOG_PREFIX}Started Scheduler of type {self.__class__.__name__}.")
         self._state = SchedulerState.STARTING
         self._start()
         self.run()
