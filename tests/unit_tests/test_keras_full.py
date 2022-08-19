@@ -68,7 +68,7 @@ def test_basic_keras(dummy_model, dummy_data, relay_server, wandb_init):
     summary = relay.context.get_run_summary(run_id)
 
     assert history["epoch"][0] == 0
-    assert len(graph_json(run_dir, summary["graph"][0])["nodes"]) == 3
+    assert len(graph_json(run_dir, summary["graph"])["nodes"]) == 3
 
 
 def test_keras_telemetry(dummy_model, dummy_data, relay_server, wandb_init):
@@ -249,8 +249,7 @@ def test_dataset_functional(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run.id)
     assert (
-        graph_json(run_dir, summary["graph"][0])["nodes"][0]["class_name"]
-        == "InputLayer"
+        graph_json(run_dir, summary["graph"])["nodes"][0]["class_name"] == "InputLayer"
     )
 
 
