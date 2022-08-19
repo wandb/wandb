@@ -74,6 +74,18 @@ if TYPE_CHECKING:
         resolver: Callable[[Any], Optional[Dict[str, Any]]]
 
 
+class ConsoleFormatter:
+    BOLD = "\033[1m"
+    CODE = "\033[2m"
+    MAGENTA = "\033[95m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    END = "\033[0m"
+
+
 # --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
@@ -103,6 +115,14 @@ def copy_asset(assets_path) -> Callable:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture(scope="function", autouse=True)
+def unset_global_objects():
+    from wandb.sdk.lib.module import unset_globals
+
+    yield
+    unset_globals()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -633,6 +653,14 @@ def pytest_addoption(parser):
         default="master",
         help="Image tag to use for the wandb server",
     )
+    # debug option: creates an admin account that can be used to log in to the
+    # app and inspect the test runs.
+    parser.addoption(
+        "--wandb-debug",
+        action="store_true",
+        default=False,
+        help="Run tests in debug mode",
+    )
 
 
 def random_string(length: int = 12) -> str:
@@ -658,6 +686,11 @@ def base_url(request):
 @pytest.fixture(scope="session")
 def wandb_server_tag(request):
     return request.config.getoption("--wandb-server-tag")
+
+
+@pytest.fixture(scope="session")
+def wandb_debug(request):
+    return request.config.getoption("--wandb-debug", default=False)
 
 
 def check_server_health(
@@ -760,7 +793,8 @@ def check_server_up(
 @dataclasses.dataclass
 class UserFixtureCommand:
     command: Literal["up", "down", "down_all", "logout", "login"]
-    username: Optional[str]
+    username: Optional[str] = None
+    admin: bool = False
     endpoint: str = "db/user"
 
 
@@ -773,6 +807,8 @@ def fixture_fn(base_url, wandb_server_tag):
         if isinstance(cmd, UserFixtureCommand):
             if cmd.username:
                 data["username"] = cmd.username
+            if cmd.admin is not None:
+                data["admin"] = cmd.admin
         else:
             raise NotImplementedError(f"{cmd} is not implemented")
         # trigger fixture with a POST request
@@ -793,7 +829,7 @@ def fixture_fn(base_url, wandb_server_tag):
 
 
 @pytest.fixture(scope=determine_scope)
-def user(worker_id: str, fixture_fn, base_url) -> str:
+def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
     fixture_fn(command)
@@ -809,8 +845,32 @@ def user(worker_id: str, fixture_fn, base_url) -> str:
     ):
         yield username
 
-        command = UserFixtureCommand(command="down", username=username)
+        if not wandb_debug:
+            command = UserFixtureCommand(command="down", username=username)
+            fixture_fn(command)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def debug(wandb_debug, fixture_fn):
+    if wandb_debug:
+        # create an admin account that can be used to log in to the app
+        # and inspect the test runs.
+        admin_username = f"admin-{random_string()}"
+        command = UserFixtureCommand(command="up", username=admin_username, admin=True)
         fixture_fn(command)
+        print(
+            f"{ConsoleFormatter.GREEN}"
+            "**********************************************\n"
+            f"Admin username and API key: {admin_username}\n"
+            "**********************************************"
+            f"{ConsoleFormatter.END}"
+        )
+        yield admin_username
+        input("\nPress any key to exit...")
+        command = UserFixtureCommand(command="down_all")
+        fixture_fn(command)
+    else:
+        yield None
 
 
 class DeliberateHTTPError(Exception):
@@ -1579,23 +1639,3 @@ def inject_file_stream_response(base_url, user):
         )
 
     yield helper
-
-
-# @pytest.fixture
-# def test_name(request):
-#     # change "test[1]" to "test__1__"
-#     name = urllib.parse.quote(request.node.name.replace("[", "__").replace("]", "__"))
-#     return name
-#
-#
-# @pytest.fixture
-# def test_dir(test_name):
-#     orig_dir = os.getcwd()
-#     root = os.path.abspath(os.path.dirname(__file__))
-#     test_dir = os.path.join(root, "logs", test_name)
-#     if os.path.exists(test_dir):
-#         shutil.rmtree(test_dir)
-#     mkdir_exists_ok(test_dir)
-#     os.chdir(test_dir)
-#     yield test_dir
-#     os.chdir(orig_dir)
