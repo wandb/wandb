@@ -945,11 +945,10 @@ class Context:
         # we can have multiple runs saved to context,
         # so we need to group by run id and take the
         # last one for each run.
+        print(_summary)
+        print(_summary.groupby("__run_id").last())
         self._summary = (
-            _summary.groupby("__run_id")
-            .apply(lambda x: x.tail(1))
-            .droplevel("__run_id")
-            .reset_index(drop=True)
+            _summary.groupby("__run_id").last().reset_index(level=["__run_id"])
         )
 
         return deepcopy(self._summary)
