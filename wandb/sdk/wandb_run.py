@@ -2105,7 +2105,7 @@ class Run:
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
 
         source_info: JobSourceDict = {
-            "_version": "v1",
+            "_version": "v0",
             "source_type": "repo",
             "source": {
                 "git": {
