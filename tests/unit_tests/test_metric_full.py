@@ -4,7 +4,6 @@ metric full tests.
 import pytest
 
 
-@pytest.mark.xfail(reason="TODO: fix this test")
 def test_metric_default(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -19,10 +18,10 @@ def test_metric_default(relay_server, wandb_init):
     summary = relay.context.get_run_summary(run_id)
 
     # by default, we use last value
-    assert summary["val"][0] == 3
-    assert summary["val2"][0] == 1
-    assert summary["mystep"][0] == 3
-    assert len(summary.columns) == 3
+    assert summary["val"] == 3
+    assert summary["val2"] == 1
+    assert summary["mystep"] == 3
+    assert len(summary) == 3
 
 
 def test_metric_copy(relay_server, wandb_init):
@@ -39,10 +38,10 @@ def test_metric_copy(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"][0] == 3
-    assert summary["val2"][0] == 1
-    assert summary["mystep"][0] == 3
-    assert len(summary.columns) == 3
+    assert summary["val"] == 3
+    assert summary["val2"] == 1
+    assert summary["mystep"] == 3
+    assert len(summary) == 3
 
 
 def test_metric_glob_none(relay_server, wandb_init):
@@ -60,10 +59,10 @@ def test_metric_glob_none(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val2"][0] == 1
-    assert summary["mystep"][0] == 3
-    assert len(summary.columns) == 2
-    assert "val" not in summary.columns
+    assert summary["val2"] == 1
+    assert summary["mystep"] == 3
+    assert len(summary) == 2
+    assert "val" not in summary
 
 
 def test_metric_glob(relay_server, wandb_init):
@@ -76,9 +75,9 @@ def test_metric_glob(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"][0] == 2
-    assert summary["mystep"][0] == 1
-    assert len(summary.columns) == 2
+    assert summary["val"] == 2
+    assert summary["mystep"] == 1
+    assert len(summary) == 2
 
 
 def test_metric_nosummary(relay_server, wandb_init):
@@ -92,8 +91,8 @@ def test_metric_nosummary(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val2"][0] == 1
-    assert len(summary.columns) == 1
+    assert summary["val2"] == 1
+    assert len(summary) == 1
 
 
 def test_metric_none(relay_server, wandb_init):
@@ -107,8 +106,8 @@ def test_metric_none(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert "val2" not in summary.columns
-    assert len(summary.columns) == 0
+    assert "val2" not in summary
+    assert len(summary) == 0
 
 
 def test_metric_sum_none(relay_server, wandb_init):
@@ -126,10 +125,10 @@ def test_metric_sum_none(relay_server, wandb_init):
     summary = relay.context.get_run_summary(run_id)
 
     # if we set a metric, last is NOT disabled
-    assert summary["val"][0] == 3
-    assert summary["val2"][0] == 1
-    assert summary["mystep"][0] == 1
-    assert len(summary.columns) == 3
+    assert summary["val"] == 3
+    assert summary["val2"] == 1
+    assert summary["mystep"] == 1
+    assert len(summary) == 3
 
 
 def test_metric_max(relay_server, wandb_init):
@@ -145,9 +144,9 @@ def test_metric_max(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"][0] == {"max": 8}
-    assert summary["mystep"][0] == 1
-    assert len(summary.columns) == 2
+    assert summary["val"] == {"max": 8}
+    assert summary["mystep"] == 1
+    assert len(summary) == 2
 
 
 def test_metric_min(relay_server, wandb_init):
@@ -163,9 +162,9 @@ def test_metric_min(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"][0] == {"min": 2}
-    assert summary["mystep"][0] == 1
-    assert len(summary.columns) == 2
+    assert summary["val"] == {"min": 2}
+    assert summary["mystep"] == 1
+    assert len(summary) == 2
 
 
 def test_metric_last(relay_server, wandb_init):
@@ -181,9 +180,9 @@ def test_metric_last(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"][0] == {"last": 3}
-    assert summary["mystep"][0] == 1
-    assert len(summary.columns) == 2
+    assert summary["val"] == {"last": 3}
+    assert summary["mystep"] == 1
+    assert len(summary) == 2
 
 
 def _gen_metric_sync_step(run):
@@ -207,9 +206,9 @@ def test_metric_no_sync_step(relay_server, wandb_init):
     history = relay.context.get_run_history(run_id)
     metrics = relay.context.get_run_metrics(run_id)
 
-    assert summary["val"][0] == {"min": 2}
-    assert summary["val2"][0] == 8
-    assert summary["mystep"][0] == 5
+    assert summary["val"] == {"min": 2}
+    assert summary["val2"] == 8
+    assert summary["mystep"] == 5
 
     history_val = history[history["val"].notnull()][["val", "mystep"]].reset_index(
         drop=True
@@ -234,9 +233,9 @@ def test_metric_sync_step(relay_server, wandb_init):
     metrics = relay.context.get_run_metrics(run_id)
     telemetry = relay.context.get_run_telemetry(run_id)
 
-    assert summary["val"][0] == {"min": 2}
-    assert summary["val2"][0] == 8
-    assert summary["mystep"][0] == 5
+    assert summary["val"] == {"min": 2}
+    assert summary["val2"] == 8
+    assert summary["mystep"] == 5
 
     history_val = history[history["val"].notnull()][["val", "mystep"]].reset_index(
         drop=True
@@ -292,7 +291,7 @@ def test_metric_nan_mean(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"][0] == {"mean": 3}
+    assert summary["val"] == {"mean": 3}
 
 
 def test_metric_nan_min_norm(relay_server, wandb_init):
@@ -319,7 +318,7 @@ def test_metric_nan_min_more(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"][0] == {"min": 4}
+    assert summary["val"] == {"min": 4}
 
 
 def test_metric_nested_default(relay_server, wandb_init):
@@ -333,7 +332,7 @@ def test_metric_nested_default(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["this"][0] == {"that": 4}
+    assert summary["this"] == {"that": 4}
 
 
 def test_metric_nested_copy(relay_server, wandb_init):
@@ -348,7 +347,7 @@ def test_metric_nested_copy(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["this"][0] == {"that": 4}
+    assert summary["this"] == {"that": 4}
 
 
 def test_metric_nested_min(relay_server, wandb_init):
@@ -363,7 +362,7 @@ def test_metric_nested_min(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["this"][0] == {"that": {"min": 2}}
+    assert summary["this"] == {"that": {"min": 2}}
 
 
 def test_metric_nested_mult(relay_server, wandb_init):
@@ -379,7 +378,7 @@ def test_metric_nested_mult(relay_server, wandb_init):
     summary = relay.context.get_run_summary(run_id)
     metrics = relay.context.get_run_metrics(run_id)
 
-    assert summary["this"][0] == {"that": {"min": 2, "max": 4}}
+    assert summary["this"] == {"that": {"min": 2, "max": 4}}
     assert metrics and len(metrics) == 1
     assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
 
@@ -398,7 +397,7 @@ def test_metric_dotted(relay_server, wandb_init):
     summary = relay.context.get_run_summary(run_id)
     metrics = relay.context.get_run_metrics(run_id)
 
-    assert summary["this.that"][0] == {"min": 2}
+    assert summary["this.that"] == {"min": 2}
     assert len(metrics) == 1
     assert metrics[0] == {"1": "this\\.that", "7": [1], "6": [3]}
 
@@ -416,7 +415,7 @@ def test_metric_nested_glob(relay_server, wandb_init):
     summary = relay.context.get_run_summary(run_id)
     metrics = relay.context.get_run_metrics(run_id)
 
-    assert summary["this"][0] == {"that": {"min": 2, "max": 4}}
+    assert summary["this"] == {"that": {"min": 2, "max": 4}}
     assert len(metrics) == 1
     assert metrics[0] == {"1": "this.that", "7": [1, 2]}
 

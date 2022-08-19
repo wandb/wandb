@@ -945,8 +945,6 @@ class Context:
         # we can have multiple runs saved to context,
         # so we need to group by run id and take the
         # last one for each run.
-        print(_summary)
-        print(_summary.groupby("__run_id").last())
         self._summary = (
             _summary.groupby("__run_id").last().reset_index(level=["__run_id"])
         )
@@ -989,11 +987,12 @@ class Context:
         # and extract the first (and only) row.
         mask_run = self.summary["__run_id"] == run_id
         run_summary = self.summary[mask_run]
-        return (
+        ret = (
             run_summary.filter(regex="^[^_]", axis=1)
             if not include_private
             else run_summary
-        ).to_dict(orient="records")[0]
+        ).to_dict(orient="records")
+        return ret[0] if len(ret) > 0 else {}
 
     def get_run_history(
         self, run_id: str, include_private: bool = False
