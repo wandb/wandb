@@ -1,6 +1,6 @@
-import wandb
-
 import argparse
+
+import wandb
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--log-test", action="store_true")
