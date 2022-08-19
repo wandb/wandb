@@ -6,6 +6,7 @@ tag:
   platforms:
     - linux
     - mac
+    - win
 plugin:
   - wandb
 assert:
