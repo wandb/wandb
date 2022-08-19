@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from .router import MessageRouter
 from ..lib import tracelog
+from ..lib.mailbox import Mailbox
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -21,11 +22,14 @@ class MessageQueueRouter(MessageRouter):
     _response_queue: "Queue[pb.Result]"
 
     def __init__(
-        self, request_queue: "Queue[pb.Record]", response_queue: "Queue[pb.Result]"
+        self,
+        request_queue: "Queue[pb.Record]",
+        response_queue: "Queue[pb.Result]",
+        mailbox: Optional[Mailbox] = None,
     ) -> None:
         self._request_queue = request_queue
         self._response_queue = response_queue
-        super().__init__()
+        super().__init__(mailbox=mailbox)
 
     def _read_message(self) -> "Optional[pb.Result]":
         try:
