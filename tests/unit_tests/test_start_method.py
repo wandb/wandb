@@ -17,7 +17,7 @@ def test_default(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
     telemetry = relay.context.get_run_telemetry(run_id)
-    assert summary["val"][0] == 1
+    assert summary["val"] == 1
     assert telemetry and 5 in telemetry.get("8", [])
 
 
