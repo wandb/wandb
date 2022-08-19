@@ -2119,8 +2119,6 @@ class Run:
             f"job-{self._remote_url}_{program_relpath}"
         )
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
-        args = self._settings._args
-        print(args)
 
         source_info: JobSourceDict = {
             "_version": "v1",
@@ -2134,7 +2132,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     program_relpath,
                 ],
-                "args": args,
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
