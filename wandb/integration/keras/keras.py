@@ -2,22 +2,21 @@
 keras init
 """
 
-import shutil
 import logging
-import numpy as np
 import operator
 import os
+import shutil
 import sys
-
 from itertools import chain
+
+import numpy as np
+import tensorflow as tf
+import tensorflow.keras.backend as K
 
 import wandb
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
-from wandb.sdk.lib.deprecate import deprecate, Deprecated
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.util import add_import_hook
-
-import tensorflow as tf
-import tensorflow.keras.backend as K
 
 
 def _check_keras_version():
@@ -105,8 +104,10 @@ def patch_tf_keras():
             )
         except (ImportError, AttributeError):
             try:
-                from tensorflow.python.keras.engine import training_arrays
-                from tensorflow.python.keras.engine import training_generator
+                from tensorflow.python.keras.engine import (
+                    training_arrays,
+                    training_generator,
+                )
             except (ImportError, AttributeError):
                 wandb.termerror("Unable to patch Tensorflow/Keras")
                 logger.exception("exception while trying to patch_tf_keras")

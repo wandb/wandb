@@ -5,18 +5,18 @@ Manage backend sender.
 """
 
 import logging
-from typing import Any, Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import grpc
+
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .message_future_poll import MessageFuturePoll
-
 
 if TYPE_CHECKING:
     from ..wandb_run import Run
@@ -26,15 +26,16 @@ logger = logging.getLogger("wandb")
 
 
 class InterfaceGrpc(InterfaceBase):
-
     _stub: Optional[pbgrpc.InternalServiceStub]
     _stream_id: Optional[str]
+    _mailbox: Mailbox
 
-    def __init__(self) -> None:
+    def __init__(self, mailbox: Mailbox) -> None:
         super().__init__()
         self._stub = None
         self._process_check = None
         self._stream_id = None
+        self._mailbox = mailbox
 
     def _hack_set_run(self, run: "Run") -> None:
         super()._hack_set_run(run)
@@ -290,6 +291,23 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(resume)
         _ = self._stub.Resume(resume)
+
+    def _deliver(self, result: pb.Result) -> MailboxHandle:
+        # TODO: rework grpc implementation to be asynchronous?
+        # for now we will just emulate the mailbox protocol
+        handle = self._mailbox.get_handle()
+        mailbox_slot = handle.address
+        result.control.mailbox_slot = mailbox_slot
+        self._mailbox.deliver(result)
+        return handle
+
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        assert self._stub
+        self._assign(run)
+        run_result = self._stub.RunUpdate(run)
+        result = pb.Result(run_result=run_result)
+        handle = self._deliver(result)
+        return handle
 
     def join(self) -> None:
         super().join()

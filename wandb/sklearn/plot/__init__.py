@@ -1,32 +1,20 @@
 """Creates and logs charts introspecting models built with scikit-learn to W&B."""
-from .shared import (
-    summary_metrics as plot_summary_metrics,
-    learning_curve as plot_learning_curve,
-)
-
-from .classifier import (
-    classifier as plot_classifier,
-    feature_importances as plot_feature_importances,
-    class_proportions as plot_class_proportions,
-    calibration_curve as plot_calibration_curve,
-    roc as plot_roc,
-    precision_recall as plot_precision_recall,
-    confusion_matrix as plot_confusion_matrix,
-    decision_boundaries as plot_decision_boundaries,
-)
-
-from .clusterer import (
-    clusterer as plot_clusterer,
-    elbow_curve as plot_elbow_curve,
-    silhouette as plot_silhouette,
-)
-
-from .regressor import (
-    regressor as plot_regressor,
-    residuals as plot_residuals,
-    outlier_candidates as plot_outlier_candidates,
-)
-
+from .classifier import calibration_curve as plot_calibration_curve
+from .classifier import class_proportions as plot_class_proportions
+from .classifier import classifier as plot_classifier
+from .classifier import confusion_matrix as plot_confusion_matrix
+from .classifier import decision_boundaries as plot_decision_boundaries
+from .classifier import feature_importances as plot_feature_importances
+from .classifier import precision_recall as plot_precision_recall
+from .classifier import roc as plot_roc
+from .clusterer import clusterer as plot_clusterer
+from .clusterer import elbow_curve as plot_elbow_curve
+from .clusterer import silhouette as plot_silhouette
+from .regressor import outlier_candidates as plot_outlier_candidates
+from .regressor import regressor as plot_regressor
+from .regressor import residuals as plot_residuals
+from .shared import learning_curve as plot_learning_curve
+from .shared import summary_metrics as plot_summary_metrics
 
 __all__ = [
     "plot_classifier",

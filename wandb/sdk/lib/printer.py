@@ -1,12 +1,13 @@
 # Note: this is a helper printer class, this file might go away once we switch to rich console printing
 
-from abc import abstractmethod
 import itertools
 import platform
 import sys
+from abc import abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
 
 import click
+
 import wandb
 
 from . import ipython, sparkline
@@ -167,7 +168,7 @@ class PrinterTerm(_Printer):
         else:
             return wandb.termlog
 
-    def progress_update(self, text: str, percentage: Optional[float] = None) -> None:
+    def progress_update(self, text: str, percent_done: Optional[float] = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
     def progress_close(self) -> None:

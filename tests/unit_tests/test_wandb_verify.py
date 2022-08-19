@@ -2,8 +2,8 @@ import time
 import unittest.mock
 
 import wandb
-from wandb.apis import InternalApi
 import wandb.sdk.verify.verify as wandb_verify
+from wandb.apis import InternalApi
 
 
 def test_check_logged_in(wandb_init):

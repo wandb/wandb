@@ -1,18 +1,19 @@
-from base64 import b64encode
 import json
 import logging
 import os
 import re
 import shutil
 import sys
+from base64 import b64encode
 
 import requests
 from requests.compat import urljoin
+
 import wandb
 
 try:
     from IPython.core.getipython import get_ipython
-    from IPython.core.magic import line_cell_magic, Magics, magics_class
+    from IPython.core.magic import Magics, line_cell_magic, magics_class
     from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
     from IPython.display import display
 except ImportError:
@@ -422,7 +423,7 @@ class Notebook:
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook"""
         try:
-            from nbformat import write, v4, validator
+            from nbformat import v4, validator, write
         except ImportError:
             logger.error("Run pip install nbformat to save notebook history")
             return

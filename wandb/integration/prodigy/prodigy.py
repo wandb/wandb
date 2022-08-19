@@ -17,12 +17,13 @@ wandb.finish()
 
 import base64
 import collections.abc
-from copy import deepcopy
 import io
 import urllib
+from copy import deepcopy
 
 import pandas as pd
 from PIL import Image
+
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing

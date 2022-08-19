@@ -2,9 +2,8 @@ import configparser
 import os
 from typing import Any, Optional
 
-from wandb import util
+from wandb import env, util
 from wandb.old import core
-from wandb import env
 
 
 class Settings:

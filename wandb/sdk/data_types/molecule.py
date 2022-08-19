@@ -1,7 +1,7 @@
 import io
 import os
 import pathlib
-from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Type, Union
 
 from wandb import util
 

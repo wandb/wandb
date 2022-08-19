@@ -8,14 +8,14 @@ import importlib
 import json
 import os
 import platform
-import pytest
 import subprocess
 import time
 from unittest import mock
 
+import pytest
 import wandb
-from tests.unit_tests_old import utils
 
+from tests.unit_tests_old import utils
 
 reloadFn = importlib.reload
 

@@ -12,13 +12,12 @@ import time
 import traceback
 from typing import Any, Dict, List
 
+import yaml
+
 import wandb
-from wandb import util
-from wandb import wandb_lib
-from wandb import wandb_sdk
+from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
-import yaml
 
 logger = logging.getLogger(__name__)
 

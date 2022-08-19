@@ -4,16 +4,18 @@ import os
 import queue
 import shutil
 import threading
-from typing import cast, NamedTuple, Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
 
-from wandb.filesync import dir_watcher, step_upload
 import wandb.util
+from wandb.filesync import dir_watcher, step_upload
 
 if TYPE_CHECKING:
     import tempfile
+
     from wandb.filesync import stats
     from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import artifacts as internal_artifacts, internal_api
+    from wandb.sdk.internal import artifacts as internal_artifacts
+    from wandb.sdk.internal import internal_api
 
 
 class RequestUpload(NamedTuple):

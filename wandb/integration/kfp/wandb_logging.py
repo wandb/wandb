@@ -20,8 +20,8 @@ def wandb_log(  # noqa: C901
         OutputPath,
         OutputTextFile,
     )
-    import wandb
 
+    import wandb
     from wandb.sdk.lib import telemetry as wb_telemetry
 
     output_types = (OutputArtifact, OutputBinaryFile, OutputPath, OutputTextFile)
