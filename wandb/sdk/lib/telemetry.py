@@ -1,13 +1,11 @@
 import re
 import sys
 from types import TracebackType
-from typing import ContextManager, Dict, List, Optional, Set, Type
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ContextManager, Dict, List, Optional, Set, Type
 
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Imports as TelemetryImports
 from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
-
 
 # avoid cycle, use string type reference
 

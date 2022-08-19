@@ -1,8 +1,12 @@
 """watch."""
 
 import logging
-import os
 from typing import Optional
+
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 import wandb
 
@@ -16,7 +20,7 @@ _global_watch_idx = 0
 def watch(
     models,
     criterion=None,
-    log: Optional[str] = "gradients",
+    log: Optional[Literal["gradients", "parameters", "all"]] = "gradients",
     log_freq: int = 1000,
     idx: Optional[int] = None,
     log_graph: bool = False,
@@ -45,22 +49,15 @@ def watch(
         tel.feature.watch = True
 
     logger.info("Watching")
-    # TODO: temporary override for huggingface remove after: https://github.com/huggingface/transformers/pull/4220
-    if os.getenv("WANDB_WATCH") == "false":
-        return
 
     if wandb.run is None:
         raise ValueError("You must call `wandb.init` before calling watch")
 
-    log_parameters = False
-    log_gradients = True
-    if log == "all":
-        log_parameters = True
-    elif log == "parameters":
-        log_parameters = True
-        log_gradients = False
-    elif log is None:
-        log_gradients = False
+    if log not in {"gradients", "parameters", "all", None}:
+        raise ValueError("log must be one of 'gradients', 'parameters', 'all', or None")
+
+    log_parameters = log in {"parameters", "all"}
+    log_gradients = log in {"gradients", "all"}
 
     if not isinstance(models, (tuple, list)):
         models = (models,)
@@ -88,13 +85,19 @@ def watch(
             # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
             prefix = "graph_%i" % global_idx
 
-        wandb.run._torch.add_log_hooks_to_pytorch_module(
-            model,
-            log_parameters=log_parameters,
-            log_gradients=log_gradients,
-            prefix=prefix,
-            log_freq=log_freq,
-        )
+        if log_parameters:
+            wandb.run._torch.add_log_parameters_hook(
+                model,
+                prefix=prefix,
+                log_freq=log_freq,
+            )
+
+        if log_gradients:
+            wandb.run._torch.add_log_gradients_hook(
+                model,
+                prefix=prefix,
+                log_freq=log_freq,
+            )
 
         if log_graph:
             graph = wandb.run._torch.hook_torch(model, criterion, graph_idx=global_idx)

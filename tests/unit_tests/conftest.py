@@ -1,14 +1,8 @@
-from collections import defaultdict
-from collections.abc import Sequence
-from contextlib import contextmanager
-from copy import deepcopy
 import dataclasses
 import json
 import logging
 import os
-from pathlib import Path
 import platform
-from queue import Empty, Queue
 import secrets
 import shutil
 import socket
@@ -16,7 +10,16 @@ import string
 import subprocess
 import threading
 import time
+import unittest.mock
+import urllib.parse
+from collections import defaultdict
+from collections.abc import Sequence
+from contextlib import contextmanager
+from copy import deepcopy
+from pathlib import Path
+from queue import Empty, Queue
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -25,13 +28,9 @@ from typing import (
     List,
     Mapping,
     Optional,
-    TYPE_CHECKING,
     Union,
 )
-import unittest.mock
-import urllib.parse
 
-from click.testing import CliRunner
 import flask
 import git
 import pandas as pd
@@ -39,14 +38,15 @@ import pytest
 import requests
 import responses
 import wandb
-from wandb import Api
 import wandb.old.settings
+import wandb.util
+from click.testing import CliRunner
+from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.git import GitRepo
-import wandb.util
 
 try:
     from typing import Literal, TypedDict
@@ -630,8 +630,7 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--wandb-server-tag",
-        # default="master",
-        default="fix-fixture-teardown",
+        default="master",
         help="Image tag to use for the wandb server",
     )
 

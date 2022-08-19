@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import List, Union
 
 from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
+
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
 

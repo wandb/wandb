@@ -2,8 +2,8 @@
 """Simple example of using ThreadPoolExecutor with service.
     This example is base on issue https://wandb.atlassian.net/browse/WB-8733
 """
-from concurrent.futures import ThreadPoolExecutor
 import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor
 
 import wandb
 import yea

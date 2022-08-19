@@ -20,9 +20,9 @@ assert:
     - :yea:exit: 0
 """
 import numpy as np
+import wandb
 from sklearn import datasets
 from sklearn.cluster import KMeans
-import wandb
 
 wandb.init("my-scikit-integration")
 
