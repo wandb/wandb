@@ -832,7 +832,7 @@ jobs:
                   # grab result data
                   echo "Grab results"
                   echo "DEBUG cp << parameters.pod_name >>:/home/sdk/wandb/test-results"
-                  kublectl cp << parameters.pod_name >>:/home/sdk/wandb/test-results .
+                  kubectl cp << parameters.pod_name >>:/home/sdk/wandb/test-results .
                   echo "Grab results done"
 
                   kubectl logs << parameters.pod_name >>
