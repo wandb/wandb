@@ -617,7 +617,10 @@ def _find_all_matching_keys(
                 yield key_path, key
             if isinstance(value, dict):
                 yield from _find_all_matching_keys(
-                    value, match_fn, visited=visited, key_path=tuple(list(key_path) + [key])
+                    value,
+                    match_fn,
+                    visited=visited,
+                    key_path=tuple(list(key_path) + [key]),
                 )
 
 
