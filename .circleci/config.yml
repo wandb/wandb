@@ -829,12 +829,16 @@ jobs:
                     sleep << parameters.sleep_time >>
                   done
 
+                  # grab result data
+                  kublectl cp << parameters.pod_name >>:/home/sdk/wandb/test-results .
+
                   kubectl logs << parameters.pod_name >>
                   logs=`kubectl logs << parameters.pod_name >>`
                   exit_code=`echo $(echo $logs | grep -c "commands failed")`
                   echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
                   exit ${exit_code}
                 no_output_timeout: "20m"
+            - save-test-results
             - run:
                 name: "Delete the pod"
                 when: always
