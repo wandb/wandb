@@ -1,12 +1,13 @@
+import json
 import os
 import platform
 import subprocess
-import pytest
-import json
 import sys
-import wandb
 
+import pytest
+import wandb
 from wandb.errors import UsageError
+
 from tests.unit_tests_old import utils
 
 

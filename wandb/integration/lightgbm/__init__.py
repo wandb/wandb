@@ -10,11 +10,11 @@ lgb = lgb.train(param_list, d_train, callbacks=[wandb_callback()])
 """
 
 from pathlib import Path
-from typing import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import lightgbm  # type: ignore
 from lightgbm import Booster
+
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
 

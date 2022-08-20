@@ -1,5 +1,6 @@
-import pytest
 import logging
+
+import pytest
 
 
 def test_logging(wandb_init):

@@ -30,9 +30,9 @@ def test_multiproc_default(relay_server, wandb_init):
         run.finish()
 
     summary = relay.context.get_run_summary(run.id)
-    assert summary.val.values[-1] == 3
-    assert summary.val2.values[-1] == 1
-    assert summary.mystep.values[-1] == 3
+    assert summary["val"] == 3
+    assert summary["val2"] == 1
+    assert summary["mystep"] == 3
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
@@ -69,9 +69,9 @@ def test_multiproc_ignore(relay_server, wandb_init):
         run.finish()
 
     summary = relay.context.get_run_summary(run.id)
-    assert summary.val.values[-1] == 3
-    assert summary.val2.values[-1] == 1
-    assert summary.mystep.values[-1] == 3
+    assert summary["val"] == 3
+    assert summary["val2"] == 1
+    assert summary["mystep"] == 3
 
 
 @pytest.mark.flaky
@@ -110,9 +110,9 @@ def test_multiproc_strict(relay_server, wandb_init):
         run.finish()
 
     summary = relay.context.get_run_summary(run.id)
-    assert summary.val.values[-1] == 3
-    assert summary.val2.values[-1] == 1
-    assert summary.mystep.values[-1] == 3
+    assert summary["val"] == 3
+    assert summary["val2"] == 1
+    assert summary["mystep"] == 3
 
 
 def test_multiproc_strict_bad(test_settings):

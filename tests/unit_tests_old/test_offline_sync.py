@@ -1,8 +1,8 @@
+import glob
 import os
 import subprocess
 import sys
 import time
-import glob
 
 import pytest
 
