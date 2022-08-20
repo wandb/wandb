@@ -7,14 +7,14 @@ import enum
 import json
 import logging
 import os
-from shlex import quote
 import tempfile
+from shlex import quote
 from typing import Any, Dict, List, Optional
 
 import wandb
+import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.apis.public import Artifact as PublicArtifact
-import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 

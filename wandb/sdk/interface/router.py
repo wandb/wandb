@@ -4,19 +4,18 @@ Router to manage responses.
 
 """
 
-from abc import abstractmethod
 import logging
 import threading
-from typing import Dict, Optional
-from typing import TYPE_CHECKING
 import uuid
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Dict, Optional
 
-
-from .message_future import MessageFuture
 from ..lib import mailbox, tracelog
+from .message_future import MessageFuture
 
 if TYPE_CHECKING:
     from queue import Queue
+
     from wandb.proto import wandb_internal_pb2 as pb
 
 

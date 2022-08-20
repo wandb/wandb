@@ -1,7 +1,7 @@
-from io import BytesIO
 import logging
 import os
-from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
+from io import BytesIO
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 from wandb import util
 

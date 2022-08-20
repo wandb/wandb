@@ -9,20 +9,21 @@ import logging
 import multiprocessing
 import queue
 import threading
-from threading import Event
 import time
+from threading import Event
 from typing import Any, Callable, Dict, List, Optional
 
 import psutil
+
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
 
-# from wandb.sdk.wandb_settings import Settings
-
 from ..interface.interface_relay import InterfaceRelay
+
+# from wandb.sdk.wandb_settings import Settings
 
 
 class StreamThread(threading.Thread):

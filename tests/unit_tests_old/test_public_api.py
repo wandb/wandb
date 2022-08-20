@@ -5,13 +5,14 @@ test_wandb
 Tests for the `wandb.apis.PublicApi` module.
 """
 
-import os
 import json
-import pytest
+import os
 import platform
-import requests
 
+import pytest
+import requests
 import wandb
+
 from tests.unit_tests_old import utils
 
 

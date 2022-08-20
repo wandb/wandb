@@ -8,9 +8,9 @@ from functools import reduce
 from operator import mul
 from typing import List
 
+import wandb
 from wandb import util
 from wandb.data_types import Node
-import wandb
 
 torch = None
 

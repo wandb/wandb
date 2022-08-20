@@ -5,21 +5,21 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.sdk.launch._project_spec as _project_spec
+import wandb.sdk.launch.launch as launch
 from wandb.errors import CommError, LaunchError
 from wandb.sdk.data_types._dtypes import TypeRegistry
-import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.launch_add import launch_add
-import wandb.sdk.launch._project_spec as _project_spec
+
+from tests.unit_tests_old import utils
 
 from .test_launch import (
+    EMPTY_BACKEND_CONFIG,
     check_mock_run_info,
     code_download_func,
-    EMPTY_BACKEND_CONFIG,
     mock_load_backend,
     mocked_fetchable_git_repo,
 )
-
-from tests.unit_tests_old import utils
 
 INPUT_TYPES = TypeRegistry.type_of(
     {"epochs": 2, "heavy": False, "sleep_every": 0}

@@ -56,4 +56,4 @@ def test_runtime(relay_server, publish_util, mock_run, end_cb, lower_bound, user
         publish_util(run=run, end_cb=end_cb, initial_start=True)
 
     summary = relay.context.get_run_summary(run.id, include_private=True)
-    assert summary["_wandb"].values[-1]["runtime"] >= lower_bound
+    assert summary["_wandb"]["runtime"] >= lower_bound
