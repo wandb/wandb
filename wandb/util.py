@@ -592,21 +592,32 @@ def _numpy_generic_convert(obj: Any) -> Any:
 
 def _find_all_matching_keys(
     d: Dict,
-    check: Callable[[Any], bool],
+    match_fn: Callable[[Any], bool],
     visited: Set[int] = None,
-    path: Tuple[Any, ...] = (),
+    key_path: Tuple[Any, ...] = (),
 ) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
+    """Recursively find all keys that satisfies a match function.
+
+    Args:
+       d: The dict to search.
+       match_fn: The function to determine if the key is a match.
+       visited: Keep track of visited nodes so we dont recurse forever.
+       key_path: Keep track of all the keys to get to the current node.
+    Yields:
+       (key_path, key): The location where the key was found, and the key
+    """
+
     if visited is None:
         visited = set()
     me = id(d)
     if me not in visited:
         visited.add(me)
         for key, value in d.items():
-            if check(key):
-                yield path, key
+            if match_fn(key):
+                yield key_path, key
             if isinstance(value, dict):
                 yield from _find_all_matching_keys(
-                    value, check, visited=visited, path=tuple(list(path) + [key])
+                    value, match_fn, visited=visited, key_path=tuple(list(key_path) + [key])
                 )
 
 
@@ -614,9 +625,9 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
     np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
     if not np_keys:
         return d, False
-    for path, key in np_keys:
+    for key_path, key in np_keys:
         ptr = d
-        for k in path:
+        for k in key_path:
             ptr = ptr[k]
         ptr[_numpy_generic_convert(key)] = ptr.pop(key)
     return d, True
