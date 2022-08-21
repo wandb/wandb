@@ -851,7 +851,7 @@ jobs:
 
                   while true; do
                     kubectl get pods
-                    pod_state=$(kubectl get pods | grep attachpod
+                    pod_state=$(kubectl get pods | grep attachpod)
                     if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
                       echo "Pod for << parameters.image_name >> is running"
                       break
