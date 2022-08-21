@@ -3,8 +3,9 @@ kind: Pod
 metadata:
   name: "attachpod"
 spec:
+  restartPolicy: Never
   containers:
-  - name: attach
+  - name: "attachcont"
     image: "alpine:latest"
     command: ["/bin/bash", "-c", "sleep infinity"]   
     volumeMounts:

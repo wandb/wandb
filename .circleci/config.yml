@@ -837,6 +837,7 @@ jobs:
                   kubectl describe pvc
                   bash -c pwd
                   ls -l
+                  echo "hello0"
                   kubectl create -f << parameters.path >>/attach.yaml
                   echo "hello"
                   kubectl describe po
