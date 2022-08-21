@@ -9,10 +9,10 @@ import random
 from typing import (
     Callable,
     Dict,
+    Iterator,
     List,
     Mapping,
     Optional,
-    Sequence,
     Tuple,
     TYPE_CHECKING,
     Union,
@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress, internal_api
     from wandb.proto import wandb_internal_pb2
-
 
 if TYPE_CHECKING:
     import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
@@ -113,12 +112,6 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
 
 
 class ArtifactManifest:
-    # Currently this constant determines when we flush our manifest to disk
-    # from the user process.  Eventually we should alway buffer to disk in
-    # the user process.
-    MAX_ENTRIES_BUFFER = 10000
-    manifest_path: str
-
     @classmethod
     def from_artifact_pb(
         cls, artifact: "wandb_internal_pb2.ArtifactRecord"
@@ -140,19 +133,40 @@ class ArtifactManifest:
             del artifact.manifest.contents[:]
             return manifest
         else:
-            # This avoids loading all entries into ram, generally for larger artifacts
             return cls(artifact, policy, manifest_path=artifact.manifest.manifest_path)
 
     @classmethod
-    # TODO: we don't need artifact here.
-    def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
-        if "version" not in manifest_json:
-            raise ValueError("Invalid manifest format. Must contain version field.")
-        version = manifest_json["version"]
-        for sub in cls.__subclasses__():
-            if sub.version() == version:
-                return sub.from_manifest_json(artifact, manifest_json)
-        raise ValueError("Invalid manifest version.")
+    def from_manifest_json(
+        cls, artifact: "Artifact", manifest_json: Dict
+    ) -> "ArtifactManifest":
+        if manifest_json["version"] != cls.version():
+            raise ValueError(
+                "Expected manifest version 1, got %s" % manifest_json["version"]
+            )
+
+        storage_policy_name = manifest_json["storagePolicy"]
+        storage_policy_config = manifest_json.get("storagePolicyConfig", {})
+        storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
+        if storage_policy_cls is None:
+            raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
+
+        entries: Mapping[str, ArtifactEntry]
+        entries = {
+            name: ArtifactEntry(
+                path=name,
+                digest=val["digest"],
+                birth_artifact_id=val.get("birthArtifactID"),
+                ref=val.get("ref"),
+                size=val.get("size"),
+                extra=val.get("extra"),
+                local_path=val.get("local_path"),
+            )
+            for name, val in manifest_json["contents"].items()
+        }
+
+        return cls(
+            artifact, storage_policy_cls.from_config(storage_policy_config), entries
+        )
 
     @classmethod
     def version(cls):
@@ -163,36 +177,96 @@ class ArtifactManifest:
         artifact,
         storage_policy: "wandb_artifacts.WandbStoragePolicy",
         entries: Optional[Mapping[str, "ArtifactEntry"]] = None,
-        manifest_path: Optional[str] = None,
     ) -> None:
         self.artifact = artifact
         self.storage_policy = storage_policy
-        self._entries = entries
-        self.manifest_path = manifest_path or ""
+        self._entries = entries or {}
+        self._in_transaction = False
+        self._api: Optional["internal_api.Api"] = None
+
+    def entry_to_json(self, entry: "ArtifactEntry") -> Dict:
+        # TODO: don't love this logic happening here...
+        self._resolve_client_id_manifest_references(entry, self._api)
+        return entry.to_json()
+
+    def to_manifest_json(
+        self, api: Optional["internal_api.Api"] = None, generator=False
+    ):
+        """This is the JSON that's stored in wandb_manifest.json.  If our
+         implementation has a map attr we return a generator that behaves
+         like a dict to avoid loading everything in memory.
+
+        NOTE: When using generator=True, be sure to pass `indent=4` to json.dump
+        """
+        self._api = api
+        contents = {}
+        if generator and hasattr(self.entries, "map"):
+            contents = self.entries.map(self.entry_to_json)
+        else:
+            for entry in sorted(self.entries.values(), key=lambda k: k.path):
+                contents[entry.path] = self.entry_to_json(entry)
+        return {
+            "version": self.__class__.version(),
+            "storagePolicy": self.storage_policy.name(),
+            "storagePolicyConfig": self.storage_policy.config() or {},
+            "contents": contents,
+        }
+
+    def _resolve_client_id_manifest_references(
+        self, entry: "ArtifactEntry", api: Optional["internal_api.Api"] = None
+    ) -> None:
+        if entry.ref is not None:
+            if entry.ref.startswith("wandb-client-artifact:"):
+                client_id = util.host_from_path(entry.ref)
+                artifact_file_path = util.uri_from_path(entry.ref)
+                if api is None:
+                    artifact_id = None
+                else:
+                    artifact_id = api._resolve_client_id(client_id)
+                if artifact_id is None:
+                    raise RuntimeError(f"Could not resolve client id {client_id}")
+                entry.ref = "wandb-artifact://{}/{}".format(
+                    util.b64_to_hex_id(artifact_id), artifact_file_path
+                )
+
+    def digest(self) -> str:
+        raise NotImplementedError()
 
     @property
-    def entries(self) -> Dict[str, "ArtifactEntry"]:
-        if self._entries is None:
-            if self.manifest_path != "":
-                # TODO: this doesn't belong here and should be implementation specific
-                with open(self.manifest_path) as mani:
-                    self._entries = ArtifactManifest.from_manifest_json(
-                        self.artifact, json.load(mani)
-                    ).entries
-            else:
-                self._entries = {}
+    def path(self) -> Optional[str]:
+        return None
+
+    @property
+    def entries(
+        self,
+    ) -> Mapping[str, "ArtifactEntry"]:
         return self._entries
 
-    def persist(self) -> str:
-        raise NotImplementedError()
+    @property
+    def size(self) -> int:
+        size = 0
+        for entry in self._entries.values():
+            size += entry.size
+        return size
 
-    def to_manifest_json(self, api: Optional["internal_api.Api"]):
-        raise NotImplementedError()
+    @contextlib.contextmanager
+    def transaction(self):
+        try:
+            self._in_transaction = True
+            yield self
+        finally:
+            self.flush()
+            self._in_transaction = False
 
-    def digest(self):
-        raise NotImplementedError()
+    def flush(self, close=False):
+        pass
 
-    def add_entry(self, entry):
+    def cleanup(self):
+        if self.path is not None:
+            os.remove(self.path)
+        self._entries = {}
+
+    def add_entry(self, entry: "ArtifactEntry"):
         if (
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
@@ -203,14 +277,16 @@ class ArtifactManifest:
     def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
         return self.entries.get(path)
 
-    def get_entries_in_directory(self, directory):
-        return [
-            self.entries[entry_key]
-            for entry_key in self.entries
-            if entry_key.startswith(
-                directory + "/"
-            )  # entries use forward slash even for windows
-        ]
+    def get_entries_in_directory(self, directory) -> Iterator["ArtifactEntry"]:
+        return iter(
+            [
+                self.entries[entry_key]
+                for entry_key in self.entries
+                if entry_key.startswith(
+                    directory + "/"
+                )  # entries use forward slash even for windows
+            ]
+        )
 
 
 class ArtifactEntry:
@@ -281,6 +357,13 @@ class Artifact:
             (str): The artifact's ID
         """
         raise NotImplementedError
+
+    @property
+    def client_id(self) -> str:
+        """
+        Returns:
+            (str): A uuid identifying this artifact in a local process
+        """
 
     @property
     def version(self) -> str:
@@ -931,7 +1014,7 @@ class StorageHandler:
 
     def store_path(
         self, artifact, path, name=None, checksum=True, max_objects=None
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         """
         Stores the file or directory at the given path within the specified artifact.
 

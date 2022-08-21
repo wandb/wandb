@@ -1,23 +1,27 @@
 import base64
 import contextlib
+import functools
 import hashlib
 import json
 import os
 import pathlib
 import re
 import shutil
+import sqlite3
 import tempfile
+import threading
 import time
 from typing import (
     Any,
+    Callable,
     cast,
     Dict,
     Generator,
     IO,
+    Iterator,
     List,
     Mapping,
     Optional,
-    Sequence,
     Tuple,
     TYPE_CHECKING,
     Union,
@@ -34,15 +38,15 @@ from wandb.apis.public import Artifact as PublicArtifact
 import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
-from wandb.sdk.internal import internal_api, progress
+from wandb.sdk.internal import progress
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
-    ArtifactManifest,
     ArtifactsCache,
+    ArtifactManifest,
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
@@ -136,6 +140,7 @@ class Artifact(ArtifactInterface):
     _logged_artifact: Optional[ArtifactInterface]
     _incremental: bool
     _client_id: str
+    _manifest: ArtifactManifest
 
     def __init__(
         self,
@@ -145,6 +150,7 @@ class Artifact(ArtifactInterface):
         metadata: Optional[dict] = None,
         incremental: Optional[bool] = None,
         use_as: Optional[str] = None,
+        in_memory: bool = False,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -164,11 +170,15 @@ class Artifact(ArtifactInterface):
                 #  TODO: storage region
             }
         )
+        self._client_id = util.generate_id(128)
+        self._sequence_client_id = util.generate_id(128)
         self._api = InternalApi()
         self._final = False
         self._digest = ""
-        self._manifest_path: Optional[str] = None
-        self._manifest = ArtifactManifestV1(self, self._storage_policy)
+        if in_memory:
+            self._manifest = ArtifactManifestV1(self, self._storage_policy)
+        else:
+            self._manifest = ArtifactManifestSQL(self, self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_objs = {}
         self._added_local_paths = {}
@@ -181,8 +191,6 @@ class Artifact(ArtifactInterface):
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
-        self._client_id = util.generate_id(128)
-        self._sequence_client_id = util.generate_id(128)
         self._cache.store_client_artifact(self)
         self._use_as = use_as
 
@@ -197,6 +205,10 @@ class Artifact(ArtifactInterface):
 
         # The artifact hasn't been saved so an ID doesn't exist yet.
         return None
+
+    @property
+    def client_id(self) -> str:
+        return self._client_id
 
     @property
     def version(self) -> str:
@@ -262,13 +274,7 @@ class Artifact(ArtifactInterface):
     def size(self) -> int:
         if self._logged_artifact:
             return self._logged_artifact.size
-        sizes: List[int]
-        sizes = []
-        for entry in self._manifest.entries:
-            e_size = self._manifest.entries[entry].size
-            if e_size is not None:
-                sizes.append(e_size)
-        return sum(sizes)
+        return self._manifest.size
 
     @property
     def commit_hash(self) -> str:
@@ -418,6 +424,7 @@ class Artifact(ArtifactInterface):
         )
         start_time = time.time()
 
+        # TODO: maybe get this out memory / batch it into chunks
         paths = []
         for dirpath, _, filenames in os.walk(local_path, followlinks=True):
             for fname in filenames:
@@ -447,7 +454,7 @@ class Artifact(ArtifactInterface):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         self._ensure_can_add()
         if name is not None:
             name = util.to_forward_slash_path(name)
@@ -470,10 +477,12 @@ class Artifact(ArtifactInterface):
         manifest_entries = self._storage_policy.store_reference(
             self, uri_str, name=name, checksum=checksum, max_objects=max_objects
         )
-        for entry in manifest_entries:
-            self._manifest.add_entry(entry)
 
-        return manifest_entries
+        with self._manifest.transaction():
+            for entry in manifest_entries:
+                self._manifest.add_entry(entry)
+
+        return self._manifest.entries.values()  # type: ignore[return-value]
 
     def add(self, obj: data_types.WBValue, name: str) -> ArtifactEntry:
         self._ensure_can_add()
@@ -518,7 +527,7 @@ class Artifact(ArtifactInterface):
         # If the object is coming from another artifact, save it as a reference
         ref_path = obj._get_artifact_entry_ref_url()
         if ref_path is not None:
-            return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
+            return next(self.add_reference(ref_path, type(obj).with_suffix(name)))
 
         val = obj.to_json(self)
         name = obj.with_suffix(name)
@@ -690,13 +699,13 @@ class Artifact(ArtifactInterface):
             A file path to the manifest file if one was created, otherwise None
         """
         if self._final:
-            return self._manifest_path
+            return self._manifest.path
 
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
-        self._manifest_path = self._manifest.persist()
-        return self._manifest_path
+        self._manifest.flush(close=True)
+        return self._manifest.path
 
     def json_encode(self) -> Dict[str, Any]:
         if not self._logged_artifact:
@@ -740,43 +749,101 @@ class Artifact(ArtifactInterface):
         return self.get(name)
 
 
-class ArtifactManifestV1(ArtifactManifest):
+class EntryToDictMapping(dict):
+    def __init__(
+        self,
+        mapping: Mapping,
+        map_fn: Callable[[ArtifactEntry], Dict[str, Union[str, int]]],
+    ):
+        self._mapping = mapping
+        self._map_fn = map_fn
+
+    def items(self) -> Iterator[tuple[str, Dict]]:  # type: ignore[override]
+        for path, entry in self._mapping.items():
+            yield path, self._map_fn(entry)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._mapping)
+
+    def __bool__(self) -> bool:
+        return len(self._mapping) > 0
+
+    def __repr__(self) -> str:
+        return "<ArtifactManifest iterator>"
+
+
+class SQLArtifactEntryMapping(Mapping):
+    def __init__(
+        self,
+        manifest: "ArtifactManifestSQL",
+    ):
+        self._manifest = manifest
+
+    def map(self, fn: Callable[[ArtifactEntry], Dict]) -> Mapping[str, Dict]:
+        return EntryToDictMapping(self, fn)
+
+    def size(self) -> int:
+        db = self._manifest._db()
+        return int(db.execute("SELECT SUM(size) FROM manifest_entries").fetchone()[0])
+
+    def items(self) -> Iterator[tuple[str, ArtifactEntry]]:  # type: ignore[override]
+        db = self._manifest._db()
+        for row in db.execute("SELECT * FROM manifest_entries ORDER BY path"):
+            yield row[0], self.row_to_entry(row)
+
+    def values(self) -> Iterator[ArtifactEntry]:  # type: ignore[override]
+        for _, e in self.items():
+            yield e
+
+    def row_to_entry(self, row: tuple) -> ArtifactEntry:
+        row_list = list(row)
+        # remove conflict
+        row_list.pop()
+        if row_list[5] is None:
+            row_list[5] = {}
+        else:
+            row_list[5] = json.loads(row_list[5])
+        entry = ArtifactManifestEntry(*row_list)
+        return entry
+
+    def digest(self) -> str:
+        hasher = hashlib.md5()
+        hasher.update(b"wandb-artifact-manifest-v1\n")
+        for (name, entry) in self.items():
+            hasher.update(f"{name}:{entry.digest}\n".encode())
+        return hasher.hexdigest()
+
+    def __getitem__(self, path: str) -> ArtifactEntry:
+        db = self._manifest._db()
+        res = db.execute(
+            "SELECT * FROM manifest_entries WHERE path = ?", (path,)
+        ).fetchone()
+        if res is None:
+            raise KeyError()
+        return self.row_to_entry(res)
+
+    def __len__(self) -> int:
+        db = self._manifest._db()
+        return int(db.execute("SELECT COUNT(*) FROM manifest_entries").fetchone()[0])
+
+    def __iter__(self) -> Iterator[str]:
+        db = self._manifest._db()
+        for row in db.execute("SELECT path FROM manifest_entries ORDER BY path"):
+            yield str(row[0])
+
+    def __repr__(self) -> str:
+        return f"<ArtifactManifest digest: {self.digest()}, entries: {len(self)}, bytes: {util.to_human_size(self.size())}>"
+
+
+class ArtifactManifestSQL(ArtifactManifest):
+    SCHEMA = """CREATE TABLE manifest_entries
+                (path TEXT NOT NULL PRIMARY KEY, ref TEXT, digest TEXT NOT NULL,
+                    birth_artifact_id TEXT, size INT, extra TEXT, local_path TEXT,
+                    digest_conflict TEXT)"""
+
     @classmethod
     def version(cls) -> int:
         return 1
-
-    @classmethod
-    def from_manifest_json(
-        cls, artifact: ArtifactInterface, manifest_json: Dict
-    ) -> "ArtifactManifestV1":
-        if manifest_json["version"] != cls.version():
-            raise ValueError(
-                "Expected manifest version 1, got %s" % manifest_json["version"]
-            )
-
-        storage_policy_name = manifest_json["storagePolicy"]
-        storage_policy_config = manifest_json.get("storagePolicyConfig", {})
-        storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
-        if storage_policy_cls is None:
-            raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
-
-        entries: Mapping[str, ArtifactManifestEntry]
-        entries = {
-            name: ArtifactManifestEntry(
-                path=name,
-                digest=val["digest"],
-                birth_artifact_id=val.get("birthArtifactID"),
-                ref=val.get("ref"),
-                size=val.get("size"),
-                extra=val.get("extra"),
-                local_path=val.get("local_path"),
-            )
-            for name, val in manifest_json["contents"].items()
-        }
-
-        return cls(
-            artifact, storage_policy_cls.from_config(storage_policy_config), entries
-        )
 
     def __init__(
         self,
@@ -784,74 +851,156 @@ class ArtifactManifestV1(ArtifactManifest):
         storage_policy: "WandbStoragePolicy",
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
         manifest_path: Optional[str] = None,
+        max_buffer_size: int = 10000,
     ) -> None:
-        super().__init__(
-            artifact, storage_policy, entries=entries, manifest_path=manifest_path
-        )
+        super().__init__(artifact, storage_policy)
+        self._dir = tempfile.mkdtemp()
+        self._connection_pool: Dict[int, sqlite3.Connection] = {}
+        if artifact:
+            self._uuid = artifact.client_id[:32]
+        else:
+            self._uuid = util.generate_id(32)
+        if manifest_path:
+            self._path = manifest_path
+        else:
+            self._path = os.path.join(self._dir, f"{self._uuid}.db")
+        if not os.path.exists(self._path):
+            setup = True
+        self._entries_since_flush = 0
+        self._max_buffer_size = max_buffer_size
+        if setup:
+            self._setup()
+        self._mapping = SQLArtifactEntryMapping(self)
+        if entries is not None:
+            # TODO: we may be able to just get rid of .transaction() since we
+            # have auto flushing
+            with self.transaction():
+                for entry in entries.values():
+                    self.add_entry(entry)
 
-    def persist(self) -> str:
-        if len(self.entries) > ArtifactManifest.MAX_ENTRIES_BUFFER:
-            # TODO: handle disk space error?
-            with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
-                self.manifest_path = os.path.abspath(fp.name)
-                try:
-                    json.dump(self.to_manifest_json(), fp, indent=4)
-                except RuntimeError:
-                    # TODO: this can happen if we have a big artifact with client id refs
-                    self.manifest_path = ""
-            # Free up that memory
-            if self.manifest_path != "":
-                self._entries = None
-        return self.manifest_path
+    @functools.cache  # noqa: B019
+    def _thread_safe_client(self, id: int) -> sqlite3.Connection:
+        if self._connection_pool.get(id) is None:
+            # There's risk of corruption if a connection is shared across threads
+            # we create a separate connection per thread so we can disable this check
+            client = sqlite3.connect(self._path, check_same_thread=False)
+            self._connection_pool[id] = client
+        return self._connection_pool[id]
 
-    def _resolve_client_id_manifest_references(
-        self, entry: ArtifactEntry, api: Optional[internal_api.Api] = None
-    ) -> None:
-        if entry.ref is not None:
-            if entry.ref.startswith("wandb-client-artifact:"):
-                client_id = util.host_from_path(entry.ref)
-                artifact_file_path = util.uri_from_path(entry.ref)
-                # TODO: we should not be doing this in the user process
-                # maybe don't do the fancy flushing to disk in this case?
-                if api is None:
-                    artifact_id = None
-                else:
-                    artifact_id = api._resolve_client_id(client_id)
-                if artifact_id is None:
-                    raise RuntimeError(f"Could not resolve client id {client_id}")
-                entry.ref = "wandb-artifact://{}/{}".format(
-                    util.b64_to_hex_id(artifact_id), artifact_file_path
+    @contextlib.contextmanager
+    def _db_commit(self) -> Generator[sqlite3.Connection, None, None]:
+        try:
+            client = self._thread_safe_client(id(threading.current_thread()))
+            yield client
+        finally:
+            client.commit()
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def size(self) -> int:
+        return self._mapping.size()
+
+    def _db(
+        self, cursor: bool = True
+    ) -> Union[sqlite3.Connection, sqlite3.Cursor,]:
+        """Get the current connection or cursor."""
+        client = self._thread_safe_client(id(threading.current_thread()))
+        return client.cursor() if cursor else client
+
+    def _setup(self) -> None:
+        with self._db_commit() as db:
+            db.execute(self.SCHEMA)
+            # With journal enabled we can rollback, but we must keep our transactions
+            # reasonably small.  If the process crashes we risk corruption, but
+            # resuming artifact creation isn't supported.  The following benchmarks
+            # are for adding 2.5 million entries without any batching:
+            # 166.3s (no sqlite), 246.5s (below pragmas), 1510.3 (default sqlite)
+            db.execute("PRAGMA journal_mode = MEMORY")
+            db.execute("PRAGMA synchronous = OFF")
+
+    @property
+    def entries(self) -> Mapping[str, "ArtifactEntry"]:
+        return self._mapping
+
+    def flush(self, close: bool = False) -> None:
+        db = self._db(cursor=False)
+        db.commit()  # type: ignore[union-attr]
+        self._entries_since_flush = 0
+        if close:
+            for _, client in self._connection_pool.items():
+                client.close()
+            self._connection_pool = {}
+            self._thread_safe_client.cache_clear()
+
+    def cleanup(self) -> None:
+        self.flush(True)
+        super().cleanup()
+
+    def add_entry(self, entry: "ArtifactEntry") -> None:
+        try:
+            db = self._db(cursor=False)
+            conflict = next(
+                db.execute(
+                    "INSERT INTO manifest_entries VALUES(?, ?, ?, ?, ?, ?, ?, ?) \
+                    ON CONFLICT(path) DO UPDATE SET digest_conflict=excluded.digest \
+                    RETURNING path, digest, digest_conflict",
+                    (
+                        entry.path,
+                        entry.ref,
+                        entry.digest,
+                        entry.birth_artifact_id,
+                        entry.size,
+                        json.dumps(entry.extra) if entry.extra != {} else None,
+                        entry.local_path,
+                        None,
+                    ),
                 )
+            )
+            if conflict[2] is not None:
+                if conflict[1] != conflict[2]:
+                    raise ValueError("Cannot add the same path twice: %s" % conflict[0])
+        finally:
+            if (
+                not self._in_transaction
+                or self._entries_since_flush > self._max_buffer_size
+            ):
+                self._entries_since_flush = 0
+                db.commit()  # type: ignore[union-attr]
+            else:
+                self._entries_since_flush += 1
 
-    def to_manifest_json(self, api: Optional[internal_api.Api] = None) -> Dict:
-        """This is the JSON that's stored in wandb_manifest.json
+    def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
+        return self._mapping.get(path)
 
-        If include_local is True we also include the local paths to files. This is
-        used to represent an artifact that's waiting to be saved on the current
-        system. We don't need to include the local paths in the artifact manifest
-        contents.
-        """
-        contents = {}
-        for entry in sorted(self.entries.values(), key=lambda k: k.path):
-            self._resolve_client_id_manifest_references(entry, api)
-            json_entry: Dict[str, Any] = {
-                "digest": entry.digest,
-            }
-            if entry.birth_artifact_id:
-                json_entry["birthArtifactID"] = entry.birth_artifact_id
-            if entry.ref:
-                json_entry["ref"] = entry.ref
-            if entry.extra:
-                json_entry["extra"] = entry.extra
-            if entry.size is not None:
-                json_entry["size"] = entry.size
-            contents[entry.path] = json_entry
-        return {
-            "version": self.__class__.version(),
-            "storagePolicy": self.storage_policy.name(),
-            "storagePolicyConfig": self.storage_policy.config() or {},
-            "contents": contents,
-        }
+    def get_entries_in_directory(self, directory: str) -> Iterator["ArtifactEntry"]:
+        db = self._db()
+        for row in db.execute(
+            "SELECT * FROM manifest_entries WHERE path LIKE '?%'", (directory,)
+        ):
+            yield self._mapping.row_to_entry(row)
+
+    def digest(self) -> str:
+        return self._mapping.digest()
+
+    def __repr__(self) -> str:
+        return repr(self._mapping)
+
+
+class ArtifactManifestV1(ArtifactManifest):
+    @classmethod
+    def version(cls) -> int:
+        return 1
+
+    def __init__(
+        self,
+        artifact: ArtifactInterface,
+        storage_policy: "WandbStoragePolicy",
+        entries: Optional[Mapping[str, ArtifactEntry]] = None,
+    ) -> None:
+        super().__init__(artifact, storage_policy, entries=entries)
 
     def digest(self) -> str:
         hasher = hashlib.md5()
@@ -891,13 +1040,24 @@ class ArtifactManifestEntry(ArtifactEntry):
             raise ValueError("Only reference entries support ref_target().")
         return self.ref
 
-    def __repr__(self) -> str:
-        if self.ref is not None:
-            summary = f"ref: {self.ref}/{self.path}"
-        else:
-            summary = "digest: %s" % self.digest
+    def to_json(self) -> Dict[str, Union[int, str]]:
+        json_dict = {}
+        for key in ("digest", "ref", "birth_artifact_id", "size", "extra"):
+            val = getattr(self, key)
+            if key == "birth_artifact_id":
+                key = "birthArtifactID"
+            if val or val == 0:
+                json_dict[key] = val
+        return json_dict
 
-        return "<ManifestEntry %s>" % summary
+    def __repr__(self) -> str:
+        summary = "digest: %s, " % self.digest[:32]
+        if self.ref is None:
+            summary += f"name: {self.path}"
+        else:
+            summary += f"ref: {self.ref}"
+
+        return f"<ManifestEntry {summary}, size: {util.to_human_size(self.size or 0)}>"
 
 
 class WandbStoragePolicy(StoragePolicy):
@@ -975,7 +1135,7 @@ class WandbStoragePolicy(StoragePolicy):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         return self._handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
@@ -1103,7 +1263,7 @@ class __S3BucketPolicy(StoragePolicy):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         return self._handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
@@ -1154,7 +1314,7 @@ class MultiHandler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         url = urlparse(path)
         if url.scheme not in self._handlers:
             if self._default_handler is not None:
@@ -1215,7 +1375,7 @@ class TrackingHandler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         url = urlparse(path)
         if name is None:
             raise ValueError(
@@ -1227,7 +1387,7 @@ class TrackingHandler(StorageHandler):
             % path
         )
         name = name or url.path[1:]  # strip leading slash
-        return [ArtifactManifestEntry(name, path, digest=path)]
+        return iter([ArtifactManifestEntry(name, path, digest=path)])
 
 
 DEFAULT_MAX_OBJECTS = 10000
@@ -1288,13 +1448,12 @@ class LocalFileHandler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         url = urlparse(path)
         local_path = f"{url.netloc}{url.path}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
-        entries = []
 
         def md5(path: str) -> str:
             return (
@@ -1331,7 +1490,7 @@ class LocalFileHandler(StorageHandler):
                         size=os.path.getsize(physical_path),
                         digest=md5(physical_path),
                     )
-                    entries.append(entry)
+                    yield entry
             if checksum:
                 termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         elif os.path.isfile(local_path):
@@ -1342,11 +1501,10 @@ class LocalFileHandler(StorageHandler):
                 size=os.path.getsize(local_path),
                 digest=md5(local_path),
             )
-            entries.append(entry)
+            yield entry
         else:
             # TODO: update error message if we don't allow directories.
             raise ValueError('Path "%s" must be a valid file or directory path' % path)
-        return entries
 
 
 class S3Handler(StorageHandler):
@@ -1467,7 +1625,7 @@ class S3Handler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
 
@@ -1484,7 +1642,8 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [ArtifactManifestEntry(name or key, path, digest=path)]
+            yield ArtifactManifestEntry(name or key, path, digest=path)
+            return
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -1517,21 +1676,20 @@ class S3Handler(StorageHandler):
                 newline=False,
             )
             objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
-        # Weird iterator scoping makes us assign this to a local function
-        size = self._size_from_obj
-        entries = [
-            self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
-            for obj in objs
-            if size(obj) > 0
-        ]
+
+        entries = 0
+        for obj in objs:
+            if self._size_from_obj(obj) > 0:
+                entries += 1
+                yield self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
+
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        if len(entries) >= max_objects:
+        if entries >= max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
                 % max_objects
             )
-        return entries
 
     def _size_from_obj(self, obj: "boto3.s3.Object") -> int:
         # ObjectSummary has size, Object has content_length
@@ -1710,7 +1868,7 @@ class GCSHandler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
 
@@ -1744,18 +1902,18 @@ class GCSHandler(StorageHandler):
         else:
             objects = [obj]
 
-        entries = [
-            self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
-            for obj in objects
-        ]
+        entries = 0
+        for obj in objects:
+            entries += 1
+            yield self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
+
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        if len(entries) >= max_objects:
+        if entries >= max_objects:
             raise ValueError(
                 "Exceeded %i objects tracked, pass max_objects to add_reference"
                 % max_objects
             )
-        return entries
 
     def _entry_from_obj(
         self,
@@ -1871,18 +2029,18 @@ class HTTPHandler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         name = name or os.path.basename(path)
         if not checksum:
-            return [ArtifactManifestEntry(name, path, digest=path)]
+            return iter([ArtifactManifestEntry(name, path, digest=path)])
 
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
-        return [
-            ArtifactManifestEntry(name, path, digest=digest, size=size, extra=extra)
-        ]
+        return iter(
+            [ArtifactManifestEntry(name, path, digest=digest, size=size, extra=extra)]
+        )
 
     def _entry_from_headers(
         self, headers: requests.structures.CaseInsensitiveDict
@@ -1971,7 +2129,7 @@ class WBArtifactHandler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         """
         Stores the file or directory at the given path within the specified artifact. In this
         case we recursively resolve the reference until the result is a concrete asset so that
@@ -2008,14 +2166,16 @@ class WBArtifactHandler(StorageHandler):
         )
 
         # Return the new entry
-        return [
-            ArtifactManifestEntry(
-                name or os.path.basename(path),
-                path,
-                size=0,
-                digest=entry.digest,
-            )
-        ]
+        return iter(
+            [
+                ArtifactManifestEntry(
+                    name or os.path.basename(path),
+                    path,
+                    size=0,
+                    digest=entry.digest,
+                )
+            ]
+        )
 
 
 class WBLocalArtifactHandler(StorageHandler):
@@ -2053,7 +2213,7 @@ class WBLocalArtifactHandler(StorageHandler):
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
-    ) -> Sequence[ArtifactEntry]:
+    ) -> Iterator[ArtifactEntry]:
         """
         Stores the file or directory at the given path within the specified artifact.
 
@@ -2075,14 +2235,16 @@ class WBLocalArtifactHandler(StorageHandler):
             raise RuntimeError("Local entry not found - invalid reference")
 
         # Return the new entry
-        return [
-            ArtifactManifestEntry(
-                name or os.path.basename(path),
-                path,
-                size=0,
-                digest=target_entry.digest,
-            )
-        ]
+        return iter(
+            [
+                ArtifactManifestEntry(
+                    name or os.path.basename(path),
+                    path,
+                    size=0,
+                    digest=target_entry.digest,
+                )
+            ]
+        )
 
 
 class _ArtifactVersionType(Type):

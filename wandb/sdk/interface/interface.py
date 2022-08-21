@@ -394,8 +394,8 @@ class InterfaceBase:
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
             cfg.value_json = json.dumps(v)
-
-        proto_manifest.manifest_path = artifact_manifest.manifest_path
+        if artifact_manifest.path is not None:
+            proto_manifest.manifest_path = artifact_manifest.path
         if proto_manifest.manifest_path == "":
             for entry in sorted(
                 artifact_manifest.entries.values(), key=lambda k: k.path

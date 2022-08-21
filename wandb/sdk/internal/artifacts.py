@@ -41,7 +41,7 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = artifact.digest
-        self._manifest_path: str = artifact.manifest.manifest_path
+        self._manifest_json_path: Optional[str] = None
         self._manifest = ArtifactManifest.from_artifact_pb(artifact)
         self._is_user_created = artifact.user_created
         self._server_artifact = None
@@ -162,15 +162,14 @@ class ArtifactSaver:
         commit_event = threading.Event()
 
         def before_commit() -> None:
-            if self._manifest_path == "":
-                with tempfile.NamedTemporaryFile(
-                    "w+", suffix=".json", delete=False
-                ) as fp:
-                    self._manifest_path = os.path.abspath(fp.name)
-                    json.dump(self._manifest.to_manifest_json(self._api), fp, indent=4)
-            # Always free up the memory, store_manifest_files loads everything from disk
-            self._manifest._entries = None
-            digest = wandb.util.md5_file(self._manifest_path)
+            with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
+                self._manifest_json_path = os.path.abspath(fp.name)
+                json.dump(
+                    self._manifest.to_manifest_json(self._api, generator=True),
+                    fp,
+                    indent=4,
+                )
+            digest = wandb.util.md5_file(self._manifest_json_path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
@@ -198,15 +197,16 @@ class ArtifactSaver:
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
-            with open(self._manifest_path, "rb") as fp2:
+            with open(self._manifest_json_path, "rb") as fp2:
                 self._api.upload_file_retry(
                     upload_url,
                     fp2,
                     extra_headers=extra_headers,
                 )
-            # we don't need our mega manifest anymore
-            os.remove(self._manifest_path)
-            self._manifest_path = ""
+            # we don't need our mega manifests anymore
+            os.remove(self._manifest_json_path)
+            self._manifest.cleanup()
+            self._manifest_json_path = ""
 
         def on_commit() -> None:
             if finalize and use_after_commit:

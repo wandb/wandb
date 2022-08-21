@@ -229,7 +229,7 @@ def test_add_reference_local_file():
         f.write("hello")
 
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    e = artifact.add_reference("file://file1.txt")[0]
+    e = next(artifact.add_reference("file://file1.txt"))
     assert e.ref_target() == "file://file1.txt"
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
@@ -467,12 +467,13 @@ def test_add_reference_s3_no_checksum():
     # TODO: Should we require name in this case?
     artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
 
-    assert artifact.digest == "52631787ed3579325f985dc0f2374040"
     manifest = artifact.manifest.to_manifest_json()
+    print("MANIFEST: ", manifest)
     assert manifest["contents"]["file1.txt"] == {
         "digest": "s3://my_bucket/file1.txt",
         "ref": "s3://my_bucket/file1.txt",
     }
+    assert artifact.digest == "52631787ed3579325f985dc0f2374040"
 
 
 def test_add_gs_reference_object():
