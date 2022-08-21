@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
-from wandb import util
 
 from ..interface.artifacts import ArtifactEntry, ArtifactManifest
 
