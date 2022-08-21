@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "attach-pvc"
+  name: "attachpod"
 spec:
   containers:
   - name: attach

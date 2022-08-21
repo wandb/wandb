@@ -838,8 +838,14 @@ jobs:
                   bash -c pwd
                   ls -l
                   kubectl create -f << parameters.path >>/attach.yaml
-                  kubectl cp attach-pvc:/wandb-store/test-results .
-                  kubectl delete pod attach-pvc
+                  echo "hello"
+                  kubectl describe po
+                  kubectl describe pv
+                  kubectl describe pvc
+                  echo "hello2"
+                  kubectl cp attachpod:/wandb-store/test-results .
+                  echo "cp_done"
+                  kubectl delete pod attachpod
                   ls -l
                   # kubectl cp << parameters.pod_name >>:/home/sdk/wandb/test-results .
                   echo "Grab results done"
