@@ -883,6 +883,10 @@ jobs:
                   echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
                   exit ${exit_code}
                 no_output_timeout: "20m"
+            - store_test_results:
+                path: test-results
+            - store_artifacts:
+                path: test-results
             - run:
                 name: "Delete the pod"
                 when: always

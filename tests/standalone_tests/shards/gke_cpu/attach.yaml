@@ -6,7 +6,7 @@ spec:
   restartPolicy: Never
   containers:
   - name: "attachcont"
-    image: "debian"
+    image: "alpine:latest"
     command: ["/bin/sh"]
     args: ["-c", "sleep 600"]
     volumeMounts:
