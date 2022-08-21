@@ -2,7 +2,7 @@
 kind: PersistentVolume
 apiVersion: v1
 metadata:
-  name: my-persistent-volume
+  name: cpu-pod-results-volume
   labels:
     type: nfs
 spec:
@@ -18,7 +18,7 @@ spec:
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: my-persistent-volumeclaim
+  name: cpu-pod-results-volumeclaim
 spec:
   storageClassName: pv-demo
   accessModes:
@@ -48,8 +48,8 @@ spec:
           cpu: 3.5
       volumeMounts:
         - mountPath: "/wandb-store"
-          name: my-persistent-volumeclaim-name
+          name: cpu-pod-results-volumeclaim-name
   volumes:
-    - name: my-persistent-volumeclaim-name
+    - name: cpu-pod-results-volumeclaim-name
       persistentVolumeClaim:
-       claimName: my-persistent-volumeclaim
+       claimName: cpu-pod-results-volumeclaim

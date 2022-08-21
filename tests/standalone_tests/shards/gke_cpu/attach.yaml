@@ -1,18 +1,18 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "attach-pod"
+  name: "cpu-pod-attach-pod"
 spec:
   restartPolicy: Never
   containers:
-  - name: "attach-container"
+  - name: "cpu-pod-attach-container"
     image: "alpine:latest"
     command: ["/bin/sh"]
     args: ["-c", "sleep 600"]
     volumeMounts:
-    - name: my-persistent-volumeclaim-name
+    - name: cpu-pod-results-volumeclaim-name
       mountPath: "/wandb-store"
   volumes:
-    - name: my-persistent-volumeclaim-name
+    - name: cpu-pod-results-volumeclaim-name
       persistentVolumeClaim:
-       claimName: my-persistent-volumeclaim
+       claimName: cpu-pod-results-volumeclaim
