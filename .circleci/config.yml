@@ -854,7 +854,8 @@ jobs:
                     sleep << parameters.sleep_time >>
                   done
                   echo "Copy results from pod..."
-                  kubectl cp attach-pod:/wandb-store/test-results .
+                  mkdir results/<< parameters.pod_name >>
+                  kubectl cp attach-pod:/wandb-store/test-results results/<< parameters.pod_name >>
                 no_output_timeout: "10m"
             - run:
                 # todo: make getting the exit_code more robust: add check for "commands succeeded"
@@ -868,9 +869,10 @@ jobs:
                   exit ${exit_code}
                 no_output_timeout: "20m"
             - store_test_results:
-                path: test-results
+                path: results/<< parameters.pod_name >>/test-results
             - store_artifacts:
-                path: test-results
+                path: results/<< parameters.pod_name >>/test-results
+                destination: test-results
             - run:
                 name: "Delete the pod"
                 when: always
