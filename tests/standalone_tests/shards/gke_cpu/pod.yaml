@@ -1,5 +1,35 @@
+---
+kind: PersistentVolume
 apiVersion: v1
+metadata:
+  name: my-persistent-volume
+  labels:
+    type: nfs
+spec:
+  storageClassName: pv-demo
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/tmp"
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: my-persistent-volumeclaim
+spec:
+  storageClassName: pv-demo
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+
+---
 kind: Pod
+apiVersion: v1
 metadata:
   name: cpu-pod
 spec:
@@ -17,18 +47,9 @@ spec:
         requests:
           cpu: 3.5
       volumeMounts:
-        - mountPath: /wandb-store
-          name: wandb-store-cpu
+        - mountPath: "/wandb-store"
+          name: my-persistent-volumeclaim-name
   volumes:
-    - name: wandb-store-cpu
-      ephemeral:
-        volumeClaimTemplate:
-          metadata:
-            labels:
-              type: my-frontend-volume
-          spec:
-            accessModes: [ "ReadWriteOnce" ]
-            storageClassName: "scratch-storage-class"
-            resources:
-              requests:
-                storage: 1Gi
+    - name: my-persistent-volumeclaim-name
+      persistentVolumeClaim:
+       claimName: my-persistent-volumeclaim
