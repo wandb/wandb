@@ -17,12 +17,18 @@ spec:
         requests:
           cpu: 3.5
       volumeMounts:
-        - mountPath: /tmp/store
-          name: results-volume-cpu
+        - mountPath: /wandb-store
+          name: wandb-store-cpu
   volumes:
-    - name: results-volume-cpu
-      hostPath:
-        # directory location on host
-        path: /tmp/store-cpu
-        # this field is optional
-        type: DirectoryOrCreate
+    - name: wandb-store-cpu
+      ephemeral:
+        volumeClaimTemplate:
+          metadata:
+            labels:
+              type: my-frontend-volume
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            storageClassName: "scratch-storage-class"
+            resources:
+              requests:
+                storage: 1Gi
