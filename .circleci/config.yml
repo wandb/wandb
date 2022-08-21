@@ -806,8 +806,7 @@ jobs:
                   done
                 no_output_timeout: "5m"
             - run:
-                # todo: make getting the exit_code more robust: add check for "commands succeeded"
-                name: "Wait for tests to finish, get pod logs, and parse exit code"
+                name: "Wait for tests to finish"
                 command: |
                   sleep 30
 
@@ -828,30 +827,16 @@ jobs:
                     echo
                     sleep << parameters.sleep_time >>
                   done
-
+                no_output_timeout: "20m"
+            - run:
+                name: "Grab results"
+                command: |
                   # grab result data
-                  echo "Grab results"
-                  echo "DEBUG cp << parameters.pod_name >>:/home/sdk/wandb/test-results"
-                  kubectl describe po
-                  kubectl describe pv
-                  kubectl describe pvc
-                  bash -c pwd
-                  ls -l
-                  echo "hello0"
+                  echo "Launch attach pod to get results..."
                   kubectl create -f << parameters.path >>/attach.yaml
-                  echo "hello"
-                  kubectl describe po
-                  kubectl describe pv
-                  kubectl describe pvc
-                  echo "hello2"
-                  kubectl describe po
-                  echo "hello33"
-                  kubectl get pods | grep attachpod
-                  echo "hello44"
-
                   while true; do
                     kubectl get pods
-                    pod_state=$(kubectl get pods | grep attachpod)
+                    pod_state=$(kubectl get pods | grep attach-pod)
                     if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
                       echo "Attach Pod for << parameters.image_name >> is running"
                       break
@@ -860,7 +845,7 @@ jobs:
                       break
                     elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                       echo "Attach Pod for << parameters.image_name >> is in an error state"
-                      kubectl logs attachpod
+                      kubectl logs attach-pod
                       echo "About to exit"
                       exit 1
                     fi
@@ -868,15 +853,14 @@ jobs:
                     echo
                     sleep << parameters.sleep_time >>
                   done
-
-                  echo "hello3"
-                  kubectl cp attachpod:/wandb-store/test-results .
-                  echo "cp_done"
-                  kubectl delete pod attachpod
-                  ls -l
-                  # kubectl cp << parameters.pod_name >>:/home/sdk/wandb/test-results .
-                  echo "Grab results done"
-
+                  echo "Copy results from pod..."
+                  kubectl cp attach-pod:/wandb-store/test-results .
+                no_output_timeout: "10m"
+            - run:
+                # todo: make getting the exit_code more robust: add check for "commands succeeded"
+                name: "Get pod logs and parse exit code"
+                command: |
+                  kubectl delete pod attach-pod
                   kubectl logs << parameters.pod_name >>
                   logs=`kubectl logs << parameters.pod_name >>`
                   exit_code=`echo $(echo $logs | grep -c "commands failed")`
@@ -892,7 +876,8 @@ jobs:
                 when: always
                 command: |
                   kubectl get pods
-                  kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+                  kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >> || echo "Problem deleting pod"
+                  kubectl delete -f << parameters.path >>/attach.pod || echo "Problem deleting attach pod"
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
                 condition: << parameters.notify_on_failure >>

@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "attachpod"
+  name: "attach-pod"
 spec:
   restartPolicy: Never
   containers:
-  - name: "attachcont"
+  - name: "attach-container"
     image: "alpine:latest"
     command: ["/bin/sh"]
     args: ["-c", "sleep 600"]
