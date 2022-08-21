@@ -16,3 +16,13 @@ spec:
           cpu: 3.999
         requests:
           cpu: 3.5
+      volumeMounts:
+        - mountPath: /results
+          name: results-volume-cpu
+  volumes:
+    - name: results-volume-cpu
+      hostPath:
+        # directory location on host
+        path: /results-cpu
+        # this field is optional
+        type: DirectoryOrCreate
