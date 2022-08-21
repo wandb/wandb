@@ -837,7 +837,9 @@ jobs:
                   kubectl describe pvc
                   bash -c pwd
                   ls -l
-                  kubectl cp << parameters.pod_name >>:pv-demo:test-results .
+                  kubectl create -f << parameters.path >>/attach.yaml
+                  kubectl cp attach-pvc:/wandb-store/test-results .
+                  kubectl delete pod attach-pvc
                   ls -l
                   # kubectl cp << parameters.pod_name >>:/home/sdk/wandb/test-results .
                   echo "Grab results done"
