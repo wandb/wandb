@@ -6,8 +6,9 @@ spec:
   restartPolicy: Never
   containers:
   - name: "attachcont"
-    image: "alpine:latest"
-    command: ["/bin/bash", "-c", "sleep infinity"]   
+    image: "debian"
+    command: ["/bin/sh"]
+    args: ["-c", "sleep 600"]
     volumeMounts:
     - name: my-persistent-volumeclaim-name
       mountPath: "/wandb-store"

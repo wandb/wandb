@@ -861,6 +861,7 @@ jobs:
                     elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                       echo "Attach Pod for << parameters.image_name >> is in an error state"
                       kubectl logs attachpod
+                      echo "About to exit"
                       exit 1
                     fi
                     echo "Sleeping for << parameters.sleep_time >> seconds"
