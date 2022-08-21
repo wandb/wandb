@@ -17,12 +17,12 @@ spec:
         requests:
           cpu: 3.5
       volumeMounts:
-        - mountPath: /results
+        - mountPath: /tmp/store
           name: results-volume-cpu
   volumes:
     - name: results-volume-cpu
       hostPath:
         # directory location on host
-        path: /results-cpu
+        path: /tmp/store-cpu
         # this field is optional
         type: DirectoryOrCreate
