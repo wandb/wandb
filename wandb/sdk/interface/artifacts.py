@@ -19,8 +19,7 @@ from typing import (
 )
 
 import wandb
-from wandb import env
-from wandb import util
+from wandb import env, util
 from wandb.data_types import WBValue
 
 if TYPE_CHECKING:

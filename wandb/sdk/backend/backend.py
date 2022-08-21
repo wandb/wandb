@@ -10,9 +10,7 @@ import multiprocessing
 import os
 import sys
 import threading
-from typing import Any, Callable, Dict, Optional
-from typing import cast
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 
 import wandb
 
@@ -23,12 +21,12 @@ from ..lib.mailbox import Mailbox
 from ..wandb_manager import _Manager
 from ..wandb_settings import Settings
 
-
 if TYPE_CHECKING:
-    from ..wandb_run import Run
     from wandb.proto.wandb_internal_pb2 import Record, Result
+
     from ..service.service_grpc import ServiceGrpcInterface
     from ..service.service_sock import ServiceSockInterface
+    from ..wandb_run import Run
 
 logger = logging.getLogger("wandb")
 

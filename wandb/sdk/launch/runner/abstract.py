@@ -1,11 +1,12 @@
-from abc import ABC, abstractmethod
 import logging
 import os
 import subprocess
 import sys
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
+
 import wandb
 from wandb import Settings
 from wandb.apis.internal import Api

@@ -1,24 +1,24 @@
 """Handle Manager."""
 
-from collections import defaultdict
 import json
 import logging
 import math
 import numbers
+import time
+from collections import defaultdict
 from queue import Queue
 from threading import Event
-import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
-    cast,
     Dict,
     Iterable,
     List,
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
+    cast,
 )
 
 from wandb.proto.wandb_internal_pb2 import (
@@ -31,16 +31,13 @@ from wandb.proto.wandb_internal_pb2 import (
     SummaryRecord,
 )
 
-from . import meta, sample, stats, tb_watcher
-from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
+from . import meta, sample, stats, tb_watcher
+from .settings_static import SettingsStatic
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import (
-        ArtifactDoneRequest,
-        MetricSummary,
-    )
+    from wandb.proto.wandb_internal_pb2 import ArtifactDoneRequest, MetricSummary
 
 
 SummaryDict = Dict[str, Any]

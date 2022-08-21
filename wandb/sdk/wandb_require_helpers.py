@@ -1,6 +1,6 @@
-from functools import wraps
 import os
-from typing import Any, Callable, cast, TypeVar
+from functools import wraps
+from typing import Any, Callable, TypeVar, cast
 
 FuncT = TypeVar("FuncT", bound=Callable[..., Any])
 

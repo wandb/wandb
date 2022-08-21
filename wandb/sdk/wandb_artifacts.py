@@ -12,6 +12,8 @@ import tempfile
 import threading
 import time
 from typing import (
+    IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     cast,
@@ -23,43 +25,43 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
-    TYPE_CHECKING,
     Union,
+    cast,
 )
 from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
 import urllib3
+
 import wandb
-from wandb import env
-from wandb import util
+import wandb.data_types as data_types
+from wandb import env, util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
-import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 from wandb.sdk.internal import progress
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
-from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
-    Artifact as ArtifactInterface,
+from .interface.artifacts import Artifact as ArtifactInterface
+from .interface.artifacts import (  # noqa: F401
     ArtifactEntry,
     ArtifactsCache,
     ArtifactManifest,
+    StorageHandler,
+    StorageLayout,
+    StoragePolicy,
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
     md5_string,
-    StorageHandler,
-    StorageLayout,
-    StoragePolicy,
 )
 
-
 if TYPE_CHECKING:
-    import google.cloud.storage as gcs_module  # type: ignore
     import boto3  # type: ignore
+    import google.cloud.storage as gcs_module  # type: ignore
+
     import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 # This makes the first sleep 1s, and then doubles it up to total times,

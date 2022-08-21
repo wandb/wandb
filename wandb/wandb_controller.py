@@ -55,6 +55,8 @@ import string
 import time
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import yaml
+
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.sdk import wandb_sweep
@@ -63,7 +65,6 @@ from wandb.util import (
     handle_sweep_config_violations,
     sweep_config_err_text_from_jsonschema_violations,
 )
-import yaml
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space

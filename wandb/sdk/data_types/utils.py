@@ -1,12 +1,10 @@
 import logging
 import os
 import re
-from typing import cast, Optional, Sequence, TYPE_CHECKING, Union
-
+from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 import wandb
 from wandb import util
-
 
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue

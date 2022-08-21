@@ -3,37 +3,35 @@ sender.
 """
 
 
-from collections import defaultdict
-from datetime import datetime
 import json
 import logging
 import os
 import queue
-from queue import Queue
 import threading
 import time
+from collections import defaultdict
+from datetime import datetime
+from queue import Queue
 from typing import (
+    TYPE_CHECKING,
     Any,
-    cast,
     Dict,
     Generator,
     List,
     NewType,
     Optional,
     Tuple,
-    TYPE_CHECKING,
+    cast,
 )
 
 import requests
+
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
 
-from . import artifacts, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import (
@@ -47,9 +45,13 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-
+from . import artifacts, file_stream, internal_api, update
+from .file_pusher import FilePusher
+from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
+    import sys
+
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactRecord,
         HttpResponse,
@@ -59,8 +61,6 @@ if TYPE_CHECKING:
         RunExitResult,
         RunRecord,
     )
-
-    import sys
 
     if sys.version_info >= (3, 8):
         from typing import Literal

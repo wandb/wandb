@@ -8,20 +8,20 @@ from typing import Any, Dict, Optional
 
 import kubernetes  # type: ignore
 from kubernetes import client
+
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
-from .build import _create_docker_build_ctx, generate_dockerfile
 from .._project_spec import (
-    create_metadata_file,
     EntryPoint,
-    get_entry_point_command,
     LaunchProject,
+    create_metadata_file,
+    get_entry_point_command,
 )
-from ..utils import get_kube_context_and_api_client, LOG_PREFIX, sanitize_wandb_api_key
-
+from ..utils import LOG_PREFIX, get_kube_context_and_api_client, sanitize_wandb_api_key
+from .build import _create_docker_build_ctx, generate_dockerfile
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 

@@ -5,7 +5,7 @@ Create a grpc manager channel.
 
 import atexit
 import os
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks

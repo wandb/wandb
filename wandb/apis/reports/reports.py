@@ -1,10 +1,11 @@
-from copy import deepcopy
 import inspect
 import json
 import re
-from typing import Any, Dict, List as LList
-from typing import Optional, Union
 import urllib
+from copy import deepcopy
+from typing import Any, Dict
+from typing import List as LList
+from typing import Optional, Union
 
 import wandb
 from wandb.sdk.lib import ipython
@@ -14,25 +15,25 @@ from .util import (
     Attr,
     Base,
     Block,
+    Panel,
     coalesce,
     fix_collisions,
     generate_name,
     nested_get,
     nested_set,
-    Panel,
 )
 from .validators import (
     AGGFUNCS,
-    Between,
     CODE_COMPARE_DIFF,
     FONT_SIZES,
     LEGEND_POSITIONS,
-    Length,
     LINEPLOT_STYLES,
     MARKS,
-    OneOf,
     RANGEFUNCS,
     SMOOTHING_TYPES,
+    Between,
+    Length,
+    OneOf,
     TypeValidator,
 )
 
