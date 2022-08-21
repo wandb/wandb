@@ -853,14 +853,14 @@ jobs:
                     kubectl get pods
                     pod_state=$(kubectl get pods | grep attachpod)
                     if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> is running"
+                      echo "Attach Pod for << parameters.image_name >> is running"
                       break
                     elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> has completed"
+                      echo "Attach Pod for << parameters.image_name >> has completed"
                       break
                     elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> is in an error state"
-                      kubectl logs << parameters.pod_name >>
+                      echo "Attach Pod for << parameters.image_name >> is in an error state"
+                      kubectl logs attachpod
                       exit 1
                     fi
                     echo "Sleeping for << parameters.sleep_time >> seconds"
