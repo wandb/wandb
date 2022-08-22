@@ -392,7 +392,10 @@ class Notebook:
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
-            print("DEBUG", colab_ipynb)
+            print("DEBUG1", colab_ipynb)
+            print("DEBUG2", colab_ipynb.get("metadata"))
+            print("DEBUG3", colab_ipynb.get("metadata", {}).get("colab"))
+            print("DEBUG4", colab_ipynb.get("metadata", {}).get("colab", {}).get("name"))
             nb_name = colab_ipynb["metadata"]["colab"]["name"]
             if ".ipynb" not in nb_name:
                 nb_name += ".ipynb"
