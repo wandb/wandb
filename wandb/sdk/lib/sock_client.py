@@ -158,6 +158,7 @@ class SockClient:
         try:
             self._send_message(msg)
         except (BrokenPipeError, SockClientClosedError):
+            print("HERE!!!!")
             # TODO(jhr): user thread might no longer be around to receive responses to
             # things like network status poll loop, there might be a better way to quiesce
             pass
