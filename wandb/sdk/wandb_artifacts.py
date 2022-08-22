@@ -12,7 +12,6 @@ import tempfile
 import threading
 import time
 from typing import (
-    IO,
     TYPE_CHECKING,
     Any,
     Callable,
@@ -26,7 +25,6 @@ from typing import (
     Optional,
     Tuple,
     Union,
-    cast,
 )
 from urllib.parse import parse_qsl, quote, urlparse
 
@@ -760,7 +758,7 @@ class EntryToDictMapping(dict):
         self._mapping = mapping
         self._map_fn = map_fn
 
-    def items(self) -> Iterator[tuple[str, Dict]]:  # type: ignore[override]
+    def items(self) -> Iterator[Tuple[str, Dict]]:  # type: ignore[override]
         for path, entry in self._mapping.items():
             yield path, self._map_fn(entry)
 
@@ -788,7 +786,7 @@ class SQLArtifactEntryMapping(Mapping):
         db = self._manifest._db()
         return int(db.execute("SELECT SUM(size) FROM manifest_entries").fetchone()[0])
 
-    def items(self) -> Iterator[tuple[str, ArtifactEntry]]:  # type: ignore[override]
+    def items(self) -> Iterator[Tuple[str, ArtifactEntry]]:  # type: ignore[override]
         db = self._manifest._db()
         for row in db.execute("SELECT * FROM manifest_entries ORDER BY path"):
             yield row[0], self.row_to_entry(row)
@@ -880,7 +878,7 @@ class ArtifactManifestSQL(ArtifactManifest):
                 for entry in entries.values():
                     self.add_entry(entry)
 
-    @functools.cache  # noqa: B019
+    @functools.lru_cache()  # noqa: B019
     def _thread_safe_client(self, id: int) -> sqlite3.Connection:
         if self._connection_pool.get(id) is None:
             # There's risk of corruption if a connection is shared across threads
