@@ -157,7 +157,7 @@ class SockClient:
     def send_server_response(self, msg: Any) -> None:
         try:
             self._send_message(msg)
-        except BrokenPipeError:
+        except (BrokenPipeError, SockClientClosedError):
             # TODO(jhr): user thread might no longer be around to receive responses to
             # things like network status poll loop, there might be a better way to quiesce
             pass
