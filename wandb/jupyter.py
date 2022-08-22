@@ -373,10 +373,18 @@ class Notebook:
 
         return
 
-    def save_ipynb(self):
+    def save_ipynb(self) -> bool:
         if not self.settings.save_code:
             logger.info("not saving jupyter notebook")
             return False
+        ret = False
+        try:
+            ret = self._save_ipynb()
+        except Exception as e:
+            logger.info(f"Problem saving notebook: {e}")
+        return ret
+
+    def _save_ipynb(self) -> bool:
         relpath = self.settings._jupyter_path
         logger.info("looking for notebook: %s", relpath)
         if relpath:
@@ -392,10 +400,6 @@ class Notebook:
         # TODO: likely only save if the code has changed
         colab_ipynb = attempt_colab_load_ipynb()
         if colab_ipynb:
-            print("DEBUG1", colab_ipynb)
-            print("DEBUG2", colab_ipynb.get("metadata"))
-            print("DEBUG3", colab_ipynb.get("metadata", {}).get("colab"))
-            print("DEBUG4", colab_ipynb.get("metadata", {}).get("colab", {}).get("name"))
             nb_name = colab_ipynb["metadata"]["colab"]["name"]
             if ".ipynb" not in nb_name:
                 nb_name += ".ipynb"
