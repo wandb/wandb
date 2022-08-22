@@ -1,7 +1,7 @@
 plugin:
   - wandb
 tag:
-  shard: standalone-cpu-perf
+  shard: standalone-cpu
 profile:
   - :wandb:import
   - :wandb:init

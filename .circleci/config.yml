@@ -836,7 +836,7 @@ jobs:
                   kubectl create -f << parameters.path >>/attach.yaml
                   while true; do
                     kubectl get pods
-                    pod_state=$(kubectl get pods | grep cpu-pod-attach-pod)
+                    pod_state=$(kubectl get pods | grep << parameters.pod_name >>-attach-pod)
                     if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
                       echo "Attach Pod for << parameters.image_name >> is running"
                       break
@@ -845,7 +845,7 @@ jobs:
                       break
                     elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
                       echo "Attach Pod for << parameters.image_name >> is in an error state"
-                      kubectl logs cpu-pod-attach-pod
+                      kubectl logs << parameters.pod_name >>-attach-pod
                       echo "About to exit"
                       exit 1
                     fi
@@ -855,13 +855,14 @@ jobs:
                   done
                   echo "Copy results from pod..."
                   mkdir -p results/<< parameters.pod_name >>
-                  kubectl cp cpu-pod-attach-pod:/wandb-store/test-results results/<< parameters.pod_name >>
+                  kubectl cp << parameters.pod_name >>-attach-pod:/wandb-store/test-results results/<< parameters.pod_name >>
+                  echo "Delete attach pod..."
+                  kubectl delete pod << parameters.pod_name >>-attach-pod
                 no_output_timeout: "10m"
             - run:
                 # todo: make getting the exit_code more robust: add check for "commands succeeded"
                 name: "Get pod logs and parse exit code"
                 command: |
-                  kubectl delete pod cpu-pod-attach-pod
                   kubectl logs << parameters.pod_name >>
                   logs=`kubectl logs << parameters.pod_name >>`
                   exit_code=`echo $(echo $logs | grep -c "commands failed")`
