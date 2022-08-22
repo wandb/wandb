@@ -381,7 +381,7 @@ class Notebook:
         try:
             ret = self._save_ipynb()
         except Exception as e:
-            logger.info(f"Problem saving notebook: {e}")
+            logger.info(f"Problem saving notebook: {repr(e)}")
         return ret
 
     def _save_ipynb(self) -> bool:
