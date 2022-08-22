@@ -3,10 +3,8 @@ kind: PersistentVolume
 apiVersion: v1
 metadata:
   name: cpu-pod-results-volume
-  labels:
-    type: nfs
 spec:
-  storageClassName: pv-demo
+  storageClassName: cpu-pod-pv
   capacity:
     storage: 1Gi
   accessModes:
@@ -20,7 +18,7 @@ apiVersion: v1
 metadata:
   name: cpu-pod-results-volumeclaim
 spec:
-  storageClassName: pv-demo
+  storageClassName: cpu-pod-pv
   accessModes:
     - ReadWriteOnce
   resources:
@@ -40,7 +38,6 @@ spec:
       env:
         - name: WANDB_API_KEY
           value: WANDB_API_KEY_PLACEHOLDER
-#      command: ["tail", "-f", "/dev/null"]
       resources:
         limits:
           cpu: 3.999
