@@ -141,6 +141,9 @@ class SockClient:
                 delta_time = time.monotonic() - start_time
                 if delta_time < self._retry_delay:
                     time.sleep(self._retry_delay - delta_time)
+            except BrokenPipeError:
+                print("broken pipe!!!!!!")
+                raise SockClientClosedError("socket connection broken")
 
     def _send_message(self, msg: Any) -> None:
         tracelog.log_message_send(msg, self._sockid)
