@@ -1,3 +1,10 @@
+## 0.13.2 (August 22, 2022)
+
+#### :bug: Bug Fix
+* Fix issue triggered by colab update by using default file and catching exceptions by @raubitsj in https://github.com/wandb/wandb/pull/4156
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.13.1...v0.13.2
+
 ## 0.13.1 (August 5, 2022)
 
 #### :bug: Bug Fix
