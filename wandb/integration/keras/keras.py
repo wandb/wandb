@@ -398,7 +398,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
-        compute_flops=True,
         **kwargs,
     ):
         if wandb.run is None:
@@ -460,7 +459,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.class_colors = np.array(class_colors) if class_colors is not None else None
         self.log_batch_frequency = log_batch_frequency
         self.log_best_prefix = log_best_prefix
-        self.compute_flops = compute_flops
 
         self._prediction_batch_size = None
 
@@ -701,14 +699,11 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     f"Skipping logging validation data. Error: {str(e)}"
                 )
 
-        if self.compute_flops and _can_compute_flops():
+        if _can_compute_flops():
             try:
                 wandb.summary["GFLOPs"] = self.get_flops()
-            except Exception as e:
-                wandb.termwarn(
-                    "Unable to compute FLOPs for this model. Consider setting compute_flops "
-                    "argument to False to not get the warning message"
-                )
+            except:
+                pass
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
