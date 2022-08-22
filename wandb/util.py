@@ -255,7 +255,8 @@ def sentry_set_scope(
                 scope.set_tag(tag, value)
 
     # Track session so we can get metrics about error free rate
-    sentry_hub.start_session()
+    if sentry_hub:
+        sentry_hub.start_session()
 
 
 def vendor_setup() -> Callable:
