@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import platform
 import sys
 import time
 from unittest import mock
@@ -16,4 +17,7 @@ except Exception as e:
     # todo: this is a hack to reduce flake
     #  (sometimes, it takes time for the mock server to pick up the sentry event)
     time.sleep(5)
-    sys.exit(4294967295)
+    if platform.system() == "Windows":
+        sys.exit(4294967295)
+    else:
+        sys.exit(1)
