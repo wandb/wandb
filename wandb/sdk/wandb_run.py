@@ -1190,6 +1190,7 @@ class Run:
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
         if not self._backend or not self._backend.interface:
             return {}
+        # Move to deliver
         ret = self._backend.interface.communicate_get_summary()
         if not ret:
             return {}
