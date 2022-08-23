@@ -141,11 +141,16 @@ class _Manager:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
 
-        self._inform_teardown(exit_code)
-        result = self._service.join()
-        if result and not self._settings._jupyter:
-            os._exit(result)
-        self._token.reset_environment()
+        try:
+            self._inform_teardown(exit_code)
+            result = self._service.join()
+            if result and not self._settings._jupyter:
+                os._exit(result)
+        except Exception as e:
+            print("teardown error", e)
+            pass
+        finally:
+            self._token.reset_environment()
 
     def _get_service(self) -> "service._Service":
         return self._service
