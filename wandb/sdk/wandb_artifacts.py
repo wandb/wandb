@@ -1012,6 +1012,7 @@ class ArtifactManifestV1(ArtifactManifest):
         artifact: ArtifactInterface,
         storage_policy: "WandbStoragePolicy",
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
+        manifest_path: Optional[str] = None
     ) -> None:
         super().__init__(artifact, storage_policy, entries=entries)
 

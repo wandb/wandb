@@ -124,7 +124,7 @@ class ArtifactManifest:
                 for config in artifact.manifest.storage_policy_config
             }
         )
-        if artifact.manifest.manifest_path == "":
+        if artifact.manifest.path == "":
             manifest = cls.from_manifest_json(
                 artifact, _manifest_json_from_proto(artifact.manifest)
             )
@@ -132,7 +132,7 @@ class ArtifactManifest:
             del artifact.manifest.contents[:]
             return manifest
         else:
-            return cls(artifact, policy, manifest_path=artifact.manifest.manifest_path)
+            return cls(artifact, policy, manifest_path=artifact.manifest.path)
 
     @classmethod
     def from_manifest_json(
