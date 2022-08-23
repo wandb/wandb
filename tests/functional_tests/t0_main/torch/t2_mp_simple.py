@@ -1,15 +1,14 @@
 # based on: https://github.com/pytorch/examples/tree/main/mnist_hogwild
 import os
 
-from PIL import Image
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.nn.functional as F  # noqa: N812
 import torch.optim as optim
-from torchvision import transforms
 import wandb
-
+from PIL import Image
+from torchvision import transforms
 
 SEED = 1
 BATCH_SIZE = 32

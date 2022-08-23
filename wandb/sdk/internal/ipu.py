@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Dict, Optional, Set, Tuple, Union
 
-
 logger = logging.getLogger(__name__)
 
 # The metrics that change over time.

@@ -1,31 +1,26 @@
 import json
 import os
 import platform
+import sys
 from unittest import mock
 from unittest.mock import MagicMock
-import sys
-import yaml
 
 import pytest
 import wandb
+import wandb.sdk.launch._project_spec as _project_spec
+import wandb.sdk.launch.launch as launch
+import wandb.util as util
+import yaml
 from wandb.apis import PublicApi
 from wandb.apis.public import Run
 from wandb.errors import CommError, LaunchError
-
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
-import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.builder.docker import DockerBuilder
 from wandb.sdk.launch.launch_add import launch_add
-import wandb.sdk.launch._project_spec as _project_spec
-from wandb.sdk.launch.utils import (
-    PROJECT_DOCKER_ARGS,
-    PROJECT_SYNCHRONOUS,
-)
-import wandb.util as util
+from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
 
 from tests.unit_tests_old.utils import fixture_open, notebook_path
-
 
 EMPTY_BACKEND_CONFIG = {
     PROJECT_DOCKER_ARGS: {},

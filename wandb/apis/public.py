@@ -11,9 +11,7 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 import ast
-from collections import namedtuple
 import datetime
-from functools import partial
 import json
 import logging
 import os
@@ -22,11 +20,16 @@ import re
 import shutil
 import tempfile
 import time
-from typing import List, Optional
 import urllib
+from collections import namedtuple
+from functools import partial
+from typing import List, Optional
 
-from pkg_resources import parse_version
 import requests
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
+from wandb_gql.transport.requests import RequestsHTTPTransport
+
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
@@ -40,10 +43,6 @@ from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
-from wandb_gql import Client, gql
-from wandb_gql.client import RetryError
-from wandb_gql.transport.requests import RequestsHTTPTransport
-
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +240,8 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
+        from pkg_resources import parse_version
+
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
         )
@@ -2944,6 +2945,9 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
+
+    from pkg_resources import parse_version
+
     def __init__(self, run_set):
         self.run_set = run_set
         self.panel_metrics_helper = PanelMetricsHelper()

@@ -1,6 +1,6 @@
 # Taken from: https://github.com/alexsdutton/www-authenticate
-from collections import OrderedDict
 import re
+from collections import OrderedDict
 from typing import Any
 
 _tokens = (

@@ -1,18 +1,19 @@
 #
-from datetime import datetime
 import json
-from typing import Any, Dict, Union
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, Union
 
 from wandb.proto import wandb_internal_pb2 as pb
 
-
 if TYPE_CHECKING:  # pragma: no cover
+    from google.protobuf.internal.containers import (
+        MessageMap,
+        RepeatedCompositeFieldContainer,
+    )
+    from google.protobuf.message import Message
+
     from wandb.proto import wandb_server_pb2 as spb
     from wandb.proto import wandb_telemetry_pb2 as tpb
-    from google.protobuf.internal.containers import MessageMap
-    from google.protobuf.internal.containers import RepeatedCompositeFieldContainer
-    from google.protobuf.message import Message
 
 
 def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:

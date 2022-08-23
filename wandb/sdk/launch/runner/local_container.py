@@ -9,22 +9,17 @@ from typing import Any, Dict, List, Optional
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
-from ..builder.build import (
-    docker_image_exists,
-    get_env_vars_dict,
-    pull_docker_image,
-)
+from .._project_spec import LaunchProject, get_entry_point_command
+from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
 from ..utils import (
-    _is_wandb_dev_uri,
-    _is_wandb_local_uri,
     LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    _is_wandb_dev_uri,
+    _is_wandb_local_uri,
     sanitize_wandb_api_key,
 )
-
+from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
 

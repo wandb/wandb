@@ -1,5 +1,4 @@
 import atexit
-from contextlib import contextmanager
 import logging
 import os
 import platform
@@ -9,35 +8,34 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import threading
+import time
+import urllib
+import webbrowser
+from contextlib import contextmanager
 from typing import Optional
 from unittest import mock
 from unittest.mock import MagicMock
-import urllib
 
 import click
-from click.testing import CliRunner
 import git
 import nbformat
 import psutil
 import pytest
 import requests
-import webbrowser
-
-from . import utils
 import wandb
-from wandb import wandb_sdk
+from click.testing import CliRunner
+from wandb import Api, wandb_sdk
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.lib.module import unset_globals
 from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.module import unset_globals
 from wandb.util import mkdir_exists_ok
-from wandb import Api
 
+from . import utils
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 

@@ -1,8 +1,5 @@
 import configparser
-from datetime import datetime
-from distutils.util import strtobool
 import enum
-from functools import reduce
 import getpass
 import json
 import multiprocessing
@@ -13,6 +10,9 @@ import socket
 import sys
 import tempfile
 import time
+from datetime import datetime
+from distutils.util import strtobool
+from functools import reduce
 from typing import (
     Any,
     Callable,
@@ -21,19 +21,19 @@ from typing import (
     ItemsView,
     Iterable,
     Mapping,
-    no_type_check,
     Optional,
     Sequence,
     Set,
     Tuple,
     Union,
+    no_type_check,
 )
 from urllib.parse import quote, urlencode, urlparse, urlsplit
 
 import wandb
+import wandb.env
 from wandb import util
 from wandb.apis.internal import Api
-import wandb.env
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -122,7 +122,7 @@ def _get_program() -> Optional[Any]:
     if program is not None:
         return program
     try:
-        import __main__  # type: ignore
+        import __main__
 
         if __main__.__spec__ is None:
             return __main__.__file__

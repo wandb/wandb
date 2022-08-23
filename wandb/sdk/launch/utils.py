@@ -5,9 +5,10 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import click
+
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
@@ -439,7 +440,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
                 "Error: %s" % (version, uri, e)
             )
     else:
-        if repo.getattr("references", None) is not None:
+        if getattr(repo, "references", None) is not None:
             branches = [ref.name for ref in repo.references]
         else:
             branches = []

@@ -4,9 +4,8 @@ api.
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
-from wandb import env
-from wandb import termwarn
-from wandb import util
+
+from wandb import env, termwarn, util
 
 if env.ssl_disabled():
     # Because third party libraries may also use requests, we monkey patch it globally

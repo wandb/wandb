@@ -4,9 +4,7 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import pytest
-
 import wandb
-
 import wandb.apis.reports.util as util
 from wandb.apis.reports.validators import (
     Between,
@@ -16,7 +14,6 @@ from wandb.apis.reports.validators import (
     OrderString,
     TypeValidator,
 )
-
 
 wandb.require("report-editing")
 

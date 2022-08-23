@@ -3,14 +3,14 @@ import pprint
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
-from wandb.apis.internal import Api
 import wandb.apis.public as public
 from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
+from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.utils import (
-    construct_launch_spec,
     LOG_PREFIX,
+    construct_launch_spec,
     validate_launch_spec_source,
 )
 

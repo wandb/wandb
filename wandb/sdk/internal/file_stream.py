@@ -9,6 +9,7 @@ import threading
 import time
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -18,7 +19,6 @@ from typing import (
     Set,
     Tuple,
     Type,
-    TYPE_CHECKING,
     Union,
 )
 
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 
 
 import requests
+
 import wandb
 from wandb import env, util
 from wandb.sdk.internal import internal_api

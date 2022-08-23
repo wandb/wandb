@@ -162,7 +162,7 @@ class AuthConfig(dict):
         conf = {}
         for registry, entry in entries.items():
             if not isinstance(entry, dict):
-                log.debug(f"Config entry for key {registry} is not auth config")
+                log.debug(f"Config entry for key {registry} is not auth config")  # type: ignore
                 # We sometimes fall back to parsing the whole config as if it
                 # was the auth config by itself, for legacy purposes. In that
                 # case, we fail silently and return an empty conf if any of the

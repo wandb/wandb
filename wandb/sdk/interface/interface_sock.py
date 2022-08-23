@@ -5,18 +5,17 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-from typing import Any, Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
-
+from ..lib.mailbox import Mailbox
+from ..lib.sock_client import SockClient
 from .interface_shared import InterfaceShared
 from .message_future import MessageFuture
 from .router_sock import MessageSockRouter
-from ..lib.sock_client import SockClient
-
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
+
     from ..wandb_run import Run
 
 
@@ -26,16 +25,17 @@ logger = logging.getLogger("wandb")
 class InterfaceSock(InterfaceShared):
     _stream_id: Optional[str]
     _sock_client: SockClient
+    _mailbox: Mailbox
 
-    def __init__(self, sock_client: SockClient) -> None:
+    def __init__(self, sock_client: SockClient, mailbox: Mailbox) -> None:
         # _sock_client is used when abstract method _init_router() is called by constructor
         self._sock_client = sock_client
-        super().__init__()
+        super().__init__(mailbox=mailbox)
         self._process_check = False
         self._stream_id = None
 
     def _init_router(self) -> None:
-        self._router = MessageSockRouter(self._sock_client)
+        self._router = MessageSockRouter(self._sock_client, mailbox=self._mailbox)
 
     def _hack_set_run(self, run: "Run") -> None:
         super()._hack_set_run(run)

@@ -1,13 +1,13 @@
 import json
 import os
 
+import pytest
 import wandb
 from wandb.cli import cli
 from wandb.errors import LaunchError
 from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE
-import pytest
 
-from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
+from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
 
 def raise_(ex):

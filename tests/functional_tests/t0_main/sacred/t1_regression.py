@@ -3,7 +3,6 @@ from sacred import Experiment
 from sklearn import datasets, svm
 from wandb.sacred import WandbObserver
 
-
 ex = Experiment("iris_rbf_svm")
 ex.observers.append(WandbObserver(project="sacred_test", name="test1"))
 
@@ -20,6 +19,6 @@ def run(c, gamma):
     per = permutation(iris.target.size)
     iris.data = iris.data[per]
     iris.target = iris.target[per]
-    clf = svm.SVC(c, "rbf", gamma=gamma)
+    clf = svm.SVC(C=c, kernel="rbf", gamma=gamma)
     clf.fit(iris.data[:90], iris.target[:90])
     return clf.score(iris.data[90:], iris.target[90:])

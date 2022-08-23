@@ -1,26 +1,26 @@
 import configparser
 import json
 import os
-from unittest.mock import MagicMock
 import sys
+from unittest.mock import MagicMock
 
 import boto3
 import botocore
+import pytest
 import wandb
-import wandb.sdk.launch.launch as launch
 import wandb.sdk.launch._project_spec as _project_spec
+import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.runner.aws import (
     SagemakerSubmittedRun,
     get_aws_credentials,
-    get_region,
     get_ecr_repository_url,
+    get_region,
     validate_sagemaker_requirements,
 )
 
-from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 from tests.unit_tests_old.utils import fixture_open
 
-import pytest
+from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 
 
 def mock_create_training_job(*args, **kwargs):

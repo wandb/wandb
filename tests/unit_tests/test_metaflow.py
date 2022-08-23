@@ -1,16 +1,15 @@
-from pathlib import Path
 import platform
+from pathlib import Path
 
 import pytest
 
 if platform.system() == "Windows":
     pytest.importorskip("metaflow", reason="metaflow does not support native Windows")
 
-from metaflow import FlowSpec, step  # noqa: I100, I202
 import pandas as pd
+from metaflow import FlowSpec, step  # noqa: I100, I202
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
-
 
 try:
     import torch
