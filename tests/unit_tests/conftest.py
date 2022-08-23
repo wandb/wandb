@@ -756,7 +756,7 @@ def check_server_up(
         return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
 
     if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose port 9003
+        # start wandb server locally and expose ports 8080, 8083, and 9003
         command = [
             "docker",
             "run",
@@ -765,6 +765,8 @@ def check_server_up(
             "wandb:/vol",
             "-p",
             "8080:8080",
+            "-p",
+            "8083:8083",
             "-p",
             "9003:9003",
             "-e",
@@ -796,23 +798,45 @@ class UserFixtureCommand:
     username: Optional[str] = None
     admin: bool = False
     endpoint: str = "db/user"
+    port: int = 9003
+    method: Literal["post"] = "post"
+
+
+@dataclasses.dataclass
+class AddAdminAndEnsureNoDefaultUser:
+    email: str
+    password: str
+    endpoint: str = "api/users-admin"
+    port: int = 8083
+    method: Literal["put"] = "put"
 
 
 @pytest.fixture(scope="session")
 def fixture_fn(base_url, wandb_server_tag):
-    def fixture_util(cmd: UserFixtureCommand) -> bool:
-        endpoint = urllib.parse.urljoin(base_url.replace("8080", "9003"), cmd.endpoint)
-        data = {"command": cmd.command}
+    def fixture_util(
+        cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+    ) -> bool:
+        endpoint = urllib.parse.urljoin(
+            base_url.replace("8080", str(cmd.port)),
+            cmd.endpoint,
+        )
 
         if isinstance(cmd, UserFixtureCommand):
+            data = {"command": cmd.command}
             if cmd.username:
                 data["username"] = cmd.username
             if cmd.admin is not None:
                 data["admin"] = cmd.admin
+        elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
+            data = [
+                {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
+                {"email": "local@wandb.com", "delete": True},
+            ]
         else:
             raise NotImplementedError(f"{cmd} is not implemented")
-        # trigger fixture with a POST request
-        response = requests.post(endpoint, json=data)
+        # trigger fixture
+        print(f"Triggering fixture: {data}")
+        response = getattr(requests, cmd.method)(endpoint, json=data)
         if response.status_code != 200:
             print(response.json())
             return False
@@ -851,24 +875,38 @@ def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def debug(wandb_debug, fixture_fn):
+def debug(wandb_debug, fixture_fn, base_url):
     if wandb_debug:
-        # create an admin account that can be used to log in to the app
-        # and inspect the test runs.
         admin_username = f"admin-{random_string()}"
-        command = UserFixtureCommand(command="up", username=admin_username, admin=True)
+        # disable default user and create an admin account that can be used to log in to the app
+        # and inspect the test runs.
+        command = UserFixtureCommand(
+            command="up",
+            username=admin_username,
+            admin=True,
+        )
         fixture_fn(command)
-        print(
+        command = AddAdminAndEnsureNoDefaultUser(
+            email=admin_username,
+            password=admin_username,
+        )
+        fixture_fn(command)
+        message = (
             f"{ConsoleFormatter.GREEN}"
-            "**********************************************\n"
-            f"Admin username and API key: {admin_username}\n"
-            "**********************************************"
+            "*****************************************************************\n"
+            "Admin user created for debugging:\n"
+            f"Proceed to {base_url} and log in with the following credentials:\n"
+            f"username: {admin_username}@wandb.com\n"
+            f"password: {admin_username}\n"
+            "*****************************************************************"
             f"{ConsoleFormatter.END}"
         )
+        print(message)
         yield admin_username
-        input("\nPress any key to exit...")
-        command = UserFixtureCommand(command="down_all")
-        fixture_fn(command)
+        print(message)
+        # input("\nPress any key to exit...")
+        # command = UserFixtureCommand(command="down_all")
+        # fixture_fn(command)
     else:
         yield None
 
