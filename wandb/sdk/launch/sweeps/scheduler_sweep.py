@@ -144,7 +144,7 @@ class SweepScheduler(Scheduler):
         _ = self._add_to_launch_queue(
             run_id=run.id,
             entry_point=["python", run.program] if run.program else None,
-            params=run.args,
+            config={"overrides": {"run_config": run.args}},
         )
 
     def _exit(self) -> None:

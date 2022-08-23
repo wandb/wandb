@@ -209,7 +209,7 @@ class Scheduler(ABC):
         self,
         run_id: Optional[str] = None,
         entry_point: Optional[List[str]] = None,
-        params: Optional[Dict[str, Any]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
@@ -224,7 +224,7 @@ class Scheduler(ABC):
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,
-            params=params,
+            config=config,
             uri=_uri,
             job=_job,
             project=self._project,
