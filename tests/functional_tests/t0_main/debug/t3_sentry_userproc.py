@@ -1,23 +1,19 @@
 #!/usr/bin/env python
-import platform
-import sys
-import time
 from unittest import mock
 
 import wandb
+import wandb.util
 
-try:
-    with mock.patch(
-        "wandb.sdk.wandb_init._WandbInit.init",
-        mock.Mock(side_effect=Exception("injected")),
-    ):
-        wandb.sdk.wandb_init._WandbInit.init.sentry_repr = None
-        run = wandb.init()
-except Exception:
-    # todo: this is a hack to reduce flake
-    #  (sometimes, it takes time for the mock server to pick up the sentry event)
-    time.sleep(20)
-    if platform.system() == "Windows":
-        sys.exit(4294967295)
-    else:
-        sys.exit(1)
+
+def sentry_exc(exc, delay):  # type: ignore
+    return wandb.util.sentry_exc(exc, delay=False)
+
+
+with mock.patch(
+    "wandb.sdk.wandb_init._WandbInit.init",
+    mock.Mock(side_effect=Exception("injected")),
+), mock.patch("wandb.util.sentry_exc", sentry_exc):
+    wandb.sdk.wandb_init._WandbInit.init.sentry_repr = None
+    print(wandb.util.sentry_client)
+    print(wandb.util.sentry_hub)
+    run = wandb.init()
