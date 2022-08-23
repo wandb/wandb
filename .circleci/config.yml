@@ -340,7 +340,7 @@ jobs:
         default: "default"  # "default" or "server-2019-cuda"
       executor_size:
         type: string
-        default: "large"  # could only be "medium" for "server-2019-cuda"
+        default: "xlarge"  # could only be "medium" for "server-2019-cuda"
       execute:
         type: boolean
         default: true
