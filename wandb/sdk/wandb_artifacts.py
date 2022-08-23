@@ -28,6 +28,7 @@ from typing import (
 )
 from urllib.parse import parse_qsl, quote, urlparse
 
+from pkg_resources import parse_version
 import requests
 import urllib3
 
@@ -175,10 +176,14 @@ class Artifact(ArtifactInterface):
         self._api = InternalApi()
         self._final = False
         self._digest = ""
+        if not in_memory:
+            try:
+                self._manifest = ArtifactManifestSQL(self, self._storage_policy)
+            except ValueError:
+                # Unsupported sqlite3 version, auto fallback to in_memory
+                in_memory = True
         if in_memory:
             self._manifest = ArtifactManifestV1(self, self._storage_policy)
-        else:
-            self._manifest = ArtifactManifestSQL(self, self._storage_policy)
         self._cache = get_artifacts_cache()
         self._added_objs = {}
         self._added_local_paths = {}
@@ -854,6 +859,10 @@ class ArtifactManifestSQL(ArtifactManifest):
         max_buffer_size: int = 10000,
     ) -> None:
         super().__init__(artifact, storage_policy)
+        if parse_version(sqlite3.sqlite_version) < parse_version("3.24.0"):
+            raise ValueError(
+                f"ArtifactManifestSQL requires sqlite >= 3.24.0, have sqlite = {sqlite3.sqlite_version}"
+            )
         self._dir = tempfile.mkdtemp()
         self._connection_pool: Dict[int, sqlite3.Connection] = {}
         if artifact:
@@ -942,23 +951,27 @@ class ArtifactManifestSQL(ArtifactManifest):
     def add_entry(self, entry: "ArtifactEntry") -> None:
         try:
             db = self._db(cursor=False)
-            conflict = next(
-                db.execute(
-                    "INSERT INTO manifest_entries VALUES(?, ?, ?, ?, ?, ?, ?, ?) \
-                    ON CONFLICT(path) DO UPDATE SET digest_conflict=excluded.digest \
-                    RETURNING path, digest, digest_conflict",
-                    (
-                        entry.path,
-                        entry.ref,
-                        entry.digest,
-                        entry.birth_artifact_id,
-                        entry.size,
-                        json.dumps(entry.extra) if entry.extra != {} else None,
-                        entry.local_path,
-                        None,
-                    ),
-                )
+            # ON CONFLICT was added in 3.24.0 (2018-06-04), our constructor blows
+            # up if a user attempts to use an earlier version.
+            db.execute(
+                "INSERT INTO manifest_entries VALUES(?, ?, ?, ?, ?, ?, ?, ?) \
+                ON CONFLICT(path) DO UPDATE SET digest_conflict=excluded.digest",
+                (
+                    entry.path,
+                    entry.ref,
+                    entry.digest,
+                    entry.birth_artifact_id,
+                    entry.size,
+                    json.dumps(entry.extra) if entry.extra != {} else None,
+                    entry.local_path,
+                    None,
+                ),
             )
+            # Unfortunately "RETURNING" wasn't introduced until 3.35.0 so we do
+            # a select after the insert to check for conflicts
+            conflict = db.execute(
+                "SELECT path, digest, digest_conflict WHERE path = ?", entry.path
+            ).fetchone()
             if conflict[2] is not None:
                 if conflict[1] != conflict[2]:
                     raise ValueError("Cannot add the same path twice: %s" % conflict[0])
