@@ -124,7 +124,7 @@ class ArtifactManifest:
                 for config in artifact.manifest.storage_policy_config
             }
         )
-        if artifact.manifest.path == "":
+        if artifact.manifest.manifest_path == "":
             manifest = cls.from_manifest_json(
                 artifact, _manifest_json_from_proto(artifact.manifest)
             )
