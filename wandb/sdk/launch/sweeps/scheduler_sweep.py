@@ -1,6 +1,5 @@
 """Scheduler for classic wandb Sweeps."""
 import logging
-import os
 import pprint
 import queue
 import socket
@@ -9,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, List
 
 import wandb
-from wandb import wandb_lib  # type: ignore
 from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.scheduler import (
     LOG_PREFIX,
@@ -18,7 +16,6 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SimpleRunState,
     SweepRun,
 )
-from wandb.wandb_agent import Agent as LegacySweepAgent
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +142,8 @@ class SweepScheduler(Scheduler):
             f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
         )
         _ = self._add_to_launch_queue(
-            entry_point=["python", run.program],
             run_id=run.id,
+            entry_point=["python", run.program] if run.program else None,
             params=run.args,
         )
 
