@@ -13,7 +13,7 @@ try:
     ):
         wandb.sdk.wandb_init._WandbInit.init.sentry_repr = None
         run = wandb.init()
-except Exception as e:
+except Exception:
     # todo: this is a hack to reduce flake
     #  (sometimes, it takes time for the mock server to pick up the sentry event)
     time.sleep(5)
