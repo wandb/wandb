@@ -144,22 +144,10 @@ class SweepScheduler(Scheduler):
         wandb.termlog(
             f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
         )
-        # This is actually what populates the wandb config
-        # since it is used in wandb.init()
-        sweep_param_path = os.path.join(
-            os.environ.get(wandb.env.DIR, os.getcwd()),
-            "wandb",
-            f"sweep-{self._sweep_id}",
-            f"config-{run.id}.yaml",
-        )
-        wandb.termlog(f"{LOG_PREFIX}Saving params to {sweep_param_path}")
-        wandb_lib.config_util.save_config_file_from_dict(sweep_param_path, run.args)
-        # Construct entry point using legacy sweeps utilities
-        command_args = LegacySweepAgent._create_command_args({"args": run.args})["args"]
-        entry_point = ["python", run.program] + command_args
         _ = self._add_to_launch_queue(
-            entry_point=entry_point,
+            entry_point=["python", run.program],
             run_id=run.id,
+            params=run.args,
         )
 
     def _exit(self) -> None:
