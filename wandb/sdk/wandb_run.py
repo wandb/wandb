@@ -1933,6 +1933,8 @@ class Run:
             wandb.termerror("Control-C detected -- Run data was not synced")
             if not self._settings._jupyter:
                 os._exit(-1)
+            else:
+                wandb.teardown()
         except Exception as e:
             if not self._settings._jupyter:
                 report_failure = True
@@ -1946,6 +1948,8 @@ class Run:
         finally:
             if report_failure:
                 os._exit(-1)
+            else:
+                wandb.teardown()
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
