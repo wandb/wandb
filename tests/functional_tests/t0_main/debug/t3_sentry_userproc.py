@@ -16,7 +16,7 @@ try:
 except Exception:
     # todo: this is a hack to reduce flake
     #  (sometimes, it takes time for the mock server to pick up the sentry event)
-    time.sleep(5)
+    time.sleep(20)
     if platform.system() == "Windows":
         sys.exit(4294967295)
     else:
