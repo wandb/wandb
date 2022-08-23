@@ -15,6 +15,6 @@ with mock.patch(
     import wandb
 
     wandb.sdk.wandb_init._WandbInit.init.sentry_repr = None
-    print(wandb.util.sentry_client)
-    print(wandb.util.sentry_hub)
+    wandb.termwarn(wandb.util.sentry_client)
+    wandb.termwarn(wandb.util.sentry_hub)
     run = wandb.init()
