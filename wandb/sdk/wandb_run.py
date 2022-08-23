@@ -3560,7 +3560,7 @@ class _LazyArtifact(ArtifactInterface):
     _instance: Optional[ArtifactInterface] = None
     _future: Any
 
-    def __init__(self, api: PublicApi, future: Any):
+    def __init__(self, api: PublicApi, future: Any, **kwargs):
         self._api = api
         self._future = future
 

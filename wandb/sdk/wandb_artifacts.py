@@ -152,6 +152,7 @@ class Artifact(ArtifactInterface):
         incremental: Optional[bool] = None,
         use_as: Optional[str] = None,
         in_memory: bool = False,
+        **kwargs,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
