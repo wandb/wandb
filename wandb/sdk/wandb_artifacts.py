@@ -12,12 +12,12 @@ import tempfile
 import threading
 import time
 from typing import (
+    IO,
     TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     Generator,
-    IO,
     Iterator,
     List,
     Mapping,
@@ -30,6 +30,7 @@ from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
 import urllib3
+from pkg_resources import parse_version
 
 import wandb
 import wandb.data_types as data_types
@@ -45,8 +46,8 @@ from .data_types._dtypes import Type, TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.artifacts import (  # noqa: F401
     ArtifactEntry,
-    ArtifactsCache,
     ArtifactManifest,
+    ArtifactsCache,
     StorageHandler,
     StorageLayout,
     StoragePolicy,
@@ -858,7 +859,6 @@ class ArtifactManifestSQL(ArtifactManifest):
         max_buffer_size: int = 10000,
     ) -> None:
         super().__init__(artifact, storage_policy)
-        from pkg_resources import parse_version
         if parse_version(sqlite3.sqlite_version) < parse_version("3.24.0"):
             raise ValueError(
                 f"ArtifactManifestSQL requires sqlite >= 3.24.0, have sqlite = {sqlite3.sqlite_version}"
@@ -970,7 +970,8 @@ class ArtifactManifestSQL(ArtifactManifest):
             # Unfortunately "RETURNING" wasn't introduced until 3.35.0 so we do
             # a select after the insert to check for conflicts
             conflict = db.execute(
-                "SELECT path, digest, digest_conflict FROM manifest_entries WHERE path = ?", (entry.path,)
+                "SELECT path, digest, digest_conflict FROM manifest_entries WHERE path = ?",
+                (entry.path,),
             ).fetchone()
             if conflict[2] is not None:
                 if conflict[1] != conflict[2]:
@@ -1012,7 +1013,7 @@ class ArtifactManifestV1(ArtifactManifest):
         artifact: ArtifactInterface,
         storage_policy: "WandbStoragePolicy",
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
-        manifest_path: Optional[str] = None
+        manifest_path: Optional[str] = None,
     ) -> None:
         super().__init__(artifact, storage_policy, entries=entries)
 

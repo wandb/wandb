@@ -24,9 +24,9 @@ from wandb.data_types import WBValue
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
-    from wandb.sdk import wandb_artifacts
-    from wandb.sdk.internal import progress, internal_api
     from wandb.proto import wandb_internal_pb2
+    from wandb.sdk import wandb_artifacts
+    from wandb.sdk.internal import internal_api, progress
 
 if TYPE_CHECKING:
     import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
@@ -132,7 +132,7 @@ class ArtifactManifest:
             del artifact.manifest.contents[:]
             return manifest
         else:
-            return cls(artifact, policy, manifest_path=artifact.manifest.path)
+            return cls(artifact, policy, manifest_path=artifact.manifest.manifest_path)
 
     @classmethod
     def from_manifest_json(
