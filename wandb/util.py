@@ -164,7 +164,7 @@ def sentry_exc(
         else:
             sentry_hub.capture_exception(exc)  # type: ignore
     if delay:
-        time.sleep(2)
+        time.sleep(delay * 2)
     return None
 
 

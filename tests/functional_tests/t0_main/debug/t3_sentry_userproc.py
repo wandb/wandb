@@ -6,7 +6,7 @@ import wandb.util
 
 
 def sentry_exc(exc, delay):  # type: ignore
-    return wandb.util.sentry_exc(exc, delay=False)
+    return wandb.util.sentry_exc(exc, delay=0.5)
 
 
 with mock.patch(
