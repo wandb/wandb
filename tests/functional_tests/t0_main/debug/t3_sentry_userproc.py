@@ -5,7 +5,7 @@ from unittest import mock
 def sentry_exc(exc, delay):  # type: ignore
     import wandb.util
 
-    return wandb.util.sentry_exc(exc, delay=2)
+    return wandb.util.sentry_exc(exc, delay=5)
 
 
 with mock.patch(
@@ -15,6 +15,6 @@ with mock.patch(
     import wandb
 
     wandb.sdk.wandb_init._WandbInit.init.sentry_repr = None
-    wandb.termwarn(wandb.util.sentry_client)
-    wandb.termwarn(wandb.util.sentry_hub)
+    wandb.termwarn(str(wandb.util.sentry_client))
+    wandb.termwarn(str(wandb.util.sentry_hub))
     run = wandb.init()
