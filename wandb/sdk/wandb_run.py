@@ -1187,10 +1187,18 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
+    def _on_deliver_get_summary_progress(self, handle: MailboxHandle) -> None:
+        assert self.printer
+        line = "Waiting for run.summary data...\r"
+        # TODO: use printer?
+        print(line)
+
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
         if not self._backend or not self._backend.interface:
             return {}
         # Move to deliver
+        handle = backend.interface.deliver_get_summary()
+        result = handle.wait(timeout=-1, on_progress=self._on_get_summary_progress)
         ret = self._backend.interface.communicate_get_summary()
         if not ret:
             return {}
