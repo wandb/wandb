@@ -1188,10 +1188,9 @@ class Run:
             self._backend.interface.publish_summary(summary_record)
 
     def _on_get_summary_progress(self, handle: MailboxHandle) -> None:
-        assert self.printer
         line = "Waiting for run.summary data...\r"
         # TODO: use printer?
-        print(line)
+        print(line, end="")
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
         if not self._backend or not self._backend.interface:
