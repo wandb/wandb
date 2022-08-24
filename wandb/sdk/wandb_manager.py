@@ -91,6 +91,7 @@ class _Manager:
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
     _settings: "Settings"
+    _service: "service._Service"
 
     def __init__(self, settings: "Settings", _use_grpc: bool = False) -> None:
         # TODO: warn if user doesnt have grpc installed
@@ -115,9 +116,7 @@ class _Manager:
             assert port
             token = _ManagerToken.from_params(transport=transport, host=host, port=port)
             token.set_environment()
-            # don't setup atexit hook when using a nootebook
-            if not self._settings._jupyter:
-                self._atexit_setup()
+            self._atexit_setup()
 
         self._token = token
 

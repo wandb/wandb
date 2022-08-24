@@ -596,12 +596,15 @@ def test_teardown_error_path(capsys):
         os.environ, {wandb.env.SERVICE: "2-96604-tcp-localhost-57337"}
     ):
         with mock.patch.object(
-            wandb.sdk.wandb_manager._Manager, "_get_service_interface", mock.MagicMock()
+            wandb.sdk.wandb_manager._Manager,
+            "_get_service_interface",
+            return_value=mock.MagicMock(),
         ):
             wandb.setup()
         assert wandb.wandb_sdk.wandb_setup._WandbSetup._instance
         wandb.teardown()
         assert wandb.env.SERVICE not in os.environ
+        assert not wandb.wandb_sdk.wandb_setup._WandbSetup._instance
     _, err = capsys.readouterr()
     assert (
         "While tearing down the service manager. The following error has occured:"
