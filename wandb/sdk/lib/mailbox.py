@@ -66,7 +66,7 @@ class MailboxHandle:
     def wait(
         self,
         *,
-        timeout: Optional[float] = None,
+        timeout: float,
         on_progress: Callable[[MailboxProgressHandle], None] = None,
         release: bool = True,
     ) -> Optional[pb.Result]:

@@ -1,3 +1,4 @@
+import _thread as thread
 import atexit
 import functools
 import glob
@@ -70,7 +71,7 @@ from .lib import (
     redirect,
     telemetry,
 )
-from .lib.mailbox import MailboxHandle
+from .lib.mailbox import MailboxProgressHandle
 from .lib.exit_hooks import ExitHooks
 from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
@@ -1187,7 +1188,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
-    def _on_get_summary_progress(self, handle: MailboxHandle) -> None:
+    def _on_get_summary_progress(self, handle: MailboxProgressHandle) -> None:
         line = "Waiting for run.summary data...\r"
         # TODO: use printer?
         print(line, end="")
@@ -2208,6 +2209,9 @@ class Run:
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
+
+            # handle = self._backend.interface.deliver_exit()
+            # result = handle.wait(timeout=-1, on_progress=self._on_get_summary_progress)
 
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer

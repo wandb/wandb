@@ -309,5 +309,18 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(get_summary)
+        try:
+            get_summary_response = self._stub.GetSummary(get_summary)
+        except grpc.RpcError as e:
+            logger.info(f"GET SUMMARY TIMEOUT: {e}")
+            get_summary_response = pb.GetSummaryResponse()
+        response = pb.Response(get_summary_response=get_summary_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def join(self) -> None:
         super().join()
