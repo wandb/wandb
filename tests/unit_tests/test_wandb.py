@@ -601,6 +601,7 @@ def test_teardown_error_path(capsys):
             wandb.setup()
         assert wandb.wandb_sdk.wandb_setup._WandbSetup._instance
         wandb.teardown()
+        assert wandb.env.SERVICE not in os.environ
     _, err = capsys.readouterr()
     assert (
         "While tearing down the service manager. The following error has occured:"
