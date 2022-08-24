@@ -30,6 +30,7 @@ from typing import (
     Union,
 )
 
+import psutil
 import requests
 
 import wandb
@@ -38,7 +39,12 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
+from wandb.proto.wandb_internal_pb2 import (
+    MetricRecord,
+    PollExitResponse,
+    RunRecord,
+    LineageRecord,
+)
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -402,6 +408,7 @@ class Run:
     _settings: Settings
 
     _launch_artifacts: Optional[Dict[str, Any]]
+    _lineage_obj: LineageRecord
 
     def __init__(
         self,
@@ -489,6 +496,7 @@ class Run:
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
+        self._lineage_obj = LineageRecord()
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -507,6 +515,9 @@ class Run:
             settings_dict=self._settings,
             process_context="user",
         )
+
+        # Compute process lineage for this run
+        self._init_lineage()
 
         # Populate config
         config = config or dict()
@@ -542,6 +553,14 @@ class Run:
         # for now, use runid as attach id, this could/should be versioned in the future
         if self._settings._require_service:
             self._attach_id = self._settings.run_id
+
+    def _init_lineage(self) -> None:
+        """Process lineage is used to determine parent/child/sibling relationships."""
+        proc = psutil.Process()
+        while proc:
+            process = self._lineage_obj.process.add()
+            process.pid = proc.pid
+            proc = proc.parent()
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid

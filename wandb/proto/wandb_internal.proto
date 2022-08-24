@@ -125,12 +125,21 @@ message RunRecord {
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
   GitRepoRecord             git = 21;
+  LineageRecord             lineage = 22;
   _RecordInfo               _info = 200;
 }
 
 message GitRepoRecord {
   string remote_url = 1;
   string commit = 2;
+}
+
+message ProcessRecord {
+  int64 pid = 1;
+}
+
+message LineageRecord {
+  repeated ProcessRecord process = 1;
 }
 
 message RunUpdateResult {
