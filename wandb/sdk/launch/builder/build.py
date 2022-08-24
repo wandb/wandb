@@ -506,8 +506,8 @@ def join(split_command: List[str]) -> str:
 def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
+    build_type: Optional[str],
     launch_config: Optional[Dict] = {},
-    build_type: Optional[str] = "docker",
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec

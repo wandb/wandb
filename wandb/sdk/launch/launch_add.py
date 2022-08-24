@@ -167,7 +167,9 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project, api)
+        docker_image_uri = build_image_from_project(
+            launch_project, api, build_type="docker"
+        )
         run = wandb.run or wandb.init(project=project, job_type="launch_job")
 
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
