@@ -9,6 +9,7 @@ import socket
 import sys
 from abc import ABC
 from copy import deepcopy
+import time
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -2695,12 +2696,15 @@ class Api:
             fallback_retry_fn=util.no_retry_auth,
         )
 
+        t0 = time.time()
         response: "_Response" = self.gql(  # type: ignore
             mutation,
             variable_values={"artifactID": artifact_id},
             check_retry_fn=check_retry_fn,
             timeout=60,
         )
+        tf = time.time()
+        logger.info(f"SRP: commit_artifact took {tf - t0} seconds")
         return response
 
     def create_artifact_manifest(
