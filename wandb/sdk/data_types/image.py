@@ -1,10 +1,9 @@
 import hashlib
-from io import BytesIO
 import logging
 import os
-from typing import Any, cast, Dict, List, Optional, Sequence, Type, TYPE_CHECKING, Union
+from io import BytesIO
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 
-from pkg_resources import parse_version
 import wandb
 from wandb import util
 
@@ -19,6 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
     import PIL  # type: ignore
     import torch  # type: ignore
+
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ..wandb_artifacts import Artifact as LocalArtifact
@@ -32,20 +32,28 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _server_accepts_image_filenames() -> bool:
+    from pkg_resources import parse_version
+
     # Newer versions of wandb accept large image filenames arrays
     # but older versions would have issues with this.
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    return parse_version("0.12.10") <= parse_version(max_cli_version)
+    accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
+        max_cli_version
+    )
+    return accepts_image_filenames
 
 
 def _server_accepts_artifact_path() -> bool:
+    from pkg_resources import parse_version
+
     target_version = "0.12.14"
     max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
-    return max_cli_version is not None and parse_version(
+    accepts_artifact_path: bool = max_cli_version is not None and parse_version(
         target_version
     ) <= parse_version(max_cli_version)
+    return accepts_artifact_path
 
 
 class Image(BatchableMedia):

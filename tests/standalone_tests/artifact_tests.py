@@ -1,11 +1,12 @@
 import os
+import pathlib
 import shutil
 import time
 
 import numpy as np
 import wandb
 
-
+run_name_base = pathlib.Path(__file__).stem
 init_count = 1
 
 
@@ -41,7 +42,7 @@ def test_artifact_run_lookup_apis():
     artifact_2_name = f"a2-{str(time.time())}"
 
     # Initial setup
-    run_1 = wandb.init(name=f"{__file__}-{get_init_count()}")
+    run_1 = wandb.init(name=f"{run_name_base}-{get_init_count()}")
     artifact = wandb.Artifact(artifact_1_name, "test_type")
     artifact.add(wandb.Image(np.random.randint(0, 255, (10, 10))), "image")
     run_1.log_artifact(artifact)
@@ -51,14 +52,14 @@ def test_artifact_run_lookup_apis():
     run_1.finish()
 
     # Create a second version for a1
-    run_2 = wandb.init(name=f"{__file__}-{get_init_count()}")
+    run_2 = wandb.init(name=f"{run_name_base}-{get_init_count()}")
     artifact = wandb.Artifact(artifact_1_name, "test_type")
     artifact.add(wandb.Image(np.random.randint(0, 255, (10, 10))), "image")
     run_2.log_artifact(artifact)
     run_2.finish()
 
     # Use both
-    run_3 = wandb.init(name=f"{__file__}-{get_init_count()}")
+    run_3 = wandb.init(name=f"{run_name_base}-{get_init_count()}")
     a1 = run_3.use_artifact(artifact_1_name + ":latest")
     assert _runs_eq(a1.used_by(), [run_3])
     assert _run_eq(a1.logged_by(), run_2)
@@ -68,7 +69,7 @@ def test_artifact_run_lookup_apis():
     run_3.finish()
 
     # Use both
-    run_4 = wandb.init(name=f"{__file__}-{get_init_count()}")
+    run_4 = wandb.init(name=f"{run_name_base}-{get_init_count()}")
     a1 = run_4.use_artifact(artifact_1_name + ":latest")
     assert _runs_eq(a1.used_by(), [run_3, run_4])
     a2 = run_4.use_artifact(artifact_2_name + ":latest")
@@ -80,19 +81,19 @@ def test_artifact_creation_with_diff_type():
     artifact_name = f"a1-{str(time.time())}"
 
     # create
-    with wandb.init(name=f"{__file__}-{get_init_count()}") as run:
+    with wandb.init(name=f"{run_name_base}-{get_init_count()}") as run:
         artifact = wandb.Artifact(artifact_name, "artifact_type_1")
         artifact.add(wandb.Image(np.random.randint(0, 255, (10, 10))), "image")
         run.log_artifact(artifact)
 
     # update
-    with wandb.init(name=f"{__file__}-{get_init_count()}") as run:
+    with wandb.init(name=f"{run_name_base}-{get_init_count()}") as run:
         artifact = wandb.Artifact(artifact_name, "artifact_type_1")
         artifact.add(wandb.Image(np.random.randint(0, 255, (10, 10))), "image")
         run.log_artifact(artifact)
 
     # invalid
-    with wandb.init(name=f"{__file__}-{get_init_count()}") as run:
+    with wandb.init(name=f"{run_name_base}-{get_init_count()}") as run:
         artifact = wandb.Artifact(artifact_name, "artifact_type_2")
         artifact.add(wandb.Image(np.random.randint(0, 255, (10, 10))), "image_2")
         did_err = False
@@ -106,7 +107,7 @@ def test_artifact_creation_with_diff_type():
             )
         assert did_err
 
-    with wandb.init(name=f"{__file__}-{get_init_count()}") as run:
+    with wandb.init(name=f"{run_name_base}-{get_init_count()}") as run:
         artifact = run.use_artifact(artifact_name + ":latest")
         # should work
         image = artifact.get("image")

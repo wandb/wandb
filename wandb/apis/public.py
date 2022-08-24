@@ -11,9 +11,7 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 import ast
-from collections import namedtuple
 import datetime
-from functools import partial
 import json
 import logging
 import os
@@ -22,11 +20,16 @@ import re
 import shutil
 import tempfile
 import time
-from typing import List, Optional
 import urllib
+from collections import namedtuple
+from functools import partial
+from typing import List, Optional
 
-from pkg_resources import parse_version
 import requests
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
+from wandb_gql.transport.requests import RequestsHTTPTransport
+
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
@@ -40,10 +43,6 @@ from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
-from wandb_gql import Client, gql
-from wandb_gql.client import RetryError
-from wandb_gql.transport.requests import RequestsHTTPTransport
-
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +134,7 @@ fragment ArtifactFragment on Artifact {
     updatedAt
     labels
     metadata
+    fileCount
     versionIndex
     aliases {
         artifactCollectionName
@@ -161,6 +161,7 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
                 name: displayName
                 url
                 sizeBytes
+                storagePath
                 mimetype
                 updatedAt
                 digest
@@ -192,7 +193,22 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 
 
 class RetryingClient:
+    INFO_QUERY = gql(
+        """
+        query ServerInfo{
+            serverInfo {
+                cliVersionInfo
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                }
+            }
+        }
+        """
+    )
+
     def __init__(self, client):
+        self._server_info = None
         self._client = client
 
     @property
@@ -216,6 +232,19 @@ class RetryingClient:
                     f"to increase the graphql timeout."
                 )
             raise
+
+    @property
+    def server_info(self):
+        if self._server_info is None:
+            self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
+        return self._server_info
+
+    def version_supported(self, min_version):
+        from pkg_resources import parse_version
+
+        return parse_version(min_version) <= parse_version(
+            self.server_info["cliVersionInfo"]["max_cli_version"]
+        )
 
 
 class Api:
@@ -334,10 +363,10 @@ class Api:
         api_key: Optional[str] = None,
     ) -> None:
         self.settings = InternalApi().settings()
+        _overrides = overrides or {}
         self._api_key = api_key
         if self.api_key is None:
-            wandb.login()
-        _overrides = overrides or {}
+            wandb.login(host=_overrides.get("base_url"))
         self.settings.update(_overrides)
         if "username" in _overrides and "entity" not in _overrides:
             wandb.termwarn(
@@ -439,6 +468,7 @@ class Api:
         run_id = run_id or util.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
         entity = entity or self.default_entity
+        # TODO: pipe through log_path to inform the user how to debug
         sm = SyncManager(
             project=project,
             entity=entity,
@@ -2582,7 +2612,7 @@ class Files(Paginator):
         return "<Files {} ({})>".format("/".join(self.run.path), len(self))
 
 
-class File:
+class File(Attrs):
     """File is a class associated with a file saved by wandb.
 
     Attributes:
@@ -2599,41 +2629,7 @@ class File:
     def __init__(self, client, attrs):
         self.client = client
         self._attrs = attrs
-        # if self.size == 0:
-        #    raise AttributeError(
-        #        "File {} does not exist.".format(self._attrs["name"]))
-
-    @property
-    def id(self):
-        return self._attrs["id"]
-
-    @property
-    def name(self):
-        return self._attrs["name"]
-
-    @property
-    def url(self):
-        return self._attrs["url"]
-
-    @property
-    def direct_url(self):
-        return self._attrs["directUrl"]
-
-    @property
-    def md5(self):
-        return self._attrs["md5"]
-
-    @property
-    def digest(self):
-        return self._attrs["digest"]
-
-    @property
-    def mimetype(self):
-        return self._attrs["mimetype"]
-
-    @property
-    def updated_at(self):
-        return self._attrs["updatedAt"]
+        super().__init__(dict(attrs))
 
     @property
     def size(self):
@@ -2949,6 +2945,9 @@ class QueryGenerator:
 
 
 class PythonMongoishQueryGenerator:
+
+    from pkg_resources import parse_version
+
     def __init__(self, run_set):
         self.run_set = run_set
         self.panel_metrics_helper = PanelMetricsHelper()
@@ -4034,6 +4033,10 @@ class Artifact(artifacts.Artifact):
         return self._attrs["id"]
 
     @property
+    def file_count(self):
+        return self._attrs["fileCount"]
+
+    @property
     def version(self):
         return "v%d" % self._version_index
 
@@ -4590,8 +4593,17 @@ class Artifact(artifacts.Artifact):
         self._attrs = response["project"]["artifact"]
         return self._attrs
 
-    # The only file should be wandb_manifest.json
-    def _files(self, names=None, per_page=50):
+    def files(self, names=None, per_page=50):
+        """Iterate over all files stored in this artifact.
+
+        Arguments:
+            names: (list of str, optional) The filename paths relative to the
+                root of the artifact you wish to list.
+            per_page: (int, default 50) The number of files to return per request
+
+        Returns:
+            (`ArtifactFiles`): An iterator containing `File` objects
+        """
         return ArtifactFiles(self.client, self, names, per_page)
 
     def _load_manifest(self):
@@ -4891,16 +4903,23 @@ class ArtifactFiles(Paginator):
         variables = {
             "entityName": artifact.entity,
             "projectName": artifact.project,
-            "artifactTypeName": artifact.artifact_type_name,
-            "artifactName": artifact.artifact_name,
+            "artifactTypeName": artifact.type,
+            "artifactName": artifact.name,
             "fileNames": names,
         }
+        # The server must advertise at least SDK 0.12.21
+        # to get storagePath
+        if not client.version_supported("0.12.21"):
+            self.QUERY = gql(self.QUERY.loc.source.body.replace("storagePath\n", ""))
         super().__init__(client, variables, per_page)
 
     @property
+    def path(self):
+        return [self.artifact.entity, self.artifact.project, self.artifact.name]
+
+    @property
     def length(self):
-        # TODO
-        return None
+        return self.artifact.file_count
 
     @property
     def more(self):
@@ -4932,7 +4951,7 @@ class ArtifactFiles(Paginator):
         ]
 
     def __repr__(self):
-        return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
+        return "<ArtifactFiles {} ({})>".format("/".join(self.path), len(self))
 
 
 class Job:

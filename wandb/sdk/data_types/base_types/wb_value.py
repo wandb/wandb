@@ -1,6 +1,5 @@
-from typing import Any, ClassVar, Dict, List, Optional, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
-from pkg_resources import parse_version
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -13,6 +12,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _server_accepts_client_ids() -> bool:
+    from pkg_resources import parse_version
+
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
     # until we are sure that all local versions are > "0.11.0" max_cli_version.
@@ -30,7 +31,8 @@ def _server_accepts_client_ids() -> bool:
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    return parse_version("0.11.0") <= parse_version(max_cli_version)
+    accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(max_cli_version)
+    return accepts_client_ids
 
 
 class _WBValueArtifactSource:

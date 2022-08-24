@@ -1,5 +1,33 @@
+---
+kind: PersistentVolume
 apiVersion: v1
+metadata:
+  name: cpu-pod-results-volume
+spec:
+  storageClassName: cpu-pod-pv
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/tmp"
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: cpu-pod-results-volumeclaim
+spec:
+  storageClassName: cpu-pod-pv
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+
+---
 kind: Pod
+apiVersion: v1
 metadata:
   name: cpu-pod
 spec:
@@ -10,9 +38,15 @@ spec:
       env:
         - name: WANDB_API_KEY
           value: WANDB_API_KEY_PLACEHOLDER
-#      command: ["tail", "-f", "/dev/null"]
       resources:
         limits:
-          cpu: 1.999
+          cpu: 3.999
         requests:
-          cpu: 1.0
+          cpu: 3.5
+      volumeMounts:
+        - mountPath: "/wandb-store"
+          name: cpu-pod-results-volumeclaim-name
+  volumes:
+    - name: cpu-pod-results-volumeclaim-name
+      persistentVolumeClaim:
+       claimName: cpu-pod-results-volumeclaim

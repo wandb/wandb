@@ -1,4 +1,14 @@
+import ast
+import base64
+import datetime
+import json
+import logging
+import os
+import re
+import socket
+import sys
 from abc import ABC
+from copy import deepcopy
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -9,46 +19,31 @@ from typing import (
     List,
     Mapping,
     MutableMapping,
+    Optional,
     Sequence,
     TextIO,
     Tuple,
     TypeVar,
-    Optional,
     Union,
 )
+
+import click
+import requests
+import yaml
 from wandb_gql import Client, gql  # type: ignore
 from wandb_gql.client import RetryError  # type: ignore
 from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
-import ast
-import base64
-from copy import deepcopy
-import datetime
-from io import BytesIO
-import json
-import os
-from pkg_resources import parse_version
-import re
-import requests
-import logging
-import socket
-import sys
-
-import click
-import yaml
-
 import wandb
-from wandb import __version__
-from wandb import env
-from wandb.old.settings import Settings
-from wandb import util
+from wandb import __version__, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from wandb.old.settings import Settings
+
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
-
 from .progress import Progress
 
 logger = logging.getLogger(__name__)
@@ -1455,7 +1450,19 @@ class Api:
             "summaryMetrics": summary_metrics,
         }
 
-        response = self.gql(mutation, variable_values=variable_values, **kwargs)
+        # retry conflict errors for 2 minutes, default to no_auth_retry
+        check_retry_fn = util.make_check_retry_fn(
+            check_fn=util.check_retry_conflict_or_gone,
+            check_timedelta=datetime.timedelta(minutes=2),
+            fallback_retry_fn=util.no_retry_auth,
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values=variable_values,
+            check_retry_fn=check_retry_fn,
+            **kwargs,
+        )
 
         run_obj: Dict[str, Dict[str, Dict[str, str]]] = response["upsertBucket"][
             "bucket"
@@ -1755,7 +1762,7 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
-        response = requests.get(url, auth=("user", self.api_key), stream=True)
+        response = requests.get(url, auth=("user", self.api_key), stream=True)  # type: ignore
         response.raise_for_status()
         return int(response.headers.get("content-length", 0)), response
 
@@ -2111,10 +2118,12 @@ class Api:
             mutation_str.replace(
                 "$controller: JSONString,",
                 "$controller: JSONString,$launchScheduler: JSONString,",
-            ).replace(
+            )
+            .replace(
                 "controller: $controller,",
                 "controller: $controller,launchScheduler: $launchScheduler,",
             )
+            .replace("_PROJECT_QUERY_", project_query)
         )
 
         # mutation 3 maps to backend that can support CLI version of at least 0.10.31
@@ -2521,6 +2530,8 @@ class Api:
         enable_digest_deduplication: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
+        from pkg_resources import parse_version
+
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
@@ -2677,11 +2688,18 @@ class Api:
         """
         )
 
+        # retry conflict errors for 2 minutes, default to no_auth_retry
+        check_retry_fn = util.make_check_retry_fn(
+            check_fn=util.check_retry_conflict,
+            check_timedelta=datetime.timedelta(minutes=2),
+            fallback_retry_fn=util.no_retry_auth,
+        )
+
         response: "_Response" = self.gql(  # type: ignore
             mutation,
             variable_values={"artifactID": artifact_id},
-            check_retry_fn=util.check_retry_commit_artifact,
-            retry_timedelta=datetime.timedelta(minutes=2),
+            check_retry_fn=check_retry_fn,
+            timeout=60,
         )
         return response
 

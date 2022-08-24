@@ -2,7 +2,7 @@
   <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
 </div>
 
-# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![codecov](https://codecov.io/gh/wandb/client/branch/master/graph/badge.svg?token=41Iw2WzViQ)](https://codecov.io/gh/wandb/client)
+# Weights and Biases [![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb) [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb) [![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/master)](https://circleci.com/gh/wandb/wandb) [![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
 
@@ -35,11 +35,13 @@ In your training script:
 
 ```python
 import wandb
+
 # Your custom arguments defined here
 args = ...
 
 wandb.init(config=args, project="my-project")
 wandb.config["more"] = "custom"
+
 
 def training_loop():
     while True:

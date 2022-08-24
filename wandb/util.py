@@ -3,13 +3,11 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-from datetime import date, datetime
 import errno
 import functools
 import gzip
 import hashlib
 import importlib
-from importlib import import_module
 import json
 import logging
 import math
@@ -23,19 +21,22 @@ import re
 import shlex
 import socket
 import sys
-from sys import getsizeof
 import tarfile
 import tempfile
 import threading
 import time
 import traceback
+import urllib
+from datetime import date, datetime, timedelta
+from importlib import import_module
+from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
+    IO,
     Any,
     Callable,
     Dict,
     Generator,
-    IO,
     List,
     Mapping,
     Optional,
@@ -45,16 +46,18 @@ from typing import (
     Type,
     Union,
 )
-import urllib
 from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
-import wandb
-from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
-from wandb.errors import CommError, term, UsageError
 import yaml
+
+import wandb
+from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
+from wandb.errors import CommError, UsageError, term
+
+CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -887,16 +890,64 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
-def check_retry_commit_artifact(e: Any) -> bool:
+def check_retry_conflict(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict type so it can be retried.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
     if hasattr(e, "exception"):
         e = e.exception
-    if (
-        isinstance(e, requests.HTTPError)
-        and e.response is not None
-        and e.response.status_code == 409
-    ):
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+    return None
+
+
+def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict or gone type so it can be retried or not.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+        if e.response.status_code == 410:
+            return False
+    return None
+
+
+def make_check_retry_fn(
+    fallback_retry_fn: CheckRetryFnType,
+    check_fn: Callable[[Exception], Optional[bool]],
+    check_timedelta: Optional[timedelta] = None,
+) -> CheckRetryFnType:
+    """Return a check_retry_fn which can be used by lib.Retry().
+
+    Arguments:
+        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
+        check_fn: Function which returns bool if retry should happen or None if unsure.
+        check_timedelta: Optional retry timeout if we check_fn matches the exception
+    """
+
+    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
+        check = check_fn(e)
+        if check is None:
+            return fallback_retry_fn(e)
+        if check is False:
+            return False
+        if check_timedelta:
+            return check_timedelta
         return True
-    return no_retry_auth(e)
+
+    return check_retry_fn
 
 
 def find_runner(program: str) -> Union[None, list, List[str]]:
@@ -1211,7 +1262,7 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)
+    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
     response.raise_for_status()
 
     if os.sep in dest_path:
@@ -1422,7 +1473,7 @@ def _has_internet() -> bool:
 
 def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
     rand = rand or random
-    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))  # type: ignore
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
@@ -1466,7 +1517,7 @@ def _is_databricks() -> bool:
     if "dbutils" in sys.modules:
         dbutils = sys.modules["dbutils"]
         if hasattr(dbutils, "shell"):
-            shell = dbutils.shell  # type: ignore
+            shell = dbutils.shell
             if hasattr(shell, "sc"):
                 sc = shell.sc
                 if hasattr(sc, "appName"):

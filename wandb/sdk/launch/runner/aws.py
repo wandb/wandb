@@ -3,32 +3,28 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, cast, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 if False:
     import boto3  # type: ignore
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.docker as docker
+from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import (
-    get_entry_point_command,
-    LaunchProject,
-)
-from ..builder.build import (
-    get_env_vars_dict,
-)
+from .._project_spec import LaunchProject, get_entry_point_command
+from ..builder.build import get_env_vars_dict
 from ..utils import (
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     run_shell,
     to_camel_case,
 )
-
+from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
 
@@ -50,7 +46,7 @@ class SagemakerSubmittedRun(AbstractRun):
         while True:
             status_state = self.get_status().state
             wandb.termlog(
-                f"Training job {self.training_job_name} status: {status_state}"
+                f"{LOG_PREFIX}Training job {self.training_job_name} status: {status_state}"
             )
             if status_state in ["stopped", "failed", "finished"]:
                 break
@@ -225,10 +221,12 @@ class AWSSagemakerRunner(AbstractRunner):
         )
         if command_args:
             command_str = " ".join(command_args)
-            wandb.termlog(f"Launching run on sagemaker with entrypoint: {command_str}")
+            wandb.termlog(
+                f"{LOG_PREFIX}Launching run on sagemaker with entrypoint: {command_str}"
+            )
         else:
             wandb.termlog(
-                "Launching run on sagemaker with user-provided entrypoint in image"
+                f"{LOG_PREFIX}Launching run on sagemaker with user-provided entrypoint in image"
             )
         sagemaker_args = build_sagemaker_args(
             launch_project, self._api, role_arn, image, default_output_path
@@ -371,11 +369,13 @@ def launch_sagemaker_job(
         raise LaunchError("Unable to create training job")
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
-    wandb.termlog("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
+    wandb.termlog(
+        f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}"
+    )
     url = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}".format(
         region=sagemaker_client.meta.region_name, job_name=training_job_name
     )
-    wandb.termlog(f"See training job status at: {url}")
+    wandb.termlog(f"{LOG_PREFIX}See training job status at: {url}")
     return run
 
 

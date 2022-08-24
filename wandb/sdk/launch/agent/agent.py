@@ -9,15 +9,16 @@ import time
 from typing import Any, Dict, List, Union
 
 import wandb
+import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
 from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     resolve_build_and_registry_config,
@@ -97,9 +98,7 @@ class LaunchAgent:
     def print_status(self) -> None:
         """Prints the current status of the agent."""
         wandb.termlog(
-            "agent {} polling on project {}, queues {} for jobs".format(
-                self._name, self._project, " ".join(self._queues)
-            )
+            f"{LOG_PREFIX}agent {self._name} polling on project {self._project}, queues {','.join(self._queues)} for jobs"
         )
 
     def update_status(self, status: str) -> None:
@@ -145,7 +144,7 @@ class LaunchAgent:
 
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
-        _msg = f"Launch agent received job:\n{pprint.pformat(job)}\n"
+        _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
         wandb.termlog(_msg)
         _logger.info(_msg)
         # update agent status
@@ -195,11 +194,7 @@ class LaunchAgent:
 
     def loop(self) -> None:
         """Main loop function for agent."""
-        wandb.termlog(
-            "launch agent polling project {}/{} on queues: {}".format(
-                self._entity, self._project, ",".join(self._queues)
-            )
-        )
+        self.print_status()
         try:
             while True:
                 self._ticks += 1
@@ -241,5 +236,5 @@ class LaunchAgent:
                 if isinstance(run, LocalSubmittedRun):
                     run.command_proc.kill()
             self.update_status(AGENT_KILLED)
-            wandb.termlog("Shutting down, active jobs:")
+            wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()

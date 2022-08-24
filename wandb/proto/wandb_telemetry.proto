@@ -35,8 +35,8 @@ message Imports {
   bool catboost = 7;
   bool lightgbm = 8;
   bool pytorch_lightning = 9;
-  bool pytorch_ignite = 10;
-  bool transformers_huggingface = 11;
+  bool ignite = 10;
+  bool transformers = 11;
   bool jax = 12;
   bool metaflow = 13;
   bool allennlp = 14;
@@ -145,6 +145,7 @@ message Feature {
   bool tensorboard_patch = 34; // wandb.tensorboard.patch(...)
   bool tensorboard_sync = 35; // wandb.init(sync_tensorboard=True)
   bool kfp_wandb_log = 36; // wandb.integration.kfp.wandb_log
+  bool maybe_run_overwrite = 37; // Run might have been overwritten
 }
 
 message Env {

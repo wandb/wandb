@@ -53,7 +53,6 @@ import timm  # noqa: F401
 import wandb
 import zenml  # noqa: F401
 
-
 run = wandb.init()
 wandb.log(dict(loss=1))
 run.finish()

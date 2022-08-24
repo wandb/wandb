@@ -34,16 +34,16 @@ USER sdk
 ENV HOME=/home/sdk
 RUN chmod 777 /home/sdk
 
-# clone wandb/client repository and install wandb sdk
-RUN git clone https://github.com/wandb/client.git /wandb/client \
-    && cd /wandb/client \
+# clone wandb/wandb repository and install wandb sdk
+RUN git clone https://github.com/wandb/wandb.git /wandb/wandb \
+    && cd /wandb/wandb \
     && git checkout ${GIT_BRANCH} \
     && pip install --upgrade pip \
     && pip install tox==${TOX_VERSION} --no-cache-dir
 
 RUN PATH=/home/sdk/.local/bin:$PATH
 
-WORKDIR /wandb/client
+WORKDIR /wandb/wandb
 ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
-CMD ["python", "-m", "tox", "-v", "-e", "standalone-cpu-py38"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-cpu-py38,pod-store"]

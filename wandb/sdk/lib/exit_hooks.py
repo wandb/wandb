@@ -1,8 +1,7 @@
 import sys
 import traceback
 from types import TracebackType
-from typing import Optional, Type
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Type
 
 import wandb
 from wandb.errors import Error
@@ -28,7 +27,7 @@ class ExitHooks:
             != sys.__excepthook__  # respect hooks by other libraries like pdb
             else None
         )
-        sys.excepthook = self.exc_handler
+        sys.excepthook = self.exc_handler  # type: ignore
 
     def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code

@@ -5,12 +5,14 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+import click
 
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, ExecutionError, LaunchError
+from wandb.errors import CommError, LaunchError
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
@@ -42,6 +44,7 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
+LOG_PREFIX = f"{click.style('launch:', fg='magenta')}: "
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -99,7 +102,7 @@ def set_project_entity_defaults(
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog(f"{prefix}Launching run into {entity}/{project}")
+    wandb.termlog(f"{LOG_PREFIX}{prefix}Launching run into {entity}/{project}")
     return project, entity
 
 
@@ -187,6 +190,8 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
 
     if not bool(uri) and not bool(job) and not bool(docker_image):
         raise LaunchError("Must specify a uri, job or docker image")
+    elif bool(uri) and bool(docker_image):
+        raise LaunchError("Found both uri and docker-image, only one can be set")
     elif sum(map(bool, [uri, job, docker_image])) > 1:
         raise LaunchError("Must specify exactly one of uri, job or image")
 
@@ -409,7 +414,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
-def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
+def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
     checks out commit ``version`` (or defaults to the head commit of the repository's
@@ -424,19 +429,40 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
     origin.fetch()
+
     if version is not None:
         try:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
-            raise ExecutionError(
+            raise LaunchError(
                 "Unable to checkout version '%s' of git repo %s"
                 "- please ensure that the version exists in the repo. "
                 "Error: %s" % (version, uri, e)
             )
     else:
-        repo.create_head("master", origin.refs.master)
-        repo.heads.master.checkout()
+        if getattr(repo, "references", None) is not None:
+            branches = [ref.name for ref in repo.references]
+        else:
+            branches = []
+        # Check if main is in origin, else set branch to master
+        if "main" in branches or "origin/main" in branches:
+            version = "main"
+        else:
+            version = "master"
+
+        try:
+            repo.create_head(version, origin.refs[version])
+            repo.heads[version].checkout()
+            wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
+        except (AttributeError, IndexError) as e:
+            raise LaunchError(
+                "Unable to checkout default version '%s' of git repo %s "
+                "- to specify a git version use: --git-version \n"
+                "Error: %s" % (version, uri, e)
+            )
+
     repo.submodule_update(init=True, recursive=True)
+    return version
 
 
 def merge_parameters(
@@ -563,3 +589,20 @@ def resolve_build_and_registry_config(
         resolved_registry_config = registry_config
     validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
     return resolved_build_config, resolved_registry_config
+
+
+def check_logged_in(api: Api) -> bool:
+    """
+    Uses an internal api reference to check if a user is logged in
+    raises an error if the viewer doesn't load, likely broken API key
+    expected time cost is 0.1-0.2 seconds
+    """
+    res = api.api.viewer()
+    if not res:
+        raise LaunchError(
+            "Could not connect with current API-key. "
+            "Please relogin using `wandb login --relogin`"
+            " and try again (see `wandb login --help` for more options)"
+        )
+
+    return True

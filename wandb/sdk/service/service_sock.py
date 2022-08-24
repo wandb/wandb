@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
-from .service_base import _pbmap_apply_dict
-from .service_base import ServiceInterface
 from ..lib.sock_client import SockClient
+from .service_base import ServiceInterface, _pbmap_apply_dict
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings

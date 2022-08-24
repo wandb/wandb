@@ -9,32 +9,33 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-from abc import abstractmethod
 import json
 import logging
 import os
 import sys
-from typing import Any, Iterable, NewType, Optional, Tuple, Union
-from typing import TYPE_CHECKING
+import time
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
+    WandBJSONEncoderOld,
     get_h5_typename,
     json_dumps_safer,
     json_dumps_safer_history,
     json_friendly,
     json_friendly_val,
     maybe_compress_summary,
-    WandBJSONEncoderOld,
 )
 
+from ..data_types.utils import history_dict_to_json, val_to_json
+from ..lib.mailbox import MailboxHandle
+from ..wandb_artifacts import Artifact
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
-from ..data_types.utils import history_dict_to_json, val_to_json
-from ..wandb_artifacts import Artifact
 
 GlobStr = NewType("GlobStr", str)
 
@@ -541,11 +542,17 @@ class InterfaceBase:
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
+        # add timestamp to the history request, if not already present
+        # the timestamp might come from the tensorboard log logic
+        if "_timestamp" not in data:
+            data["_timestamp"] = time.time()
+
         partial_history = pb.PartialHistoryRequest()
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
+
         if publish_step and step is not None:
             partial_history.step.num = step
         if flush is not None:
@@ -687,4 +694,12 @@ class InterfaceBase:
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:
+        raise NotImplementedError
+
+    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
+        run = self._make_run(run_obj)
+        return self._deliver_run(run)
+
+    @abstractmethod
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError

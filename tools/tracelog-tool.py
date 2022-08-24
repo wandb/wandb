@@ -4,15 +4,15 @@
 NOTE: tracelog is still in development.
 
 Usage:
-    ./client/tools/tracelog-tool.py
-    ./client/tools/tracelog-tool.py --logdir logdir/
-    ./client/tools/tracelog-tool.py --format plantuml
+    ./wandb/tools/tracelog-tool.py
+    ./wandb/tools/tracelog-tool.py --logdir logdir/
+    ./wandb/tools/tracelog-tool.py --format plantuml
 """
 
 import argparse
-from dataclasses import dataclass
 import pathlib
 import sys
+from dataclasses import dataclass
 from typing import List
 
 

@@ -8,5 +8,5 @@ def wandb_probe_package():
     s, o = subprocess.getstatusoutput("git rev-parse HEAD")
     if s:
         return
-    wandb_local = f"git+https://github.com/wandb/client.git@{o}#egg=wandb"
+    wandb_local = f"git+https://github.com/wandb/wandb.git@{o}#egg=wandb"
     return wandb_local

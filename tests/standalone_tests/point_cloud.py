@@ -6,12 +6,11 @@
 # 3D models
 # http://app.test/nbaryd/client-standalone_tests/runs/0rb3xwke?workspace=user-nbaryd
 
-from math import cos, pi, sin
 import os
+from math import cos, pi, sin
 
 import numpy as np
 import wandb
-
 
 DIR = os.path.dirname(__file__)
 
@@ -52,8 +51,8 @@ def main():
 
     # Tests 3d OBJ
 
-    # wandb.log({"gltf": wandb.Object3D(open(os.path.join(DIR, "../tests/fixtures/Duck.gltf"))),
-    #           "obj": wandb.Object3D(open(os.path.join(DIR, "../tests/fixtures/cube.obj")))})
+    # wandb.log({"gltf": wandb.Object3D(open(os.path.join(DIR, "assets", "Duck.gltf"))),
+    #           "obj": wandb.Object3D(open(os.path.join(DIR, "assets", "cube.obj")))})
 
     artifact = wandb.Artifact("pointcloud_test_2", "dataset")
     table = wandb.Table(

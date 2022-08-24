@@ -3,7 +3,7 @@
   <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
 </p>
 
-# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![codecov](https://codecov.io/gh/wandb/client/branch/master/graph/badge.svg?token=41Iw2WzViQ)](https://codecov.io/gh/wandb/client)
+# Weights and Biases [![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb) [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb) [![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/master)](https://circleci.com/gh/wandb/wandb) [![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
 
@@ -39,7 +39,7 @@ Flexible integration for any Python script:
 import wandb
 
 # 1. Start a W&B run
-wandb.init(project='gpt3')
+wandb.init(project="gpt3")
 
 # 2. Save model inputs and hyperparameters
 config = wandb.config
@@ -48,7 +48,7 @@ config.learning_rate = 0.01
 # Model training code here ...
 
 # 3. Log metrics over time to visualize performance
-for i in range (10):
+for i in range(10):
     wandb.log({"loss": loss})
 ```
 
@@ -93,7 +93,7 @@ import wandb
 from wandb.keras import WandbCallback
 
 # Step1: Initialize W&B run
-wandb.init(project='project_name')
+wandb.init(project="project_name")
 
 # 2. Save model inputs and hyperparameters
 config = wandb.config
@@ -101,9 +101,10 @@ config.learning_rate = 0.01
 
 # Model training code here ...
 
-# Step 3: Add WandbCallback 
-model.fit(X_train, y_train,  validation_data=(X_test, y_test),
-          callbacks=[WandbCallback()])
+# Step 3: Add WandbCallback
+model.fit(
+    X_train, y_train, validation_data=(X_test, y_test), callbacks=[WandbCallback()]
+)
 ```
 
 - **[Try in a colab →](http://wandb.me/keras-colab)**
@@ -126,10 +127,10 @@ config.dropout = 0.01
 # 3. Log gradients and model parameters
 wandb.watch(model)
 for batch_idx, (data, target) in enumerate(train_loader):
-  ...  
-  if batch_idx % args.log_interval == 0:      
-    # 4. Log metrics to visualize performance
-    wandb.log({"loss": loss})
+    ...
+    if batch_idx % args.log_interval == 0:
+        # 4. Log metrics to visualize performance
+        wandb.log({"loss": loss})
 ```
 
 - **[Try in a colab →](http://wandb.me/pytorch-colab)**
@@ -143,7 +144,7 @@ The simplest way to log metrics in TensorFlow is by logging `tf.summary` with ou
 import wandb
 
 # 1. Start a W&B run
-wandb.init(project='gpt3')
+wandb.init(project="gpt3")
 
 # 2. Save model inputs and hyperparameters
 config = wandb.config
@@ -153,8 +154,8 @@ config.learning_rate = 0.01
 
 # 3. Log metrics over time to visualize performance
 with tf.Session() as sess:
-  # ...
-  wandb.tensorflow.log(tf.summary.merge_all())
+    # ...
+    wandb.tensorflow.log(tf.summary.merge_all())
 ```
 
 - **[Try in a colab →](http://wandb.me/tf-colab)**
@@ -193,14 +194,17 @@ trainer = Trainer(logger=wandb_logger)
 
 
 ## 🤗 HuggingFace
-Just run a script using HuggingFace's Trainer in an environment where `wandb` is installed
-and we'll automatically log losses, evaluation metrics, model topology and gradients:
-```python
+Just run a script using HuggingFace's Trainer passing `--report_to wandb` to it
+in an environment where `wandb` is installed, and we'll automatically log losses,
+evaluation metrics, model topology, and gradients:
+
+```shell
 # 1. Install the wandb library
 pip install wandb
 
 # 2. Run a script that has the Trainer to automatically logs metrics, model topology and gradients
 python run_glue.py \
+ --report_to wandb \
  --model_name_or_path bert-base-uncased \
  --task_name MRPC \
  --data_dir $GLUE_DIR/$TASK_NAME \
@@ -224,9 +228,9 @@ Use Weights & Biases Sweeps to automate hyperparameter optimization and explore 
 ### [Get started in 5 mins →](https://docs.wandb.com/sweeps/quickstart)
 ### [Try Sweeps in PyTorch in a Colab →](http://wandb.me/sweeps-colab)
 
-### Benefits of using W&B Sweeps 
-- **Quick to setup:** With just a few lines of code you can run W&B sweeps.
-- **Transparent:** We cite all the algorithms we're using, and our code is [open source](https://github.com/wandb/client/tree/master/wandb/sweeps).
+### Benefits of using W&B Sweeps
+- **Quick to set up:** With just a few lines of code you can run W&B sweeps.
+- **Transparent:** We cite all the algorithms we're using, and our code is [open source](https://github.com/wandb/wandb/tree/master/wandb/sweeps).
 - **Powerful:** Our sweeps are completely customizable and configurable. You can launch a sweep across dozens of machines, and it's just as easy as starting a sweep on your laptop.
 
 <img src="https://gblobscdn.gitbook.com/assets%2F-Lqya5RvLedGEWPhtkjU%2F-LyfPCyvV8By5YBltxfh%2F-LyfQsxswLC-6WKGgfGj%2Fcentral%20sweep%20server%203.png?alt=media&token=c81e4fe7-7ee4-48ea-a4cd-7b28113c6088" width="400" alt="Weights & Biases" />
@@ -283,7 +287,7 @@ all directly linked to run.
 **Learn about Artifacts [here →](https://www.wandb.com/articles/announcing-artifacts) | Read the [Docs](https://docs.wandb.com/artifacts)**
 
 # 💻  Run W&B Server Locally
-W&amp;B Server is a self hosted hosted Weights &amp; Biases server.  Securely and quickly deploy a W&amp;B production server in Docker, Kubernettes, or in a privately-managed cloud.  Learn more about setting up a [production W&amp;B deployment →](https://docs.wandb.ai/guides/self-hosted/setup).
+W&amp;B Server is a self-hosted Weights &amp; Biases server.  Securely and quickly deploy a W&amp;B production server in Docker, Kubernetes, or in a privately-managed cloud.  Learn more about setting up a [production W&amp;B deployment →](https://docs.wandb.ai/guides/self-hosted/setup).
 
 ## Quickstart
 1. On a machine with [Docker](https://docker.com) and [Python](https://www.python.org/) installed, run:
@@ -299,7 +303,7 @@ W&amp;B Server is a self hosted hosted Weights &amp; Biases server.  Securely an
   ![2022-02-24 22 13 59](https://user-images.githubusercontent.com/25806817/166265834-6a9d1be8-2af5-4c63-872e-8e5b3e4082aa.gif)
 
 ## Docker
-Running `wandb server start` will start our server and forward port 8080 on the host.  To have other machines report metrics to this server run: `wandb login --host=http://X.X.X.X:8080`. 
+Running `wandb server start` will start our server and forward port 8080 on the host.  To have other machines report metrics to this server run: `wandb login --host=http://X.X.X.X:8080`.
 
 Use Docker to manually run W&amp;B Local:
 ```

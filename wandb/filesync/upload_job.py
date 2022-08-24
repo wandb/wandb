@@ -2,12 +2,13 @@ import collections
 import logging
 import os
 import threading
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 
 if TYPE_CHECKING:
     import queue
+
     from wandb.filesync import dir_watcher, stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
 
