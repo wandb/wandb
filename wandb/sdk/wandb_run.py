@@ -40,10 +40,10 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
+    LineageRecord,
     MetricRecord,
     PollExitResponse,
     RunRecord,
-    LineageRecord,
 )
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
