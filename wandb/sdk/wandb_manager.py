@@ -7,6 +7,7 @@ import atexit
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import wandb
 from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
@@ -114,7 +115,9 @@ class _Manager:
             assert port
             token = _ManagerToken.from_params(transport=transport, host=host, port=port)
             token.set_environment()
-            self._atexit_setup()
+            # don't setup atexit hook when using a nootebook
+            if not self._settings._jupyter:
+                self._atexit_setup()
 
         self._token = token
 
@@ -147,8 +150,10 @@ class _Manager:
             if result and not self._settings._jupyter:
                 os._exit(result)
         except Exception as e:
-            print("teardown error", e)
-            pass
+            wandb.termlog(
+                f"While tearing down the service manager. The following error has occured: {e}",
+                repeat=False,
+            )
         finally:
             self._token.reset_environment()
 
