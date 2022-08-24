@@ -73,9 +73,14 @@ class MailboxHandle:
         found: Optional[pb.Result] = None
         start_time = time.time()
         percent_done = 0.0
+        progress_sent = False
         while True:
             found = self._slot._get_and_clear(timeout=1)
             if found:
+                # Always update progress to 100% when done
+                if on_progress and progress_sent:
+                    progress = MailboxProgressHandle(percent_done=100)
+                    on_progress(progress)
                 break
             now = time.time()
             if timeout >= 0:
@@ -84,6 +89,7 @@ class MailboxHandle:
             if on_progress:
                 if timeout > 0:
                     percent_done = min((now - start_time) / timeout, 1.0)
+                progress_sent = True
                 progress = MailboxProgressHandle(percent_done=percent_done)
                 on_progress(progress)
         if release:
