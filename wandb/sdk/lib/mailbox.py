@@ -65,6 +65,7 @@ class MailboxHandle:
 
     def wait(
         self,
+        *,
         timeout: Optional[float] = None,
         on_progress: Callable[[MailboxProgressHandle], None] = None,
         release: bool = True,
@@ -77,11 +78,11 @@ class MailboxHandle:
             if found:
                 break
             now = time.time()
-            if timeout is not None:
+            if timeout >= 0:
                 if now >= start_time + timeout:
                     break
             if on_progress:
-                if timeout:
+                if timeout > 0:
                     percent_done = min((now - start_time) / timeout, 1.0)
                 progress = MailboxProgressHandle(percent_done=percent_done)
                 on_progress(progress)

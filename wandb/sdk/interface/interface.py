@@ -704,10 +704,10 @@ class InterfaceBase:
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError
 
-    def deliver_get_summary(self, run_obj: "Run") -> MailboxHandle:
-        run = self._make_run(run_obj)
-        return self._deliver_run(run)
+    def deliver_get_summary(self) -> MailboxHandle:
+        get_summary = pb.GetSummaryRequest()
+        return self._deliver_get_summary(get_summary)
 
     @abstractmethod
-    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         raise NotImplementedError

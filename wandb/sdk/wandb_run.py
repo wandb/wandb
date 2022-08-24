@@ -1,4 +1,3 @@
-import _thread as thread
 import atexit
 import functools
 import glob
@@ -71,6 +70,7 @@ from .lib import (
     redirect,
     telemetry,
 )
+from .lib.mailbox import MailboxHandle
 from .lib.exit_hooks import ExitHooks
 from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
@@ -1187,7 +1187,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
-    def _on_deliver_get_summary_progress(self, handle: MailboxHandle) -> None:
+    def _on_get_summary_progress(self, handle: MailboxHandle) -> None:
         assert self.printer
         line = "Waiting for run.summary data...\r"
         # TODO: use printer?
@@ -1197,12 +1197,12 @@ class Run:
         if not self._backend or not self._backend.interface:
             return {}
         # Move to deliver
-        handle = backend.interface.deliver_get_summary()
+        handle = self._backend.interface.deliver_get_summary()
         result = handle.wait(timeout=-1, on_progress=self._on_get_summary_progress)
-        ret = self._backend.interface.communicate_get_summary()
-        if not ret:
+        if not result:
             return {}
-        return proto_util.dict_from_proto_list(ret.item)
+        get_summary = result.response.get_summary_response
+        return proto_util.dict_from_proto_list(get_summary.item)
 
     def _metric_callback(self, metric_record: MetricRecord) -> None:
         if self._backend and self._backend.interface:

@@ -492,6 +492,14 @@ class InterfaceShared(InterfaceBase):
         self._deliver(rec, slot_address)
         return handle
 
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        mailbox = self._get_mailbox()
+        rec = self._make_request(get_summary=get_summary)
+        handle = mailbox.get_handle()
+        slot_address = handle.address
+        self._deliver(rec, slot_address)
+        return handle
+
     def join(self) -> None:
         super().join()
 
