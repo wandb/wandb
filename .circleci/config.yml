@@ -393,6 +393,7 @@ jobs:
                 condition: << parameters.notify_on_failure >>
                 steps:
                   - slack/notify:
+                      shell: bash.exe
                       event: fail
                       template: basic_fail_1
                       mentions: "@channel"
@@ -1004,6 +1005,7 @@ workflows:
       - win:
           machine_executor: "server-2019-cuda"
           executor_size: "medium"
+          context: slack-secrets
           matrix:
             parameters:
               python_version_major: [ 3 ]
@@ -1296,6 +1298,7 @@ workflows:
       - win:
           machine_executor: "server-2019-cuda"
           executor_size: "medium"
+          context: slack-secrets
           execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu_win >>
           matrix:
             parameters:
@@ -1307,7 +1310,7 @@ workflows:
           xdist: 1
           notify_on_failure: true
       #
-      # stanalone tests on gke
+      # standalone tests on gke
       #
       - slack_notify:
           name: "slack-notify-on-start"
