@@ -71,10 +71,10 @@ from .lib import (
     redirect,
     telemetry,
 )
-from .lib.mailbox import MailboxProgressHandle
 from .lib.exit_hooks import ExitHooks
 from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
+from .lib.mailbox import MailboxProgressHandle
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
