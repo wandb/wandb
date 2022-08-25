@@ -628,11 +628,8 @@ message PollExitRequest {
 
 message PollExitResponse {
   bool            done = 1;
-  RunExitResult   exit_result = 2;
+  FilePusherStats pusher_stats = 2;
   FileCounts      file_counts = 3;
-  FilePusherStats pusher_stats = 4;
-  LocalInfo local_info = 5;
-  ServerMessages server_messages = 6;
 }
 
 /*
@@ -643,7 +640,7 @@ message ServerInfoRequest {
 }
 
 message ServerInfoResponse {
-  LocalInfo local_info = 1;
+  LocalInfo      local_info = 1;
   ServerMessages server_messages = 2;
 }
 

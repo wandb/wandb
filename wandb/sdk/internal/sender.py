@@ -549,22 +549,20 @@ class SendManager:
             resp.file_counts.artifact_count = file_counts.artifact
             resp.file_counts.other_count = file_counts.other
 
-        if self._exit_result:
-            result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
         self._respond_result(result)
 
     def send_request_server_info(self, record: "Record") -> None:
         assert record.control.mailbox_slot
         result = proto_util._result_from_record(record)
-        result.response.poll_exit_response.local_info.CopyFrom(self.get_local_info())
-        result.response.poll_exit_response.done = True
+
+        result.response.server_info_response.local_info.CopyFrom(self.get_local_info())
         for message in self._server_messages:
             # guard agains the case the message level returns malformed from server
             message_level = str(message.get("messageLevel"))
             message_level_sanitized = int(
                 printer.INFO if not message_level.isdigit() else message_level
             )
-            result.response.poll_exit_response.server_messages.item.append(
+            result.response.server_info_response.server_messages.item.append(
                 wandb_internal_pb2.ServerMessage(
                     utf_text=message.get("utfText", ""),
                     plain_text=message.get("plainText", ""),

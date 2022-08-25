@@ -686,6 +686,15 @@ class InterfaceBase:
     ) -> Optional[pb.PollExitResponse]:
         raise NotImplementedError
 
+    def communicate_server_info(self) -> Optional[pb.ServerInfoResponse]:
+        server_info = pb.ServerInfoRequest()
+        resp = self._communicate_server_info(server_info)
+        return resp
+
+    @abstractmethod
+    def _communicate_server_info(self, server_info: pb.ServerInfoRequest) -> Optional[pb.ServerInfoResponse]:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -726,4 +735,12 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_server_info(self) -> MailboxHandle:
+        server_info = pb.ServerInfoRequest()
+        return self._deliver_request_server_info(server_info)
+
+    @abstractmethod
+    def _deliver_request_server_info(self, server_info: pb.ServerInfoRequest) -> MailboxHandle:
         raise NotImplementedError

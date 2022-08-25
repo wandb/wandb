@@ -15,6 +15,7 @@ service InternalService {
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse) {}
   rpc SampledHistory(SampledHistoryRequest) returns (SampledHistoryResponse) {}
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
+  rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}

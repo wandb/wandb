@@ -1718,39 +1718,24 @@ global___PollExitRequest = PollExitRequest
 class PollExitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     DONE_FIELD_NUMBER: builtins.int
-    EXIT_RESULT_FIELD_NUMBER: builtins.int
-    FILE_COUNTS_FIELD_NUMBER: builtins.int
     PUSHER_STATS_FIELD_NUMBER: builtins.int
-    LOCAL_INFO_FIELD_NUMBER: builtins.int
-    SERVER_MESSAGES_FIELD_NUMBER: builtins.int
+    FILE_COUNTS_FIELD_NUMBER: builtins.int
     done: builtins.bool = ...
-
-    @property
-    def exit_result(self) -> global___RunExitResult: ...
-
-    @property
-    def file_counts(self) -> global___FileCounts: ...
 
     @property
     def pusher_stats(self) -> global___FilePusherStats: ...
 
     @property
-    def local_info(self) -> global___LocalInfo: ...
-
-    @property
-    def server_messages(self) -> global___ServerMessages: ...
+    def file_counts(self) -> global___FileCounts: ...
 
     def __init__(self,
         *,
         done : builtins.bool = ...,
-        exit_result : typing.Optional[global___RunExitResult] = ...,
-        file_counts : typing.Optional[global___FileCounts] = ...,
         pusher_stats : typing.Optional[global___FilePusherStats] = ...,
-        local_info : typing.Optional[global___LocalInfo] = ...,
-        server_messages : typing.Optional[global___ServerMessages] = ...,
+        file_counts : typing.Optional[global___FileCounts] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats",u"server_messages",b"server_messages"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"done",b"done",u"exit_result",b"exit_result",u"file_counts",b"file_counts",u"local_info",b"local_info",u"pusher_stats",b"pusher_stats",u"server_messages",b"server_messages"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"file_counts",b"file_counts",u"pusher_stats",b"pusher_stats"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"done",b"done",u"file_counts",b"file_counts",u"pusher_stats",b"pusher_stats"]) -> None: ...
 global___PollExitResponse = PollExitResponse
 
 class ServerInfoRequest(google.protobuf.message.Message):

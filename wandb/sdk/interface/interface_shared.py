@@ -430,6 +430,17 @@ class InterfaceShared(InterfaceBase):
         assert poll_exit_response
         return poll_exit_response
 
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
+        rec = self._make_request(server_info=server_info)
+        result = self._communicate(rec)
+        if result is None:
+            return None
+        server_info_response = result.response.server_info_response
+        assert server_info_response
+        return server_info_response
+
     def _communicate_check_version(
         self, check_version: pb.CheckVersionRequest
     ) -> Optional[pb.CheckVersionResponse]:
@@ -508,6 +519,10 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
         record = self._make_request(poll_exit=poll_exit)
+        return self._deliver_record(record)
+
+    def _deliver_request_server_info(self, server_info: pb.ServerInfoRequest) -> MailboxHandle:
+        record = self._make_request(server_info=server_info)
         return self._deliver_record(record)
 
     def join(self) -> None:

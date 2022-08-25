@@ -38,7 +38,7 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
+from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord, ServerInfoResponse
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -387,8 +387,9 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
-    _poll_exit_response: Optional[PollExitResponse]
     _poll_exit_handle: Optional[MailboxHandle]
+    _poll_exit_response: Optional[PollExitResponse]
+    _server_info_response: Optional[ServerInfoResponse]
 
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
@@ -491,6 +492,7 @@ class Run:
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
+        self._server_info_response = None
         self._poll_exit_handle = None
 
         # Initialize telemetry object
@@ -2233,11 +2235,14 @@ class Run:
         # For now we need to make sure we have at least one poll response
         if not self._poll_exit_response:
             poll_exit_handle = self._backend.interface.deliver_poll_exit()
-            result = poll_exit_handle.wait(
-                timeout=-1, on_progress=self._on_deliver_exit_progress
-            )
+            result = poll_exit_handle.wait(timeout=-1)
             assert result
             self._poll_exit_response = result.response.poll_exit_response
+
+        server_info_handle = self._backend.interface.deliver_request_server_info()
+        result = server_info_handle.wait(timeout=-1)
+        assert result
+        self._server_info_response = result.response.server_info_response
 
         if self._backend and self._backend.interface:
             self._sampled_history = (
@@ -2264,6 +2269,7 @@ class Run:
             self._sampled_history,
             self._final_summary,
             self._poll_exit_response,
+            self._server_info_response,
             self._check_version,
             self._reporter,
             self._quiet,
@@ -3063,6 +3069,7 @@ class Run:
         sampled_history: Optional["SampledHistoryResponse"] = None,
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
+        server_info_response: Optional[ServerInfoResponse] = None,
         check_version: Optional["CheckVersionResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
@@ -3079,7 +3086,7 @@ class Run:
         )
 
         Run._footer_sync_info(
-            pool_exit_response=poll_exit_response,
+            poll_exit_response=poll_exit_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3089,7 +3096,7 @@ class Run:
             check_version=check_version, quiet=quiet, settings=settings, printer=printer
         )
         Run._footer_local_warn(
-            poll_exit_response=poll_exit_response,
+            server_info_response=server_info_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3098,7 +3105,7 @@ class Run:
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
         )
         Run._footer_server_messages(
-            poll_exit_response=poll_exit_response,
+            server_info_response=server_info_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3257,7 +3264,7 @@ class Run:
 
     @staticmethod
     def _footer_sync_info(
-        pool_exit_response: Optional[PollExitResponse] = None,
+        poll_exit_response: Optional[PollExitResponse] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3283,10 +3290,10 @@ class Run:
                 info = [
                     f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
                 ]
-            if pool_exit_response and pool_exit_response.file_counts:
+            if poll_exit_response and poll_exit_response.file_counts:
 
                 logger.info("logging synced files")
-                file_counts = pool_exit_response.file_counts
+                file_counts = poll_exit_response.file_counts
                 info.append(
                     f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
                     f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
@@ -3386,7 +3393,7 @@ class Run:
 
     @staticmethod
     def _footer_local_warn(
-        poll_exit_response: Optional[PollExitResponse] = None,
+        server_info_response: Optional[ServerInfoResponse] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3399,11 +3406,11 @@ class Run:
         if settings._offline:
             return
 
-        if not poll_exit_response or not poll_exit_response.local_info:
+        if not server_info_response or not server_info_response.local_info:
             return
 
         if settings.is_local:
-            local_info = poll_exit_response.local_info
+            local_info = server_info_response.local_info
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
@@ -3415,7 +3422,7 @@ class Run:
 
     @staticmethod
     def _footer_server_messages(
-        poll_exit_response: Optional[PollExitResponse] = None,
+        server_info_response: Optional[ServerInfoResponse] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3428,8 +3435,8 @@ class Run:
         if settings.disable_hints:
             return
 
-        if poll_exit_response and poll_exit_response.server_messages:
-            for message in poll_exit_response.server_messages.item:
+        if server_info_response and server_info_response.server_messages:
+            for message in server_info_response.server_messages.item:
                 printer.display(
                     message.html_text if printer._html else message.utf_text,
                     default_text=message.plain_text,

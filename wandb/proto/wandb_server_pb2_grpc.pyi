@@ -38,6 +38,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.PollExitRequest,
     ) -> wandb.proto.wandb_internal_pb2.PollExitResponse: ...
 
+    def ServerInfo(self,
+        request: wandb.proto.wandb_internal_pb2.ServerInfoRequest,
+    ) -> wandb.proto.wandb_internal_pb2.ServerInfoResponse: ...
+
     def Shutdown(self,
         request: wandb.proto.wandb_internal_pb2.ShutdownRequest,
     ) -> wandb.proto.wandb_internal_pb2.ShutdownResponse: ...
@@ -197,6 +201,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.PollExitRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.PollExitResponse: ...
+
+    @abc.abstractmethod
+    def ServerInfo(self,
+        request: wandb.proto.wandb_internal_pb2.ServerInfoRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.ServerInfoResponse: ...
 
     @abc.abstractmethod
     def Shutdown(self,

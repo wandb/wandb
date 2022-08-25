@@ -270,6 +270,14 @@ class InterfaceGrpc(InterfaceBase):
             ret = pb.PollExitResponse()
         return ret
 
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
+        assert self._stub
+        self._assign(server_info)
+        ret = self._stub.ServerInfo(server_info)
+        return ret
+
     def _communicate_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
     ) -> Optional[pb.SampledHistoryResponse]:
@@ -335,6 +343,15 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(poll_exit)
         poll_exit_response = self._stub.PollExit(poll_exit)
         response = pb.Response(poll_exit_response=poll_exit_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
+    def _deliver_request_server_info(self, server_info: pb.ServerInfoRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(server_info)
+        server_info_response = self._stub.ServerInfo(server_info)
+        response = pb.Response(server_info_response=server_info_response)
         result = pb.Result(response=response)
         handle = self._deliver(result)
         return handle
