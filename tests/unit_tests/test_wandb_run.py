@@ -2,6 +2,7 @@ import os
 import pickle
 import platform
 import sys
+import time
 from unittest import mock
 
 import numpy as np
@@ -454,3 +455,29 @@ def test_settings_unexpected_args_telemetry(runner, relay_server, capsys, user):
             # whose field 2 corresponds to unexpected arguments in Settings
             assert 2 in telemetry.get("11", [])
             run.finish()
+
+
+def test_artifact_wait_success(user, test_settings):
+    # Test artifact wait() timeout parameter
+    timeout = 2
+    leeway = 0.50
+    run = wandb.init(settings=test_settings())
+    artifact = wandb.Artifact("art", type="dataset")
+    start_timestamp = time.time()
+    run.log_artifact(artifact).wait(wait_timeout_secs=timeout)
+    elapsed_time = time.time() - start_timestamp
+    assert elapsed_time < timeout * (1 + leeway)
+    run.finish()
+
+
+@pytest.mark.parametrize("timeout", [0, 2])
+def test_artifact_wait_failure(user, test_settings, timeout):
+    # Test to expect TimeoutError when wait timeout is reached and large image
+    # wasn't uploaded yet
+    large_image = wandb.Image(np.random.randint(0, 255, (10000, 10000, 3)))
+    run = wandb.init(settings=test_settings())
+    with pytest.raises(TimeoutError):
+        artifact = wandb.Artifact("art", type="image")
+        artifact.add(large_image, "image")
+        run.log_artifact(artifact).wait(wait_timeout_secs=timeout)
+    run.finish()
