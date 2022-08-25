@@ -330,5 +330,14 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        assert self._stub
+        self._assign(poll_exit)
+        poll_exit_response = self._stub.PollExit(poll_exit)
+        response = pb.Response(poll_exit_response=poll_exit_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def join(self) -> None:
         super().join()

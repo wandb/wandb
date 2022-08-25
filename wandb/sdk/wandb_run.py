@@ -74,7 +74,7 @@ from .lib import (
 from .lib.exit_hooks import ExitHooks
 from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
-from .lib.mailbox import MailboxProgressHandle
+from .lib.mailbox import MailboxHandle, MailboxProgressHandle
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
@@ -388,6 +388,7 @@ class Run:
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
     _poll_exit_response: Optional[PollExitResponse]
+    _poll_exit_handle: Optional[MailboxHandle]
 
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
@@ -490,6 +491,7 @@ class Run:
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
+        self._poll_exit_handle = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -2197,9 +2199,16 @@ class Run:
         return artifact
 
     def _on_deliver_exit_progress(self, handle: MailboxProgressHandle) -> None:
-        line = "Waiting for run.finish()...\r"
-        # TODO: use printer?
-        print(line, end="")
+        if self._poll_exit_handle:
+            result = self._poll_exit_handle.wait(timeout=0)
+            if not result:
+                return
+            self._footer_file_pusher_status_info(
+                result.response.poll_exit_response, printer=self._printer
+            )
+            self._poll_exit_response = result.response.poll_exit_response
+        assert self._backend and self._backend.interface
+        self._poll_exit_handle = self._backend.interface.deliver_poll_exit()
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -2220,17 +2229,13 @@ class Run:
         )
 
         _ = handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
-        # while not (self._poll_exit_response and self._poll_exit_response.done):
-        #     if self._backend and self._backend.interface:
-        #         self._poll_exit_response = (
-        #             self._backend.interface.communicate_poll_exit()
-        #         )
-        #         logger.info(f"got exit ret: {self._poll_exit_response}")
-        #         self._footer_file_pusher_status_info(
-        #             self._poll_exit_response,
-        #             printer=self._printer,
-        #         )
-        #     time.sleep(0.1)
+
+        # For now we need to make sure we have at least one poll response
+        if not self._poll_exit_response:
+            poll_exit_handle = self._backend.interface.deliver_poll_exit()
+            result = handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
+            assert result
+            self._poll_exit_response = result.response.poll_exit_response
 
         if self._backend and self._backend.interface:
             self._sampled_history = (

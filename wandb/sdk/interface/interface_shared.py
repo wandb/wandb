@@ -508,6 +508,14 @@ class InterfaceShared(InterfaceBase):
         self._deliver(rec, slot_address)
         return handle
 
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        mailbox = self._get_mailbox()
+        rec = self._make_request(poll_exit=poll_exit)
+        handle = mailbox.get_handle()
+        slot_address = handle.address
+        self._deliver(rec, slot_address)
+        return handle
+
     def join(self) -> None:
         super().join()
 

@@ -528,7 +528,7 @@ class SendManager:
             self._respond_result(result)
 
     def send_request_poll_exit(self, record: "Record") -> None:
-        if not record.control.req_resp:
+        if not record.control.req_resp and not record.control.mailbox_slot:
             return
 
         result = proto_util._result_from_record(record)
