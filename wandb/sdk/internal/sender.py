@@ -169,6 +169,7 @@ class SendManager:
     _project: "Optional[str]"
     _dir_watcher: "Optional[DirWatcher]"
     _pusher: "Optional[FilePusher]"
+    _record_exit: "Optional[Record]"
     _exit_result: "Optional[RunExitResult]"
     _resume_state: ResumeState
     _cached_server_info: Dict[str, Any]
@@ -219,7 +220,8 @@ class SendManager:
         # State updated by resuming
         self._resume_state = ResumeState()
 
-        # State added when run_exit is complete
+        # State added when run_exit is initiated and complete
+        self._record_exit = None
         self._exit_result = None
 
         self._api = internal_api.Api(
@@ -432,11 +434,14 @@ class SendManager:
             self._respond_result(result)
 
     def send_exit(self, record: "Record") -> None:
-        exit = record.exit
-        self._exit_code = exit.exit_code
-        logger.info("handling exit code: %s", exit.exit_code)
-        runtime = exit.runtime
-        logger.info("handling runtime: %s", exit.runtime)
+        # track where the exit came from
+        self._record_exit = record
+
+        run_exit = record.exit
+        self._exit_code = run_exit.exit_code
+        logger.info("handling exit code: %s", run_exit.exit_code)
+        runtime = run_exit.runtime
+        logger.info("handling runtime: %s", run_exit.runtime)
         self._metadata_summary["runtime"] = runtime
         self._update_summary()
 
@@ -515,6 +520,12 @@ class SendManager:
 
         # mark exit done in case we are polling on exit
         self._exit_result = exit_result
+
+        # Report response to mailbox
+        if self._record_exit and self._record_exit.control.mailbox_slot:
+            result = proto_util._result_from_record(self._record_exit)
+            result.exit_result.CopyFrom(exit_result)
+            self._respond_result(result)
 
     def send_request_poll_exit(self, record: "Record") -> None:
         if not record.control.req_resp:

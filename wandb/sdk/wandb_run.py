@@ -1188,7 +1188,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
-    def _on_get_summary_progress(self, handle: MailboxProgressHandle) -> None:
+    def _on_deliver_get_summary_progress(self, handle: MailboxProgressHandle) -> None:
         line = "Waiting for run.summary data...\r"
         # TODO: use printer?
         print(line, end="")
@@ -1198,7 +1198,9 @@ class Run:
             return {}
         # Move to deliver
         handle = self._backend.interface.deliver_get_summary()
-        result = handle.wait(timeout=-1, on_progress=self._on_get_summary_progress)
+        result = handle.wait(
+            timeout=-1, on_progress=self._on_deliver_get_summary_progress
+        )
         if not result:
             return {}
         get_summary = result.response.get_summary_response
@@ -2194,6 +2196,11 @@ class Run:
         artifact = self.log_artifact(job_artifact)
         return artifact
 
+    def _on_deliver_exit_progress(self, handle: MailboxProgressHandle) -> None:
+        line = "Waiting for run.finish()...\r"
+        # TODO: use printer?
+        print(line, end="")
+
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
@@ -2205,29 +2212,25 @@ class Run:
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
-        if self._backend and self._backend.interface:
-            # TODO: we need to handle catastrophic failure better
-            # some tests were timing out on sending exit for reasons not clear to me
-            self._backend.interface.publish_exit(self._exit_code)
-
-            # handle = self._backend.interface.deliver_exit()
-            # result = handle.wait(timeout=-1, on_progress=self._on_get_summary_progress)
+        assert self._backend and self._backend.interface
+        handle = self._backend.interface.deliver_exit(self._exit_code)
 
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        while not (self._poll_exit_response and self._poll_exit_response.done):
-            if self._backend and self._backend.interface:
-                self._poll_exit_response = (
-                    self._backend.interface.communicate_poll_exit()
-                )
-                logger.info(f"got exit ret: {self._poll_exit_response}")
-                self._footer_file_pusher_status_info(
-                    self._poll_exit_response,
-                    printer=self._printer,
-                )
-            time.sleep(0.1)
+        result = handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
+        # while not (self._poll_exit_response and self._poll_exit_response.done):
+        #     if self._backend and self._backend.interface:
+        #         self._poll_exit_response = (
+        #             self._backend.interface.communicate_poll_exit()
+        #         )
+        #         logger.info(f"got exit ret: {self._poll_exit_response}")
+        #         self._footer_file_pusher_status_info(
+        #             self._poll_exit_response,
+        #             printer=self._printer,
+        #         )
+        #     time.sleep(0.1)
 
         if self._backend and self._backend.interface:
             self._sampled_history = (

@@ -322,5 +322,13 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_exit(self, run_exit: pb.RunExitRecord) -> MailboxHandle:
+        assert self._stub
+        self._assign(run_exit)
+        exit_result = self._stub.RunExit(run_exit)
+        result = pb.Result(exit_result=exit_result)
+        handle = self._deliver(result)
+        return handle
+
     def join(self) -> None:
         super().join()

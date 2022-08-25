@@ -500,6 +500,14 @@ class InterfaceShared(InterfaceBase):
         self._deliver(rec, slot_address)
         return handle
 
+    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        mailbox = self._get_mailbox()
+        rec = self._make_record(exit=exit_data)
+        handle = mailbox.get_handle()
+        slot_address = handle.address
+        self._deliver(rec, slot_address)
+        return handle
+
     def join(self) -> None:
         super().join()
 
