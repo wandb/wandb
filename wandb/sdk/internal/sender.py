@@ -453,7 +453,7 @@ class SendManager:
     def send_final(self, record: "Record") -> None:
         pass
 
-    def send_request_defer(self, record: "Record") -> None:
+    def send_request_defer(self, record: "Record") -> None:  # noqa: C901
         defer = record.request.defer
         state = defer.state
         logger.info(f"handle sender defer: {state}")

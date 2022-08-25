@@ -2219,7 +2219,7 @@ class Run:
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        result = handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
+        _ = handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
         # while not (self._poll_exit_response and self._poll_exit_response.done):
         #     if self._backend and self._backend.interface:
         #         self._poll_exit_response = (

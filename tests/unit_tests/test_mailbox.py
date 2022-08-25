@@ -15,7 +15,7 @@ def test_normal():
     mailbox, handle, result = get_test_setup()
     result.control.mailbox_slot = handle.address
     mailbox.deliver(result)
-    got_result = handle.wait()
+    got_result = handle.wait(timeout=-1)
     assert got_result.run_result.run.run_id == "this_is_me"
 
 
@@ -31,7 +31,7 @@ def test_deliver_released_slot():
     mailbox, handle, result = get_test_setup()
     result.control.mailbox_slot = handle.address
     mailbox.deliver(result)
-    got_result = handle.wait()
+    got_result = handle.wait(timeout=-1)
     assert got_result.run_result.run.run_id == "this_is_me"
 
     # mail slot has been released, lets redeliver to nowhere
@@ -49,7 +49,7 @@ def test_redeliver_slot():
     mailbox, handle, result = get_test_setup()
     result.control.mailbox_slot = handle.address
     mailbox.deliver(result)
-    got_result = handle.wait(release=False)
+    got_result = handle.wait(timeout=-1, release=False)
     assert got_result.run_result.run.run_id == "this_is_me"
 
     # mail slot has been released, lets redeliver to nowhere
