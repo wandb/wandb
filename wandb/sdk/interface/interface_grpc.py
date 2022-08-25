@@ -347,7 +347,9 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
-    def _deliver_request_server_info(self, server_info: pb.ServerInfoRequest) -> MailboxHandle:
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
         assert self._stub
         self._assign(server_info)
         server_info_response = self._stub.ServerInfo(server_info)

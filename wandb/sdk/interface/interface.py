@@ -692,7 +692,9 @@ class InterfaceBase:
         return resp
 
     @abstractmethod
-    def _communicate_server_info(self, server_info: pb.ServerInfoRequest) -> Optional[pb.ServerInfoResponse]:
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
         raise NotImplementedError
 
     def join(self) -> None:
@@ -742,5 +744,7 @@ class InterfaceBase:
         return self._deliver_request_server_info(server_info)
 
     @abstractmethod
-    def _deliver_request_server_info(self, server_info: pb.ServerInfoRequest) -> MailboxHandle:
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
         raise NotImplementedError

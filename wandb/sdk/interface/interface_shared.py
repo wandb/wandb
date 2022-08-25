@@ -521,7 +521,9 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(poll_exit=poll_exit)
         return self._deliver_record(record)
 
-    def _deliver_request_server_info(self, server_info: pb.ServerInfoRequest) -> MailboxHandle:
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
         record = self._make_request(server_info=server_info)
         return self._deliver_record(record)
 
