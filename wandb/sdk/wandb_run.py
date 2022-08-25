@@ -2243,7 +2243,9 @@ class Run:
 
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         server_info_handle = self._backend.interface.deliver_request_server_info()
-        sampled_history_handle = self._backend.interface.deliver_request_sampled_history()
+        sampled_history_handle = (
+            self._backend.interface.deliver_request_sampled_history()
+        )
         final_summary_handle = self._backend.interface.deliver_get_summary()
 
         result = poll_exit_handle.wait(timeout=-1)
