@@ -344,9 +344,6 @@ jobs:
       execute:
         type: boolean
         default: true
-      notify_on_failure:
-        type: boolean
-        default: false
     executor:
       name: win/<< parameters.machine_executor >>
       size: << parameters.executor_size >>
@@ -388,16 +385,6 @@ jobs:
                   DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
                 no_output_timeout: 10m
             - save-test-results
-            # conditionally post a notification to slack if the job failed
-            - when:
-                condition: << parameters.notify_on_failure >>
-                steps:
-                  - slack/notify:
-                      event: fail
-                      template: basic_fail_1
-                      mentions: "@channel"
-                      # taken from slack-secrets context
-                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   mac:
     parameters:
@@ -1012,7 +999,6 @@ workflows:
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 2
           xdist: 1
-          notify_on_failure: true
       #
       # standalone tests on gke
       #
@@ -1305,9 +1291,8 @@ workflows:
           toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 2
           xdist: 1
-          notify_on_failure: true
       #
-      # stanalone tests on gke
+      # standalone tests on gke
       #
       - slack_notify:
           name: "slack-notify-on-start"
