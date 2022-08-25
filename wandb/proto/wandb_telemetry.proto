@@ -80,7 +80,7 @@ message Imports {
   bool sacred = 52;
   bool joblib = 53;
   bool dask = 54;
-  bool asyncio = 55;
+  // bool asyncio = 55;
   bool paddleocr = 56;
   bool ppdet = 57;
   bool paddleseg = 58;
