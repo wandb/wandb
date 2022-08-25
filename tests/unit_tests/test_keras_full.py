@@ -274,7 +274,6 @@ def test_keras_log_weights(dummy_model, dummy_data, relay_server, wandb_init):
     assert history["parameters/dense.weights"][0]["_type"] == "histogram"
 
 
-@pytest.mark.xfail(reason="flaky")
 def test_keras_log_gradients(dummy_model, dummy_data, relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
