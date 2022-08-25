@@ -1,19 +1,9 @@
-from typing import (
-    Any,
-    Dict,
-    get_type_hints,
-    List,
-    Optional,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, get_type_hints
 
 import wandb
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
-from .validators import TypeValidator, UNDEFINED_TYPE, Validator
-
+from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
 Func = TypeVar("Func")
 T = TypeVar("T")

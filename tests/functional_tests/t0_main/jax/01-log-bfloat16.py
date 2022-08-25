@@ -4,7 +4,6 @@
 import jax.numpy as jnp
 import wandb
 
-
 if __name__ == "__main__":
     run = wandb.init()
     m1 = jnp.array(1.0, dtype=jnp.float32)

@@ -68,3 +68,40 @@ def test_double_log(mock_run):
     run.watch(net, log_graph=True)
     with pytest.raises(ValueError):
         run.watch(net, log_graph=True)
+
+
+@pytest.mark.parametrize("log_type", ["parameters", "all"])
+def test_watch_parameters_torch_jit(mock_run, capsys, log_type):
+    run = mock_run(use_magic_mock=True)
+    net = torch.jit.script(nn.Linear(10, 2))
+    run.watch(net, log=log_type)
+
+    outerr = capsys.readouterr()
+    assert "skipping parameter tracking" in outerr.err
+
+
+def test_watch_graph_torch_jit(mock_run, capsys):
+    run = mock_run(use_magic_mock=True)
+
+    class Net(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layer_1 = nn.Linear(10, 2)
+
+        def forward(self, x):
+            return self.layer_1(x)
+
+    net = torch.jit.script(Net())
+    run.watch(net, log_graph=True)
+
+    outerr = capsys.readouterr()
+    assert "skipping graph tracking" in outerr.err
+
+
+def test_watch_bad_argument(mock_run):
+    run = mock_run(use_magic_mock=True)
+    net = nn.Linear(10, 2)
+    with pytest.raises(
+        ValueError, match="log must be one of 'gradients', 'parameters', 'all', or None"
+    ):
+        run.watch(net, log="bad_argument")

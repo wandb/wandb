@@ -1,8 +1,8 @@
 import hashlib
-from io import BytesIO
 import logging
 import os
-from typing import Any, cast, Dict, List, Optional, Sequence, Type, TYPE_CHECKING, Union
+from io import BytesIO
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 
 import wandb
 from wandb import util
@@ -18,6 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
     import PIL  # type: ignore
     import torch  # type: ignore
+
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ..wandb_artifacts import Artifact as LocalArtifact

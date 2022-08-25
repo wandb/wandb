@@ -2,10 +2,10 @@
 wandb/internal/update.py test.
 """
 
-import pytest  # type: ignore
 import sys
 from unittest import mock
 
+import pytest  # type: ignore
 import wandb
 
 update = wandb.wandb_sdk.internal.update

@@ -1,6 +1,5 @@
 """Mock Server for simple calls the cli and public api make"""
 
-from datetime import datetime, timedelta
 import functools
 import gzip
 import json
@@ -13,11 +12,12 @@ import sys
 import threading
 import time
 import urllib.parse
+from datetime import datetime, timedelta
 
-from flask import Flask, request, g, jsonify, make_response
 import requests
-from werkzeug.exceptions import BadRequest
 import yaml
+from flask import Flask, g, jsonify, make_response, request
+from werkzeug.exceptions import BadRequest
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -33,21 +33,15 @@ ArtifactEmulator = None
 def load_modules(use_yea=False):
     global RequestsMock, InjectRequestsParse, ArtifactEmulator
     if use_yea:
-        from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
         from yea_wandb.artifact_emu import ArtifactEmulator
+        from yea_wandb.mock_requests import InjectRequestsParse, RequestsMock
     else:
         try:
-            from .mock_requests import (
-                RequestsMock,
-                InjectRequestsParse,
-            )
             from .artifact_emu import ArtifactEmulator
+            from .mock_requests import InjectRequestsParse, RequestsMock
         except ImportError:
-            from mock_requests import (
-                RequestsMock,
-                InjectRequestsParse,
-            )
             from artifact_emu import ArtifactEmulator
+            from mock_requests import InjectRequestsParse, RequestsMock
 
 
 # global (is this safe?)

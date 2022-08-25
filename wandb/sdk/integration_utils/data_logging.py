@@ -2,12 +2,11 @@
 #
 # Contains common utility functions that enable
 # logging datasets and predictions to wandb.
-from collections.abc import Sequence
 import sys
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import wandb
-
 
 if TYPE_CHECKING:
     from wandb.data_types import _TableIndex
