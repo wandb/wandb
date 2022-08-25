@@ -1208,7 +1208,6 @@ class Run:
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
         if not self._backend or not self._backend.interface:
             return {}
-        # Move to deliver
         handle = self._backend.interface.deliver_get_summary()
         result = handle.wait(
             timeout=-1, on_progress=self._on_deliver_get_summary_progress
@@ -2241,6 +2240,7 @@ class Run:
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
 
+        # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         server_info_handle = self._backend.interface.deliver_request_server_info()
         sampled_history_handle = (
@@ -2248,6 +2248,7 @@ class Run:
         )
         final_summary_handle = self._backend.interface.deliver_get_summary()
 
+        # wait for them, its ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
         self._poll_exit_response = result.response.poll_exit_response
