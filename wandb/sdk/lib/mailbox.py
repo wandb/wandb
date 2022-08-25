@@ -32,8 +32,8 @@ class _MailboxSlot:
 
     def _get_and_clear(self, timeout: float) -> Optional[pb.Result]:
         found = None
-        with self._lock:
-            if self._event.wait(timeout=timeout):
+        if self._event.wait(timeout=timeout):
+            with self._lock:
                 found = self._result
                 self._event.clear()
         return found
@@ -74,8 +74,11 @@ class MailboxHandle:
         start_time = time.time()
         percent_done = 0.0
         progress_sent = False
+        wait_timeout = 1.0
+        if timeout >= 0:
+            wait_timeout = min(timeout, wait_timeout)
         while True:
-            found = self._slot._get_and_clear(timeout=1)
+            found = self._slot._get_and_clear(timeout=wait_timeout)
             if found:
                 # Always update progress to 100% when done
                 if on_progress and progress_sent:
