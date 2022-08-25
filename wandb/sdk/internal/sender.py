@@ -552,7 +552,7 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_server_info(self, record: "Record") -> None:
-        assert record.control.mailbox_slot
+        assert record.control.req_resp or record.control.mailbox_slot
         result = proto_util._result_from_record(record)
 
         result.response.server_info_response.local_info.CopyFrom(self.get_local_info())
