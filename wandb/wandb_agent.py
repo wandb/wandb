@@ -370,6 +370,7 @@ class Agent:
             "args_no_hyphens": flags_no_hyphens,
             "args_no_boolean_flags": flags_no_booleans,
             "args_json": [json.dumps(flags_dict)],
+            "args_dict": flags_dict,
         }
 
     def _command_run(self, command):
