@@ -358,5 +358,16 @@ class InterfaceGrpc(InterfaceBase):
         handle = self._deliver(result)
         return handle
 
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        assert self._stub
+        self._assign(sampled_history)
+        sampled_history_response = self._stub.SampledHistory(sampled_history)
+        response = pb.Response(sampled_history_response=sampled_history_response)
+        result = pb.Result(response=response)
+        handle = self._deliver(result)
+        return handle
+
     def join(self) -> None:
         super().join()

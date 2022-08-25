@@ -549,6 +549,9 @@ class SendManager:
             resp.file_counts.artifact_count = file_counts.artifact
             resp.file_counts.other_count = file_counts.other
 
+        if self._exit_result:
+            result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
+
         self._respond_result(result)
 
     def send_request_server_info(self, record: "Record") -> None:

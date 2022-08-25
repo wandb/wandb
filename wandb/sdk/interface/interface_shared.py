@@ -527,6 +527,12 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(server_info=server_info)
         return self._deliver_record(record)
 
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        record = self._make_request(sampled_history=sampled_history)
+        return self._deliver_record(record)
+
     def join(self) -> None:
         super().join()
 

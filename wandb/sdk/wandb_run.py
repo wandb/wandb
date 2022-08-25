@@ -2218,7 +2218,6 @@ class Run:
             self._footer_file_pusher_status_info(
                 result.response.poll_exit_response, printer=self._printer
             )
-            self._poll_exit_response = result.response.poll_exit_response
         assert self._backend and self._backend.interface
         self._poll_exit_handle = self._backend.interface.deliver_poll_exit()
 
@@ -2242,23 +2241,26 @@ class Run:
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
 
-        # For now we need to make sure we have at least one poll response
-        if not self._poll_exit_response:
-            poll_exit_handle = self._backend.interface.deliver_poll_exit()
-            result = poll_exit_handle.wait(timeout=-1)
-            assert result
-            self._poll_exit_response = result.response.poll_exit_response
-
+        poll_exit_handle = self._backend.interface.deliver_poll_exit()
         server_info_handle = self._backend.interface.deliver_request_server_info()
+        sampled_history_handle = self._backend.interface.deliver_request_sampled_history()
+        final_summary_handle = self._backend.interface.deliver_get_summary()
+
+        result = poll_exit_handle.wait(timeout=-1)
+        assert result
+        self._poll_exit_response = result.response.poll_exit_response
+
         result = server_info_handle.wait(timeout=-1)
         assert result
         self._server_info_response = result.response.server_info_response
 
-        if self._backend and self._backend.interface:
-            self._sampled_history = (
-                self._backend.interface.communicate_sampled_history()
-            )
-            self._final_summary = self._backend.interface.communicate_get_summary()
+        result = sampled_history_handle.wait(timeout=-1)
+        assert result
+        self._sampled_history = result.response.sampled_history_response
+
+        result = final_summary_handle.wait(timeout=-1)
+        assert result
+        self._final_summary = result.response.get_summary_response
 
         if self._backend:
             self._backend.cleanup()

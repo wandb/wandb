@@ -748,3 +748,13 @@ class InterfaceBase:
         self, server_info: pb.ServerInfoRequest
     ) -> MailboxHandle:
         raise NotImplementedError
+
+    def deliver_request_sampled_history(self) -> MailboxHandle:
+        sampled_history = pb.SampledHistoryRequest()
+        return self._deliver_request_sampled_history(sampled_history)
+
+    @abstractmethod
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError

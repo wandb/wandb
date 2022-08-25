@@ -628,8 +628,9 @@ message PollExitRequest {
 
 message PollExitResponse {
   bool            done = 1;
-  FilePusherStats pusher_stats = 2;
-  FileCounts      file_counts = 3;
+  RunExitResult   exit_result = 2;
+  FilePusherStats pusher_stats = 3;
+  FileCounts      file_counts = 4;
 }
 
 /*
