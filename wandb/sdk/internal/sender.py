@@ -498,6 +498,10 @@ class SendManager:
                 self._pusher.finish(transition_state)
             else:
                 transition_state()
+        elif state == defer.JOIN_FP:
+            if self._pusher:
+                self._pusher.join()
+            transition_state()
         elif state == defer.FLUSH_FS:
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
@@ -533,9 +537,8 @@ class SendManager:
 
         result = proto_util._result_from_record(record)
 
-        alive = False
         if self._pusher:
-            alive, status = self._pusher.get_status()
+            _alive, status = self._pusher.get_status()
             file_counts = self._pusher.file_counts_by_category()
             resp = result.response.poll_exit_response
             resp.pusher_stats.uploaded_bytes = status.uploaded_bytes
@@ -546,30 +549,32 @@ class SendManager:
             resp.file_counts.artifact_count = file_counts.artifact
             resp.file_counts.other_count = file_counts.other
 
-        if self._exit_result and not alive:
-            # pusher join should not block as it was reported as not alive
-            if self._pusher:
-                self._pusher.join()
+        if self._exit_result:
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
-            result.response.poll_exit_response.local_info.CopyFrom(
-                self.get_local_info()
+        self._respond_result(result)
+
+    def send_request_server_info(self, record: "Record") -> None:
+        assert record.control.mailbox_slot
+        result = proto_util._result_from_record(record)
+        result.response.poll_exit_response.local_info.CopyFrom(
+            self.get_local_info()
+        )
+        result.response.poll_exit_response.done = True
+        for message in self._server_messages:
+            # guard agains the case the message level returns malformed from server
+            message_level = str(message.get("messageLevel"))
+            message_level_sanitized = int(
+                printer.INFO if not message_level.isdigit() else message_level
             )
-            result.response.poll_exit_response.done = True
-            for message in self._server_messages:
-                # guard agains the case the message level returns malformed from server
-                message_level = str(message.get("messageLevel"))
-                message_level_sanitized = int(
-                    printer.INFO if not message_level.isdigit() else message_level
+            result.response.poll_exit_response.server_messages.item.append(
+                wandb_internal_pb2.ServerMessage(
+                    utf_text=message.get("utfText", ""),
+                    plain_text=message.get("plainText", ""),
+                    html_text=message.get("htmlText", ""),
+                    type=message.get("messageType", ""),
+                    level=message_level_sanitized,
                 )
-                result.response.poll_exit_response.server_messages.item.append(
-                    wandb_internal_pb2.ServerMessage(
-                        utf_text=message.get("utfText", ""),
-                        plain_text=message.get("plainText", ""),
-                        html_text=message.get("htmlText", ""),
-                        type=message.get("messageType", ""),
-                        level=message_level_sanitized,
-                    )
-                )
+            )
         self._respond_result(result)
 
     def _maybe_setup_resume(

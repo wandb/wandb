@@ -492,6 +492,7 @@ message Request {
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
+    ServerInfoRequest     server_info = 67;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -515,6 +516,7 @@ message Response {
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
+    ServerInfoResponse     server_info_response = 67;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -533,9 +535,10 @@ message DeferRequest {
     FLUSH_OUTPUT = 6;
     FLUSH_DIR = 7;
     FLUSH_FP = 8;
-    FLUSH_FS = 9;
-    FLUSH_FINAL = 10;
-    END = 11;
+    JOIN_FP = 9;
+    FLUSH_FS = 10;
+    FLUSH_FINAL = 11;
+    END = 12;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -630,6 +633,18 @@ message PollExitResponse {
   FilePusherStats pusher_stats = 4;
   LocalInfo local_info = 5;
   ServerMessages server_messages = 6;
+}
+
+/*
+ * ServerInfoRequest:
+ */
+message ServerInfoRequest {
+  _RequestInfo _info = 200;
+}
+
+message ServerInfoResponse {
+  LocalInfo local_info = 1;
+  ServerMessages server_messages = 2;
 }
 
 message ServerMessages{

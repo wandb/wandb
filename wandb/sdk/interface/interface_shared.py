@@ -113,6 +113,7 @@ class InterfaceShared(InterfaceBase):
         artifact_send: pb.ArtifactSendRequest = None,
         artifact_poll: pb.ArtifactPollRequest = None,
         artifact_done: pb.ArtifactDoneRequest = None,
+        server_info: pb.ServerInfoRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -151,6 +152,8 @@ class InterfaceShared(InterfaceBase):
             request.artifact_poll.CopyFrom(artifact_poll)
         elif artifact_done:
             request.artifact_done.CopyFrom(artifact_done)
+        elif server_info:
+            request.server_info.CopyFrom(server_info)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -484,37 +487,28 @@ class InterfaceShared(InterfaceBase):
         record.control.mailbox_slot = slot_address
         self._publish(record)
 
-    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+    def _deliver_record(self, record: pb.Record) -> MailboxHandle:
         mailbox = self._get_mailbox()
-        rec = self._make_record(run=run)
         handle = mailbox.get_handle()
         slot_address = handle.address
-        self._deliver(rec, slot_address)
+        self._deliver(record, slot_address)
         return handle
+
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        record = self._make_record(run=run)
+        return self._deliver_record(record)
 
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
-        mailbox = self._get_mailbox()
-        rec = self._make_request(get_summary=get_summary)
-        handle = mailbox.get_handle()
-        slot_address = handle.address
-        self._deliver(rec, slot_address)
-        return handle
+        record = self._make_request(get_summary=get_summary)
+        return self._deliver_record(record)
 
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
-        mailbox = self._get_mailbox()
-        rec = self._make_record(exit=exit_data)
-        handle = mailbox.get_handle()
-        slot_address = handle.address
-        self._deliver(rec, slot_address)
-        return handle
+        record = self._make_record(exit=exit_data)
+        return self._deliver_record(record)
 
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
-        mailbox = self._get_mailbox()
-        rec = self._make_request(poll_exit=poll_exit)
-        handle = mailbox.get_handle()
-        slot_address = handle.address
-        self._deliver(rec, slot_address)
-        return handle
+        record = self._make_request(poll_exit=poll_exit)
+        return self._deliver_record(record)
 
     def join(self) -> None:
         super().join()
