@@ -16,6 +16,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
     SimpleRunState,
     SweepRun,
 )
+from wandb.wandb_agent import Agent as LegacySweepAgent
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +145,14 @@ class SweepScheduler(Scheduler):
         _ = self._add_to_launch_queue(
             run_id=run.id,
             entry_point=["python", run.program] if run.program else None,
-            config={"overrides": {"run_config": run.args}},
+            # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
+            config={
+                "overrides": {
+                    "run_config": LegacySweepAgent._create_command_args(
+                        {"args": run.args}
+                    )["args_dict"]
+                }
+            },
         )
 
     def _exit(self) -> None:
