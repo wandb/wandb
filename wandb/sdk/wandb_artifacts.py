@@ -25,7 +25,6 @@ from typing import (
 from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
-import urllib3
 import wandb
 from wandb import env
 from wandb import util
@@ -60,7 +59,7 @@ if TYPE_CHECKING:
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
-_REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
+_REQUEST_RETRY_STRATEGY = requests.packages.urllib3.util.retry.Retry(
     backoff_factor=1,
     total=16,
     status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
@@ -647,9 +646,9 @@ class Artifact(ArtifactInterface):
             "Cannot call delete on an artifact before it has been logged or in offline mode"
         )
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, wait_timeout_secs: int = None) -> ArtifactInterface:
         if self._logged_artifact:
-            return self._logged_artifact.wait()
+            return self._logged_artifact.wait(wait_timeout_secs)
 
         raise ValueError(
             "Cannot call wait on an artifact before it has been logged or in offline mode"
