@@ -7,9 +7,9 @@ import time
 from typing import Any, Callable, Generic, Optional, Tuple, Type, TypeVar
 
 from requests import HTTPError
+
 import wandb
 from wandb.util import CheckRetryFnType
-
 
 logger = logging.getLogger(__name__)
 

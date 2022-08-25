@@ -1,5 +1,5 @@
-from collections.abc import Iterable
 import typing as t
+from collections.abc import Iterable
 
 import wandb
 

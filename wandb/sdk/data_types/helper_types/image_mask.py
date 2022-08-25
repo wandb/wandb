@@ -1,6 +1,6 @@
 import numbers
 import os
-from typing import Optional, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Type, Union
 
 import wandb
 from wandb import util

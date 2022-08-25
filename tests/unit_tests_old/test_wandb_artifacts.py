@@ -1,10 +1,11 @@
 import base64
 import hashlib
 from typing import Callable
-import pytest
-from wandb import util
-import wandb
+
 import numpy as np
+import pytest
+import wandb
+from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb
 
 sm = wandb.wandb_sdk.internal.sender.SendManager

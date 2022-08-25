@@ -1,9 +1,9 @@
 import pathlib
 import time
 
-from memory_profiler import profile
 import numpy as np
 import wandb
+from memory_profiler import profile
 
 
 # todo: yea seems to swallow memory_profiler.profile's output

@@ -2,9 +2,10 @@ import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+import yaml
+
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionError, LaunchError
-import yaml
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
@@ -12,10 +13,10 @@ from .builder import loader as builder_loader
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
-    construct_launch_spec,
     LAUNCH_CONFIG_FILE,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    construct_launch_spec,
     resolve_build_and_registry_config,
     validate_launch_spec_source,
 )

@@ -13,9 +13,8 @@ these values in many cases.
 import json
 import os
 import sys
-from typing import List, MutableMapping, Optional, Union
-
 from distutils.util import strtobool
+from typing import List, MutableMapping, Optional, Union
 
 Env = Optional[MutableMapping]
 

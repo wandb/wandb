@@ -5,7 +5,6 @@ config tests.
 import os
 from unittest import mock
 
-
 import git
 import pytest
 import wandb
