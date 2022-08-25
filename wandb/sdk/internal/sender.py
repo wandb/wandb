@@ -556,9 +556,7 @@ class SendManager:
     def send_request_server_info(self, record: "Record") -> None:
         assert record.control.mailbox_slot
         result = proto_util._result_from_record(record)
-        result.response.poll_exit_response.local_info.CopyFrom(
-            self.get_local_info()
-        )
+        result.response.poll_exit_response.local_info.CopyFrom(self.get_local_info())
         result.response.poll_exit_response.done = True
         for message in self._server_messages:
             # guard agains the case the message level returns malformed from server
