@@ -2222,18 +2222,18 @@ class Run:
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         assert self._backend and self._backend.interface
-        handle = self._backend.interface.deliver_exit(self._exit_code)
+        exit_handle = self._backend.interface.deliver_exit(self._exit_code)
 
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        _ = handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
+        _ = exit_handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
 
         # For now we need to make sure we have at least one poll response
         if not self._poll_exit_response:
             poll_exit_handle = self._backend.interface.deliver_poll_exit()
-            result = handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
+            result = poll_exit_handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
             assert result
             self._poll_exit_response = result.response.poll_exit_response
 
