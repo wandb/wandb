@@ -2102,7 +2102,9 @@ class Run:
             return None
         assert self._remote_url is not None
         assert self._commit is not None
-        name = f"job-{self._remote_url}_{program_relpath}"
+        name = wandb.util.make_artifact_name_safe(
+            f"job-{self._remote_url}_{program_relpath}"
+        )
         patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
 
         source_info: JobSourceDict = {
@@ -2173,7 +2175,7 @@ class Run:
         docker_image_name = os.getenv("WANDB_DOCKER")
         if docker_image_name is None:
             return None
-        name = f"job-{docker_image_name}"
+        name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
 
         source_info: JobSourceDict = {
             "_version": "v0",
