@@ -2233,7 +2233,9 @@ class Run:
         # For now we need to make sure we have at least one poll response
         if not self._poll_exit_response:
             poll_exit_handle = self._backend.interface.deliver_poll_exit()
-            result = poll_exit_handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
+            result = poll_exit_handle.wait(
+                timeout=-1, on_progress=self._on_deliver_exit_progress
+            )
             assert result
             self._poll_exit_response = result.response.poll_exit_response
 
