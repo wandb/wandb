@@ -1,18 +1,19 @@
-import json
-import boto3
 import base64
+import json
+from unittest.mock import MagicMock
+
+import boto3
 import kubernetes
+import pytest
 import wandb
-from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
+from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes import (
     MAX_KUBERNETES_RETRIES,
     maybe_create_imagepull_secret,
 )
-from unittest.mock import MagicMock
-import pytest
 
-from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
+from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
 
 
 class MockDict(dict):

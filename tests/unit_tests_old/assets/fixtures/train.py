@@ -1,10 +1,11 @@
 import argparse
-import time
-import random
-import wandb
-import numpy as np
 import os
+import random
 import sys
+import time
+
+import numpy as np
+import wandb
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=2)

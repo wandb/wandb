@@ -3,25 +3,20 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, cast, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 if False:
     import boto3  # type: ignore
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.docker as docker
+from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import (
-    get_entry_point_command,
-    LaunchProject,
-)
-from ..builder.build import (
-    get_env_vars_dict,
-)
+from .._project_spec import LaunchProject, get_entry_point_command
+from ..builder.build import get_env_vars_dict
 from ..utils import (
     LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
@@ -29,7 +24,7 @@ from ..utils import (
     run_shell,
     to_camel_case,
 )
-
+from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
 

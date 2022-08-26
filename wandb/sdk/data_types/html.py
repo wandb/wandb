@@ -1,5 +1,5 @@
 import os
-from typing import Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb import util
 

@@ -1,9 +1,9 @@
 version: 2.1
 
 orbs:
-  win: circleci/windows@2.4.0
-  slack: circleci/slack@4.9.3
-  go: circleci/go@1.3.0
+  win: circleci/windows@5.0.0
+  slack: circleci/slack@4.10.1
+  go: circleci/go@1.7.1
   gke: circleci/gcp-gke@1.4.0
 
 parameters:
@@ -79,6 +79,9 @@ parameters:
   manual_nightly_execute_shard_kfp:
     type: boolean
     default: false
+  manual_nightly_execute_shard_standalone_gpu_win:
+    type: boolean
+    default: false
   wandb_server_tag:
     type: string
     default: "master"
@@ -109,7 +112,7 @@ commands:
       - setup_remote_docker:
           version: 20.10.12
           docker_layer_caching: << parameters.docker_layer_caching >>
-      - run: apk add docker-cli-buildx=0.8.2-r4  --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+      - run: apk add docker-cli-buildx --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
   setup_gcloud:
     parameters:
@@ -323,7 +326,7 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       toxenv:
         type: string
       parallelism:
@@ -332,31 +335,56 @@ jobs:
       xdist:
         type: integer
         default: 3
+      machine_executor:
+        type: string
+        default: "default"  # "default" or "server-2019-cuda"
+      executor_size:
+        type: string
+        default: "large"  # could only be "medium" for "server-2019-cuda"
+      execute:
+        type: boolean
+        default: true
     executor:
-      name: win/default
-      size: "large"
+      name: win/<< parameters.machine_executor >>
+      size: << parameters.executor_size >>
     parallelism: << parameters.parallelism >>
     steps:
       - checkout
-      - run:
-          name: Install python dependencies
-          command: |
-            pip install tox==<< pipeline.parameters.tox_version >>
-      - run:
-          name: Temporary conda hack
-          shell: bash.exe
-          command: |
-            cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
-      - run:
-          name: Run tests
-          shell: bash.exe
-          command: |
-            echo $GCLOUD_SERVICE_KEY > key.json
-            gcloud auth activate-service-account --key-file=key.json
-            yes | gcloud auth configure-docker
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
-          no_output_timeout: 10m
-      - save-test-results
+      - when:
+          condition: << parameters.execute >>
+          steps:
+            - run:
+                name: Install python dependencies
+                shell: bash.exe
+                command: |
+                  pip install tox==<< pipeline.parameters.tox_version >>
+            - run:
+                name: Temporary conda hack
+                shell: bash.exe
+                command: |
+                  cp /c/tools/miniconda3/python* /c/tools/miniconda3/lib/venv/scripts/nt/
+            - when:
+                condition:
+                  equal: [ "server-2019-cuda", << parameters.machine_executor >> ]
+                steps:
+                  - run:
+                      name: Update tox.ini on a GPU machine to install the proper pytorch version
+                      shell: bash.exe
+                      command: |
+                        CUDA_VERSION=`ls "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA"`
+                        CUDA_VERSION_NO_DOT=`echo "${CUDA_VERSION//./}"`
+                        v=${CUDA_VERSION_NO_DOT:1}
+                        sed -i -e "s/whl\/cpu/whl\/cu$v/g" tox.ini
+            - run:
+                name: Run tests
+                shell: bash.exe
+                command: |
+                  echo $GCLOUD_SERVICE_KEY > key.json
+                  gcloud auth activate-service-account --key-file=key.json
+                  yes | gcloud auth configure-docker
+                  DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                no_output_timeout: 10m
+            - save-test-results
 
   mac:
     parameters:
@@ -778,8 +806,7 @@ jobs:
                   done
                 no_output_timeout: "5m"
             - run:
-                # todo: make getting the exit_code more robust: add check for "commands succeeded"
-                name: "Wait for tests to finish, get pod logs, and parse exit code"
+                name: "Wait for tests to finish"
                 command: |
                   sleep 30
 
@@ -800,19 +827,60 @@ jobs:
                     echo
                     sleep << parameters.sleep_time >>
                   done
-
+                no_output_timeout: "20m"
+            - run:
+                name: "Grab results"
+                command: |
+                  # grab result data
+                  echo "Launch attach pod to get results..."
+                  kubectl create -f << parameters.path >>/attach.yaml
+                  while true; do
+                    kubectl get pods
+                    pod_state=$(kubectl get pods | grep << parameters.pod_name >>-attach-pod)
+                    if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
+                      echo "Attach Pod for << parameters.image_name >> is running"
+                      break
+                    elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
+                      echo "Attach Pod for << parameters.image_name >> has completed"
+                      break
+                    elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
+                      echo "Attach Pod for << parameters.image_name >> is in an error state"
+                      kubectl logs << parameters.pod_name >>-attach-pod
+                      echo "About to exit"
+                      exit 1
+                    fi
+                    echo "Sleeping for << parameters.sleep_time >> seconds"
+                    echo
+                    sleep << parameters.sleep_time >>
+                  done
+                  echo "Copy results from pod..."
+                  mkdir -p results/<< parameters.pod_name >>
+                  kubectl cp << parameters.pod_name >>-attach-pod:/wandb-store/test-results results/<< parameters.pod_name >>
+                  echo "Delete attach pod..."
+                  kubectl delete pod << parameters.pod_name >>-attach-pod
+                no_output_timeout: "10m"
+            - run:
+                # todo: make getting the exit_code more robust: add check for "commands succeeded"
+                name: "Get pod logs and parse exit code"
+                command: |
                   kubectl logs << parameters.pod_name >>
                   logs=`kubectl logs << parameters.pod_name >>`
                   exit_code=`echo $(echo $logs | grep -c "commands failed")`
                   echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
                   exit ${exit_code}
                 no_output_timeout: "20m"
+            - store_test_results:
+                path: results/<< parameters.pod_name >>/test-results
+            - store_artifacts:
+                path: results/<< parameters.pod_name >>/test-results
+                destination: test-results
             - run:
                 name: "Delete the pod"
                 when: always
                 command: |
                   kubectl get pods
-                  kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >>
+                  kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >> || echo "Problem deleting pod"
+                  kubectl delete -f << parameters.path >>/attach.pod || echo "Problem deleting attach pod"
             # conditionally post a notification to slack if the job failed/succeeded
             - when:
                 condition: << parameters.notify_on_failure >>
@@ -918,6 +986,20 @@ workflows:
           context: slack-secrets
           notify_on_failure: true
       #
+      # standalone GPU tests on Windows
+      #
+      - win:
+          machine_executor: "server-2019-cuda"
+          executor_size: "medium"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 9 ]
+          name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          parallelism: 2
+          xdist: 1
+      #
       # standalone tests on gke
       #
       - slack_notify:
@@ -1009,7 +1091,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 8
-          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,flake8,docstrings"
+          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
       #
       # Unit tests with pytest on Linux, using real wandb server
       #
@@ -1107,7 +1189,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
+              python_version_minor: [9]
           name: "unit-s_base-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,wincovercircle -- --timeout 300 tests/unit_tests"
       - mac:
@@ -1115,7 +1197,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-s_base-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-s_base_mock_server-mac-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,covercircle"
       #
       # wandb launch tests
@@ -1138,7 +1220,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7]
+              python_version_minor: [9]
           name: "unit-s_nb-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "unit-s_nb-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           parallelism: 1
@@ -1195,7 +1277,22 @@ workflows:
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.manual_nightly_slack_notify >>
       #
-      # stanalone tests on gke
+      # standalone GPU tests on Windows
+      #
+      - win:
+          machine_executor: "server-2019-cuda"
+          executor_size: "medium"
+          execute: << pipeline.parameters.manual_nightly_execute_shard_standalone_gpu_win >>
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 9 ]
+          name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          parallelism: 2
+          xdist: 1
+      #
+      # standalone tests on gke
       #
       - slack_notify:
           name: "slack-notify-on-start"

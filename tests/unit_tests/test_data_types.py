@@ -3,14 +3,14 @@ import io
 import os
 import platform
 
-from bokeh.plotting import figure
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
-from PIL import Image
 import pytest
 import rdkit.Chem
 import wandb
+from bokeh.plotting import figure
+from PIL import Image
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 

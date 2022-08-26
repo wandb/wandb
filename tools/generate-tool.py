@@ -16,7 +16,6 @@ import pathlib
 import subprocess
 import tempfile
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--generate", action="store_true", help="generate files")
 parser.add_argument(

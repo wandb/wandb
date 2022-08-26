@@ -1,14 +1,8 @@
-from collections import defaultdict
-from collections.abc import Sequence
-from contextlib import contextmanager
-from copy import deepcopy
 import dataclasses
 import json
 import logging
 import os
-from pathlib import Path
 import platform
-from queue import Empty, Queue
 import secrets
 import shutil
 import socket
@@ -16,7 +10,16 @@ import string
 import subprocess
 import threading
 import time
+import unittest.mock
+import urllib.parse
+from collections import defaultdict
+from collections.abc import Sequence
+from contextlib import contextmanager
+from copy import deepcopy
+from pathlib import Path
+from queue import Empty, Queue
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -25,13 +28,9 @@ from typing import (
     List,
     Mapping,
     Optional,
-    TYPE_CHECKING,
     Union,
 )
-import unittest.mock
-import urllib.parse
 
-from click.testing import CliRunner
 import flask
 import git
 import pandas as pd
@@ -39,14 +38,15 @@ import pytest
 import requests
 import responses
 import wandb
-from wandb import Api
 import wandb.old.settings
+import wandb.util
+from click.testing import CliRunner
+from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.git import GitRepo
-import wandb.util
 
 try:
     from typing import Literal, TypedDict
@@ -72,6 +72,18 @@ if TYPE_CHECKING:
     class Resolver(TypedDict):
         name: ResolverName
         resolver: Callable[[Any], Optional[Dict[str, Any]]]
+
+
+class ConsoleFormatter:
+    BOLD = "\033[1m"
+    CODE = "\033[2m"
+    MAGENTA = "\033[95m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    END = "\033[0m"
 
 
 # --------------------------------
@@ -103,6 +115,14 @@ def copy_asset(assets_path) -> Callable:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture(scope="function", autouse=True)
+def unset_global_objects():
+    from wandb.sdk.lib.module import unset_globals
+
+    yield
+    unset_globals()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -630,9 +650,16 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--wandb-server-tag",
-        # default="master",
-        default="fix-fixture-teardown",
+        default="master",
         help="Image tag to use for the wandb server",
+    )
+    # debug option: creates an admin account that can be used to log in to the
+    # app and inspect the test runs.
+    parser.addoption(
+        "--wandb-debug",
+        action="store_true",
+        default=False,
+        help="Run tests in debug mode",
     )
 
 
@@ -659,6 +686,11 @@ def base_url(request):
 @pytest.fixture(scope="session")
 def wandb_server_tag(request):
     return request.config.getoption("--wandb-server-tag")
+
+
+@pytest.fixture(scope="session")
+def wandb_debug(request):
+    return request.config.getoption("--wandb-debug", default=False)
 
 
 def check_server_health(
@@ -724,7 +756,7 @@ def check_server_up(
         return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
 
     if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose port 9003
+        # start wandb server locally and expose ports 8080, 8083, and 9003
         command = [
             "docker",
             "run",
@@ -733,6 +765,8 @@ def check_server_up(
             "wandb:/vol",
             "-p",
             "8080:8080",
+            "-p",
+            "8083:8083",
             "-p",
             "9003:9003",
             "-e",
@@ -761,23 +795,48 @@ def check_server_up(
 @dataclasses.dataclass
 class UserFixtureCommand:
     command: Literal["up", "down", "down_all", "logout", "login"]
-    username: Optional[str]
+    username: Optional[str] = None
+    admin: bool = False
     endpoint: str = "db/user"
+    port: int = 9003
+    method: Literal["post"] = "post"
+
+
+@dataclasses.dataclass
+class AddAdminAndEnsureNoDefaultUser:
+    email: str
+    password: str
+    endpoint: str = "api/users-admin"
+    port: int = 8083
+    method: Literal["put"] = "put"
 
 
 @pytest.fixture(scope="session")
 def fixture_fn(base_url, wandb_server_tag):
-    def fixture_util(cmd: UserFixtureCommand) -> bool:
-        endpoint = urllib.parse.urljoin(base_url.replace("8080", "9003"), cmd.endpoint)
-        data = {"command": cmd.command}
+    def fixture_util(
+        cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+    ) -> bool:
+        endpoint = urllib.parse.urljoin(
+            base_url.replace("8080", str(cmd.port)),
+            cmd.endpoint,
+        )
 
         if isinstance(cmd, UserFixtureCommand):
+            data = {"command": cmd.command}
             if cmd.username:
                 data["username"] = cmd.username
+            if cmd.admin is not None:
+                data["admin"] = cmd.admin
+        elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
+            data = [
+                {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
+                {"email": "local@wandb.com", "delete": True},
+            ]
         else:
             raise NotImplementedError(f"{cmd} is not implemented")
-        # trigger fixture with a POST request
-        response = requests.post(endpoint, json=data)
+        # trigger fixture
+        print(f"Triggering fixture: {data}")
+        response = getattr(requests, cmd.method)(endpoint, json=data)
         if response.status_code != 200:
             print(response.json())
             return False
@@ -794,7 +853,7 @@ def fixture_fn(base_url, wandb_server_tag):
 
 
 @pytest.fixture(scope=determine_scope)
-def user(worker_id: str, fixture_fn, base_url) -> str:
+def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
     fixture_fn(command)
@@ -810,8 +869,46 @@ def user(worker_id: str, fixture_fn, base_url) -> str:
     ):
         yield username
 
-        command = UserFixtureCommand(command="down", username=username)
+        if not wandb_debug:
+            command = UserFixtureCommand(command="down", username=username)
+            fixture_fn(command)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def debug(wandb_debug, fixture_fn, base_url):
+    if wandb_debug:
+        admin_username = f"admin-{random_string()}"
+        # disable default user and create an admin account that can be used to log in to the app
+        # and inspect the test runs.
+        command = UserFixtureCommand(
+            command="up",
+            username=admin_username,
+            admin=True,
+        )
         fixture_fn(command)
+        command = AddAdminAndEnsureNoDefaultUser(
+            email=admin_username,
+            password=admin_username,
+        )
+        fixture_fn(command)
+        message = (
+            f"{ConsoleFormatter.GREEN}"
+            "*****************************************************************\n"
+            "Admin user created for debugging:\n"
+            f"Proceed to {base_url} and log in with the following credentials:\n"
+            f"username: {admin_username}@wandb.com\n"
+            f"password: {admin_username}\n"
+            "*****************************************************************"
+            f"{ConsoleFormatter.END}"
+        )
+        print(message)
+        yield admin_username
+        print(message)
+        # input("\nPress any key to exit...")
+        # command = UserFixtureCommand(command="down_all")
+        # fixture_fn(command)
+    else:
+        yield None
 
 
 class DeliberateHTTPError(Exception):
@@ -898,9 +995,9 @@ class Context:
         dfs = []
 
         for entry_id in self._entries:
-            # - extract the history from wandb-events.jsonl
+            # - extract the content from `file_name`
             # - sort by offset (will be useful when relay server goes async)
-            # - extract content, merge into a list of dicts and convert to a pandas dataframe
+            # - extract data, merge into a list of dicts and convert to a pandas dataframe
             content_list = self._entries[entry_id].get("files", {}).get(file_name, [])
             content_list.sort(key=lambda x: x["offset"])
             content_list = [item["content"] for item in content_list]
@@ -939,7 +1036,17 @@ class Context:
         if self._summary is not None:
             return deepcopy(self._summary)
 
-        self._summary = self.get_file_contents("wandb-summary.json")
+        _summary = self.get_file_contents("wandb-summary.json")
+
+        # run summary may be updated multiple times,
+        # but we are only interested in the last one.
+        # we can have multiple runs saved to context,
+        # so we need to group by run id and take the
+        # last one for each run.
+        self._summary = (
+            _summary.groupby("__run_id").last().reset_index(level=["__run_id"])
+        )
+
         return deepcopy(self._summary)
 
     @property
@@ -972,14 +1079,18 @@ class Context:
 
     def get_run_summary(
         self, run_id: str, include_private: bool = False
-    ) -> pd.DataFrame:
+    ) -> Dict[str, Any]:
+        # run summary dataframe must have only one row
+        # for the given run id, so we convert it to dict
+        # and extract the first (and only) row.
         mask_run = self.summary["__run_id"] == run_id
         run_summary = self.summary[mask_run]
-        return (
+        ret = (
             run_summary.filter(regex="^[^_]", axis=1)
             if not include_private
             else run_summary
-        )
+        ).to_dict(orient="records")
+        return ret[0] if len(ret) > 0 else {}
 
     def get_run_history(
         self, run_id: str, include_private: bool = False
@@ -1566,23 +1677,3 @@ def inject_file_stream_response(base_url, user):
         )
 
     yield helper
-
-
-# @pytest.fixture
-# def test_name(request):
-#     # change "test[1]" to "test__1__"
-#     name = urllib.parse.quote(request.node.name.replace("[", "__").replace("]", "__"))
-#     return name
-#
-#
-# @pytest.fixture
-# def test_dir(test_name):
-#     orig_dir = os.getcwd()
-#     root = os.path.abspath(os.path.dirname(__file__))
-#     test_dir = os.path.join(root, "logs", test_name)
-#     if os.path.exists(test_dir):
-#         shutil.rmtree(test_dir)
-#     mkdir_exists_ok(test_dir)
-#     os.chdir(test_dir)
-#     yield test_dir
-#     os.chdir(orig_dir)

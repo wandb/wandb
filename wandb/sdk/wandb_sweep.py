@@ -1,5 +1,5 @@
-from typing import Callable, Dict, Optional, Union
 import urllib.parse
+from typing import Callable, Dict, Optional, Union
 
 import wandb
 from wandb import env

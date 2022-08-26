@@ -1,16 +1,17 @@
 """Abstract Scheduler class."""
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import Enum
 import logging
 import os
 import threading
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.apis.public as public
+from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.sweeps import SchedulerError
@@ -206,8 +207,9 @@ class Scheduler(ABC):
 
     def _add_to_launch_queue(
         self,
-        entry_point: Optional[List[str]] = None,
         run_id: Optional[str] = None,
+        entry_point: Optional[List[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> "public.QueuedRun":
         """Add a launch job to the Launch RunQueue."""
         run_id = run_id or generate_id()
@@ -222,6 +224,7 @@ class Scheduler(ABC):
         queued_run = launch_add(
             run_id=run_id,
             entry_point=entry_point,
+            config=config,
             uri=_uri,
             job=_job,
             project=self._project,

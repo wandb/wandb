@@ -5,11 +5,11 @@ import os
 import re
 import sys
 
+import yaml
+
 import wandb
 from wandb import trigger
 from wandb.util import add_import_hook, get_optional_module
-import yaml
-
 
 _import_hook = None
 _run_once = False
@@ -336,8 +336,9 @@ def _magic_fit_generator(
 
 
 def _monkey_tfkeras():
-    from wandb.integration.keras import WandbCallback  # add keras import hooks first
     from tensorflow import keras as tfkeras
+
+    from wandb.integration.keras import WandbCallback  # add keras import hooks first
 
     models = getattr(tfkeras, "models", None)
     if not models:

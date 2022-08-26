@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 import wandb
-from wandb.apis.public import _DownloadedArtifactEntry, Artifact
+from wandb.apis.public import Artifact, _DownloadedArtifactEntry
 from wandb.sdk.data_types import saved_model
 from wandb.sdk.wandb_artifacts import ArtifactEntry
 

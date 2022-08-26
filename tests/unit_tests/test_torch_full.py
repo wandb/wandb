@@ -221,7 +221,6 @@ def test_sequence_net(wandb_init):
     run.finish()
 
 
-@pytest.mark.xfail(reason="TODO: [Errno 24] Too many open files on darwin")
 def test_multi_net(wandb_init):
     run = wandb_init()
     net1 = ConvNet()

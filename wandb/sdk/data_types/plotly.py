@@ -1,11 +1,11 @@
 import codecs
 import os
-from typing import Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb import util
 
 from ._private import MEDIA_TMP
-from .base_types.media import _numpy_arrays_to_lists, Media
+from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .image import Image
 

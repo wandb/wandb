@@ -9,32 +9,33 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-from abc import abstractmethod
 import json
 import logging
 import os
 import sys
 import time
-from typing import Any, Iterable, NewType, Optional, Tuple, TYPE_CHECKING, Union
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
+    WandBJSONEncoderOld,
     get_h5_typename,
     json_dumps_safer,
     json_dumps_safer_history,
     json_friendly,
     json_friendly_val,
     maybe_compress_summary,
-    WandBJSONEncoderOld,
 )
 
+from ..data_types.utils import history_dict_to_json, val_to_json
+from ..lib.mailbox import MailboxHandle
+from ..wandb_artifacts import Artifact
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
-from ..data_types.utils import history_dict_to_json, val_to_json
-from ..wandb_artifacts import Artifact
 
 GlobStr = NewType("GlobStr", str)
 
@@ -693,4 +694,12 @@ class InterfaceBase:
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:
+        raise NotImplementedError
+
+    def deliver_run(self, run_obj: "Run") -> MailboxHandle:
+        run = self._make_run(run_obj)
+        return self._deliver_run(run)
+
+    @abstractmethod
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         raise NotImplementedError

@@ -6,16 +6,15 @@ import time
 from typing import Dict, List, Optional, Union
 
 import psutil
+
 import wandb
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
-from . import ipu
-from . import tpu
-from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import telemetry
-
+from . import ipu, tpu
+from .settings_static import SettingsStatic
 
 GPUHandle = object
 SamplerDict = Dict[str, List[float]]

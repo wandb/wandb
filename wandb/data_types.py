@@ -31,9 +31,9 @@ from wandb import util
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
-    _numpy_arrays_to_lists,
     BatchableMedia,
     Media,
+    _numpy_arrays_to_lists,
 )
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D

@@ -1,15 +1,15 @@
 """xgboost init!"""
 
 import json
-from pathlib import Path
-from typing import cast, TYPE_CHECKING
 import warnings
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
-import wandb
-from wandb.sdk.lib import telemetry as wb_telemetry
 import xgboost as xgb  # type: ignore
 from xgboost import Booster
 
+import wandb
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 MINIMIZE_METRICS = [
     "rmse",
@@ -27,7 +27,7 @@ MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map", "ndcg@n", "map@n"]
 
 
 if TYPE_CHECKING:
-    from typing import List, NamedTuple, Callable
+    from typing import Callable, List, NamedTuple
 
     class CallbackEnv(NamedTuple):
         evaluation_result_list: List

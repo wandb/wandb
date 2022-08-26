@@ -16,16 +16,14 @@ import logging
 import secrets
 import sys
 import threading
-from typing import cast
-from typing import Optional
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Optional, cast
 
 if TYPE_CHECKING:
     import multiprocessing
     import queue
     import socket
     from typing import Union
+
     from wandb.proto import wandb_internal_pb2 as pb
     from wandb.proto import wandb_server_pb2 as spb
 
