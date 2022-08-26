@@ -15,17 +15,16 @@ import wandb
 import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
-from .loader import load_builder
-from ..utils import LOG_PREFIX
-
-from .._project_spec import (
-    compute_command_args,
-    EntryPoint,
-    LaunchProject,
-    fetch_and_validate_project,
-)
 
 from ...lib.git import GitRepo
+from .._project_spec import (
+    EntryPoint,
+    LaunchProject,
+    compute_command_args,
+    fetch_and_validate_project,
+)
+from ..utils import LOG_PREFIX
+from .loader import load_builder
 
 _logger = logging.getLogger(__name__)
 

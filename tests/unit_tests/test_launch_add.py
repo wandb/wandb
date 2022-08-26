@@ -1,8 +1,7 @@
-from wandb.cli import cli
-from wandb.sdk.internal.internal_api import Api as InternalApi
-
 import pytest
 import wandb
+from wandb.cli import cli
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 @pytest.fixture()
