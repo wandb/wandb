@@ -23,7 +23,7 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import List, Optional, Mapping
+from typing import List, Mapping, Optional
 
 import requests
 from wandb_gql import Client, gql
