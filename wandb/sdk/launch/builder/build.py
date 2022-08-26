@@ -514,7 +514,7 @@ def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
     build_type: Optional[str],
-    launch_config: Optional[Dict] = {},
+    launch_config: Optional[Dict],
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec
@@ -527,27 +527,30 @@ def build_image_from_project(
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
 
-    repository: Optional[str] = launch_config.get("url")
     builder_config = {"type": build_type}
-
     docker_args = {}
-    if launch_project.python_version:
-        docker_args["python_version"] = launch_project.python_version
+    if launch_config:
+        repository: Optional[str] = launch_config.get("url")
+        if launch_project.python_version:
+            docker_args["python_version"] = launch_project.python_version
 
-    if launch_project.cuda_version:
-        docker_args["cuda_version"] = launch_project.cuda_version
+        if launch_project.cuda_version:
+            docker_args["cuda_version"] = launch_project.cuda_version
 
-    if launch_project.docker_user_id:
-        docker_args["user"] = launch_project.docker_user_id
+        if launch_project.docker_user_id:
+            docker_args["user"] = str(launch_project.docker_user_id)
 
     wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source.")
     launch_project = fetch_and_validate_project(launch_project, api)
     builder = load_builder(builder_config)
+    entry_point = launch_project.get_single_entry_point()
+    if not entry_point:
+        entry_point = EntryPoint("main.py", ["python", "main.py"])
+
     image_uri = builder.build_image(
         launch_project,
         repository,
-        launch_project.get_single_entry_point(),
+        entry_point,
         docker_args,
     )
-
     return image_uri

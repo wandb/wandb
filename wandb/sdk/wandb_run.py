@@ -2042,10 +2042,7 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
-    def _make_job_source_reqs(self) -> Union[str, str, str]:
-        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
-        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
-
+    def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         import pkg_resources
 
         installed_packages_list = sorted(
@@ -2076,7 +2073,7 @@ class Run:
             self._create_artifact_job,
             self._create_image_job,
         ]:
-            artifact = job_creation_function(
+            artifact = job_creation_function(  # type: ignore
                 input_types, output_types, installed_packages_list
             )
             if artifact:
@@ -2214,7 +2211,11 @@ class Run:
         job_artifact = self._create_image_job(
             in_types, out_types, packages, docker_image_name
         )
-        return job_artifact
+
+        if not job_artifact:
+            raise wandb.Error(f"Job Artifact log unsuccessful: {job_artifact}")
+        else:
+            return job_artifact
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")

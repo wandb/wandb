@@ -17,21 +17,21 @@ def launch_queue(api=None):
     pass
 
 
-@pytest.mark.timeout(300)
+@pytest.mark.timeout(300)  # builds a container
 def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     # create a project
-    PROJ = "test_project_1"
-    monkeypatch.setenv("WANDB_PROJECT", PROJ)
-    run = wandb.init(project=PROJ)
+    proj = "test_project_1"
+    monkeypatch.setenv("WANDB_PROJECT", proj)
+    run = wandb.init(project=proj)
     # create a queue in the project
     api = InternalApi()
     api.create_run_queue(
-        entity=user, project=PROJ, queue_name="queue", access="PROJECT"
+        entity=user, project=proj, queue_name="queue", access="PROJECT"
     )
 
     args = [
         "https://github.com/gtarpenning/wandb-launch-test",
-        f"--project={PROJ}",
+        f"--project={proj}",
         f"--entity={user}",
         "--job=oops",
         "--queue=queue",
