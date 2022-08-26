@@ -22,7 +22,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 import urllib
 
 import requests
@@ -2237,7 +2237,7 @@ class QueuedRun:
 
     @property
     def state(self):
-        item = self.get_item()
+        item = self._get_item()
         if item:
             return item["state"].lower()
 
@@ -2246,7 +2246,39 @@ class QueuedRun:
         )
 
     @normalize_exceptions
-    def get_item(self):
+    def _get_run_queue_item_legacy(self) -> Dict:
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    associatedRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self.queue_id,
+        }
+        res = self.client.execute(query, variable_values)
+
+        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+            if str(item["node"]["id"]) == str(self.id):
+                return item["node"]
+
+    @normalize_exceptions
+    def _get_item(self):
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
@@ -2276,31 +2308,7 @@ class QueuedRun:
             if "Cannot query field" not in str(e):
                 raise LaunchError(f"Unknown exception: {e}")
 
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    associatedRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """
-        )
-        del variable_values["itemId"]
-        res = self.client.execute(query, variable_values)
-
-        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-            if str(item["node"]["id"]) == str(self.id):
-                return item["node"]
+        return self._get_run_queue_item_legacy()
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -2346,7 +2354,7 @@ class QueuedRun:
         while True:
             # sleep here to hide an ugly warning
             time.sleep(2)
-            item = self.get_item()
+            item = self._get_item()
             if item and item["associatedRunId"] is not None:
                 try:
                     self._run = Run(
