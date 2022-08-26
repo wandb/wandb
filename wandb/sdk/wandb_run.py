@@ -3571,7 +3571,7 @@ class _LazyArtifact(ArtifactInterface):
     _instance: Optional[ArtifactInterface] = None
     _future: Any
 
-    def __init__(self, api: PublicApi, future: Any):
+    def __init__(self, api: PublicApi, future: Any, **kwargs):
         self._api = api
         self._future = future
 
@@ -3602,6 +3602,10 @@ class _LazyArtifact(ArtifactInterface):
     @property
     def id(self) -> Optional[str]:
         return self._assert_instance().id
+
+    @property
+    def client_id(self) -> str:
+        return self._assert_instance().client_id
 
     @property
     def version(self) -> str:

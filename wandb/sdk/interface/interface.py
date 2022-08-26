@@ -394,23 +394,27 @@ class InterfaceBase:
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
             cfg.value_json = json.dumps(v)
-
-        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
-            proto_entry = proto_manifest.contents.add()
-            proto_entry.path = entry.path
-            proto_entry.digest = entry.digest
-            if entry.size:
-                proto_entry.size = entry.size
-            if entry.birth_artifact_id:
-                proto_entry.birth_artifact_id = entry.birth_artifact_id
-            if entry.ref:
-                proto_entry.ref = entry.ref
-            if entry.local_path:
-                proto_entry.local_path = entry.local_path
-            for k, v in entry.extra.items():
-                proto_extra = proto_entry.extra.add()
-                proto_extra.key = k
-                proto_extra.value_json = json.dumps(v)
+        if artifact_manifest.path is not None:
+            proto_manifest.manifest_path = artifact_manifest.path
+        if proto_manifest.manifest_path == "":
+            for entry in sorted(
+                artifact_manifest.entries.values(), key=lambda k: k.path
+            ):
+                proto_entry = proto_manifest.contents.add()
+                proto_entry.path = entry.path
+                proto_entry.digest = entry.digest
+                if entry.size:
+                    proto_entry.size = entry.size
+                if entry.birth_artifact_id:
+                    proto_entry.birth_artifact_id = entry.birth_artifact_id
+                if entry.ref:
+                    proto_entry.ref = entry.ref
+                if entry.local_path:
+                    proto_entry.local_path = entry.local_path
+                for k, v in entry.extra.items():
+                    proto_extra = proto_entry.extra.add()
+                    proto_extra.key = k
+                    proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
     def publish_link_artifact(
