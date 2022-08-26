@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 
+from ..lib.mailbox import Mailbox
 from .interface_queue import InterfaceQueue
 from .router_relay import MessageRelayRouter
 
@@ -22,6 +23,7 @@ logger = logging.getLogger("wandb")
 
 class InterfaceRelay(InterfaceQueue):
     relay_q: Optional["Queue[pb.Result]"]
+    _mailbox: Optional[Mailbox]
 
     def __init__(
         self,
@@ -30,6 +32,7 @@ class InterfaceRelay(InterfaceQueue):
         relay_q: "Queue[pb.Result]" = None,
         process: BaseProcess = None,
         process_check: bool = True,
+        mailbox: Optional[Mailbox] = None,
     ) -> None:
         self.relay_q = relay_q
         super().__init__(
@@ -37,6 +40,7 @@ class InterfaceRelay(InterfaceQueue):
             result_q=result_q,
             process=process,
             process_check=process_check,
+            mailbox=mailbox,
         )
 
     def _init_router(self) -> None:

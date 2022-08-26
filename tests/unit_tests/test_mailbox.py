@@ -59,5 +59,5 @@ def test_redeliver_slot():
     mailbox.deliver(result2)
 
     # our handler should see the old data
-    got_result = handle.wait()
+    got_result = handle.wait(timeout=-1)
     assert got_result.run_result.run.run_id == "this_is_new"

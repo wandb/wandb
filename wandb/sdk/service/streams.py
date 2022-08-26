@@ -18,6 +18,7 @@ import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
 
@@ -50,6 +51,7 @@ class StreamRecord:
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
 
     def __init__(self, settings: Dict[str, Any]) -> None:
+        self._mailbox = Mailbox()
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
         self._relay_q = multiprocessing.Queue()
@@ -60,6 +62,7 @@ class StreamRecord:
             relay_q=self._relay_q,
             process=process,
             process_check=False,
+            mailbox=self._mailbox,
         )
         self._settings = SettingsStatic(settings)
 
