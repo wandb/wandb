@@ -19,6 +19,7 @@ from wandb.errors import DockerError, ExecutionError, LaunchError
 from ...lib.git import GitRepo
 from .._project_spec import (
     EntryPoint,
+    EntrypointDefaults,
     LaunchProject,
     compute_command_args,
     fetch_and_validate_project,
@@ -544,7 +545,7 @@ def build_image_from_project(
     builder = load_builder(builder_config)
     entry_point = launch_project.get_single_entry_point()
     if not entry_point:
-        entry_point = EntryPoint("main.py", ["python", "main.py"])
+        launch_project.add_entry_point(EntrypointDefaults.PYTHON)
 
     image_uri = builder.build_image(
         launch_project,
