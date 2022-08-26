@@ -1,3 +1,4 @@
+import os
 import pytest
 import wandb
 from wandb.cli import cli
@@ -20,14 +21,13 @@ def launch_queue(api=None):
 def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     # create a project
     proj = "test_project_917"
-    monkeypatch.setenv("WANDB_PROJECT", proj)
+    os.environ["WANDB_PROJECT"] = proj
     run = wandb.init(project=proj)
     # create a queue in the project
     api = InternalApi()
     queue = "queue-21"
     api.create_run_queue(entity=user, project=proj, queue_name=queue, access="PROJECT")
 
-    run.finish()  # weird file sync error if run ends too early
     args = [
         "https://github.com/gtarpenning/wandb-launch-test",
         f"--project={proj}",
@@ -39,6 +39,8 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     with relay_server() as relay:
         result = runner.invoke(cli.launch, args)
         print(relay.context.raw_data)
+
+    run.finish()  # weird file sync error if run ends too early
 
     assert result.exit_code == 0
     assert "'uri': None" in str(result.output)

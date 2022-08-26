@@ -529,8 +529,9 @@ def build_image_from_project(
 
     builder_config = {"type": build_type}
     docker_args = {}
+    repository = None
     if launch_config:
-        repository: Optional[str] = launch_config.get("url")
+        repository = launch_config.get("url")
         if launch_project.python_version:
             docker_args["python_version"] = launch_project.python_version
 
