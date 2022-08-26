@@ -798,7 +798,7 @@ class HandleManager:
         self._respond_result(result)
 
     def handle_request_server_info(self, record: Record) -> None:
-        self._dispatch_record(record)
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
