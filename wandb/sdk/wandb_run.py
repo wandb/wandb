@@ -2043,6 +2043,9 @@ class Run:
         self._freeze()
 
     def _make_job_source_reqs(self) -> Union[str, str, str]:
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
         import pkg_resources
 
         installed_packages_list = sorted(
@@ -2054,6 +2057,13 @@ class Run:
         return installed_packages_list, input_types, output_types
 
     def _log_job(self) -> None:
+        # don't produce a job if the run is sourced from a job
+        if (
+            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
+            is not None
+        ):
+            return
+
         artifact = None
         (
             installed_packages_list,
