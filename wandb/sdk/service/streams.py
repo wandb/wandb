@@ -240,45 +240,50 @@ class StreamMux:
         )
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
+        exit_handles = []
         for stream in streams.values():
-            stream.interface.publish_exit(exit_code)
+            handle = stream.interface.deliver_exit(exit_code)
+            exit_handles.append(handle)
             Run._footer_exit_status_info(
                 exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
-        streams_to_join, poll_exit_responses = {}, {}
-        while streams and not self._stopped.is_set():
-            # Stop trying to sync data if our parent process has terminated
-            if self._check_orphaned():
-                self._stopped.set()
-                return
-            # Note that we materialize the generator so we can modify the underlying list
-            for sid, stream in list(streams.items()):
-                poll_exit_response = stream.interface.communicate_poll_exit()
-                poll_exit_responses[sid] = poll_exit_response
-                if poll_exit_response and poll_exit_response.done:
-                    streams.pop(sid)
-                    streams_to_join[sid] = stream
-            Run._footer_file_pusher_status_info(poll_exit_responses, printer=printer)
-            time.sleep(0.1)
+        for handle in exit_handles:
+            _ = handle.wait(timeout=-1)
+
+        # streams_to_join, poll_exit_responses = {}, {}
+        # while streams and not self._stopped.is_set():
+        #     # Stop trying to sync data if our parent process has terminated
+        #     if self._check_orphaned():
+        #         self._stopped.set()
+        #         return
+        #     # Note that we materialize the generator so we can modify the underlying list
+        #     for sid, stream in list(streams.items()):
+        #         poll_exit_response = stream.interface.communicate_poll_exit()
+        #         poll_exit_responses[sid] = poll_exit_response
+        #         if poll_exit_response and poll_exit_response.done:
+        #             streams.pop(sid)
+        #             streams_to_join[sid] = stream
+        #     Run._footer_file_pusher_status_info(poll_exit_responses, printer=printer)
+        #     time.sleep(0.1)
 
         # TODO: this would be nice to do in parallel
-        for sid, stream in streams_to_join.items():
-            history = (
-                stream.interface.communicate_sampled_history()
-                if stream.interface
-                else None
-            )
-            summary = (
-                stream.interface.communicate_get_summary() if stream.interface else None
-            )
-            Run._footer(
-                history,
-                summary,
-                poll_exit_responses[sid],
-                settings=stream._settings,  # type: ignore
-                printer=printer,
-            )
+        for _sid, stream in streams.items():
+            # history = (
+            #     stream.interface.communicate_sampled_history()
+            #     if stream.interface
+            #     else None
+            # )
+            # summary = (
+            #     stream.interface.communicate_get_summary() if stream.interface else None
+            # )
+            # Run._footer(
+            #     history,
+            #     summary,
+            #     poll_exit_responses[sid],
+            #     settings=stream._settings,  # type: ignore
+            #     printer=printer,
+            # )
             stream.join()
 
     def _process_teardown(self, action: StreamAction) -> None:

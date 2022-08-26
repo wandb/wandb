@@ -22,17 +22,17 @@ logger = logging.getLogger("wandb")
 
 
 class InterfaceRelay(InterfaceQueue):
+    _mailbox: Mailbox
     relay_q: Optional["Queue[pb.Result]"]
-    _mailbox: Optional[Mailbox]
 
     def __init__(
         self,
+        mailbox: Mailbox,
         record_q: "Queue[pb.Record]" = None,
         result_q: "Queue[pb.Result]" = None,
         relay_q: "Queue[pb.Result]" = None,
         process: BaseProcess = None,
         process_check: bool = True,
-        mailbox: Optional[Mailbox] = None,
     ) -> None:
         self.relay_q = relay_q
         super().__init__(
@@ -46,5 +46,8 @@ class InterfaceRelay(InterfaceQueue):
     def _init_router(self) -> None:
         if self.record_q and self.result_q and self.relay_q:
             self._router = MessageRelayRouter(
-                self.record_q, self.result_q, self.relay_q
+                request_queue=self.record_q,
+                response_queue=self.result_q,
+                relay_queue=self.relay_q,
+                mailbox=self._mailbox,
             )

@@ -2243,10 +2243,10 @@ class Run:
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         server_info_handle = self._backend.interface.deliver_request_server_info()
+        final_summary_handle = self._backend.interface.deliver_get_summary()
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
-        final_summary_handle = self._backend.interface.deliver_get_summary()
 
         # wait for them, its ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
