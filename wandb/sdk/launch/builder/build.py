@@ -543,9 +543,10 @@ def build_image_from_project(
     wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source.")
     launch_project = fetch_and_validate_project(launch_project, api)
     builder = load_builder(builder_config)
-    entry_point = launch_project.get_single_entry_point()
-    if not entry_point:
-        launch_project.add_entry_point(EntrypointDefaults.PYTHON)
+    entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
+        name="main.py",
+        command=EntrypointDefaults.PYTHON,
+    )
 
     image_uri = builder.build_image(
         launch_project,

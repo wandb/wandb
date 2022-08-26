@@ -2185,11 +2185,13 @@ class Run:
         input_types: Dict[str, Any],
         output_types: Dict[str, Any],
         installed_packages_list: List[str],
-        docker_image_name: Optional[str],
+        docker_image_name: Optional[str] = None,
     ) -> "Optional[Artifact]":
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
-        if docker_image_name is None:
+
+        if not docker_image_name:
             return None
+
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
 
         source_info: JobSourceDict = {
