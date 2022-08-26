@@ -2468,6 +2468,19 @@ class Sweep(Attrs):
         except IndexError:
             return None
 
+    def expected_runs(self) -> int:
+        "Returns the number of expected runs in the sweep"
+        expected_runs: int = 0
+        for _, param_dict in self.config.get('parameters', {}).items():
+            if param_dict.get('values', None) is not None:
+                expected_runs *= len(param_dict['values'])
+            else:
+                # Even one parameter that isn't categorical will result in infinite
+                # expected runs.
+                expected_runs = -1
+                break
+        return expected_runs
+
     @property
     def path(self):
         return [
