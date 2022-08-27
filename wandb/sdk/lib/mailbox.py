@@ -78,7 +78,7 @@ class MailboxHandle:
         if timeout >= 0:
             wait_timeout = min(timeout, wait_timeout)
         while True:
-            self._mailbox._verify_delivery_possible()
+            self._mailbox._verify_transport_alive()
 
             found = self._slot._get_and_clear(timeout=wait_timeout)
             if found:
@@ -112,13 +112,15 @@ class MailboxHandle:
 class Mailbox:
     _slots: Dict[str, _MailboxSlot]
     _keepalive_interval: int
-    _last_delivery_timestamp: float
+    _transport_alive_timestamp: float
+    _transport_dead: bool
     _keepalive_func: Optional[Callable[[], None]]
 
     def __init__(self) -> None:
         self._slots = {}
-        self._keepalive_interval = 10
-        self._last_delivery_timestamp = time.time()
+        self._keepalive_interval = 5
+        self._transport_alive_timestamp = time.time()
+        self._transport_dead = False
         self._keepalive_func = None
 
     def enable_keepalive(self, func: Callable[[], None]) -> None:
@@ -127,16 +129,21 @@ class Mailbox:
     def disable_keepalive(self) -> None:
         self._keepalive_func = None
 
-    def _mark_delivery_request(self) -> None:
-        self._last_delivery_timestamp = time.time()
+    def notify_transport_alive(self) -> None:
+        self._transport_alive_timestamp = time.time()
 
-    def _verify_delivery_possible(self) -> None:
+    def notify_transport_dead(self) -> None:
+        self._transport_dead = True
+
+    def _verify_transport_alive(self) -> None:
         """Internal method to verify delivery mechanism is still working."""
+        if not self._keepalive_func:
+            return
         now = time.time()
-        if now > self._last_delivery_timestamp + self._keepalive_interval:
+        if now > self._transport_alive_timestamp + self._keepalive_interval:
             if self._keepalive_func:
                 self._keepalive_func()
-            self._last_delivery_timestamp = now
+                self._transport_alive_timestamp = now
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot

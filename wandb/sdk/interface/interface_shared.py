@@ -501,16 +501,16 @@ class InterfaceShared(InterfaceBase):
         assert mailbox
         return mailbox
 
-    def _deliver(self, record: pb.Record, slot_address: str) -> None:
-        record.control.mailbox_slot = slot_address
-        self._publish(record)
-
     def _deliver_record(self, record: pb.Record) -> MailboxHandle:
         mailbox = self._get_mailbox()
         handle = mailbox.get_handle()
-        slot_address = handle.address
-        mailbox._mark_delivery_request()
-        self._deliver(record, slot_address)
+        record.control.mailbox_slot = handle.address
+        try:
+            self._publish(record)
+        except Exception:
+            mailbox.notify_transport_dead()
+            raise
+        mailbox.notify_transport_alive()
         return handle
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
