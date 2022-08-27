@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 import pytest
 import wandb
 from wandb.cli import cli
@@ -27,7 +28,7 @@ def test_launch_build_push_job(relay_server, runner, user):
     # create a queue in the project
     api = InternalApi()
     queue = "queue-21"
-    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="PROJECT")
+    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
 
     args = [
         "https://github.com/gtarpenning/wandb-launch-test",
@@ -57,7 +58,7 @@ def test_launch_build_with_config(relay_server, runner, user):
     api = InternalApi()
     queue = "queue-23"
 
-    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="PROJECT")
+    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
 
     config = {
         "cuda": False,
@@ -77,11 +78,11 @@ def test_launch_build_with_config(relay_server, runner, user):
         result = runner.invoke(cli.launch, args)
         print(relay.context.raw_data)
 
-        runQueueItem = api.pop_from_run_queue(
+        run_queue_item = api.pop_from_run_queue(
             queue_name=queue, entity=user, project=proj
         )
 
-        assert f"'entity': '{user}'" in str(runQueueItem)
+        assert f"'entity': '{user}'" in str(run_queue_item)
 
     run.finish()  # weird file sync error if run ends too early
 
