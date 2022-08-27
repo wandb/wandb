@@ -835,7 +835,7 @@ def _attach(
     backend._hack_set_run(run)
     assert backend.interface
 
-    mailbox.configure_keepalive(func=backend.interface.publish_keep_alive)
+    mailbox.configure_keep_alive(func=backend.interface.publish_keep_alive)
     resp = backend.interface.communicate_attach(attach_id)
     if not resp:
         raise UsageError("problem")
