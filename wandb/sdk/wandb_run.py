@@ -103,13 +103,16 @@ if TYPE_CHECKING:
         remote: str
         commit: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ArtifactSourceDict(TypedDict):
         artifact: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ImageSourceDict(TypedDict):
         image: str
+        args: Sequence[str]
 
     class JobSourceDict(TypedDict, total=False):
         _version: str
@@ -2040,6 +2043,12 @@ class Run:
         self._freeze()
 
     def _log_job(self) -> None:
+        # don't produce a job if the run is sourced from a job
+        if (
+            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
+            is not None
+        ):
+            return
         artifact = None
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
@@ -2113,6 +2122,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2149,6 +2159,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     self._settings.program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2174,7 +2185,7 @@ class Run:
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "source": {"image": docker_image_name},
+            "source": {"image": docker_image_name, "args": self._settings._args},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
