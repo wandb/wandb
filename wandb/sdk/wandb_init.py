@@ -666,6 +666,7 @@ class _WandbInit:
 
         backend._hack_set_run(run)
         assert backend.interface
+        mailbox.configure_keep_alive(func=backend.interface.publish_keep_alive)
         backend.interface.publish_header()
 
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
@@ -829,6 +830,7 @@ def _attach(
     backend._hack_set_run(run)
     assert backend.interface
 
+    mailbox.configure_keepalive(func=backend.interface.publish_keep_alive)
     resp = backend.interface.communicate_attach(attach_id)
     if not resp:
         raise UsageError("problem")

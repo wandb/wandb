@@ -686,6 +686,14 @@ class InterfaceBase:
     ) -> Optional[pb.PollExitResponse]:
         raise NotImplementedError
 
+    def publish_keep_alive(self) -> None:
+        keep_alive = pb.KeepAliveRequest()
+        self._publish_keep_alive(keep_alive)
+
+    @abstractmethod
+    def _publish_keep_alive(self, keep_alive: pb.KeepAliveRequest) -> None:
+        raise NotImplementedError
+
     def communicate_server_info(self) -> Optional[pb.ServerInfoResponse]:
         server_info = pb.ServerInfoRequest()
         resp = self._communicate_server_info(server_info)

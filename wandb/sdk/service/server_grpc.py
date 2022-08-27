@@ -180,6 +180,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert resp
         return resp
 
+    def KeepAlive(  # noqa: N802
+        self, keep_alive: pb.KeepAliveRequest, context: grpc.ServicerContext
+    ) -> pb.KeepAliveResponse:
+        stream_id = keep_alive._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_keep_alive(keep_alive)
+        response = pb.KeepAliveResponse()
+        return response
+
     def TBSend(  # noqa: N802
         self, tb_data: pb.TBRecord, context: grpc.ServicerContext
     ) -> pb.TBResult:

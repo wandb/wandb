@@ -270,6 +270,12 @@ class InterfaceGrpc(InterfaceBase):
             ret = pb.PollExitResponse()
         return ret
 
+    def _publish_keep_alive(self, keep_alive: pb.KeepAliveRequest) -> None:
+        assert self._stub
+        self._assign(keep_alive)
+        _ = self._stub.KeepAlive(keep_alive)
+        return None
+
     def _communicate_server_info(
         self, server_info: pb.ServerInfoRequest
     ) -> Optional[pb.ServerInfoResponse]:

@@ -489,6 +489,7 @@ message Request {
     ArtifactSendRequest   artifact_send = 14;
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
+    KeepAliveRequest      keep_alive = 17;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -513,6 +514,7 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
+    KeepAliveResponse      keep_alive_response = 18;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
@@ -830,4 +832,14 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
+}
+
+/*
+ * KeepAlive:
+ */
+message KeepAliveRequest {
+  _RequestInfo _info = 200;
+}
+
+message KeepAliveResponse {
 }

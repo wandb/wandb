@@ -78,6 +78,8 @@ class MailboxHandle:
         if timeout >= 0:
             wait_timeout = min(timeout, wait_timeout)
         while True:
+            self._mailbox._verify_delivery_possible()
+
             found = self._slot._get_and_clear(timeout=wait_timeout)
             if found:
                 # Always update progress to 100% when done
@@ -109,9 +111,29 @@ class MailboxHandle:
 
 class Mailbox:
     _slots: Dict[str, _MailboxSlot]
+    _keep_alive_interval: int
+    _last_delivery_timestamp: float
+    _keep_alive_func: Optional[Callable[[], None]]
 
     def __init__(self) -> None:
         self._slots = {}
+        self._keep_alive_interval = 10
+        self._last_delivery_timestamp = time.time()
+        self._keep_alive_func = None
+
+    def configure_keep_alive(self, func: Callable[[], None]) -> None:
+        self._keep_alive_func = func
+
+    def _mark_delivery_request(self) -> None:
+        self._last_delivery_timestamp = time.time()
+
+    def _verify_delivery_possible(self) -> None:
+        """Internal method to verify delivery mechanism is still working."""
+        now = time.time()
+        if now > self._last_delivery_timestamp + self._keep_alive_interval:
+            if self._keep_alive_func:
+                self._keep_alive_func()
+            self._last_delivery_timestamp = now
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot
