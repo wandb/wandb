@@ -121,8 +121,11 @@ class Mailbox:
         self._last_delivery_timestamp = time.time()
         self._keepalive_func = None
 
-    def configure_keepalive(self, func: Callable[[], None]) -> None:
+    def enable_keepalive(self, func: Callable[[], None]) -> None:
         self._keepalive_func = func
+
+    def disable_keepalive(self) -> None:
+        self._keepalive_func = None
 
     def _mark_delivery_request(self) -> None:
         self._last_delivery_timestamp = time.time()
