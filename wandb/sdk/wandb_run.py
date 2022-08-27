@@ -2062,6 +2062,12 @@ class Run:
         self._freeze()
 
     def _log_job(self) -> None:
+        # don't produce a job if the run is sourced from a job
+        if (
+            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
+            is not None
+        ):
+            return
         artifact = None
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
