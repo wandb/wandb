@@ -27,8 +27,8 @@ def test_launch_build_push_job(relay_server, runner, user):
     run = wandb.init(project=proj)
     # create a queue in the project
     api = InternalApi()
-    queue = "queue-21"
-    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
+    queue = "default"
+    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="PROJECT")
 
     args = [
         "https://github.com/gtarpenning/wandb-launch-test",
@@ -40,7 +40,13 @@ def test_launch_build_push_job(relay_server, runner, user):
     ]
     with relay_server() as relay:
         result = runner.invoke(cli.launch, args)
-        print(relay.context.raw_data)
+        for comm in relay.context.raw_data:
+            print("\n\n", comm)
+
+    run_queue = api.get_project_run_queues(entity=user, project=proj)
+    _ = run_queue.pop()
+    run_queue.clear()
+    del run_queue
 
     run.finish()  # weird file sync error if run ends too early
 
@@ -49,6 +55,7 @@ def test_launch_build_push_job(relay_server, runner, user):
     assert "'job': 'oops'" not in str(result.output)
 
 
+@pytest.mark.timeout(300)
 def test_launch_build_with_config(relay_server, runner, user):
     # create a project
     proj = "test_project_919"
@@ -56,9 +63,9 @@ def test_launch_build_with_config(relay_server, runner, user):
     run = wandb.init(project=proj)
     # create a queue in the project
     api = InternalApi()
-    queue = "queue-23"
+    queue = "default"
 
-    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
+    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="PROJECT")
 
     config = {
         "cuda": False,
@@ -83,6 +90,12 @@ def test_launch_build_with_config(relay_server, runner, user):
         )
 
         assert f"'entity': '{user}'" in str(run_queue_item)
+        assert run_queue_item["runSpec"]["overrides"] == {"args": {"epochs": "5"}}
+        del run_queue_item
+
+    run_queue = api.get_project_run_queues(entity=user, project=proj)
+    run_queue.clear()
+    del run_queue
 
     run.finish()  # weird file sync error if run ends too early
 
