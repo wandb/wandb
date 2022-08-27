@@ -38,7 +38,7 @@ service InternalService {
   // rpc ArtifactCancel(ArtifactCancelRequest) returns (ArtifactCancelResponse) {}
   // rpc ArtifactRelease(ArtifactReleaseRequest) returns (ArtifactReleaseResponse) {}
 
-  rpc KeepAlive(KeepAliveRequest) returns (KeepAliveResponse) {}
+  rpc Keepalive(KeepaliveRequest) returns (KeepaliveResponse) {}
 
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Pause(PauseRequest) returns (PauseResponse) {}

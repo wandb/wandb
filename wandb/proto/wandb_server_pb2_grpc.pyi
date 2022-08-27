@@ -110,9 +110,9 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
 
-    def KeepAlive(self,
-        request: wandb.proto.wandb_internal_pb2.KeepAliveRequest,
-    ) -> wandb.proto.wandb_internal_pb2.KeepAliveResponse: ...
+    def Keepalive(self,
+        request: wandb.proto.wandb_internal_pb2.KeepaliveRequest,
+    ) -> wandb.proto.wandb_internal_pb2.KeepaliveResponse: ...
 
     def CheckVersion(self,
         request: wandb.proto.wandb_internal_pb2.CheckVersionRequest,
@@ -315,10 +315,10 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
 
     @abc.abstractmethod
-    def KeepAlive(self,
-        request: wandb.proto.wandb_internal_pb2.KeepAliveRequest,
+    def Keepalive(self,
+        request: wandb.proto.wandb_internal_pb2.KeepaliveRequest,
         context: grpc.ServicerContext,
-    ) -> wandb.proto.wandb_internal_pb2.KeepAliveResponse: ...
+    ) -> wandb.proto.wandb_internal_pb2.KeepaliveResponse: ...
 
     @abc.abstractmethod
     def CheckVersion(self,

@@ -141,10 +141,10 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
                 )
-        self.KeepAlive = channel.unary_unary(
-                '/wandb_internal.InternalService/KeepAlive',
-                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepAliveRequest.SerializeToString,
-                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepAliveResponse.FromString,
+        self.Keepalive = channel.unary_unary(
+                '/wandb_internal.InternalService/Keepalive',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.FromString,
                 )
         self.CheckVersion = channel.unary_unary(
                 '/wandb_internal.InternalService/CheckVersion',
@@ -362,7 +362,7 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def KeepAlive(self, request, context):
+    def Keepalive(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -568,10 +568,10 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.SerializeToString,
             ),
-            'KeepAlive': grpc.unary_unary_rpc_method_handler(
-                    servicer.KeepAlive,
-                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepAliveRequest.FromString,
-                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepAliveResponse.SerializeToString,
+            'Keepalive': grpc.unary_unary_rpc_method_handler(
+                    servicer.Keepalive,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.SerializeToString,
             ),
             'CheckVersion': grpc.unary_unary_rpc_method_handler(
                     servicer.CheckVersion,
@@ -1069,7 +1069,7 @@ class InternalService(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def KeepAlive(request,
+    def Keepalive(request,
             target,
             options=(),
             channel_credentials=None,
@@ -1079,9 +1079,9 @@ class InternalService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/KeepAlive',
-            wandb_dot_proto_dot_wandb__internal__pb2.KeepAliveRequest.SerializeToString,
-            wandb_dot_proto_dot_wandb__internal__pb2.KeepAliveResponse.FromString,
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Keepalive',
+            wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.KeepaliveResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

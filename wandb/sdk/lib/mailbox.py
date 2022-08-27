@@ -111,18 +111,18 @@ class MailboxHandle:
 
 class Mailbox:
     _slots: Dict[str, _MailboxSlot]
-    _keep_alive_interval: int
+    _keepalive_interval: int
     _last_delivery_timestamp: float
-    _keep_alive_func: Optional[Callable[[], None]]
+    _keepalive_func: Optional[Callable[[], None]]
 
     def __init__(self) -> None:
         self._slots = {}
-        self._keep_alive_interval = 10
+        self._keepalive_interval = 10
         self._last_delivery_timestamp = time.time()
-        self._keep_alive_func = None
+        self._keepalive_func = None
 
-    def configure_keep_alive(self, func: Callable[[], None]) -> None:
-        self._keep_alive_func = func
+    def configure_keepalive(self, func: Callable[[], None]) -> None:
+        self._keepalive_func = func
 
     def _mark_delivery_request(self) -> None:
         self._last_delivery_timestamp = time.time()
@@ -130,9 +130,9 @@ class Mailbox:
     def _verify_delivery_possible(self) -> None:
         """Internal method to verify delivery mechanism is still working."""
         now = time.time()
-        if now > self._last_delivery_timestamp + self._keep_alive_interval:
-            if self._keep_alive_func:
-                self._keep_alive_func()
+        if now > self._last_delivery_timestamp + self._keepalive_interval:
+            if self._keepalive_func:
+                self._keepalive_func()
             self._last_delivery_timestamp = now
 
     def deliver(self, result: pb.Result) -> None:

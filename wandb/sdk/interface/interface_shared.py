@@ -114,7 +114,7 @@ class InterfaceShared(InterfaceBase):
         artifact_poll: pb.ArtifactPollRequest = None,
         artifact_done: pb.ArtifactDoneRequest = None,
         server_info: pb.ServerInfoRequest = None,
-        keep_alive: pb.KeepAliveRequest = None,
+        keepalive: pb.KeepaliveRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -155,8 +155,8 @@ class InterfaceShared(InterfaceBase):
             request.artifact_done.CopyFrom(artifact_done)
         elif server_info:
             request.server_info.CopyFrom(server_info)
-        elif keep_alive:
-            request.keep_alive.CopyFrom(keep_alive)
+        elif keepalive:
+            request.keepalive.CopyFrom(keepalive)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -433,8 +433,8 @@ class InterfaceShared(InterfaceBase):
         assert poll_exit_response
         return poll_exit_response
 
-    def _publish_keep_alive(self, keep_alive: pb.KeepAliveRequest) -> None:
-        record = self._make_request(keep_alive=keep_alive)
+    def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
+        record = self._make_request(keepalive=keepalive)
         self._publish(record)
 
     def _communicate_server_info(
