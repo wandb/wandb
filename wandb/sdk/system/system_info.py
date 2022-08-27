@@ -1,0 +1,3 @@
+# Information about the system and the environment (former Meta)
+class SystemInfo:
+    ...
