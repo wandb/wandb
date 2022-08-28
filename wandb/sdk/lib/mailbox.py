@@ -18,6 +18,12 @@ def _generate_address(length: int = 12) -> str:
     return address
 
 
+class MailboxError(Exception):
+    """Generic Mailbox Exception"""
+
+    pass
+
+
 class _MailboxSlot:
     _result: Optional[pb.Result]
     _event: threading.Event
@@ -139,11 +145,17 @@ class Mailbox:
         """Internal method to verify delivery mechanism is still working."""
         if not self._keepalive_func:
             return
+        if self._transport_dead:
+            raise MailboxError("transport failed")
         now = time.time()
         if now > self._transport_alive_timestamp + self._keepalive_interval:
             if self._keepalive_func:
-                self._keepalive_func()
-                self._transport_alive_timestamp = now
+                try:
+                    self._keepalive_func()
+                except Exception:
+                    self.notify_transport_dead()
+                    raise MailboxError("transport not responding")
+                self.notify_transport_alive()
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot
