@@ -503,14 +503,7 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_record(self, record: pb.Record) -> MailboxHandle:
         mailbox = self._get_mailbox()
-        handle = mailbox.get_handle()
-        record.control.mailbox_slot = handle.address
-        try:
-            self._publish(record)
-        except Exception:
-            mailbox.notify_transport_dead()
-            raise
-        mailbox.notify_transport_alive()
+        handle = mailbox._deliver_record(record, interface=self)
         return handle
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:

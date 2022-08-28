@@ -6,9 +6,13 @@ import secrets
 import string
 import threading
 import time
-from typing import Callable, Dict, Optional
+from typing import TYPE_CHECKING
+from typing import Callable, Dict, List, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
+
+if TYPE_CHECKING:
+    from wandb.sdk.interface.interface_shared import InterfaceShared
 
 
 def _generate_address(length: int = 12) -> str:
@@ -64,10 +68,19 @@ class MailboxProgressHandle:
 class MailboxHandle:
     _mailbox: "Mailbox"
     _slot: _MailboxSlot
+    _on_progress: Optional[Callable[[MailboxProgressHandle], None]]
+    _interface: Optional["InterfaceShared"]
 
     def __init__(self, mailbox: "Mailbox", slot: _MailboxSlot) -> None:
         self._mailbox = mailbox
         self._slot = slot
+        self._on_progres = None
+        self._interface = None
+
+    def add_progress(
+        self, on_progress: Callable[[MailboxProgressHandle], None]
+    ) -> None:
+        self._on_progress = on_progress
 
     def wait(
         self,
@@ -135,10 +148,10 @@ class Mailbox:
     def disable_keepalive(self) -> None:
         self._keepalive_func = None
 
-    def notify_transport_alive(self) -> None:
+    def _notify_transport_alive(self) -> None:
         self._transport_alive_timestamp = time.time()
 
-    def notify_transport_dead(self) -> None:
+    def _notify_transport_dead(self) -> None:
         self._transport_dead = True
 
     def _verify_transport_alive(self) -> None:
@@ -153,9 +166,28 @@ class Mailbox:
                 try:
                     self._keepalive_func()
                 except Exception:
-                    self.notify_transport_dead()
+                    self._notify_transport_dead()
                     raise MailboxError("transport not responding")
-                self.notify_transport_alive()
+                self._notify_transport_alive()
+
+    def wait(
+        self,
+        handle: MailboxHandle,
+        *,
+        timeout: float,
+        on_progress: Callable[[MailboxProgressHandle], None] = None,
+    ) -> Optional[pb.Result]:
+        return handle.wait(timeout=timeout, on_progress=on_progress)
+
+    def wait_all(
+        self,
+        handles: List[MailboxHandle],
+        *,
+        timeout: float,
+        on_progress: Callable[[MailboxProgressHandle], None] = None,
+    ) -> None:
+        for handle in handles:
+            _ = handle.wait(timeout=-1)
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot
@@ -176,4 +208,17 @@ class Mailbox:
     def get_handle(self) -> MailboxHandle:
         slot = self._allocate_slot()
         handle = MailboxHandle(mailbox=self, slot=slot)
+        return handle
+
+    def _deliver_record(
+        self, record: pb.Record, interface: "InterfaceShared"
+    ) -> MailboxHandle:
+        handle = self.get_handle()
+        record.control.mailbox_slot = handle.address
+        try:
+            interface._publish(record)
+        except Exception:
+            self._notify_transport_dead()
+            raise
+        self._notify_transport_alive()
         return handle

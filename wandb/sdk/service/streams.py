@@ -18,7 +18,7 @@ import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.lib.mailbox import Mailbox, MailboxProgressHandle
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
 
@@ -50,8 +50,8 @@ class StreamRecord:
     _thread: StreamThread
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
 
-    def __init__(self, settings: Dict[str, Any]) -> None:
-        self._mailbox = Mailbox()
+    def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
+        self._mailbox = mailbox
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
         self._relay_q = multiprocessing.Queue()
@@ -131,6 +131,7 @@ class StreamMux:
     _action_q: "queue.Queue[StreamAction]"
     _stopped: Event
     _pid_checked_ts: Optional[float]
+    _mailbox: Mailbox
 
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
@@ -140,6 +141,7 @@ class StreamMux:
         self._stopped = Event()
         self._action_q = queue.Queue()
         self._pid_checked_ts = None
+        self._mailbox = Mailbox()
 
     def _get_stopped_event(self) -> "Event":
         # TODO: clean this up, there should be a better way to abstract this
@@ -191,7 +193,7 @@ class StreamMux:
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord(action._data)
+        stream = StreamRecord(action._data, mailbox=self._mailbox)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings_dict = action._data
         settings_dict[
@@ -230,6 +232,12 @@ class StreamMux:
                 stream.drop()
                 stream.join()
 
+    def _on_deliver_exit_progress(self, handle: MailboxProgressHandle) -> None:
+        pass
+
+    def _on_deliver_all(self, handle: MailboxProgressHandle) -> None:
+        pass
+
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
             return
@@ -243,13 +251,18 @@ class StreamMux:
         exit_handles = []
         for stream in streams.values():
             handle = stream.interface.deliver_exit(exit_code)
+            handle.add_progress(self._on_deliver_exit_progress)
             exit_handles.append(handle)
             Run._footer_exit_status_info(
                 exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
-        for handle in exit_handles:
-            _ = handle.wait(timeout=-1)
+        # for handle in exit_handles:
+        #     _ = handle.wait(timeout=-1)
+
+        self._mailbox.wait_all(
+            handles=exit_handles, timeout=-1, on_progress=self._on_deliver_all
+        )
 
         # streams_to_join, poll_exit_responses = {}, {}
         # while streams and not self._stopped.is_set():
