@@ -222,6 +222,7 @@ class KanikoBuilder(AbstractBuilder):
     ) -> str:
 
         if repository is None:
+            image_uri = launch_project.image_uri
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.image_tag}"
         wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
