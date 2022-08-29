@@ -257,9 +257,6 @@ class StreamMux:
                 exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
-        # for handle in exit_handles:
-        #     _ = handle.wait(timeout=-1)
-
         self._mailbox.wait_all(
             handles=exit_handles, timeout=-1, on_progress=self._on_deliver_all
         )

@@ -5,6 +5,7 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
+import time
 from abc import abstractmethod
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
@@ -27,6 +28,8 @@ class InterfaceShared(InterfaceBase):
     _process_check: bool
     _router: Optional[MessageRouter]
     _mailbox: Optional[Mailbox]
+    _transport_success_timestamp: float
+    _transport_failed: bool
 
     def __init__(
         self,
@@ -35,6 +38,8 @@ class InterfaceShared(InterfaceBase):
         mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
+        self._transport_success_timestamp = time.time()
+        self._transport_failed = False
         self._process = process
         self._router = None
         self._process_check = process_check
@@ -44,6 +49,20 @@ class InterfaceShared(InterfaceBase):
     @abstractmethod
     def _init_router(self) -> None:
         raise NotImplementedError
+
+    @property
+    def transport_failed(self) -> bool:
+        return self._transport_failed
+
+    @property
+    def transport_success_timestamp(self) -> float:
+        return self._transport_success_timestamp
+
+    def _transport_mark_failed(self) -> None:
+        self._transport_failed = True
+
+    def _transport_mark_success(self) -> None:
+        self._transport_success_timestamp = time.time()
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()

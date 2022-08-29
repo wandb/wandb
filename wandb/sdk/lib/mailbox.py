@@ -69,17 +69,38 @@ class MailboxHandle:
     _slot: _MailboxSlot
     _on_progress: Optional[Callable[[MailboxProgressHandle], None]]
     _interface: Optional["InterfaceShared"]
+    _keepalive: bool
 
     def __init__(self, mailbox: "Mailbox", slot: _MailboxSlot) -> None:
         self._mailbox = mailbox
         self._slot = slot
-        self._on_progres = None
+        self._on_progress = None
         self._interface = None
+        self._keepalive = False
+        self._keepalive_interval = 5
 
     def add_progress(
         self, on_progress: Callable[[MailboxProgressHandle], None]
     ) -> None:
         self._on_progress = on_progress
+
+    def _transport_keepalive_failed(self) -> bool:
+        if not self._interface:
+            return False
+        if not self._interface._transport_failed:
+            now = time.time()
+            if (
+                now
+                > self._interface._transport_success_timestamp
+                + self._keepalive_interval
+            ):
+                try:
+                    self._interface._publish_keepalive()
+                except Exception:
+                    self._interface._transport_mark_failed()
+                else:
+                    self._interface._transport_mark_success()
+        return self._interface._transport_failed
 
     def wait(
         self,
@@ -88,6 +109,7 @@ class MailboxHandle:
         on_progress: Callable[[MailboxProgressHandle], None] = None,
         release: bool = True,
     ) -> Optional[pb.Result]:
+        on_progress = on_progress or self._on_progress
         found: Optional[pb.Result] = None
         start_time = time.time()
         percent_done = 0.0
@@ -96,7 +118,8 @@ class MailboxHandle:
         if timeout >= 0:
             wait_timeout = min(timeout, wait_timeout)
         while True:
-            self._mailbox._verify_transport_alive()
+            if self._transport_keepalive_failed():
+                raise MailboxError("transport failed")
 
             found = self._slot._get_and_clear(timeout=wait_timeout)
             if found:
@@ -129,45 +152,14 @@ class MailboxHandle:
 
 class Mailbox:
     _slots: Dict[str, _MailboxSlot]
-    _keepalive_interval: int
-    _transport_alive_timestamp: float
-    _transport_dead: bool
-    _keepalive_func: Optional[Callable[[], None]]
+    _keepalive: bool
 
     def __init__(self) -> None:
         self._slots = {}
-        self._keepalive_interval = 5
-        self._transport_alive_timestamp = time.time()
-        self._transport_dead = False
-        self._keepalive_func = None
+        self._keepalive = False
 
-    def enable_keepalive(self, func: Callable[[], None]) -> None:
-        self._keepalive_func = func
-
-    def disable_keepalive(self) -> None:
-        self._keepalive_func = None
-
-    def _notify_transport_alive(self) -> None:
-        self._transport_alive_timestamp = time.time()
-
-    def _notify_transport_dead(self) -> None:
-        self._transport_dead = True
-
-    def _verify_transport_alive(self) -> None:
-        """Internal method to verify delivery mechanism is still working."""
-        if not self._keepalive_func:
-            return
-        if self._transport_dead:
-            raise MailboxError("transport failed")
-        now = time.time()
-        if now > self._transport_alive_timestamp + self._keepalive_interval:
-            if self._keepalive_func:
-                try:
-                    self._keepalive_func()
-                except Exception:
-                    self._notify_transport_dead()
-                    raise MailboxError("transport not responding")
-                self._notify_transport_alive()
+    def enable_keepalive(self) -> None:
+        self._keepalive = True
 
     def wait(
         self,
@@ -213,11 +205,13 @@ class Mailbox:
         self, record: pb.Record, interface: "InterfaceShared"
     ) -> MailboxHandle:
         handle = self.get_handle()
+        handle._interface = interface
+        handle._keepalive = self._keepalive
         record.control.mailbox_slot = handle.address
         try:
             interface._publish(record)
         except Exception:
-            self._notify_transport_dead()
+            interface._transport_mark_failed()
             raise
-        self._notify_transport_alive()
+        interface._transport_mark_success()
         return handle
