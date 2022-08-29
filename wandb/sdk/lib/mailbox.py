@@ -95,7 +95,7 @@ class MailboxHandle:
                 + self._keepalive_interval
             ):
                 try:
-                    self._interface._publish_keepalive()
+                    self._interface.publish_keepalive()
                 except Exception:
                     self._interface._transport_mark_failed()
                 else:
