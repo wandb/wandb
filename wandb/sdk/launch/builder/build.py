@@ -514,7 +514,7 @@ def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
     build_type: Optional[str],
-    launch_config: Optional[Dict],
+    launch_config: Optional[Dict] = None,
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec
@@ -532,14 +532,15 @@ def build_image_from_project(
     repository = None
     if launch_config:
         repository = launch_config.get("url")
-        if launch_project.python_version:
-            docker_args["python_version"] = launch_project.python_version
 
-        if launch_project.cuda_version:
-            docker_args["cuda_version"] = launch_project.cuda_version
+    if launch_project.python_version:
+        docker_args["python_version"] = launch_project.python_version
 
-        if launch_project.docker_user_id:
-            docker_args["user"] = str(launch_project.docker_user_id)
+    if launch_project.cuda_version:
+        docker_args["cuda_version"] = launch_project.cuda_version
+
+    if launch_project.docker_user_id:
+        docker_args["user"] = str(launch_project.docker_user_id)
 
     wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source.")
     launch_project = fetch_and_validate_project(launch_project, api)
