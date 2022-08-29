@@ -359,7 +359,7 @@ class KanikoBuilder(AbstractBuilder):
         if env is not None:
             container = client.V1Container(
                 name="wandb-container-build",
-                image="gcr.io/kaniko-project/executor:1.8.1",
+                image="gcr.io/kaniko-project/executor:v1.8.1",
                 args=args,
                 volume_mounts=volume_mounts,
                 env=[env],
