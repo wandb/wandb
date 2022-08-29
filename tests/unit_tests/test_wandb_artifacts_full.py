@@ -198,18 +198,18 @@ def test_local_references(wandb_init):
 
 def test_artifact_wait_success(wandb_init):
     # Test artifact wait() timeout parameter
-    timeout = 2
+    timeout = 60
     leeway = 0.50
     run = wandb_init()
     artifact = wandb.Artifact("art", type="dataset")
     start_timestamp = time.time()
-    run.log_artifact(artifact).wait(wait_timeout_secs=timeout)
+    run.log_artifact(artifact).wait(timeout=timeout)
     elapsed_time = time.time() - start_timestamp
     assert elapsed_time < timeout * (1 + leeway)
     run.finish()
 
 
-@pytest.mark.parametrize("timeout", [0, 1e-1])
+@pytest.mark.parametrize("timeout", [0, 1e-6])
 def test_artifact_wait_failure(wandb_init, timeout):
     # Test to expect WaitTimeoutError when wait timeout is reached and large image
     # wasn't uploaded yet
@@ -218,5 +218,5 @@ def test_artifact_wait_failure(wandb_init, timeout):
     with pytest.raises(WaitTimeoutError):
         artifact = wandb.Artifact("art", type="image")
         artifact.add(large_image, "image")
-        run.log_artifact(artifact).wait(wait_timeout_secs=timeout)
+        run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()

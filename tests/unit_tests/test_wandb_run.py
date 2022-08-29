@@ -2,7 +2,6 @@ import os
 import pickle
 import platform
 import sys
-import time
 from unittest import mock
 
 import numpy as np

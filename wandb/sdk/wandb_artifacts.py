@@ -647,9 +647,13 @@ class Artifact(ArtifactInterface):
             "Cannot call delete on an artifact before it has been logged or in offline mode"
         )
 
-    def wait(self, wait_timeout_secs: int = None) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
+        """
+        Arguments:
+            timeout: (int, optional) Waits in seconds for artifact to finish logging if needed.
+        """
         if self._logged_artifact:
-            return self._logged_artifact.wait(wait_timeout_secs)
+            return self._logged_artifact.wait(timeout)
 
         raise ValueError(
             "Cannot call wait on an artifact before it has been logged or in offline mode"

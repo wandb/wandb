@@ -3581,12 +3581,12 @@ class _LazyArtifact(ArtifactInterface):
         self._assert_instance()
         return getattr(self._instance, item)
 
-    def wait(self, wait_timeout_secs: int = None) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         if not self._instance:
-            future_get = self._future.get(wait_timeout_secs)
+            future_get = self._future.get(timeout)
             if not future_get:
                 raise WaitTimeoutError(
-                    "Artifact wait timed out, failed to fetch Artifact response"
+                    "Artifact upload wait timed out, failed to fetch Artifact response"
                 )
             resp = future_get.response.log_artifact_response
             if resp.error_message:
