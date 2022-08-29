@@ -142,6 +142,7 @@ class StreamMux:
         self._action_q = queue.Queue()
         self._pid_checked_ts = None
         self._mailbox = Mailbox()
+        self._mailbox.enable_keepalive()
 
     def _get_stopped_event(self) -> "Event":
         # TODO: clean this up, there should be a better way to abstract this

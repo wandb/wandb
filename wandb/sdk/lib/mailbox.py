@@ -85,6 +85,8 @@ class MailboxHandle:
         self._on_progress = on_progress
 
     def _transport_keepalive_failed(self) -> bool:
+        if not self._keepalive:
+            return False
         if not self._interface:
             return False
         if not self._interface._transport_failed:
