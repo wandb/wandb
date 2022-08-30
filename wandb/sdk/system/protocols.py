@@ -1,10 +1,19 @@
 import datetime
 from collections import deque
-from typing import List, Literal, Protocol, TypeVar
+import sys
+from typing import List, Protocol, TypeVar
+
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 Reading = TypeVar("Reading", float, int, str, bytes, list, tuple, dict)
 MetricType = Literal["counter", "gauge", "histogram", "summary"]
+# MetricType = Literal["gauge"]
 
 
 class Metric(Protocol):
@@ -15,6 +24,9 @@ class Metric(Protocol):
     readings: deque[(TimeStamp, Reading)]
 
     def poll(self) -> None:
+        ...
+
+    def serialize(self) -> dict:
         ...
 
 
@@ -31,8 +43,6 @@ class Asset(Protocol):
 
     def poll(self) -> None:
         ...
-        # for metric in self.metrics:
-        #     metric.readings.append(metric.poll())
 
     def serialize(self) -> dict:
         ...

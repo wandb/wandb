@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import List, Optional
 
 import wandb
@@ -12,13 +13,12 @@ class SystemMonitor:  # SystemMetrics?
     def __init__(
         self,
         settings: wandb.Settings,
-        interface: InterfaceQueue,
-        assets: Optional[List[Asset]] = None,
+        # interface: InterfaceQueue,
     ) -> None:
 
         self.settings = settings
 
-        default_assets = [
+        self.assets: List[Asset] = [
             CPU(),
             # GPU(),
             # TPU(),
@@ -27,16 +27,11 @@ class SystemMonitor:  # SystemMetrics?
             # Disk(),
             # Memory(),
         ]
-        self.assets: List[Asset] = default_assets + (assets or [])
 
     def poll(self) -> None:
         for asset in self.assets:
             asset.poll()
 
     # serialize
-    def to_json(self) -> dict:
-        combined_metrics = {}
-        for asset in self.assets:
-            combined_metrics.update(asset.to_json())
-
-        return combined_metrics
+    def serialize(self) -> dict:
+        return {asset.name: asset.serialize() for asset in self.assets}

@@ -1,33 +1,84 @@
+import datetime
 import os
 from collections import deque
-from typing import List
+from typing import cast, List, Optional
 
 import psutil
 
-from ..protocols import Metric
+from ..protocols import Metric, MetricType
 
 # CPU Metrics
 
 
-class ProcessCpuPercent(Metric):
+class ProcessCpuPercent:
     name = "process_cpu_percent"
-    metric_type = "gauge"
+    metric_type = cast("gauge", MetricType)
+    readings: deque[(datetime.datetime, float)]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
-        self.readings = []
+        self.readings = deque([])
 
     def poll(self) -> None:
-        self.readings.append(psutil.Process(self.pid).cpu_percent())
+        self.readings.append(
+            (
+                datetime.datetime.utcnow(),
+                psutil.Process(self.pid).cpu_percent(),
+            )
+        )
+
+    def serialize(self) -> dict:
+        # return {
+        #     self.name: {
+        #         "type": self.metric_type,
+        #         "value": self.readings[-1],
+        #     }
+        # }
+        return {self.name: self.readings}
+
+
+class CpuPercent:
+    name = "cpu_percent"
+    metric_type = cast("gauge", MetricType)
+    readings: deque[(datetime.datetime, float)]
+
+    def __init__(self, interval: Optional[float] = None) -> None:
+        self.readings = deque([])
+        self.interval = interval
+
+    def poll(self) -> None:
+        self.readings.append(
+            (
+                datetime.datetime.utcnow(),
+                psutil.cpu_percent(interval=self.interval, percpu=True),
+            )
+        )
+
+    def serialize(self) -> dict:
+        # return {
+        #     self.name: {
+        #         "type": self.metric_type,
+        #         "value": self.readings[-1],
+        #     }
+        # }
+        return {self.name: self.readings}
 
 
 class CPU:
     name: str
     metrics: List[Metric]
 
+    def __init__(self) -> None:
+        self.name = "cpu"
+        self.metrics = [
+            ProcessCpuPercent(os.getpid()),
+            CpuPercent(),
+        ]
+
     def poll(self) -> None:
         """Poll the CPU metrics"""
-        pass
+        for metric in self.metrics:
+            metric.poll()
         # self._cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
         # self._cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
         # self._cpu_freq = psutil.cpu_freq(percpu=True)
@@ -48,7 +99,8 @@ class CPU:
 
     def serialize(self):
         """Return a dict of metrics"""
-        pass
+        return [metric.serialize() for metric in self.metrics]
+
         # return {
         #     "cpu_count": self._cpu_count,
         #     "cpu_count_logical": self._cpu_count_logical,
