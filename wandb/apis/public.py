@@ -2468,22 +2468,25 @@ class Sweep(Attrs):
         except IndexError:
             return None
 
-    def expected_runs(self) -> int:
-        "Returns the number of expected runs in the sweep"
-        search_method: str = self.config.get('method', 'random')
-        if not search_method == 'grid':
-            wandb.termwarn(f'Sweep of method {search_method} does not have a constrained expected runs.')
+    def expected_run_count(self) -> int:
+        "Returns the number of expected runs in the sweep or -1 for infinite runs."
+        search_method: str = self.config.get("method", None)
+        if not search_method == "grid":
+            wandb.termwarn(
+                f"Sweep of method {search_method} does not have a constrained expected runs."
+            )
             return -1
-        expected_runs: int = 0
-        for _, param_dict in self.config.get('parameters', {}).items():
-            if param_dict.get('values', None) is not None:
-                expected_runs *= len(param_dict['values'])
+        expected_run_count: int = 1
+        for _, param_dict in self.config.get("parameters", {}).items():
+            if param_dict.get("value", None) is not None:
+                expected_run_count *= 1
+            elif param_dict.get("values", None) is not None:
+                expected_run_count *= len(param_dict["values"])
             else:
-                # Even one parameter that isn't categorical will result in infinite
-                # expected runs.
-                expected_runs = -1
+                # Even one parameter that isn't categorical will result in infinite expected runs.
+                expected_run_count = -1
                 break
-        return expected_runs
+        return expected_run_count
 
     @property
     def path(self):

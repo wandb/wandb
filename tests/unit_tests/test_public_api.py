@@ -7,6 +7,12 @@ import pytest
 import wandb
 import wandb.util
 from wandb import Api
+from .test_wandb_sweep import (
+    VALID_SWEEP_CONFIGS_MINIMAL,
+    SWEEP_CONFIG_GRID,
+    SWEEP_CONFIG_GRID_NESTED,
+    SWEEP_CONFIG_BAYES,
+)
 
 
 def test_api_auto_login_no_tty():
@@ -130,6 +136,35 @@ def test_from_path_bad_report_path(user):
 def test_from_path_report_type(user, path):
     report = Api().from_path(path)
     assert isinstance(report, wandb.apis.public.BetaReport)
+
+
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
+def test_sweep_api(user, project, relay_server, sweep_config):
+    with relay_server():
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+    sweep = Api().sweep(sweep_id)
+    assert sweep.entity == user
+    assert sweep.url == f"https://wandb.ai/{user}/{project}/sweeps/{sweep_id}"
+    assert sweep.state in ["running", "finished"]
+    assert str(sweep) == f"<Sweep {user}/{project}/{sweep_id} (running)>"
+
+
+@pytest.mark.parametrize(
+    "sweep_config",
+    [
+        SWEEP_CONFIG_GRID,
+        SWEEP_CONFIG_GRID_NESTED,
+        SWEEP_CONFIG_BAYES,
+    ],
+)
+@pytest.mark.parametrize("expected_run_count", [3, 3, -1])
+def test_sweep_api_expected_run_count(
+    user, project, relay_server, sweep_config, expected_run_count
+):
+    with relay_server():
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
+    sweep = Api().sweep(sweep_id)
+    assert sweep.expected_run_count() == expected_run_count
 
 
 def test_project_to_html(user):
