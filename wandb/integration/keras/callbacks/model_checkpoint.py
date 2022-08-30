@@ -1,6 +1,6 @@
 import os
 import wandb
-import shutil
+from typing import Union, Optional, Dict, List
 
 from tensorflow.keras import callbacks
 
@@ -9,34 +9,100 @@ patch_tf_keras()
 
 
 class WandbModelCheckpoint(callbacks.ModelCheckpoint):
+    """`WandbModelCheckpoint` save the Keras model or model weights at some
+    frequency and upload it as W&B Artifacts for better tracking and version
+    control.
+
+    Since this callback is subclassed from `tf.keras.callbacks.ModelCheckpoint`,
+    the checkpointing logic is taken care by the parent callback. You can learn
+    more here:
+    https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ModelCheckpoint
+
+    This callback is to be used in conjunction with training using `model.fit()`
+    to save a model or weights (in a checkpoint file) at some interval. The
+    model checkpoints will be logged as W&B Artifacts. You can learn more here:
+    https://docs.wandb.ai/guides/artifacts
+
+    This callback provides the following features:
+    - Save the model that has achieved "best performance" based on "monitor".
+    - Save the model at the end of every epoch regardless of the performance.
+    - Save the model at the end of epoch or after a fixed number of training batches.
+    - Save only model weights, or save the whole model.
+    - Save the model either in SavedModel format or in `.h5` format.
+    
+    Arguments:
+        filepath (str): string or `PathLike`, path to save the model file.
+        monitor (str): The metric name to monitor.
+        verbose (int): Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
+            displays messages when the callback takes an action.
+        save_best_only (bool): if `save_best_only=True`, it only saves when the model
+            is considered the "best" and the latest best model according to the
+            quantity monitored will not be overwritten.
+        mode (str): one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
+            for `val_loss` this should be `min`, etc.
+        save_weights_only (bool): if True, then only the model's weights will be saved
+        save_freq (Union[str, int]): `epoch` or integer. When using `'epoch'`, the callback saves
+            the model after each epoch. When using integer, the callback saves the
+            model at end of this many batches.
+        options (Optional[str]): Optional `tf.train.CheckpointOptions` object if
+            `save_weights_only` is true or optional `tf.saved_model.SaveOptions`
+            object if `save_weights_only` is false.
+        initial_value_threshold (float): Floating point initial "best" value of the metric
+            to be monitored.
+    """
     def __init__(
         self,
-        filepath='wandb/model_{epoch}',
-        monitor='val_loss',
-        save_best_only=False,
-        save_weights_only=False,
-        initial_value_threshold=None,
+        filepath: str,
+        monitor: str='val_loss',
+        verbose: int=0,
+        save_best_only: bool=False,
+        save_weights_only: bool=False,
+        mode: str='auto',
+        save_freq: Union[str, int]='epoch',
+        options: Optional[str]=None,
+        initial_value_threshold: float=None,
         **kwargs
     ):
         super(WandbModelCheckpoint, self).__init__(
-            filepath,
-            monitor,
-            save_best_only,
-            save_weights_only,
-            initial_value_threshold,
+            filepath=filepath,
+            monitor=monitor,
+            verbose=verbose,
+            save_best_only=save_best_only,
+            save_weights_only=save_weights_only,
+            mode=mode,
+            save_freq=save_freq,
+            options=options,
+            initial_value_threshold=initial_value_threshold,
             **kwargs
         )
+        if wandb.run is None:
+            raise wandb.Error("You must call wandb.init() before WandbModelCheckpoint()")
+        # TODO: add telemetry
+        # with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+        #     tel.feature.keras_model_checkpoint = True
 
-    def on_epoch_end(self, epoch, logs=None):
+    def on_train_batch_end(self, batch: int, logs: Dict[str, float]=None):
+        super().on_train_batch_end(batch, logs)
+        # Check if the checkpoint was saved at this batch.
+        if self._should_save_on_batch(batch):
+            # Get filepath where the model checkpoint is saved.
+            filepath = self._get_file_path(
+                epoch=self._current_epoch, batch=batch, logs=logs)
+            # Log the model as artifact
+            self._log_ckpt_as_artifact(filepath)
+
+    def on_epoch_end(self, epoch, logs: Dict[str, float]=None):
         super().on_epoch_end(epoch, logs)
         # Get filepath where the model checkpoint is saved.
-        filepath = self._get_file_path(epoch, batch=None, logs=logs)
+        filepath = self._get_file_path(
+            epoch=epoch, batch=None, logs=logs)
         # Log the model as artifact
-        self._log_ckpt_as_artifact(filepath)
+        aliases = ["latest", f"epoch_{epoch}"]
+        self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
-    def _log_ckpt_as_artifact(self, filepath):
+    def _log_ckpt_as_artifact(self, filepath: str, aliases: List[str]=[]):
         """Log model checkpoint as  W&B Artifact."""
         model_artifact = wandb.Artifact(
             f'run_{wandb.run.id}_model', type='model')
         model_artifact.add_dir(filepath)
-        wandb.log_artifact(model_artifact)
+        wandb.log_artifact(model_artifact, aliases=aliases)
