@@ -1344,6 +1344,8 @@ def scheduler(
         if isinstance(_arg, str) and _arg.startswith("--"):
             kwargs[_arg[2:]] = ctx.args[i + 1]
 
+    kwargs['resource'] = "kubernetes"
+    kwargs["resource_args"] = {"kubernetes":{}}
     _scheduler = load_scheduler("sweep")(
         api,
         sweep_id=sweep_id,
