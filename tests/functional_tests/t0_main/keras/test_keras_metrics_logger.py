@@ -11,12 +11,14 @@ y = np.random.randint(10, size=(100,))
 
 dataset = (x, y)
 
+
 def get_model():
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1)))
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(10, activation="softmax"))
     return model
+
 
 model = get_model()
 model.compile(
