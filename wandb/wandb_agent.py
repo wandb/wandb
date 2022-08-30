@@ -401,6 +401,16 @@ class Agent:
             "${args}",
         ]
 
+        # Check to see if there are any environment variable macros
+        for i, command_part in enumerate(sweep_command):
+            if command_part.startswith('${envvar:'):
+                env_var_name = command_part[9:-1]
+                if os.environ.get(env_var_name, None) is not None:
+                    wandb.termlog('')
+                    sweep_command[i] = os.environ[env_var_name]
+                else:
+                    wandb.termwarn('')
+
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
         # TODO(jhr): move into settings
