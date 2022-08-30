@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pytest
 import wandb
-from wandb.sdk.wandb_run import WaitTimeoutError
+from wandb.errors import WaitTimeoutError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 

@@ -653,7 +653,7 @@ class Artifact(ArtifactInterface):
             timeout: (int, optional) Waits in seconds for artifact to finish logging if needed.
         """
         if self._logged_artifact:
-            return self._logged_artifact.wait(timeout)
+            return self._logged_artifact.wait(timeout)  # type: ignore [call-arg]
 
         raise ValueError(
             "Cannot call wait on an artifact before it has been logged or in offline mode"

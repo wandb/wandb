@@ -138,12 +138,6 @@ class TeardownHook(NamedTuple):
     stage: TeardownStage
 
 
-class WaitTimeoutError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-        self.message = message
-
-
 class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
@@ -3596,7 +3590,7 @@ class _LazyArtifact(ArtifactInterface):
         if not self._instance:
             future_get = self._future.get(timeout)
             if not future_get:
-                raise WaitTimeoutError(
+                raise errors.WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
                 )
             resp = future_get.response.log_artifact_response
