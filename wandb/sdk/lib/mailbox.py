@@ -327,7 +327,7 @@ class Mailbox:
                     progress_handle.add_probe_handle(probe_handle)
                 progress_all_handle.add_progress_handle(progress_handle)
 
-        while True:
+        while handles:
             done_handles = wait_all._get_and_clear(timeout=1)
 
             if progress_all_handle and on_progress_all:
@@ -346,9 +346,6 @@ class Mailbox:
                 if progress_all_handle:
                     progress_all_handle.remove_progress_handle_matching_handle(handle)
                 handles.remove(handle)
-
-            if not handles:
-                break
 
         wait_all._clear_handles()
 
