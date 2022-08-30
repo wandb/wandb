@@ -8,6 +8,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
+from wandb import errors
 from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:
@@ -21,7 +22,7 @@ def _generate_address(length: int = 12) -> str:
     return address
 
 
-class MailboxError(Exception):
+class MailboxError(errors.Error):
     """Generic Mailbox Exception"""
 
     pass

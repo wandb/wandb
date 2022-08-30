@@ -5,6 +5,7 @@ StreamRecord: All the external state for the internal thread (queues, etc)
 StreamAction: Lightweight record for stream ops for thread safety with grpc
 StreamMux: Container for dictionary of stream threads per runid
 """
+import functools
 import logging
 import multiprocessing
 import queue
@@ -277,9 +278,7 @@ class StreamMux:
         for stream in streams.values():
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
-            handle.add_probe(
-                lambda handle, stream=stream: self._on_probe_exit(handle, stream=stream)
-            )
+            handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
             exit_handles.append(handle)
 
             Run._footer_exit_status_info(
