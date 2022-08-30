@@ -1,4 +1,5 @@
 import os
+import glob
 import wandb
 from typing import Union, Optional, Dict, List
 
@@ -80,6 +81,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         # TODO: add telemetry
         # with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
         #     tel.feature.keras_model_checkpoint = True
+        self.save_weights_only = save_weights_only
 
     def on_train_batch_end(self, batch: int, logs: Dict[str, float]=None):
         super().on_train_batch_end(batch, logs)
@@ -89,20 +91,41 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             filepath = self._get_file_path(
                 epoch=self._current_epoch, batch=batch, logs=logs)
             # Log the model as artifact
-            self._log_ckpt_as_artifact(filepath)
+            self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
     def on_epoch_end(self, epoch, logs: Dict[str, float]=None):
         super().on_epoch_end(epoch, logs)
         # Get filepath where the model checkpoint is saved.
         filepath = self._get_file_path(
             epoch=epoch, batch=None, logs=logs)
+        print(filepath)
         # Log the model as artifact
         aliases = ["latest", f"epoch_{epoch}"]
         self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
     def _log_ckpt_as_artifact(self, filepath: str, aliases: List[str]=[]):
         """Log model checkpoint as  W&B Artifact."""
-        model_artifact = wandb.Artifact(
-            f'run_{wandb.run.id}_model', type='model')
-        model_artifact.add_dir(filepath)
-        wandb.log_artifact(model_artifact, aliases=aliases)
+        try:
+            model_artifact = wandb.Artifact(
+                f'run_{wandb.run.id}_model', type='model')
+            if self.save_weights_only:
+                # We get three files when this is True
+                model_artifact.add_file(
+                    os.path.join(os.path.dirname(filepath), "checkpoint"))
+                model_artifact.add_file(filepath + ".index")
+                # In a distributed setting we get multiple shards.
+                for file in glob.glob(f"{filepath}.data-*"):
+                    model_artifact.add_file(file)
+            elif filepath.endswith('.h5'):
+                # Model saved in .h5 format thus we get files.
+                model_artifact.add_file(filepath)
+            else:
+                # Model saved in the SavedModel format thus we have dir.
+                model_artifact.add_dir(filepath)
+            wandb.log_artifact(model_artifact, aliases=aliases)
+        except ValueError as e:
+            # This error occurs in the following scenarios:
+            # 1. `save_best_only=True` and the model checkpoint is not saved for
+            #   that epoch. Since TF/Keras is giving friendly warning, we can avoid
+            #   clutering the stdout.
+            pass
