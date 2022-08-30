@@ -7,7 +7,4 @@ Use the `WandbCallback` to add `wandb` logging to any `Keras` model.
 from .keras import WandbCallback
 from .callbacks import WandBMetricsLogger
 
-__all__ = [
-    "WandbCallback",
-    "WandBMetricsLogger"
-]
+__all__ = ["WandbCallback", "WandBMetricsLogger"]
