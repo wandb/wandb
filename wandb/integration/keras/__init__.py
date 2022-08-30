@@ -8,7 +8,4 @@ from .keras import WandbCallback
 from .callbacks import WandbModelCheckpoint
 
 
-__all__ = [
-    "WandbCallback",
-    "WandbModelCheckpoint"
-]
+__all__ = ["WandbCallback", "WandbModelCheckpoint"]

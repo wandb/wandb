@@ -6,6 +6,7 @@ from typing import Union, Optional, Dict, List
 from tensorflow.keras import callbacks
 
 from ..keras import patch_tf_keras
+
 patch_tf_keras()
 
 
@@ -30,7 +31,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
     - Save the model at the end of epoch or after a fixed number of training batches.
     - Save only model weights, or save the whole model.
     - Save the model either in SavedModel format or in `.h5` format.
-    
+
     Arguments:
         filepath (str): string or `PathLike`, path to save the model file.
         monitor (str): The metric name to monitor.
@@ -51,20 +52,21 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         initial_value_threshold (float): Floating point initial "best" value of the metric
             to be monitored.
     """
+
     def __init__(
         self,
         filepath: str,
-        monitor: str='val_loss',
-        verbose: int=0,
-        save_best_only: bool=False,
-        save_weights_only: bool=False,
-        mode: str='auto',
-        save_freq: Union[str, int]='epoch',
-        options: Optional[str]=None,
-        initial_value_threshold: float=None,
-        **kwargs
+        monitor: str = "val_loss",
+        verbose: int = 0,
+        save_best_only: bool = False,
+        save_weights_only: bool = False,
+        mode: str = "auto",
+        save_freq: Union[str, int] = "epoch",
+        options: Optional[str] = None,
+        initial_value_threshold: float = None,
+        **kwargs,
     ):
-        super(WandbModelCheckpoint, self).__init__(
+        super().__init__(
             filepath=filepath,
             monitor=monitor,
             verbose=verbose,
@@ -74,49 +76,51 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             save_freq=save_freq,
             options=options,
             initial_value_threshold=initial_value_threshold,
-            **kwargs
+            **kwargs,
         )
         if wandb.run is None:
-            raise wandb.Error("You must call wandb.init() before WandbModelCheckpoint()")
+            raise wandb.Error(
+                "You must call wandb.init() before WandbModelCheckpoint()"
+            )
         # TODO: add telemetry
         # with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
         #     tel.feature.keras_model_checkpoint = True
         self.save_weights_only = save_weights_only
 
-    def on_train_batch_end(self, batch: int, logs: Dict[str, float]=None):
+    def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None):
         super().on_train_batch_end(batch, logs)
         # Check if the checkpoint was saved at this batch.
         if self._should_save_on_batch(batch):
             # Get filepath where the model checkpoint is saved.
             filepath = self._get_file_path(
-                epoch=self._current_epoch, batch=batch, logs=logs)
+                epoch=self._current_epoch, batch=batch, logs=logs
+            )
             # Log the model as artifact
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
-    def on_epoch_end(self, epoch, logs: Dict[str, float]=None):
+    def on_epoch_end(self, epoch, logs: Dict[str, float] = None):
         super().on_epoch_end(epoch, logs)
         # Get filepath where the model checkpoint is saved.
-        filepath = self._get_file_path(
-            epoch=epoch, batch=None, logs=logs)
+        filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
         print(filepath)
         # Log the model as artifact
         aliases = ["latest", f"epoch_{epoch}"]
         self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
-    def _log_ckpt_as_artifact(self, filepath: str, aliases: List[str]=[]):
+    def _log_ckpt_as_artifact(self, filepath: str, aliases: List[str] = []):
         """Log model checkpoint as  W&B Artifact."""
         try:
-            model_artifact = wandb.Artifact(
-                f'run_{wandb.run.id}_model', type='model')
+            model_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", type="model")
             if self.save_weights_only:
                 # We get three files when this is True
                 model_artifact.add_file(
-                    os.path.join(os.path.dirname(filepath), "checkpoint"))
+                    os.path.join(os.path.dirname(filepath), "checkpoint")
+                )
                 model_artifact.add_file(filepath + ".index")
                 # In a distributed setting we get multiple shards.
                 for file in glob.glob(f"{filepath}.data-*"):
                     model_artifact.add_file(file)
-            elif filepath.endswith('.h5'):
+            elif filepath.endswith(".h5"):
                 # Model saved in .h5 format thus we get files.
                 model_artifact.add_file(filepath)
             else:
