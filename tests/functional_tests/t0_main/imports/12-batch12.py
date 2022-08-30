@@ -10,6 +10,7 @@ plugin:
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
+    - tensorflow
     - "-r 12-batch12-requirements.txt"
 assert:
   - :wandb:runs_len: 1

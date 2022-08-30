@@ -1,2 +1,1 @@
-tensorflow
 keras-cv

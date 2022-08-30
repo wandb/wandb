@@ -1,5 +1,3 @@
-numpy
-lap
 paddleocr
 git+https://github.com/PaddlePaddle/PaddleDetection
 paddleseg
