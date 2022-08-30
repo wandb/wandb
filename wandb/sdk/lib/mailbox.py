@@ -54,7 +54,6 @@ class _MailboxSlot:
 
 
 class MailboxProbe:
-
     def __init__(self) -> None:
         self._handle = None
         self._result = None
@@ -110,14 +109,10 @@ class MailboxHandle:
         self._keepalive = False
         self._keepalive_interval = 5
 
-    def add_probe(
-        self, on_probe: Callable[[MailboxProbe], None]
-    ) -> None:
+    def add_probe(self, on_probe: Callable[[MailboxProbe], None]) -> None:
         self._on_probe = on_probe
 
-    def add_progress(
-        self, on_progress: Callable[[MailboxProgress], None]
-    ) -> None:
+    def add_progress(self, on_progress: Callable[[MailboxProgress], None]) -> None:
         self._on_progress = on_progress
 
     def _transport_keepalive_failed(self) -> bool:

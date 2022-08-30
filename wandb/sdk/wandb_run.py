@@ -1209,9 +1209,7 @@ class Run:
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
-        result = handle.wait(
-            timeout=-1, on_progress=self._on_progress_get_summary
-        )
+        result = handle.wait(timeout=-1, on_progress=self._on_progress_get_summary)
         if not result:
             return {}
         get_summary = result.response.get_summary_response
