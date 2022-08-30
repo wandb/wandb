@@ -2470,6 +2470,10 @@ class Sweep(Attrs):
 
     def expected_runs(self) -> int:
         "Returns the number of expected runs in the sweep"
+        search_method: str = self.config.get('method', 'random')
+        if not search_method == 'grid':
+            wandb.termwarn(f'Sweep of method {search_method} does not have a constrained expected runs.')
+            return -1
         expected_runs: int = 0
         for _, param_dict in self.config.get('parameters', {}).items():
             if param_dict.get('values', None) is not None:
