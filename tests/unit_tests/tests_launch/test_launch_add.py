@@ -48,16 +48,11 @@ def test_launch_build_push_job(relay_server, runner, user):
         )
         result = runner.invoke(cli.launch, args)
         run_queue = api.get_project_run_queues(entity=user, project=proj)
+
         assert run_queue
+        assert run_queue.pop()
 
-        print(f"{run_queue.pop()=}")
-
-        run_queue_item = api.pop_from_run_queue(
-            queue_name=queue, entity=user, project=proj
-        )
-        assert run_queue_item
-
-        run.finish()
+    run.finish()
 
     for comm in relay.context.raw_data:
         if comm["request"].get("query"):
@@ -72,7 +67,7 @@ def test_launch_build_push_job(relay_server, runner, user):
 
 
 @pytest.mark.timeout(300)
-def test_launch_build_with_config(relay_server, runner, user):
+def test_launch_build_with_agent(relay_server, runner, user):
     queue = "test_queue"
     proj = "test_launch_build"
     config = {
@@ -92,19 +87,34 @@ def test_launch_build_with_config(relay_server, runner, user):
     os.environ["WANDB_PROJECT"] = proj  # required for artifact query
     run = wandb.init(project=proj)
     time.sleep(1)
-    with relay_server() as relay:
+    with relay_server() as relay, runner.isolated_filesystem():
         api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
+        run_queues = api.get_project_run_queues(entity=user, project=proj)
+        assert run_queues.pop()
+
         result = runner.invoke(cli.launch, args)
-        run_queue_item = api.pop_from_run_queue(
-            queue_name=queue, entity=user, project=proj
-        )
 
-        assert f"'entity': '{user}'" in str(run_queue_item)
-        assert run_queue_item["runSpec"]["overrides"] == {"args": {"epochs": "5"}}
+        assert result.exit_code == 0
+        assert "'uri': None" in str(result.output)
+        assert "'job': 'oops'" not in str(result.output)
 
-        run.finish()
+        # could use just a normal launch with the logged job
+
+        # job = result.output.split("'job': '")[1].split("',")[0]
+        # agent_result = runner.invoke(cli.launch, f"--job={job}")
+
+        # pick it up with an agent?
+        # agent_result = runner.invoke(
+        #     cli.launch_agent, [f"--queues={queue}", f"--entity={user}"]
+        # )
+        # print(agent_result)
+        # print(agent_result.output)
+
+        # assert agent_result.exit_code == 0
+
+    run.finish()
 
     for comm in relay.context.raw_data:
         if comm["request"].get("query"):
@@ -112,7 +122,3 @@ def test_launch_build_with_config(relay_server, runner, user):
             print("variables", comm["request"]["variables"])
             print("response", comm["response"]["data"])
             print("\n")
-
-    assert result.exit_code == 0
-    assert "'uri': None" in str(result.output)
-    assert "'job': 'oops'" not in str(result.output)
