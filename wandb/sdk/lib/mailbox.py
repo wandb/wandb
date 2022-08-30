@@ -53,34 +53,70 @@ class _MailboxSlot:
             self._event.set()
 
 
-class MailboxProgressHandle:
+class MailboxProbe:
+
+    def __init__(self) -> None:
+        self._handle = None
+        self._result = None
+
+    def set_probe_result(self, result) -> None:
+        self._result = result
+
+    def get_probe_result(self) -> None:
+        return self._result
+
+    def get_mailbox_handle(self) -> None:
+        return self._handle
+
+    def set_mailbox_handle(self, handle) -> None:
+        self._handle = handle
+
+
+class MailboxProgress:
     _percent_done: float
 
-    def __init__(self, percent_done: float) -> None:
-        self._percent_done = percent_done
+    def __init__(self) -> None:
+        self._percent_done = 0.0
+        self._probe_handles = []
 
     @property
     def percent_done(self) -> float:
         return self._percent_done
 
+    def set_percent_done(self, percent_done: float) -> None:
+        self._percent_done = percent_done
+
+    def add_probe_handle(self, probe_handle: MailboxProbe):
+        self._probe_handles.append(probe_handle)
+
+    def get_probe_handles(self):
+        return self._probe_handles
+
 
 class MailboxHandle:
     _mailbox: "Mailbox"
     _slot: _MailboxSlot
-    _on_progress: Optional[Callable[[MailboxProgressHandle], None]]
+    _on_probe: Optional[Callable[[MailboxProbe], None]]
+    _on_progress: Optional[Callable[[MailboxProgress], None]]
     _interface: Optional["InterfaceShared"]
     _keepalive: bool
 
     def __init__(self, mailbox: "Mailbox", slot: _MailboxSlot) -> None:
         self._mailbox = mailbox
         self._slot = slot
+        self._on_probe = None
         self._on_progress = None
         self._interface = None
         self._keepalive = False
         self._keepalive_interval = 5
 
+    def add_probe(
+        self, on_probe: Callable[[MailboxProbe], None]
+    ) -> None:
+        self._on_probe = on_probe
+
     def add_progress(
-        self, on_progress: Callable[[MailboxProgressHandle], None]
+        self, on_progress: Callable[[MailboxProgress], None]
     ) -> None:
         self._on_progress = on_progress
 
@@ -108,10 +144,10 @@ class MailboxHandle:
         self,
         *,
         timeout: float,
-        on_progress: Callable[[MailboxProgressHandle], None] = None,
+        on_probe: Callable[[MailboxProbe], None] = None,
+        on_progress: Callable[[MailboxProgress], None] = None,
         release: bool = True,
     ) -> Optional[pb.Result]:
-        on_progress = on_progress or self._on_progress
         found: Optional[pb.Result] = None
         start_time = time.time()
         percent_done = 0.0
@@ -119,6 +155,17 @@ class MailboxHandle:
         wait_timeout = 1.0
         if timeout >= 0:
             wait_timeout = min(timeout, wait_timeout)
+
+        on_progress = on_progress or self._on_progress
+        if on_progress:
+            progress_handle = MailboxProgress()
+
+        on_probe = on_probe or self._on_probe
+        if on_probe:
+            probe_handle = MailboxProbe()
+            if progress_handle:
+                progress_handle.add_probe_handle(probe_handle)
+
         while True:
             if self._transport_keepalive_failed():
                 raise MailboxError("transport failed")
@@ -126,20 +173,22 @@ class MailboxHandle:
             found = self._slot._get_and_clear(timeout=wait_timeout)
             if found:
                 # Always update progress to 100% when done
-                if on_progress and progress_sent:
-                    progress = MailboxProgressHandle(percent_done=100)
-                    on_progress(progress)
+                if on_progress and progress_handle and progress_sent:
+                    progress_handle.set_percent_done(100)
+                    on_progress(progress_handle)
                 break
             now = time.time()
             if timeout >= 0:
                 if now >= start_time + timeout:
                     break
-            if on_progress:
+            if on_probe and probe_handle:
+                on_probe(probe_handle)
+            if on_progress and progress_handle:
                 if timeout > 0:
                     percent_done = min((now - start_time) / timeout, 1.0)
+                progress_handle.set_percent_done(percent_done)
+                on_progress(progress_handle)
                 progress_sent = True
-                progress = MailboxProgressHandle(percent_done=percent_done)
-                on_progress(progress)
         if release:
             self._release()
         return found
@@ -168,7 +217,7 @@ class Mailbox:
         handle: MailboxHandle,
         *,
         timeout: float,
-        on_progress: Callable[[MailboxProgressHandle], None] = None,
+        on_progress: Callable[[MailboxProgress], None] = None,
     ) -> Optional[pb.Result]:
         return handle.wait(timeout=timeout, on_progress=on_progress)
 
@@ -177,10 +226,10 @@ class Mailbox:
         handles: List[MailboxHandle],
         *,
         timeout: float,
-        on_progress: Callable[[MailboxProgressHandle], None] = None,
+        on_progress_all: Callable[[MailboxProgress], None] = None,
     ) -> None:
         for handle in handles:
-            _ = handle.wait(timeout=-1)
+            _ = handle.wait(timeout=-1, on_progress=on_progress_all)
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot

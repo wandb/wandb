@@ -79,7 +79,7 @@ from .lib import (
 from .lib.exit_hooks import ExitHooks
 from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
-from .lib.mailbox import MailboxHandle, MailboxProgressHandle
+from .lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
@@ -1200,7 +1200,7 @@ class Run:
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
-    def _on_deliver_get_summary_progress(self, handle: MailboxProgressHandle) -> None:
+    def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
         line = "Waiting for run.summary data...\r"
         # TODO: use printer?
         print(line, end="")
@@ -1210,7 +1210,7 @@ class Run:
             return {}
         handle = self._backend.interface.deliver_get_summary()
         result = handle.wait(
-            timeout=-1, on_progress=self._on_deliver_get_summary_progress
+            timeout=-1, on_progress=self._on_progress_get_summary
         )
         if not result:
             return {}
@@ -2215,16 +2215,27 @@ class Run:
         artifact = self.log_artifact(job_artifact)
         return artifact
 
-    def _on_deliver_exit_progress(self, handle: MailboxProgressHandle) -> None:
-        if self._poll_exit_handle:
-            result = self._poll_exit_handle.wait(timeout=0)
+    def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
+        handle = probe_handle.get_mailbox_handle()
+        if handle:
+            result = handle.wait(timeout=0)
             if not result:
                 return
-            self._footer_file_pusher_status_info(
-                result.response.poll_exit_response, printer=self._printer
-            )
+            probe_handle.set_probe_result(result)
         assert self._backend and self._backend.interface
-        self._poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        handle = self._backend.interface.deliver_poll_exit()
+        probe_handle.set_mailbox_handle(handle)
+
+    def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
+        probe_handles = progress_handle.get_probe_handles()
+        assert probe_handles and len(probe_handles) == 1
+
+        result = probe_handles[0].get_probe_result()
+        if not result:
+            return
+        self._footer_file_pusher_status_info(
+            result.response.poll_exit_response, printer=self._printer
+        )
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -2239,12 +2250,13 @@ class Run:
 
         assert self._backend and self._backend.interface
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+        exit_handle.add_probe(on_probe=self._on_probe_exit)
 
         self._footer_exit_status_info(
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
-        _ = exit_handle.wait(timeout=-1, on_progress=self._on_deliver_exit_progress)
+        _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
@@ -3157,7 +3169,7 @@ class Run:
     @staticmethod
     def _footer_file_pusher_status_info(
         poll_exit_responses: Optional[
-            Union[PollExitResponse, Dict[str, Optional[PollExitResponse]]]
+            Union[PollExitResponse, List[Optional[PollExitResponse]]]
         ] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
@@ -3168,10 +3180,8 @@ class Run:
             Run._footer_single_run_file_pusher_status_info(
                 poll_exit_responses, printer=printer
             )
-        elif isinstance(poll_exit_responses, dict):
-            poll_exit_responses_list = [
-                response for response in poll_exit_responses.values()
-            ]
+        elif isinstance(poll_exit_responses, list):
+            poll_exit_responses_list = poll_exit_responses
             assert all(
                 response is None or isinstance(response, PollExitResponse)
                 for response in poll_exit_responses_list
@@ -3189,7 +3199,7 @@ class Run:
         else:
             raise ValueError(
                 f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
-                "Expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+                "Expected either None, PollExitResponse or a List[Union[PollExitResponse, None]]"
             )
 
     @staticmethod
