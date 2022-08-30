@@ -54,25 +54,29 @@ class _MailboxSlot:
 
 
 class MailboxProbe:
+    _result: Optional[pb.Result]
+    _handle: Optional["MailboxHandle"]
+
     def __init__(self) -> None:
         self._handle = None
         self._result = None
 
-    def set_probe_result(self, result) -> None:
+    def set_probe_result(self, result: pb.Result) -> None:
         self._result = result
 
-    def get_probe_result(self) -> None:
+    def get_probe_result(self) -> Optional[pb.Result]:
         return self._result
 
-    def get_mailbox_handle(self) -> None:
+    def get_mailbox_handle(self) -> Optional["MailboxHandle"]:
         return self._handle
 
-    def set_mailbox_handle(self, handle) -> None:
+    def set_mailbox_handle(self, handle: "MailboxHandle") -> None:
         self._handle = handle
 
 
 class MailboxProgress:
     _percent_done: float
+    _probe_handles: List[MailboxProbe]
 
     def __init__(self) -> None:
         self._percent_done = 0.0
@@ -85,10 +89,10 @@ class MailboxProgress:
     def set_percent_done(self, percent_done: float) -> None:
         self._percent_done = percent_done
 
-    def add_probe_handle(self, probe_handle: MailboxProbe):
+    def add_probe_handle(self, probe_handle: MailboxProbe) -> None:
         self._probe_handles.append(probe_handle)
 
-    def get_probe_handles(self):
+    def get_probe_handles(self) -> List[MailboxProbe]:
         return self._probe_handles
 
 

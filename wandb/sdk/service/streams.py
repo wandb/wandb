@@ -233,7 +233,7 @@ class StreamMux:
                 stream.drop()
                 stream.join()
 
-    def _on_probe_exit(self, probe_handle: MailboxProbe, stream) -> None:
+    def _on_probe_exit(self, probe_handle: MailboxProbe, stream: StreamRecord) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
             result = handle.wait(timeout=0)
@@ -253,7 +253,7 @@ class StreamMux:
         if self._check_orphaned():
             self._stopped.set()
 
-        poll_exit_responses = []
+        poll_exit_responses: List[Optional[pb.PollExitResponse]] = []
         for probe_handle in probe_handles:
             result = probe_handle.get_probe_result()
             if result:
@@ -277,7 +277,8 @@ class StreamMux:
         for stream in streams.values():
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
-            handle.add_probe(lambda handle: self._on_probe_exit(handle, stream))
+            on_probe_lambda = lambda handle, stream=stream: self._on_probe_exit(handle, stream)
+            handle.add_probe(on_probe_lambda)
             exit_handles.append(handle)
 
             Run._footer_exit_status_info(
