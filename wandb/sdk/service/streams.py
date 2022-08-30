@@ -277,8 +277,9 @@ class StreamMux:
         for stream in streams.values():
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
-            on_probe_lambda = lambda handle, stream=stream: self._on_probe_exit(handle, stream)
-            handle.add_probe(on_probe_lambda)
+            handle.add_probe(
+                lambda handle, stream=stream: self._on_probe_exit(handle, stream=stream)
+            )
             exit_handles.append(handle)
 
             Run._footer_exit_status_info(
