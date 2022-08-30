@@ -22,6 +22,7 @@ from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.mailbox import (
     Mailbox,
     MailboxProbe,
+    MailboxProgress,
     MailboxProgressAll,
 )
 from wandb.sdk.lib.printer import get_printer
@@ -248,6 +249,9 @@ class StreamMux:
         handle = stream.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
+    def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
+        pass
+
     def _on_progress_exit_all(self, progress_all_handle: MailboxProgressAll) -> None:
         probe_handles = []
         progress_handles = progress_all_handle.get_progress_handles()
@@ -282,6 +286,7 @@ class StreamMux:
         exit_handles = []
         for stream in streams.values():
             handle = stream.interface.deliver_exit(exit_code)
+            handle.add_progress(self._on_progress_exit)
             handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
             exit_handles.append(handle)
 
