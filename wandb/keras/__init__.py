@@ -6,5 +6,9 @@ In the future use:
 """
 
 from wandb.integration.keras import WandbCallback  # type: ignore
+from wandb.integration.keras import WandBMetricsLogger  # type: ignore
 
-__all__ = ["WandbCallback"]
+__all__ = [
+    "WandbCallback"
+    "WandBMetricsLogger"    
+]
