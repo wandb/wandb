@@ -23,7 +23,7 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -2476,17 +2476,21 @@ class Sweep(Attrs):
                 f"Sweep of method {search_method} does not have a constrained expected runs."
             )
             return -1
-        expected_run_count: int = 1
-        for _, param_dict in self.config.get("parameters", {}).items():
-            if param_dict.get("value", None) is not None:
-                expected_run_count *= 1
-            elif param_dict.get("values", None) is not None:
-                expected_run_count *= len(param_dict["values"])
-            else:
-                # Even one parameter that isn't categorical will result in infinite expected runs.
-                expected_run_count = -1
-                break
-        return expected_run_count
+
+        def _recursive_count(params: Dict[str, Any], count: int) -> int:
+            for param_dict in params.get("parameters", {}).values():
+                if param_dict.get("parameters", None) is not None:
+                    count *= _recursive_count(param_dict["parameters"], count)
+                elif param_dict.get("value", None) is not None:
+                    count *= 1
+                elif param_dict.get("values", None) is not None:
+                    count *= len(param_dict["values"])
+                else:
+                    # Even one non discrete param will result in infinite expected runs
+                    return -1
+            return count
+
+        return _recursive_count(self.config, 1)
 
     @property
     def path(self):

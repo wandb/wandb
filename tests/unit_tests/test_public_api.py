@@ -139,31 +139,34 @@ def test_from_path_report_type(user, path):
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
-def test_sweep_api(user, project, relay_server, sweep_config):
+def test_sweep_api(user, relay_server, sweep_config):
+    _project = "test"
     with relay_server():
-        sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
-    sweep = Api().sweep(sweep_id)
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    print(f"sweep_id{sweep_id}")
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
     assert sweep.entity == user
-    assert sweep.url == f"https://wandb.ai/{user}/{project}/sweeps/{sweep_id}"
-    assert sweep.state in ["running", "finished"]
-    assert str(sweep) == f"<Sweep {user}/{project}/{sweep_id} (running)>"
+    assert f"{user}/{_project}/sweeps/{sweep_id}" in sweep.url
+    assert sweep.state == "PENDING"
+    assert str(sweep) == f"<Sweep {user}/test/{sweep_id} (PENDING)>"
 
 
 @pytest.mark.parametrize(
-    "sweep_config",
+    "sweep_config,expected_run_count",
     [
-        SWEEP_CONFIG_GRID,
-        SWEEP_CONFIG_GRID_NESTED,
-        SWEEP_CONFIG_BAYES,
+        (SWEEP_CONFIG_GRID, 3),
+        (SWEEP_CONFIG_GRID_NESTED, 9),
+        (SWEEP_CONFIG_BAYES, -1),
     ],
 )
-@pytest.mark.parametrize("expected_run_count", [3, 3, -1])
 def test_sweep_api_expected_run_count(
-    user, project, relay_server, sweep_config, expected_run_count
+    user, relay_server, sweep_config, expected_run_count
 ):
+    _project = "test"
     with relay_server():
-        sweep_id = wandb.sweep(sweep_config, entity=user, project=project)
-    sweep = Api().sweep(sweep_id)
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    print(f"sweep_id{sweep_id}")
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
     assert sweep.expected_run_count() == expected_run_count
 
 
