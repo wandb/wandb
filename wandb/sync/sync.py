@@ -43,6 +43,8 @@ class SyncThread(threading.Thread):
         sync_list,
         project=None,
         entity=None,
+        group=None,
+        job_type=None,
         run_id=None,
         view=None,
         verbose=None,
@@ -57,6 +59,8 @@ class SyncThread(threading.Thread):
         self._sync_list = sync_list
         self._project = project
         self._entity = entity
+        self._group = group
+        self._job_type = job_type
         self._run_id = run_id
         self._view = view
         self._verbose = verbose
@@ -82,6 +86,10 @@ class SyncThread(threading.Thread):
                 pb.run.project = self._project
             if self._entity:
                 pb.run.entity = self._entity
+            if self._group:
+                pb.run.group = self._group
+            if self._job_type:
+                pb.run.job_type = self._job_type
             pb.control.req_resp = True
         elif record_type == "exit":
             exit_pb = pb
@@ -298,6 +306,8 @@ class SyncManager:
         self,
         project=None,
         entity=None,
+        group=None,
+        job_type=None,
         run_id=None,
         mark_synced=None,
         app_url=None,
@@ -310,6 +320,8 @@ class SyncManager:
         self._thread = None
         self._project = project
         self._entity = entity
+        self._group = group
+        self._job_type = job_type
         self._run_id = run_id
         self._mark_synced = mark_synced
         self._app_url = app_url
@@ -330,6 +342,8 @@ class SyncManager:
             sync_list=self._sync_list,
             project=self._project,
             entity=self._entity,
+            group=self._group,
+            job_type=self._job_type,
             run_id=self._run_id,
             view=self._view,
             verbose=self._verbose,

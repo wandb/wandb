@@ -433,6 +433,8 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
+@click.option("--group", help="The group you want to upload to.")
+@click.option("--job_type", help="The job_type you want to upload to.")
 @click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
@@ -490,6 +492,8 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
+    group=None,
+    job_type=None,
     sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
@@ -564,6 +568,8 @@ def sync(
         sm = SyncManager(
             project=project,
             entity=entity,
+            group=group,
+            job_type=job_type,
             run_id=run_id,
             mark_synced=mark_synced,
             app_url=api.app_url,
