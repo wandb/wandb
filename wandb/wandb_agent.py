@@ -403,13 +403,17 @@ class Agent:
 
         # Check to see if there are any environment variable macros
         for i, command_part in enumerate(sweep_command):
-            if command_part.startswith('${envvar:'):
+            if command_part.startswith("${envvar:"):
                 env_var_name = command_part[9:-1]
                 if os.environ.get(env_var_name, None) is not None:
-                    wandb.termlog('')
+                    wandb.termlog(
+                        f"Replacing environment variable macro {command_part} in sweep command with {env_var_name}"
+                    )
                     sweep_command[i] = os.environ[env_var_name]
                 else:
-                    wandb.termwarn('')
+                    wandb.termwarn(
+                        f"Could not find environment variable corresponding to command macro {env_var_name}"
+                    )
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
