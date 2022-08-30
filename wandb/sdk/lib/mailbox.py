@@ -28,10 +28,57 @@ class MailboxError(errors.Error):
     pass
 
 
+class _MailboxWaitAll:
+    _event: threading.Event
+    _lock: threading.Lock
+    _handles: List["MailboxHandle"]
+
+    def __init__(self) -> None:
+        self._event = threading.Event()
+        self._lock = threading.Lock()
+        self._handles = []
+
+    def notify(self) -> None:
+        with self._lock:
+            self._event.set()
+
+    def _add_handle(self, handle: "MailboxHandle") -> None:
+        handle._slot._set_wait_all(self)
+        self._handles.append(handle)
+
+        # set wait_all event if an event has already been set before added to wait_all
+        if handle._slot._event.is_set():
+            self._event.set()
+
+    def _clear_handles(self) -> None:
+        for handle in self._handles:
+            handle._slot._clear_wait_all()
+        self._handles = []
+
+    def _get_and_clear(self, timeout: float) -> List["MailboxHandle"]:
+        found: List["MailboxHandle"] = []
+        if self._event.wait(timeout=timeout):
+            with self._lock:
+                remove_handles = []
+
+                # Look through handles for triggered events
+                for handle in self._handles:
+                    if handle._slot._event.is_set():
+                        found.append(handle)
+                        remove_handles.append(handle)
+
+                for handle in remove_handles:
+                    self._handles.remove(handle)
+
+                self._event.clear()
+        return found
+
+
 class _MailboxSlot:
     _result: Optional[pb.Result]
     _event: threading.Event
     _lock: threading.Lock
+    _wait_all: Optional[_MailboxWaitAll]
     _address: str
 
     def __init__(self, address: str) -> None:
@@ -39,6 +86,14 @@ class _MailboxSlot:
         self._event = threading.Event()
         self._lock = threading.Lock()
         self._address = address
+        self._wait_all = None
+
+    def _set_wait_all(self, wait_all: _MailboxWaitAll) -> None:
+        assert not self._wait_all, "Only one caller can wait_all for a slot at a time"
+        self._wait_all = wait_all
+
+    def _clear_wait_all(self) -> None:
+        self._wait_all = None
 
     def _get_and_clear(self, timeout: float) -> Optional[pb.Result]:
         found = None
@@ -52,6 +107,9 @@ class _MailboxSlot:
         with self._lock:
             self._result = result
             self._event.set()
+
+        if self._wait_all:
+            self._wait_all.notify()
 
 
 class MailboxProbe:
@@ -77,9 +135,11 @@ class MailboxProbe:
 
 class MailboxProgress:
     _percent_done: float
+    _handle: "MailboxHandle"
     _probe_handles: List[MailboxProbe]
 
-    def __init__(self) -> None:
+    def __init__(self, _handle: "MailboxHandle") -> None:
+        self._handle = _handle
         self._percent_done = 0.0
         self._probe_handles = []
 
@@ -95,6 +155,28 @@ class MailboxProgress:
 
     def get_probe_handles(self) -> List[MailboxProbe]:
         return self._probe_handles
+
+
+class MailboxProgressAll:
+    _progress_handles: List[MailboxProgress]
+
+    def __init__(self) -> None:
+        self._progress_handles = []
+
+    def add_progress_handle(self, progress_handle: MailboxProgress) -> None:
+        self._progress_handles.append(progress_handle)
+
+    def remove_progress_handle_matching_handle(self, handle: "MailboxHandle") -> None:
+        # TODO: make this more efficient in the future so we dont have to walk list
+        self._progress_handles = list(
+            filter(
+                lambda progress_handle: progress_handle._handle != handle,
+                self._progress_handles,
+            )
+        )
+
+    def get_progress_handles(self) -> List[MailboxProgress]:
+        return self._progress_handles
 
 
 class MailboxHandle:
@@ -148,6 +230,8 @@ class MailboxHandle:
         on_progress: Callable[[MailboxProgress], None] = None,
         release: bool = True,
     ) -> Optional[pb.Result]:
+        probe_handle: Optional[MailboxProbe] = None
+        progress_handle: Optional[MailboxProgress] = None
         found: Optional[pb.Result] = None
         start_time = time.time()
         percent_done = 0.0
@@ -158,7 +242,7 @@ class MailboxHandle:
 
         on_progress = on_progress or self._on_progress
         if on_progress:
-            progress_handle = MailboxProgress()
+            progress_handle = MailboxProgress(_handle=self)
 
         on_probe = on_probe or self._on_probe
         if on_probe:
@@ -226,10 +310,47 @@ class Mailbox:
         handles: List[MailboxHandle],
         *,
         timeout: float,
-        on_progress_all: Callable[[MailboxProgress], None] = None,
+        on_progress_all: Callable[[MailboxProgressAll], None] = None,
     ) -> None:
+        progress_all_handle: Optional[MailboxProgressAll] = None
+
+        if on_progress_all:
+            progress_all_handle = MailboxProgressAll()
+
+        wait_all = _MailboxWaitAll()
         for handle in handles:
-            _ = handle.wait(timeout=-1, on_progress=on_progress_all)
+            wait_all._add_handle(handle)
+            if progress_all_handle and handle._on_progress:
+                progress_handle = MailboxProgress(_handle=handle)
+                if handle._on_probe:
+                    probe_handle = MailboxProbe()
+                    progress_handle.add_probe_handle(probe_handle)
+                progress_all_handle.add_progress_handle(progress_handle)
+
+        while True:
+            done_handles = wait_all._get_and_clear(timeout=1)
+
+            if progress_all_handle and on_progress_all:
+                # Run all probe handles
+                for progress_handle in progress_all_handle.get_progress_handles():
+                    for probe_handle in progress_handle.get_probe_handles():
+                        if (
+                            progress_handle._handle
+                            and progress_handle._handle._on_probe
+                        ):
+                            progress_handle._handle._on_probe(probe_handle)
+
+                on_progress_all(progress_all_handle)
+
+            for handle in done_handles:
+                if progress_all_handle:
+                    progress_all_handle.remove_progress_handle_matching_handle(handle)
+                handles.remove(handle)
+
+            if not handles:
+                break
+
+        wait_all._clear_handles()
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot
