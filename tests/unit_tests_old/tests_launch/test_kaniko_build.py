@@ -279,7 +279,7 @@ def test_create_kaniko_job_static(mock_kubernetes_client, runner):
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
-            == "gcr.io/kaniko-project/executor:latest"
+            == "gcr.io/kaniko-project/executor:v1.8.0"
         )
         assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
             f"--context={context_path}",
@@ -345,7 +345,7 @@ def test_create_kaniko_job_instance(mock_kubernetes_client, runner):
         assert job["metadata"]["labels"] == {"wandb": "launch"}
         assert (
             job["spec"]["template"]["spec"]["containers"][0]["image"]
-            == "gcr.io/kaniko-project/executor:latest"
+            == "gcr.io/kaniko-project/executor:v1.8.0"
         )
         assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
             f"--context={context_path}",
