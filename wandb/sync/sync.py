@@ -87,7 +87,7 @@ class SyncThread(threading.Thread):
             if self._entity:
                 pb.run.entity = self._entity
             if self._group:
-                pb.run.group = self._group
+                pb.run.run_group = self._group
             if self._job_type:
                 pb.run.job_type = self._job_type
             pb.control.req_resp = True
