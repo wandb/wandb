@@ -2807,9 +2807,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
