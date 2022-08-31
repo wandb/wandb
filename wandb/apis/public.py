@@ -1158,7 +1158,7 @@ class User(Attrs):
         elif "name" in self._attrs:
             return f"<User {self._attrs['name']!r}>"
         else:
-            return f"<User ???>"
+            return "<User ???>"
 
 
 class Member(Attrs):
