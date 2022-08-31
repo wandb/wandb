@@ -213,10 +213,10 @@ def test_artifact_wait_success(wandb_init):
 def test_artifact_wait_failure(wandb_init, timeout):
     # Test to expect WaitTimeoutError when wait timeout is reached and large image
     # wasn't uploaded yet
-    large_image = wandb.Image(np.zeros((1000, 1000)))
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
     run = wandb_init()
     with pytest.raises(WaitTimeoutError):
         artifact = wandb.Artifact("art", type="image")
-        artifact.add(large_image, "image")
+        artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
