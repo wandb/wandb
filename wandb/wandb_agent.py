@@ -134,7 +134,7 @@ class Agent:
         "${program}",
         "${args}",
     ]
-    SWEEP_COMMAND_ENV_VAR_REGEX: re.Pattern = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
+    SWEEP_COMMAND_ENV_VAR_REGEX = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
 
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
