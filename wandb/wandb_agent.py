@@ -4,6 +4,7 @@ import multiprocessing
 import os
 import platform
 import queue
+import re
 import signal
 import socket
 import subprocess
@@ -127,6 +128,13 @@ class Agent:
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
     MAX_INITIAL_FAILURES = 5
+    DEFAULT_SWEEP_COMMAND: List[str] = [
+        "${env}",
+        "${interpreter}",
+        "${program}",
+        "${args}",
+    ]
+    SWEEP_COMMAND_ENV_VAR_REGEX: re.Pattern = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
 
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
@@ -373,6 +381,22 @@ class Agent:
             "args_dict": flags_dict,
         }
 
+    @staticmethod
+    def _create_sweep_command(command: List[str] = None) -> List[str]:
+        """Returns sweep command, filling in environment variable macros."""
+        # Start from default sweep command
+        command = command or Agent.DEFAULT_SWEEP_COMMAND
+        for i, chunk in enumerate(command):
+            # # Replace environment variable macros
+            if Agent.SWEEP_COMMAND_ENV_VAR_REGEX.search(chunk):
+                # Replace from backwards forwards
+                matches = list(Agent.SWEEP_COMMAND_ENV_VAR_REGEX.finditer(chunk))
+                for m in matches[::-1]:
+                    # Default to just leaving as is if environment variable does not exist
+                    _var: str = os.environ.get(m.group(1), m.group(1))
+                    command[i] = f"{command[i][:m.start()]}{_var}{command[i][m.end():]}"
+        return command
+
     def _command_run(self, command):
         logger.info(
             "Agent starting run with config:\n"
@@ -393,27 +417,8 @@ class Agent:
                 )
             )
 
-        # setup default sweep command if not configured
-        sweep_command = self._sweep_command or [
-            "${env}",
-            "${interpreter}",
-            "${program}",
-            "${args}",
-        ]
-
-        # Check to see if there are any environment variable macros
-        for i, command_part in enumerate(sweep_command):
-            if command_part.startswith("${envvar:"):
-                env_var_name = command_part[9:-1]
-                if os.environ.get(env_var_name, None) is not None:
-                    wandb.termlog(
-                        f"Replacing environment variable macro {command_part} in sweep command with {env_var_name}"
-                    )
-                    sweep_command[i] = os.environ[env_var_name]
-                else:
-                    wandb.termwarn(
-                        f"Could not find environment variable corresponding to command macro {env_var_name}"
-                    )
+        # Setup sweep command
+        sweep_command: List[str] = Agent._create_sweep_command(self._sweep_command)
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
