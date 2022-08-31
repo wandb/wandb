@@ -25,7 +25,6 @@ from collections import namedtuple
 from functools import partial
 from typing import Any, Dict, List, Optional
 
-
 import requests
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError

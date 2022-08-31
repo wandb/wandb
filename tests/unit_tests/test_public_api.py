@@ -7,11 +7,12 @@ import pytest
 import wandb
 import wandb.util
 from wandb import Api
+
 from .test_wandb_sweep import (
-    VALID_SWEEP_CONFIGS_MINIMAL,
+    SWEEP_CONFIG_BAYES,
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_NESTED,
-    SWEEP_CONFIG_BAYES,
+    VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
 
