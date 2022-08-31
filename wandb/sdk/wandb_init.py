@@ -504,7 +504,7 @@ class _WandbInit:
         )
         return drun
 
-    def _on_init_progress(self, handle: MailboxHandle) -> None:
+    def _on_progress_init(self, handle: MailboxHandle) -> None:
         assert self.printer
         line = "Waiting for wandb.init()...\r"
         percent_done = handle.percent_done
@@ -695,7 +695,7 @@ class _WandbInit:
             )
             handle = backend.interface.deliver_run(run)
             result = handle.wait(
-                timeout=self.settings.init_timeout, on_progress=self._on_init_progress
+                timeout=self.settings.init_timeout, on_progress=self._on_progress_init
             )
             if result:
                 run_result = result.run_result
