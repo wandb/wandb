@@ -27,7 +27,9 @@ SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
     "method": "grid",
     "parameters": {
         "param1": {"values": [1, 2, 3]},
-        "param2": {"parameters": {"param3": {"values": [1, 2, 3]}}},
+        "param2": {
+            "parameters": {"param3": {"values": [1, 2, 3]}, "param4": {"value": "foo"}}
+        },
     },
 }
 SWEEP_CONFIG_BAYES: Dict[str, Any] = {
