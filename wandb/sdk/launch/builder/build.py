@@ -225,7 +225,14 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
-    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
+    artifacts = {}
+    # if we're spinning up a launch process from a job
+    # we should tell the run to use that artifact
+    if launch_project.job:
+        artifacts = {wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME: launch_project.job}
+    env_vars["WANDB_ARTIFACTS"] = json.dumps(
+        {**artifacts, **launch_project.override_artifacts}
+    )
     #  check if the user provided an override entrypoint, otherwise use the default
 
     if launch_project.override_entrypoint is not None:

@@ -80,6 +80,8 @@ PLATFORM_BSD = "bsd"
 PLATFORM_DARWIN = "darwin"
 PLATFORM_UNKNOWN = "unknown"
 
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
+
 
 def get_platform_name() -> str:
     if sys.platform.startswith("win"):
