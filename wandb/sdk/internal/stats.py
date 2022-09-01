@@ -127,7 +127,7 @@ class SystemStats:
 
     @property
     def samples_to_average(self) -> int:
-        """The number of samples to average before pushing, defaults to 15 valid range (2:30)"""
+        """The number of samples to average before pushing, defaults to 15 valid range [2:30]"""
         samples = self._settings._stats_samples_to_average
         # TODO: handle self._api.dynamic_settings["system_samples"]
         return min(30, max(2, samples))

@@ -21,9 +21,12 @@ class Metric(Protocol):
     # at first, we will only support the gauge type
     metric_type: MetricType
     #
-    readings: Deque[Tuple[TimeStamp, Reading]]
+    samples: Deque[Tuple[TimeStamp, Reading]]
 
     def sample(self) -> None:
+        ...
+
+    def flush(self) -> None:
         ...
 
     def serialize(self) -> dict:

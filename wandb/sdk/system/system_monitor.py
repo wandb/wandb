@@ -1,4 +1,4 @@
-import threading
+import multiprocessing as mp
 from typing import List, Optional
 
 from ..interface.interface_queue import InterfaceQueue
@@ -14,10 +14,11 @@ class AssetRegistry:
         self,
         interface: InterfaceQueue,
         settings: SettingsStatic,
+        shutdown_event: mp.Event,
     ) -> None:
         known_assets = [
             CPU,
-            GPU,
+            # GPU,
         ]
         self._assets: List[Asset] = []
         for asset in known_assets:
@@ -25,6 +26,7 @@ class AssetRegistry:
             asset_instance = asset.get_instance(
                 interface=interface,
                 settings=settings,
+                shutdown_event=shutdown_event,
             )
             if asset_instance is not None:
                 self._assets.append(asset_instance)
@@ -45,8 +47,7 @@ class SystemMonitor:  # SystemMetrics?
         interface: InterfaceQueue,
     ) -> None:
 
-        self._thread: Optional[threading.Thread] = None
-        self._shutdown: bool = False
+        self._shutdown_event: mp.Event = mp.Event()
         self._interface: InterfaceQueue = interface
 
         # self.settings = settings
@@ -55,6 +56,7 @@ class SystemMonitor:  # SystemMetrics?
             AssetRegistry(
                 interface=interface,
                 settings=settings,
+                shutdown_event=self._shutdown_event,
             )
         )
 
@@ -70,5 +72,6 @@ class SystemMonitor:  # SystemMetrics?
             asset.start()
 
     def finish(self) -> None:
+        self._shutdown_event.set()
         for asset in self.assets:
             asset.finish()

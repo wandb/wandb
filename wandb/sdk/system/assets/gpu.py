@@ -3,32 +3,57 @@ __all__ = [
 ]
 
 
-from typing import List
+from typing import List, Optional
 
 from wandb.vendor.pynvml import pynvml
 
 from ..protocols import Metric
+from ...interface.interface_queue import InterfaceQueue
 
 
 class GPU:
-    name: str
-    is_available: bool = False
-    metrics: List[Metric]
-
-    @classmethod
-    def get_instance(cls):
-        is_available = False
-        if not is_available:
-            return None
-        return cls()
+    def __init__(self, interface: InterfaceQueue) -> None:
+        self.interface = interface
+        self.metrics: List[Metric] = []
 
     def probe(self) -> dict:
-        return {}
+        pynvml.nvmlInit()
+        device_count = pynvml.nvmlDeviceGetCount()
+        devices = []
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            devices.append(
+                {
+                    "name": pynvml.nvmlDeviceGetName(handle),
+                    "memory": {
+                        "total": info.total,
+                        "used": info.used,
+                        "free": info.free,
+                    },
+                }
+            )
+        return {"type": "gpu", "devices": devices}
 
-    def poll(self) -> None:
-        """Poll the NVIDIA GPU metrics"""
+    def start(self) -> None:
+        pass
+
+    def monitor(self) -> None:
+        pass
+
+    def finish(self) -> None:
         pass
 
     def serialize(self) -> dict:
-        """Serialize the metrics"""
-        return {}
+        return {
+            "type": "gpu",
+            "metrics": [metric.serialize() for metric in self.metrics],
+        }
+
+    @classmethod
+    def get_instance(cls, interface: InterfaceQueue) -> Optional["GPU"]:
+        try:
+            pynvml.nvmlInit()
+            return cls(interface=interface)
+        except pynvml.NVMLError_LibraryNotFound:
+            return None

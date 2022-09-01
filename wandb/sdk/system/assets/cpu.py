@@ -21,51 +21,66 @@ if TYPE_CHECKING:
 
 
 class ProcessCpuPercent:
-    name = "process_cpu_percent"
+    # name = "process_cpu_percent"
+    name = "cpu"
     metric_type = cast("gauge", MetricType)
-    readings: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[Tuple[datetime.datetime, float]]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
-        self.readings = deque([])
+        self.samples = deque([])
 
     def sample(self) -> None:
-        self.readings.append(
+        self.samples.append(
             (
                 datetime.datetime.utcnow(),
                 psutil.Process(self.pid).cpu_percent(),
             )
         )
 
+    def clear(self) -> None:
+        self.samples.clear()
+
     def serialize(self) -> dict:
-        return {self.name: self.readings}
+        # todo: create a statistics class with helper methods to compute
+        #      mean, median, min, max, etc.
+        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        return {self.name: aggregate}
 
 
 class CpuPercent:
-    name = "cpu_percent"
+    # name = "cpu_percent"
+    name = "gpu"
     metric_type = cast("gauge", MetricType)
-    readings: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[Tuple[datetime.datetime, float]]
 
     def __init__(self, interval: Optional[float] = None) -> None:
-        self.readings = deque([])
+        self.samples = deque([])
         self.interval = interval
 
     def sample(self) -> None:
-        self.readings.append(
+        self.samples.append(
             (
                 datetime.datetime.utcnow(),
                 psutil.cpu_percent(interval=self.interval, percpu=True),
             )
         )
 
+    def clear(self) -> None:
+        self.samples.clear()
+
     def serialize(self) -> dict:
-        # return {
-        #     self.name: {
-        #         "type": self.metric_type,
-        #         "value": self.readings[-1],
-        #     }
-        # }
-        return {self.name: self.readings}
+        # fixme: ugly adapter to test things out
+        num_cpu = len(self.samples[0])
+        cpu_metrics = {}
+        for i in range(num_cpu):
+            aggregate_i = round(
+                sum(sample[i] for sample in self.samples) / len(self.samples), 2
+            )
+            # fixme: fix this adapter, it's for testing 🤮🤮🤮🤮🤮
+            cpu_metrics[f"gpu.{i}.gpu"] = aggregate_i
+
+        return cpu_metrics
 
 
 class CPU:
@@ -73,38 +88,14 @@ class CPU:
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
+        shutdown_event: mp.Event,
     ) -> None:
         self.name = "cpu"
         self.metrics = [
             ProcessCpuPercent(settings._stats_pid),
             CpuPercent(),
         ]
-        self.sampling_interval = 1  # seconds
-        self._interface = interface
-        self._process: Optional[mp.Process] = None
-        self._shutdown: bool = False
-
-    @classmethod
-    def get_instance(cls, interface: "InterfaceQueue") -> "CPU":
-        """Return a new instance of the CPU metrics"""
-        is_available = True if psutil else False
-        return cls(interface=interface) if is_available else None
-
-    def probe(self) -> dict:
-        asset_info = {
-            "cpu_count": psutil.cpu_count(logical=False),
-            "cpu_count_logical": psutil.cpu_count(logical=True),
-        }
-        return asset_info
-
-    def monitor(self) -> None:
-        """Poll the CPU metrics"""
-        while not self._shutdown:
-            for metric in self.metrics:
-                metric.sample()
-            time.sleep(self.sampling_interval)
-            self.serialize()
-
+        # todo: metrics to consider:
         # self._cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
         # self._cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
         # self._cpu_freq = psutil.cpu_freq(percpu=True)
@@ -123,17 +114,72 @@ class CPU:
         # self._cpu_percent_interval = psutil.cpu_percent(interval=1)
         # self._cpu_percent_interval_per_cpu = psutil.cpu_percent(interval=1, percpu=True)
 
-    def serialize(self) -> List[dict]:
+        self.sampling_interval = max(
+            0.5, settings._stats_sample_rate_seconds
+        )  # seconds
+        # The number of samples to aggregate (e.g. average or compute max/min etc)
+        # before publishing; defaults to 15; valid range: [2:30]
+        self.samples_to_aggregate = min(30, max(2, settings._stats_samples_to_average))
+        self._interface = interface
+        self._process: Optional[mp.Process] = None
+        self._shutdown_event: mp.Event = shutdown_event
+
+    @classmethod
+    def get_instance(
+        cls,
+        interface: "InterfaceQueue",
+        settings: "SettingsStatic",
+        shutdown_event: mp.Event,
+    ) -> "CPU":
+        """Return a new instance of the CPU metrics"""
+        is_available = True if psutil else False
+        return (
+            cls(
+                interface=interface,
+                settings=settings,
+                shutdown_event=shutdown_event,
+            )
+            if is_available
+            else None
+        )
+
+    def probe(self) -> dict:
+        asset_info = {
+            "cpu_count": psutil.cpu_count(logical=False),
+            "cpu_count_logical": psutil.cpu_count(logical=True),
+        }
+        return asset_info
+
+    def monitor(self) -> None:
+        """Poll the CPU metrics"""
+        while not self._shutdown_event.is_set():
+            for _ in range(self.samples_to_aggregate):
+                for metric in self.metrics:
+                    metric.sample()
+                self._shutdown_event.wait(self.sampling_interval)
+                if self._shutdown_event.is_set():
+                    break
+            self.publish()
+
+    def serialize(self) -> dict:
         """Return a dict of metrics"""
-        return [metric.serialize() for metric in self.metrics]
+        serialized_metrics = {}
+        for metric in self.metrics:
+            serialized_metrics.update(metric.serialize())
+        return serialized_metrics
+
+    def publish(self) -> None:
+        """Publish the CPU metrics"""
+        self._interface.publish_stats(self.serialize())
+        for metric in self.metrics:
+            metric.clear()
 
     def start(self):
-        if self._process is None and not self._shutdown:
+        if self._process is None and not self._shutdown_event.is_set():
             self._process = mp.Process(target=self.monitor)
             self._process.start()
 
     def finish(self):
         if self._process is not None:
-            self._shutdown = True
-            # self._process.terminate()
-            # self._process = None
+            self._process.join()
+            self._process = None
