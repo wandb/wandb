@@ -553,6 +553,22 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(sampled_history=sampled_history)
         return self._deliver_record(record)
 
+    def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
+        if self._transport_failed:
+            return True
+
+        now = time.time()
+        if now < self._transport_success_timestamp + keepalive_interval:
+            return False
+
+        try:
+            self.publish_keepalive()
+        except Exception:
+            self._transport_mark_failed()
+        else:
+            self._transport_mark_success()
+        return self._transport_failed
+
     def join(self) -> None:
         super().join()
 

@@ -1,4 +1,7 @@
+# from unittest.mock import Mock, MagicMock
+#
 from wandb.proto import wandb_internal_pb2 as pb
+# from wandb.sdk.interface.interface_shared import InterfaceShared
 from wandb.sdk.lib.mailbox import Mailbox
 
 
@@ -61,3 +64,35 @@ def test_redeliver_slot():
     # our handler should see the old data
     got_result = handle.wait(timeout=-1)
     assert got_result.run_result.run.run_id == "this_is_new"
+
+
+def test_on_probe():
+    def on_probe(probe_handle):
+        pass
+
+    mailbox, handle, result = get_test_setup()
+    handle.add_probe(on_probe)
+    _ = handle.wait(timeout=3)
+
+
+def test_on_progress():
+    def on_progress(progress_handle):
+        pass
+
+    mailbox, handle, result = get_test_setup()
+    handle.add_progress(on_progress)
+    _ = handle.wait(timeout=3)
+
+
+# def test_keepalive():
+#     mailbox = Mailbox()
+#     mailbox.enable_keepalive()
+#
+#     record = pb.Record()
+#     iface = Mock(spec_set=["publish", "_publish", "transport_failed", "_transport_mark_failed", "_transport_mark_success", "_transport_keepalive_failed"])
+#     iface.transport_failed = Mock(return_value=False)
+#
+#     handle = mailbox._deliver_record(record, iface)
+#     got_result = handle.wait(timeout=2)
+#     assert iface.publish.call_count == 1
+#     print("GOT", got_result)

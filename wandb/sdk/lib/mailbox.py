@@ -8,7 +8,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
-from wandb import errors
+from wandb.errors import MailboxError
 from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:
@@ -20,12 +20,6 @@ def _generate_address(length: int = 12) -> str:
         secrets.choice(string.ascii_lowercase + string.digits) for i in range(length)
     )
     return address
-
-
-class MailboxError(errors.Error):
-    """Generic Mailbox Exception"""
-
-    pass
 
 
 class _MailboxWaitAll:
@@ -179,21 +173,6 @@ class MailboxProgressAll:
         return self._progress_handles
 
 
-def _transport_keepalive_failed(
-    interface: "InterfaceShared", keepalive_interval: int = 5
-) -> bool:
-    if not interface._transport_failed:
-        now = time.time()
-        if now > interface._transport_success_timestamp + keepalive_interval:
-            try:
-                interface.publish_keepalive()
-            except Exception:
-                interface._transport_mark_failed()
-            else:
-                interface._transport_mark_success()
-    return interface._transport_failed
-
-
 class MailboxHandle:
     _mailbox: "Mailbox"
     _slot: _MailboxSlot
@@ -246,7 +225,7 @@ class MailboxHandle:
 
         while True:
             if self._keepalive and self._interface:
-                if _transport_keepalive_failed(self._interface):
+                if self._interface._transport_keepalive_failed():
                     raise MailboxError("transport failed")
 
             found = self._slot._get_and_clear(timeout=wait_timeout)
@@ -341,7 +320,7 @@ class Mailbox:
                 for handle in handles:
                     if not handle._interface:
                         continue
-                    if _transport_keepalive_failed(handle._interface):
+                    if handle._interface._transport_keepalive_failed():
                         failing_handles.append(handle)
 
                 self._update_handles(
