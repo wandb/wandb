@@ -103,13 +103,16 @@ if TYPE_CHECKING:
         remote: str
         commit: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ArtifactSourceDict(TypedDict):
         artifact: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ImageSourceDict(TypedDict):
         image: str
+        args: Sequence[str]
 
     class JobSourceDict(TypedDict, total=False):
         _version: str
@@ -2040,6 +2043,12 @@ class Run:
         self._freeze()
 
     def _log_job(self) -> None:
+        # don't produce a job if the run is sourced from a job
+        if (
+            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
+            is not None
+        ):
+            return
         artifact = None
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
@@ -2113,6 +2122,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2149,6 +2159,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     self._settings.program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2174,7 +2185,7 @@ class Run:
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "source": {"image": docker_image_name},
+            "source": {"image": docker_image_name, "args": self._settings._args},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
@@ -2796,9 +2807,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3575,9 +3584,14 @@ class _LazyArtifact(ArtifactInterface):
         self._assert_instance()
         return getattr(self._instance, item)
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         if not self._instance:
-            resp = self._future.get().response.log_artifact_response
+            future_get = self._future.get(timeout)
+            if not future_get:
+                raise errors.WaitTimeoutError(
+                    "Artifact upload wait timed out, failed to fetch Artifact response"
+                )
+            resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)

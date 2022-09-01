@@ -1292,7 +1292,7 @@ workflows:
           parallelism: 2
           xdist: 1
       #
-      # stanalone tests on gke
+      # standalone tests on gke
       #
       - slack_notify:
           name: "slack-notify-on-start"

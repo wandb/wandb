@@ -752,6 +752,11 @@ class _WandbInit:
         # as the run is not upserted
         for k, v in self.init_artifact_config.items():
             run.config.update({k: v}, allow_val_change=True)
+        job_artifact = run._launch_artifact_mapping.get(
+            wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME
+        )
+        if job_artifact:
+            run.use_artifact(job_artifact)
 
         self.backend = backend
         self._reporter.set_context(run=run)
