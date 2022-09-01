@@ -1,6 +1,7 @@
 # from unittest.mock import Mock, MagicMock
 #
 from wandb.proto import wandb_internal_pb2 as pb
+
 # from wandb.sdk.interface.interface_shared import InterfaceShared
 from wandb.sdk.lib.mailbox import Mailbox
 
