@@ -10,7 +10,11 @@ from .protocols import Asset
 
 class AssetRegistry:
     # todo: auto-discover assets instead of hard-coding them
-    def __init__(self, interface: InterfaceQueue) -> None:
+    def __init__(
+        self,
+        interface: InterfaceQueue,
+        settings: SettingsStatic,
+    ) -> None:
         known_assets = [
             CPU,
             GPU,
@@ -18,7 +22,10 @@ class AssetRegistry:
         self._assets: List[Asset] = []
         for asset in known_assets:
             # if not available, returns None
-            asset_instance = asset.get_instance(interface=interface)
+            asset_instance = asset.get_instance(
+                interface=interface,
+                settings=settings,
+            )
             if asset_instance is not None:
                 self._assets.append(asset_instance)
 
@@ -42,9 +49,14 @@ class SystemMonitor:  # SystemMetrics?
         self._shutdown: bool = False
         self._interface: InterfaceQueue = interface
 
-        self.settings = settings
+        # self.settings = settings
 
-        self.assets: List[Asset] = list(AssetRegistry(interface=interface))
+        self.assets: List[Asset] = list(
+            AssetRegistry(
+                interface=interface,
+                settings=settings,
+            )
+        )
 
         self.hardware: List[dict] = [asset.probe() for asset in self.assets]
 
