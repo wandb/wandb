@@ -22,9 +22,7 @@ def get_model():
 
 model = get_model()
 model.compile(
-    loss="sparse_categorical_crossentropy",
-    optimizer="sgd",
-    metrics=["accuracy"]
+    loss="sparse_categorical_crossentropy", optimizer="sgd", metrics=["accuracy"]
 )
 
 model.fit(
@@ -37,7 +35,7 @@ model.fit(
             filepath="wandb/model/model_{epoch}",
             save_best_only=False,
             save_weights_only=False,
-            save_freq="epoch"
+            save_freq="epoch",
         )
     ],
 )
