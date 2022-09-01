@@ -10,16 +10,17 @@ from .protocols import Asset
 
 class AssetRegistry:
     # todo: auto-discover assets instead of hard-coding them
-    def __init__(self):
+    def __init__(self, interface: InterfaceQueue) -> None:
         known_assets = [
             CPU,
             GPU,
         ]
         self._assets: List[Asset] = []
         for asset in known_assets:
-            asset_instance = asset.get_instance()
+            # if not available, returns None
+            asset_instance = asset.get_instance(interface=interface)
             if asset_instance is not None:
-                self._assets.append(asset())
+                self._assets.append(asset_instance)
 
     def __repr__(self) -> str:
         return f"AssetRegistry({[asset.name for asset in self._assets]})"
@@ -43,52 +44,19 @@ class SystemMonitor:  # SystemMetrics?
 
         self.settings = settings
 
-        self.assets: List[Asset] = list(AssetRegistry())
+        self.assets: List[Asset] = list(AssetRegistry(interface=interface))
 
         self.hardware: List[dict] = [asset.probe() for asset in self.assets]
 
-    def poll(self) -> None:
-        while True:
-            stats = self.stats()
-            for stat, value in stats.items():
-                if isinstance(value, (int, float)):
-                    self.sampler[stat] = self.sampler.get(stat, [])
-                    self.sampler[stat].append(value)
-            self.samples += 1
-            if self._shutdown or self.samples >= self.samples_to_average:
-                self.flush()
-                if self._shutdown:
-                    break
-            seconds = 0.0
-            while seconds < self.sample_rate_seconds:
-                time.sleep(0.1)
-                seconds += 0.1
-                if self._shutdown:
-                    self.flush()  # type: ignore
-                    return
-
-        while True:
-            for asset in self.assets:
-                asset.poll()
-
     def poll_once(self) -> None:
+        # fixme: rm, it's for debugging
         for asset in self.assets:
-            asset.poll()
-
-    # serialize
-    def serialize(self) -> dict:
-        return {asset.name: asset.serialize() for asset in self.assets}
+            asset.monitor()
 
     def start(self) -> None:
-        if self._thread is None:
-            self._shutdown = False
-            self._thread = threading.Thread(
-                name="SystemMonitorThread",
-                target=self.poll,
-                daemon=True,
-            )
-        if not self._thread.is_alive():
-            self._thread.start()
+        for asset in self.assets:
+            asset.start()
 
     def finish(self) -> None:
-        ...
+        for asset in self.assets:
+            asset.finish()

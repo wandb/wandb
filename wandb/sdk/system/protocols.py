@@ -7,6 +7,9 @@ except ImportError:
     from typing_extensions import Literal, Protocol, runtime_checkable
 
 
+from ..interface.interface_queue import InterfaceQueue
+
+
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 Reading = TypeVar("Reading", float, int, str, bytes, list, tuple, dict)
 MetricType = Literal["counter", "gauge", "histogram", "summary"]
@@ -38,13 +41,30 @@ class Asset(Protocol):
     #   (and later other providers?) endpoint: poll once
     name: str
     metrics: List[Metric]
-    # polling_interval: float = 1.0
+    sampling_interval: float = 1.0
+    _interface: InterfaceQueue
 
-    def probe(cls) -> dict:
+    @classmethod
+    def get_instance(cls) -> "Asset":
+        """Get an instance of the resource if available"""
         ...
 
-    def poll(self) -> None:
+    def probe(self) -> dict:
+        """Get static information about the resource"""
+        ...
+
+    def monitor(self) -> None:
+        """Poll the resource metrics"""
         ...
 
     def serialize(self) -> dict:
+        """Serialize the metrics"""
+        ...
+
+    def start(self) -> None:
+        """Start the resource's internal process with the monitoring loop"""
+        ...
+
+    def finish(self) -> None:
+        """Stop the resource's internal process with the monitoring loop"""
         ...

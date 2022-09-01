@@ -2,14 +2,17 @@ __all__ = [
     "CPU",
 ]
 
-import datetime
-import os
 from collections import deque
+import datetime
+import multiprocessing as mp
+import os
+import time
 from typing import Deque, List, Optional, Tuple, cast
 
 import psutil
 
 from ..protocols import Metric, MetricType
+from ...interface.interface_queue import InterfaceQueue
 
 # CPU Metrics
 
@@ -63,32 +66,36 @@ class CpuPercent:
 
 
 class CPU:
-    name: str
-    metrics: List[Metric]
-    is_available: bool = True if psutil else False
-
-    def __init__(self) -> None:
+    def __init__(self, interface: InterfaceQueue) -> None:
         self.name = "cpu"
-        self.is_available = True
         self.metrics = [
             ProcessCpuPercent(os.getpid()),
             CpuPercent(),
         ]
+        self.sampling_interval = 1  # seconds
+        self._interface = interface
+        self._process: Optional[mp.Process] = None
+        self._shutdown: bool = False
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls, interface: InterfaceQueue) -> "CPU":
+        """Return a new instance of the CPU metrics"""
         is_available = True if psutil else False
-        if not is_available:
-            return None
-        return cls()
+        return cls(interface=interface) if is_available else None
 
     def probe(self) -> dict:
-        return {}
+        asset_info = {
+            "num_cpus": psutil.cpu_count(logical=False),
+        }
+        return asset_info
 
-    def poll(self) -> None:
+    def monitor(self) -> None:
         """Poll the CPU metrics"""
-        for metric in self.metrics:
-            metric.poll()
+        while not self._shutdown:
+            for metric in self.metrics:
+                metric.sample()
+            time.sleep(self.sampling_interval)
+
         # self._cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
         # self._cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
         # self._cpu_freq = psutil.cpu_freq(percpu=True)
@@ -129,7 +136,12 @@ class CPU:
         # }
 
     def start(self):
-        pass
+        if self._process is None and not self._shutdown:
+            self._process = mp.Process(target=self.monitor)
+            self._process.start()
 
     def finish(self):
-        pass
+        if self._process is not None:
+            self._shutdown = True
+            # self._process.terminate()
+            # self._process = None
