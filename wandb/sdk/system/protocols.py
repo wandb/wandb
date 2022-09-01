@@ -1,7 +1,7 @@
 import datetime
 from collections import deque
 import sys
-from typing import List, Protocol, TypeVar
+from typing import List, Protocol, runtime_checkable, TypeVar
 
 
 if sys.version_info >= (3, 8):
@@ -23,13 +23,14 @@ class Metric(Protocol):
     #
     readings: deque[(TimeStamp, Reading)]
 
-    def poll(self) -> None:
+    def sample(self) -> None:
         ...
 
     def serialize(self) -> dict:
         ...
 
 
+@runtime_checkable
 class Asset(Protocol):
     # Base protocol to encapsulate everything relating to e.g. CPU, GPU, TPU, Network, I/O etc.
     # A collection of metrics.
@@ -40,6 +41,10 @@ class Asset(Protocol):
     #   (and later other providers?) endpoint: poll once
     name: str
     metrics: List[Metric]
+    # polling_interval: float = 1.0
+
+    def probe(cls) -> dict:
+        ...
 
     def poll(self) -> None:
         ...

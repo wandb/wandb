@@ -1,3 +1,7 @@
+__all__ = [
+    "CPU",
+]
+
 import datetime
 import os
 from collections import deque
@@ -19,7 +23,7 @@ class ProcessCpuPercent:
         self.pid = pid
         self.readings = deque([])
 
-    def poll(self) -> None:
+    def sample(self) -> None:
         self.readings.append(
             (
                 datetime.datetime.utcnow(),
@@ -28,12 +32,6 @@ class ProcessCpuPercent:
         )
 
     def serialize(self) -> dict:
-        # return {
-        #     self.name: {
-        #         "type": self.metric_type,
-        #         "value": self.readings[-1],
-        #     }
-        # }
         return {self.name: self.readings}
 
 
@@ -46,7 +44,7 @@ class CpuPercent:
         self.readings = deque([])
         self.interval = interval
 
-    def poll(self) -> None:
+    def sample(self) -> None:
         self.readings.append(
             (
                 datetime.datetime.utcnow(),
@@ -67,13 +65,18 @@ class CpuPercent:
 class CPU:
     name: str
     metrics: List[Metric]
+    is_available: bool = True if psutil else False
 
     def __init__(self) -> None:
         self.name = "cpu"
+        self.is_available = True
         self.metrics = [
             ProcessCpuPercent(os.getpid()),
             CpuPercent(),
         ]
+
+    def probe(self) -> dict:
+        return {}
 
     def poll(self) -> None:
         """Poll the CPU metrics"""
@@ -117,3 +120,9 @@ class CPU:
         #     "cpu_percent_interval": self._cpu_percent_interval,
         #     "cpu_percent_interval_per_cpu": self._cpu_percent_interval_per_cpu,
         # }
+
+    def start(self):
+        pass
+
+    def finish(self):
+        pass
