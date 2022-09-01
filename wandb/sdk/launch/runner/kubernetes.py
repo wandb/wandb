@@ -287,7 +287,9 @@ class KubernetesRunner(AbstractRunner):
         # name precedence: resource args override > name in spec file > generated name
         job_metadata["name"] = resource_args.get("job_name", job_metadata.get("name"))
         if not job_metadata.get("name"):
-            job_metadata["generateName"] = "launch-"
+            job_metadata[
+                "generateName"
+            ] = f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
 
         if resource_args.get("job_labels"):
             job_metadata["labels"] = resource_args.get("job_labels")
