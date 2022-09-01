@@ -107,7 +107,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
     def on_epoch_end(self, epoch, logs: Dict[str, float] = None):
         super().on_epoch_end(epoch, logs)
         # Check if model checkpoint is created at the end of epoch.
-        if self.save_freq == 'epoch':
+        if self.save_freq == "epoch":
             # Get filepath where the model checkpoint is saved.
             filepath = self._get_file_path(epoch=epoch, batch=None, logs=logs)
             # Log the model as artifact
