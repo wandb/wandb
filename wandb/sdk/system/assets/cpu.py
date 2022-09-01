@@ -5,7 +5,7 @@ __all__ = [
 import datetime
 import os
 from collections import deque
-from typing import cast, List, Optional
+from typing import Deque, List, Optional, Tuple, cast
 
 import psutil
 
@@ -17,7 +17,7 @@ from ..protocols import Metric, MetricType
 class ProcessCpuPercent:
     name = "process_cpu_percent"
     metric_type = cast("gauge", MetricType)
-    readings: deque[(datetime.datetime, float)]
+    readings: Deque[Tuple[datetime.datetime, float]]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -38,7 +38,7 @@ class ProcessCpuPercent:
 class CpuPercent:
     name = "cpu_percent"
     metric_type = cast("gauge", MetricType)
-    readings: deque[(datetime.datetime, float)]
+    readings: Deque[Tuple[datetime.datetime, float]]
 
     def __init__(self, interval: Optional[float] = None) -> None:
         self.readings = deque([])
@@ -74,6 +74,13 @@ class CPU:
             ProcessCpuPercent(os.getpid()),
             CpuPercent(),
         ]
+
+    @classmethod
+    def get_instance(cls):
+        is_available = True if psutil else False
+        if not is_available:
+            return None
+        return cls()
 
     def probe(self) -> dict:
         return {}

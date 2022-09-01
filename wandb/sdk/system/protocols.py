@@ -1,13 +1,10 @@
 import datetime
-from collections import deque
-import sys
-from typing import List, Protocol, runtime_checkable, TypeVar
+from typing import Deque, List, Tuple, TypeVar
 
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+try:
+    from typing import Literal, Protocol, runtime_checkable
+except ImportError:
+    from typing_extensions import Literal, Protocol, runtime_checkable
 
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
@@ -21,7 +18,7 @@ class Metric(Protocol):
     # at first, we will only support the gauge type
     metric_type: MetricType
     #
-    readings: deque[(TimeStamp, Reading)]
+    readings: Deque[Tuple[TimeStamp, Reading]]
 
     def sample(self) -> None:
         ...

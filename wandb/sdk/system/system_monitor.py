@@ -1,11 +1,10 @@
 import threading
 from typing import List, Optional
 
-from .assets.cpu import CPU
-from .assets.gpu import GPU
-
 from ..interface.interface_queue import InterfaceQueue
 from ..internal.settings_static import SettingsStatic
+from .assets.cpu import CPU
+from .assets.gpu import GPU
 from .protocols import Asset
 
 
@@ -18,7 +17,8 @@ class AssetRegistry:
         ]
         self._assets: List[Asset] = []
         for asset in known_assets:
-            if asset.is_available:
+            asset_instance = asset.get_instance()
+            if asset_instance is not None:
                 self._assets.append(asset())
 
     def __repr__(self) -> str:
