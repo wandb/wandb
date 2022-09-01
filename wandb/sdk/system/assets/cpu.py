@@ -24,19 +24,22 @@ class ProcessCpuPercent:
     # name = "process_cpu_percent"
     name = "cpu"
     metric_type = cast("gauge", MetricType)
-    samples: Deque[Tuple[datetime.datetime, float]]
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[float]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.samples = deque([])
 
     def sample(self) -> None:
-        self.samples.append(
-            (
-                datetime.datetime.utcnow(),
-                psutil.Process(self.pid).cpu_percent(),
-            )
-        )
+        # todo: this is what we'd eventually want to do
+        # self.samples.append(
+        #     (
+        #         datetime.datetime.utcnow(),
+        #         psutil.Process(self.pid).cpu_percent(),
+        #     )
+        # )
+        self.samples.append(psutil.Process(self.pid).cpu_percent())
 
     def clear(self) -> None:
         self.samples.clear()
@@ -52,19 +55,21 @@ class CpuPercent:
     # name = "cpu_percent"
     name = "gpu"
     metric_type = cast("gauge", MetricType)
-    samples: Deque[Tuple[datetime.datetime, float]]
+    # samples: Deque[Tuple[datetime.datetime, List[float]]]
+    samples: Deque[List[float]]
 
     def __init__(self, interval: Optional[float] = None) -> None:
         self.samples = deque([])
         self.interval = interval
 
     def sample(self) -> None:
-        self.samples.append(
-            (
-                datetime.datetime.utcnow(),
-                psutil.cpu_percent(interval=self.interval, percpu=True),
-            )
-        )
+        # self.samples.append(
+        #     (
+        #         datetime.datetime.utcnow(),
+        #         psutil.cpu_percent(interval=self.interval, percpu=True),
+        #     )
+        # )
+        self.samples.append(psutil.cpu_percent(interval=self.interval, percpu=True))  # type: ignore
 
     def clear(self) -> None:
         self.samples.clear()
