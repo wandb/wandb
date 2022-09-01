@@ -26,9 +26,9 @@ class WandBMetricsLogger(callbacks.Callback):
 
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandBMetricsLogger()")
-        # TODO: add telemetry
-        # with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
-        #     tel.feature.keras_metrics_logger = True
+
+        with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+            tel.feature.keras_metrics_logger = True
 
         self.log_batch_frequency = log_batch_frequency
         self.global_batch = 0
