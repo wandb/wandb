@@ -82,9 +82,9 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             raise wandb.Error(
                 "You must call wandb.init() before WandbModelCheckpoint()"
             )
-        # TODO: add telemetry
-        # with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
-        #     tel.feature.keras_model_checkpoint = True
+        with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+            tel.feature.keras_model_checkpoint = True
+
         self.save_weights_only = save_weights_only
 
     def on_train_batch_end(self, batch: int, logs: Dict[str, float] = None):
