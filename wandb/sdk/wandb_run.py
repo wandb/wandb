@@ -2809,9 +2809,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3588,9 +3586,14 @@ class _LazyArtifact(ArtifactInterface):
         self._assert_instance()
         return getattr(self._instance, item)
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         if not self._instance:
-            resp = self._future.get().response.log_artifact_response
+            future_get = self._future.get(timeout)
+            if not future_get:
+                raise errors.WaitTimeoutError(
+                    "Artifact upload wait timed out, failed to fetch Artifact response"
+                )
+            resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
