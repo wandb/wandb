@@ -21,18 +21,14 @@ def get_model():
 
 model = get_model()
 model.compile(
-    loss="sparse_categorical_crossentropy",
-    optimizer="sgd",
-    metrics=["accuracy"]
+    loss="sparse_categorical_crossentropy", optimizer="sgd", metrics=["accuracy"]
 )
 
 
 class WandbClfEvalCallback(WandbEvalCallback):
-    def __init__(self,
-                validation_data,
-                data_table_columns,
-                pred_table_columns,
-                num_samples=100):
+    def __init__(
+        self, validation_data, data_table_columns, pred_table_columns, num_samples=100
+    ):
         super().__init__(data_table_columns, pred_table_columns)
 
         self.x = validation_data[0]
@@ -40,11 +36,7 @@ class WandbClfEvalCallback(WandbEvalCallback):
 
     def add_ground_truth(self):
         for idx, (image, label) in enumerate(zip(self.x, self.y)):
-            self.data_table.add_data(
-                idx,
-                wandb.Image(image),
-                label
-            )
+            self.data_table.add_data(idx, wandb.Image(image), label)
 
     def add_model_predictions(self, epoch):
         preds = self.model.predict(self.x, verbose=0)
@@ -60,8 +52,9 @@ class WandbClfEvalCallback(WandbEvalCallback):
                 data_table_ref.data[idx][0],
                 data_table_ref.data[idx][1],
                 data_table_ref.data[idx][2],
-                pred
+                pred,
             )
+
 
 model.fit(
     x,
@@ -72,7 +65,8 @@ model.fit(
         WandbClfEvalCallback(
             validation_data=(x, y),
             data_table_columns=["idx", "image", "label"],
-            pred_table_columns=["epoch", "idx", "image", "label", "pred"])
+            pred_table_columns=["epoch", "idx", "image", "label", "pred"],
+        )
     ],
 )
 

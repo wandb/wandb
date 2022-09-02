@@ -84,17 +84,20 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
     `on_epoch_end` methods. If you want to log the samples after N batched, you
     can implement `on_train_batch_end` method.
     """
+
     def __init__(
         self,
-        data_table_columns = List[str],
-        pred_table_columns = List[str],
+        data_table_columns=List[str],
+        pred_table_columns=List[str],
         *args,
-        **kwargs
+        **kwargs,
     ):
-        super(BaseWandbEvalCallback, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         if wandb.run is None:
-            raise wandb.Error("You must call wandb.init() before WandbEvalTablesBuilder()")
+            raise wandb.Error(
+                "You must call wandb.init() before WandbEvalTablesBuilder()"
+            )
 
         with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras_wandb_eval_tables_builder = True
@@ -104,7 +107,7 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
 
     def on_train_begin(self, logs=None):
         # Initialize the data_table
-        self.init_data_table(column_names = self.data_table_columns)
+        self.init_data_table(column_names=self.data_table_columns)
         # Log the ground truth data
         self.add_ground_truth(logs)
         # Log the data_table as W&B Artifacts
@@ -112,7 +115,7 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
 
     def on_epoch_end(self, epoch, logs=None):
         # Initialize the pred_table
-        self.init_pred_table(column_names = self.pred_table_columns)
+        self.init_pred_table(column_names=self.pred_table_columns)
         # Log the model prediction
         self.add_model_predictions(epoch, logs)
         # Log the pred_table as W&B Artifacts
@@ -132,8 +135,7 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
             ```
         This method is called once `on_train_begin` or equivalent hook.
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__}.add_ground_truth")
+        raise NotImplementedError(f"{self.__class__.__name__}.add_ground_truth")
 
     @abc.abstractmethod
     def add_model_predictions(self, epoch: int, logs: Dict[str, float] = {}):
@@ -153,8 +155,7 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
             ```
         This method is called `on_epoch_end` or equivalent hook.
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__}.add_model_predictions")
+        raise NotImplementedError(f"{self.__class__.__name__}.add_model_predictions")
 
     def init_data_table(self, column_names: List[str]):
         """Initialize the W&B Tables for validation data.
@@ -174,17 +175,16 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
         """
         self.pred_table = wandb.Table(columns=column_names)
 
-    def log_data_table(self, 
-                       name: str='val',
-                       type: str='dataset',
-                       table_name: str='val_data'):
+    def log_data_table(
+        self, name: str = "val", type: str = "dataset", table_name: str = "val_data"
+    ):
         """Log the `data_table` as W&B artifact and call
         `use_artifact` on it so that the evaluation table can use the reference
         of already uploaded data (images, text, scalar, etc.).
         This allows the data to be uploaded just once.
         Args:
-            name (str):  A human-readable name for this artifact, which is how 
-                you can identify this artifact in the UI or reference 
+            name (str):  A human-readable name for this artifact, which is how
+                you can identify this artifact in the UI or reference
                 it in use_artifact calls. (default is 'val')
             type (str): The type of the artifact, which is used to organize and
                 differentiate artifacts. (default is 'val_data')
@@ -200,10 +200,12 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
         # We get the reference table.
         self.data_table_ref = data_artifact.get(table_name)
 
-    def log_pred_table(self,
-                       type: str='evaluation',
-                       table_name: str='eval_data',
-                       aliases: List[str] = ["latest"]):
+    def log_pred_table(
+        self,
+        type: str = "evaluation",
+        table_name: str = "eval_data",
+        aliases: List[str] = ["latest"],
+    ):
         """Log the W&B Tables for model evaluation.
         The table will be logged multiple times creating new version. Use this
         to compare models at different intervals interactively.
@@ -213,7 +215,6 @@ class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
             table_name (str): The name of the table as will be displayed in the UI.
             aliases (List[str]): List of aliases for the pediction table.
         """
-        pred_artifact = wandb.Artifact(
-            f'run_{wandb.run.id}_pred', type=type)
+        pred_artifact = wandb.Artifact(f"run_{wandb.run.id}_pred", type=type)
         pred_artifact.add(self.pred_table, table_name)
         wandb.run.log_artifact(pred_artifact, aliases=aliases)
