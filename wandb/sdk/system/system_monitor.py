@@ -1,65 +1,32 @@
 import multiprocessing as mp
-from typing import List, Optional
+from typing import TYPE_CHECKING, List
 
-from ..interface.interface_queue import InterfaceQueue
-from ..internal.settings_static import SettingsStatic
-from .assets.cpu import CPU
-from .assets.gpu import GPU
-from .protocols import Asset
+from .assets import AssetRegistry
 
+if TYPE_CHECKING:
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.internal.settings_static import SettingsStatic
 
-class AssetRegistry:
-    # todo: auto-discover assets instead of hard-coding them
-    def __init__(
-        self,
-        interface: InterfaceQueue,
-        settings: SettingsStatic,
-        shutdown_event: mp.Event,
-    ) -> None:
-        known_assets = [
-            CPU,
-            # GPU,
-        ]
-        self._assets: List[Asset] = []
-        for asset in known_assets:
-            # if not available, returns None
-            asset_instance = asset.get_instance(
-                interface=interface,
-                settings=settings,
-                shutdown_event=shutdown_event,
-            )
-            if asset_instance is not None:
-                self._assets.append(asset_instance)
-
-    def __repr__(self) -> str:
-        return f"AssetRegistry({[asset.name for asset in self._assets]})"
-
-    # iter interface
-    def __iter__(self):
-        return iter(self._assets)
+    from .assets.asset_base import AssetBase
 
 
-class SystemMonitor:  # SystemMetrics?
+class SystemMonitor:
     # A collections of assets
     def __init__(
         self,
-        settings: SettingsStatic,
-        interface: InterfaceQueue,
+        settings: "SettingsStatic",
+        interface: "InterfaceQueue",
     ) -> None:
 
         self._shutdown_event: mp.Event = mp.Event()
-        self._interface: InterfaceQueue = interface
 
-        # self.settings = settings
-
-        self.assets: List[Asset] = list(
+        self.assets: List["AssetBase"] = list(
             AssetRegistry(
                 interface=interface,
                 settings=settings,
                 shutdown_event=self._shutdown_event,
             )
         )
-
         self.hardware: List[dict] = [asset.probe() for asset in self.assets]
 
     def poll_once(self) -> None:

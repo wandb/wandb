@@ -1,20 +1,16 @@
-__all__ = [
-    "CPU",
-]
-
-from collections import deque
 import datetime
 import multiprocessing as mp
-import time
-from typing import Deque, List, Optional, Tuple, cast, TYPE_CHECKING
+from collections import deque
+from typing import TYPE_CHECKING, Deque, List, Optional, cast
 
 import psutil
 
-from ..protocols import Metric, MetricType
+from ..protocols import MetricType
+from .asset_base import AssetBase
 
 if TYPE_CHECKING:
-    from ...interface.interface_queue import InterfaceQueue
-    from ...internal.settings_static import SettingsStatic
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.internal.settings_static import SettingsStatic
 
 
 # CPU Metrics
@@ -88,14 +84,14 @@ class CpuPercent:
         return cpu_metrics
 
 
-class CPU:
+class CPU(AssetBase):
     def __init__(
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
     ) -> None:
-        self.name = "cpu"
+        super().__init__(interface, settings, shutdown_event)
         self.metrics = [
             ProcessCpuPercent(settings._stats_pid),
             CpuPercent(),
@@ -119,34 +115,10 @@ class CPU:
         # self._cpu_percent_interval = psutil.cpu_percent(interval=1)
         # self._cpu_percent_interval_per_cpu = psutil.cpu_percent(interval=1, percpu=True)
 
-        self.sampling_interval = max(
-            0.5, settings._stats_sample_rate_seconds
-        )  # seconds
-        # The number of samples to aggregate (e.g. average or compute max/min etc)
-        # before publishing; defaults to 15; valid range: [2:30]
-        self.samples_to_aggregate = min(30, max(2, settings._stats_samples_to_average))
-        self._interface = interface
-        self._process: Optional[mp.Process] = None
-        self._shutdown_event: mp.Event = shutdown_event
-
     @classmethod
-    def get_instance(
-        cls,
-        interface: "InterfaceQueue",
-        settings: "SettingsStatic",
-        shutdown_event: mp.Event,
-    ) -> "CPU":
+    def is_available(cls) -> bool:
         """Return a new instance of the CPU metrics"""
-        is_available = True if psutil else False
-        return (
-            cls(
-                interface=interface,
-                settings=settings,
-                shutdown_event=shutdown_event,
-            )
-            if is_available
-            else None
-        )
+        return True if psutil else False
 
     def probe(self) -> dict:
         asset_info = {
@@ -154,37 +126,3 @@ class CPU:
             "cpu_count_logical": psutil.cpu_count(logical=True),
         }
         return asset_info
-
-    def monitor(self) -> None:
-        """Poll the CPU metrics"""
-        while not self._shutdown_event.is_set():
-            for _ in range(self.samples_to_aggregate):
-                for metric in self.metrics:
-                    metric.sample()
-                self._shutdown_event.wait(self.sampling_interval)
-                if self._shutdown_event.is_set():
-                    break
-            self.publish()
-
-    def serialize(self) -> dict:
-        """Return a dict of metrics"""
-        serialized_metrics = {}
-        for metric in self.metrics:
-            serialized_metrics.update(metric.serialize())
-        return serialized_metrics
-
-    def publish(self) -> None:
-        """Publish the CPU metrics"""
-        self._interface.publish_stats(self.serialize())
-        for metric in self.metrics:
-            metric.clear()
-
-    def start(self):
-        if self._process is None and not self._shutdown_event.is_set():
-            self._process = mp.Process(target=self.monitor)
-            self._process.start()
-
-    def finish(self):
-        if self._process is not None:
-            self._process.join()
-            self._process = None
