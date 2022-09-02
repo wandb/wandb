@@ -1,5 +1,5 @@
-from .tables_builder import WandbEvalTablesBuilder
+from .tables_builder import BaseWandbEvalCallback
 
 __all__ = [
-    "WandbEvalTablesBuilder"
+    "BaseWandbEvalCallback"
 ]

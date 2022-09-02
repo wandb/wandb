@@ -1,91 +1,125 @@
 import wandb
-from typing import List
-from abc import ABC, abstractmethod
+from typing import List, Dict
+import abc
+
+from tensorflow.keras.callbacks import Callback
 
 
-class WandbEvalTablesBuilder(ABC):
-    """
-    Utility class that contains useful methods to create W&B Tables,
-    and log it to W&B.
+class BaseWandbEvalCallback(Callback, metaclass=abc.ABCMeta):
+    """Base class to build Keras callbacks for model prediction visualization.
 
-    Use this to create evaluation table for classification, object detection,
-    segmentation, etc. tasks. While training a neural network, the ability to
-    visualize the model predictions on validation data can be useful to
-    debug the model and more.
+    You can build callbacks for visualizing model predictions `on_epoch_end`
+    that can be passed to `model.fit()` for classification, object detection,
+    segmentation, etc. tasks.
 
-    This utility class can be used from within a custom Keras callback. The user
-    will have to implement two methods - `add_ground_truth` to add the validation
-    samples and `add_model_predictions` to log the model prediction on the samples.
+    To use this, inherit this base callback and implement the `add_ground_truth`
+    and `add_model_prediction` methods.
+
+    The base class will take care of the following:
+    - Initialize `data_table` for logging ground truth and
+        `pred_table` for predictions.
+    - The data uploaded to `data_table` is used as reference for the
+        `pred_table`. This is to reduce memory footprint. The `data_table_ref`
+        is a list that can be used to access the referenced data.
+        Check out the example below to see how it's done.
+    - Log the tables to W&B as W&B artifacts.
+    - Each new `pred_table` is logged as a new version with aliases.
 
     Example:
         ```
-        class WandbClfEvalCallback(tf.keras.callbacks.Callback):
+        class WandbClfEvalCallback(WandbEvalCallback):
             def __init__(self,
                         validation_data,
-                        num_samples=100):
-                super().__init__()
-
-                self.validation_data = validation_data
-                self.tables_builder = WandbTablesBuilder()
-
-            def on_train_begin(self, logs=None):
-                self.tables_builder.init_data_table(
-                    column_names = ["image_index", "images", "ground_truth"]
+                        data_table_columns,
+                        pred_table_columns
+                    ):
+                super().__init__(
+                    data_table_columns,
+                    pred_table_columns
                 )
-                self.add_ground_truth()
-                self.tables_builder.log_data_table()
 
-            def on_epoch_end(self, epoch, logs=None):
-                self.tables_builder.init_pred_table(
-                    column_names = ["epoch", "image_index", "images",
-                                    "ground_truth", "prediction"]
-                )
-                self.add_model_predictions(epoch)
-                self.tables_builder.log_pred_table()
+                self.x = validation_data[0]
+                self.y = validation_data[1]
 
             def add_ground_truth(self):
-                for idx, (image, label) in enumerate(self.validation_data):
-                    self.tables_builder.data_table.add_data(
+                for idx, (image, label) in enumerate(zip(self.x, self.y)):
+                    self.data_table.add_data(
                         idx,
                         wandb.Image(image),
                         label
                     )
 
             def add_model_predictions(self, epoch):
-                preds = self.model.predict(self.validation_data, verbose=0)
+                preds = self.model.predict(self.x, verbose=0)
+                preds = tf.argmax(preds, axis=-1)
 
-                data_table_ref = self.tables_builder.data_table_ref
+                data_table_ref = self.data_table_ref
                 table_idxs = data_table_ref.get_index()
 
                 for idx in table_idxs:
                     pred = preds[idx]
-                    self.tables_builder.pred_table.add_data(
+                    self.pred_table.add_data(
                         epoch,
                         data_table_ref.data[idx][0],
                         data_table_ref.data[idx][1],
                         data_table_ref.data[idx][2],
                         pred
                     )
+
+        model.fit(
+            x,
+            y,
+            epochs=2,
+            validation_data=(x, y),
+            callbacks=[
+                WandbClfEvalCallback(
+                    validation_data=(x, y),
+                    data_table_columns=["idx", "image", "label"],
+                    pred_table_columns=["epoch", "idx", "image", "label", "pred"])
+            ],
+        )
         ```
 
-    This utility class will take care of the following:
-    - Initialize `data_table` for logging ground truth and
-        `pred_table` for predictions.
-    - The data uploaded to `data_table` is used as reference for the
-        `pred_table`. The `data_table_ref` is how you can access the referenced
-        data. Check out the example above to see how it's done.
-    - Log the table to W&B as W&B artifacts.
-    - Each new `pred_table` is logged as a new version with aliases.
+    To have more fine-grained control, you can override the `on_train_begin` and
+    `on_epoch_end` methods. If you want to log the samples after N batched, you
+    can implement `on_train_batch_end` method.
     """
-    def __init__(self):
+    def __init__(
+        self,
+        data_table_columns = List[str],
+        pred_table_columns = List[str],
+        *args,
+        **kwargs
+    ):
+        super(BaseWandbEvalCallback, self).__init__(*args, **kwargs)
+
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbEvalTablesBuilder()")
 
         with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras_wandb_eval_tables_builder = True
 
-    @abstractmethod
-    def add_ground_truth(self):
+        self.data_table_columns = data_table_columns
+        self.pred_table_columns = pred_table_columns
+
+    def on_train_begin(self, logs=None):
+        # Initialize the data_table
+        self.init_data_table(column_names = self.data_table_columns)
+        # Log the ground truth data
+        self.add_ground_truth(logs)
+        # Log the data_table as W&B Artifacts
+        self.log_data_table()
+
+    def on_epoch_end(self, epoch, logs=None):
+        # Initialize the pred_table
+        self.init_pred_table(column_names = self.pred_table_columns)
+        # Log the model prediction
+        self.add_model_predictions(epoch, logs)
+        # Log the pred_table as W&B Artifacts
+        self.log_pred_table()
+
+    @abc.abstractmethod
+    def add_ground_truth(self, logs: Dict[str, float] = {}):
         """Use this method to write the logic for adding validation/training
         data to `data_table` initialized using `init_data_table` method.
         Example:
@@ -101,8 +135,8 @@ class WandbEvalTablesBuilder(ABC):
         raise NotImplementedError(
             f"{self.__class__.__name__}.add_ground_truth")
 
-    @abstractmethod
-    def add_model_predictions(self):
+    @abc.abstractmethod
+    def add_model_predictions(self, epoch: int, logs: Dict[str, float] = {}):
         """Use this method to write the logic for adding model prediction for
         validation/training data to `pred_table` initialized using
         `init_pred_table` method.
