@@ -4534,7 +4534,7 @@ class Artifact(artifacts.Artifact):
             variable_values={
                 "artifactID": self.id,
                 "description": self.description,
-                "metadata": util.json_dumps_safer(self.metadata),
+                "metadata": util.json_dumps_safer_history(self.metadata),
                 "aliases": [
                     {
                         "artifactCollectionName": self._sequence_name,

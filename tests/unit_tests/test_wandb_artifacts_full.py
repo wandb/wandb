@@ -220,3 +220,15 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
+
+
+def test_artifact_metadata_save(wandb_init):
+    # Test artifact metadata sucessfully saved for len(numpy) > 32
+    dummy_metadata = np.array([0] * 33)
+    run = wandb_init()
+    artifact = wandb.Artifact("art", type="dataset")
+    run.log_artifact(artifact)
+    artifact.wait().metadata.update(dummy_metadata=dummy_metadata)
+    artifact.save()
+    assert np.array_equal(artifact.metadata["dummy_metadata"], dummy_metadata)
+    run.finish()
