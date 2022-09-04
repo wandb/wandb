@@ -32,8 +32,8 @@ class _MailboxSlot:
 
     def _get_and_clear(self, timeout: float) -> Optional[pb.Result]:
         found = None
-        with self._lock:
-            if self._event.wait(timeout=timeout):
+        if self._event.wait(timeout=timeout):
+            with self._lock:
                 found = self._result
                 self._event.clear()
         return found
