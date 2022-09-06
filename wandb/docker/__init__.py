@@ -4,12 +4,11 @@ import os
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from dockerpycreds.utils import find_executable  # type: ignore
 import requests
-from wandb.docker import auth
-from wandb.docker import www_authenticate
-from wandb.errors import DockerError
+from dockerpycreds.utils import find_executable  # type: ignore
 
+from wandb.docker import auth, www_authenticate
+from wandb.errors import DockerError
 
 entrypoint = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "wandb-entrypoint.sh"
@@ -141,7 +140,7 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
     auth_info = auth_config.resolve_authconfig(registry)
     if auth_info:
         normalized = {k.lower(): v for k, v in auth_info.items()}
-        normalized_auth_info: Optional[Tuple] = (
+        normalized_auth_info = (
             normalized.get("username"),
             normalized.get("password"),
         )
@@ -166,7 +165,7 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
             + "?service={}&scope=repository:{}:pull".format(
                 info["bearer"]["service"], repo
             ),
-            auth=normalized_auth_info,
+            auth=normalized_auth_info,  # type: ignore
             timeout=3,
         )
         res.raise_for_status()

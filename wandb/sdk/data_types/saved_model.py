@@ -2,18 +2,17 @@ import os
 import shutil
 import sys
 from typing import (
+    TYPE_CHECKING,
     Any,
-    cast,
     ClassVar,
     Generic,
     List,
     Optional,
     Type,
-    TYPE_CHECKING,
     TypeVar,
     Union,
+    cast,
 )
-
 
 import wandb
 from wandb import util
@@ -23,15 +22,15 @@ from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
+    import cloudpickle  # type: ignore
+    import sklearn  # type: ignore
+    import tensorflow  # type: ignore
+    import torch  # type: ignore
+
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
-
-    import cloudpickle  # type: ignore
-    import torch  # type: ignore
-    import sklearn  # type: ignore
-    import tensorflow  # type: ignore
 
 
 DEBUG_MODE = False

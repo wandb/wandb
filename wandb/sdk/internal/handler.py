@@ -1,24 +1,24 @@
 """Handle Manager."""
 
-from collections import defaultdict
 import json
 import logging
 import math
 import numbers
+import time
+from collections import defaultdict
 from queue import Queue
 from threading import Event
-import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
-    cast,
     Dict,
     Iterable,
     List,
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
+    cast,
 )
 
 from wandb.proto.wandb_internal_pb2 import (
@@ -31,16 +31,13 @@ from wandb.proto.wandb_internal_pb2 import (
     SummaryRecord,
 )
 
-from . import meta, sample, stats, tb_watcher
-from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
+from . import meta, sample, stats, tb_watcher
+from .settings_static import SettingsStatic
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import (
-        ArtifactDoneRequest,
-        MetricSummary,
-    )
+    from wandb.proto.wandb_internal_pb2 import ArtifactDoneRequest, MetricSummary
 
 
 SummaryDict = Dict[str, Any]
@@ -128,7 +125,7 @@ class HandleManager:
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
@@ -136,7 +133,7 @@ class HandleManager:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "handle_request_" + request_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         if request_type != "network_status":
             logger.debug(f"handle_request: {request_type}")
         assert handler, f"unknown handle: {handler_str}"

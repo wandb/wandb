@@ -1,0 +1,22 @@
+plugin:
+  - wandb
+tag:
+  shard: ray2
+depend:
+  requirements:
+    - pandas
+    - ray[tune]>=2.0.0rc0  # ray1 would work, but limit the number of versions
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {'a': 2, 'b': 4}
+  - :op:>:
+    - :wandb:runs[0][summary][loss]
+    - 0
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[0][telemetry][2]  # imports_finish
+    - 30  # ray

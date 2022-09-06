@@ -7,7 +7,8 @@ def main():
     import wandb
 
     run = wandb.init()
-    wandb.log(dict(this=2))
+    for _ in range(1000):
+        wandb.log(dict(this=2))
     run.finish()
 
 

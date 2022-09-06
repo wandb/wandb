@@ -3,8 +3,8 @@ import random
 from typing import NamedTuple
 
 import kfp
-from kfp import components
 import kfp.dsl as dsl
+from kfp import components
 from kubernetes.client.models import V1EnvVar
 from wandb_probe import wandb_probe_package
 
@@ -30,11 +30,12 @@ def preprocess_data(
     mlpipeline_ui_metadata_path: components.OutputPath(),
     seed: int = 1337,
 ):
+    import json
+
     import numpy as np
+    import wandb
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
-    import wandb
-    import json
 
     def add_wandb_visualization(run, mlpipeline_ui_metadata_path):
         """NOTE: To use this, you must modify your component to have an output called `mlpipeline_ui_metadata_path` AND call `wandb.init` yourself inside that component.
@@ -91,11 +92,12 @@ def train_model(
     model_path: components.OutputPath("sklearn_model"),  # noqa: F821
     mlpipeline_ui_metadata_path: components.OutputPath(),
 ):
+    import json
+
     import joblib
     import numpy as np
-    from sklearn.ensemble import RandomForestClassifier
     import wandb
-    import json
+    from sklearn.ensemble import RandomForestClassifier
 
     def add_wandb_visualization(run, mlpipeline_ui_metadata_path):
         """NOTE: To use this, you must modify your component to have an output called `mlpipeline_ui_metadata_path` AND call `wandb.init` yourself inside that component.
@@ -148,14 +150,14 @@ def test_model(
 ) -> NamedTuple(
     "Output", [("accuracy", float), ("precision", float), ("recall", float)]
 ):
+    import json
     from collections import namedtuple
 
     import joblib
     import numpy as np
+    import wandb
     from sklearn.ensemble import RandomForestClassifier  # noqa: F401
     from sklearn.metrics import accuracy_score, precision_score, recall_score
-    import wandb
-    import json
 
     def add_wandb_visualization(run, mlpipeline_ui_metadata_path):
         """NOTE: To use this, you must modify your component to have an output called `mlpipeline_ui_metadata_path` AND call `wandb.init` yourself inside that component.

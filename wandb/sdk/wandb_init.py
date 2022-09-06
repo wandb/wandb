@@ -11,6 +11,7 @@ import copy
 import json
 import logging
 import os
+import pathlib
 import platform
 import sys
 import tempfile
@@ -18,6 +19,7 @@ import traceback
 from typing import Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
+
 import wandb
 from wandb import trigger
 from wandb.errors import UsageError
@@ -27,16 +29,23 @@ from wandb.util import _is_artifact_representation, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, ipython, module, reporting, telemetry
-from .lib import RunDisabled, SummaryDisabled
-from .lib.deprecate import deprecate, Deprecated
+from .lib import (
+    RunDisabled,
+    SummaryDisabled,
+    filesystem,
+    ipython,
+    module,
+    reporting,
+    telemetry,
+)
+from .lib.deprecate import Deprecated, deprecate
+from .lib.mailbox import Mailbox, MailboxHandle
 from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.wburls import wburls
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
-
 
 logger = None  # logger configured during wandb.init()
 
@@ -111,6 +120,11 @@ class _WandbInit:
 
         self.deprecated_features_used: Dict[str, str] = dict()
 
+    def _setup_printer(self, settings: Settings) -> None:
+        if self.printer:
+            return
+        self.printer = get_printer(settings._jupyter)
+
     def setup(self, kwargs) -> None:  # noqa: C901
         """Completes setup for `wandb.init()`.
 
@@ -123,7 +137,7 @@ class _WandbInit:
         # in between, they will be ignored, which we need to inform the user about.
         singleton = wandb_setup._WandbSetup._instance
         if singleton is not None:
-            self.printer = get_printer(singleton._settings._jupyter)
+            self._setup_printer(settings=singleton._settings)
             exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
             # check if environment variables have changed
             singleton_env = {
@@ -158,6 +172,7 @@ class _WandbInit:
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
 
+        self._setup_printer(settings)
         self._reporter = reporting.setup_reporter(settings=settings)
 
         sagemaker_config: Dict = (
@@ -489,6 +504,12 @@ class _WandbInit:
         )
         return drun
 
+    def _on_init_progress(self, handle: MailboxHandle) -> None:
+        assert self.printer
+        line = "Waiting for wandb.init()...\r"
+        percent_done = handle.percent_done
+        self.printer.progress_update(line, percent_done=percent_done)
+
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
@@ -552,7 +573,8 @@ class _WandbInit:
             logger.info("setting up manager")
             manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
-        backend = Backend(settings=self.settings, manager=manager)
+        mailbox = Mailbox()
+        backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
@@ -590,10 +612,12 @@ class _WandbInit:
                 tel.env.kaggle = True
             if self.settings._windows:
                 tel.env.windows = True
-            run._telemetry_imports(tel.imports_init)
 
             if self.settings.launch:
                 tel.feature.launch = True
+
+            for module_name in telemetry.list_telemetry_imports(only_imported=True):
+                setattr(tel.imports_init, module_name, True)
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -662,20 +686,23 @@ class _WandbInit:
                     f"Starting a new run with run id {run.id}."
                 )
         else:
+            run_result = None
+            error_message: Optional[str] = None
+
             logger.info(
                 f"communicating run to backend with {self.settings.init_timeout} second timeout"
             )
-            run_result = backend.interface.communicate_run(
-                run, timeout=self.settings.init_timeout
+            handle = backend.interface.deliver_run(run)
+            result = handle.wait(
+                timeout=self.settings.init_timeout, on_progress=self._on_init_progress
             )
+            if result:
+                run_result = result.run_result
 
-            error_message: Optional[str] = None
             if not run_result:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
                 if active_start_method != "fork":
-                    error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
-                    error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
                     error_message += (
                         f"\nFor more info see: {wburls.get('doc_start_err')}"
                     )
@@ -725,6 +752,11 @@ class _WandbInit:
         # as the run is not upserted
         for k, v in self.init_artifact_config.items():
             run.config.update({k: v}, allow_val_change=True)
+        job_artifact = run._launch_artifact_mapping.get(
+            wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME
+        )
+        if job_artifact:
+            run.use_artifact(job_artifact)
 
         self.backend = backend
         self._reporter.set_context(run=run)
@@ -787,7 +819,8 @@ def _attach(
     )
 
     # TODO: consolidate this codepath with wandb.init()
-    backend = Backend(settings=settings, manager=manager)
+    mailbox = Mailbox()
+    backend = Backend(settings=settings, manager=manager, mailbox=mailbox)
     backend.ensure_launched()
     backend.server_connect()
     logger.info("attach backend started and connected")
@@ -813,7 +846,7 @@ def _attach(
 
 def init(
     job_type: Optional[str] = None,
-    dir=None,
+    dir: Union[str, pathlib.Path, None] = None,
     config: Union[Dict, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -844,7 +877,7 @@ def init(
     script, and each piece would be tracked as a run in W&B.
 
     `wandb.init()` spawns a new background process to log data to a run, and it
-    also syncs data to wandb.ai by default so you can see live visualizations.
+    also syncs data to wandb.ai by default, so you can see live visualizations.
 
     Call `wandb.init()` to start a run before logging data with `wandb.log()`:
     <!--yeadoc-test:init-method-log-->
@@ -928,10 +961,10 @@ def init(
         notes: (str, optional) A longer description of the run, like a `-m` commit
             message in git. This helps you remember what you were doing when you
             ran this run.
-        dir: (str, optional) An absolute path to a directory where metadata will
-            be stored. When you call `download()` on an artifact, this is the
-            directory where downloaded files will be saved. By default, this is
-            the `./wandb` directory.
+        dir: (str or pathlib.Path, optional) An absolute path to a directory where
+            metadata will be stored. When you call `download()` on an artifact,
+            this is the directory where downloaded files will be saved. By default,
+            this is the `./wandb` directory.
         resume: (bool, str, optional) Sets the resuming behavior. Options:
             `"allow"`, `"must"`, `"never"`, `"auto"` or `None`. Defaults to `None`.
             Cases:
@@ -964,7 +997,7 @@ def init(
             `wandb.config`.
         anonymous: (str, optional) Controls anonymous data logging. Options:
             - `"never"` (default): requires you to link your W&B account before
-                tracking the run so you don't accidentally create an anonymous
+                tracking the run, so you don't accidentally create an anonymous
                 run.
             - `"allow"`: lets a logged-in user track runs with their account, but
                 lets someone who is running the script without a W&B account see

@@ -3,7 +3,6 @@
 
 from setuptools import setup
 
-
 with open("package_readme.md") as readme_file:
     readme = readme_file.read()
 
@@ -43,20 +42,18 @@ launch_requirements = [
     "kubernetes",
 ]
 
-models_requirements = [
-    "cloudpickle"
-]
+models_requirements = ["cloudpickle"]
 
 
 setup(
     name="wandb",
-    version="0.13.0rc6.dev1",
+    version="0.13.3.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
     author="Weights & Biases",
     author_email="support@wandb.com",
-    url="https://github.com/wandb/client",
+    url="https://github.com/wandb/wandb",
     packages=["wandb"],
     package_dir={"wandb": "wandb"},
     package_data={"wandb": ["py.typed"]},

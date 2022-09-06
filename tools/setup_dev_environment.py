@@ -8,7 +8,6 @@ import sys
 
 from pkg_resources import parse_version
 
-
 PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10"]
 TOX_VERSION = "3.24.0"
 

@@ -1,101 +1,79 @@
-"""
-telemetry full tests.
-"""
-import platform
-import sys
 from unittest import mock
 
-import pytest
-import wandb
+# TODO: implement the telemetry context resolver
 
 
-def test_telemetry_finish(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        run = wandb.init()
+def test_telemetry_finish(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init(config={"lol": True})
         run.finish()
 
-        ctx_util = parse_ctx(live_mock_server.get_ctx())
-        telemetry = ctx_util.telemetry
-
-        assert telemetry and 2 in telemetry.get("3", [])
+    telemetry = relay.context.get_run_telemetry(run.id)
+    assert telemetry and 2 in telemetry.get("3", [])
 
 
-def test_telemetry_imports_hf(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        run = wandb.init()
+def test_telemetry_imports(relay_server, wandb_init):
 
-        with mock.patch.dict("sys.modules", {"transformers": mock.Mock()}):
-            import transformers
+    with relay_server() as relay:
+        transformers_mock = mock.MagicMock()
+        transformers_mock.__name__ = "transformers"
 
+        catboost_mock = mock.MagicMock()
+        catboost_mock.__name__ = "catboost"
+
+        jax_mock = mock.MagicMock()
+        jax_mock.__name__ = "jax"
+
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "jax": jax_mock,
+                "catboost": catboost_mock,
+            },
+        ):
+            __import__("jax")
+
+            run = wandb_init()
+            __import__("catboost")
             run.finish()
+            with mock.patch.dict(
+                "sys.modules",
+                {
+                    "transformers": transformers_mock,
+                },
+            ):
+                __import__("transformers")
 
-            ctx_util = parse_ctx(live_mock_server.get_ctx())
-            telemetry = ctx_util.telemetry
-
-            # hf in finish modules but not in init modules
-            assert telemetry and 11 not in telemetry.get("1", [])
-            assert telemetry and 11 in telemetry.get("2", [])
-
-
-def test_telemetry_imports_catboost(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        with mock.patch.dict("sys.modules", {"catboost": mock.Mock()}):
-            import catboost
-
-            run = wandb.init()
-            run.finish()
-
-            ctx_util = parse_ctx(live_mock_server.get_ctx())
-            telemetry = ctx_util.telemetry
-
-            # catboost in both init and finish modules
-            assert telemetry and 7 in telemetry.get("1", [])
-            assert telemetry and 7 in telemetry.get("2", [])
+    telemetry = relay.context.get_run_telemetry(run.id)
+    assert telemetry
+    assert 12 in telemetry.get("2", [])  # jax
+    assert 7 in telemetry.get("2", [])  # catboost
+    assert 11 not in telemetry.get("2", [])  # transformers
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
-)
-def test_telemetry_imports_jax(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        import jax
+def test_telemetry_run_organizing_init(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init(
+            name="test_name", tags=["my-tag"], config={"abc": 123}, id="mynewid"
+        )
+        run.finish()
 
-        wandb.init()
-        wandb.finish()
-
-        ctx_util = parse_ctx(live_mock_server.get_ctx())
-        telemetry = ctx_util.telemetry
-
-        # jax in finish modules but not in init modules
-        assert telemetry and 12 in telemetry.get("1", [])
-        assert telemetry and 12 in telemetry.get("2", [])
-
-
-def test_telemetry_run_organizing_init(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        wandb.init(name="test_name", tags=["my-tag"], config={"abc": 123}, id="mynewid")
-        wandb.finish()
-
-        ctx_util = parse_ctx(live_mock_server.get_ctx())
-        telemetry = ctx_util.telemetry
-
+        telemetry = relay.context.get_run_telemetry(run.id)
         assert telemetry and 13 in telemetry.get("3", [])  # name
         assert telemetry and 14 in telemetry.get("3", [])  # id
         assert telemetry and 15 in telemetry.get("3", [])  # tags
         assert telemetry and 16 in telemetry.get("3", [])  # config
 
 
-def test_telemetry_run_organizing_set(runner, live_mock_server, parse_ctx):
-    with runner.isolated_filesystem():
-        run = wandb.init()
+def test_telemetry_run_organizing_set(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
         run.name = "test-name"
         run.tags = ["tag1"]
-        wandb.config.update = True
+        run.config.update = True
         run.finish()
 
-        ctx_util = parse_ctx(live_mock_server.get_ctx())
-        telemetry = ctx_util.telemetry
-
+        telemetry = relay.context.get_run_telemetry(run.id)
         assert telemetry and 17 in telemetry.get("3", [])  # name
         assert telemetry and 18 in telemetry.get("3", [])  # tags
         assert telemetry and 19 in telemetry.get("3", [])  # config update

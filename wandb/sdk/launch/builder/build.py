@@ -7,17 +7,17 @@ import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
-
-from dockerpycreds.utils import find_executable  # type: ignore
 import pkg_resources
+from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.docker as docker
+from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from .._project_spec import compute_command_args, EntryPoint, LaunchProject
 from ...lib.git import GitRepo
+from .._project_spec import EntryPoint, LaunchProject, compute_command_args
 
 _logger = logging.getLogger(__name__)
 
@@ -220,10 +220,19 @@ def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]
     env_vars["WANDB_RUN_ID"] = launch_project.run_id
     if launch_project.docker_image:
         env_vars["WANDB_DOCKER"] = launch_project.docker_image
+    if launch_project.name is not None:
+        env_vars["WANDB_NAME"] = launch_project.name
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
-    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
+    artifacts = {}
+    # if we're spinning up a launch process from a job
+    # we should tell the run to use that artifact
+    if launch_project.job:
+        artifacts = {wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME: launch_project.job}
+    env_vars["WANDB_ARTIFACTS"] = json.dumps(
+        {**artifacts, **launch_project.override_artifacts}
+    )
     #  check if the user provided an override entrypoint, otherwise use the default
 
     if launch_project.override_entrypoint is not None:
@@ -278,7 +287,8 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         requirements_line = CONDA_TEMPLATE.format(buildx_optional_prefix=prefix)
     else:
         # this means no deps file was found
-        requirements_line = ""
+        requirements_line = "RUN mkdir -p env/"  # Docker fails otherwise
+        wandb.termwarn("No requirements file found. No packages will be installed.")
 
     return requirements_line
 

@@ -25,10 +25,10 @@ assert:
     - :wandb:runs[0][summary][summary_metrics][nrows]: 3
 """
 import pandas as pd
+import wandb
 from sklearn import datasets
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import train_test_split
-import wandb
 
 wandb.init("my-scikit-integration")
 

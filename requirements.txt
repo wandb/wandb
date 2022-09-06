@@ -12,3 +12,4 @@ PyYAML
 pathtools # supports vendored version of watchdog 0.9.0
 setproctitle
 setuptools
+dataclasses; python_version < '3.7'

@@ -6,23 +6,18 @@ from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
+
+import yaml
+
 import wandb
 from wandb.errors import LaunchError
 from wandb.util import get_module
-import yaml
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
+from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.abstract import AbstractBuilder
-from ..builder.build import (
-    construct_gcp_registry_uri,
-    get_env_vars_dict,
-)
-from ..utils import (
-    PROJECT_DOCKER_ARGS,
-    PROJECT_SYNCHRONOUS,
-    run_shell,
-)
+from ..builder.build import construct_gcp_registry_uri, get_env_vars_dict
+from ..utils import LOG_PREFIX, PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell
+from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
 
@@ -137,7 +132,7 @@ class VertexRunner(AbstractRunner):
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args and list(docker_args) != ["docker_image"]:
             wandb.termwarn(
-                "Docker args are not supported for GCP. Not using docker args"
+                f"{LOG_PREFIX}Docker args are not supported for GCP. Not using docker args."
             )
 
         entry_point = launch_project.get_single_entry_point()
@@ -192,9 +187,7 @@ class VertexRunner(AbstractRunner):
         # todo: support gcp dataset?
 
         wandb.termlog(
-            "Running training job {name} on {compute}.".format(
-                name=gcp_training_job_name, compute=gcp_machine_type
-            )
+            f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
         )
 
         # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
@@ -207,9 +200,7 @@ class VertexRunner(AbstractRunner):
             time.sleep(1)
 
         wandb.termlog(
-            "View your job status and logs at {url}.".format(
-                url=submitted_run.get_page_link()
-            )
+            f"{LOG_PREFIX}View your job status and logs at {submitted_run.get_page_link()}."
         )
 
         # hacky: if user doesn't want blocking behavior, kill both main thread and the background thread. job continues

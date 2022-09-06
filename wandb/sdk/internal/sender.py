@@ -3,38 +3,35 @@ sender.
 """
 
 
-from collections import defaultdict
-from datetime import datetime
 import json
 import logging
 import os
 import queue
-from queue import Queue
 import threading
 import time
+from collections import defaultdict
+from datetime import datetime
+from queue import Queue
 from typing import (
+    TYPE_CHECKING,
     Any,
-    cast,
     Dict,
     Generator,
     List,
     NewType,
     Optional,
     Tuple,
-    TYPE_CHECKING,
+    cast,
 )
 
-from pkg_resources import parse_version
 import requests
+
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
 
-from . import artifacts, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import (
@@ -48,9 +45,13 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-
+from . import artifacts, file_stream, internal_api, update
+from .file_pusher import FilePusher
+from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
+    import sys
+
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactRecord,
         HttpResponse,
@@ -60,8 +61,6 @@ if TYPE_CHECKING:
         RunExitResult,
         RunRecord,
     )
-
-    import sys
 
     if sys.version_info >= (3, 8):
         from typing import Literal
@@ -80,20 +79,22 @@ DictNoValues = NewType("DictNoValues", Dict[str, Any])
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
-def _framework_priority(
-    imp: telemetry.TelemetryImports,
-) -> Generator[Tuple[bool, str], None, None]:
-    yield imp.lightgbm, "lightgbm"
-    yield imp.catboost, "catboost"
-    yield imp.xgboost, "xgboost"
-    yield imp.transformers_huggingface, "huggingface"
-    yield imp.pytorch_ignite, "ignite"
-    yield imp.pytorch_lightning, "lightning"
-    yield imp.fastai, "fastai"
-    yield imp.torch, "torch"
-    yield imp.keras, "keras"
-    yield imp.tensorflow, "tensorflow"
-    yield imp.sklearn, "sklearn"
+def _framework_priority() -> Generator[Tuple[str, str], None, None]:
+    yield from [
+        ("lightgbm", "lightgbm"),
+        ("catboost", "catboost"),
+        ("xgboost", "xgboost"),
+        ("transformers_huggingface", "huggingface"),  # backwards compatibility
+        ("transformers", "huggingface"),
+        ("pytorch_ignite", "ignite"),  # backwards compatibility
+        ("ignite", "ignite"),
+        ("pytorch_lightning", "lightning"),
+        ("fastai", "fastai"),
+        ("torch", "torch"),
+        ("keras", "keras"),
+        ("tensorflow", "tensorflow"),
+        ("sklearn", "sklearn"),
+    ]
 
 
 class ResumeState:
@@ -526,13 +527,13 @@ class SendManager:
             alive, status = self._pusher.get_status()
             file_counts = self._pusher.file_counts_by_category()
             resp = result.response.poll_exit_response
-            resp.pusher_stats.uploaded_bytes = status["uploaded_bytes"]
-            resp.pusher_stats.total_bytes = status["total_bytes"]
-            resp.pusher_stats.deduped_bytes = status["deduped_bytes"]
-            resp.file_counts.wandb_count = file_counts["wandb"]
-            resp.file_counts.media_count = file_counts["media"]
-            resp.file_counts.artifact_count = file_counts["artifact"]
-            resp.file_counts.other_count = file_counts["other"]
+            resp.pusher_stats.uploaded_bytes = status.uploaded_bytes
+            resp.pusher_stats.total_bytes = status.total_bytes
+            resp.pusher_stats.deduped_bytes = status.deduped_bytes
+            resp.file_counts.wandb_count = file_counts.wandb
+            resp.file_counts.media_count = file_counts.media
+            resp.file_counts.artifact_count = file_counts.artifact
+            resp.file_counts.other_count = file_counts.other
 
         if self._exit_result and not alive:
             # pusher join should not block as it was reported as not alive
@@ -642,15 +643,16 @@ class SendManager:
     def _telemetry_get_framework(self) -> str:
         """Get telemetry data for internal config structure."""
         # detect framework by checking what is loaded
-        imp: telemetry.TelemetryImports
+        imports: telemetry.TelemetryImports
         if self._telemetry_obj.HasField("imports_finish"):
-            imp = self._telemetry_obj.imports_finish
+            imports = self._telemetry_obj.imports_finish
         elif self._telemetry_obj.HasField("imports_init"):
-            imp = self._telemetry_obj.imports_init
+            imports = self._telemetry_obj.imports_init
         else:
             return ""
-        priority = _framework_priority(imp)
-        framework = next((f for b, f in priority if b), "")
+        framework = next(
+            (n for f, n in _framework_priority() if getattr(imports, f, False)), ""
+        )
         return framework
 
     def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
@@ -749,7 +751,7 @@ class SendManager:
             error = self._maybe_setup_resume(run)
 
         if error is not None:
-            if record.control.req_resp:
+            if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
                 result.run_result.error.CopyFrom(error)
@@ -779,7 +781,7 @@ class SendManager:
         self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
 
-        if record.control.req_resp:
+        if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
@@ -1183,13 +1185,7 @@ class SendManager:
         logger.debug(
             f"link_artifact params - client_id={client_id}, server_id={server_id}, pfolio={portfolio_name}, entity={entity}, project={project}"
         )
-        if (
-            (client_id or server_id)
-            and portfolio_name
-            and entity
-            and project
-            and aliases
-        ):
+        if (client_id or server_id) and portfolio_name and entity and project:
             try:
                 self._api.link_artifact(
                     client_id, server_id, portfolio_name, entity, project, aliases
@@ -1254,6 +1250,8 @@ class SendManager:
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
+        from pkg_resources import parse_version
+
         assert self._pusher
         saver = artifacts.ArtifactSaver(
             api=self._api,
@@ -1269,7 +1267,7 @@ class SendManager:
                 max_cli_version
             ) < parse_version("0.10.16"):
                 logger.warning(
-                    "This W&B server doesn't support distributed artifacts, "
+                    "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
                 return None
@@ -1291,6 +1289,8 @@ class SendManager:
         )
 
     def send_alert(self, record: "Record") -> None:
+        from pkg_resources import parse_version
+
         alert = record.alert
         max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(

@@ -5,19 +5,19 @@ from typing import Any, List, Optional
 import wandb
 from wandb.errors import LaunchError
 
-from .abstract import AbstractRun, AbstractRunner
-from .local_container import _run_entry_point
-from .._project_spec import get_entry_point_command, LaunchProject
+from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..utils import (
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
     _is_wandb_uri,
     download_wandb_python_deps,
     parse_wandb_uri,
-    PROJECT_SYNCHRONOUS,
     sanitize_wandb_api_key,
     validate_wandb_python_deps,
 )
-
+from .abstract import AbstractRun, AbstractRunner
+from .local_container import _run_entry_point
 
 _logger = logging.getLogger(__name__)
 
@@ -38,9 +38,11 @@ class LocalProcessRunner(AbstractRunner):
         **kwargs,
     ) -> Optional[AbstractRun]:
         if args is not None:
-            _logger.warning(f"LocalProcessRunner.run received unused args {args}")
+            _msg = f"{LOG_PREFIX}LocalProcessRunner.run received unused args {args}"
+            _logger.warning(_msg)
         if kwargs is not None:
-            _logger.warning(f"LocalProcessRunner.run received unused kwargs {kwargs}")
+            _msg = f"{LOG_PREFIX}LocalProcessRunner.run received unused kwargs {kwargs}"
+            _logger.warning(_msg)
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         entry_point = launch_project.get_single_entry_point()
@@ -83,11 +85,8 @@ class LocalProcessRunner(AbstractRunner):
         cmd += entry_cmd
 
         command_str = " ".join(cmd).strip()
-        wandb.termlog(
-            "Launching run as a local process with command: {}".format(
-                sanitize_wandb_api_key(command_str)
-            )
-        )
+        _msg = f"{LOG_PREFIX}Launching run as a local-process with command {sanitize_wandb_api_key(command_str)}"
+        wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()
