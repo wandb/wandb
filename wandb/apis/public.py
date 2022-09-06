@@ -847,9 +847,9 @@ class Api:
         Returns:
             A `Run` object.
         """
-        entity, project, run = self._parse_path(path)
+        entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path] = Run(self.client, entity, project, run)
+            self._runs[path] = Run(self.client, entity, project, run_id)
         return self._runs[path]
 
     def queued_run(
