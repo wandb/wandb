@@ -226,9 +226,10 @@ def test_artifact_metadata_save(wandb_init):
     # Test artifact metadata sucessfully saved for len(numpy) > 32
     dummy_metadata = np.array([0] * 33)
     run = wandb_init()
-    artifact = wandb.Artifact("art", type="dataset")
+    artifact = wandb.Artifact(name="art", type="dataset")
     run.log_artifact(artifact)
     artifact.wait().metadata.update(dummy_metadata=dummy_metadata)
     artifact.save()
-    assert np.array_equal(artifact.metadata["dummy_metadata"], dummy_metadata)
+    saved_artifact = run.use_artifact("art:latest")
+    assert "dummy_metadata" in saved_artifact.metadata
     run.finish()
