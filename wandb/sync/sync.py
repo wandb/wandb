@@ -126,7 +126,7 @@ class SyncThread(threading.Thread):
                 print(f"Found {tb_event_files} tfevent files in {tb_root}")
                 if len(tb_logdirs) > 3:
                     wandb.termwarn(
-                        "Found {} directories containing tfevent files. "
+                        f"Found {len(tb_logdirs)} directories containing tfevent files. "
                         "If these represent multiple experiments, sync them "
                         "individually or pass a list of paths."
                     )
