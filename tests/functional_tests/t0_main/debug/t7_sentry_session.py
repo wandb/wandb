@@ -2,7 +2,6 @@
 """Base case - main process init/finish.
 
 ---
-id: 0.core.02-with-finish
 plugin:
   - wandb
 tag:
@@ -24,9 +23,8 @@ import time
 
 import wandb
 
-for x in range(1):
-    wandb.init()
-    wandb.log(dict(m1=1))
-    wandb.log(dict(m2=2))
-    # sleep needed for sentry to capture session info
-    time.sleep(80)
+wandb.init()
+wandb.log(dict(m1=1))
+wandb.log(dict(m2=2))
+# sleep needed for sentry to capture sentry session info
+time.sleep(80)
