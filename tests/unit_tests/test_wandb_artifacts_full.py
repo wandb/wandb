@@ -232,4 +232,5 @@ def test_artifact_metadata_save(wandb_init):
     artifact.save()
     saved_artifact = run.use_artifact("art:latest")
     assert "dummy_metadata" in saved_artifact.metadata
+    assert saved_artifact.metadata["dummy_metadata"]["_type"] == "histogram"
     run.finish()
