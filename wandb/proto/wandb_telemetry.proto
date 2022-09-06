@@ -106,6 +106,7 @@ message Imports {
   bool jina = 78;
   bool kornia = 79;
   bool albumentations = 80;
+  bool keras_cv = 81;
 }
 
 message Feature {
