@@ -20,10 +20,10 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Dict, List, Optional, TYPE_CHECKING
 import urllib
 from collections import namedtuple
 from functools import partial
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import requests
 from wandb_gql import Client, gql

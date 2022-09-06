@@ -1,4 +1,14 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypeVar, Union, get_type_hints
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 
 import wandb
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
