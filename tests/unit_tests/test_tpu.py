@@ -1,7 +1,6 @@
-import os
-import pytest
 import time
 
+import pytest
 import wandb
 from wandb.sdk.internal.stats import SystemStats
 from wandb.sdk.internal.tpu import TPUProfiler
@@ -21,20 +20,20 @@ class MockTPUProfiler:
         return self.utilization
 
 
-def test_tpu_system_stats(monkeypatch, fake_interface, test_settings):
+def test_tpu_system_stats(monkeypatch, mocked_interface, test_settings):
 
     monkeypatch.setattr(wandb.sdk.internal.stats.tpu, "is_tpu_available", lambda: True)
     monkeypatch.setattr(
         wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
     )
-    stats = SystemStats(settings=test_settings, interface=fake_interface)
+    stats = SystemStats(settings=test_settings(), interface=mocked_interface)
     # stats.start()
     # time.sleep(1)
     # stats.shutdown()
-    # assert fake_interface.record_q.queue[0].stats.item
+    # assert mocked_interface.record_q.queue[0].stats.item
     # record = {
     #     item.key: item.value_json
-    #     for item in fake_interface.record_q.queue[0].stats.item
+    #     for item in mocked_interface.record_q.queue[0].stats.item
     # }
     assert stats.stats()["tpu"] == MockTPUProfiler().utilization
 

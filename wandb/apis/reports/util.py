@@ -1,19 +1,9 @@
-from typing import (
-    Any,
-    Dict,
-    get_type_hints,
-    List,
-    Optional,
-    Tuple,
-    TYPE_CHECKING,
-    TypeVar,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypeVar, Union, get_type_hints
 
 import wandb
 from wandb.sdk.wandb_require_helpers import RequiresReportEditingMixin
 
-from .validators import TypeValidator, UNDEFINED_TYPE, Validator
+from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
 if TYPE_CHECKING:
     import wandb.apis.reports.reports

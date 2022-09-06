@@ -10,9 +10,7 @@ Usage:
     ```
 """
 
-from typing import Dict, Optional
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from ._wburls_generated import URLS
@@ -30,7 +28,7 @@ class WBURLs:
             doc_run="https://wandb.me/run",
             doc_require="https://wandb.me/library-require",
             doc_start_err="https://docs.wandb.ai/library/init#init-start-error",
-            upgrade_local="https://wandb.me/local-upgrade",
+            upgrade_server="https://wandb.me/server-upgrade",
             multiprocess="http://wandb.me/init-multiprocess",
             wandb_init="https://wandb.me/wandb-init",
             wandb_server="https://wandb.me/wandb-server",

@@ -10,6 +10,9 @@ plugin:
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
+    - numpy
+    - lap
+    - paddlepaddle
     - "-r 08-batch8-requirements.txt"
 assert:
   - :wandb:runs_len: 1

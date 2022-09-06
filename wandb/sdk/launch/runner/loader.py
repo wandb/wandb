@@ -6,7 +6,6 @@ from wandb.errors import LaunchError
 
 from .abstract import AbstractRunner
 
-
 __logger__ = logging.getLogger(__name__)
 
 

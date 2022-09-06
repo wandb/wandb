@@ -1,12 +1,10 @@
-from pkg_resources import parse_version
 import pytest
-import sklearn
 from sklearn.naive_bayes import MultinomialNB
-from wandb.plot import confusion_matrix, pr_curve, roc_curve, line_series
+from wandb.plot import confusion_matrix, line_series, pr_curve, roc_curve
 
 
 @pytest.fixture
-def dummy_classifier(request):
+def dummy_classifier():
     nb = MultinomialNB()
     x_train = [
         [1, 2],
@@ -30,8 +28,9 @@ def dummy_classifier(request):
     return (nb, x_train, y_train, x_test, y_test, y_pred, y_probas)
 
 
-def test_roc(dummy_classifier, wandb_init_run):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+def test_roc(dummy_classifier, mock_run):
+    _ = mock_run(settings={"mode": "offline"})
+    *_, y_test, _, y_probas = dummy_classifier
     custom_chart_no_title = roc_curve(y_test, y_probas)
     assert custom_chart_no_title.string_fields["title"] == "ROC"
     first_row = custom_chart_no_title.table.data[0]
@@ -40,8 +39,9 @@ def test_roc(dummy_classifier, wandb_init_run):
     assert custom_chart_with_title.string_fields["title"] == "New title"
 
 
-def test_pr(dummy_classifier, wandb_init_run):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+def test_pr(dummy_classifier, mock_run):
+    _ = mock_run(settings={"mode": "offline"})
+    *_, y_test, _, y_probas = dummy_classifier
     custom_chart_no_title = pr_curve(y_test, y_probas)
     assert custom_chart_no_title.string_fields["title"] == "Precision v. Recall"
     first_row = custom_chart_no_title.table.data[0]
@@ -50,8 +50,9 @@ def test_pr(dummy_classifier, wandb_init_run):
     assert custom_chart_with_title.string_fields["title"] == "New title"
 
 
-def test_conf_mat(dummy_classifier, wandb_init_run):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+def test_conf_mat(dummy_classifier, mock_run):
+    _ = mock_run(settings={"mode": "offline"})
+    *_, y_test, y_pred, y_probas = dummy_classifier
     conf_mat_using_probs = confusion_matrix(probs=y_probas, y_true=y_test)
     conf_mat_using_preds = confusion_matrix(
         preds=y_pred, y_true=y_test, title="New title"
@@ -61,7 +62,8 @@ def test_conf_mat(dummy_classifier, wandb_init_run):
     assert conf_mat_using_preds.string_fields["title"] == "New title"
 
 
-def test_conf_mat_missing_values_with_classes(wandb_init_run):
+def test_conf_mat_missing_values_with_classes(mock_run):
+    _ = mock_run(settings={"mode": "offline"})
     class_names = ["Cat", "Dog", "Bird"]
     y_true = [1, 2, 1, 2]
     y_pred = [2, 1, 1, 2]
@@ -81,7 +83,8 @@ def test_conf_mat_missing_values_with_classes(wandb_init_run):
     assert conf_mat.table.data[8] == ["Bird", "Bird", 1]
 
 
-def test_conf_mat_missing_values_without_classes(wandb_init_run):
+def test_conf_mat_missing_values_without_classes(mock_run):
+    _ = mock_run(settings={"mode": "offline"})
     y_true = [2, 4, 2, 4, 4]
     y_pred = [4, 2, 2, 4, 6]
     conf_mat = confusion_matrix(preds=y_pred, y_true=y_true)
@@ -100,7 +103,8 @@ def test_conf_mat_missing_values_without_classes(wandb_init_run):
 
 @pytest.mark.parametrize("xs", [["600417", "600421"], [613, 215]])
 @pytest.mark.parametrize("ys", [[[3, 4]], [["3", "4"]], [[1, 2], [7.1, 8.3]]])
-def test_line_series(wandb_init_run, xs, ys):
+def test_line_series(xs, ys, mock_run):
+    _ = mock_run(settings={"mode": "offline"})
     line_series_plt = line_series(xs, ys)
     assert line_series_plt.table.data[0] == [xs[0], "key_0", ys[0][0]]
     assert line_series_plt.table.data[1] == [xs[1], "key_0", ys[0][1]]
@@ -120,7 +124,7 @@ def test_line_series(wandb_init_run, xs, ys):
         [([1, 2], [[3, 4]]), {"keys": ["a", "b"]}, AssertionError],
     ],
 )
-def test_line_series_bad_inputs(wandb_init_run, args, kwargs, error):
+def test_line_series_bad_inputs(args, kwargs, error):
     with pytest.raises(error) as e_info:
         line_series(*args, **kwargs)
         print(e_info.value)

@@ -3,13 +3,11 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-from datetime import date, datetime
 import errno
 import functools
 import gzip
 import hashlib
 import importlib
-from importlib import import_module
 import json
 import logging
 import math
@@ -23,45 +21,51 @@ import re
 import shlex
 import socket
 import sys
-from sys import getsizeof
 import tarfile
 import tempfile
 import threading
 import time
 import traceback
+import urllib
+from datetime import date, datetime, timedelta
+from importlib import import_module
+from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
+    IO,
     Any,
     Callable,
     Dict,
     Generator,
-    IO,
     List,
     Mapping,
     Optional,
     Sequence,
+    Set,
     TextIO,
     Tuple,
     Type,
     TYPE_CHECKING,
     Union,
 )
-import urllib
 from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
-import wandb
-from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
-from wandb.errors import CommError, term, UsageError
 import yaml
+
+import wandb
+from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
+from wandb.errors import CommError, UsageError, term
 
 if TYPE_CHECKING:
     import wandb.sdk.wandb_settings
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_artifacts
     import wandb.apis.public
+
+CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -82,6 +86,8 @@ PLATFORM_LINUX = "linux"
 PLATFORM_BSD = "bsd"
 PLATFORM_DARWIN = "darwin"
 PLATFORM_UNKNOWN = "unknown"
+
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
 
 def get_platform_name() -> str:
@@ -577,6 +583,68 @@ def matplotlib_contains_images(obj: Any) -> bool:
     return any(len(ax.images) > 0 for ax in obj.axes)
 
 
+def _numpy_generic_convert(obj: Any) -> Any:
+    obj = obj.item()
+    if isinstance(obj, float) and math.isnan(obj):
+        obj = None
+    elif isinstance(obj, np.generic) and (
+        obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+    ):
+        # obj is a numpy float with precision greater than that of native python float
+        # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+        # in these cases, obj.item() does not return a native
+        # python float (in the first case - to avoid loss of precision,
+        # so we need to explicitly cast this down to a 64bit float)
+        obj = float(obj)
+    return obj
+
+
+def _find_all_matching_keys(
+    d: Dict,
+    match_fn: Callable[[Any], bool],
+    visited: Set[int] = None,
+    key_path: Tuple[Any, ...] = (),
+) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
+    """Recursively find all keys that satisfies a match function.
+
+    Args:
+       d: The dict to search.
+       match_fn: The function to determine if the key is a match.
+       visited: Keep track of visited nodes so we dont recurse forever.
+       key_path: Keep track of all the keys to get to the current node.
+    Yields:
+       (key_path, key): The location where the key was found, and the key
+    """
+
+    if visited is None:
+        visited = set()
+    me = id(d)
+    if me not in visited:
+        visited.add(me)
+        for key, value in d.items():
+            if match_fn(key):
+                yield key_path, key
+            if isinstance(value, dict):
+                yield from _find_all_matching_keys(
+                    value,
+                    match_fn,
+                    visited=visited,
+                    key_path=tuple(list(key_path) + [key]),
+                )
+
+
+def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
+    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
+    if not np_keys:
+        return d, False
+    for key_path, key in np_keys:
+        ptr = d
+        for k in key_path:
+            ptr = ptr[k]
+        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
+    return d, True
+
+
 def json_friendly(  # noqa: C901
     obj: Any,
 ) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
@@ -616,19 +684,7 @@ def json_friendly(  # noqa: C901
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = obj.item()
-        if isinstance(obj, float) and math.isnan(obj):
-            obj = None
-        elif isinstance(obj, np.generic) and (
-            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
-        ):
-            # obj is a numpy float with precision greater than that of native python float
-            # (i.e., float96 or float128) or it is of custom type such as bfloat16.
-            # in these cases, obj.item() does not return a native
-            # python float (in the first case - to avoid loss of precision,
-            # so we need to explicitly cast this down to a 64bit float)
-            obj = float(obj)
-
+        obj = _numpy_generic_convert(obj)
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -641,6 +697,8 @@ def json_friendly(  # noqa: C901
         )
     elif isinstance(obj, float) and math.isnan(obj):
         obj = None
+    elif isinstance(obj, dict) and np:
+        obj, converted = _sanitize_numpy_keys(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -894,16 +952,64 @@ def no_retry_auth(e: Any) -> bool:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
 
-def check_retry_commit_artifact(e: Any) -> bool:
+def check_retry_conflict(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict type so it can be retried.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
     if hasattr(e, "exception"):
         e = e.exception
-    if (
-        isinstance(e, requests.HTTPError)
-        and e.response is not None
-        and e.response.status_code == 409
-    ):
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+    return None
+
+
+def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+    """Check if the exception is a conflict or gone type so it can be retried or not.
+
+    Returns:
+        True - Should retry this operation
+        False - Should not retry this operation
+        None - No decision, let someone else decide
+    """
+    if hasattr(e, "exception"):
+        e = e.exception
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        if e.response.status_code == 409:
+            return True
+        if e.response.status_code == 410:
+            return False
+    return None
+
+
+def make_check_retry_fn(
+    fallback_retry_fn: CheckRetryFnType,
+    check_fn: Callable[[Exception], Optional[bool]],
+    check_timedelta: Optional[timedelta] = None,
+) -> CheckRetryFnType:
+    """Return a check_retry_fn which can be used by lib.Retry().
+
+    Arguments:
+        fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
+        check_fn: Function which returns bool if retry should happen or None if unsure.
+        check_timedelta: Optional retry timeout if we check_fn matches the exception
+    """
+
+    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
+        check = check_fn(e)
+        if check is None:
+            return fallback_retry_fn(e)
+        if check is False:
+            return False
+        if check_timedelta:
+            return check_timedelta
         return True
-    return no_retry_auth(e)
+
+    return check_retry_fn
 
 
 def find_runner(program: str) -> Union[None, list, List[str]]:
@@ -1218,7 +1324,7 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 def download_file_from_url(
     dest_path: str, source_url: str, api_key: Optional[str] = None
 ) -> None:
-    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)
+    response = requests.get(source_url, auth=("api", api_key), stream=True, timeout=5)  # type: ignore
     response.raise_for_status()
 
     if os.sep in dest_path:
@@ -1429,7 +1535,7 @@ def _has_internet() -> bool:
 
 def rand_alphanumeric(length: int = 8, rand: Optional[ModuleType] = None) -> str:
     rand = rand or random
-    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))  # type: ignore
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
 
 
 @contextlib.contextmanager
@@ -1473,7 +1579,7 @@ def _is_databricks() -> bool:
     if "dbutils" in sys.modules:
         dbutils = sys.modules["dbutils"]
         if hasattr(dbutils, "shell"):
-            shell = dbutils.shell  # type: ignore
+            shell = dbutils.shell
             if hasattr(shell, "sc"):
                 sc = shell.sc
                 if hasattr(sc, "appName"):

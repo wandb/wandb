@@ -5,12 +5,13 @@ Create a grpc manager channel.
 
 import atexit
 import os
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import wandb
 from wandb import env, trigger
 from wandb.sdk.lib.exit_hooks import ExitHooks
+from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 from wandb.sdk.lib.proto_util import settings_dict_from_pbmap
-
 
 if TYPE_CHECKING:
     from wandb.sdk.service import service
@@ -90,6 +91,7 @@ class _Manager:
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
     _settings: "Settings"
+    _service: "service._Service"
 
     def __init__(self, settings: "Settings", _use_grpc: bool = False) -> None:
         # TODO: warn if user doesnt have grpc installed
@@ -135,14 +137,24 @@ class _Manager:
         self._teardown(exit_code)
 
     def _teardown(self, exit_code: int) -> None:
+        unregister_all_post_import_hooks()
+
         if self._atexit_lambda:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
-        self._inform_teardown(exit_code)
-        result = self._service.join()
-        if result and not self._settings._jupyter:
-            os._exit(result)
-        self._token.reset_environment()
+
+        try:
+            self._inform_teardown(exit_code)
+            result = self._service.join()
+            if result and not self._settings._jupyter:
+                os._exit(result)
+        except Exception as e:
+            wandb.termlog(
+                f"While tearing down the service manager. The following error has occured: {e}",
+                repeat=False,
+            )
+        finally:
+            self._token.reset_environment()
 
     def _get_service(self) -> "service._Service":
         return self._service

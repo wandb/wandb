@@ -3,15 +3,14 @@
 Implement ServiceInterface for grpc transport.
 """
 
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import grpc
+
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 
-from .service_base import _pbmap_apply_dict
-from .service_base import ServiceInterface
+from .service_base import ServiceInterface, _pbmap_apply_dict
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings

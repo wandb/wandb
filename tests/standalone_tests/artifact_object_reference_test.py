@@ -1,16 +1,15 @@
 # Suggest running as: WANDB_BASE_URL=http://api.wandb.test python artifact_object_reference_test.py
 import base64
 import binascii
-from math import cos, pi, sin
 import os
 import shutil
 import time
+from math import cos, pi, sin
 
-from bokeh.plotting import figure
 import numpy as np
 import wandb
+from bokeh.plotting import figure
 from wandb.sdk.interface import artifacts
-
 
 WANDB_PROJECT_ENV = os.environ.get("WANDB_PROJECT")
 if WANDB_PROJECT_ENV is None:
@@ -800,10 +799,10 @@ def test_joined_table_add_by_path():
 
 def test_image_reference_with_preferred_path():
     orig_im_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), os.pardir, "assets", "test.png"
+        os.path.dirname(os.path.realpath(__file__)), "assets", "test.png"
     )
     orig_im_path_2 = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), os.pardir, "assets", "test2.png"
+        os.path.dirname(os.path.realpath(__file__)), "assets", "test2.png"
     )
     desired_artifact_path = "images/sample.png"
     with wandb.init() as run:

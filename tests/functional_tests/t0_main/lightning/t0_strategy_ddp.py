@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import os
 
-from pl_base import BoringModel, RandomDataset
 import pytorch_lightning as pl
+from pl_base import BoringModel, RandomDataset
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
@@ -29,8 +29,9 @@ def main():
     # Initialize a trainer
     trainer = pl.Trainer(
         max_epochs=1,
-        num_processes=2,
-        accelerator="ddp",
+        devices=2,
+        accelerator="cpu",
+        strategy="ddp",
         logger=wandb_logger,
     )
 

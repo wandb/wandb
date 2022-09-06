@@ -13,7 +13,7 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:<:
     - :yea:time
-    - 10
+    - 25
   - :op:<:
     - :yea:profile[:wandb:import][mean]
     - 3
@@ -25,4 +25,4 @@ assert:
     - 0.001
   - :op:<:
     - :yea:profile[:wandb:finish][mean]
-    - 5
+    - 15

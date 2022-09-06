@@ -5,20 +5,10 @@ import contextlib
 import hashlib
 import os
 import random
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import wandb
-from wandb import env
-from wandb import util
+from wandb import env, util
 from wandb.data_types import WBValue
 
 if TYPE_CHECKING:
@@ -207,7 +197,7 @@ class Artifact:
     def version(self) -> str:
         """
         Returns:
-            (int): The version of this artifact. For example, if this
+            (str): The version of this artifact. For example, if this
                 is the first version of an artifact, its `version` will
                 be 'v0'.
         """

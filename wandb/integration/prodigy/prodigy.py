@@ -16,13 +16,14 @@ wandb.finish()
 """
 
 import base64
-import collections
-from copy import deepcopy
+import collections.abc
 import io
 import urllib
+from copy import deepcopy
 
 import pandas as pd
 from PIL import Image
+
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing
@@ -58,7 +59,7 @@ def merge(dict1, dict2):
     result = deepcopy(dict1)
 
     for key, value in dict2.items():
-        if isinstance(value, collections.Mapping):
+        if isinstance(value, collections.abc.Mapping):
             result[key] = merge(result.get(key, {}), value)
         else:
             result[key] = deepcopy(dict2[key])

@@ -9,20 +9,21 @@ import logging
 import multiprocessing
 import queue
 import threading
-from threading import Event
 import time
+from threading import Event
 from typing import Any, Callable, Dict, List, Optional
 
 import psutil
+
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
 
-# from wandb.sdk.wandb_settings import Settings
-
 from ..interface.interface_relay import InterfaceRelay
+
+# from wandb.sdk.wandb_settings import Settings
 
 
 class StreamThread(threading.Thread):
@@ -243,7 +244,11 @@ class StreamMux:
             )
 
         streams_to_join, poll_exit_responses = {}, {}
-        while streams:
+        while streams and not self._stopped.is_set():
+            # Stop trying to sync data if our parent process has terminated
+            if self._check_orphaned():
+                self._stopped.set()
+                return
             # Note that we materialize the generator so we can modify the underlying list
             for sid, stream in list(streams.items()):
                 poll_exit_response = stream.interface.communicate_poll_exit()

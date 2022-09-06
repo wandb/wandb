@@ -4,8 +4,8 @@ Base class MessageFuture for MessageFutureObject and MessageFuturePoll
 
 """
 
-from abc import abstractmethod
 import threading
+from abc import abstractmethod
 from typing import Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
