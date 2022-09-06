@@ -839,9 +839,9 @@ class Api:
         Returns:
             A `Run` object.
         """
-        entity, project, run = self._parse_path(path)
+        entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path] = Run(self.client, entity, project, run)
+            self._runs[path] = Run(self.client, entity, project, run_id)
         return self._runs[path]
 
     def queued_run(
@@ -1149,7 +1149,16 @@ class User(Attrs):
             return None
 
     def __repr__(self):
-        return f"<User {self.email}>"
+        if "email" in self._attrs:
+            return f"<User {self._attrs['email']}>"
+        elif "username" in self._attrs:
+            return f"<User {self._attrs['username']}>"
+        elif "id" in self._attrs:
+            return f"<User {self._attrs['id']}>"
+        elif "name" in self._attrs:
+            return f"<User {self._attrs['name']!r}>"
+        else:
+            return "<User ???>"
 
 
 class Member(Attrs):
