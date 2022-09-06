@@ -74,6 +74,18 @@ if TYPE_CHECKING:
         resolver: Callable[[Any], Optional[Dict[str, Any]]]
 
 
+class ConsoleFormatter:
+    BOLD = "\033[1m"
+    CODE = "\033[2m"
+    MAGENTA = "\033[95m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    END = "\033[0m"
+
+
 # --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
@@ -103,6 +115,14 @@ def copy_asset(assets_path) -> Callable:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture(scope="function", autouse=True)
+def unset_global_objects():
+    from wandb.sdk.lib.module import unset_globals
+
+    yield
+    unset_globals()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -633,6 +653,14 @@ def pytest_addoption(parser):
         default="master",
         help="Image tag to use for the wandb server",
     )
+    # debug option: creates an admin account that can be used to log in to the
+    # app and inspect the test runs.
+    parser.addoption(
+        "--wandb-debug",
+        action="store_true",
+        default=False,
+        help="Run tests in debug mode",
+    )
 
 
 def random_string(length: int = 12) -> str:
@@ -658,6 +686,11 @@ def base_url(request):
 @pytest.fixture(scope="session")
 def wandb_server_tag(request):
     return request.config.getoption("--wandb-server-tag")
+
+
+@pytest.fixture(scope="session")
+def wandb_debug(request):
+    return request.config.getoption("--wandb-debug", default=False)
 
 
 def check_server_health(
@@ -723,7 +756,7 @@ def check_server_up(
         return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
 
     if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose port 9003
+        # start wandb server locally and expose ports 8080, 8083, and 9003
         command = [
             "docker",
             "run",
@@ -732,6 +765,8 @@ def check_server_up(
             "wandb:/vol",
             "-p",
             "8080:8080",
+            "-p",
+            "8083:8083",
             "-p",
             "9003:9003",
             "-e",
@@ -760,23 +795,48 @@ def check_server_up(
 @dataclasses.dataclass
 class UserFixtureCommand:
     command: Literal["up", "down", "down_all", "logout", "login"]
-    username: Optional[str]
+    username: Optional[str] = None
+    admin: bool = False
     endpoint: str = "db/user"
+    port: int = 9003
+    method: Literal["post"] = "post"
+
+
+@dataclasses.dataclass
+class AddAdminAndEnsureNoDefaultUser:
+    email: str
+    password: str
+    endpoint: str = "api/users-admin"
+    port: int = 8083
+    method: Literal["put"] = "put"
 
 
 @pytest.fixture(scope="session")
 def fixture_fn(base_url, wandb_server_tag):
-    def fixture_util(cmd: UserFixtureCommand) -> bool:
-        endpoint = urllib.parse.urljoin(base_url.replace("8080", "9003"), cmd.endpoint)
-        data = {"command": cmd.command}
+    def fixture_util(
+        cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+    ) -> bool:
+        endpoint = urllib.parse.urljoin(
+            base_url.replace("8080", str(cmd.port)),
+            cmd.endpoint,
+        )
 
         if isinstance(cmd, UserFixtureCommand):
+            data = {"command": cmd.command}
             if cmd.username:
                 data["username"] = cmd.username
+            if cmd.admin is not None:
+                data["admin"] = cmd.admin
+        elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
+            data = [
+                {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
+                {"email": "local@wandb.com", "delete": True},
+            ]
         else:
             raise NotImplementedError(f"{cmd} is not implemented")
-        # trigger fixture with a POST request
-        response = requests.post(endpoint, json=data)
+        # trigger fixture
+        print(f"Triggering fixture: {data}")
+        response = getattr(requests, cmd.method)(endpoint, json=data)
         if response.status_code != 200:
             print(response.json())
             return False
@@ -793,7 +853,7 @@ def fixture_fn(base_url, wandb_server_tag):
 
 
 @pytest.fixture(scope=determine_scope)
-def user(worker_id: str, fixture_fn, base_url) -> str:
+def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
     username = f"user-{worker_id}-{random_string()}"
     command = UserFixtureCommand(command="up", username=username)
     fixture_fn(command)
@@ -809,8 +869,46 @@ def user(worker_id: str, fixture_fn, base_url) -> str:
     ):
         yield username
 
-        command = UserFixtureCommand(command="down", username=username)
+        if not wandb_debug:
+            command = UserFixtureCommand(command="down", username=username)
+            fixture_fn(command)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def debug(wandb_debug, fixture_fn, base_url):
+    if wandb_debug:
+        admin_username = f"admin-{random_string()}"
+        # disable default user and create an admin account that can be used to log in to the app
+        # and inspect the test runs.
+        command = UserFixtureCommand(
+            command="up",
+            username=admin_username,
+            admin=True,
+        )
         fixture_fn(command)
+        command = AddAdminAndEnsureNoDefaultUser(
+            email=admin_username,
+            password=admin_username,
+        )
+        fixture_fn(command)
+        message = (
+            f"{ConsoleFormatter.GREEN}"
+            "*****************************************************************\n"
+            "Admin user created for debugging:\n"
+            f"Proceed to {base_url} and log in with the following credentials:\n"
+            f"username: {admin_username}@wandb.com\n"
+            f"password: {admin_username}\n"
+            "*****************************************************************"
+            f"{ConsoleFormatter.END}"
+        )
+        print(message)
+        yield admin_username
+        print(message)
+        # input("\nPress any key to exit...")
+        # command = UserFixtureCommand(command="down_all")
+        # fixture_fn(command)
+    else:
+        yield None
 
 
 class DeliberateHTTPError(Exception):
@@ -1579,23 +1677,3 @@ def inject_file_stream_response(base_url, user):
         )
 
     yield helper
-
-
-# @pytest.fixture
-# def test_name(request):
-#     # change "test[1]" to "test__1__"
-#     name = urllib.parse.quote(request.node.name.replace("[", "__").replace("]", "__"))
-#     return name
-#
-#
-# @pytest.fixture
-# def test_dir(test_name):
-#     orig_dir = os.getcwd()
-#     root = os.path.abspath(os.path.dirname(__file__))
-#     test_dir = os.path.join(root, "logs", test_name)
-#     if os.path.exists(test_dir):
-#         shutil.rmtree(test_dir)
-#     mkdir_exists_ok(test_dir)
-#     os.chdir(test_dir)
-#     yield test_dir
-#     os.chdir(orig_dir)
