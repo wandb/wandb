@@ -1,8 +1,5 @@
 import _thread as thread
 import atexit
-from collections.abc import Mapping
-from datetime import timedelta
-from enum import IntEnum
 import functools
 import glob
 import json
@@ -14,8 +11,12 @@ import sys
 import threading
 import time
 import traceback
+from collections.abc import Mapping
+from datetime import timedelta
+from enum import IntEnum
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -26,23 +27,18 @@ from typing import (
     TextIO,
     Tuple,
     Type,
-    TYPE_CHECKING,
     Union,
 )
 
 import requests
+
 import wandb
-from wandb import errors
-from wandb import trigger
+from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.proto.wandb_internal_pb2 import (
-    MetricRecord,
-    PollExitResponse,
-    RunRecord,
-)
+from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -57,16 +53,9 @@ from wandb.util import (
     sentry_set_scope,
     to_forward_slash_path,
 )
-from wandb.viz import (
-    custom_chart,
-    CustomChart,
-    Visualize,
-)
+from wandb.viz import CustomChart, Visualize, custom_chart
 
-from . import wandb_artifacts
-from . import wandb_config
-from . import wandb_metric
-from . import wandb_summary
+from . import wandb_artifacts, wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
@@ -92,40 +81,38 @@ from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
-
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
         from typing import TypedDict
     else:
         from typing_extensions import TypedDict
 
-    from .data_types.base_types.wb_value import WBValue
-    from .wandb_alerts import AlertLevel
-
-    from .interface.artifacts import (
-        ArtifactEntry,
-        ArtifactManifest,
-    )
-    from .interface.interface import FilesDict, PolicyName
-
-    from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
         SampledHistoryResponse,
     )
 
+    from .data_types.base_types.wb_value import WBValue
+    from .interface.artifacts import ArtifactEntry, ArtifactManifest
+    from .interface.interface import FilesDict, PolicyName
+    from .lib.printer import PrinterJupyter, PrinterTerm
+    from .wandb_alerts import AlertLevel
+
     class GitSourceDict(TypedDict):
         remote: str
         commit: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ArtifactSourceDict(TypedDict):
         artifact: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ImageSourceDict(TypedDict):
         image: str
+        args: Sequence[str]
 
     class JobSourceDict(TypedDict, total=False):
         _version: str
@@ -2056,6 +2043,12 @@ class Run:
         self._freeze()
 
     def _log_job(self) -> None:
+        # don't produce a job if the run is sourced from a job
+        if (
+            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
+            is not None
+        ):
+            return
         artifact = None
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
@@ -2129,6 +2122,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2165,6 +2159,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     self._settings.program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2190,7 +2185,7 @@ class Run:
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "source": {"image": docker_image_name},
+            "source": {"image": docker_image_name, "args": self._settings._args},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
@@ -2812,9 +2807,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3591,9 +3584,14 @@ class _LazyArtifact(ArtifactInterface):
         self._assert_instance()
         return getattr(self._instance, item)
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         if not self._instance:
-            resp = self._future.get().response.log_artifact_response
+            future_get = self._future.get(timeout)
+            if not future_get:
+                raise errors.WaitTimeoutError(
+                    "Artifact upload wait timed out, failed to fetch Artifact response"
+                )
+            resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)

@@ -4,9 +4,7 @@ from warnings import simplefilter
 import numpy as np
 
 import wandb
-
-from wandb.sklearn import utils
-from wandb.sklearn import calculate
+from wandb.sklearn import calculate, utils
 
 from . import shared
 

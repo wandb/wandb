@@ -2,9 +2,9 @@
 """Test parent and child processes sharing a run. Compare to a run in a single process.
 example usage of `run.log` with user provide step less than the internal step"""
 
-from contextlib import redirect_stderr
 import io
 import multiprocessing as mp
+from contextlib import redirect_stderr
 
 import wandb
 import yea

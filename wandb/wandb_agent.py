@@ -12,13 +12,12 @@ import time
 import traceback
 from typing import Any, Dict, List
 
+import yaml
+
 import wandb
-from wandb import util
-from wandb import wandb_lib
-from wandb import wandb_sdk
+from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
-import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -371,6 +370,7 @@ class Agent:
             "args_no_hyphens": flags_no_hyphens,
             "args_no_boolean_flags": flags_no_booleans,
             "args_json": [json.dumps(flags_dict)],
+            "args_dict": flags_dict,
         }
 
     def _command_run(self, command):

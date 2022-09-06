@@ -9,9 +9,9 @@ import time
 from typing import Any, Dict, List, Union
 
 import wandb
+import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
-import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..builder.loader import load_builder
@@ -167,7 +167,8 @@ class LaunchAgent:
         _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
-            PROJECT_DOCKER_ARGS: {},
+            PROJECT_DOCKER_ARGS: (launch_spec.get("docker", {}) or {}).get("args", {})
+            or {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
 

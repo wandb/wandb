@@ -3,13 +3,11 @@ import binascii
 import codecs
 import colorsys
 import contextlib
-from datetime import date, datetime, timedelta
 import errno
 import functools
 import gzip
 import hashlib
 import importlib
-from importlib import import_module
 import json
 import logging
 import math
@@ -23,38 +21,42 @@ import re
 import shlex
 import socket
 import sys
-from sys import getsizeof
 import tarfile
 import tempfile
 import threading
 import time
 import traceback
+import urllib
+from datetime import date, datetime, timedelta
+from importlib import import_module
+from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
+    IO,
     Any,
     Callable,
     Dict,
     Generator,
-    IO,
     List,
     Mapping,
     Optional,
     Sequence,
+    Set,
     TextIO,
     Tuple,
     Type,
     Union,
 )
-import urllib
 from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
-import wandb
-from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
-from wandb.errors import CommError, term, UsageError
 import yaml
+
+import wandb
+from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
+from wandb.errors import CommError, UsageError, term
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
@@ -77,6 +79,8 @@ PLATFORM_LINUX = "linux"
 PLATFORM_BSD = "bsd"
 PLATFORM_DARWIN = "darwin"
 PLATFORM_UNKNOWN = "unknown"
+
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
 
 def get_platform_name() -> str:
@@ -572,6 +576,68 @@ def matplotlib_contains_images(obj: Any) -> bool:
     return any(len(ax.images) > 0 for ax in obj.axes)
 
 
+def _numpy_generic_convert(obj: Any) -> Any:
+    obj = obj.item()
+    if isinstance(obj, float) and math.isnan(obj):
+        obj = None
+    elif isinstance(obj, np.generic) and (
+        obj.dtype.kind == "f" or obj.dtype == "bfloat16"
+    ):
+        # obj is a numpy float with precision greater than that of native python float
+        # (i.e., float96 or float128) or it is of custom type such as bfloat16.
+        # in these cases, obj.item() does not return a native
+        # python float (in the first case - to avoid loss of precision,
+        # so we need to explicitly cast this down to a 64bit float)
+        obj = float(obj)
+    return obj
+
+
+def _find_all_matching_keys(
+    d: Dict,
+    match_fn: Callable[[Any], bool],
+    visited: Set[int] = None,
+    key_path: Tuple[Any, ...] = (),
+) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
+    """Recursively find all keys that satisfies a match function.
+
+    Args:
+       d: The dict to search.
+       match_fn: The function to determine if the key is a match.
+       visited: Keep track of visited nodes so we dont recurse forever.
+       key_path: Keep track of all the keys to get to the current node.
+    Yields:
+       (key_path, key): The location where the key was found, and the key
+    """
+
+    if visited is None:
+        visited = set()
+    me = id(d)
+    if me not in visited:
+        visited.add(me)
+        for key, value in d.items():
+            if match_fn(key):
+                yield key_path, key
+            if isinstance(value, dict):
+                yield from _find_all_matching_keys(
+                    value,
+                    match_fn,
+                    visited=visited,
+                    key_path=tuple(list(key_path) + [key]),
+                )
+
+
+def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
+    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
+    if not np_keys:
+        return d, False
+    for key_path, key in np_keys:
+        ptr = d
+        for k in key_path:
+            ptr = ptr[k]
+        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
+    return d, True
+
+
 def json_friendly(  # noqa: C901
     obj: Any,
 ) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:  # noqa: C901
@@ -611,19 +677,7 @@ def json_friendly(  # noqa: C901
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
-        obj = obj.item()
-        if isinstance(obj, float) and math.isnan(obj):
-            obj = None
-        elif isinstance(obj, np.generic) and (
-            obj.dtype.kind == "f" or obj.dtype == "bfloat16"
-        ):
-            # obj is a numpy float with precision greater than that of native python float
-            # (i.e., float96 or float128) or it is of custom type such as bfloat16.
-            # in these cases, obj.item() does not return a native
-            # python float (in the first case - to avoid loss of precision,
-            # so we need to explicitly cast this down to a 64bit float)
-            obj = float(obj)
-
+        obj = _numpy_generic_convert(obj)
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -636,6 +690,8 @@ def json_friendly(  # noqa: C901
         )
     elif isinstance(obj, float) and math.isnan(obj):
         obj = None
+    elif isinstance(obj, dict) and np:
+        obj, converted = _sanitize_numpy_keys(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:

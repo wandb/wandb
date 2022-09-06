@@ -1,8 +1,8 @@
-import wandb
-from wandb import data_types
+import matplotlib
 import numpy as np
 import pytest
-import matplotlib
+import wandb
+from wandb import data_types
 
 matplotlib.use("Agg")
 

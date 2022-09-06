@@ -23,7 +23,6 @@ W&B Notes:
 import numpy as np
 from tensorflow import keras
 from tensorflow.keras import layers
-
 from wandb import magic  # noqa: F401
 
 # Make sure this is reproducible

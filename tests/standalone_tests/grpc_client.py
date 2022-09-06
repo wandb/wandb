@@ -12,15 +12,13 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict
 
 import grpc
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.proto import wandb_server_pb2 as spb  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
-
+from wandb.proto import wandb_server_pb2 as spb  # type: ignore
 
 if TYPE_CHECKING:
     from google.protobuf.internal.containers import MessageMap

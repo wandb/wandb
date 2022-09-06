@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Dict, List, Optional, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
 from wandb import util
 

@@ -2,15 +2,15 @@
 meta.
 """
 
-from datetime import datetime
 import glob
 import json
 import logging
 import multiprocessing
 import os
-from shutil import copyfile
 import subprocess
 import sys
+from datetime import datetime
+from shutil import copyfile
 from urllib.parse import unquote
 
 from wandb import util
@@ -23,7 +23,6 @@ from ..lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from ..lib.git import GitRepo
-
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +180,7 @@ class Meta:
             pynvml.nvmlInit()
             self.data["gpu"] = pynvml.nvmlDeviceGetName(
                 pynvml.nvmlDeviceGetHandleByIndex(0)
-            ).decode("utf8")
+            )
             self.data["gpu_count"] = pynvml.nvmlDeviceGetCount()
         except pynvml.NVMLError:
             pass

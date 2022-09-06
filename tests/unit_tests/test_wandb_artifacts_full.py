@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta, timezone
 import time
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
 import wandb
+from wandb.errors import WaitTimeoutError
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -192,4 +193,30 @@ def test_local_references(wandb_init):
     artifact2 = wandb.Artifact("test_local_references_2", "dataset")
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
+    run.finish()
+
+
+def test_artifact_wait_success(wandb_init):
+    # Test artifact wait() timeout parameter
+    timeout = 60
+    leeway = 0.50
+    run = wandb_init()
+    artifact = wandb.Artifact("art", type="dataset")
+    start_timestamp = time.time()
+    run.log_artifact(artifact).wait(timeout=timeout)
+    elapsed_time = time.time() - start_timestamp
+    assert elapsed_time < timeout * (1 + leeway)
+    run.finish()
+
+
+@pytest.mark.parametrize("timeout", [0, 1e-6])
+def test_artifact_wait_failure(wandb_init, timeout):
+    # Test to expect WaitTimeoutError when wait timeout is reached and large image
+    # wasn't uploaded yet
+    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+    run = wandb_init()
+    with pytest.raises(WaitTimeoutError):
+        artifact = wandb.Artifact("art", type="image")
+        artifact.add(image, "image")
+        run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
