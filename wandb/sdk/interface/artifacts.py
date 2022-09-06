@@ -196,7 +196,7 @@ class Artifact:
     def version(self) -> str:
         """
         Returns:
-            (int): The version of this artifact. For example, if this
+            (str): The version of this artifact. For example, if this
                 is the first version of an artifact, its `version` will
                 be 'v0'.
         """
