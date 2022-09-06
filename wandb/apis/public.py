@@ -1149,7 +1149,16 @@ class User(Attrs):
             return None
 
     def __repr__(self):
-        return f"<User {self.email}>"
+        if "email" in self._attrs:
+            return f"<User {self._attrs['email']}>"
+        elif "username" in self._attrs:
+            return f"<User {self._attrs['username']}>"
+        elif "id" in self._attrs:
+            return f"<User {self._attrs['id']}>"
+        elif "name" in self._attrs:
+            return f"<User {self._attrs['name']!r}>"
+        else:
+            return "<User ???>"
 
 
 class Member(Attrs):
