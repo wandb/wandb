@@ -6,25 +6,25 @@ import os
 import queue
 import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Mapping,
     MutableMapping,
     MutableSet,
     NewType,
     Optional,
-    TYPE_CHECKING,
 )
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 
 if TYPE_CHECKING:
-    from wandb.sdk import wandb_settings
-    from wandb.sdk.interface.interface import PolicyName
-    from wandb.sdk.internal.file_pusher import FilePusher
     import wandb.vendor.watchdog.events as wd_events
     import wandb.vendor.watchdog.observers.api as wd_api
     import wandb.vendor.watchdog.observers.polling as wd_polling
+    from wandb.sdk import wandb_settings
+    from wandb.sdk.interface.interface import PolicyName
+    from wandb.sdk.internal.file_pusher import FilePusher
 else:
     wd_polling = util.vendor_import("watchdog.observers.polling")
     wd_events = util.vendor_import("watchdog.events")

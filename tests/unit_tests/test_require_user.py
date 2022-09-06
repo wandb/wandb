@@ -7,7 +7,7 @@ import wandb
 
 
 @pytest.fixture
-def require_mock(mocker):
+def mock_require(mocker):
     cleanup = []
 
     def fn(require, func):
@@ -24,7 +24,7 @@ def require_mock(mocker):
         wandb.__dict__.pop("require_" + require, None)
 
 
-def test_require_single(user_test, capsys):
+def test_require_single(capsys):
     with pytest.raises(wandb.errors.RequireError):
         wandb.require("something")
     captured = capsys.readouterr()
@@ -32,7 +32,7 @@ def test_require_single(user_test, capsys):
     assert "https://wandb.me/library-require" in captured.err
 
 
-def test_require_list(user_test, capsys):
+def test_require_list(capsys):
     with pytest.raises(wandb.errors.RequireError):
         wandb.require(["something", "another"])
     captured = capsys.readouterr()
@@ -40,30 +40,31 @@ def test_require_list(user_test, capsys):
     assert "unsupported requirement: another" in captured.err
 
 
-def test_require_version(user_test, capsys):
+def test_require_version(capsys):
     with pytest.raises(wandb.errors.RequireError):
         wandb.require("something@beta")
     captured = capsys.readouterr()
     assert "unsupported requirement: something" in captured.err
 
 
-def test_require_param(user_test, capsys):
+def test_require_param(capsys):
     with pytest.raises(wandb.errors.RequireError):
         wandb.require("something:param@beta")
     captured = capsys.readouterr()
     assert "unsupported requirement: something" in captured.err
 
 
-def test_require_good(user_test, require_mock):
+def test_require_good(mock_require):
     def mock_require_test(self):
         wandb.require_test = lambda x: x + 2
 
-    require_mock("test", mock_require_test)
+    mock_require("test", mock_require_test)
     wandb.require("test")
 
     assert wandb.require_test(2) == 4
 
 
-def test_require_require(user_test, require_mock):
+@pytest.mark.usefixtures("mock_require")
+def test_require_require():
     # This is a noop now that it is "released"
     wandb.require("require")

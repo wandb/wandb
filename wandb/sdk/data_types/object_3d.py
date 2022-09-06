@@ -1,7 +1,7 @@
 import codecs
 import json
 import os
-from typing import ClassVar, Sequence, Set, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, ClassVar, Sequence, Set, Type, Union
 
 import wandb
 from wandb import util

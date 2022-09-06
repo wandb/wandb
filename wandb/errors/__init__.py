@@ -102,6 +102,12 @@ class SweepError(Error):
     pass
 
 
+class WaitTimeoutError(Error):
+    """Raised when wait() timeout occurs before process is finished"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
@@ -114,4 +120,5 @@ __all__ = [
     "ExecutionError",
     "LaunchError",
     "SweepError",
+    "WaitTimeoutError",
 ]

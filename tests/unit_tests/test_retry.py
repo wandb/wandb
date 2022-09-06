@@ -4,7 +4,6 @@ import datetime
 from unittest import mock
 
 import pytest
-
 from wandb.sdk.lib import retry
 
 

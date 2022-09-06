@@ -1,16 +1,16 @@
 import wandb
-from wandb.sdk.internal.stats import SystemStats
 from wandb.sdk.internal.ipu import IPUProfiler
+from wandb.sdk.internal.stats import SystemStats
 
 CURRENT_PID = 123
 OTHER_PID = 456
 
 
 class MockGcIpuInfo:
-    def setUpdateMode(self, update_mode: bool):
+    def setUpdateMode(self, update_mode: bool):  # noqa: N802
         pass
 
-    def getDevices(self):
+    def getDevices(self):  # noqa: N802
         return [
             {
                 "user process id": str(OTHER_PID),
@@ -86,10 +86,10 @@ class MockIPUProfiler:
         return {"ipu.0.metric": 10}
 
 
-def test_ipu_system_stats(monkeypatch, fake_interface, test_settings):
+def test_ipu_system_stats(monkeypatch, mocked_interface, test_settings):
     monkeypatch.setattr(wandb.sdk.internal.stats.ipu, "is_ipu_available", lambda: True)
     monkeypatch.setattr(wandb.sdk.internal.stats.ipu, "IPUProfiler", MockIPUProfiler)
-    stats = SystemStats(settings=test_settings, interface=fake_interface)
+    stats = SystemStats(settings=test_settings(), interface=mocked_interface)
     expected_stats = {"ipu.0.metric": 10}
     actual_stats = {
         key: expected_stats[key]

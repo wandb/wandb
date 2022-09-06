@@ -8,20 +8,20 @@ from typing import Any, Dict, Optional
 
 import kubernetes  # type: ignore
 from kubernetes import client
+
 import wandb
 from wandb.errors import LaunchError
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.util import get_module
 
-from .build import _create_docker_build_ctx, generate_dockerfile
 from .._project_spec import (
-    create_metadata_file,
     EntryPoint,
-    get_entry_point_command,
     LaunchProject,
+    create_metadata_file,
+    get_entry_point_command,
 )
-from ..utils import get_kube_context_and_api_client, sanitize_wandb_api_key
-
+from ..utils import LOG_PREFIX, get_kube_context_and_api_client, sanitize_wandb_api_key
+from .build import _create_docker_build_ctx, generate_dockerfile
 
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
@@ -54,7 +54,7 @@ def _wait_for_completion(
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
             return False
-        wandb.termlog("Waiting for build job to complete...")
+        wandb.termlog(f"{LOG_PREFIX}Waiting for build job to complete...")
         if deadline_secs is not None and time.time() - start_time > deadline_secs:
             return False
 
@@ -81,7 +81,7 @@ class KanikoBuilder(AbstractBuilder):
             self.instance_mode = True
             # if no cloud provider info given, assume running in instance mode
             # kaniko pod will have access to build context store and ecr
-            wandb.termlog("Kaniko builder running in instance mode")
+            wandb.termlog(f"{LOG_PREFIX}Kaniko builder running in instance mode")
 
         self.build_context_store = builder_config.get("build-context-store", None)
         if self.build_context_store is None:
@@ -113,7 +113,7 @@ class KanikoBuilder(AbstractBuilder):
                 )
             else:
                 wandb.termlog(
-                    "Builder not supplied with credentials, assuming instance mode."
+                    f"{LOG_PREFIX}Builder not supplied with credentials, assuming instance mode."
                 )
                 d = {
                     "config.json": json.dumps(
@@ -182,6 +182,37 @@ class KanikoBuilder(AbstractBuilder):
         else:
             raise LaunchError("Unsupported storage provider")
 
+    def check_build_required(
+        self, repository: str, launch_project: LaunchProject
+    ) -> bool:
+        # TODO(kyle): Robustify to remote the trycatch
+        try:
+            ecr_provider = self.cloud_provider.lower()
+            if ecr_provider == "aws" and repository:
+                # TODO: pass in registry config
+                region = repository.split(".")[3]
+                boto3 = get_module(
+                    "boto3",
+                    "AWS ECR requires boto3,  install with pip install wandb[launch]",
+                )
+                ecr_client = boto3.client("ecr", region_name=region)
+                repo_name = repository.split("/")[-1]
+                try:
+                    ecr_client.describe_images(
+                        repositoryName=repo_name,
+                        imageIds=[{"imageTag": launch_project.image_tag}],
+                    )
+                    return False
+                except ecr_client.exceptions.ImageNotFoundException:
+                    return True
+            else:
+                return True
+        except Exception as e:
+            wandb.termlog(
+                f"{LOG_PREFIX}Failed while checking if build is required, defaulting to building: {e}"
+            )
+            return False
+
     def build_image(
         self,
         launch_project: LaunchProject,
@@ -193,6 +224,9 @@ class KanikoBuilder(AbstractBuilder):
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
         image_uri = f"{repository}:{launch_project.image_tag}"
+        wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
+        if not self.check_build_required(repository, launch_project):
+            return image_uri
         entry_cmd = " ".join(
             get_entry_point_command(entrypoint, launch_project.override_args)
         )
@@ -228,7 +262,7 @@ class KanikoBuilder(AbstractBuilder):
             image_uri,
             build_context,
         )
-        wandb.termlog(f"Created kaniko job {build_job_name}")
+        wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
         # TODO: use same client as kuberentes.py
         batch_v1 = client.BatchV1Api(api_client)
@@ -245,9 +279,11 @@ class KanikoBuilder(AbstractBuilder):
             ):
                 raise Exception(f"Failed to build image in kaniko for job {run_id}")
         except Exception as e:
-            wandb.termerror(f"Exception when creating Kubernetes resources: {e}\n")
+            wandb.termerror(
+                f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
+            )
         finally:
-            wandb.termlog("cleaning up resources")
+            wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
             try:
                 # should we clean up the s3 build contexts? can set bucket level policy to auto deletion
                 core_v1.delete_namespaced_config_map(config_map_name, "wandb")

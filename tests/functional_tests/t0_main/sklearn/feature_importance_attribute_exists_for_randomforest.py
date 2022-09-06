@@ -17,10 +17,10 @@ assert:
     - :wandb:runs[0][summary][feature_importances][ncols]: 2
     - :wandb:runs[0][summary][feature_importances][nrows]: 30
 """
+import wandb
 from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-import wandb
 
 wandb.init("my-scikit-integration")
 

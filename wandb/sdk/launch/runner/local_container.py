@@ -9,21 +9,17 @@ from typing import Any, Dict, List, Optional
 import wandb
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 
-from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
-from ..builder.build import (
-    docker_image_exists,
-    get_env_vars_dict,
-    pull_docker_image,
-)
+from .._project_spec import LaunchProject, get_entry_point_command
+from ..builder.build import docker_image_exists, get_env_vars_dict, pull_docker_image
 from ..utils import (
-    _is_wandb_dev_uri,
-    _is_wandb_local_uri,
+    LOG_PREFIX,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    _is_wandb_dev_uri,
+    _is_wandb_local_uri,
     sanitize_wandb_api_key,
 )
-
+from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
 
@@ -55,10 +51,8 @@ class LocalSubmittedRun(AbstractRun):
             except OSError:
                 # The child process may have exited before we attempted to terminate it, so we
                 # ignore OSErrors raised during child process termination
-                _logger.info(
-                    "Failed to terminate child process (PID %s). The process may have already exited.",
-                    self.command_proc.pid,
-                )
+                _msg = f"{LOG_PREFIX}Failed to terminate child process PID {self.command_proc.pid}"
+                _logger.debug(_msg)
             self.command_proc.wait()
 
     def get_status(self) -> Status:
@@ -133,7 +127,8 @@ class LocalContainerRunner(AbstractRunner):
         if not self.ack_run_queue_item(launch_project):
             return None
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
-        wandb.termlog(f"Launching run in docker with command: {sanitized_cmd_str}")
+        _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
+        wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             run.wait()

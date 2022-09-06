@@ -1,7 +1,6 @@
 import os
 import pathlib
 
-
 CONFIG = {
     "include": [
         "functional_tests",

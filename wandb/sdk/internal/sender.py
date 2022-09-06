@@ -3,38 +3,35 @@ sender.
 """
 
 
-from collections import defaultdict
-from datetime import datetime
 import json
 import logging
 import os
 import queue
-from queue import Queue
 import threading
 import time
+from collections import defaultdict
+from datetime import datetime
+from queue import Queue
 from typing import (
+    TYPE_CHECKING,
     Any,
-    cast,
     Dict,
     Generator,
     List,
     NewType,
     Optional,
     Tuple,
-    TYPE_CHECKING,
+    cast,
 )
 
-from pkg_resources import parse_version
 import requests
+
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import redirect
 
-from . import artifacts, file_stream, internal_api, update
-from .file_pusher import FilePusher
-from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import (
@@ -48,9 +45,13 @@ from ..lib import (
 )
 from ..lib.proto_util import message_to_dict
 from ..wandb_settings import Settings
-
+from . import artifacts, file_stream, internal_api, update
+from .file_pusher import FilePusher
+from .settings_static import SettingsDict, SettingsStatic
 
 if TYPE_CHECKING:
+    import sys
+
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactRecord,
         HttpResponse,
@@ -60,8 +61,6 @@ if TYPE_CHECKING:
         RunExitResult,
         RunRecord,
     )
-
-    import sys
 
     if sys.version_info >= (3, 8):
         from typing import Literal
@@ -752,7 +751,7 @@ class SendManager:
             error = self._maybe_setup_resume(run)
 
         if error is not None:
-            if record.control.req_resp:
+            if record.control.req_resp or record.control.mailbox_slot:
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
                 result.run_result.error.CopyFrom(error)
@@ -782,7 +781,7 @@ class SendManager:
         self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
 
-        if record.control.req_resp:
+        if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
@@ -1251,6 +1250,8 @@ class SendManager:
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
+        from pkg_resources import parse_version
+
         assert self._pusher
         saver = artifacts.ArtifactSaver(
             api=self._api,
@@ -1288,6 +1289,8 @@ class SendManager:
         )
 
     def send_alert(self, record: "Record") -> None:
+        from pkg_resources import parse_version
+
         alert = record.alert
         max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(

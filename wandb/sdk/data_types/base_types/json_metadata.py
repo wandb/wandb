@@ -1,11 +1,11 @@
 import codecs
 import os
-from typing import Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Type, Union
 
 from wandb import util
 
-from .media import Media
 from .._private import MEDIA_TMP
+from .media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_artifacts import Artifact as LocalArtifact

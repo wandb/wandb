@@ -10,7 +10,7 @@ import socket
 import sys
 import threading
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb import util
@@ -19,16 +19,18 @@ from wandb.viz import CustomChart
 
 from . import run as internal_run
 
-
 if TYPE_CHECKING:
-    from ..interface.interface_queue import InterfaceQueue
-    from .settings_static import SettingsStatic
+    from queue import PriorityQueue
     from typing import Dict, List, Optional
+
+    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+
     from wandb.proto.wandb_internal_pb2 import RunRecord
     from wandb.sdk.interface.interface import FilesDict
-    from queue import PriorityQueue
-    from tensorboard.compat.proto.event_pb2 import ProtoEvent
-    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+
+    from ..interface.interface_queue import InterfaceQueue
+    from .settings_static import SettingsStatic
 
     HistoryDict = Dict[str, Any]
 

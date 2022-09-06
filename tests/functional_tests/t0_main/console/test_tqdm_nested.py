@@ -4,7 +4,6 @@ import time
 import tqdm
 import wandb
 
-
 run = wandb.init()
 wandb.log(dict(this=2))
 print("before progress")

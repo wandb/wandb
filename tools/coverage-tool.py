@@ -76,14 +76,14 @@ def matrix_expand(loc_dict_tuple_list):
             product = itertools.product(*groups)
             product = list(product)
             for subs in product:
+                data = copy.deepcopy(containing_dict)
+                toxenv = data["toxenv"]
                 for k, v in subs:
-                    data = copy.deepcopy(containing_dict)
-                    toxenv = data["toxenv"]
                     replace = f"<<matrix.{k}>>"
                     assert replace in toxenv, f"Cant find {replace} in {toxenv}"
-                    toxenv = toxenv.replace(replace, v)
-                    data["toxenv"] = toxenv
-                    ret.append((location, data))
+                    toxenv = toxenv.replace(replace, str(v))
+                data["toxenv"] = toxenv
+                ret.append((location, data))
         else:
             ret.append((location, containing_dict))
     return ret
@@ -170,6 +170,7 @@ def coverage_coveragerc_check(toxenv_list, args):
     paths = cf.get("paths", "canonicalsrc")
     paths = paths.split()
 
+    toxenv_list = list(set(toxenv_list))
     toxenv_list.sort()
 
     # lets generate what paths should look like

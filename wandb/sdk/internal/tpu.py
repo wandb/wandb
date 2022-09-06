@@ -3,7 +3,6 @@ import os
 import threading
 import time
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +15,9 @@ class TPUProfiler:
         gcp_project=None,
         duration_ms=1000,
     ):
-        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore
+        from tensorflow.python.distribute.cluster_resolver import (  # type: ignore
+            tpu_cluster_resolver,
+        )
         from tensorflow.python.profiler import profiler_client  # type: ignore
 
         if service_addr:
@@ -90,7 +91,9 @@ def is_tpu_available() -> bool:
         return False
 
     try:
-        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore # noqa
+        from tensorflow.python.distribute.cluster_resolver import (  # type: ignore # noqa
+            tpu_cluster_resolver,
+        )
         from tensorflow.python.profiler import profiler_client  # type: ignore # noqa
     except (
         ImportError,

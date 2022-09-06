@@ -1,7 +1,7 @@
-from filecmp import dircmp
 import os
 import sys
 import time
+from filecmp import dircmp
 
 import wandb
 

@@ -1,5 +1,5 @@
-from wandb.sdk.lib.printer import PrinterTerm, CRITICAL, DEBUG, NOTSET
 import pytest
+from wandb.sdk.lib.printer import CRITICAL, DEBUG, NOTSET, PrinterTerm
 
 
 @pytest.mark.parametrize("level", [1.3, {}, []])

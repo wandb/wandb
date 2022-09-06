@@ -1,13 +1,12 @@
 import pytest
-
 from sklearn.naive_bayes import MultinomialNB
-from wandb.plots.roc import roc
-from wandb.plots.precision_recall import precision_recall
 from wandb.plots.heatmap import heatmap
+from wandb.plots.precision_recall import precision_recall
+from wandb.plots.roc import roc
 
 
 @pytest.fixture
-def dummy_classifier(request):
+def dummy_classifier():
     nb = MultinomialNB()
     x_train = [
         [1, 2],
@@ -32,17 +31,25 @@ def dummy_classifier(request):
 
 
 def test_roc(dummy_classifier):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+    *_, y_test, _, y_probas = dummy_classifier
     r = roc(y_test, y_probas)
 
     assert r.value.data[0] == [0, 0.0, 0.0]
 
 
 def test_precision_recall(dummy_classifier):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+    sklearn = pytest.importorskip("sklearn")
+    from pkg_resources import parse_version
+
+    # note: sklearn fixed the calculation of precision and recall see: https://github.com/scikit-learn/scikit-learn/issues/23213
+    *_, y_test, _, y_probas = dummy_classifier
     pr = precision_recall(y_test, y_probas)
 
-    assert pr.value.data[0] == [0, 1.0, 1.0]
+    assert (
+        pr.value.data[0] == [0, 1.0, 1.0]
+        if parse_version(sklearn.__version__) < parse_version("1.1")
+        else [0, 0.5, 1.0]
+    )
 
 
 def test_heatmap():

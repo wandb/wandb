@@ -3,16 +3,21 @@ import pprint
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
-from wandb.apis.internal import Api
 import wandb.apis.public as public
-from wandb.sdk.launch.utils import construct_launch_spec, validate_launch_spec_source
+from wandb.apis.internal import Api
+from wandb.errors import LaunchError
+from wandb.sdk.launch.utils import (
+    LOG_PREFIX,
+    construct_launch_spec,
+    validate_launch_spec_source,
+)
 
 
 def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
     try:
         res = api.push_to_run_queue(queue, launch_spec)
     except Exception as e:
-        print("Exception:", e)
+        wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
     return res
 
@@ -151,9 +156,9 @@ def _launch_add(
     res = push_to_queue(api, queue, launch_spec)
 
     if res is None or "runQueueItemId" not in res:
-        raise Exception("Error adding run to queue")
-    wandb.termlog(f"Added run to queue {queue}.")
-    wandb.termlog(f"Launch spec:\n{pprint.pformat(launch_spec)}\n")
+        raise LaunchError("Error adding run to queue")
+    wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue}.")
+    wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
     public_api = public.Api()
     queued_run_entity = launch_spec.get("entity")
     queued_run_project = launch_spec.get("project")
