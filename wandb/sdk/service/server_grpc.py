@@ -6,17 +6,17 @@ Implement grpc servicer.
 from typing import TYPE_CHECKING
 
 import grpc
+
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from .service_base import _pbmap_apply_dict
-from .streams import StreamMux
 from .. import lib as wandb_lib
 from ..lib.proto_util import settings_dict_from_pbmap
-
+from .service_base import _pbmap_apply_dict
+from .streams import StreamMux
 
 if TYPE_CHECKING:
 
@@ -228,6 +228,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         iface._publish_output(output_data)
         # make up a response even though this was async
         result = pb.OutputResult()
+        return result
+
+    def OutputRaw(  # noqa: N802
+        self, output_data: pb.OutputRawRecord, context: grpc.ServicerContext
+    ) -> pb.OutputRawResult:
+        stream_id = output_data._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_output_raw(output_data)
+        # make up a response even though this was async
+        result = pb.OutputRawResult()
         return result
 
     def Files(  # noqa: N802

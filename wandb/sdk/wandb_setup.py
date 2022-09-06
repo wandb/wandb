@@ -15,20 +15,12 @@ import logging
 import os
 import sys
 import threading
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 
-from . import wandb_manager
-from . import wandb_settings
+from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
-
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
 logger = None
@@ -82,12 +74,13 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
     _manager: Optional[wandb_manager._Manager]
+    _pid: int
 
     def __init__(
         self,
+        pid: int,
         settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         environ: Optional[Dict[str, Any]] = None,
-        pid: Optional[int] = None,
     ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
@@ -122,6 +115,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         early_logger: Optional[_EarlyLogger] = None,
     ):
         s = wandb_settings.Settings()
+        s._apply_base(pid=self._pid, _logger=early_logger)
         s._apply_config_files(_logger=early_logger)
         s._apply_env_vars(self._environ, _logger=early_logger)
 

@@ -16,16 +16,14 @@ import logging
 import secrets
 import sys
 import threading
-from typing import cast
-from typing import Optional
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Optional, cast
 
 if TYPE_CHECKING:
     import multiprocessing
     import queue
     import socket
     from typing import Union
+
     from wandb.proto import wandb_internal_pb2 as pb
     from wandb.proto import wandb_server_pb2 as spb
 
@@ -46,6 +44,10 @@ logger = logging.getLogger(__name__)
 
 ANNOTATE_QUEUE_NAME = "_DEBUGLOG_QUEUE_NAME"
 
+# capture stdout and stderr before anyone messes with them
+stdout_write = sys.__stdout__.write
+stderr_write = sys.__stderr__.write
+
 
 def _log(
     msg_type: str,
@@ -56,7 +58,7 @@ def _log(
     resource: str = None,
 ) -> None:
     prefix = "TRACELOG(1)"
-    tname = threading.currentThread().getName()
+    tname = threading.current_thread().name
     now = datetime.datetime.now()
     ts = now.strftime("%H%M%S.%f")
     arrow = "<-" if is_response else "->"
@@ -75,9 +77,9 @@ def _log(
     relay = relay or "-"
     line = f"{prefix} {arrow} {ts} {record_id:16} {log_type:7} {resource:8} {tname:16} {msg_type:32} {uuid:32} {relay:32}"
     if tracelog_mode == "stdout":
-        print(line, file=sys.__stdout__)
+        stdout_write(f"{line}\n")
     elif tracelog_mode == "stderr":
-        print(line, file=sys.__stderr__)
+        stderr_write(f"{line}\n")
     elif tracelog_mode == "logger":
         logger.info(line)
 

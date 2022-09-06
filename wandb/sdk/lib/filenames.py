@@ -2,7 +2,6 @@
 import os
 from typing import Callable, Generator
 
-
 WANDB_DIRS = ("wandb", ".wandb")
 
 CONFIG_FNAME = "config.yaml"

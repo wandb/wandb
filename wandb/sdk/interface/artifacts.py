@@ -5,21 +5,16 @@ import contextlib
 import hashlib
 import os
 import random
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import wandb
-from wandb import env
-from wandb import util
+from wandb import env, util
 from wandb.data_types import WBValue
+
+if TYPE_CHECKING:
+    # need this import for type annotations, but want to avoid circular dependency
+    from wandb.sdk import wandb_artifacts
+    from wandb.sdk.internal import progress
 
 
 if TYPE_CHECKING:
@@ -91,7 +86,12 @@ class ArtifactManifest:
     def version(cls):
         pass
 
-    def __init__(self, artifact, storage_policy, entries=None):
+    def __init__(
+        self,
+        artifact,
+        storage_policy: "wandb_artifacts.WandbStoragePolicy",
+        entries=None,
+    ) -> None:
         self.artifact = artifact
         self.storage_policy = storage_policy
         self.entries = entries or {}
@@ -196,7 +196,7 @@ class Artifact:
     def version(self) -> str:
         """
         Returns:
-            (int): The version of this artifact. For example, if this
+            (str): The version of this artifact. For example, if this
                 is the first version of an artifact, its `version` will
                 be 'v0'.
         """
@@ -794,7 +794,7 @@ class StoragePolicy:
         artifact_manifest_id: str,
         entry: ArtifactEntry,
         preparer: "StepPrepare",
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Optional["progress.ProgressFn"] = None,
     ) -> bool:
         raise NotImplementedError
 

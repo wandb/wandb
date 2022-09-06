@@ -202,13 +202,13 @@ Ref | Message | File | Description
 
 TODO: Document Defer Finite State Machine
 
-[backend.py]: https://github.com/wandb/client/blob/master/wandb/sdk/backend/backend.py
-[handler.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/handler.py
-[writer.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/writer.py
-[sender.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/sender.py
-[interface.py]: https://github.com/wandb/client/blob/master/wandb/sdk/interface/interface.py
-[internal_api.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal_api.py
-[wandb_init.py]: https://github.com/wandb/client/blob/master/wandb/sdk/wandb_init.py
-[internal.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal.py
-[file_stream.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/file_stream.py
-[wandb_internal.proto]: https://github.com/wandb/client/blob/master/wandb/proto/wandb_internal.proto
+[backend.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/backend/backend.py
+[handler.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/internal/handler.py
+[writer.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/internal/writer.py
+[sender.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/internal/sender.py
+[interface.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/interface/interface.py
+[internal_api.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/internal/internal_api.py
+[wandb_init.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/wandb_init.py
+[internal.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/internal/internal.py
+[file_stream.py]: https://github.com/wandb/wandb/blob/master/wandb/sdk/internal/file_stream.py
+[wandb_internal.proto]: https://github.com/wandb/wandb/blob/master/wandb/proto/wandb_internal.proto

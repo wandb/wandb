@@ -1,8 +1,5 @@
 import _thread as thread
 import atexit
-from collections.abc import Mapping
-from datetime import timedelta
-from enum import IntEnum
 import functools
 import glob
 import json
@@ -14,8 +11,12 @@ import sys
 import threading
 import time
 import traceback
+from collections.abc import Mapping
+from datetime import timedelta
+from enum import IntEnum
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -28,39 +29,34 @@ from typing import (
     Type,
     Union,
 )
-from typing import TYPE_CHECKING
 
 import requests
+
 import wandb
-from wandb import errors
-from wandb import trigger
+from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.proto.wandb_internal_pb2 import (
-    MetricRecord,
-    PollExitResponse,
-    RunRecord,
+from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
+from wandb.sdk.lib.import_hooks import (
+    register_post_import_hook,
+    unregister_post_import_hook,
 )
 from wandb.util import (
+    _is_artifact_object,
     _is_artifact_string,
+    _is_artifact_version_weave_dict,
     _is_py_path,
     add_import_hook,
     parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
 )
-from wandb.viz import (
-    custom_chart,
-    CustomChart,
-    Visualize,
-)
+from wandb.viz import CustomChart, Visualize, custom_chart
 
-from . import wandb_artifacts
-from . import wandb_config
-from . import wandb_metric
-from . import wandb_summary
+from . import wandb_artifacts, wandb_config, wandb_metric, wandb_summary
+from .data_types._dtypes import TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
@@ -76,6 +72,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
+from .lib.filenames import DIFF_FNAME
 from .lib.git import GitRepo
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
@@ -84,23 +81,46 @@ from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
-
 if TYPE_CHECKING:
-    from .data_types.base_types.wb_value import WBValue
-    from .wandb_alerts import AlertLevel
+    if sys.version_info >= (3, 8):
+        from typing import TypedDict
+    else:
+        from typing_extensions import TypedDict
 
-    from .interface.artifacts import (
-        ArtifactEntry,
-        ArtifactManifest,
-    )
-    from .interface.interface import FilesDict, PolicyName
-
-    from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
         SampledHistoryResponse,
     )
+
+    from .data_types.base_types.wb_value import WBValue
+    from .interface.artifacts import ArtifactEntry, ArtifactManifest
+    from .interface.interface import FilesDict, PolicyName
+    from .lib.printer import PrinterJupyter, PrinterTerm
+    from .wandb_alerts import AlertLevel
+
+    class GitSourceDict(TypedDict):
+        remote: str
+        commit: str
+        entrypoint: List[str]
+        args: Sequence[str]
+
+    class ArtifactSourceDict(TypedDict):
+        artifact: str
+        entrypoint: List[str]
+        args: Sequence[str]
+
+    class ImageSourceDict(TypedDict):
+        image: str
+        args: Sequence[str]
+
+    class JobSourceDict(TypedDict, total=False):
+        _version: str
+        source_type: str
+        source: Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
+        input_types: Dict[str, Any]
+        output_types: Dict[str, Any]
+        runtime: Optional[str]
 
 
 logger = logging.getLogger("wandb")
@@ -208,7 +228,10 @@ class _run_decorator:  # noqa: N801
             ):
 
                 if cls._is_attaching:
-                    message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{cls._is_attaching}`"
+                    message = (
+                        f"Trying to attach `{func.__name__}` "
+                        f"while in the middle of attaching `{cls._is_attaching}`"
+                    )
                     raise RuntimeError(message)
                 cls._is_attaching = func.__name__
                 try:
@@ -228,10 +251,12 @@ class _run_decorator:  # noqa: N801
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
             # `_attach_id` is only assigned in service hence for all service cases
-            # it will be a passthrough. We don't pickle non-service so again a way to see that we are in non-service case
+            # it will be a passthrough. We don't pickle non-service so again a way
+            # to see that we are in non-service case
             if getattr(self, "_attach_id", None) is None:
                 # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
-                #   - for non-fork case the object is shared through pickling and we don't pickle non-service so will be None
+                #   - for non-fork case the object is shared through pickling,
+                #     and we don't pickle non-service so will be None
                 #   - for fork case the new process share mem space hence the value would be of parent process.
                 _init_pid = getattr(self, "_init_pid", None)
                 if _init_pid != os.getpid():
@@ -241,7 +266,8 @@ class _run_decorator:  # noqa: N801
                         _init_pid,
                         wburls.get("multiprocess"),
                     )
-                    # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
+                    # - if this process was pickled in non-service case,
+                    #   we ignore the attributes (since pickle is not supported)
                     # - for fork case will use the settings of the parent process
                     # - only point of inconsistent behavior from forked and non-forked cases
                     settings = getattr(self, "_settings", None)
@@ -350,6 +376,7 @@ class Run:
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
+    _redirect_raw_cb: Optional[Callable[[str, str], None]]
     _output_writer: Optional["filesystem.CRDedupedFile"]
     _quiet: Optional[bool]
 
@@ -364,7 +391,6 @@ class Run:
     _final_summary: Optional["GetSummaryResponse"]
     _poll_exit_response: Optional[PollExitResponse]
 
-    _use_redirect: bool
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
     _artifact_slots: List[str]
@@ -378,19 +404,30 @@ class Run:
     _is_attached: bool
     _settings: Settings
 
+    _launch_artifacts: Optional[Dict[str, Any]]
+
     def __init__(
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
+        sweep_config: Optional[Dict[str, Any]] = None,
+        launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._init(settings=settings, config=config)
+        self._init(
+            settings=settings,
+            config=config,
+            sweep_config=sweep_config,
+            launch_config=launch_config,
+        )
 
     def _init(
         self,
         settings: Settings,
         config: Optional[Dict[str, Any]] = None,
+        sweep_config: Optional[Dict[str, Any]] = None,
+        launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
 
         self._settings = settings
@@ -428,22 +465,18 @@ class Run:
         self._notes = None
         self._tags = None
         self._remote_url = None
-        self._last_commit = None
+        self._commit = None
 
         self._hooks = None
         self._teardown_hooks = []
-        self._redirect_cb = None
         self._out_redir = None
         self._err_redir = None
-        self.stdout_redirector = None
-        self.stderr_redirector = None
-        self._save_stdout = None
-        self._save_stderr = None
         self._stdout_slave_fd = None
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
         self._quiet = self._settings.quiet
+        self._code_artifact_info: Optional[Dict[str, str]] = None
 
         self._output_writer = None
         self._used_artifact_slots: Dict[str, str] = {}
@@ -467,7 +500,6 @@ class Run:
         self._telemetry_obj_dirty = False
 
         self._atexit_cleanup_called = False
-        self._use_redirect = True
 
         # Pull info from settings
         self._init_from_settings(self._settings)
@@ -483,10 +515,22 @@ class Run:
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
+        self._launch_artifact_mapping: Dict[str, Any] = {}
+        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if self._settings.save_code and self._settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", self._settings.program_relpath)
             )
+        if sweep_config:
+            self._config.update_locked(
+                sweep_config, user="sweep", _allow_val_change=True
+            )
+
+        if launch_config:
+            self._config.update_locked(
+                launch_config, user="launch", _allow_val_change=True
+            )
+
         self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
@@ -502,38 +546,22 @@ class Run:
         if self._settings._require_service:
             self._attach_id = self._settings.run_id
 
-    def _populate_sweep_or_launch_config(
-        self, sweep_config: Optional[Dict[str, Any]]
-    ) -> None:
-        self._launch_artifact_mapping: Dict[str, Any] = {}
-        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
-        if sweep_config:
-            self._config.update_locked(
-                sweep_config, user="sweep", _allow_val_change=True
-            )
+    def _set_iface_pid(self, iface_pid: int) -> None:
+        self._iface_pid = iface_pid
 
-        if self._settings.launch and (
-            os.environ.get("WANDB_CONFIG") is not None
-            or os.environ.get("WANDB_ARTIFACTS") is not None
-        ):
-            if os.environ.get("WANDB_CONFIG") is not None:
-                try:
-                    new_config = json.loads(os.environ.get("WANDB_CONFIG", "{}"))
-                    self._config.update_locked(
-                        new_config, user="launch", _allow_val_change=True
-                    )
-                except (ValueError, SyntaxError):
-                    wandb.termwarn("Malformed WANDB_CONFIG, using original config")
-            if os.environ.get("WANDB_ARTIFACTS") is not None:
-                try:
-                    artifacts: Dict[str, Any] = json.loads(
-                        os.environ.get("WANDB_ARTIFACTS", "{}")
-                    )
-                    self._initialize_launch_artifact_maps(artifacts)
-                except (ValueError, SyntaxError):
-                    wandb.termwarn(
-                        "Malformed WANDB_ARTIFACTS, using original artifacts"
-                    )
+    def _set_iface_port(self, iface_port: int) -> None:
+        self._iface_port = iface_port
+
+    def _handle_launch_artifact_overrides(self) -> None:
+        if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
+            try:
+                artifacts: Dict[str, Any] = json.loads(
+                    os.environ.get("WANDB_ARTIFACTS", "{}")
+                )
+            except (ValueError, SyntaxError):
+                wandb.termwarn("Malformed WANDB_ARTIFACTS, using original artifacts")
+            else:
+                self._initialize_launch_artifact_maps(artifacts)
 
         elif (
             self._settings.launch
@@ -546,18 +574,6 @@ class Run:
             if launch_config.get("overrides", {}).get("artifacts") is not None:
                 artifacts = launch_config.get("overrides").get("artifacts")
                 self._initialize_launch_artifact_maps(artifacts)
-
-            launch_run_config = launch_config.get("overrides", {}).get("run_config")
-            if launch_run_config:
-                self._config.update_locked(
-                    launch_run_config, user="launch", _allow_val_change=True
-                )
-
-    def _set_iface_pid(self, iface_pid: int) -> None:
-        self._iface_pid = iface_pid
-
-    def _set_iface_port(self, iface_port: int) -> None:
-        self._iface_port = iface_port
 
     def _initialize_launch_artifact_maps(self, artifacts: Dict[str, Any]) -> None:
         for key, item in artifacts.items():
@@ -596,27 +612,6 @@ class Run:
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
             raise Exception(f"Attribute {attr} is not supported on Run object.")
         super().__setattr__(attr, value)
-
-    @staticmethod
-    def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
-        telem_map = dict(
-            pytorch_ignite="ignite",
-            transformers_huggingface="transformers",
-        )
-
-        # calculate mod_map, a mapping from module_name to telem_name
-        mod_map = dict()
-        for desc in imp.DESCRIPTOR.fields:
-            if desc.type != desc.TYPE_BOOL:
-                continue
-            telem_name = desc.name
-            mod_name = telem_map.get(telem_name, telem_name)
-            mod_map[mod_name] = telem_name
-
-        # set telemetry field for every module loaded that we track
-        mods_set = set(sys.modules)
-        for mod in mods_set.intersection(mod_map):
-            setattr(imp, mod_map[mod], True)
 
     def _update_settings(self, settings: Settings) -> None:
         self._settings = settings
@@ -658,20 +653,26 @@ class Run:
             for tag in self._tags:
                 run.tags.append(tag)
         if self._start_time is not None:
-            run.start_time.FromSeconds(int(self._start_time))
+            run.start_time.FromMicroseconds(int(self._start_time * 1e6))
         if self._remote_url is not None:
             run.git.remote_url = self._remote_url
-        if self._last_commit is not None:
-            run.git.last_commit = self._last_commit
+        if self._commit is not None:
+            run.git.commit = self._commit
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
+        # Use user provided git info if available otherwise resolve it from the environment
         try:
-            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+            repo = GitRepo(
+                root=self._settings.git_root,
+                remote=self._settings.git_remote,
+                remote_url=self._settings.git_remote_url,
+                commit=self._settings.git_commit,
+                lazy=False,
+            )
+            self._remote_url, self._commit = repo.remote_url, repo.last_commit
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
-            return
-        self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
@@ -827,7 +828,7 @@ class Run:
         return (
             self._start_time
             if not self._run_obj
-            else self._run_obj.start_time.ToSeconds()
+            else (self._run_obj.start_time.ToMicroseconds() / 1e6)
         )
 
     @property  # type: ignore
@@ -932,7 +933,7 @@ class Run:
         Arguments:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
             name: (str, optional) The name of our code artifact. By default, we'll name
-                the artifact `source-$RUN_ID`. There may be scenarios where you want
+                the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
@@ -948,13 +949,19 @@ class Run:
 
             Advanced usage
             ```python
-            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            run.log_code(
+                "../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb")
+            )
             ```
 
         Returns:
             An `Artifact` object if code was logged
         """
-        name = name or "{}-{}".format("source", self._run_id)
+        if name is None:
+            name_string = wandb.util.make_artifact_name_safe(
+                f"{self._project}-{self._settings.program_relpath}"
+            )
+            name = f"source-{name_string}"
         art = wandb.Artifact(name, "code")
         files_added = False
         if root is not None:
@@ -972,6 +979,8 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
+        self._code_artifact_info = {"name": name, "client_id": art._client_id}
+
         return self._log_artifact(art)
 
     def get_url(self) -> Optional[str]:
@@ -1138,26 +1147,41 @@ class Run:
             self._backend.interface.publish_config(key=key, val=val, data=data)
 
     def _config_artifact_callback(
-        self, key: str, val: Union[str, Artifact]
+        self, key: str, val: Union[str, Artifact, dict]
     ) -> Union[Artifact, public.Artifact]:
-        if _is_artifact_string(val):
+        # artifacts can look like dicts as they are passed into the run config
+        # since the run config stores them on the backend as a dict with fields shown
+        # in wandb.util.artifact_to_json
+        if _is_artifact_version_weave_dict(val):
+            assert isinstance(val, dict)
+            public_api = self._public_api()
+            artifact = public.Artifact.from_id(val["id"], public_api.client)
+            return self.use_artifact(artifact, use_as=key)
+        elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
-            artifact_string, base_url = parse_artifact_string(val)
+            artifact_string, base_url, is_id = parse_artifact_string(val)
             overrides = {}
             if base_url is not None:
                 overrides = {"base_url": base_url}
                 public_api = public.Api(overrides)
             else:
                 public_api = self._public_api()
-            artifact = public_api.artifact(name=artifact_string)
+            if is_id:
+                artifact = public.Artifact.from_id(artifact_string, public_api._client)
+            else:
+                artifact = public_api.artifact(name=artifact_string)
             # in the future we'll need to support using artifacts from
             # different instances of wandb. simplest way to do that is
             # likely to convert the retrieved public.Artifact to a wandb.Artifact
 
             return self.use_artifact(artifact, use_as=key)
-        else:
+        elif _is_artifact_object(val):
             return self.use_artifact(val, use_as=key)
+        else:
+            raise ValueError(
+                f"Cannot call _config_artifact_callback on type {type(val)}"
+            )
 
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
@@ -1215,12 +1239,9 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
+        row = row.copy()
         if row:
             row = self._visualization_hack(row)
-            row["_timestamp"] = int(row.get("_timestamp", time.time()))
-            row["_runtime"] = int(
-                row.get("_runtime", time.time() - self._get_start_time())
-            )
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1237,6 +1258,11 @@ class Run:
         # logger.info("console callback: %s, %s", name, data)
         if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
+
+    def _console_raw_callback(self, name: str, data: str) -> None:
+        # logger.info("console callback: %s, %s", name, data)
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_output_raw(name, data)
 
     def _tensorboard_callback(
         self, logdir: str, save: bool = True, root_logdir: str = ""
@@ -1341,7 +1367,8 @@ class Run:
         if step is not None:
             if os.getpid() != self._init_pid or self._is_attached:
                 wandb.termwarn(
-                    "Note that setting step in multiprocessing can result in data loss. Please log your step values as a metric such as 'global_step'",
+                    "Note that setting step in multiprocessing can result in data loss. "
+                    "Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             # if step is passed in when tensorboard_sync is used we honor the step passed
@@ -1349,7 +1376,8 @@ class Run:
             # this history later on in publish_history()
             if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    "Step cannot be set when using syncing with tensorboard. "
+                    "Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             if step > self._step:
@@ -1435,18 +1463,20 @@ class Run:
             <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'accuracy': 0.9, 'epoch': 5})
+            wandb.log({"accuracy": 0.9, "epoch": 5})
             ```
 
             ### Incremental logging
             <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'loss': 0.2}, commit=False)
+            wandb.log({"loss": 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
-            wandb.log({'accuracy': 0.8})
+            wandb.log({"accuracy": 0.8})
             ```
 
             ### Histogram
@@ -1522,15 +1552,20 @@ class Run:
 
             ### PR Curve
             ```python
-            wandb.log({'pr': wandb.plots.precision_recall(y_test, y_probas, labels)})
+            wandb.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
             ### 3D Object
             ```python
-            wandb.log({"generated_samples":
-            [wandb.Object3D(open("sample.obj")),
-                wandb.Object3D(open("sample.gltf")),
-                wandb.Object3D(open("sample.glb"))]})
+            wandb.log(
+                {
+                    "generated_samples": [
+                        wandb.Object3D(open("sample.obj")),
+                        wandb.Object3D(open("sample.gltf")),
+                        wandb.Object3D(open("sample.glb")),
+                    ]
+                }
+            )
             ```
 
         Raises:
@@ -1768,23 +1803,41 @@ class Run:
     ) -> None:
         if console is None:
             console = self._settings._console
+        # only use raw for service to minimize potential changes
+        if console == SettingsConsole.WRAP:
+            if self._settings._require_service:
+                console = SettingsConsole.WRAP_RAW
+            else:
+                console = SettingsConsole.WRAP_EMU
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
+
+        # raw output handles the output_log writing in the internal process
+        if console in {SettingsConsole.REDIRECT, SettingsConsole.WRAP_EMU}:
+            output_log_path = os.path.join(
+                self._settings.files_dir, filenames.OUTPUT_FNAME
+            )
+            # output writer might have been setup, see wrap_fallback case
+            if not self._output_writer:
+                self._output_writer = filesystem.CRDedupedFile(
+                    open(output_log_path, "wb")
+                )
+
         if console == SettingsConsole.REDIRECT:
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.Redirect(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
@@ -1804,20 +1857,34 @@ class Run:
                     self._redirect(None, None, console=SettingsConsole.WRAP)
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == SettingsConsole.WRAP:
+        elif console == SettingsConsole.WRAP_EMU:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
                 cbs=[
-                    lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                    lambda data: self._console_callback("stdout", data),
                     self._output_writer.write,  # type: ignore
                 ],
             )
             err_redir = redirect.StreamWrapper(
                 src="stderr",
                 cbs=[
-                    lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                    lambda data: self._console_callback("stderr", data),
                     self._output_writer.write,  # type: ignore
+                ],
+            )
+        elif console == SettingsConsole.WRAP_RAW:
+            logger.info("Wrapping output streams.")
+            out_redir = redirect.StreamRawWrapper(
+                src="stdout",
+                cbs=[
+                    lambda data: self._console_raw_callback("stdout", data),
+                ],
+            )
+            err_redir = redirect.StreamRawWrapper(
+                src="stderr",
+                cbs=[
+                    lambda data: self._console_raw_callback("stderr", data),
                 ],
             )
         elif console == SettingsConsole.OFF:
@@ -1838,21 +1905,10 @@ class Run:
     def _restore(self) -> None:
         logger.info("restore")
         # TODO(jhr): drain and shutdown all threads
-        if self._use_redirect:
-            if self._out_redir:
-                self._out_redir.uninstall()
-            if self._err_redir:
-                self._err_redir.uninstall()
-            return
-
-        if self.stdout_redirector:
-            self.stdout_redirector.restore()
-        if self.stderr_redirector:
-            self.stderr_redirector.restore()
-        if self._save_stdout:
-            sys.stdout = self._save_stdout
-        if self._save_stderr:
-            sys.stderr = self._save_stderr
+        if self._out_redir:
+            self._out_redir.uninstall()
+        if self._err_redir:
+            self._err_redir.uninstall()
         logger.info("restore done")
 
     def _atexit_cleanup(self, exit_code: int = None) -> None:
@@ -1904,12 +1960,6 @@ class Run:
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
 
-        if self._use_redirect:
-            # setup fake callback
-            self._redirect_cb = self._console_callback
-
-        output_log_path = os.path.join(self._settings.files_dir, filenames.OUTPUT_FNAME)
-        self._output_writer = filesystem.CRDedupedFile(open(output_log_path, "wb"))
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -1928,9 +1978,11 @@ class Run:
         logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
-        # would like to move _set_global to _on_ready to unify _on_start and _on_attach (we want to do the set globals after attach)
+        # would like to move _set_global to _on_ready to unify _on_start and _on_attach
+        # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses `wandb.run` and hence breaks
+        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses
+        #               `wandb.run` and hence breaks
         self._set_globals()
         self._header(
             self._check_version, settings=self._settings, printer=self._printer
@@ -1955,8 +2007,34 @@ class Run:
         self._is_attached = True
         self._on_ready()
 
+    def _register_telemetry_import_hooks(
+        self,
+    ) -> None:
+        def _telemetry_import_hook(
+            run: "Run",
+            module: Any,
+        ) -> None:
+            with telemetry.context(run=run) as tel:
+                try:
+                    name = getattr(module, "__name__", None)
+                    if name is not None:
+                        setattr(tel.imports_finish, name, True)
+                except AttributeError:
+                    return
+
+        import_telemetry_set = telemetry.list_telemetry_imports()
+        import_hook_fn = functools.partial(_telemetry_import_hook, self)
+        for module_name in import_telemetry_set:
+            register_post_import_hook(
+                import_hook_fn,
+                self._run_id,
+                module_name,
+            )
+
     def _on_ready(self) -> None:
         """Event triggered when run is ready for the user."""
+        self._register_telemetry_import_hooks()
+
         # start reporting any telemetry changes
         self._telemetry_obj_active = True
         self._telemetry_flush()
@@ -1964,22 +2042,172 @@ class Run:
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
+    def _log_job(self) -> None:
+        # don't produce a job if the run is sourced from a job
+        if (
+            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
+            is not None
+        ):
+            return
+        artifact = None
+        input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
+        output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
+
+        import pkg_resources
+
+        installed_packages_list = sorted(
+            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
+        )
+
+        for job_creation_function in [
+            self._create_repo_job,
+            self._create_artifact_job,
+            self._create_image_job,
+        ]:
+            artifact = job_creation_function(
+                input_types, output_types, installed_packages_list
+            )
+            if artifact:
+                logger.info(f"Created job using {job_creation_function.__name__}")
+                break
+            else:
+                logger.info(
+                    f"Failed to create job using {job_creation_function.__name__}"
+                )
+
+    def _construct_job_artifact(
+        self,
+        name: str,
+        source_dict: "JobSourceDict",
+        installed_packages_list: List[str],
+        patch_path: Optional[os.PathLike] = None,
+    ) -> "Artifact":
+        job_artifact = wandb.Artifact(name, type="job")
+        if patch_path and os.path.exists(patch_path):
+            job_artifact.add_file(patch_path, "diff.patch")
+        with job_artifact.new_file("requirements.frozen.txt") as f:
+            f.write("\n".join(installed_packages_list))
+        with job_artifact.new_file("wandb-job.json") as f:
+            f.write(json.dumps(source_dict))
+
+        return job_artifact
+
+    def _create_repo_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Optional[Artifact]":
+        """Create a job version artifact from a repo."""
+        has_repo = self._remote_url is not None and self._commit is not None
+        program_relpath = self._settings.program_relpath
+        if not has_repo or program_relpath is None:
+            return None
+        assert self._remote_url is not None
+        assert self._commit is not None
+        name = wandb.util.make_artifact_name_safe(
+            f"job-{self._remote_url}_{program_relpath}"
+        )
+        patch_path = os.path.join(self._settings.files_dir, DIFF_FNAME)
+
+        source_info: JobSourceDict = {
+            "_version": "v0",
+            "source_type": "repo",
+            "source": {
+                "git": {
+                    "remote": self._remote_url,
+                    "commit": self._commit,
+                },
+                "entrypoint": [
+                    sys.executable.split("/")[-1],
+                    program_relpath,
+                ],
+                "args": self._settings._args,
+            },
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list, patch_path
+        )
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
+    def _create_artifact_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Optional[Artifact]":
+        if (
+            self._code_artifact_info is None
+            or self._run_obj is None
+            or self._settings.program_relpath is None
+        ):
+            return None
+        artifact_client_id = self._code_artifact_info.get("client_id")
+        name = f"job-{self._code_artifact_info['name']}"
+
+        source_info: JobSourceDict = {
+            "_version": "v0",
+            "source_type": "artifact",
+            "source": {
+                "artifact": f"wandb-artifact://_id/{artifact_client_id}",
+                "entrypoint": [
+                    sys.executable.split("/")[-1],
+                    self._settings.program_relpath,
+                ],
+                "args": self._settings._args,
+            },
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list
+        )
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
+    def _create_image_job(
+        self,
+        input_types: Dict[str, Any],
+        output_types: Dict[str, Any],
+        installed_packages_list: List[str],
+    ) -> "Optional[Artifact]":
+        docker_image_name = os.getenv("WANDB_DOCKER")
+        if docker_image_name is None:
+            return None
+        name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
+
+        source_info: JobSourceDict = {
+            "_version": "v0",
+            "source_type": "image",
+            "source": {"image": docker_image_name, "args": self._settings._args},
+            "input_types": input_types,
+            "output_types": output_types,
+            "runtime": self._settings._python,
+        }
+        job_artifact = self._construct_job_artifact(
+            name, source_info, installed_packages_list
+        )
+        artifact = self.log_artifact(job_artifact)
+        return artifact
+
     def _on_finish(self) -> None:
         trigger.call("on_finished")
-
-        # populate final import telemetry
-        with telemetry.context(run=self) as tel:
-            self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
 
+        if not self._settings._offline and self._settings.enable_job_creation:
+            self._log_job()
+
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         if self._backend and self._backend.interface:
-            # telemetry could have changed, publish final data
-            self._telemetry_flush()
-
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
@@ -2012,6 +2240,14 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.join()
 
+        self._unregister_telemetry_import_hooks(self._run_id)
+
+    @staticmethod
+    def _unregister_telemetry_import_hooks(run_id: str) -> None:
+        import_telemetry_set = telemetry.list_telemetry_imports()
+        for module_name in import_telemetry_set:
+            unregister_post_import_hook(module_name, run_id)
+
     def _on_final(self) -> None:
         self._footer(
             self._sampled_history,
@@ -2023,46 +2259,6 @@ class Run:
             settings=self._settings,
             printer=self._printer,
         )
-
-    def _save_job_spec(self) -> None:
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
-        varsdict = {"WANDB_DISABLE_CODE": "True"}
-        source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
-        )
-        execdict = dict(
-            program="train.py",
-            directory="keras-cnn-fashion",
-            envvars=varsdict,
-            args=[],
-        )
-        configdict = (dict(self._config),)
-        artifactsdict = dict(
-            dataset="v1",
-        )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
-        job_spec = {
-            "kind": "WandbJob",
-            "version": "v0",
-            "environment": envdict,
-            "source": source,
-            "exec": execdict,
-            "input": inputdict,
-        }
-
-        s = json.dumps(job_spec, indent=4)
-        spec_filename = filenames.JOBSPEC_FNAME
-        with open(spec_filename, "w") as f:
-            print(s, file=f)
-        self._save(spec_filename)
 
     @_run_decorator._attach
     def define_metric(
@@ -2172,7 +2368,15 @@ class Run:
 
     # TODO(jhr): annotate this
     @_run_decorator._attach
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
+    def watch(  # type: ignore
+        self,
+        models,
+        criterion=None,
+        log="gradients",
+        log_freq=100,
+        idx=None,
+        log_graph=False,
+    ) -> None:
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
@@ -2196,7 +2400,8 @@ class Run:
             return f"{entity}/{project}/{new_name}"
         elif replacement_artifact_info is None and use_as is None:
             wandb.termwarn(
-                f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
+                f"Could not find {artifact_name} in launch artifact mapping. "
+                f"Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
             unique_artifact_replacement_info = (
@@ -2231,7 +2436,7 @@ class Run:
         self,
         artifact: Union[public.Artifact, Artifact],
         target_path: str,
-        aliases: List[str],
+        aliases: Optional[List[str]] = None,
     ) -> None:
         """Links the given artifact to a portfolio (a promoted collection of artifacts).
 
@@ -2241,7 +2446,8 @@ class Run:
             artifact: the (public or local) artifact which will be linked
             target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
                 or {entity}/{project}/{portfolio}
-            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact inside the portfolio.
+            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
+                                   inside the portfolio.
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
@@ -2249,6 +2455,8 @@ class Run:
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+        if aliases is None:
+            aliases = []
 
         if self._backend and self._backend.interface:
             if not self._settings._offline:
@@ -2599,9 +2807,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -2728,9 +2934,9 @@ class Run:
 
         # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
-            printer.display(check_version.delete_message, status="error")
+            printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
-            printer.display(check_version.yank_message, status="warn")
+            printer.display(check_version.yank_message, level="warn")
 
         printer.display(
             check_version.upgrade_message, off=not check_version.upgrade_message
@@ -2831,7 +3037,7 @@ class Run:
             if Api().api.settings().get("anonymous") == "true":
                 printer.display(
                     "Do NOT share these links with anyone. They can be used to claim your runs.",
-                    status="warn",
+                    level="warn",
                 )
 
     # ------------------------------------------------------------------------------
@@ -2877,6 +3083,12 @@ class Run:
         )
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
+        )
+        Run._footer_server_messages(
+            poll_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
         )
 
     @staticmethod
@@ -2990,7 +3202,7 @@ class Run:
             return
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        total_files = sum(
+        total_files: int = sum(
             sum(
                 [
                     response.file_counts.wandb_count,
@@ -3000,20 +3212,23 @@ class Run:
                 ]
             )
             for response in poll_exit_responses
-            if response and response.file_counts
+            if response is not None and response.file_counts is not None
         )
         uploaded = sum(
             response.pusher_stats.uploaded_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
         total = sum(
             response.pusher_stats.total_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
 
-        line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        line = (
+            f"Processing {len(poll_exit_responses)} runs with {total_files} files "
+            f"({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        )
         # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
         printer.progress_update(line)  # type: ignore [call-arg]
 
@@ -3180,9 +3395,33 @@ class Run:
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
-                    f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
-                    status="warn",
+                    f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
+                    f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
+                    level="warn",
+                )
+
+    @staticmethod
+    def _footer_server_messages(
+        poll_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if settings.disable_hints:
+            return
+
+        if poll_exit_response and poll_exit_response.server_messages:
+            for message in poll_exit_response.server_messages.item:
+                printer.display(
+                    message.html_text if printer._html else message.utf_text,
+                    default_text=message.plain_text,
+                    level=message.level,
+                    off=message.type.lower() != "footer",
                 )
 
     @staticmethod
@@ -3205,9 +3444,9 @@ class Run:
 
         # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
-            printer.display(check_version.delete_message, status="error")
+            printer.display(check_version.delete_message, level="error")
         elif check_version.yank_message:
-            printer.display(check_version.yank_message, status="warn")
+            printer.display(check_version.yank_message, level="warn")
 
         # only display upgrade message if packages are bad
         package_problem = check_version.delete_message or check_version.yank_message
@@ -3345,9 +3584,14 @@ class _LazyArtifact(ArtifactInterface):
         self._assert_instance()
         return getattr(self._instance, item)
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         if not self._instance:
-            resp = self._future.get().response.log_artifact_response
+            future_get = self._future.get(timeout)
+            if not future_get:
+                raise errors.WaitTimeoutError(
+                    "Artifact upload wait timed out, failed to fetch Artifact response"
+                )
+            resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)

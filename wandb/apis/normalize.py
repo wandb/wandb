@@ -3,16 +3,20 @@ normalize.
 """
 
 import ast
-from functools import wraps
 import sys
+from functools import wraps
+from typing import Callable, TypeVar
 
 import requests
-from wandb import env
-from wandb.errors import CommError
 from wandb_gql.client import RetryError
 
+from wandb import env
+from wandb.errors import CommError
 
-def normalize_exceptions(func):
+_F = TypeVar("_F", bound=Callable)
+
+
+def normalize_exceptions(func: _F) -> _F:
     """Function decorator for catching common errors and re-raising as wandb.Error"""
 
     @wraps(func)

@@ -13,6 +13,9 @@ class SettingsStatic:
     _disable_meta: Optional[bool]
     _start_time: float
     _start_datetime: str
+    _stats_pid: int
+    _stats_sample_rate_seconds: float
+    _stats_samples_to_average: int
     files_dir: str
     log_internal: str
     _internal_check_process: bool
@@ -25,6 +28,10 @@ class SettingsStatic:
     program: Optional[str]
     silent: Optional[bool]
     email: Optional[str]
+    git_commit: Optional[str]
+    git_remote: Optional[str]
+    git_remote_url: Optional[str]
+    git_root: Optional[str]
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int
@@ -49,3 +56,9 @@ class SettingsStatic:
 
     def __str__(self) -> str:
         return str(self.__dict__)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.__dict__
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.__dict__.get(key, default)

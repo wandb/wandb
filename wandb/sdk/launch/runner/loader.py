@@ -6,7 +6,6 @@ from wandb.errors import LaunchError
 
 from .abstract import AbstractRunner
 
-
 __logger__ = logging.getLogger(__name__)
 
 
@@ -27,11 +26,11 @@ def load_backend(
 ) -> AbstractRunner:
     # Static backends
     if backend_name in ["local", "local-container"]:
-        from .local import LocalContainerRunner
+        from .local_container import LocalContainerRunner
 
         return LocalContainerRunner(api, backend_config)
     elif backend_name in ["bare", "local-process"]:
-        from .bare import LocalProcessRunner
+        from .local_process import LocalProcessRunner
 
         return LocalProcessRunner(api, backend_config)
     elif backend_name == "gcp-vertex":

@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
 import configparser
-import copy
 import datetime
-from functools import wraps
 import getpass
 import json
 import logging
@@ -16,31 +14,27 @@ import tempfile
 import textwrap
 import time
 import traceback
-
+from functools import wraps
 
 import click
+import yaml
 from click.exceptions import ClickException
 
 # pycreds has a find_executable that works in windows
 from dockerpycreds.utils import find_executable
-import wandb
-from wandb import Config
-from wandb import env, util
-from wandb import Error
-from wandb import wandb_agent
-from wandb import wandb_sdk
 
+import wandb
+
+# from wandb.old.core import wandb_dir
+import wandb.sdk.verify.verify as wandb_verify
+from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
+from wandb.sdk.launch.utils import check_logged_in, construct_launch_spec
 from wandb.sdk.lib.wburls import wburls
-
-# from wandb.old.core import wandb_dir
-import wandb.sdk.verify.verify as wandb_verify
-from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
-import yaml
-
+from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
@@ -64,7 +58,14 @@ logging.basicConfig(
 )
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-CONTEXT = dict(default_map={})
+
+# Click Contexts
+CONTEXT = {"default_map": {}}
+RUN_CONTEXT = {
+    "default_map": {},
+    "allow_extra_args": True,
+    "ignore_unknown_options": True,
+}
 
 
 def cli_unsupported(argument):
@@ -302,7 +303,7 @@ def service(
 @click.pass_context
 @display_error
 def init(ctx, project, entity, reset, mode):
-    from wandb.old.core import _set_stage_dir, __stage_dir__, wandb_dir
+    from wandb.old.core import __stage_dir__, _set_stage_dir, wandb_dir
 
     if __stage_dir__ is None:
         _set_stage_dir("wandb")
@@ -569,6 +570,7 @@ def sync(
             view=view,
             verbose=verbose,
             sync_tensorboard=_sync_tensorboard,
+            log_path=_wandb_log_path,
         )
         for p in _path:
             sm.add(p)
@@ -665,6 +667,12 @@ def sync(
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
+    "--launch_config",
+    "-c",
+    metavar="FILE",
+    help="Path to JSON or YAML file which defines how to launch the sweep.",
+)
+@click.option(
     "--stop",
     is_flag=True,
     default=False,
@@ -700,6 +708,7 @@ def sweep(
     program,
     settings,
     update,
+    launch_config,
     stop,
     cancel,
     pause,
@@ -856,8 +865,81 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
+
+    _launch_scheduler_spec = None
+    if launch_config is not None:
+        launch_config = util.load_json_yaml_dict(launch_config)
+        if launch_config is None:
+            raise LaunchError(f"Invalid format for launch config at {launch_config}")
+        wandb.termlog(f"Using launch 🚀 with config: {launch_config}")
+
+        if entity is None or project is None:
+            _msg = "Must specify --entity and --project flags when using launch."
+            wandb.termerror(_msg)
+            raise LaunchError(_msg)
+
+        # Try and get job from sweep config
+        _job = config.get("job", None)
+        if _job is None:
+            wandb.termlog("No job found in sweep config, looking in launch config.")
+            _job = launch_config.get("job", None)
+            if _job is None:
+                wandb.termlog("No job found in launch config, using placeholder.")
+                _job = "placeholder-job"
+
+        # Launch job spec for the Scheduler
+        _launch_scheduler_spec = json.dumps(
+            {
+                "queue": launch_config.get("queue", "default"),
+                "run_spec": json.dumps(
+                    construct_launch_spec(
+                        "placeholder-uri-scheduler",  # uri
+                        None,  # job
+                        api,
+                        "Scheduler.WANDB_SWEEP_ID",  # name,
+                        project,
+                        entity,
+                        launch_config.get("scheduler", {}).get(
+                            "docker_image", None
+                        ),  # docker_image,
+                        launch_config.get("scheduler", {}).get(
+                            "resource", "local-process"
+                        ),  # resource,
+                        [
+                            "wandb",
+                            "scheduler",
+                            "WANDB_SWEEP_ID",
+                            "--queue",
+                            launch_config.get("queue", "default"),
+                            "--project",
+                            project,
+                            "--job",
+                            _job,
+                            "--resource",
+                            launch_config.get("resource", "local-process"),
+                            # TODO(hupo): Add num-workers as option in launch config
+                            # "--num_workers",
+                            # launch_config.get("scheduler", {}).get("num_workers", 1),
+                        ],  # entry_point,
+                        None,  # version,
+                        None,  # parameters,
+                        launch_config.get("scheduler", {}).get(
+                            "resource_args", None
+                        ),  # resource_args,
+                        None,  # launch_config,
+                        None,  # cuda,
+                        None,  # run_id,
+                    )
+                ),
+            }
+        )
+
     sweep_id, warnings = api.upsert_sweep(
-        config, project=project, entity=entity, obj_id=sweep_obj_id
+        config,
+        project=project,
+        entity=entity,
+        obj_id=sweep_obj_id,
+        launch_scheduler=_launch_scheduler_spec,
     )
     util.handle_sweep_config_violations(warnings)
 
@@ -889,11 +971,14 @@ def sweep(
     if sweep_path.find(" ") >= 0:
         sweep_path = f'"{sweep_path}"'
 
-    wandb.termlog(
-        "Run sweep agent with: {}".format(
-            click.style("wandb agent %s" % sweep_path, fg="yellow")
+    if launch_config is not None:
+        wandb.termlog("Scheduler added to launch queue. Starting sweep...")
+    else:
+        wandb.termlog(
+            "Run sweep agent with: {}".format(
+                click.style("wandb agent %s" % sweep_path, fg="yellow")
+            )
         )
-    )
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller
@@ -908,6 +993,13 @@ def sweep(
     "or a git uri pointing to a remote repository, or path to a local directory.",
 )
 @click.argument("uri", nargs=1, required=False)
+@click.option(
+    "--job",
+    "-j",
+    metavar="<str>",
+    default=None,
+    help="Name of the job to launch. If passed in, launch does not require a uri.",
+)
 @click.option(
     "--entry-point",
     "-E",
@@ -1016,6 +1108,7 @@ def sweep(
 @display_error
 def launch(
     uri,
+    job,
     entry_point,
     git_version,
     args_list,
@@ -1088,22 +1181,19 @@ def launch(
     if resource is None and config.get("resource") is not None:
         resource = config.get("resource")
     elif resource is None:
-        resource = "local"
+        resource = "local-container"
 
-    if (
-        uri is None
-        and docker_image is None
-        and config.get("uri") is not None
-        and config.get("docker", {}).get("docker_image") is None
-    ):
-        raise LaunchError("Must pass a URI or a docker image to launch.")
+    check_logged_in(api)
+
+    run_id = config.get("run_id")
 
     if queue is None:
         # direct launch
         try:
             wandb_launch.run(
-                uri,
                 api,
+                uri,
+                job,
                 entry_point,
                 git_version,
                 project=project,
@@ -1116,6 +1206,7 @@ def launch(
                 config=config,
                 synchronous=(not run_async),
                 cuda=cuda,
+                run_id=run_id,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1127,6 +1218,7 @@ def launch(
         _launch_add(
             api,
             uri,
+            job,
             config,
             project,
             entity,
@@ -1139,12 +1231,19 @@ def launch(
             args_dict,
             resource_args,
             cuda=cuda,
+            run_id=run_id,
         )
 
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
-@click.argument("project", nargs=1, required=False)
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    help="Name of the project which the agent will watch. "
+    "If passed in, will override the project value passed in using a config file.",
+)
 @click.option(
     "--entity",
     "-e",
@@ -1163,7 +1262,12 @@ def launch(
 )
 @display_error
 def launch_agent(
-    ctx, project=None, entity=None, queues=None, max_jobs=None, config=None
+    ctx,
+    project=None,
+    entity=None,
+    queues=None,
+    max_jobs=None,
+    config=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1185,8 +1289,9 @@ def launch_agent(
             "You must specify a project name or set WANDB_PROJECT environment variable."
         )
 
-    wandb.termlog("Starting launch agent ✨")
+    check_logged_in(api)
 
+    wandb.termlog("Starting launch agent ✨")
     wandb_launch.create_and_run_agent(api, agent_config)
 
 
@@ -1214,6 +1319,39 @@ def agent(ctx, project, entity, count, sweep_id):
     #                'args': ['--max_epochs=10']})
 
 
+@cli.command(
+    context_settings=RUN_CONTEXT, help="Run a W&B launch sweep scheduler (Experimental)"
+)
+@click.pass_context
+@click.argument("sweep_id")
+@display_error
+def scheduler(
+    ctx,
+    sweep_id,
+):
+    api = _get_cling_api()
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the sweep scheduler feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    wandb.termlog("Starting a Launch Scheduler 🚀")
+    from wandb.sdk.launch.sweeps import load_scheduler
+
+    # Future-proofing hack to pull any kwargs that get passed in through the CLI
+    kwargs = {}
+    for i, _arg in enumerate(ctx.args):
+        if isinstance(_arg, str) and _arg.startswith("--"):
+            kwargs[_arg[2:]] = ctx.args[i + 1]
+
+    _scheduler = load_scheduler("sweep")(
+        api,
+        sweep_id=sweep_id,
+        **kwargs,
+    )
+    _scheduler.start()
+
+
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
 @click.argument("sweep_id")
@@ -1224,11 +1362,6 @@ def controller(verbose, sweep_id):
 
     tuner = wandb_controller(sweep_id)
     tuner.run(verbose=verbose)
-
-
-RUN_CONTEXT = copy.copy(CONTEXT)
-RUN_CONTEXT["allow_extra_args"] = True
-RUN_CONTEXT["ignore_unknown_options"] = True
 
 
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
@@ -1407,7 +1540,9 @@ def docker(
 
 
 @cli.command(
-    context_settings=RUN_CONTEXT, help="Launch local W&B container (Experimental)"
+    context_settings=RUN_CONTEXT,
+    help="Start a local W&B container (deprecated, see wandb server --help)",
+    hidden=True,
 )
 @click.pass_context
 @click.option("--port", "-p", default="8080", help="The host port to bind W&B local on")
@@ -1421,10 +1556,42 @@ def docker(
     "--upgrade", is_flag=True, default=False, help="Upgrade to the most recent version"
 )
 @click.option(
-    "--edge", is_flag=True, default=False, help="Run the bleading edge", hidden=True
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
 )
 @display_error
-def local(ctx, port, env, daemon, upgrade, edge):
+def local(ctx, *args, **kwargs):
+    wandb.termwarn("`wandb local` has been replaced with `wandb server start`.")
+    ctx.invoke(start, *args, **kwargs)
+
+
+@cli.group(help="Commands for operating a local W&B server")
+def server():
+    pass
+
+
+@server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
+@click.pass_context
+@click.option(
+    "--port", "-p", default="8080", help="The host port to bind W&B server on"
+)
+@click.option(
+    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+)
+@click.option(
+    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+)
+@click.option(
+    "--upgrade",
+    is_flag=True,
+    default=False,
+    help="Upgrade to the most recent version",
+    hidden=True,
+)
+@click.option(
+    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+)
+@display_error
+def start(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
     if not find_executable("docker"):
         raise ClickException("Docker not installed, install it from https://docker.com")
@@ -1437,7 +1604,7 @@ def local(ctx, port, env, daemon, upgrade, edge):
             subprocess.call(["docker", "pull", "wandb/local"])
         else:
             wandb.termlog(
-                "A new version of W&B local is available, upgrade by calling `wandb local --upgrade`"
+                "A new version of the W&B server is available, upgrade by calling `wandb server start --upgrade`"
             )
     running = subprocess.check_output(
         ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
@@ -1482,18 +1649,23 @@ def local(ctx, port, env, daemon, upgrade, edge):
     if daemon:
         if code != 0:
             wandb.termerror(
-                "Failed to launch the W&B local container, see the above error."
+                "Failed to launch the W&B server container, see the above error."
             )
             exit(1)
         else:
-            wandb.termlog("W&B local started at http://localhost:%s \U0001F680" % port)
-            wandb.termlog(
-                "You can stop the server by running `docker stop wandb-local`"
-            )
+            wandb.termlog("W&B server started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog("You can stop the server by running `wandb server stop`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
                 time.sleep(2)
                 ctx.invoke(login, host=host)
+
+
+@server.command(context_settings=RUN_CONTEXT, help="Stop a local W&B server")
+def stop():
+    if not find_executable("docker"):
+        raise ClickException("Docker not installed, install it from https://docker.com")
+    subprocess.call(["docker", "stop", "wandb-local"])
 
 
 @cli.group(help="Commands for interacting with artifacts")
@@ -1914,7 +2086,7 @@ def online():
     except configparser.Error:
         pass
     click.echo(
-        "W&B online, running your script from this directory will now sync to the cloud."
+        "W&B online. Running your script from this directory will now sync to the cloud."
     )
 
 
@@ -1926,11 +2098,11 @@ def offline():
         api.set_setting("disabled", "true", persist=True)
         api.set_setting("mode", "offline", persist=True)
         click.echo(
-            "W&B offline, running your script from this directory will only write metadata locally."
+            "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."
         )
     except configparser.Error:
         click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=dryrun"
+            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=offline"
         )
 
 
@@ -1982,7 +2154,7 @@ def enabled():
         click.echo("W&B enabled.")
     except configparser.Error:
         click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=online"
+            "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
         )
 
 

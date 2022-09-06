@@ -16,7 +16,7 @@ spec:
       serviceAccountName: wandb-launch-serviceaccount
       containers:
       - name: launch-agent
-        image: wandb/launch-agent-dev:kaniko-test6
+        image: wandb/launch-agent-dev:latest
         resources:
           limits:
             memory: "2Gi"

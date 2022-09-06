@@ -1,25 +1,24 @@
 """Handle Manager."""
 
-from collections import defaultdict
 import json
 import logging
 import math
 import numbers
-import os
+import time
+from collections import defaultdict
 from queue import Queue
 from threading import Event
-import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
-    cast,
     Dict,
     Iterable,
     List,
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
+    cast,
 )
 
 from wandb.proto.wandb_internal_pb2 import (
@@ -32,16 +31,13 @@ from wandb.proto.wandb_internal_pb2 import (
     SummaryRecord,
 )
 
-from . import meta, sample, stats, tb_watcher
-from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util, tracelog
+from . import meta, sample, stats, tb_watcher
+from .settings_static import SettingsStatic
 
 if TYPE_CHECKING:
-    from wandb.proto.wandb_internal_pb2 import (
-        ArtifactDoneRequest,
-        MetricSummary,
-    )
+    from wandb.proto.wandb_internal_pb2 import ArtifactDoneRequest, MetricSummary
 
 
 SummaryDict = Dict[str, Any]
@@ -82,6 +78,7 @@ class HandleManager:
     _track_time: Optional[float]
     _accumulate_time: float
     _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
+    _run_start_time: Optional[float]
 
     def __init__(
         self,
@@ -107,7 +104,7 @@ class HandleManager:
 
         self._track_time = None
         self._accumulate_time = 0
-        self._run_start_time = 0
+        self._run_start_time = None
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
@@ -128,7 +125,7 @@ class HandleManager:
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         assert handler, f"unknown handle: {handler_str}"
         handler(record)
 
@@ -136,7 +133,7 @@ class HandleManager:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "handle_request_" + request_type
-        handler: Callable[[Record], None] = getattr(self, handler_str, None)
+        handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         if request_type != "network_status":
             logger.debug(f"handle_request: {request_type}")
         assert handler, f"unknown handle: {handler_str}"
@@ -194,6 +191,9 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_output(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_output_raw(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_files(self, record: Record) -> None:
@@ -654,7 +654,7 @@ class HandleManager:
         assert run_start
         assert run_start.run
 
-        self._run_start_time = run_start.run.start_time.ToSeconds()
+        self._run_start_time = run_start.run.start_time.ToMicroseconds() / 1e6
 
         self._track_time = time.time()
         if run_start.run.resumed and run_start.run.runtime:
@@ -663,8 +663,9 @@ class HandleManager:
             self._accumulate_time = 0
 
         if not self._settings._disable_stats:
-            pid = os.getpid()
-            self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
+            self._system_stats = stats.SystemStats(
+                settings=self._settings, interface=self._interface
+            )
             self._system_stats.start()
 
         if not self._settings._disable_meta and not run_start.run.resumed:
@@ -820,13 +821,11 @@ class HandleManager:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:
             return
-        # if it is offline sync, self._run_start_time is 0
+        # if it is offline sync, self._run_start_time is None
         # in that case set it to the first tfevent timestamp
-        if self._run_start_time == 0:
+        if self._run_start_time is None:
             self._run_start_time = history_dict["_timestamp"]
-        history_dict["_runtime"] = int(
-            history_dict["_timestamp"] - self._run_start_time
-        )
+        history_dict["_runtime"] = history_dict["_timestamp"] - self._run_start_time
         item = history.item.add()
         item.key = "_runtime"
         item.value_json = json.dumps(history_dict[item.key])

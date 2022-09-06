@@ -1,20 +1,12 @@
 import json
 import os
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.data_types as data_types
 from wandb.data_types import _SavedModel
-from wandb.sdk.interface.artifacts import (
-    Artifact as ArtifactInterface,
-    ArtifactEntry,
-)
+from wandb.sdk.interface.artifacts import Artifact as ArtifactInterface
+from wandb.sdk.interface.artifacts import ArtifactEntry
 
 
 def _add_any(
@@ -238,8 +230,7 @@ def link_model(
 
     """
 
-    if aliases is None:
-        aliases = ["latest"]
+    aliases = wandb.util._resolve_aliases(aliases)
 
     if wandb.run:
         run = wandb.run

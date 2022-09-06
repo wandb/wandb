@@ -1,0 +1,11 @@
+# allennlp
+autogluon
+autokeras
+# avalanche
+catalyst
+catboost
+# dalle-pytorch
+datasets
+deepchem
+deepctr
+# deeppavlov

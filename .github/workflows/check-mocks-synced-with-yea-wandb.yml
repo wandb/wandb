@@ -12,23 +12,23 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v2
-      - name: Check if mock_requests is up to date with wandb/client:master
+      - name: Check if mock_requests is up to date with wandb/wandb:master
         id: mock_requests
         run: |
           wget https://raw.githubusercontent.com/wandb/yea-wandb/main/src/yea_wandb/mock_requests.py
-          diff mock_requests.py tests/utils/mock_requests.py
+          diff mock_requests.py tests/unit_tests_old/utils/mock_requests.py
         continue-on-error: true
-      - name: Check if mock_server is up to date with wandb/client:master
+      - name: Check if mock_server is up to date with wandb/wandb:master
         id: mock_server
         run: |
           wget https://raw.githubusercontent.com/wandb/yea-wandb/main/src/yea_wandb/mock_server.py
-          diff mock_server.py tests/utils/mock_server.py
+          diff mock_server.py tests/unit_tests_old/utils/mock_server.py
         continue-on-error: true
-      - name: Check if artifact_emu is up to date with wandb/client:master
+      - name: Check if artifact_emu is up to date with wandb/wandb:master
         id: artifact_emu
         run: |
           wget https://raw.githubusercontent.com/wandb/yea-wandb/main/src/yea_wandb/artifact_emu.py
-          diff artifact_emu.py tests/utils/artifact_emu.py
+          diff artifact_emu.py tests/unit_tests_old/utils/artifact_emu.py
         continue-on-error: true
       - name: Check on failures
         if: |
@@ -37,5 +37,5 @@ jobs:
           || steps.artifact_emu.outcome != 'success'
         run: |
           echo "Mocks are not up to date with yea-wandb."
-          echo "See https://github.com/wandb/client/blob/master/CONTRIBUTING.md#functional-testing for details."
+          echo "See https://github.com/wandb/wandb/blob/master/CONTRIBUTING.md#functional-testing for details."
           exit 1

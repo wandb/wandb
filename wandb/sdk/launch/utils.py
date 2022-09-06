@@ -5,12 +5,17 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+import click
 
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, ExecutionError, LaunchError
+from wandb.errors import CommError, LaunchError
+
+if TYPE_CHECKING:  # pragma: no cover
+    from wandb.apis.public import Artifact as PublicArtifact
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -39,6 +44,7 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 
 
 _logger = logging.getLogger(__name__)
+LOG_PREFIX = f"{click.style('launch:', fg='magenta')}: "
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -96,12 +102,13 @@ def set_project_entity_defaults(
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog(f"{prefix}Launching run into {entity}/{project}")
+    wandb.termlog(f"{LOG_PREFIX}{prefix}Launching run into {entity}/{project}")
     return project, entity
 
 
 def construct_launch_spec(
     uri: Optional[str],
+    job: Optional[str],
     api: Api,
     name: Optional[str],
     project: Optional[str],
@@ -114,12 +121,15 @@ def construct_launch_spec(
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     cuda: Optional[bool],
+    run_id: Optional[str],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     if uri is not None:
         launch_spec["uri"] = uri
+    if job is not None:
+        launch_spec["job"] = job
     project, entity = set_project_entity_defaults(
         uri,
         api,
@@ -167,7 +177,23 @@ def construct_launch_spec(
     if cuda is not None:
         launch_spec["cuda"] = cuda
 
+    if run_id is not None:
+        launch_spec["run_id"] = run_id
+
     return launch_spec
+
+
+def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
+    uri = launch_spec.get("uri")
+    job = launch_spec.get("job")
+    docker_image = launch_spec.get("docker", {}).get("docker_image")
+
+    if not bool(uri) and not bool(job) and not bool(docker_image):
+        raise LaunchError("Must specify a uri, job or docker image")
+    elif bool(uri) and bool(docker_image):
+        raise LaunchError("Found both uri and docker-image, only one can be set")
+    elif sum(map(bool, [uri, job, docker_image])) > 1:
+        raise LaunchError("Must specify exactly one of uri, job or image")
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
@@ -183,7 +209,10 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     stripped_uri = re.sub(
         _WANDB_QA_URI_REGEX, "", stripped_uri
     )  # also for testing just run it twice
-    entity, project, _, name = stripped_uri.split("/")[1:]
+    try:
+        entity, project, _, name = stripped_uri.split("/")[1:]
+    except ValueError as e:
+        raise LaunchError(f"Trouble parsing wandb uri {uri}: {e}")
     return entity, project, name
 
 
@@ -195,7 +224,7 @@ def is_bare_wandb_uri(uri: str) -> bool:
     result = uri.split("/")[1:]
     # a bare wandb uri will have 4 parts, with the last being the run name
     # and the second last being "runs"
-    if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
+    if len(result) == 4 and result[-2] == "runs":
         return True
     return False
 
@@ -332,20 +361,19 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
 
 
 def validate_wandb_python_deps(
-    entity: str, project: str, run_name: str, api: Api, dir: str
+    requirements_file: Optional[str],
+    dir: str,
 ) -> None:
     """Warns if local python dependencies differ from wandb requirements.txt"""
-
-    _requirements_file = download_wandb_python_deps(entity, project, run_name, api, dir)
-    if _requirements_file is not None:
-        _requirements_file = os.path.join(dir, _requirements_file)
-        with open(_requirements_file) as f:
+    if requirements_file is not None:
+        requirements_path = os.path.join(dir, requirements_file)
+        with open(requirements_path) as f:
             wandb_python_deps: List[str] = f.read().splitlines()
 
-        _requirements_file = get_local_python_deps(dir)
-        if _requirements_file is not None:
-            _requirements_file = os.path.join(dir, _requirements_file)
-            with open(_requirements_file) as f:
+        local_python_file = get_local_python_deps(dir)
+        if local_python_file is not None:
+            local_python_deps_path = os.path.join(dir, local_python_file)
+            with open(local_python_deps_path) as f:
                 local_python_deps: List[str] = f.read().splitlines()
 
             diff_pip_requirements(wandb_python_deps, local_python_deps)
@@ -386,7 +414,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
-def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
+def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
     checks out commit ``version`` (or defaults to the head commit of the repository's
@@ -401,19 +429,40 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
     origin.fetch()
+
     if version is not None:
         try:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
-            raise ExecutionError(
+            raise LaunchError(
                 "Unable to checkout version '%s' of git repo %s"
                 "- please ensure that the version exists in the repo. "
                 "Error: %s" % (version, uri, e)
             )
     else:
-        repo.create_head("master", origin.refs.master)
-        repo.heads.master.checkout()
+        if getattr(repo, "references", None) is not None:
+            branches = [ref.name for ref in repo.references]
+        else:
+            branches = []
+        # Check if main is in origin, else set branch to master
+        if "main" in branches or "origin/main" in branches:
+            version = "main"
+        else:
+            version = "master"
+
+        try:
+            repo.create_head(version, origin.refs[version])
+            repo.heads[version].checkout()
+            wandb.termlog(f"No git branch passed. Defaulted to branch: {version}")
+        except (AttributeError, IndexError) as e:
+            raise LaunchError(
+                "Unable to checkout default version '%s' of git repo %s "
+                "- to specify a git version use: --git-version \n"
+                "Error: %s" % (version, uri, e)
+            )
+
     repo.submodule_update(init=True, recursive=True)
+    return version
 
 
 def merge_parameters(
@@ -446,7 +495,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> bool:
+) -> Optional["PublicArtifact"]:
     _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
@@ -458,9 +507,9 @@ def check_and_download_code_artifacts(
     for artifact in run_artifacts:
         if hasattr(artifact, "type") and artifact.type == "code":
             artifact.download(project_dir)
-            return True
+            return artifact  # type: ignore
 
-    return False
+    return None
 
 
 def to_camel_case(maybe_snake_str: str) -> str:
@@ -540,3 +589,20 @@ def resolve_build_and_registry_config(
         resolved_registry_config = registry_config
     validate_build_and_registry_configs(resolved_build_config, resolved_registry_config)
     return resolved_build_config, resolved_registry_config
+
+
+def check_logged_in(api: Api) -> bool:
+    """
+    Uses an internal api reference to check if a user is logged in
+    raises an error if the viewer doesn't load, likely broken API key
+    expected time cost is 0.1-0.2 seconds
+    """
+    res = api.api.viewer()
+    if not res:
+        raise LaunchError(
+            "Could not connect with current API-key. "
+            "Please relogin using `wandb login --relogin`"
+            " and try again (see `wandb login --help` for more options)"
+        )
+
+    return True

@@ -1,0 +1,13 @@
+# .git-blame-ignore-revs
+# Converted old pre python3.6 using pyupgrade
+272ce0aed8610df9e012b4645d00bac96d90d188
+# Upgraded black version to 22.3.0
+c28a5728b3e52aa42f1cafb0909a303578c8a46c
+# Turn on more black formatting
+58405877a36beaba556cce31de304527b5245aa6
+# Reformat standalone tests
+ff03e73ee18e23c94b82ebc6b6067eb9599d2f2f
+# Reformat unittests
+0181dfcc51fbd54be0d6901ddfd9d0c5fffd711b
+# Turn on black
+59604ad67d668dd9f05e5d8c4c97995d5b36e0b7

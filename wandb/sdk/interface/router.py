@@ -4,19 +4,18 @@ Router to manage responses.
 
 """
 
-from abc import abstractmethod
 import logging
 import threading
-from typing import Dict, Optional
-from typing import TYPE_CHECKING
 import uuid
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Dict, Optional
 
-
+from ..lib import mailbox, tracelog
 from .message_future import MessageFuture
-from ..lib import tracelog
 
 if TYPE_CHECKING:
     from queue import Queue
+
     from wandb.proto import wandb_internal_pb2 as pb
 
 
@@ -44,8 +43,10 @@ class MessageRouter:
     _pending_reqs: Dict[str, MessageFutureObject]
     _request_queue: "Queue[pb.Record]"
     _response_queue: "Queue[pb.Result]"
+    _mailbox: Optional[mailbox.Mailbox]
 
-    def __init__(self) -> None:
+    def __init__(self, mailbox: Optional[mailbox.Mailbox] = None) -> None:
+        self._mailbox = mailbox
         self._pending_reqs = {}
         self._lock = threading.Lock()
 
@@ -99,6 +100,10 @@ class MessageRouter:
         self._thread.join()
 
     def _handle_msg_rcv(self, msg: "pb.Result") -> None:
+        # deliver mailbox addressed messages to mailbox
+        if self._mailbox and msg.control.mailbox_slot:
+            self._mailbox.deliver(msg)
+            return
         with self._lock:
             future = self._pending_reqs.pop(msg.uuid, None)
         if future is None:

@@ -1,0 +1,24 @@
+id: 0.standalone.table_mem_test
+tag:
+  shards:
+    - standalone-cpu
+  platforms:
+    - linux
+    - mac
+plugin:
+  - wandb
+depend:
+    requirements:
+        - memory_profiler
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary][table_2_rows][nrows]: 2
+  - :wandb:runs[0][summary][table_2_rows][_type]: "table-file"
+  - :wandb:runs[0][summary][table_20_rows][nrows]: 20
+  - :wandb:runs[0][summary][table_20_rows][_type]: "table-file"
+  - :wandb:runs[0][summary][table_200_rows][nrows]: 200
+  - :wandb:runs[0][summary][table_200_rows][_type]: "table-file"
+  - :wandb:runs[0][summary][table_2000_rows][nrows]: 2000
+  - :wandb:runs[0][summary][table_2000_rows][_type]: "table-file"
+  - :wandb:runs[0][exitcode]: 0

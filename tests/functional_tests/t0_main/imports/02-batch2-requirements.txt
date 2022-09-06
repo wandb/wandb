@@ -1,0 +1,17 @@
+git+https://github.com/facebookresearch/detectron2.git#egg=detectron2
+# detr
+# easyocr
+elegy
+# espnet
+# fairseq
+# fastai>=2.5
+conllu<4.4.3 # Not directly required, needed to fix flair breakage
+flair
+flax
+# greykite
+# hivemind
+# horovod
+huggingface_hub
+hydra-core
+# icevision
+sacremoses

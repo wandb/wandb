@@ -21,6 +21,11 @@ Trigger (re)execution of a branch
 
     ```
 
+Trigger nightly run
+    ```
+    $ ./circleci-tool.py trigger-nightly --slack-notify
+    ```
+
 Download artifacts from an executed workflow
     ```
     $ ./circleci-tool download
@@ -38,6 +43,15 @@ import time
 import requests
 
 CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
+
+NIGHTLY_SHARDS = (
+    "standalone-cpu",
+    "standalone-gpu",
+    "standalone-tpu",
+    "standalone-local",
+    "kfp",
+    "standalone-gpu-win",
+)
 
 platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
 platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
@@ -84,7 +98,7 @@ def poll(args, pipeline_id=None, workflow_ids=None):
 
 
 def trigger(args):
-    url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
+    url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
     payload = {
         "branch": args.branch,
     }
@@ -147,24 +161,25 @@ def trigger(args):
 
 
 def trigger_nightly(args):
-    url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
-    default_shards = "cpu,gpu,tpu,local"
+    url = "https://circleci.com/api/v2/project/gh/wandb/wandb/pipeline"
 
-    default_shards_set = set(default_shards.split(","))
-    requested_shards_set = (
-        set(args.shards.split(",")) if args.shards else default_shards_set
-    )
+    default_shards = set(NIGHTLY_SHARDS)
+    shards = {
+        f"manual_nightly_execute_shard_{shard.replace('-', '_')}": False
+        for shard in default_shards
+    }
+
+    requested_shards = set(args.shards.split(",")) if args.shards else default_shards
 
     # check that all requested shards are valid and that there is at least one
-    if not requested_shards_set.issubset(default_shards_set):
+    if not requested_shards.issubset(default_shards):
         raise ValueError(
-            f"Requested invalid shards: {requested_shards_set}. "
-            f"Valid shards are: {default_shards_set}"
+            f"Requested invalid shards: {requested_shards}. "
+            f"Valid shards are: {default_shards}"
         )
     # flip the requested shards to True
-    shards = {
-        f"manual_nightly_execute_shard_{shard}": True for shard in requested_shards_set
-    }
+    for shard in requested_shards:
+        shards[f"manual_nightly_execute_shard_{shard.replace('-', '_')}"] = True
 
     payload = {
         "branch": args.branch,
@@ -172,6 +187,7 @@ def trigger_nightly(args):
             **{
                 "manual": True,
                 "manual_nightly": True,
+                "manual_nightly_git_branch": args.branch,
                 "manual_nightly_slack_notify": args.slack_notify or False,
             },
             **shards,
@@ -193,7 +209,7 @@ def trigger_nightly(args):
 def get_ci_builds(args, completed=True):
     bname = args.branch
     # TODO: extend pagination if not done
-    url = "https://circleci.com/api/v1.1/project/gh/wandb/client?shallow=true&limit=100"
+    url = "https://circleci.com/api/v1.1/project/gh/wandb/wandb?shallow=true&limit=100"
     if completed:
         url = url + "&filter=completed"
     # print("SEND", url)
@@ -223,7 +239,7 @@ def get_ci_builds(args, completed=True):
 
 
 def grab(args, vhash, bnum):
-    # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/client/61238/artifacts
+    # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/wandb/61238/artifacts
     # curl -L  -o out.dat -H "Circle-Token: $CIRCLECI_TOKEN" https://61238-86031674-gh.circle-artifacts.com/0/cover-results/.coverage
     cachedir = ".circle_cache"
     cfbase = f"cover-{vhash}-{bnum}.xml"
@@ -233,7 +249,7 @@ def grab(args, vhash, bnum):
     if os.path.exists(cfname):
         return
     url = (
-        "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(
+        "https://circleci.com/api/v1.1/project/github/wandb/wandb/{}/artifacts".format(
             bnum
         )
     )
@@ -306,7 +322,9 @@ def process_args():
         "--slack-notify", action="store_true", help="post notifications to slack"
     )
     parse_trigger_nightly.add_argument(
-        "--shards", help="comma-separated shards (cpu,gpu,tpu,local)"
+        "--shards",
+        default=",".join(NIGHTLY_SHARDS),
+        help="comma-separated shards (standalone-{cpu,gpu,tpu,local,gpu-win},kfp)",
     )
     parse_trigger_nightly.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"

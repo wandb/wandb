@@ -25,6 +25,7 @@ service InternalService {
   rpc Config(ConfigRecord) returns (ConfigResult) {}
   rpc Files(FilesRecord) returns (FilesResult) {}
   rpc Output(OutputRecord) returns (OutputResult) {}
+  rpc OutputRaw(OutputRawRecord) returns (OutputRawResult) {}
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}

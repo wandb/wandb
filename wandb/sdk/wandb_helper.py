@@ -38,13 +38,13 @@ def _to_dict(params):
     # newer tensorflow flags (post 1.4) uses absl.flags
     if meta and meta.__name__ == "absl.flags._flagvalues":
         params = {name: params[name].value for name in dir(params)}
+    elif not hasattr(params, "__dict__"):
+        raise TypeError("config must be a dict or have a __dict__ attribute.")
     elif "__flags" in vars(params):
         # for older tensorflow flags (pre 1.4)
         if not "__parsed" not in vars(params):
             params._parse_flags()
         params = vars(params)["__flags"]
-    elif not hasattr(params, "__dict__"):
-        raise TypeError("config must be a dict or have a __dict__ attribute.")
     else:
         # params is a Namespace object (argparse)
         # or something else

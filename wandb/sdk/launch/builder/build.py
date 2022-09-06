@@ -7,17 +7,17 @@ import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
-
-from dockerpycreds.utils import find_executable  # type: ignore
 import pkg_resources
+from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
+
 import wandb
-from wandb.apis.internal import Api
 import wandb.docker as docker
+from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from .._project_spec import compute_command_args, EntryPoint, LaunchProject
 from ...lib.git import GitRepo
+from .._project_spec import EntryPoint, LaunchProject, compute_command_args
 
 _logger = logging.getLogger(__name__)
 
@@ -202,9 +202,7 @@ def get_base_setup(
     return base_setup
 
 
-def get_env_vars_dict(
-    launch_project: LaunchProject, entry_point: Optional[EntryPoint], api: Api
-) -> Dict[str, str]:
+def get_env_vars_dict(launch_project: LaunchProject, api: Api) -> Dict[str, str]:
     """Generates environment variables for the project.
 
     Arguments:
@@ -222,10 +220,19 @@ def get_env_vars_dict(
     env_vars["WANDB_RUN_ID"] = launch_project.run_id
     if launch_project.docker_image:
         env_vars["WANDB_DOCKER"] = launch_project.docker_image
+    if launch_project.name is not None:
+        env_vars["WANDB_NAME"] = launch_project.name
 
     # TODO: handle env vars > 32760 characters
     env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
-    env_vars["WANDB_ARTIFACTS"] = json.dumps(launch_project.override_artifacts)
+    artifacts = {}
+    # if we're spinning up a launch process from a job
+    # we should tell the run to use that artifact
+    if launch_project.job:
+        artifacts = {wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME: launch_project.job}
+    env_vars["WANDB_ARTIFACTS"] = json.dumps(
+        {**artifacts, **launch_project.override_artifacts}
+    )
     #  check if the user provided an override entrypoint, otherwise use the default
 
     if launch_project.override_entrypoint is not None:
@@ -280,7 +287,8 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         requirements_line = CONDA_TEMPLATE.format(buildx_optional_prefix=prefix)
     else:
         # this means no deps file was found
-        requirements_line = ""
+        requirements_line = "RUN mkdir -p env/"  # Docker fails otherwise
+        wandb.termwarn("No requirements file found. No packages will be installed.")
 
     return requirements_line
 
@@ -337,7 +345,6 @@ def generate_dockerfile(
             else "continuumio/miniconda:latest"
         )
     requirements_section = get_requirements_section(launch_project, builder_type)
-
     # ----- stage 2: base -----
     python_base_setup = get_base_setup(launch_project, py_version, py_major)
 
@@ -399,23 +406,13 @@ def pull_docker_image(docker_image: str) -> None:
         raise LaunchError(f"Docker server returned error: {e}")
 
 
-def construct_local_image_uri(launch_project: LaunchProject) -> str:
-    assert launch_project.project_dir is not None
-    image_uri = _get_docker_image_uri(
-        name=launch_project.image_name,
-        work_dir=launch_project.project_dir,
-        image_id=launch_project.run_id,
-    )
-    return image_uri
-
-
 def construct_gcp_image_uri(
     launch_project: LaunchProject,
     gcp_repo: str,
     gcp_project: str,
     gcp_registry: str,
 ) -> str:
-    base_uri = construct_local_image_uri(launch_project)
+    base_uri = launch_project.image_uri
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
 
 
