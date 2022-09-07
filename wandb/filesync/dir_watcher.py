@@ -6,25 +6,25 @@ import os
 import queue
 import time
 from typing import (
+    TYPE_CHECKING,
     Any,
     Mapping,
     MutableMapping,
     MutableSet,
     NewType,
     Optional,
-    TYPE_CHECKING,
 )
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
 
 if TYPE_CHECKING:
-    from wandb.sdk import wandb_settings
-    from wandb.sdk.interface.interface import PolicyName
-    from wandb.sdk.internal.file_pusher import FilePusher
     import wandb.vendor.watchdog.events as wd_events
     import wandb.vendor.watchdog.observers.api as wd_api
     import wandb.vendor.watchdog.observers.polling as wd_polling
+    from wandb.sdk import wandb_settings
+    from wandb.sdk.interface.interface import PolicyName
+    from wandb.sdk.internal.file_pusher import FilePusher
 else:
     wd_polling = util.vendor_import("watchdog.observers.polling")
     wd_events = util.vendor_import("watchdog.events")
@@ -223,10 +223,16 @@ class DirWatcher:
             return None
 
     def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
-        if path == glob.escape(path):
-            save_name = SaveName(
-                os.path.relpath(os.path.join(self._dir, path), self._dir)
-            )
+        # When we're dealing with one of our own media files, there's no need
+        # to store the policy in memory.  _get_file_event_handler will always
+        # return PolicyNow.  Using the path makes syncing historic runs much
+        # faster if the name happens to include glob escapable characters.  In
+        # the future we may add a flag to "files" records that indicates it's
+        # policy is not dynamic and doesn't need to be stored / checked.
+        save_name = SaveName(os.path.relpath(os.path.join(self._dir, path), self._dir))
+        if save_name.startswith("media/"):
+            pass
+        elif path == glob.escape(path):
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
@@ -312,6 +318,9 @@ class DirWatcher:
         file_path: the file's actual path
         save_name: its path relative to the run directory (aka the watch directory)
         """
+        # Always return PolicyNow for any of our media files.
+        if save_name.startswith("media/"):
+            return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
         if save_name not in self._file_event_handlers:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:

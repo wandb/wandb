@@ -8,6 +8,7 @@ Usage:
 """
 
 import argparse
+import configparser
 import copy
 import itertools
 import sys
@@ -75,14 +76,14 @@ def matrix_expand(loc_dict_tuple_list):
             product = itertools.product(*groups)
             product = list(product)
             for subs in product:
+                data = copy.deepcopy(containing_dict)
+                toxenv = data["toxenv"]
                 for k, v in subs:
-                    data = copy.deepcopy(containing_dict)
-                    toxenv = data["toxenv"]
                     replace = f"<<matrix.{k}>>"
                     assert replace in toxenv, f"Cant find {replace} in {toxenv}"
-                    toxenv = toxenv.replace(replace, v)
-                    data["toxenv"] = toxenv
-                    ret.append((location, data))
+                    toxenv = toxenv.replace(replace, str(v))
+                data["toxenv"] = toxenv
+                ret.append((location, data))
         else:
             ret.append((location, containing_dict))
     return ret
@@ -158,10 +159,49 @@ def coverage_config_check(jobs_count, args):
                 sys.exit(1)
 
 
+def coverage_coveragerc_check(toxenv_list, args):
+    py = "py"
+    cononical = "wandb/"
+    cov_fname = args.coveragerc
+
+    cf = configparser.ConfigParser()
+    cf.read(cov_fname)
+
+    paths = cf.get("paths", "canonicalsrc")
+    paths = paths.split()
+
+    toxenv_list = list(set(toxenv_list))
+    toxenv_list.sort()
+
+    # lets generate what paths should look like
+    expected_paths = [cononical]
+    for toxenv in toxenv_list:
+        toxenv = toxenv.split(",")[0]
+        _func, shard, py_ver = toxenv.split("-")
+
+        assert py_ver.startswith(py)
+        py_ver = py_ver[len(py) :]
+
+        python = "".join(("python", py_ver[0], ".", py_ver[1:]))
+        path = f".tox/{toxenv}/lib/{python}/site-packages/wandb/"
+        expected_paths.append(path)
+
+    if paths != expected_paths:
+        print("Mismatch .coveragerc!")
+        print("Seen:")
+        for path in paths:
+            print(f"    {path}")
+        print("Expected:")
+        for path in expected_paths:
+            print(f"    {path}")
+        sys.exit(1)
+
+
 def process_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--circleci-yaml", default=".circleci/config.yml")
     parser.add_argument("--codecov-yaml", default=".codecov.yml")
+    parser.add_argument("--coveragerc", default=".coveragerc")
 
     subparsers = parser.add_subparsers(
         dest="action", title="action", description="Action to perform"
@@ -184,8 +224,11 @@ def main():
     elif args.action == "check":
         tasks = coverage_tasks(args)
         # let's only count the main workflow
-        main_tasks = filter(lambda x: x[0].split(".")[1] == "main", tasks)
-        coverage_config_check(len(list(main_tasks)), args)
+        main_tasks = list(filter(lambda x: x[0].split(".")[1] == "main", tasks))
+        func_tasks = filter(lambda x: x[1].startswith("func-"), main_tasks)
+        func_toxenvs = list(map(lambda x: x[1], func_tasks))
+        coverage_config_check(len(main_tasks), args)
+        coverage_coveragerc_check(func_toxenvs, args)
     else:
         parser.print_help()
 

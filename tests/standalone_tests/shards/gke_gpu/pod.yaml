@@ -1,5 +1,33 @@
+---
+kind: PersistentVolume
 apiVersion: v1
+metadata:
+  name: gpu-pod-results-volume
+spec:
+  storageClassName: gpu-pod-pv
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/tmp"
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: gpu-pod-results-volumeclaim
+spec:
+  storageClassName: gpu-pod-pv
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+
+---
 kind: Pod
+apiVersion: v1
 metadata:
   name: gpu-pod
 spec:
@@ -10,13 +38,16 @@ spec:
       env:
         - name: WANDB_API_KEY
           value: WANDB_API_KEY_PLACEHOLDER
-  #    command: ["tail", "-f", "/dev/null"]
-      # do not restart the container if it exits
       resources:
         limits:
-          cpu: 1.999
+          cpu: 3.999
           nvidia.com/gpu: 2
         requests:
-          cpu: 1.5
-  #    ports:
-  #    - containerPort: 80
+          cpu: 3.5
+      volumeMounts:
+        - mountPath: "/wandb-store"
+          name: gpu-pod-results-volumeclaim-name
+  volumes:
+    - name: gpu-pod-results-volumeclaim-name
+      persistentVolumeClaim:
+       claimName: gpu-pod-results-volumeclaim

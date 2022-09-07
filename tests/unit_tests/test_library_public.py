@@ -8,6 +8,8 @@ TODO:
     - deprecate ones that were public but we want to remove
 
 """
+import inspect
+
 import wandb
 
 SYMBOLS_ROOT_DATATYPES = {
@@ -219,7 +221,7 @@ SYMBOLS_RUN_OTHER = {
 
 
 def test_library_run():
-    Run = wandb.wandb_sdk.wandb_run.Run
+    Run = wandb.wandb_sdk.wandb_run.Run  # noqa: N806
     symbol_list = dir(Run)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
     print("symbols", symbol_public_set)
@@ -251,7 +253,7 @@ SYMBOLS_CONFIG_OTHER = {
 
 
 def test_library_config():
-    Config = wandb.wandb_sdk.wandb_config.Config
+    Config = wandb.wandb_sdk.wandb_config.Config  # noqa: N806
     symbol_list = dir(Config)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
     print("symbols", symbol_public_set)
@@ -259,3 +261,37 @@ def test_library_config():
         symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER - SYMBOLS_TYPING
     )
     assert symbol_unknown == set()
+
+
+SYMBOLS_WANDB_INIT = {
+    "force",
+    "settings",
+    "project",
+    "tensorboard",
+    "config",
+    "allow_val_change",
+    "id",
+    "monitor_gym",
+    "magic",
+    "group",
+    "resume",
+    "dir",
+    "anonymous",
+    "mode",
+    "config_exclude_keys",
+    "tags",
+    "name",
+    "entity",
+    "sync_tensorboard",
+    "config_include_keys",
+    "save_code",
+    "notes",
+    "job_type",
+    "reinit",
+}
+
+
+def test_library_init():
+    init_params = set(inspect.signature(wandb.init).parameters)
+    print("init_params", init_params)
+    assert init_params == SYMBOLS_WANDB_INIT

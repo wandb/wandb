@@ -4,11 +4,11 @@ Derived classes for grpc and socket service interfaces classes should implement
 abstract methods.
 """
 
-from abc import abstractmethod
-from collections.abc import Iterable, Mapping
 import datetime
 import enum
-from typing import Any, Dict, TYPE_CHECKING
+from abc import abstractmethod
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Dict
 
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.wandb_settings import Settings

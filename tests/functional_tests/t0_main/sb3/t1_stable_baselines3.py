@@ -2,10 +2,10 @@
 """Test stable_baselines3 integration"""
 
 import gym
+import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
-import wandb
 from wandb.integration.sb3 import WandbCallback
 
 config = {

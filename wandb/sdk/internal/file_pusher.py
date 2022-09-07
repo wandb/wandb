@@ -3,19 +3,16 @@ import os
 import queue
 import tempfile
 import time
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
-from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
 import wandb.util
+from wandb.filesync import dir_watcher, stats, step_checksum, step_upload
 
 if TYPE_CHECKING:
     from wandb.sdk.interface import artifacts
-    from wandb.sdk.internal import (
-        artifacts as internal_artifacts,
-        file_stream,
-        internal_api,
-    )
+    from wandb.sdk.internal import artifacts as internal_artifacts
+    from wandb.sdk.internal import file_stream, internal_api
 
 
 # Temporary directory for copies we make of some file types to

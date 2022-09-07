@@ -6,11 +6,12 @@ Router to manage responses from a queue with relay.
 
 from typing import TYPE_CHECKING
 
-from .router_queue import MessageQueueRouter
 from ..lib import tracelog
+from .router_queue import MessageQueueRouter
 
 if TYPE_CHECKING:
     from queue import Queue
+
     from wandb.proto import wandb_internal_pb2 as pb
 
 

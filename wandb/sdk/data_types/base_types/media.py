@@ -2,7 +2,7 @@ import hashlib
 import os
 import platform
 import shutil
-from typing import cast, Optional, Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast
 
 import wandb
 from wandb import util
@@ -12,6 +12,7 @@ from .wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np  # type: ignore
+
     from wandb.apis.public import Artifact as PublicArtifact
 
     from ...wandb_artifacts import Artifact as LocalArtifact

@@ -1,0 +1,31 @@
+plugin:
+  - wandb
+tag:
+  shard: ray2
+depend:
+  requirements:
+    - pandas
+    - ray[tune]>=2.0.0rc0
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 5
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[1][exitcode]: 0
+  - :wandb:runs[2][exitcode]: 0
+  - :wandb:runs[3][exitcode]: 0
+  - :wandb:runs[4][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[1][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[2][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[3][telemetry][1]  # imports_init
+    - 30  # ray
+  - :op:contains:
+    - :wandb:runs[4][telemetry][1]  # imports_init
+    - 30  # ray

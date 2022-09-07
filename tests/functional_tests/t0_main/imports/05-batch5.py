@@ -11,6 +11,7 @@ depend:
   pip_install_timeout: 1500  # 25m
   requirements:
     - "-r 05-batch5-requirements.txt"
+    - "flask>=2.2.2"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}

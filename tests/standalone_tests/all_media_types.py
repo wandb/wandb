@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 import numpy
 import pandas
 import PIL
-from pkg_resources import parse_version
 import plotly.graph_objs as go
 import tensorflow
 import torch
 import wandb
+from pkg_resources import parse_version
 
 
 def dummy_torch_tensor(size, requires_grad=True):
