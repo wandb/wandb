@@ -870,7 +870,7 @@ def init(
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
-    """Starts a new run to track and log to W&B.
+    r"""Starts a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
     to the beginning of your training script as well as your evaluation
@@ -1021,9 +1021,9 @@ def init(
             See [our guide to this integration](https://docs.wandb.com/library/integrations/openai-gym).
         id: (str, optional) A unique ID for this run, used for resuming. It must
             be unique in the project, and if you delete a run you can't reuse
-            the ID. Use the name field for a short descriptive name, or config
+            the ID. Use the `name` field for a short descriptive name, or `config`
             for saving hyperparameters to compare across runs. The ID cannot
-            contain special characters.
+            contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
     Examples:
