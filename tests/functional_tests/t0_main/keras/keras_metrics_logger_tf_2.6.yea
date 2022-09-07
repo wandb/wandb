@@ -14,4 +14,4 @@ assert:
         - :wandb:runs[0][telemetry][3]  # feature
         - 38  # keras
     - :wandb:runs[0][exitcode]: 0
-    
+  
