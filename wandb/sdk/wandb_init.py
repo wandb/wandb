@@ -981,7 +981,7 @@ def init(
                 wandb will crash.
             - `"must"`: if id is set with `init(id="UNIQUE_ID")` or
                 `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
-                wandb will automatically resume the run with the id. Otherwise
+                wandb will automatically resume the run with the id. Otherwise,
                 wandb will crash.
             See [our guide to resuming runs](https://docs.wandb.com/library/advanced/resuming)
             for more.
