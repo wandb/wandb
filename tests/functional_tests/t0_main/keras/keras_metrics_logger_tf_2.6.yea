@@ -1,0 +1,16 @@
+id: 0.keras.metricslogger.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_metrics_logger.py
+depend:
+    requirements:
+        - tensorflow>=2.6.2,<2.7
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 38  # keras
+    - :wandb:runs[0][exitcode]: 0
