@@ -23,7 +23,7 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -755,7 +755,14 @@ class Api:
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
+    def runs(
+        self,
+        path: Optional[str] = None,
+        filters: Optional[str] = None,
+        order: str = "-created_at",
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         """
         Return a set of runs from a project that match the filters provided.
 
@@ -823,6 +830,7 @@ class Api:
                 filters=filters,
                 order=order,
                 per_page=per_page,
+                include_sweeps=include_sweeps,
             )
         return self._runs[key]
 
@@ -1530,12 +1538,22 @@ class Runs(Paginator):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        filters: Optional[str] = None,
+        order: Optional[str] = None,
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         self.entity = entity
         self.project = project
         self.filters = filters or {}
         self.order = order
         self._sweeps = {}
+        self._include_sweeps = include_sweeps
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -1576,10 +1594,11 @@ class Runs(Paginator):
                 self.project,
                 run_response["node"]["name"],
                 run_response["node"],
+                include_sweeps=self._include_sweeps,
             )
             objs.append(run)
 
-            if run.sweep_name:
+            if self._include_sweeps and run.sweep_name:
                 if run.sweep_name in self._sweeps:
                     sweep = self._sweeps[run.sweep_name]
                 else:
@@ -1627,7 +1646,15 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs=None):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        run_id: str,
+        attrs: Optional[Mapping] = None,
+        include_sweeps: bool = True,
+    ):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
@@ -1640,6 +1667,7 @@ class Run(Attrs):
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
         self.sweep = None
+        self._include_sweeps = include_sweeps
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -1756,7 +1784,7 @@ class Run(Attrs):
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
 
-            if self.sweep_name and not self.sweep:
+            if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = Sweep.get(
