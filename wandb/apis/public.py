@@ -23,7 +23,7 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence
 
 import requests
 from wandb_gql import Client, gql
@@ -207,7 +207,7 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client):
+    def __init__(self, client: Client):
         self._server_info = None
         self._client = client
 
@@ -934,7 +934,7 @@ class Api:
 
 
 class Attrs:
-    def __init__(self, attrs):
+    def __init__(self, attrs: MutableMapping[str, Any]):
         self._attrs = attrs
 
     def snake_to_camel(self, string):
@@ -972,7 +972,12 @@ class Attrs:
 class Paginator:
     QUERY = None
 
-    def __init__(self, client, variables, per_page=None):
+    def __init__(
+        self,
+        client: Client,
+        variables: MutableMapping[str, Any],
+        per_page: Optional[int] = None,
+    ):
         self.client = client
         self.variables = variables
         # We don't allow unbounded paging
@@ -2472,7 +2477,7 @@ class Sweep(Attrs):
     def config(self):
         return util.load_yaml(self._attrs["config"])
 
-    def load(self, force=False):
+    def load(self, force: bool = False):
         if force or not self._attrs:
             sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:
@@ -2846,7 +2851,7 @@ class QueryGenerator:
         pass
 
     @classmethod
-    def format_order_key(cls, key):
+    def format_order_key(cls, key: str):
         if key.startswith("+") or key.startswith("-"):
             direction = key[0]
             key = key[1:]
@@ -3452,7 +3457,14 @@ class ProjectArtifactTypes(Paginator):
         % ARTIFACTS_TYPES_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, name=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: Optional[str] = None,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
 
@@ -3531,7 +3543,14 @@ class ProjectArtifactCollections(Paginator):
     """
     )
 
-    def __init__(self, client, entity, project, type_name, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
         self.type_name = type_name
@@ -3647,7 +3666,9 @@ class RunArtifacts(Paginator):
         % ARTIFACT_FRAGMENT
     )
 
-    def __init__(self, client, run, mode="logged", per_page=50):
+    def __init__(
+        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
+    ):
         self.run = run
         if mode == "logged":
             self.run_key = "outputArtifacts"
@@ -3707,7 +3728,14 @@ class RunArtifacts(Paginator):
 
 
 class ArtifactType:
-    def __init__(self, client, entity, project, type_name, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        attrs: Mapping[str, Any] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3735,7 +3763,7 @@ class ArtifactType:
         }
         """
         )
-        response = self.client.execute(
+        response: Optional[Mapping[str, Any]] = self.client.execute(
             query,
             variable_values={
                 "entityName": self.entity,
@@ -3777,7 +3805,15 @@ class ArtifactType:
 
 
 class ArtifactCollection:
-    def __init__(self, client, entity, project, name, type, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: str,
+        type: str,
+        attrs: Optional[Mapping[str, Any]] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3849,7 +3885,9 @@ class ArtifactCollection:
 
 
 class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
-    def __init__(self, name, entry, parent_artifact):
+    def __init__(
+        self, name: str, entry: "artifacts.ArtifactEntry", parent_artifact: "Artifact"
+    ):
         self.name = name
         self.entry = entry
         self._parent_artifact = parent_artifact
@@ -4008,11 +4046,11 @@ class Artifact(artifacts.Artifact):
     )
 
     @classmethod
-    def from_id(cls, artifact_id, client):
+    def from_id(cls, artifact_id: str, client: Client):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(
+        response: Mapping[str, Any] = client.execute(
             Artifact.QUERY,
             variable_values={"id": artifact_id},
         )
@@ -4852,14 +4890,14 @@ class ArtifactVersions(Paginator):
 
     def __init__(
         self,
-        client,
-        entity,
-        project,
-        collection_name,
-        type,
-        filters=None,
-        order=None,
-        per_page=50,
+        client: Client,
+        entity: str,
+        project: str,
+        collection_name: str,
+        type: str,
+        filters: Optional[Mapping[str, Any]] = None,
+        order: Optional[str] = None,
+        per_page: Optional[int] = 50,
     ):
         self.entity = entity
         self.collection_name = collection_name
@@ -4946,7 +4984,13 @@ class ArtifactFiles(Paginator):
         % ARTIFACT_FILES_FRAGMENT
     )
 
-    def __init__(self, client, artifact, names=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        artifact: Artifact,
+        names: Optional[Sequence[str]] = None,
+        per_page: Optional[int] = 50,
+    ):
         self.artifact = artifact
         variables = {
             "entityName": artifact.entity,
@@ -5026,7 +5070,7 @@ class Job:
         self._entity = api.default_entity
 
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
-            self._source_info = json.load(f)
+            self._source_info: Mapping[str, Any] = json.load(f)
         self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
         self._args = self._source_info.get("source", {}).get("args")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
