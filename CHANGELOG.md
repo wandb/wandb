@@ -23,7 +23,7 @@
 
 #### :broom: Cleanup
 * Breaks gradient and parameters hooks by @kptkin in https://github.com/wandb/wandb/pull/3509
-* Adds explicit error message for double uri/docker-image [WB-10302] by @gtarpenning in https://github.com/wandb/wandb/pull/4069
+* Adds explicit error message for double uri/docker-image by @gtarpenning in https://github.com/wandb/wandb/pull/4069
 * Tests that the wandb_init fixture args are in sync with wandb.init() by @dmitryduev in https://github.com/wandb/wandb/pull/4079
 * Upgrades the GKE cluster used for nightly tests to `n1-standard-8` by @dmitryduev in https://github.com/wandb/wandb/pull/4065
 * Moves service teardown to the end of tests by @kptkin in https://github.com/wandb/wandb/pull/4083
