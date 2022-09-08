@@ -1,9 +1,9 @@
-# from unittest.mock import Mock, MagicMock
-#
+from unittest.mock import Mock
+
 from wandb.proto import wandb_internal_pb2 as pb
 
 # from wandb.sdk.interface.interface_shared import InterfaceShared
-from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.lib.mailbox import Mailbox, MailboxProbe, MailboxProgress
 
 
 def get_test_setup():
@@ -72,8 +72,12 @@ def test_on_probe():
         pass
 
     mailbox, handle, result = get_test_setup()
-    handle.add_probe(on_probe)
+    mock_on_probe = Mock(spec=on_probe)
+    handle.add_probe(mock_on_probe)
     _ = handle.wait(timeout=3)
+    assert mock_on_probe.call_count == 2
+    assert len(mock_on_probe.call_args.args) == 1
+    assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
 
 
 def test_on_progress():
@@ -81,8 +85,12 @@ def test_on_progress():
         pass
 
     mailbox, handle, result = get_test_setup()
-    handle.add_progress(on_progress)
+    mock_on_progress = Mock(spec=on_progress)
+    handle.add_progress(mock_on_progress)
     _ = handle.wait(timeout=3)
+    assert mock_on_progress.call_count == 2
+    assert len(mock_on_progress.call_args.args) == 1
+    assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
 
 # def test_keepalive():
