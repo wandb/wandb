@@ -298,7 +298,7 @@ def test_launch_kube_suspend_cancel(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{project}-{entity}-asdfasdf"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -351,7 +351,7 @@ def test_launch_kube_failed(
     )
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{project}-{entity}-asdfasdf"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -393,7 +393,7 @@ def test_kube_user_container(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{project}-{entity}-asdfasdf"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -457,7 +457,7 @@ def test_kube_multi_container(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{project}-{entity}-asdfasdf"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
@@ -546,7 +546,7 @@ def test_get_status_failed(
 
     project = "test"
     entity = "mock_server_entity"
-    pod_name = f"launch-{project}-{entity}-asdfasdf"
+    pod_name = f"launch-{entity}-{project}-asdfasdf"
 
     setup_mock_kubernetes_client(monkeypatch, jobs, pods(pod_name), status)
 
