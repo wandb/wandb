@@ -77,6 +77,7 @@ SENTRY_DSN = "WANDB_SENTRY_DSN"
 INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
+ARTIFACT_DOWNLOAD_THREADS = "WANDB_ARTIFACT_DOWNLOAD_THREADS"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -319,6 +320,16 @@ def get_magic(default: Optional[str] = None, env: Env = None) -> Optional[str]:
         env = os.environ
     val = env.get(MAGIC, default)
     return val
+
+
+def get_artifact_download_threads(default: Optional[str] = None, env: Env = None) -> int:
+    if env is None:
+        env = os.environ
+    val_str = env.get(ARTIFACT_DOWNLOAD_THREADS, default)
+    if val_str:
+        return int(val_str)
+    return 32
+
 
 
 def get_cache_dir(env: Env = None) -> str:

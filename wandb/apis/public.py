@@ -4439,7 +4439,7 @@ class Artifact(artifacts.Artifact):
                     termlog(f"Downloaded {n_files_downloaded} of {nfiles} files...")
                     last_log_time = datetime.datetime.now()
 
-        pool = multiprocessing.dummy.Pool(32)
+        pool = multiprocessing.dummy.Pool(env.get_artifact_download_threads())
         pool.map(download_file, manifest.entries)
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
