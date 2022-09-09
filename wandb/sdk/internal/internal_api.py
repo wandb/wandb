@@ -2363,8 +2363,10 @@ class Api:
                     $artifactType: String!
                 ){
                     project(name: $projectName, entityName: $entityName){
-                        artifactType(name: $name)
-                            id
+                        artifactType(name: $artifactType)
+                            {
+                                id
+                            }
                     }
                 }
             """
@@ -2373,9 +2375,9 @@ class Api:
         variable_values_type_id = {
             "entityName": entity,
             "projectName": project,
-            "name": artifact_type,
+            "artifactType": artifact_type,
         }
-        response = self.gql(query, variable_values_type_id=variable_values_type_id)
+        response = self.gql(query, variable_values=variable_values_type_id)
         artifact_type_id = response["project"]["artifactType"]["id"]
         # TODO: create_artifact_type() if type id is null
 

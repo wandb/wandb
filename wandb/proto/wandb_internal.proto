@@ -422,7 +422,7 @@ message StoragePolicyConfigItem {
 message ArtifactResult {
 }
 
-message LinkArtifactResult {
+message CreateArtifactPortfolioResult {
 }
 
 /*
@@ -433,6 +433,9 @@ message CreateArtifactPortfolioRecord {
   string          portfolio_project = 2;
   string          portfolio_entity = 3; 
   _RecordInfo     _info = 200;
+}
+
+message LinkArtifactResult {
 }
 
 /*

@@ -170,7 +170,7 @@ class InterfaceGrpc(InterfaceBase):
     ) -> None:
         assert self._stub
         self._assign(create_artifact_portfolio)
-        _ = self._stub.LinkArtifact(create_artifact_portfolio)
+        _ = self._stub.CreateArtifactPortfolio(create_artifact_portfolio)
 
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         assert self._stub

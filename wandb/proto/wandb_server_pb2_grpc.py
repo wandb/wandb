@@ -126,6 +126,11 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.FromString,
                 )
+        self.CreateArtifactPortfolio = channel.unary_unary(
+                '/wandb_internal.InternalService/CreateArtifactPortfolio',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CreateArtifactPortfolioRecord.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CreateArtifactPortfolioResult.FromString,
+                )
         self.ArtifactSend = channel.unary_unary(
                 '/wandb_internal.InternalService/ArtifactSend',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.SerializeToString,
@@ -333,6 +338,12 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CreateArtifactPortfolio(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ArtifactSend(self, request, context):
         """rpc messages for async operations: Send, Poll, Cancel, Release
         """
@@ -530,6 +541,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.LinkArtifact,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.SerializeToString,
+            ),
+            'CreateArtifactPortfolio': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateArtifactPortfolio,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CreateArtifactPortfolioRecord.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CreateArtifactPortfolioResult.SerializeToString,
             ),
             'ArtifactSend': grpc.unary_unary_rpc_method_handler(
                     servicer.ArtifactSend,
@@ -982,6 +998,23 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/LinkArtifact',
             wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactRecord.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.LinkArtifactResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def CreateArtifactPortfolio(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/CreateArtifactPortfolio',
+            wandb_dot_proto_dot_wandb__internal__pb2.CreateArtifactPortfolioRecord.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.CreateArtifactPortfolioResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

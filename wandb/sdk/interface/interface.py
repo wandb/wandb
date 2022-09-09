@@ -419,7 +419,7 @@ class InterfaceBase:
         self,
         run: "Run",
         portfolio_name: str,
-        project: Optional[str] = "model-registry",
+        project: Optional[str] = "artifacts-example",
         entity: Optional[str] = None,
     ) -> None:
         create_artifact_portfolio = pb.CreateArtifactPortfolioRecord()
@@ -428,6 +428,12 @@ class InterfaceBase:
         create_artifact_portfolio.portfolio_entity = entity or run.entity
 
         self._publish_create_artifact_portfolio(create_artifact_portfolio)
+
+    @abstractmethod
+    def _publish_create_artifact_portfolio(
+        self, create_artifact_portfolio: pb.CreateArtifactPortfolioRecord
+    ) -> None:
+        raise NotImplementedError
 
     def publish_link_artifact(
         self,
