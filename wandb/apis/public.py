@@ -3942,8 +3942,11 @@ class _ArtifactDownloadLogger:
         with self._lock:
             self._n_files_downloaded += 1
             if self._clock() - self._last_log_time > 5:
-                self._termlog(f"Downloaded {self._n_files_downloaded} of {self._nfiles} files...")
+                self._termlog(
+                    f"Downloaded {self._n_files_downloaded} of {self._nfiles} files..."
+                )
                 self._last_log_time = self._clock()
+
 
 class Artifact(artifacts.Artifact):
     """
@@ -4455,7 +4458,10 @@ class Artifact(artifacts.Artifact):
         download_logger = _ArtifactDownloadLogger(nfiles=nfiles)
 
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath, download_logger=download_logger), manifest.entries)
+        pool.map(
+            partial(self._download_file, root=dirpath, download_logger=download_logger),
+            manifest.entries,
+        )
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
@@ -4547,7 +4553,9 @@ class Artifact(artifacts.Artifact):
 
         return self._download_file(list(manifest.entries)[0], root=root)
 
-    def _download_file(self, name, root, download_logger: Optional[_ArtifactDownloadLogger]=None):
+    def _download_file(
+        self, name, root, download_logger: Optional[_ArtifactDownloadLogger] = None
+    ):
         # download file into cache and copy to target dir
         downloaded_path = self.get_path(name).download(root)
         if download_logger is not None:

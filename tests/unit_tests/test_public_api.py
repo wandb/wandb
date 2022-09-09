@@ -167,11 +167,14 @@ def test_override_base_url_passed_to_login():
         assert mock_login.call_args[1]["host"] == base_url
         assert api.settings["base_url"] == base_url
 
-def test_ArtifactDownloadLogger():
+
+def test_artifact_download_logger():
     now = 0
     termlog = mock.Mock()
 
-    logger = wandb.apis.public._ArtifactDownloadLogger(nfiles=1000, clock_for_testing=lambda: now, termlog_for_testing=termlog)
+    logger = wandb.apis.public._ArtifactDownloadLogger(
+        nfiles=1000, clock_for_testing=lambda: now, termlog_for_testing=termlog
+    )
 
     times_messages = [
         (0, None),
