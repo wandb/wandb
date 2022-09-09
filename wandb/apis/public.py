@@ -4429,15 +4429,16 @@ class Artifact(artifacts.Artifact):
 
         lock = multiprocessing.dummy.Lock()
         n_files_downloaded = 0
-        last_log_time = datetime.datetime.now()
+        last_log_time = time.time()
+
         def download_file(entry):
             self._download_file(entry, root=dirpath)
             with lock:
                 nonlocal n_files_downloaded, last_log_time
                 n_files_downloaded += 1
-                if log and datetime.datetime.now() - last_log_time > datetime.timedelta(seconds=5):
+                if log and time.time() - last_log_time > 5:
                     termlog(f"Downloaded {n_files_downloaded} of {nfiles} files...")
-                    last_log_time = datetime.datetime.now()
+                    last_log_time = time.time()
 
         pool = multiprocessing.dummy.Pool(32)
         pool.map(download_file, manifest.entries)
