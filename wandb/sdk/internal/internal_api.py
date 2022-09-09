@@ -3,6 +3,7 @@ import base64
 import datetime
 import json
 import logging
+from optparse import Option
 import os
 import re
 import socket
@@ -2343,6 +2344,83 @@ class Api:
                         )
             open_file.close()
         return responses
+
+    def create_artifact_portfolio(
+        self,
+        entity: str,
+        portfolio_name: str,
+        project: Optional[str] = "model-registry",
+        artifact_type: Optional[str] = "model",
+        description: Optional[str] = None,
+    ) -> Dict[str, str]:
+
+        # Query to retrieve artifact type id if it exists
+        query = gql(
+            """
+                query ArtifactTypeID(
+                    $entityName: String!
+                    $projectName: String!
+                    $artifactType: String!
+                ){
+                    project(name: $projectName, entityName: $entityName){
+                        artifactType(name: $name)
+                            id
+                    }
+                }
+            """
+        )
+
+        variable_values_type_id = {
+            "entityName": entity,
+            "projectName": project,
+            "name": artifact_type,
+        }
+        response = self.gql(query, variable_values_type_id=variable_values_type_id)
+        artifact_type_id = response["project"]["artifactType"]["id"]
+        # TODO: create_artifact_type() if type id is null
+
+        mutation = gql(
+            """
+                mutation CreateArtifactPortfolio(
+                    $entityName: String!
+                    $projectName: String!
+                    $artifactTypeID: ID!
+                    $name: String!
+                    $description: String
+                    $clientMutationId: String
+                ){
+                    createArtifactPortfolio(
+                    input: {
+                        entityName: $entityName
+                        projectName: $projectName
+                        artifactTypeID: $artifactTypeID
+                        name: $name
+                        description: $description
+                        clientMutationId: $clientMutationId
+                    }
+                ){
+                    artifactCollection {
+                        id
+                        name
+                    }
+                    }
+                }
+        """
+        )
+
+        variable_values = {
+            "entityName": entity,
+            "projectName": project,
+            "artifactTypeID": artifact_type_id,
+            "name": portfolio_name,
+            "description": description,
+        }
+
+        response = self.gql(mutation, variable_values=variable_values)
+        create_artifact_portfolio = response["createArtifactPortfolio"][
+            "artifactCollection"
+        ]
+        return create_artifact_portfolio
 
     def link_artifact(
         self,
