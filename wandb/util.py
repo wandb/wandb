@@ -264,6 +264,10 @@ def sentry_set_scope(
             if value is not None and value != "":
                 scope.set_tag(tag, value)
 
+    # Track session so we can get metrics about error free rate
+    if sentry_hub:
+        sentry_hub.start_session()
+
 
 def vendor_setup() -> Callable:
     """This enables us to use the vendor directory for packages we don't depend on

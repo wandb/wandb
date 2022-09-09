@@ -2463,6 +2463,8 @@ class Run:
             aliases = []
 
         if self._backend and self._backend.interface:
+            if isinstance(artifact, Artifact) and not artifact._logged_artifact:
+                artifact = self._log_artifact(artifact)
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
                     self,
