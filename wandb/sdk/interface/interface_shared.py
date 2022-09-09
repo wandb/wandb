@@ -178,6 +178,7 @@ class InterfaceShared(InterfaceBase):
         telemetry: tpb.TelemetryRecord = None,
         preempting: pb.RunPreemptingRecord = None,
         link_artifact: pb.LinkArtifactRecord = None,
+        create_artifact_portfolio: pb.CreateArtifactPortfolioRecord = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -216,6 +217,8 @@ class InterfaceShared(InterfaceBase):
             record.preempting.CopyFrom(preempting)
         elif link_artifact:
             record.link_artifact.CopyFrom(link_artifact)
+        elif create_artifact_portfolio:
+            record.create_artifact_portfolio.CopyFrom(create_artifact_portfolio)
         else:
             raise Exception("Invalid record")
         return record
@@ -340,6 +343,12 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_files(self, files: pb.FilesRecord) -> None:
         rec = self._make_record(files=files)
+        self._publish(rec)
+
+    def _publish_create_artifact_portfolio(
+        self, create_artifact_portfolio: pb.CreateArtifactPortfolioRecord
+    ) -> Any:
+        rec = self._make_record(create_artifact_portfolio=create_artifact_portfolio)
         self._publish(rec)
 
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> Any:

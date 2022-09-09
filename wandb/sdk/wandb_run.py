@@ -2432,7 +2432,10 @@ class Run:
         pass
 
     @_run_decorator._attach
-    def register_model(self, portfolio_name: str) -> None:
+    def register_model(
+        self,
+        portfolio_name: str,
+    ) -> None:
         # TODO: function name
         """Creates a portfolio (a promoted collection of artifacts).
 

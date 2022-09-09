@@ -45,6 +45,7 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;    
     LinkArtifactRecord link_artifact = 24;
+    CreateArtifactPortfolioRecord create_artifact_portfolio = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
