@@ -11,11 +11,13 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 import json
 import logging
+from optparse import Option
 import os
 import sys
 import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
+from venv import create
 
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
@@ -412,6 +414,20 @@ class InterfaceBase:
                 proto_extra.key = k
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
+
+    def publish_create_artifact_portfolio(
+        self,
+        run: "Run",
+        portfolio_name: str,
+        project: Optional[str] = "model-registry",
+        entity: Optional[str] = None,
+    ) -> None:
+        create_artifact_portfolio = pb.CreateArtifactPortfolioRecord()
+        create_artifact_portfolio.portfolio_name = portfolio_name
+        create_artifact_portfolio.portfolio_project = project or run.project
+        create_artifact_portfolio.portfolio_entity = entity or run.entity
+
+        self._publish_create_artifact_portfolio(create_artifact_portfolio)
 
     def publish_link_artifact(
         self,

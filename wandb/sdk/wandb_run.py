@@ -2432,14 +2432,14 @@ class Run:
         pass
 
     @_run_decorator._attach
-    def register_model(self, portfolio: str) -> None:
+    def register_model(self, portfolio_name: str) -> None:
         # TODO: function name
         """Creates a portfolio (a promoted collection of artifacts).
 
         The portfolio will be visible in the model registry.
 
         Arguments:
-            portfolio: `str` - the name of the collection under the model-registry project.
+            portfolio_name: `str` - the name of the collection under the model-registry project.
 
         Returns:
             None
@@ -2451,7 +2451,7 @@ class Run:
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_create_artifact_portfolio(
-                    self, portfolio
+                    self, portfolio_name
                 )
             else:
                 # TODO: implement offline mode + sync
