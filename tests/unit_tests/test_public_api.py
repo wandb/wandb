@@ -5,8 +5,8 @@ from unittest import mock
 
 import pytest
 import wandb
-import wandb.util
 import wandb.apis.public
+import wandb.util
 from wandb import Api
 
 
