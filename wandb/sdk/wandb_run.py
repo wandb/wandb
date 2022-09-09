@@ -2444,11 +2444,15 @@ class Run:
         Returns:
             None
         """
+        # TODO: Entity information without taking project information?
+        # TODO: Add description parameter
         # TODO: Create project if doesn't exist
         # TODO: Re-evaluate arguments: artifact type
         if self._backend and self._backend.interface:
             if not self._settings._offline:
-                self._backend.interface.publish_link_artifact(self, portfolio)
+                self._backend.interface.publish_create_artifact_portfolio(
+                    self, portfolio
+                )
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
