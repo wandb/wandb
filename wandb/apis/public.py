@@ -22,7 +22,6 @@ import tempfile
 import time
 import urllib
 from collections import namedtuple
-from functools import partial
 from typing import Dict, List, Mapping, Optional
 
 import requests
@@ -4421,7 +4420,6 @@ class Artifact(artifacts.Artifact):
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles),
-                newline=False,
             )
             start_time = datetime.datetime.now()
 
@@ -4429,8 +4427,20 @@ class Artifact(artifacts.Artifact):
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
 
+        lock = multiprocessing.dummy.Lock()
+        n_files_downloaded = 0
+        last_log_time = datetime.datetime.now()
+        def download_file(entry):
+            self._download_file(entry, root=dirpath)
+            with lock:
+                nonlocal n_files_downloaded, last_log_time
+                n_files_downloaded += 1
+                if log and datetime.datetime.now() - last_log_time > datetime.timedelta(seconds=5):
+                    termlog(f"Downloaded {n_files_downloaded} of {nfiles} files...")
+                    last_log_time = datetime.datetime.now()
+
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        pool.map(download_file, manifest.entries)
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
