@@ -425,6 +425,16 @@ message LinkArtifactResult {
 }
 
 /*
+* CreateArtifactPortfolioRecord: create artifact portfolio
+*/
+message CreateArtifactPortfolioRecord {
+  string          portfolio_name = 1;
+  string          portfolio_project = 2;
+  string          portfolio_entity = 3; 
+  _RecordInfo     _info = 200;
+}
+
+/*
  * LinkArtifactRecord: link artifact to portfolio
  */
  message LinkArtifactRecord {
