@@ -3,10 +3,12 @@ sender.
 """
 
 
+from html import entities
 import json
 import logging
 import os
 import queue
+from tempfile import TemporaryFile
 import threading
 import time
 from collections import defaultdict
@@ -1173,6 +1175,22 @@ class SendManager:
     def send_tbrecord(self, record: "Record") -> None:
         # tbrecord watching threads are handled by handler.py
         pass
+
+    def send_create_artifact_portfolio(self, record: "Record") -> None:
+        portfolio = record.create_artifact_portfolio
+        portfolio_name = portfolio.portfolio_name
+        entity = portfolio.portfolio_entity
+        project = portfolio.portfolio_project
+        logger.debug(
+            f"create_artifact_portfolio params - pfolio={portfolio_name}, entity={entity}, project={project}"
+        )
+        if portfolio_name and entity and project:
+            try:
+                self._api.create_artifact_portfolio(
+                    entity, portfolio_name, project=project
+                )
+            except Exception as e:
+                logger.warning("Failed to create artifact portfolio: %s", e)
 
     def send_link_artifact(self, record: "Record") -> None:
         link = record.link_artifact
