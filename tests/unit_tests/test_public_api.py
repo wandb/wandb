@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 import wandb
 import wandb.util
+import wandb.apis.public
 from wandb import Api
 
 
@@ -165,3 +166,27 @@ def test_override_base_url_passed_to_login():
         api = wandb.Api(api_key=None, overrides={"base_url": base_url})
         assert mock_login.call_args[1]["host"] == base_url
         assert api.settings["base_url"] == base_url
+
+def test_ArtifactDownloadLogger():
+    now = 0
+    termlog = mock.Mock()
+
+    logger = wandb.apis.public._ArtifactDownloadLogger(nfiles=1000, clock_for_testing=lambda: now, termlog_for_testing=termlog)
+
+    times_messages = [
+        (0, None),
+        (1, None),
+        (8, "Downloaded 3 of 1000 files..."),
+        (9, None),
+        (20, "Downloaded 5 of 1000 files..."),
+        (21, None),
+    ]
+
+    for t, message in times_messages:
+        now = t
+        termlog.reset_mock()
+        logger.notify_downloaded()
+        if message:
+            termlog.assert_called_once_with(message)
+        else:
+            termlog.assert_not_called()

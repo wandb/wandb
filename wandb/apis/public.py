@@ -14,6 +14,7 @@ import ast
 import datetime
 import json
 import logging
+import multiprocessing.dummy  # this uses threads
 import os
 import platform
 import re
@@ -22,7 +23,8 @@ import tempfile
 import time
 import urllib
 from collections import namedtuple
-from typing import Dict, List, Mapping, Optional
+from functools import partial
+from typing import Callable, Dict, List, Mapping, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -3921,6 +3923,28 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
         )
 
 
+class _ArtifactDownloadLogger:
+    def __init__(
+        self,
+        nfiles: int,
+        clock_for_testing: Callable[[], float] = time.time,
+        termlog_for_testing=termlog,
+    ) -> None:
+        self._nfiles = nfiles
+        self._clock = clock_for_testing
+        self._termlog = termlog_for_testing
+
+        self._n_files_downloaded = 0
+        self._last_log_time = self._clock()
+        self._lock = multiprocessing.dummy.Lock()
+
+    def notify_downloaded(self) -> None:
+        with self._lock:
+            self._n_files_downloaded += 1
+            if self._clock() - self._last_log_time > 5:
+                self._termlog(f"Downloaded {self._n_files_downloaded} of {self._nfiles} files...")
+                self._last_log_time = self._clock()
+
 class Artifact(artifacts.Artifact):
     """
     A wandb Artifact.
@@ -4073,6 +4097,7 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = False
         self._dependent_artifacts = []
         self._download_roots = set()
+        self._download_logger: Optional[_ArtifactDownloadLogger] = None
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
@@ -4427,21 +4452,10 @@ class Artifact(artifacts.Artifact):
         # Download in parallel
         import multiprocessing.dummy  # this uses threads
 
-        lock = multiprocessing.dummy.Lock()
-        n_files_downloaded = 0
-        last_log_time = time.time()
-
-        def download_file(entry):
-            self._download_file(entry, root=dirpath)
-            with lock:
-                nonlocal n_files_downloaded, last_log_time
-                n_files_downloaded += 1
-                if log and time.time() - last_log_time > 5:
-                    termlog(f"Downloaded {n_files_downloaded} of {nfiles} files...")
-                    last_log_time = time.time()
+        download_logger = _ArtifactDownloadLogger(nfiles=nfiles)
 
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(download_file, manifest.entries)
+        pool.map(partial(self._download_file, root=dirpath, download_logger=download_logger), manifest.entries)
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
@@ -4533,9 +4547,12 @@ class Artifact(artifacts.Artifact):
 
         return self._download_file(list(manifest.entries)[0], root=root)
 
-    def _download_file(self, name, root):
+    def _download_file(self, name, root, download_logger: Optional[_ArtifactDownloadLogger]=None):
         # download file into cache and copy to target dir
-        return self.get_path(name).download(root)
+        downloaded_path = self.get_path(name).download(root)
+        if download_logger is not None:
+            download_logger.notify_downloaded()
+        return downloaded_path
 
     def _default_root(self, include_version=True):
         root = (
