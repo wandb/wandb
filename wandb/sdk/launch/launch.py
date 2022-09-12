@@ -59,7 +59,9 @@ def resolve_agent_config(
     if os.environ.get("WANDB_API_KEY") is not None:
         resolved_config.update({"api_key": os.environ.get("WANDB_API_KEY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
-        resolved_config.update({"max_jobs": os.environ.get("WANDB_LAUNCH_MAX_JOBS")})
+        resolved_config.update(
+            {"max_jobs": int(os.environ.get("WANDB_LAUNCH_MAX_JOBS"))}
+        )
     if os.environ.get("WANDB_BASE_URL") is not None:
         resolved_config.update({"base_url": os.environ.get("WANDB_BASE_URL")})
 
