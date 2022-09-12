@@ -597,7 +597,7 @@ class Table(Media):
         dtypes = None
         if column_types is not None:
             dtypes = [
-                column_types.params["type_map"][col] for col in json_obj["columns"]
+                column_types.params["type_map"][str(col)] for col in json_obj["columns"]
             ]
 
         new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
