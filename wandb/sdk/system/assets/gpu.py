@@ -1,20 +1,189 @@
-__all__ = [
-    "GPU",
-]
-
-
-from typing import List, Optional
+import multiprocessing as mp
+from collections import deque
+from typing import TYPE_CHECKING, Deque, List, cast
 
 from wandb.vendor.pynvml import pynvml
 
-from ..protocols import Metric
-from ...interface.interface_queue import InterfaceQueue
+from ..protocols import MetricType
+from .asset_base import AssetBase
+
+if TYPE_CHECKING:
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.internal.settings_static import SettingsStatic
 
 
-class GPU:
-    def __init__(self, interface: InterfaceQueue) -> None:
-        self.interface = interface
-        self.metrics: List[Metric] = []
+class GPUMemoryUtilization:
+    # name = "memory_utilization"
+    name = "memory"
+    metric_type = cast("gauge", MetricType)
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[float]
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        memory_utilization_rate = []
+        device_count = pynvml.nvmlDeviceGetCount()
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            memory_utilization_rate.append(
+                pynvml.nvmlDeviceGetUtilizationRates(handle).memory
+            )
+        self.samples.append(memory_utilization_rate)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        # todo: create a statistics class with helper methods to compute
+        #      mean, median, min, max, etc.
+        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        return {self.name: aggregate}
+
+
+class GPUMemoryAllocated:
+    # name = "memory_allocated"
+    name = "memoryAllocated"
+    metric_type = cast("gauge", MetricType)
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[float]
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        memory_allocated = []
+        device_count = pynvml.nvmlDeviceGetCount()
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            memory_allocated.append(memory_info.used / memory_info.total * 100)
+        self.samples.append(memory_allocated)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        # todo: create a statistics class with helper methods to compute
+        #      mean, median, min, max, etc.
+        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        return {self.name: aggregate}
+
+
+class GPUUtilization:
+    # name = "gpu_utilization"
+    name = "gpu"
+    metric_type = cast("gauge", MetricType)
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[float]
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        gpu_utilization_rate = []
+        device_count = pynvml.nvmlDeviceGetCount()
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            gpu_utilization_rate.append(
+                pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+            )
+        self.samples.append(gpu_utilization_rate)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        return {self.name: aggregate}
+
+
+class GPUTemperature:
+    # name = "gpu_temperature"
+    name = "temp"
+    metric_type = cast("gauge", MetricType)
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[float]
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        temperature = []
+        device_count = pynvml.nvmlDeviceGetCount()
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            temperature.append(
+                pynvml.nvmlDeviceGetTemperature(
+                    handle,
+                    pynvml.NVML_TEMPERATURE_GPU,
+                )
+            )
+        self.samples.append(temperature)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        return {self.name: aggregate}
+
+
+class GPUPowerUsage:
+    # name = "power_usage"
+    name = "powerWatts"
+    metric_type = cast("gauge", MetricType)
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[float]
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.samples = deque([])
+
+    def sample(self) -> None:
+        power_usage = []
+        device_count = pynvml.nvmlDeviceGetCount()
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            power_usage.append(pynvml.nvmlDeviceGetPowerUsage(handle) / 1000)
+        self.samples.append(power_usage)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        aggregate = round(sum(self.samples) / len(self.samples), 2)
+        return {self.name: aggregate}
+
+
+class GPU(AssetBase):
+    def __init__(
+        self,
+        interface: "InterfaceQueue",
+        settings: "SettingsStatic",
+        shutdown_event: mp.Event,
+    ) -> None:
+        super().__init__(interface, settings, shutdown_event)
+        self.metrics: List[MetricType] = [
+            GPUMemoryAllocated(settings._stats_pid),
+            GPUMemoryUtilization(settings._stats_pid),
+            GPUUtilization(settings._stats_pid),
+            GPUTemperature(settings._stats_pid),
+            GPUPowerUsage(settings._stats_pid),
+        ]
+
+    @classmethod
+    def is_available(cls) -> bool:
+        try:
+            pynvml.nvmlInit()
+            return True
+        except pynvml.NVMLError_LibraryNotFound:
+            return False
 
     def probe(self) -> dict:
         pynvml.nvmlInit()
@@ -34,26 +203,3 @@ class GPU:
                 }
             )
         return {"type": "gpu", "devices": devices}
-
-    def start(self) -> None:
-        pass
-
-    def monitor(self) -> None:
-        pass
-
-    def finish(self) -> None:
-        pass
-
-    def serialize(self) -> dict:
-        return {
-            "type": "gpu",
-            "metrics": [metric.serialize() for metric in self.metrics],
-        }
-
-    @classmethod
-    def get_instance(cls, interface: InterfaceQueue) -> Optional["GPU"]:
-        try:
-            pynvml.nvmlInit()
-            return cls(interface=interface)
-        except pynvml.NVMLError_LibraryNotFound:
-            return None
