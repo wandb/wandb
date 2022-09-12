@@ -281,4 +281,33 @@ class SystemStats:
 
         if self._ipu_profiler:
             stats.update(self._ipu_profiler.get_metrics())
+
+        import random
+
+        stats = {
+            **stats,
+            **{
+                "ipu.0.user process id": 1,
+                "ipu.0.average board temp (C)": 40,
+                "ipu.0.average die temp (C)": 49,
+                "ipu.0.board ipu index": 1,
+                "ipu.0.clock (MHz)": 2600,
+                "ipu.0.id": 1,
+                "ipu.0.ipu power (W)": 120,
+                "ipu.0.ipu utilisation (%)": round(random.random() * 100, 2),
+                "ipu.0.ipu utilisation (session) (%)": round(random.random() * 100, 2),
+            },
+            **{
+                "ipu.1.user process id": 2,
+                "ipu.1.average board temp (C)": 30,
+                "ipu.1.average die temp (C)": 39,
+                "ipu.1.board ipu index": 2,
+                "ipu.1.clock (MHz)": 1300,
+                "ipu.1.id": 2,
+                "ipu.1.ipu power (W)": 121,
+                "ipu.1.ipu utilisation (%)": round(random.random() * 100, 2),
+                "ipu.1.ipu utilisation (session) (%)": round(random.random() * 100, 2),
+            },
+        }
+
         return stats
