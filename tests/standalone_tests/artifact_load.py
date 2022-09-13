@@ -57,7 +57,7 @@ parser.add_argument("--test_phase_seconds", type=int, required=True)
 parser.add_argument("--num_writers", type=int, required=True)
 parser.add_argument("--files_per_version_min", type=int, required=True)
 parser.add_argument("--files_per_version_max", type=int, required=True)
-parser.add_argument("--non_overlapping_writers", default=True, action="store_true")
+parser.add_argument("--non_overlapping_writers", action="store_true")
 parser.add_argument("--distributed_fanout", type=int, default=1)
 parser.add_argument("--blocking", type=bool, default=False)
 
