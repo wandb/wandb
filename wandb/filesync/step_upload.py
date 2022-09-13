@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 PreCommitFn = Callable[[], None]
-PostCommitFn = Callable[[], None]
+PostCommitFn = Callable[[Optional[Exception]], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], Any]
 
@@ -216,12 +216,16 @@ class StepUpload:
             artifact_status["pending_count"] == 0
             and artifact_status["commit_requested"]
         ):
-            for callback in artifact_status["pre_commit_callbacks"]:
-                callback()
+            for pre_callback in artifact_status["pre_commit_callbacks"]:
+                pre_callback()
+            exc = None
             if artifact_status["finalize"]:
-                self._api.commit_artifact(artifact_id)
-            for callback in artifact_status["post_commit_callbacks"]:
-                callback()
+                try:
+                    self._api.commit_artifact(artifact_id)
+                except Exception as e:
+                    exc = e
+            for post_callback in artifact_status["post_commit_callbacks"]:
+                post_callback(exc)
 
     def start(self) -> None:
         self._thread.start()

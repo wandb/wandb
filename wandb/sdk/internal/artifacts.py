@@ -1,15 +1,18 @@
+import datetime
 import json
 import os
 import sys
 import tempfile
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
+
+import requests
 
 import wandb
 import wandb.filesync.step_prepare
+import wandb.sdk.lib.retry
 from wandb import util
-
-from ..interface.artifacts import ArtifactEntry, ArtifactManifest
+from wandb.sdk.interface.artifacts import ArtifactEntry, ArtifactManifest
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2
@@ -80,6 +83,52 @@ class ArtifactSaver:
         self._server_artifact = None
 
     def save(
+        self,
+        type: str,
+        name: str,
+        client_id: str,
+        sequence_client_id: str,
+        distributed_id: Optional[str] = None,
+        finalize: bool = True,
+        metadata: Optional[Dict] = None,
+        description: Optional[str] = None,
+        aliases: Optional[Sequence[str]] = None,
+        labels: Optional[List[str]] = None,
+        use_after_commit: bool = False,
+        incremental: bool = False,
+        history_step: Optional[int] = None,
+    ) -> Optional[Dict]:
+        def check_retry(e: Exception) -> Union[bool, datetime.timedelta]:
+            if (
+                isinstance(e, requests.exceptions.HTTPError)
+                and e.response.status_code == 409
+            ):
+                return datetime.timedelta(minutes=2)
+            return False
+
+        retrying_save = wandb.sdk.lib.retry.Retry(
+            self._save,
+            retryable_exceptions=(requests.exceptions.HTTPError,),
+            check_retry_fn=check_retry,
+            num_retries=3,
+        )
+        return retrying_save(
+            type,
+            name,
+            client_id,
+            sequence_client_id,
+            distributed_id,
+            finalize,
+            metadata,
+            description,
+            aliases,
+            labels,
+            use_after_commit,
+            incremental,
+            history_step,
+        )
+
+    def _save(
         self,
         type: str,
         name: str,
@@ -232,9 +281,15 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        def on_commit() -> None:
-            if finalize and use_after_commit:
-                self._api.use_artifact(artifact_id)
+        commit_exc: Optional[Exception] = None
+
+        def on_commit(exc: Optional[Exception]) -> None:
+            if exc is None:
+                if finalize and use_after_commit:
+                    self._api.use_artifact(artifact_id)
+            else:
+                nonlocal commit_exc
+                commit_exc = exc
             step_prepare.shutdown()
             commit_event.set()
 
@@ -250,6 +305,9 @@ class ArtifactSaver:
         # artifact is committed.
         while not commit_event.is_set():
             commit_event.wait()
+
+        if commit_exc is not None:
+            raise commit_exc
 
         return self._server_artifact
 
