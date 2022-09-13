@@ -1,11 +1,10 @@
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, Deque, List, cast
+from typing import TYPE_CHECKING, Deque, cast
 
 import psutil
 
-from ..protocols import MetricType
-from .asset_base import AssetBase
+from ..interfaces import MetricType, MetricsMonitor
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -32,15 +31,21 @@ class DiskUsage:
         return {self.name: aggregate}
 
 
-class Disk(AssetBase):
+class Disk:
     def __init__(
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
     ) -> None:
-        super().__init__(interface, settings, shutdown_event)
+        self.name = self.__class__.__name__.lower()
         self.metrics = [DiskUsage()]
+        self.metrics_monitor = MetricsMonitor(
+            self.metrics,
+            interface,
+            settings,
+            shutdown_event,
+        )
 
     @classmethod
     def is_available(cls) -> bool:

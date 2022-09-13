@@ -4,8 +4,7 @@ from typing import TYPE_CHECKING, Deque, List, cast
 
 from wandb.vendor.pynvml import pynvml
 
-from ..protocols import MetricType
-from .asset_base import AssetBase
+from ..interfaces import MetricType, MetricsMonitor
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -17,7 +16,7 @@ class GPUMemoryUtilization:
     name = "memory"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
-    samples: Deque[float]
+    samples: Deque[List[float]]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -48,7 +47,7 @@ class GPUMemoryAllocated:
     name = "memoryAllocated"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
-    samples: Deque[float]
+    samples: Deque[List[float]]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -78,7 +77,7 @@ class GPUUtilization:
     name = "gpu"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
-    samples: Deque[float]
+    samples: Deque[List[float]]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -107,7 +106,7 @@ class GPUTemperature:
     name = "temp"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
-    samples: Deque[float]
+    samples: Deque[List[float]]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -139,7 +138,7 @@ class GPUPowerUsage:
     name = "powerWatts"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
-    samples: Deque[float]
+    samples: Deque[List[float]]
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -161,21 +160,27 @@ class GPUPowerUsage:
         return {self.name: aggregate}
 
 
-class GPU(AssetBase):
+class GPU:
     def __init__(
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
     ) -> None:
-        super().__init__(interface, settings, shutdown_event)
-        self.metrics: List[MetricType] = [
+        self.name = self.__class__.__name__.lower()
+        self.metrics = [
             GPUMemoryAllocated(settings._stats_pid),
             GPUMemoryUtilization(settings._stats_pid),
             GPUUtilization(settings._stats_pid),
             GPUTemperature(settings._stats_pid),
             GPUPowerUsage(settings._stats_pid),
         ]
+        self.metrics_monitor = MetricsMonitor(
+            self.metrics,
+            interface,
+            settings,
+            shutdown_event,
+        )
 
     @classmethod
     def is_available(cls) -> bool:
@@ -183,6 +188,8 @@ class GPU(AssetBase):
             pynvml.nvmlInit()
             return True
         except pynvml.NVMLError_LibraryNotFound:
+            return False
+        except Exception:
             return False
 
     def probe(self) -> dict:

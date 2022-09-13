@@ -4,8 +4,7 @@ from typing import TYPE_CHECKING, Deque, cast
 
 import psutil
 
-from ..protocols import MetricType
-from .asset_base import AssetBase
+from ..interfaces import MetricType, MetricsMonitor
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -54,18 +53,24 @@ class NetworkRecv:
         return {self.name: aggregate}
 
 
-class Network(AssetBase):
+class Network:
     def __init__(
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
     ) -> None:
-        super().__init__(interface, settings, shutdown_event)
+        self.name = self.__class__.__name__.lower()
         self.metrics = [
             NetworkSent(),
             NetworkRecv(),
         ]
+        self.metrics_monitor = MetricsMonitor(
+            self.metrics,
+            interface,
+            settings,
+            shutdown_event,
+        )
 
     @classmethod
     def is_available(cls) -> bool:
@@ -75,8 +80,3 @@ class Network(AssetBase):
     def probe(self) -> dict:
         """Return a dict of the hardware information"""
         return {}
-
-    def serialize(self) -> dict:
-        """Return a dict of the metrics"""
-        serialized_metrics = super().serialize()
-        return {self.name: serialized_metrics}

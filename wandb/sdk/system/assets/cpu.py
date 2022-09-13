@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING, Deque, List, Optional, cast
 
 import psutil
 
-from ..protocols import MetricType
-from .asset_base import AssetBase
+from ..interfaces import Metric, MetricType, MetricsMonitor
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -84,36 +83,44 @@ class CpuPercent:
         return cpu_metrics
 
 
-class CPU(AssetBase):
+# todo: more metrics to consider:
+# self._cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
+# self._cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
+# self._cpu_freq = psutil.cpu_freq(percpu=True)
+# self._cpu_count = psutil.cpu_count(logical=False)
+# self._cpu_count_logical = psutil.cpu_count(logical=True)
+# self._cpu_load_avg = os.getloadavg()
+# self._cpu_stats = psutil.cpu_stats()
+# self._cpu_times = psutil.cpu_times()
+# self._cpu_times_percent = psutil.cpu_times_percent()
+# self._cpu_times_percent_per_cpu = psutil.cpu_times_percent(percpu=True)
+# self._cpu_times_per_cpu = psutil.cpu_times(percpu=True)
+# self._cpu_freq = psutil.cpu_freq()
+# self._cpu_freq_per_cpu = psutil.cpu_freq(percpu=True)
+# self._cpu_percent = psutil.cpu_percent(interval=None)
+# self._cpu_percent_per_cpu = psutil.cpu_percent(interval=None, percpu=True)
+# self._cpu_percent_interval = psutil.cpu_percent(interval=1)
+# self._cpu_percent_interval_per_cpu = psutil.cpu_percent(interval=1, percpu=True)
+
+
+class CPU:
     def __init__(
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
     ) -> None:
-        super().__init__(interface, settings, shutdown_event)
-        self.metrics = [
+        self.name: str = self.__class__.__name__.lower()
+        self.metrics: List[Metric] = [
             ProcessCpuPercent(settings._stats_pid),
             CpuPercent(),
         ]
-        # todo: metrics to consider:
-        # self._cpu_percent = psutil.cpu_percent(interval=None, percpu=True)
-        # self._cpu_times = psutil.cpu_times_percent(interval=None, percpu=True)
-        # self._cpu_freq = psutil.cpu_freq(percpu=True)
-        # self._cpu_count = psutil.cpu_count(logical=False)
-        # self._cpu_count_logical = psutil.cpu_count(logical=True)
-        # self._cpu_load_avg = os.getloadavg()
-        # self._cpu_stats = psutil.cpu_stats()
-        # self._cpu_times = psutil.cpu_times()
-        # self._cpu_times_percent = psutil.cpu_times_percent()
-        # self._cpu_times_percent_per_cpu = psutil.cpu_times_percent(percpu=True)
-        # self._cpu_times_per_cpu = psutil.cpu_times(percpu=True)
-        # self._cpu_freq = psutil.cpu_freq()
-        # self._cpu_freq_per_cpu = psutil.cpu_freq(percpu=True)
-        # self._cpu_percent = psutil.cpu_percent(interval=None)
-        # self._cpu_percent_per_cpu = psutil.cpu_percent(interval=None, percpu=True)
-        # self._cpu_percent_interval = psutil.cpu_percent(interval=1)
-        # self._cpu_percent_interval_per_cpu = psutil.cpu_percent(interval=1, percpu=True)
+        self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
+            self.metrics,
+            interface,
+            settings,
+            shutdown_event,
+        )
 
     @classmethod
     def is_available(cls) -> bool:

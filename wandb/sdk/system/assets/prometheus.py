@@ -2,7 +2,7 @@ from typing import List
 
 import requests
 
-from wandb.sdk.system.protocols import Metric
+from wandb.sdk.system.interfaces import Metric
 
 
 class Prometheus:

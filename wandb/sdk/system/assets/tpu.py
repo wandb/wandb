@@ -4,8 +4,7 @@ import os
 from collections import deque
 from typing import TYPE_CHECKING, Deque, Optional, cast
 
-from ..protocols import MetricType
-from .asset_base import AssetBase
+from ..interfaces import MetricType, MetricsMonitor
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -13,7 +12,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# TODO: just coppied from old tpu code, maybe need restructuring...
+# TODO: just copied from old tpu code, maybe need restructuring...
+
+
 class TPUUtilization:
     name = "tpu.utilization"
     metric_type = cast("gauge", MetricType)
@@ -50,14 +51,14 @@ class TPUUtilization:
         return {self.name: aggregate}
 
 
-class TPU(AssetBase):
+class TPU:
     def __init__(
         self,
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
     ) -> None:
-        super().__init__(interface, settings, shutdown_event)
+        self.name = self.__class__.__name__.lower()
         try:
             service_addr = self.get_service_addr()
             self.metrics = [TPUUtilization(service_addr)]
@@ -65,8 +66,15 @@ class TPU(AssetBase):
             logger.warn("Failed to initialize TPU metrics: %s", e)
             self.metrics = []
 
+        self.metrics_monitor = MetricsMonitor(
+            self.metrics,
+            interface,
+            settings,
+            shutdown_event,
+        )
+
+    @staticmethod
     def get_service_addr(
-        self,
         service_addr: Optional[str] = None,
         tpu_name: Optional[str] = None,
         compute_zone: Optional[str] = None,
