@@ -7,6 +7,7 @@ from html import entities
 import json
 import logging
 import os
+from pydoc import describe
 import queue
 from tempfile import TemporaryFile
 import threading
@@ -1181,12 +1182,15 @@ class SendManager:
         portfolio_name = portfolio.portfolio_name
         entity = portfolio.portfolio_entity
         project = portfolio.portfolio_project
+        description = portfolio.portfolio_description
         logger.debug(
-            f"create_artifact_portfolio params - pfolio={portfolio_name}, entity={entity}, project={project}"
+            f"create_artifact_portfolio params - pfolio={portfolio_name}, entity={entity}, project={project}, description={description}"
         )
         if portfolio_name and entity and project:
             try:
-                self._api.create_artifact_portfolio(entity, project, portfolio_name)
+                self._api.create_artifact_portfolio(
+                    entity, project, portfolio_name, description=description
+                )
             except Exception as e:
                 logger.error("Failed to create artifact portfolio: %s", e)
 

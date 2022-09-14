@@ -2436,6 +2436,7 @@ class Run:
         self,
         portfolio_name: str,
         entity: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> None:
         """Creates a model portfolio(a promoted collection of artifacts).
 
@@ -2443,16 +2444,21 @@ class Run:
 
         Arguments:
             portfolio_name: `str` - the name of the collection under the model-registry project.
+            entity: `str`
+            description: `str` - brief description for the registered model
 
         Returns:
             None
         """
         # TODO: _register_model()
-        # TODO: Add description parameter
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_create_artifact_portfolio(
-                    self, portfolio_name, project="model-registry", entity=entity
+                    self,
+                    portfolio_name,
+                    project="model-registry",
+                    entity=entity,
+                    description=description,
                 )
             else:
                 # TODO: implement offline mode + sync

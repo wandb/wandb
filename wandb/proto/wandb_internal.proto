@@ -431,7 +431,8 @@ message CreateArtifactPortfolioResult {
 message CreateArtifactPortfolioRecord {
   string          portfolio_name = 1;
   string          portfolio_project = 2;
-  string          portfolio_entity = 3; 
+  string          portfolio_entity = 3;
+  string          portfolio_description = 4;
   _RecordInfo     _info = 200;
 }
 
