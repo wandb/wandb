@@ -38,7 +38,7 @@ jobs:
             sweeps
             launch
             integrations
-          requireScope: false
+          requireScope: true
           wip: true
           validateSingleCommit: false
           validateSingleCommitMatchesPrTitle: false
