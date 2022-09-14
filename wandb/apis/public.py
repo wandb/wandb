@@ -23,7 +23,7 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -2440,6 +2440,7 @@ class Sweep(Attrs):
                 id
                 name
                 state
+                runCountExpected
                 bestLoss
                 config
             }
@@ -2518,27 +2519,7 @@ class Sweep(Attrs):
 
     def expected_run_count(self) -> int:
         "Returns the number of expected runs in the sweep or -1 for infinite runs."
-        search_method: str = self.config.get("method", None)
-        if not search_method == "grid":
-            wandb.termwarn(
-                f"Sweep of method {search_method} does not have a constrained expected runs."
-            )
-            return -1
-
-        def _recursive_count(params: Dict[str, Any], count: int) -> int:
-            for param_dict in params.get("parameters", {}).values():
-                if param_dict.get("parameters", None) is not None:
-                    count *= _recursive_count(param_dict["parameters"], count)
-                elif param_dict.get("value", None) is not None:
-                    count *= 1
-                elif param_dict.get("values", None) is not None:
-                    count *= len(param_dict["values"])
-                else:
-                    # Even one non discrete param will result in infinite expected runs
-                    return -1
-            return count
-
-        return _recursive_count(self.config, 1)
+        return self._attrs.get("runCountExpected", -1)
 
     @property
     def path(self):
