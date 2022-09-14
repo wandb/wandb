@@ -64,6 +64,12 @@ def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -
     }
 
 
+def _retry_conflicts(e: Exception) -> Union[bool, datetime.timedelta]:
+    if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 409:
+        return datetime.timedelta(minutes=2)
+    return False
+
+
 class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
@@ -98,21 +104,15 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
     ) -> Optional[Dict]:
-        def check_retry(e: Exception) -> Union[bool, datetime.timedelta]:
-            if (
-                isinstance(e, requests.exceptions.HTTPError)
-                and e.response.status_code == 409
-            ):
-                return datetime.timedelta(minutes=2)
-            return False
 
-        retrying_save = wandb.sdk.lib.retry.Retry(
+        save_retry = wandb.sdk.lib.retry.Retry(
             self._save,
             retryable_exceptions=(requests.exceptions.HTTPError,),
-            check_retry_fn=check_retry,
+            check_retry_fn=_retry_conflicts,
             num_retries=3,
         )
-        return retrying_save(
+
+        return save_retry(
             type,
             name,
             client_id,
