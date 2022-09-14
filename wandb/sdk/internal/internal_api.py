@@ -2348,12 +2348,22 @@ class Api:
     def create_artifact_portfolio(
         self,
         entity: str,
+        project: str,
         portfolio_name: str,
-        project: Optional[str] = "model-registry",
         artifact_type: Optional[str] = "model",
         description: Optional[str] = None,
     ) -> Dict[str, str]:
+        """Creates an artifact portfolio from the sdk
 
+        Arguments:
+            entity (str): The entity to scope this project to.
+            project (str): The project under which to create the portfolio
+            portfolio_name (str): Name of the portfolio to create
+            artifact_type (str): Optional artifact type for portfolio, defaults to model.
+            description (str): Description for the portfolio
+        Returns:
+            The `requests` library response object
+        """
         # Query to retrieve artifact type id if it exists
         query = gql(
             """
@@ -2378,8 +2388,11 @@ class Api:
             "artifactType": artifact_type,
         }
         response = self.gql(query, variable_values=variable_values_type_id)
-        artifact_type_id = response["project"]["artifactType"]["id"]
-        # TODO: create_artifact_type() if type id is null
+
+        try:
+            artifact_type_id = response["project"]["artifactType"]["id"]
+        except TypeError:
+            artifact_type_id = ""
 
         mutation = gql(
             """

@@ -1186,11 +1186,9 @@ class SendManager:
         )
         if portfolio_name and entity and project:
             try:
-                self._api.create_artifact_portfolio(
-                    entity, portfolio_name, project=project
-                )
+                self._api.create_artifact_portfolio(entity, project, portfolio_name)
             except Exception as e:
-                logger.warning("Failed to create artifact portfolio: %s", e)
+                logger.error("Failed to create artifact portfolio: %s", e)
 
     def send_link_artifact(self, record: "Record") -> None:
         link = record.link_artifact

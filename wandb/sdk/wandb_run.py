@@ -37,7 +37,7 @@ from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
-from wandb.apis.public import Api as PublicApi
+from wandb.apis.public import Api as PublicApi, Project
 from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -2435,9 +2435,9 @@ class Run:
     def register_model(
         self,
         portfolio_name: str,
+        entity: Optional[str] = None,
     ) -> None:
-        # TODO: function name
-        """Creates a portfolio (a promoted collection of artifacts).
+        """Creates a model portfolio(a promoted collection of artifacts).
 
         The portfolio will be visible in the model registry.
 
@@ -2447,14 +2447,12 @@ class Run:
         Returns:
             None
         """
-        # TODO: Entity information without taking project information?
+        # TODO: _register_model()
         # TODO: Add description parameter
-        # TODO: Create project if doesn't exist
-        # TODO: Re-evaluate arguments: artifact type
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_create_artifact_portfolio(
-                    self, portfolio_name
+                    self, portfolio_name, project="model-registry", entity=entity
                 )
             else:
                 # TODO: implement offline mode + sync
