@@ -12,3 +12,4 @@ How was this PR tested?
 Checklist
 -------
 - Include reference to internal ticket "Fixes WB-NNNN" (and github issue "Fixes #NNNN" if applicable)
+- Ensure compliance with conventional commits standards
