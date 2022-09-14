@@ -4,7 +4,18 @@ import os
 import sys
 import tempfile
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+    cast,
+)
 
 import requests
 
@@ -68,6 +79,23 @@ def _retry_conflicts(e: Exception) -> Union[bool, datetime.timedelta]:
     if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 409:
         return datetime.timedelta(minutes=2)
     return False
+
+
+_T = TypeVar("_T")
+
+
+class _Future(Generic[_T]):
+    def __init__(self) -> None:
+        self._object: Optional[_T] = None
+        self._object_ready = threading.Event()
+
+    def set(self, obj: _T) -> None:
+        self._object = obj
+        self._object_ready.set()
+
+    def get(self) -> _T:
+        self._object_ready.wait()
+        return cast(_T, self._object)
 
 
 class ArtifactSaver:
@@ -239,7 +267,7 @@ class ArtifactSaver:
             ),
         )
 
-        commit_event = threading.Event()
+        commit_exc: _Future[Optional[Exception]] = _Future()
 
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
@@ -281,17 +309,12 @@ class ArtifactSaver:
                     extra_headers=extra_headers,
                 )
 
-        commit_exc: Optional[Exception] = None
-
         def on_commit(exc: Optional[Exception]) -> None:
             if exc is None:
                 if finalize and use_after_commit:
                     self._api.use_artifact(artifact_id)
-            else:
-                nonlocal commit_exc
-                commit_exc = exc
             step_prepare.shutdown()
-            commit_event.set()
+            commit_exc.set(exc)
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
@@ -303,11 +326,9 @@ class ArtifactSaver:
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
-        while not commit_event.is_set():
-            commit_event.wait()
-
-        if commit_exc is not None:
-            raise commit_exc
+        exc = commit_exc.get()
+        if exc is not None:
+            raise ValueError("artifact commit failed") from exc
 
         return self._server_artifact
 
