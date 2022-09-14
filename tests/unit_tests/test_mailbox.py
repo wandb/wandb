@@ -151,16 +151,25 @@ class TestWithMockedTime(TestCase):
             assert len(mock_on_progress.call_args.args) == 1
             assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
+    def test_keepalive(self):
+        with self._patch_mailbox() as (event_mock, time_mock):
+            mailbox = Mailbox()
+            mailbox.enable_keepalive()
 
-# def test_keepalive():
-#     mailbox = Mailbox()
-#     mailbox.enable_keepalive()
-#
-#     record = pb.Record()
-#     iface = Mock(spec_set=["publish", "_publish", "transport_failed", "_transport_mark_failed", "_transport_mark_success", "_transport_keepalive_failed"])
-#     iface.transport_failed = Mock(return_value=False)
-#
-#     handle = mailbox._deliver_record(record, iface)
-#     got_result = handle.wait(timeout=2)
-#     assert iface.publish.call_count == 1
-#     print("GOT", got_result)
+            record = pb.Record()
+            iface = Mock(
+                spec_set=[
+                    "publish",
+                    "_publish",
+                    "transport_failed",
+                    "_transport_mark_failed",
+                    "_transport_mark_success",
+                    "_transport_keepalive_failed",
+                ]
+            )
+            iface.transport_failed = Mock(return_value=False)
+            iface._transport_keepalive_failed = Mock(return_value=False)
+
+            handle = mailbox._deliver_record(record, iface)
+            _ = handle.wait(timeout=2)
+            assert iface._transport_keepalive_failed.call_count == 2
