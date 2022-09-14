@@ -2430,6 +2430,7 @@ class Sweep(Attrs):
         project: (str) name of project
         config: (str) dictionary of sweep configuration
         state: (str) the state of the sweep
+        expected_run_count: (int) number of expected runs for the sweep
     """
 
     QUERY = gql(
