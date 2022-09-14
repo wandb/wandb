@@ -1,4 +1,10 @@
-from unittest.mock import Mock
+import threading
+
+import time
+from unittest import TestCase
+
+from unittest.mock import Mock, patch
+from contextlib import contextmanager
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -67,30 +73,85 @@ def test_redeliver_slot():
     assert got_result.run_result.run.run_id == "this_is_new"
 
 
-def test_on_probe():
-    def on_probe(probe_handle):
-        pass
+class TestWithMockedTime(TestCase):
+    def setUp(self):
+        self._orig_event_class = threading.Event
+        self._time_elapsed = 0
 
-    mailbox, handle, result = get_test_setup()
-    mock_on_probe = Mock(spec=on_probe)
-    handle.add_probe(mock_on_probe)
-    _ = handle.wait(timeout=3)
-    assert mock_on_probe.call_count == 2
-    assert len(mock_on_probe.call_args.args) == 1
-    assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
+    def _advance_time(self, time_increment):
+        self._time_elapsed += time_increment
+        time.sleep(time_increment)
 
+    @property
+    def elapsed_time(self):
+        return self._time_elapsed
 
-def test_on_progress():
-    def on_progress(progress_handle):
-        pass
+    def _mocked_event(selftest, **kwargs):
+        class _TestEvent(selftest._orig_event_class):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
 
-    mailbox, handle, result = get_test_setup()
-    mock_on_progress = Mock(spec=on_progress)
-    handle.add_progress(mock_on_progress)
-    _ = handle.wait(timeout=3)
-    assert mock_on_progress.call_count == 2
-    assert len(mock_on_progress.call_args.args) == 1
-    assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
+            def wait(self, **kwargs):
+                result = super().wait(timeout=0)
+                if result:
+                    return result
+                # advance time
+                timeout = kwargs.get("timeout")
+                if timeout is not None:
+                    selftest._advance_time(timeout)
+                return result
+
+        event = _TestEvent(**kwargs)
+        return event
+
+    @contextmanager
+    def _patch_mailbox(self):
+        def _setup_time(time_mock):
+            now = time.time()
+            time_mock.side_effect = [now + i for i in range(30)]
+
+        def _wait(self_wait, timeout):
+            wait_result = self_wait._event.wait(timeout=0)
+            if wait_result:
+                return wait_result
+            self._advance_time(timeout)
+            return wait_result
+
+        with patch(
+            "wandb.sdk.lib.mailbox._MailboxSlot._wait", new=_wait
+        ) as event_mock, patch(
+            "wandb.sdk.lib.mailbox.MailboxHandle._time"
+        ) as time_mock:
+
+            _setup_time(time_mock)
+            yield (event_mock, time_mock)
+
+    def test_on_probe(self):
+        def on_probe(probe_handle):
+            pass
+
+        with self._patch_mailbox() as (event_mock, time_mock):
+            mailbox, handle, result = get_test_setup()
+            mock_on_probe = Mock(spec=on_probe)
+            handle.add_probe(mock_on_probe)
+            _ = handle.wait(timeout=3)
+            assert mock_on_probe.call_count == 2
+            assert len(mock_on_probe.call_args.args) == 1
+            assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
+            assert self.elapsed_time >= 3
+
+    def test_on_progress(self):
+        def on_progress(progress_handle):
+            pass
+
+        with self._patch_mailbox() as (event_mock, time_mock):
+            mailbox, handle, result = get_test_setup()
+            mock_on_progress = Mock(spec=on_progress)
+            handle.add_progress(mock_on_progress)
+            _ = handle.wait(timeout=3)
+            assert mock_on_progress.call_count == 2
+            assert len(mock_on_progress.call_args.args) == 1
+            assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
 
 # def test_keepalive():

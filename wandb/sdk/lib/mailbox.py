@@ -6,7 +6,7 @@ import secrets
 import string
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type
 
 from wandb.errors import MailboxError
 from wandb.proto import wandb_internal_pb2 as pb
@@ -49,9 +49,12 @@ class _MailboxWaitAll:
             handle._slot._clear_wait_all()
         self._handles = []
 
+    def _wait(self, timeout: float) -> bool:
+        return self._event.wait(timeout=timeout)
+
     def _get_and_clear(self, timeout: float) -> List["MailboxHandle"]:
         found: List["MailboxHandle"] = []
-        if self._event.wait(timeout=timeout):
+        if self._wait(timeout=timeout):
             with self._lock:
                 remove_handles = []
 
@@ -89,9 +92,12 @@ class _MailboxSlot:
     def _clear_wait_all(self) -> None:
         self._wait_all = None
 
+    def _wait(self, timeout: float) -> bool:
+        return self._event.wait(timeout=timeout)
+
     def _get_and_clear(self, timeout: float) -> Optional[pb.Result]:
         found = None
-        if self._event.wait(timeout=timeout):
+        if self._wait(timeout=timeout):
             with self._lock:
                 found = self._result
                 self._event.clear()
@@ -195,6 +201,9 @@ class MailboxHandle:
     def add_progress(self, on_progress: Callable[[MailboxProgress], None]) -> None:
         self._on_progress = on_progress
 
+    def _time(self) -> float:
+        return time.time()
+
     def wait(
         self,
         *,
@@ -206,7 +215,7 @@ class MailboxHandle:
         probe_handle: Optional[MailboxProbe] = None
         progress_handle: Optional[MailboxProgress] = None
         found: Optional[pb.Result] = None
-        start_time = time.time()
+        start_time = self._time()
         percent_done = 0.0
         progress_sent = False
         wait_timeout = 1.0
@@ -235,7 +244,7 @@ class MailboxHandle:
                     progress_handle.set_percent_done(100)
                     on_progress(progress_handle)
                 break
-            now = time.time()
+            now = self._time()
             if timeout >= 0:
                 if now >= start_time + timeout:
                     break
