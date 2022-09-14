@@ -6,7 +6,7 @@
 # Contributing to `wandb`
 
 We at Weights & Biases ❤️ open source and welcome contributions from the community!
-This guide discusses the development workflow and the internals of the `wandb` client library.
+This guide discusses the development workflow and the internals of the `wandb` library.
 
 ### Table of Contents
 
