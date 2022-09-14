@@ -1,10 +1,8 @@
 import threading
-
 import time
-from unittest import TestCase
-
-from unittest.mock import Mock, patch
 from contextlib import contextmanager
+from unittest import TestCase
+from unittest.mock import Mock, patch
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -86,7 +84,7 @@ class TestWithMockedTime(TestCase):
     def elapsed_time(self):
         return self._time_elapsed
 
-    def _mocked_event(selftest, **kwargs):
+    def _mocked_event(selftest, **kwargs):  # noqa: N805
         class _TestEvent(selftest._orig_event_class):
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)

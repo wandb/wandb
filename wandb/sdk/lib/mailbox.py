@@ -6,7 +6,7 @@ import secrets
 import string
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from wandb.errors import MailboxError
 from wandb.proto import wandb_internal_pb2 as pb
