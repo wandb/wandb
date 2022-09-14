@@ -30,10 +30,15 @@ jobs:
             release
           # Product based scopes
           scopes: |
+            sdk
+            cli
+            public-api
+            artifacts
+            media
             sweeps
             launch
             integrations
-          requireScope: true
+          requireScope: false
           wip: true
           validateSingleCommit: false
           validateSingleCommitMatchesPrTitle: false
