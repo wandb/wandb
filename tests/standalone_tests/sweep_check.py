@@ -113,6 +113,7 @@ def check(sweep_id, num=None, result=None, stopped=None):
 
 
 def sweep_quick(args):
+    print(os.environ)
     config = dict(
         method="random",
         parameters=dict(

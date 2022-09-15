@@ -150,7 +150,7 @@ class _Manager:
                 os._exit(result)
         except Exception as e:
             wandb.termlog(
-                f"While tearing down the service manager. The following error has occured: {e}",
+                f"While tearing down the service manager. The following error has occurred: {e}",
                 repeat=False,
             )
         finally:
