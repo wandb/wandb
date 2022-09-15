@@ -299,13 +299,16 @@ class Mailbox:
                 progress_all.remove_progress_handle_matching_handle(handle)
             handles.remove(handle)
 
+    def _time(self) -> float:
+        return time.time()
+
     def wait_all(
         self,
         handles: List[MailboxHandle],
         *,
         timeout: float,
         on_progress_all: Callable[[MailboxProgressAll], None] = None,
-    ) -> None:
+    ) -> bool:
         progress_all_handle: Optional[MailboxProgressAll] = None
 
         if on_progress_all:
@@ -322,6 +325,7 @@ class Mailbox:
                 progress_all_handle.add_progress_handle(progress_handle)
 
         all_failed_handles = []
+        start_time = self._time()
         while handles:
             # Make sure underlying interfaces are still up
             if self._keepalive:
@@ -364,6 +368,12 @@ class Mailbox:
                 on_progress_all(progress_all_handle)
 
             self._update_handles(handles, progress_all_handle, remove=done_handles)
+
+            now = self._time()
+            if start_time >= 0 and now >= start_time + timeout:
+                break
+
+        return len(handles) == 0
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot

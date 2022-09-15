@@ -78,7 +78,6 @@ class TestWithMockedTime(TestCase):
 
     def _advance_time(self, time_increment):
         self._time_elapsed += time_increment
-        time.sleep(time_increment)
 
     @property
     def elapsed_time(self):
@@ -115,20 +114,20 @@ class TestWithMockedTime(TestCase):
             self._advance_time(timeout)
             return wait_result
 
-        with patch(
+        with patch("wandb.sdk.lib.mailbox.MailboxHandle._time") as time_mock, patch(
             "wandb.sdk.lib.mailbox._MailboxSlot._wait", new=_wait
         ) as event_mock, patch(
-            "wandb.sdk.lib.mailbox.MailboxHandle._time"
-        ) as time_mock:
+            "wandb.sdk.lib.mailbox._MailboxWaitAll._wait", new=_wait
+        ) as event_all_mock:
 
             _setup_time(time_mock)
-            yield (event_mock, time_mock)
+            yield (time_mock, event_mock, event_all_mock)
 
     def test_on_probe(self):
         def on_probe(probe_handle):
             pass
 
-        with self._patch_mailbox() as (event_mock, time_mock):
+        with self._patch_mailbox() as (time_mock, event_mock, _):
             mailbox, handle, result = get_test_setup()
             mock_on_probe = Mock(spec=on_probe)
             handle.add_probe(mock_on_probe)
@@ -142,7 +141,7 @@ class TestWithMockedTime(TestCase):
         def on_progress(progress_handle):
             pass
 
-        with self._patch_mailbox() as (event_mock, time_mock):
+        with self._patch_mailbox() as (time_mock, event_mock, _):
             mailbox, handle, result = get_test_setup()
             mock_on_progress = Mock(spec=on_progress)
             handle.add_progress(mock_on_progress)
@@ -152,7 +151,9 @@ class TestWithMockedTime(TestCase):
             assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
     def test_keepalive(self):
-        with self._patch_mailbox() as (event_mock, time_mock):
+        """Make sure mock keepalive is called."""
+
+        with self._patch_mailbox() as (time_mock, event_mock, _):
             mailbox = Mailbox()
             mailbox.enable_keepalive()
 
@@ -173,3 +174,25 @@ class TestWithMockedTime(TestCase):
             handle = mailbox._deliver_record(record, iface)
             _ = handle.wait(timeout=2)
             assert iface._transport_keepalive_failed.call_count == 2
+
+    def test_wait_all(self):
+        def on_progress_all(progress_all_handle):
+            pass
+
+        with self._patch_mailbox() as (time_mock, event_mock, event_all_mock):
+            mailbox = Mailbox()
+            handle1 = mailbox.get_handle()
+            handle2 = mailbox.get_handle()
+
+            result1 = pb.Result()
+            result1.control.mailbox_slot = handle1.address
+            mailbox.deliver(result1)
+
+            result2 = pb.Result()
+            result2.control.mailbox_slot = handle2.address
+            mailbox.deliver(result2)
+
+            got = mailbox.wait_all(
+                [handle1, handle2], on_progress_all=on_progress_all, timeout=4
+            )
+            assert got
