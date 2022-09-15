@@ -143,7 +143,7 @@ class TestWithMockedTime(TestCase):
             handle.add_probe(mock_on_probe)
             _ = handle.wait(timeout=3)
             assert mock_on_probe.call_count == 2
-            assert len(mock_on_probe.call_args.args) == 1
+            assert len(mock_on_probe.call_args.args) >= 1
             assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
             assert self.time_obj.elapsed_time >= 3
 
@@ -157,7 +157,7 @@ class TestWithMockedTime(TestCase):
             handle.add_progress(mock_on_progress)
             _ = handle.wait(timeout=3)
             assert mock_on_progress.call_count == 2
-            assert len(mock_on_progress.call_args.args) == 1
+            assert len(mock_on_progress.call_args.args) >= 1
             assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
     def test_keepalive(self):
