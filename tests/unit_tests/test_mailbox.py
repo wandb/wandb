@@ -208,11 +208,15 @@ class TestWithMockedTime(TestCase):
 
             result1 = pb.Result()
             result1.control.mailbox_slot = handle1.address
-            self.time_obj.add_timed_event(deliver1_offset, lambda: mailbox.deliver(result1))
+            self.time_obj.add_timed_event(
+                deliver1_offset, lambda: mailbox.deliver(result1)
+            )
 
             result2 = pb.Result()
             result2.control.mailbox_slot = handle2.address
-            self.time_obj.add_timed_event(deliver2_offset, lambda: mailbox.deliver(result2))
+            self.time_obj.add_timed_event(
+                deliver2_offset, lambda: mailbox.deliver(result2)
+            )
 
             got = mailbox.wait_all(
                 [handle1, handle2], on_progress_all=on_progress_all, timeout=8
