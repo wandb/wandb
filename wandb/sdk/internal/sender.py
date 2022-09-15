@@ -1256,7 +1256,7 @@ class SendManager:
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
-            manifest_json=artifacts._manifest_json_from_proto(artifact.manifest),
+            manifest_json=artifacts.manifest_json_from_proto(artifact.manifest),
             file_pusher=self._pusher,
             is_user_created=artifact.user_created,
         )

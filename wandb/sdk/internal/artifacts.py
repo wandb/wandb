@@ -44,7 +44,7 @@ if TYPE_CHECKING:
             pass
 
 
-def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
+def manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
     if manifest.version == 1:
         contents = {
             content.path: {
