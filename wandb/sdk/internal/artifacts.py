@@ -133,6 +133,15 @@ class ArtifactSaver:
         history_step: Optional[int] = None,
     ) -> Optional[Dict]:
 
+        # TODO: this retry is messy and should not exist!
+        # It's a hacky fix for https://wandb.atlassian.net/browse/WB-10888 :
+        # as of 2022-09-14, "409 Conflict" errors indicate that some uploaded files
+        # conflict with the artifact's most recent version's files. The right way to
+        # solve this would be for the SDK to ask the server what those files are,
+        # and replace their manifest entries with references to the previous version's
+        # entries; but, as a stopgap solution, we just retry the entire save operation,
+        # even though that might leave a bunch of orphaned files associated with the
+        # aborted artifact.
         save_retry = wandb.sdk.lib.retry.Retry(
             self._save,
             retryable_exceptions=(requests.exceptions.HTTPError,),
