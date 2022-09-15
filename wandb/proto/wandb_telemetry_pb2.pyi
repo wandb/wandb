@@ -5,14 +5,23 @@ isort:skip_file
 import builtins
 import google.protobuf.descriptor
 import google.protobuf.message
-import typing
-import typing_extensions
+import sys
 import wandb.proto.wandb_base_pb2
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor = ...
+if sys.version_info >= (3, 8):
+    import typing as typing_extensions
+else:
+    import typing_extensions
+
+DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
 class TelemetryRecord(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    """
+    Telemetry
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     IMPORTS_INIT_FIELD_NUMBER: builtins.int
     IMPORTS_FINISH_FIELD_NUMBER: builtins.int
     FEATURE_FIELD_NUMBER: builtins.int
@@ -24,61 +33,58 @@ class TelemetryRecord(google.protobuf.message.Message):
     DEPRECATED_FIELD_NUMBER: builtins.int
     ISSUES_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
-    python_version: typing.Text = ...
-    cli_version: typing.Text = ...
-    huggingface_version: typing.Text = ...
-
     @property
     def imports_init(self) -> global___Imports: ...
-
     @property
     def imports_finish(self) -> global___Imports: ...
-
     @property
     def feature(self) -> global___Feature: ...
-
+    python_version: builtins.str
+    cli_version: builtins.str
+    huggingface_version: builtins.str
     @property
-    def env(self) -> global___Env: ...
-
+    def env(self) -> global___Env:
+        """string  framework = 7;"""
     @property
     def label(self) -> global___Labels: ...
-
     @property
     def deprecated(self) -> global___Deprecated: ...
-
     @property
     def issues(self) -> global___Issues: ...
-
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
+    def __init__(
+        self,
         *,
-        imports_init : typing.Optional[global___Imports] = ...,
-        imports_finish : typing.Optional[global___Imports] = ...,
-        feature : typing.Optional[global___Feature] = ...,
-        python_version : typing.Text = ...,
-        cli_version : typing.Text = ...,
-        huggingface_version : typing.Text = ...,
-        env : typing.Optional[global___Env] = ...,
-        label : typing.Optional[global___Labels] = ...,
-        deprecated : typing.Optional[global___Deprecated] = ...,
-        issues : typing.Optional[global___Issues] = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"deprecated",b"deprecated",u"env",b"env",u"feature",b"feature",u"imports_finish",b"imports_finish",u"imports_init",b"imports_init",u"issues",b"issues",u"label",b"label"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"cli_version",b"cli_version",u"deprecated",b"deprecated",u"env",b"env",u"feature",b"feature",u"huggingface_version",b"huggingface_version",u"imports_finish",b"imports_finish",u"imports_init",b"imports_init",u"issues",b"issues",u"label",b"label",u"python_version",b"python_version"]) -> None: ...
+        imports_init: global___Imports | None = ...,
+        imports_finish: global___Imports | None = ...,
+        feature: global___Feature | None = ...,
+        python_version: builtins.str = ...,
+        cli_version: builtins.str = ...,
+        huggingface_version: builtins.str = ...,
+        env: global___Env | None = ...,
+        label: global___Labels | None = ...,
+        deprecated: global___Deprecated | None = ...,
+        issues: global___Issues | None = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "cli_version", b"cli_version", "deprecated", b"deprecated", "env", b"env", "feature", b"feature", "huggingface_version", b"huggingface_version", "imports_finish", b"imports_finish", "imports_init", b"imports_init", "issues", b"issues", "label", b"label", "python_version", b"python_version"]) -> None: ...
+
 global___TelemetryRecord = TelemetryRecord
 
 class TelemetryResult(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    def __init__(self,
-        ) -> None: ...
+    def __init__(
+        self,
+    ) -> None: ...
+
 global___TelemetryResult = TelemetryResult
 
 class Imports(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     TORCH_FIELD_NUMBER: builtins.int
     KERAS_FIELD_NUMBER: builtins.int
     TENSORFLOW_FIELD_NUMBER: builtins.int
@@ -153,163 +159,175 @@ class Imports(google.protobuf.message.Message):
     ALBUMENTATIONS_FIELD_NUMBER: builtins.int
     KERAS_CV_FIELD_NUMBER: builtins.int
     MMENGINE_FIELD_NUMBER: builtins.int
-    torch: builtins.bool = ...
-    keras: builtins.bool = ...
-    tensorflow: builtins.bool = ...
-    fastai: builtins.bool = ...
-    sklearn: builtins.bool = ...
-    xgboost: builtins.bool = ...
-    catboost: builtins.bool = ...
-    lightgbm: builtins.bool = ...
-    pytorch_lightning: builtins.bool = ...
-    ignite: builtins.bool = ...
-    transformers: builtins.bool = ...
-    jax: builtins.bool = ...
-    metaflow: builtins.bool = ...
-    allennlp: builtins.bool = ...
-    autogluon: builtins.bool = ...
-    autokeras: builtins.bool = ...
-    catalyst: builtins.bool = ...
-    deepchem: builtins.bool = ...
-    deepctr: builtins.bool = ...
-    pycaret: builtins.bool = ...
-    pytorchvideo: builtins.bool = ...
-    ray: builtins.bool = ...
-    simpletransformers: builtins.bool = ...
-    skorch: builtins.bool = ...
-    spacy: builtins.bool = ...
-    flash: builtins.bool = ...
-    optuna: builtins.bool = ...
-    recbole: builtins.bool = ...
-    mmcv: builtins.bool = ...
-    mmdet: builtins.bool = ...
-    torchdrug: builtins.bool = ...
-    torchtext: builtins.bool = ...
-    torchvision: builtins.bool = ...
-    elegy: builtins.bool = ...
-    detectron2: builtins.bool = ...
-    flair: builtins.bool = ...
-    flax: builtins.bool = ...
-    syft: builtins.bool = ...
-    TTS: builtins.bool = ...
-    monai: builtins.bool = ...
-    huggingface_hub: builtins.bool = ...
-    hydra: builtins.bool = ...
-    datasets: builtins.bool = ...
-    sacred: builtins.bool = ...
-    joblib: builtins.bool = ...
-    dask: builtins.bool = ...
-    asyncio: builtins.bool = ...
-    paddleocr: builtins.bool = ...
-    ppdet: builtins.bool = ...
-    paddleseg: builtins.bool = ...
-    paddlenlp: builtins.bool = ...
-    mmseg: builtins.bool = ...
-    mmocr: builtins.bool = ...
-    mmcls: builtins.bool = ...
-    timm: builtins.bool = ...
-    fairseq: builtins.bool = ...
-    deepchecks: builtins.bool = ...
-    composer: builtins.bool = ...
-    sparseml: builtins.bool = ...
-    anomalib: builtins.bool = ...
-    zenml: builtins.bool = ...
-    colossalai: builtins.bool = ...
-    accelerate: builtins.bool = ...
-    merlin: builtins.bool = ...
-    nanodet: builtins.bool = ...
-    segmentation_models_pytorch: builtins.bool = ...
-    sentence_transformers: builtins.bool = ...
-    dgl: builtins.bool = ...
-    torch_geometric: builtins.bool = ...
-    jina: builtins.bool = ...
-    kornia: builtins.bool = ...
-    albumentations: builtins.bool = ...
-    keras_cv: builtins.bool = ...
-    mmengine: builtins.bool = ...
-
-    def __init__(self,
+    torch: builtins.bool
+    keras: builtins.bool
+    tensorflow: builtins.bool
+    fastai: builtins.bool
+    sklearn: builtins.bool
+    xgboost: builtins.bool
+    catboost: builtins.bool
+    lightgbm: builtins.bool
+    pytorch_lightning: builtins.bool
+    ignite: builtins.bool
+    transformers: builtins.bool
+    jax: builtins.bool
+    metaflow: builtins.bool
+    allennlp: builtins.bool
+    autogluon: builtins.bool
+    autokeras: builtins.bool
+    catalyst: builtins.bool
+    """bool avalanche = 17;"""
+    deepchem: builtins.bool
+    """bool dalle_pytorch = 19;
+    bool datasets = 20;
+    """
+    deepctr: builtins.bool
+    pycaret: builtins.bool
+    """bool deeppavlov = 23;
+    bool detectron = 24;
+    bool paddle = 25;
+    bool parlai = 26;
+    bool prophet = 27;
+    """
+    pytorchvideo: builtins.bool
+    ray: builtins.bool
+    simpletransformers: builtins.bool
+    skorch: builtins.bool
+    spacy: builtins.bool
+    flash: builtins.bool
+    optuna: builtins.bool
+    recbole: builtins.bool
+    mmcv: builtins.bool
+    mmdet: builtins.bool
+    torchdrug: builtins.bool
+    torchtext: builtins.bool
+    torchvision: builtins.bool
+    elegy: builtins.bool
+    detectron2: builtins.bool
+    flair: builtins.bool
+    flax: builtins.bool
+    syft: builtins.bool
+    TTS: builtins.bool
+    monai: builtins.bool
+    huggingface_hub: builtins.bool
+    hydra: builtins.bool
+    datasets: builtins.bool
+    sacred: builtins.bool
+    joblib: builtins.bool
+    dask: builtins.bool
+    asyncio: builtins.bool
+    paddleocr: builtins.bool
+    ppdet: builtins.bool
+    paddleseg: builtins.bool
+    paddlenlp: builtins.bool
+    mmseg: builtins.bool
+    mmocr: builtins.bool
+    mmcls: builtins.bool
+    timm: builtins.bool
+    fairseq: builtins.bool
+    deepchecks: builtins.bool
+    composer: builtins.bool
+    sparseml: builtins.bool
+    anomalib: builtins.bool
+    zenml: builtins.bool
+    colossalai: builtins.bool
+    accelerate: builtins.bool
+    merlin: builtins.bool
+    nanodet: builtins.bool
+    segmentation_models_pytorch: builtins.bool
+    sentence_transformers: builtins.bool
+    dgl: builtins.bool
+    torch_geometric: builtins.bool
+    jina: builtins.bool
+    kornia: builtins.bool
+    albumentations: builtins.bool
+    keras_cv: builtins.bool
+    mmengine: builtins.bool
+    def __init__(
+        self,
         *,
-        torch : builtins.bool = ...,
-        keras : builtins.bool = ...,
-        tensorflow : builtins.bool = ...,
-        fastai : builtins.bool = ...,
-        sklearn : builtins.bool = ...,
-        xgboost : builtins.bool = ...,
-        catboost : builtins.bool = ...,
-        lightgbm : builtins.bool = ...,
-        pytorch_lightning : builtins.bool = ...,
-        ignite : builtins.bool = ...,
-        transformers : builtins.bool = ...,
-        jax : builtins.bool = ...,
-        metaflow : builtins.bool = ...,
-        allennlp : builtins.bool = ...,
-        autogluon : builtins.bool = ...,
-        autokeras : builtins.bool = ...,
-        catalyst : builtins.bool = ...,
-        deepchem : builtins.bool = ...,
-        deepctr : builtins.bool = ...,
-        pycaret : builtins.bool = ...,
-        pytorchvideo : builtins.bool = ...,
-        ray : builtins.bool = ...,
-        simpletransformers : builtins.bool = ...,
-        skorch : builtins.bool = ...,
-        spacy : builtins.bool = ...,
-        flash : builtins.bool = ...,
-        optuna : builtins.bool = ...,
-        recbole : builtins.bool = ...,
-        mmcv : builtins.bool = ...,
-        mmdet : builtins.bool = ...,
-        torchdrug : builtins.bool = ...,
-        torchtext : builtins.bool = ...,
-        torchvision : builtins.bool = ...,
-        elegy : builtins.bool = ...,
-        detectron2 : builtins.bool = ...,
-        flair : builtins.bool = ...,
-        flax : builtins.bool = ...,
-        syft : builtins.bool = ...,
-        TTS : builtins.bool = ...,
-        monai : builtins.bool = ...,
-        huggingface_hub : builtins.bool = ...,
-        hydra : builtins.bool = ...,
-        datasets : builtins.bool = ...,
-        sacred : builtins.bool = ...,
-        joblib : builtins.bool = ...,
-        dask : builtins.bool = ...,
-        asyncio : builtins.bool = ...,
-        paddleocr : builtins.bool = ...,
-        ppdet : builtins.bool = ...,
-        paddleseg : builtins.bool = ...,
-        paddlenlp : builtins.bool = ...,
-        mmseg : builtins.bool = ...,
-        mmocr : builtins.bool = ...,
-        mmcls : builtins.bool = ...,
-        timm : builtins.bool = ...,
-        fairseq : builtins.bool = ...,
-        deepchecks : builtins.bool = ...,
-        composer : builtins.bool = ...,
-        sparseml : builtins.bool = ...,
-        anomalib : builtins.bool = ...,
-        zenml : builtins.bool = ...,
-        colossalai : builtins.bool = ...,
-        accelerate : builtins.bool = ...,
-        merlin : builtins.bool = ...,
-        nanodet : builtins.bool = ...,
-        segmentation_models_pytorch : builtins.bool = ...,
-        sentence_transformers : builtins.bool = ...,
-        dgl : builtins.bool = ...,
-        torch_geometric : builtins.bool = ...,
-        jina : builtins.bool = ...,
-        kornia : builtins.bool = ...,
-        albumentations : builtins.bool = ...,
-        keras_cv : builtins.bool = ...,
-        mmengine : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"TTS",b"TTS",u"accelerate",b"accelerate",u"albumentations",b"albumentations",u"allennlp",b"allennlp",u"anomalib",b"anomalib",u"asyncio",b"asyncio",u"autogluon",b"autogluon",u"autokeras",b"autokeras",u"catalyst",b"catalyst",u"catboost",b"catboost",u"colossalai",b"colossalai",u"composer",b"composer",u"dask",b"dask",u"datasets",b"datasets",u"deepchecks",b"deepchecks",u"deepchem",b"deepchem",u"deepctr",b"deepctr",u"detectron2",b"detectron2",u"dgl",b"dgl",u"elegy",b"elegy",u"fairseq",b"fairseq",u"fastai",b"fastai",u"flair",b"flair",u"flash",b"flash",u"flax",b"flax",u"huggingface_hub",b"huggingface_hub",u"hydra",b"hydra",u"ignite",b"ignite",u"jax",b"jax",u"jina",b"jina",u"joblib",b"joblib",u"keras",b"keras",u"keras_cv",b"keras_cv",u"kornia",b"kornia",u"lightgbm",b"lightgbm",u"merlin",b"merlin",u"metaflow",b"metaflow",u"mmcls",b"mmcls",u"mmcv",b"mmcv",u"mmdet",b"mmdet",u"mmengine",b"mmengine",u"mmocr",b"mmocr",u"mmseg",b"mmseg",u"monai",b"monai",u"nanodet",b"nanodet",u"optuna",b"optuna",u"paddlenlp",b"paddlenlp",u"paddleocr",b"paddleocr",u"paddleseg",b"paddleseg",u"ppdet",b"ppdet",u"pycaret",b"pycaret",u"pytorch_lightning",b"pytorch_lightning",u"pytorchvideo",b"pytorchvideo",u"ray",b"ray",u"recbole",b"recbole",u"sacred",b"sacred",u"segmentation_models_pytorch",b"segmentation_models_pytorch",u"sentence_transformers",b"sentence_transformers",u"simpletransformers",b"simpletransformers",u"sklearn",b"sklearn",u"skorch",b"skorch",u"spacy",b"spacy",u"sparseml",b"sparseml",u"syft",b"syft",u"tensorflow",b"tensorflow",u"timm",b"timm",u"torch",b"torch",u"torch_geometric",b"torch_geometric",u"torchdrug",b"torchdrug",u"torchtext",b"torchtext",u"torchvision",b"torchvision",u"transformers",b"transformers",u"xgboost",b"xgboost",u"zenml",b"zenml"]) -> None: ...
+        torch: builtins.bool = ...,
+        keras: builtins.bool = ...,
+        tensorflow: builtins.bool = ...,
+        fastai: builtins.bool = ...,
+        sklearn: builtins.bool = ...,
+        xgboost: builtins.bool = ...,
+        catboost: builtins.bool = ...,
+        lightgbm: builtins.bool = ...,
+        pytorch_lightning: builtins.bool = ...,
+        ignite: builtins.bool = ...,
+        transformers: builtins.bool = ...,
+        jax: builtins.bool = ...,
+        metaflow: builtins.bool = ...,
+        allennlp: builtins.bool = ...,
+        autogluon: builtins.bool = ...,
+        autokeras: builtins.bool = ...,
+        catalyst: builtins.bool = ...,
+        deepchem: builtins.bool = ...,
+        deepctr: builtins.bool = ...,
+        pycaret: builtins.bool = ...,
+        pytorchvideo: builtins.bool = ...,
+        ray: builtins.bool = ...,
+        simpletransformers: builtins.bool = ...,
+        skorch: builtins.bool = ...,
+        spacy: builtins.bool = ...,
+        flash: builtins.bool = ...,
+        optuna: builtins.bool = ...,
+        recbole: builtins.bool = ...,
+        mmcv: builtins.bool = ...,
+        mmdet: builtins.bool = ...,
+        torchdrug: builtins.bool = ...,
+        torchtext: builtins.bool = ...,
+        torchvision: builtins.bool = ...,
+        elegy: builtins.bool = ...,
+        detectron2: builtins.bool = ...,
+        flair: builtins.bool = ...,
+        flax: builtins.bool = ...,
+        syft: builtins.bool = ...,
+        TTS: builtins.bool = ...,
+        monai: builtins.bool = ...,
+        huggingface_hub: builtins.bool = ...,
+        hydra: builtins.bool = ...,
+        datasets: builtins.bool = ...,
+        sacred: builtins.bool = ...,
+        joblib: builtins.bool = ...,
+        dask: builtins.bool = ...,
+        asyncio: builtins.bool = ...,
+        paddleocr: builtins.bool = ...,
+        ppdet: builtins.bool = ...,
+        paddleseg: builtins.bool = ...,
+        paddlenlp: builtins.bool = ...,
+        mmseg: builtins.bool = ...,
+        mmocr: builtins.bool = ...,
+        mmcls: builtins.bool = ...,
+        timm: builtins.bool = ...,
+        fairseq: builtins.bool = ...,
+        deepchecks: builtins.bool = ...,
+        composer: builtins.bool = ...,
+        sparseml: builtins.bool = ...,
+        anomalib: builtins.bool = ...,
+        zenml: builtins.bool = ...,
+        colossalai: builtins.bool = ...,
+        accelerate: builtins.bool = ...,
+        merlin: builtins.bool = ...,
+        nanodet: builtins.bool = ...,
+        segmentation_models_pytorch: builtins.bool = ...,
+        sentence_transformers: builtins.bool = ...,
+        dgl: builtins.bool = ...,
+        torch_geometric: builtins.bool = ...,
+        jina: builtins.bool = ...,
+        kornia: builtins.bool = ...,
+        albumentations: builtins.bool = ...,
+        keras_cv: builtins.bool = ...,
+        mmengine: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "colossalai", b"colossalai", "composer", b"composer", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "elegy", b"elegy", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_cv", b"keras_cv", "kornia", b"kornia", "lightgbm", b"lightgbm", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "optuna", b"optuna", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "ppdet", b"ppdet", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
+
 global___Imports = Imports
 
 class Feature(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     WATCH_FIELD_NUMBER: builtins.int
     FINISH_FIELD_NUMBER: builtins.int
     SAVE_FIELD_NUMBER: builtins.int
@@ -347,89 +365,128 @@ class Feature(google.protobuf.message.Message):
     TENSORBOARD_SYNC_FIELD_NUMBER: builtins.int
     KFP_WANDB_LOG_FIELD_NUMBER: builtins.int
     MAYBE_RUN_OVERWRITE_FIELD_NUMBER: builtins.int
-    watch: builtins.bool = ...
-    finish: builtins.bool = ...
-    save: builtins.bool = ...
-    offline: builtins.bool = ...
-    resumed: builtins.bool = ...
-    grpc: builtins.bool = ...
-    metric: builtins.bool = ...
-    keras: builtins.bool = ...
-    sagemaker: builtins.bool = ...
-    artifact_incremental: builtins.bool = ...
-    metaflow: builtins.bool = ...
-    prodigy: builtins.bool = ...
-    set_init_name: builtins.bool = ...
-    set_init_id: builtins.bool = ...
-    set_init_tags: builtins.bool = ...
-    set_init_config: builtins.bool = ...
-    set_run_name: builtins.bool = ...
-    set_run_tags: builtins.bool = ...
-    set_config_item: builtins.bool = ...
-    launch: builtins.bool = ...
-    torch_profiler_trace: builtins.bool = ...
-    sb3: builtins.bool = ...
-    service: builtins.bool = ...
-    init_return_run: builtins.bool = ...
-    lightgbm_wandb_callback: builtins.bool = ...
-    lightgbm_log_summary: builtins.bool = ...
-    catboost_wandb_callback: builtins.bool = ...
-    catboost_log_summary: builtins.bool = ...
-    tensorboard_log: builtins.bool = ...
-    estimator_hook: builtins.bool = ...
-    xgboost_wandb_callback: builtins.bool = ...
-    xgboost_old_wandb_callback: builtins.bool = ...
-    attach: builtins.bool = ...
-    tensorboard_patch: builtins.bool = ...
-    tensorboard_sync: builtins.bool = ...
-    kfp_wandb_log: builtins.bool = ...
-    maybe_run_overwrite: builtins.bool = ...
-
-    def __init__(self,
+    watch: builtins.bool
+    """wandb.watch() called"""
+    finish: builtins.bool
+    """wandb.finish() called"""
+    save: builtins.bool
+    """wandb.save() called"""
+    offline: builtins.bool
+    """offline run was synced"""
+    resumed: builtins.bool
+    """run was resumed"""
+    grpc: builtins.bool
+    """grpc-server (java integration)"""
+    metric: builtins.bool
+    """define_metric() called"""
+    keras: builtins.bool
+    """Keras WandbCallback used"""
+    sagemaker: builtins.bool
+    """User is using sagemaker"""
+    artifact_incremental: builtins.bool
+    """Artifact(incremental=True) used"""
+    metaflow: builtins.bool
+    """Using metaflow integration"""
+    prodigy: builtins.bool
+    """Using prodigy integration"""
+    set_init_name: builtins.bool
+    """users set run name from wandb.init"""
+    set_init_id: builtins.bool
+    """users set run id from wandb.init"""
+    set_init_tags: builtins.bool
+    """users set tags within wandb.init"""
+    set_init_config: builtins.bool
+    """users set run config in wandb.init"""
+    set_run_name: builtins.bool
+    """user sets run name via wandb.run.name = ..."""
+    set_run_tags: builtins.bool
+    """user sets run name via wandb.run.tags = ..."""
+    set_config_item: builtins.bool
+    """users set key in run config via run.config.key or run.config["key"]"""
+    launch: builtins.bool
+    """run is created through wandb launch"""
+    torch_profiler_trace: builtins.bool
+    """wandb.profiler.torch_trace_handler() called"""
+    sb3: builtins.bool
+    """Using stable_baselines3 integration"""
+    service: builtins.bool
+    """Using wandb service internal process"""
+    init_return_run: builtins.bool
+    """wandb.init() called in the same process returning previous run"""
+    lightgbm_wandb_callback: builtins.bool
+    """lightgbm callback used"""
+    lightgbm_log_summary: builtins.bool
+    """lightgbm log summary used"""
+    catboost_wandb_callback: builtins.bool
+    """catboost callback used"""
+    catboost_log_summary: builtins.bool
+    """catboost log summary used"""
+    tensorboard_log: builtins.bool
+    """wandb.tensorflow.log or wandb.tensorboard.log used"""
+    estimator_hook: builtins.bool
+    """wandb.tensorflow.WandbHook used"""
+    xgboost_wandb_callback: builtins.bool
+    """xgboost callback used"""
+    xgboost_old_wandb_callback: builtins.bool
+    """xgboost old callback used (to be depreciated)"""
+    attach: builtins.bool
+    """attach to a run in another process"""
+    tensorboard_patch: builtins.bool
+    """wandb.tensorboard.patch(...)"""
+    tensorboard_sync: builtins.bool
+    """wandb.init(sync_tensorboard=True)"""
+    kfp_wandb_log: builtins.bool
+    """wandb.integration.kfp.wandb_log"""
+    maybe_run_overwrite: builtins.bool
+    """Run might have been overwritten"""
+    def __init__(
+        self,
         *,
-        watch : builtins.bool = ...,
-        finish : builtins.bool = ...,
-        save : builtins.bool = ...,
-        offline : builtins.bool = ...,
-        resumed : builtins.bool = ...,
-        grpc : builtins.bool = ...,
-        metric : builtins.bool = ...,
-        keras : builtins.bool = ...,
-        sagemaker : builtins.bool = ...,
-        artifact_incremental : builtins.bool = ...,
-        metaflow : builtins.bool = ...,
-        prodigy : builtins.bool = ...,
-        set_init_name : builtins.bool = ...,
-        set_init_id : builtins.bool = ...,
-        set_init_tags : builtins.bool = ...,
-        set_init_config : builtins.bool = ...,
-        set_run_name : builtins.bool = ...,
-        set_run_tags : builtins.bool = ...,
-        set_config_item : builtins.bool = ...,
-        launch : builtins.bool = ...,
-        torch_profiler_trace : builtins.bool = ...,
-        sb3 : builtins.bool = ...,
-        service : builtins.bool = ...,
-        init_return_run : builtins.bool = ...,
-        lightgbm_wandb_callback : builtins.bool = ...,
-        lightgbm_log_summary : builtins.bool = ...,
-        catboost_wandb_callback : builtins.bool = ...,
-        catboost_log_summary : builtins.bool = ...,
-        tensorboard_log : builtins.bool = ...,
-        estimator_hook : builtins.bool = ...,
-        xgboost_wandb_callback : builtins.bool = ...,
-        xgboost_old_wandb_callback : builtins.bool = ...,
-        attach : builtins.bool = ...,
-        tensorboard_patch : builtins.bool = ...,
-        tensorboard_sync : builtins.bool = ...,
-        kfp_wandb_log : builtins.bool = ...,
-        maybe_run_overwrite : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_incremental",b"artifact_incremental",u"attach",b"attach",u"catboost_log_summary",b"catboost_log_summary",u"catboost_wandb_callback",b"catboost_wandb_callback",u"estimator_hook",b"estimator_hook",u"finish",b"finish",u"grpc",b"grpc",u"init_return_run",b"init_return_run",u"keras",b"keras",u"kfp_wandb_log",b"kfp_wandb_log",u"launch",b"launch",u"lightgbm_log_summary",b"lightgbm_log_summary",u"lightgbm_wandb_callback",b"lightgbm_wandb_callback",u"maybe_run_overwrite",b"maybe_run_overwrite",u"metaflow",b"metaflow",u"metric",b"metric",u"offline",b"offline",u"prodigy",b"prodigy",u"resumed",b"resumed",u"sagemaker",b"sagemaker",u"save",b"save",u"sb3",b"sb3",u"service",b"service",u"set_config_item",b"set_config_item",u"set_init_config",b"set_init_config",u"set_init_id",b"set_init_id",u"set_init_name",b"set_init_name",u"set_init_tags",b"set_init_tags",u"set_run_name",b"set_run_name",u"set_run_tags",b"set_run_tags",u"tensorboard_log",b"tensorboard_log",u"tensorboard_patch",b"tensorboard_patch",u"tensorboard_sync",b"tensorboard_sync",u"torch_profiler_trace",b"torch_profiler_trace",u"watch",b"watch",u"xgboost_old_wandb_callback",b"xgboost_old_wandb_callback",u"xgboost_wandb_callback",b"xgboost_wandb_callback"]) -> None: ...
+        watch: builtins.bool = ...,
+        finish: builtins.bool = ...,
+        save: builtins.bool = ...,
+        offline: builtins.bool = ...,
+        resumed: builtins.bool = ...,
+        grpc: builtins.bool = ...,
+        metric: builtins.bool = ...,
+        keras: builtins.bool = ...,
+        sagemaker: builtins.bool = ...,
+        artifact_incremental: builtins.bool = ...,
+        metaflow: builtins.bool = ...,
+        prodigy: builtins.bool = ...,
+        set_init_name: builtins.bool = ...,
+        set_init_id: builtins.bool = ...,
+        set_init_tags: builtins.bool = ...,
+        set_init_config: builtins.bool = ...,
+        set_run_name: builtins.bool = ...,
+        set_run_tags: builtins.bool = ...,
+        set_config_item: builtins.bool = ...,
+        launch: builtins.bool = ...,
+        torch_profiler_trace: builtins.bool = ...,
+        sb3: builtins.bool = ...,
+        service: builtins.bool = ...,
+        init_return_run: builtins.bool = ...,
+        lightgbm_wandb_callback: builtins.bool = ...,
+        lightgbm_log_summary: builtins.bool = ...,
+        catboost_wandb_callback: builtins.bool = ...,
+        catboost_log_summary: builtins.bool = ...,
+        tensorboard_log: builtins.bool = ...,
+        estimator_hook: builtins.bool = ...,
+        xgboost_wandb_callback: builtins.bool = ...,
+        xgboost_old_wandb_callback: builtins.bool = ...,
+        attach: builtins.bool = ...,
+        tensorboard_patch: builtins.bool = ...,
+        tensorboard_sync: builtins.bool = ...,
+        kfp_wandb_log: builtins.bool = ...,
+        maybe_run_overwrite: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "estimator_hook", b"estimator_hook", "finish", b"finish", "grpc", b"grpc", "init_return_run", b"init_return_run", "keras", b"keras", "kfp_wandb_log", b"kfp_wandb_log", "launch", b"launch", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "offline", b"offline", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
+
 global___Feature = Feature
 
 class Env(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     JUPYTER_FIELD_NUMBER: builtins.int
     KAGGLE_FIELD_NUMBER: builtins.int
     WINDOWS_FIELD_NUMBER: builtins.int
@@ -439,51 +496,67 @@ class Env(google.protobuf.message.Message):
     START_FORKSERVER_FIELD_NUMBER: builtins.int
     START_THREAD_FIELD_NUMBER: builtins.int
     MAYBE_MP_FIELD_NUMBER: builtins.int
-    jupyter: builtins.bool = ...
-    kaggle: builtins.bool = ...
-    windows: builtins.bool = ...
-    m1_gpu: builtins.bool = ...
-    start_spawn: builtins.bool = ...
-    start_fork: builtins.bool = ...
-    start_forkserver: builtins.bool = ...
-    start_thread: builtins.bool = ...
-    maybe_mp: builtins.bool = ...
-
-    def __init__(self,
+    jupyter: builtins.bool
+    """jupyter env detected"""
+    kaggle: builtins.bool
+    """kaggle env detected"""
+    windows: builtins.bool
+    """windows detected"""
+    m1_gpu: builtins.bool
+    """apple silicon M1 gpu found"""
+    start_spawn: builtins.bool
+    """multiprocessing spawn"""
+    start_fork: builtins.bool
+    """multiprocessing fork"""
+    start_forkserver: builtins.bool
+    """multiprocessing forkserver"""
+    start_thread: builtins.bool
+    """thread start method"""
+    maybe_mp: builtins.bool
+    """maybe user running multiprocessing"""
+    def __init__(
+        self,
         *,
-        jupyter : builtins.bool = ...,
-        kaggle : builtins.bool = ...,
-        windows : builtins.bool = ...,
-        m1_gpu : builtins.bool = ...,
-        start_spawn : builtins.bool = ...,
-        start_fork : builtins.bool = ...,
-        start_forkserver : builtins.bool = ...,
-        start_thread : builtins.bool = ...,
-        maybe_mp : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"jupyter",b"jupyter",u"kaggle",b"kaggle",u"m1_gpu",b"m1_gpu",u"maybe_mp",b"maybe_mp",u"start_fork",b"start_fork",u"start_forkserver",b"start_forkserver",u"start_spawn",b"start_spawn",u"start_thread",b"start_thread",u"windows",b"windows"]) -> None: ...
+        jupyter: builtins.bool = ...,
+        kaggle: builtins.bool = ...,
+        windows: builtins.bool = ...,
+        m1_gpu: builtins.bool = ...,
+        start_spawn: builtins.bool = ...,
+        start_fork: builtins.bool = ...,
+        start_forkserver: builtins.bool = ...,
+        start_thread: builtins.bool = ...,
+        maybe_mp: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "windows", b"windows"]) -> None: ...
+
 global___Env = Env
 
 class Labels(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     CODE_STRING_FIELD_NUMBER: builtins.int
     REPO_STRING_FIELD_NUMBER: builtins.int
     CODE_VERSION_FIELD_NUMBER: builtins.int
-    code_string: typing.Text = ...
-    repo_string: typing.Text = ...
-    code_version: typing.Text = ...
-
-    def __init__(self,
+    code_string: builtins.str
+    """code identification"""
+    repo_string: builtins.str
+    """repo identification"""
+    code_version: builtins.str
+    """code version"""
+    def __init__(
+        self,
         *,
-        code_string : typing.Text = ...,
-        repo_string : typing.Text = ...,
-        code_version : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"code_string",b"code_string",u"code_version",b"code_version",u"repo_string",b"repo_string"]) -> None: ...
+        code_string: builtins.str = ...,
+        repo_string: builtins.str = ...,
+        code_version: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["code_string", b"code_string", "code_version", b"code_version", "repo_string", b"repo_string"]) -> None: ...
+
 global___Labels = Labels
 
 class Deprecated(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     KERAS_CALLBACK__DATA_TYPE_FIELD_NUMBER: builtins.int
     RUN__MODE_FIELD_NUMBER: builtins.int
     RUN__SAVE_NO_ARGS_FIELD_NUMBER: builtins.int
@@ -493,45 +566,60 @@ class Deprecated(google.protobuf.message.Message):
     INIT__CONFIG_INCLUDE_KEYS_FIELD_NUMBER: builtins.int
     INIT__CONFIG_EXCLUDE_KEYS_FIELD_NUMBER: builtins.int
     KERAS_CALLBACK__SAVE_MODEL_FIELD_NUMBER: builtins.int
-    keras_callback__data_type: builtins.bool = ...
-    run__mode: builtins.bool = ...
-    run__save_no_args: builtins.bool = ...
-    run__join: builtins.bool = ...
-    plots: builtins.bool = ...
-    run__log_sync: builtins.bool = ...
-    init__config_include_keys: builtins.bool = ...
-    init__config_exclude_keys: builtins.bool = ...
-    keras_callback__save_model: builtins.bool = ...
-
-    def __init__(self,
+    keras_callback__data_type: builtins.bool
+    """wandb.keras.WandbCallback(data_type=...) called"""
+    run__mode: builtins.bool
+    """wandb.run.mode called"""
+    run__save_no_args: builtins.bool
+    """wandb.run.save() called without arguments"""
+    run__join: builtins.bool
+    """wandb.run.join() called"""
+    plots: builtins.bool
+    """wandb.plots.* called"""
+    run__log_sync: builtins.bool
+    """wandb.run.log(sync=...) called"""
+    init__config_include_keys: builtins.bool
+    """wandb.init(config_include_keys=...) called"""
+    init__config_exclude_keys: builtins.bool
+    """wandb.init(config_exclude_keys=...) called"""
+    keras_callback__save_model: builtins.bool
+    """wandb.keras.WandbCallback(save_model=True) called"""
+    def __init__(
+        self,
         *,
-        keras_callback__data_type : builtins.bool = ...,
-        run__mode : builtins.bool = ...,
-        run__save_no_args : builtins.bool = ...,
-        run__join : builtins.bool = ...,
-        plots : builtins.bool = ...,
-        run__log_sync : builtins.bool = ...,
-        init__config_include_keys : builtins.bool = ...,
-        init__config_exclude_keys : builtins.bool = ...,
-        keras_callback__save_model : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"init__config_exclude_keys",b"init__config_exclude_keys",u"init__config_include_keys",b"init__config_include_keys",u"keras_callback__data_type",b"keras_callback__data_type",u"keras_callback__save_model",b"keras_callback__save_model",u"plots",b"plots",u"run__join",b"run__join",u"run__log_sync",b"run__log_sync",u"run__mode",b"run__mode",u"run__save_no_args",b"run__save_no_args"]) -> None: ...
+        keras_callback__data_type: builtins.bool = ...,
+        run__mode: builtins.bool = ...,
+        run__save_no_args: builtins.bool = ...,
+        run__join: builtins.bool = ...,
+        plots: builtins.bool = ...,
+        run__log_sync: builtins.bool = ...,
+        init__config_include_keys: builtins.bool = ...,
+        init__config_exclude_keys: builtins.bool = ...,
+        keras_callback__save_model: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "plots", b"plots", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args"]) -> None: ...
+
 global___Deprecated = Deprecated
 
 class Issues(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     SETTINGS__VALIDATION_WARNINGS_FIELD_NUMBER: builtins.int
     SETTINGS__UNEXPECTED_ARGS_FIELD_NUMBER: builtins.int
     SETTINGS__PREPROCESSING_WARNINGS_FIELD_NUMBER: builtins.int
-    settings__validation_warnings: builtins.bool = ...
-    settings__unexpected_args: builtins.bool = ...
-    settings__preprocessing_warnings: builtins.bool = ...
-
-    def __init__(self,
+    settings__validation_warnings: builtins.bool
+    """validation warnings for settings?"""
+    settings__unexpected_args: builtins.bool
+    """unexpected settings init args?"""
+    settings__preprocessing_warnings: builtins.bool
+    """preprocessing warnings for settings?"""
+    def __init__(
+        self,
         *,
-        settings__validation_warnings : builtins.bool = ...,
-        settings__unexpected_args : builtins.bool = ...,
-        settings__preprocessing_warnings : builtins.bool = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"settings__preprocessing_warnings",b"settings__preprocessing_warnings",u"settings__unexpected_args",b"settings__unexpected_args",u"settings__validation_warnings",b"settings__validation_warnings"]) -> None: ...
+        settings__validation_warnings: builtins.bool = ...,
+        settings__unexpected_args: builtins.bool = ...,
+        settings__preprocessing_warnings: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["settings__preprocessing_warnings", b"settings__preprocessing_warnings", "settings__unexpected_args", b"settings__unexpected_args", "settings__validation_warnings", b"settings__validation_warnings"]) -> None: ...
+
 global___Issues = Issues

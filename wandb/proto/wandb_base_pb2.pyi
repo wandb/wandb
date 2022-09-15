@@ -5,46 +5,64 @@ isort:skip_file
 import builtins
 import google.protobuf.descriptor
 import google.protobuf.message
-import typing
-import typing_extensions
+import sys
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor = ...
+if sys.version_info >= (3, 8):
+    import typing as typing_extensions
+else:
+    import typing_extensions
+
+DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
 class _RecordInfo(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    """
+    _RecordInfo, _RequestInfo: extra info for all records and requests
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
     STREAM_ID_FIELD_NUMBER: builtins.int
     _TRACELOG_ID_FIELD_NUMBER: builtins.int
-    stream_id: typing.Text = ...
-    _tracelog_id: typing.Text = ...
-
-    def __init__(self,
+    stream_id: builtins.str
+    _tracelog_id: builtins.str
+    def __init__(
+        self,
         *,
-        stream_id : typing.Text = ...,
-        _tracelog_id : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_tracelog_id",b"_tracelog_id",u"stream_id",b"stream_id"]) -> None: ...
+        stream_id: builtins.str = ...,
+        _tracelog_id: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_tracelog_id", b"_tracelog_id", "stream_id", b"stream_id"]) -> None: ...
+
 global____RecordInfo = _RecordInfo
 
 class _RequestInfo(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    STREAM_ID_FIELD_NUMBER: builtins.int
-    stream_id: typing.Text = ...
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    def __init__(self,
+    STREAM_ID_FIELD_NUMBER: builtins.int
+    stream_id: builtins.str
+    def __init__(
+        self,
         *,
-        stream_id : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"stream_id",b"stream_id"]) -> None: ...
+        stream_id: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["stream_id", b"stream_id"]) -> None: ...
+
 global____RequestInfo = _RequestInfo
 
 class _ResultInfo(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    _TRACELOG_ID_FIELD_NUMBER: builtins.int
-    _tracelog_id: typing.Text = ...
+    """
+    _ResultInfo: extra info for all results
+    """
 
-    def __init__(self,
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    _TRACELOG_ID_FIELD_NUMBER: builtins.int
+    _tracelog_id: builtins.str
+    def __init__(
+        self,
         *,
-        _tracelog_id : typing.Text = ...,
-        ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_tracelog_id",b"_tracelog_id"]) -> None: ...
+        _tracelog_id: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_tracelog_id", b"_tracelog_id"]) -> None: ...
+
 global____ResultInfo = _ResultInfo
