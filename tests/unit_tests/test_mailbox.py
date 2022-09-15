@@ -89,15 +89,22 @@ class TimeObject:
 
     def advance_time(self, time_increment):
         self._time_elapsed += time_increment
-        # TODO: check timed events
+        self._run_timed_events()
+
+    def _run_timed_events(self):
+        reschedule = []
+        for time_offset, callback in self._timed_events:
+            if time_offset > self._time_elapsed:
+                reschedule.append((time_offset, callback))
+                continue
+            callback()
+        self._timed_events = reschedule
 
     def add_timed_event(self, time_offset, callback):
         if time_offset < 0:
             return
-        if time_offset <= self._time_elapsed:
-            callback()
-            return
         self._timed_events.append((time_offset, callback))
+        self._run_timed_events()
 
     def get_time(self):
         now = self._time_start + self._time_elapsed
@@ -187,14 +194,14 @@ class TestWithMockedTime(TestCase):
 
     @parameterized.expand(
         [
-            # deliver1_offset, deliver2_offset, expected
-            (-1, -1, False),
-            (0, -1, False),
-            (-1, 0, False),
-            (0, 0, True),
+            # deliver1_offset, deliver2_offset, expected, elapsed
+            (-1, -1, False, 8),
+            (1, -1, False, 8),
+            (-1, 1, False, 8),
+            (2, 4, True, 4),
         ]
     )
-    def test_wait_all(self, deliver1_offset, deliver2_offset, expected):
+    def test_wait_all(self, deliver1_offset, deliver2_offset, expected, elapsed):
         def on_progress_all(progress_all_handle):
             pass
 
@@ -222,5 +229,4 @@ class TestWithMockedTime(TestCase):
                 [handle1, handle2], on_progress_all=on_progress_all, timeout=8
             )
             assert got == expected
-            if not expected:
-                assert self.time_obj.elapsed_time >= 4
+            assert self.time_obj.elapsed_time == elapsed
