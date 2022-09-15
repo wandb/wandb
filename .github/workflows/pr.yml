@@ -1,0 +1,44 @@
+name: Validate PR
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  cc:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      # https://github.com/amannn/action-semantic-pull-request/releases
+      - uses: amannn/action-semantic-pull-request@v4.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Allowed types: add a notion doc
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            ci
+            chore
+            revert
+            security
+            release
+          # Product based scopes
+          scopes: |
+            sdk
+            cli
+            public-api
+            artifacts
+            media
+            sweeps
+            launch
+            integrations
+          requireScope: true
+          wip: true
+          validateSingleCommit: false
+          validateSingleCommitMatchesPrTitle: false
