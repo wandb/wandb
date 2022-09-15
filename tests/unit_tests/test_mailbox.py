@@ -78,6 +78,7 @@ class TimeObject:
         self._time_start = 0
         now = time.time()
         self._time_start = now
+        self._timed_events = []
 
     def add_time_mock(self, time_mock):
         time_mock.side_effect = self.get_time
@@ -88,9 +89,15 @@ class TimeObject:
 
     def advance_time(self, time_increment):
         self._time_elapsed += time_increment
+        # TODO: check timed events
 
     def add_timed_event(self, time_offset, callback):
-        pass
+        if time_offset < 0:
+            return
+        if time_offset <= self._time_elapsed:
+            callback()
+            return
+        self._timed_events.append((time_offset, callback))
 
     def get_time(self):
         now = self._time_start + self._time_elapsed
@@ -180,14 +187,14 @@ class TestWithMockedTime(TestCase):
 
     @parameterized.expand(
         [
-            # send1, send2, expected
-            (False, False, False),
-            (True, False, False),
-            (False, True, False),
-            (True, True, True),
+            # deliver1_offset, deliver2_offset, expected
+            (-1, -1, False),
+            (0, -1, False),
+            (-1, 0, False),
+            (0, 0, True),
         ]
     )
-    def test_wait_all(self, send1, send2, expected):
+    def test_wait_all(self, deliver1_offset, deliver2_offset, expected):
         def on_progress_all(progress_all_handle):
             pass
 
@@ -199,15 +206,13 @@ class TestWithMockedTime(TestCase):
             handle1 = mailbox.get_handle()
             handle2 = mailbox.get_handle()
 
-            if send1:
-                result1 = pb.Result()
-                result1.control.mailbox_slot = handle1.address
-                mailbox.deliver(result1)
+            result1 = pb.Result()
+            result1.control.mailbox_slot = handle1.address
+            self.time_obj.add_timed_event(deliver1_offset, lambda: mailbox.deliver(result1))
 
-            if send2:
-                result2 = pb.Result()
-                result2.control.mailbox_slot = handle2.address
-                mailbox.deliver(result2)
+            result2 = pb.Result()
+            result2.control.mailbox_slot = handle2.address
+            self.time_obj.add_timed_event(deliver2_offset, lambda: mailbox.deliver(result2))
 
             got = mailbox.wait_all(
                 [handle1, handle2], on_progress_all=on_progress_all, timeout=8
