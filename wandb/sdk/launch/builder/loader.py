@@ -12,7 +12,7 @@ _WANDB_BUILDERS: List[str] = ["kaniko", "docker", "noop"]
 
 
 def load_builder(builder_config: Dict[str, Any]) -> AbstractBuilder:
-    builder_name = builder_config.get("type", "noop")
+    builder_name = builder_config.get("type", "docker")
     if builder_name == "kaniko":
         from .kaniko import KanikoBuilder
 
