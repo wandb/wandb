@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+from parameterized import parameterized
+
 from wandb.proto import wandb_internal_pb2 as pb
 
 # from wandb.sdk.interface.interface_shared import InterfaceShared
@@ -83,24 +85,6 @@ class TestWithMockedTime(TestCase):
     def elapsed_time(self):
         return self._time_elapsed
 
-    def _mocked_event(selftest, **kwargs):  # noqa: N805
-        class _TestEvent(selftest._orig_event_class):
-            def __init__(self, **kwargs):
-                super().__init__(**kwargs)
-
-            def wait(self, **kwargs):
-                result = super().wait(timeout=0)
-                if result:
-                    return result
-                # advance time
-                timeout = kwargs.get("timeout")
-                if timeout is not None:
-                    selftest._advance_time(timeout)
-                return result
-
-        event = _TestEvent(**kwargs)
-        return event
-
     @contextmanager
     def _patch_mailbox(self):
         def _setup_time(time_mock):
@@ -175,7 +159,15 @@ class TestWithMockedTime(TestCase):
             _ = handle.wait(timeout=2)
             assert iface._transport_keepalive_failed.call_count == 2
 
-    def test_wait_all(self):
+    @parameterized.expand(
+        [
+            (False, False, False),
+            (True, False, False),
+            (False, True, False),
+            (True, True, True),
+        ]
+    )
+    def test_wait_all(self, send1, send2, expected):
         def on_progress_all(progress_all_handle):
             pass
 
@@ -184,15 +176,17 @@ class TestWithMockedTime(TestCase):
             handle1 = mailbox.get_handle()
             handle2 = mailbox.get_handle()
 
-            result1 = pb.Result()
-            result1.control.mailbox_slot = handle1.address
-            mailbox.deliver(result1)
+            if send1:
+                result1 = pb.Result()
+                result1.control.mailbox_slot = handle1.address
+                mailbox.deliver(result1)
 
-            result2 = pb.Result()
-            result2.control.mailbox_slot = handle2.address
-            mailbox.deliver(result2)
+            if send2:
+                result2 = pb.Result()
+                result2.control.mailbox_slot = handle2.address
+                mailbox.deliver(result2)
 
             got = mailbox.wait_all(
                 [handle1, handle2], on_progress_all=on_progress_all, timeout=4
             )
-            assert got
+            assert got == expected
