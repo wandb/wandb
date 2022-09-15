@@ -211,7 +211,7 @@ class KanikoBuilder(AbstractBuilder):
             wandb.termlog(
                 f"{LOG_PREFIX}Failed while checking if build is required, defaulting to building: {e}"
             )
-            return False
+            return True
 
     def build_image(
         self,
@@ -223,6 +223,7 @@ class KanikoBuilder(AbstractBuilder):
 
         if repository is None:
             raise LaunchError("repository is required for kaniko builder")
+
         image_uri = f"{repository}:{launch_project.image_tag}"
         wandb.termlog(f"{LOG_PREFIX}Checking for image {image_uri}")
         if not self.check_build_required(repository, launch_project):
@@ -358,7 +359,7 @@ class KanikoBuilder(AbstractBuilder):
         if env is not None:
             container = client.V1Container(
                 name="wandb-container-build",
-                image="gcr.io/kaniko-project/executor:latest",
+                image="gcr.io/kaniko-project/executor:v1.8.0",
                 args=args,
                 volume_mounts=volume_mounts,
                 env=[env],
@@ -366,7 +367,7 @@ class KanikoBuilder(AbstractBuilder):
         else:
             container = client.V1Container(
                 name="wandb-container-build",
-                image="gcr.io/kaniko-project/executor:latest",
+                image="gcr.io/kaniko-project/executor:v1.8.0",
                 args=args,
                 volume_mounts=volume_mounts,
             )
