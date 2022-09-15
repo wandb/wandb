@@ -1542,3 +1542,41 @@ def test_launch_git_version_default_main(
     )
 
     assert "main" in str(mock_with_run_info.args[0].git_version)
+
+
+def test_noop_builder(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo_main,
+    runner,
+    monkeypatch,
+):
+    launch_config = {"build": {"type": "noop"}, "registry": {"url": "test"}}
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.launch,
+        "LAUNCH_CONFIG_FILE",
+        "./config/wandb/launch-config.yaml",
+    )
+
+    with runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+            json.dump(launch_config, f)
+
+        kwargs = {
+            "uri": "https://wandb.ai/mock_server_entity/test/runs/2",
+            "api": api,
+            "entity": "mock_server_entity",
+            "project": "test",
+            "synchronous": False,
+            "config": {"cuda": False},
+        }
+        with pytest.raises(LaunchError) as e:
+            launch.run(**kwargs)
+        assert (
+            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
+            in str(e)
+        )
