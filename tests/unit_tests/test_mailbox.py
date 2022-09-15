@@ -150,11 +150,8 @@ class TestWithMockedTime(TestCase):
             handle.add_probe(mock_on_probe)
             _ = handle.wait(timeout=3)
             assert mock_on_probe.call_count == 2
-            assert len(mock_on_probe.call_args.args) >= 1
-            print("FOUND", mock_on_probe.call_args.args)
-            print("FOUND1", mock_on_probe.call_args.args[0])
-            print("FOUND2", type(mock_on_probe.call_args.args[0]))
-            assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
+            if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
+                assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
             assert self.time_obj.elapsed_time >= 3
 
     def test_on_progress(self):
@@ -167,11 +164,8 @@ class TestWithMockedTime(TestCase):
             handle.add_progress(mock_on_progress)
             _ = handle.wait(timeout=3)
             assert mock_on_progress.call_count == 2
-            assert len(mock_on_progress.call_args.args) >= 1
-            print("PFOUND", mock_on_progress.call_args.args)
-            print("PFOUND1", mock_on_progress.call_args.args[0])
-            print("PFOUND2", type(mock_on_progress.call_args.args[0]))
-            assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
+            if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
+                assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
     def test_keepalive(self):
         """Make sure mock keepalive is called."""
