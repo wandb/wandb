@@ -44,6 +44,12 @@ if TYPE_CHECKING:
             pass
 
 
+class ArtifactCommitFailed(Exception):
+    def __init__(self, exception: Exception) -> None:
+        super().__init__(f"Artifact commit failed: {exception}")
+        self.exception = exception
+
+
 def manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
     if manifest.version == 1:
         contents = {
@@ -76,7 +82,12 @@ def manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") ->
 
 
 def _retry_conflicts(e: Exception) -> Union[bool, datetime.timedelta]:
-    if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 409:
+    if not isinstance(e, ArtifactCommitFailed):
+        return False
+    e = e.exception
+    if not isinstance(e, requests.exceptions.HTTPError):
+        return False
+    if e.response.status_code == 409:
         return datetime.timedelta(minutes=2)
     return False
 
@@ -144,7 +155,7 @@ class ArtifactSaver:
         # aborted artifact.
         save_retry = wandb.sdk.lib.retry.Retry(
             self._save,
-            retryable_exceptions=(requests.exceptions.HTTPError,),
+            retryable_exceptions=(ArtifactCommitFailed,),
             check_retry_fn=_retry_conflicts,
             num_retries=3,
         )
@@ -337,7 +348,7 @@ class ArtifactSaver:
         # artifact is committed.
         exc = commit_exc.get()
         if exc is not None:
-            raise ValueError("artifact commit failed") from exc
+            raise ArtifactCommitFailed(exc) from exc
 
         return self._server_artifact
 
