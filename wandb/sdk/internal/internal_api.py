@@ -2392,14 +2392,14 @@ class Api:
         try:
             artifact_type_id = response["project"]["artifactType"]["id"]
         except TypeError:
-            artifact_type_id = ""
+            artifact_type_id = None
 
         mutation = gql(
             """
                 mutation CreateArtifactPortfolio(
                     $entityName: String!
                     $projectName: String!
-                    $artifactTypeID: ID!
+                    $artifactTypeID: ID
                     $name: String!
                     $description: String
                     $clientMutationId: String
