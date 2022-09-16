@@ -294,9 +294,10 @@ class StreamMux:
                 exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
-        self._mailbox.wait_all(
+        got_result = self._mailbox.wait_all(
             handles=exit_handles, timeout=-1, on_progress_all=self._on_progress_exit_all
         )
+        assert got_result
 
         # These could be done in parallel in the future
         for _sid, stream in streams.items():

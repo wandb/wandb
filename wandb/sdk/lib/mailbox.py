@@ -370,7 +370,7 @@ class Mailbox:
             self._update_handles(handles, progress_all_handle, remove=done_handles)
 
             now = self._time()
-            if start_time >= 0 and now >= start_time + timeout:
+            if timeout >= 0 and now >= start_time + timeout:
                 break
 
         return len(handles) == 0
