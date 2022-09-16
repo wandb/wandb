@@ -26,11 +26,13 @@ class _MailboxWaitAll:
     _event: threading.Event
     _lock: threading.Lock
     _handles: List["MailboxHandle"]
+    _failed_handles: List["MailboxHandle"]
 
     def __init__(self) -> None:
         self._event = threading.Event()
         self._lock = threading.Lock()
         self._handles = []
+        self._failed_handles = []
 
     def notify(self) -> None:
         with self._lock:
@@ -43,6 +45,22 @@ class _MailboxWaitAll:
         # set wait_all event if an event has already been set before added to wait_all
         if handle._slot._event.is_set():
             self._event.set()
+
+    @property
+    def _active_handles_count(self) -> int:
+        return len(self._handles)
+
+    @property
+    def _active_handles(self) -> List["MailboxHandle"]:
+        return [h for h in self._handles if not h._is_failed]
+
+    @property
+    def _failed_handles_count(self) -> int:
+        return len(self._failed_handles)
+
+    def _mark_handle_failed(self, handle: "MailboxHandle") -> None:
+        handle._mark_failed()
+        self._failed_handles.append(handle)
 
     def _clear_handles(self) -> None:
         for handle in self._handles:
@@ -166,17 +184,9 @@ class MailboxProgressAll:
     def add_progress_handle(self, progress_handle: MailboxProgress) -> None:
         self._progress_handles.append(progress_handle)
 
-    def remove_progress_handle_matching_handle(self, handle: "MailboxHandle") -> None:
-        # TODO: make this more efficient in the future so we dont have to walk list
-        self._progress_handles = list(
-            filter(
-                lambda progress_handle: progress_handle._handle != handle,
-                self._progress_handles,
-            )
-        )
-
     def get_progress_handles(self) -> List[MailboxProgress]:
-        return self._progress_handles
+        # only return progress handles for not failed handles
+        return [ph for ph in self._progress_handles if not ph._handle._is_failed]
 
 
 class MailboxHandle:
@@ -186,6 +196,7 @@ class MailboxHandle:
     _on_progress: Optional[Callable[[MailboxProgress], None]]
     _interface: Optional["InterfaceShared"]
     _keepalive: bool
+    _failed: bool
 
     def __init__(self, mailbox: "Mailbox", slot: _MailboxSlot) -> None:
         self._mailbox = mailbox
@@ -194,6 +205,7 @@ class MailboxHandle:
         self._on_progress = None
         self._interface = None
         self._keepalive = False
+        self._failed = False
 
     def add_probe(self, on_probe: Callable[[MailboxProbe], None]) -> None:
         self._on_probe = on_probe
@@ -264,6 +276,13 @@ class MailboxHandle:
         self._mailbox._release_slot(self.address)
 
     @property
+    def _is_failed(self) -> bool:
+        return self._failed
+
+    def _mark_failed(self) -> None:
+        self._failed = True
+
+    @property
     def address(self) -> str:
         return self._slot._address
 
@@ -287,17 +306,6 @@ class Mailbox:
         on_progress: Callable[[MailboxProgress], None] = None,
     ) -> Optional[pb.Result]:
         return handle.wait(timeout=timeout, on_progress=on_progress)
-
-    @staticmethod
-    def _update_handles(
-        handles: List[MailboxHandle],
-        progress_all: Optional[MailboxProgressAll],
-        remove: List[MailboxHandle],
-    ) -> None:
-        for handle in remove:
-            if progress_all:
-                progress_all.remove_progress_handle_matching_handle(handle)
-            handles.remove(handle)
 
     def _time(self) -> float:
         return time.time()
@@ -324,32 +332,26 @@ class Mailbox:
                     progress_handle.add_probe_handle(probe_handle)
                 progress_all_handle.add_progress_handle(progress_handle)
 
-        all_failed_handles = []
         start_time = self._time()
-        while handles:
+
+        while wait_all._active_handles_count > 0:
             # Make sure underlying interfaces are still up
             if self._keepalive:
-                failing_handles = []
-                for handle in handles:
+                for handle in wait_all._active_handles:
                     if not handle._interface:
                         continue
                     if handle._interface._transport_keepalive_failed():
-                        failing_handles.append(handle)
-
-                self._update_handles(
-                    handles, progress_all_handle, remove=failing_handles
-                )
-                all_failed_handles.extend(failing_handles)
+                        wait_all._mark_handle_failed(handle)
 
                 # if there are no valid handles left, either break or raise exception
-                if not handles:
-                    if all_failed_handles:
+                if not wait_all._active_handles_count:
+                    if wait_all._failed_handles_count:
                         wait_all._clear_handles()
                         raise MailboxError("transport failed")
                     break
 
             # wait for next event
-            done_handles = wait_all._get_and_clear(timeout=1)
+            wait_all._get_and_clear(timeout=1)
 
             # TODO: we can do more careful timekeeping and not run probes and progress
             # indications until a full second elapses in the case where we found a wait_all
@@ -367,13 +369,11 @@ class Mailbox:
 
                 on_progress_all(progress_all_handle)
 
-            self._update_handles(handles, progress_all_handle, remove=done_handles)
-
             now = self._time()
             if timeout >= 0 and now >= start_time + timeout:
                 break
 
-        return len(handles) == 0
+        return wait_all._active_handles_count == 0
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot
