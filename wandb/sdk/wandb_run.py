@@ -49,6 +49,7 @@ from wandb.util import (
     _is_artifact_version_weave_dict,
     _is_py_path,
     add_import_hook,
+    artifact_to_json,
     parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
@@ -2432,7 +2433,7 @@ class Run:
         pass
 
     @_run_decorator._attach
-    def register_model(
+    def register_artifact(
         self,
         portfolio_name: str,
         entity: Optional[str] = None,
@@ -2450,13 +2451,31 @@ class Run:
         Returns:
             None
         """
-        # TODO: _register_model()
+        artifact_type = "model"
+        # TODO: artifact_type as parameter here and in createArtifactPortfolio mutation
+        return self._register_artifact(
+            portfolio_name=portfolio_name,
+            project=artifact_type + "-registry",
+            artifact_type=artifact_type,
+            entity=entity,
+            description=description,
+        )
+
+    def _register_artifact(
+        self,
+        portfolio_name: str,
+        project: str,
+        artifact_type: str,
+        entity: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> None:
+
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 self._backend.interface.publish_create_artifact_portfolio(
                     self,
                     portfolio_name,
-                    project="model-registry",
+                    project=project,
                     entity=entity,
                     description=description,
                 )
