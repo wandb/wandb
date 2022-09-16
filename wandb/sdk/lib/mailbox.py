@@ -26,13 +26,13 @@ class _MailboxWaitAll:
     _event: threading.Event
     _lock: threading.Lock
     _handles: List["MailboxHandle"]
-    _failed_handles: List["MailboxHandle"]
+    _failed_handles: int
 
     def __init__(self) -> None:
         self._event = threading.Event()
         self._lock = threading.Lock()
         self._handles = []
-        self._failed_handles = []
+        self._failed_handles = 0
 
     def notify(self) -> None:
         with self._lock:
@@ -47,22 +47,22 @@ class _MailboxWaitAll:
             self._event.set()
 
     @property
-    def _active_handles_count(self) -> int:
-        return len(self._handles)
-
-    @property
-    def _active_handles(self) -> List["MailboxHandle"]:
+    def active_handles(self) -> List["MailboxHandle"]:
         return [h for h in self._handles if not h._is_failed]
 
     @property
-    def _failed_handles_count(self) -> int:
-        return len(self._failed_handles)
+    def active_handles_count(self) -> int:
+        return len(self.active_handles)
+
+    @property
+    def failed_handles_count(self) -> int:
+        return self._failed_handles
 
     def _mark_handle_failed(self, handle: "MailboxHandle") -> None:
         handle._mark_failed()
-        self._failed_handles.append(handle)
+        self._failed_handles += 1
 
-    def _clear_handles(self) -> None:
+    def clear_handles(self) -> None:
         for handle in self._handles:
             handle._slot._clear_wait_all()
         self._handles = []
@@ -334,19 +334,19 @@ class Mailbox:
 
         start_time = self._time()
 
-        while wait_all._active_handles_count > 0:
+        while wait_all.active_handles_count > 0:
             # Make sure underlying interfaces are still up
             if self._keepalive:
-                for handle in wait_all._active_handles:
+                for handle in wait_all.active_handles:
                     if not handle._interface:
                         continue
                     if handle._interface._transport_keepalive_failed():
                         wait_all._mark_handle_failed(handle)
 
                 # if there are no valid handles left, either break or raise exception
-                if not wait_all._active_handles_count:
-                    if wait_all._failed_handles_count:
-                        wait_all._clear_handles()
+                if not wait_all.active_handles_count:
+                    if wait_all.failed_handles_count:
+                        wait_all.clear_handles()
                         raise MailboxError("transport failed")
                     break
 
@@ -373,7 +373,7 @@ class Mailbox:
             if timeout >= 0 and now >= start_time + timeout:
                 break
 
-        return wait_all._active_handles_count == 0
+        return wait_all.active_handles_count == 0
 
     def deliver(self, result: pb.Result) -> None:
         mailbox = result.control.mailbox_slot
