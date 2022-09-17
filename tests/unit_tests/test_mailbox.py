@@ -148,10 +148,10 @@ class TestWithMockedTime(TestCase):
             mock_on_probe = Mock(spec=on_probe)
             handle.add_probe(mock_on_probe)
             _ = handle.wait(timeout=3)
-            assert mock_on_probe.call_count == 2
+            self.assertEquals(mock_on_probe.call_count, 2)
             if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-                assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
-            assert self.time_obj.elapsed_time >= 3
+                self.assertIsInstance(mock_on_probe.call_args.args[0], MailboxProbe)
+            self.assertTrue(self.time_obj.elapsed_time >= 3)
 
     def test_on_progress(self):
         def on_progress(progress_handle):
@@ -162,9 +162,9 @@ class TestWithMockedTime(TestCase):
             mock_on_progress = Mock(spec=on_progress)
             handle.add_progress(mock_on_progress)
             _ = handle.wait(timeout=3)
-            assert mock_on_progress.call_count == 2
+            self.assertEquals(mock_on_progress.call_count, 2)
             if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-                assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
+                self.assertIsInstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
     def test_keepalive(self):
         """Make sure mock keepalive is called."""
@@ -189,7 +189,7 @@ class TestWithMockedTime(TestCase):
 
             handle = mailbox._deliver_record(record, iface)
             _ = handle.wait(timeout=2)
-            assert iface._transport_keepalive_failed.call_count == 2
+            self.assertEquals(iface._transport_keepalive_failed.call_count, 2)
 
     @parameterized.expand(
         [
@@ -227,5 +227,5 @@ class TestWithMockedTime(TestCase):
             got = mailbox.wait_all(
                 [handle1, handle2], on_progress_all=on_progress_all, timeout=8
             )
-            assert got == expected
-            assert self.time_obj.elapsed_time == elapsed
+            self.assertEquals(got, expected)
+            self.assertEquals(self.time_obj.elapsed_time, elapsed)
