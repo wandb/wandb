@@ -176,11 +176,11 @@ class MailboxProgress:
     def get_probe_handles(self) -> List[MailboxProbe]:
         return self._probe_handles
 
-    def wait_stop(self):
+    def wait_stop(self) -> None:
         self._stopped = True
 
     @property
-    def _is_stopped(self):
+    def _is_stopped(self) -> bool:
         return self._stopped
 
 
