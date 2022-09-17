@@ -155,11 +155,13 @@ class MailboxProgress:
     _percent_done: float
     _handle: "MailboxHandle"
     _probe_handles: List[MailboxProbe]
+    _stopped: bool
 
     def __init__(self, _handle: "MailboxHandle") -> None:
         self._handle = _handle
         self._percent_done = 0.0
         self._probe_handles = []
+        self._stopped = False
 
     @property
     def percent_done(self) -> float:
@@ -173,6 +175,13 @@ class MailboxProgress:
 
     def get_probe_handles(self) -> List[MailboxProbe]:
         return self._probe_handles
+
+    def wait_stop(self):
+        self._stopped = True
+
+    @property
+    def _is_stopped(self):
+        return self._stopped
 
 
 class MailboxProgressAll:
@@ -267,6 +276,8 @@ class MailboxHandle:
                     percent_done = min((now - start_time) / timeout, 1.0)
                 progress_handle.set_percent_done(percent_done)
                 on_progress(progress_handle)
+                if progress_handle._is_stopped:
+                    break
                 progress_sent = True
         if release:
             self._release()

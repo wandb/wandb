@@ -148,7 +148,7 @@ class TestWithMockedTime(TestCase):
             mock_on_probe = Mock(spec=on_probe)
             handle.add_probe(mock_on_probe)
             _ = handle.wait(timeout=3)
-            self.assertEquals(mock_on_probe.call_count, 2)
+            self.assertEqual(mock_on_probe.call_count, 2)
             if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
                 self.assertIsInstance(mock_on_probe.call_args.args[0], MailboxProbe)
             self.assertTrue(self.time_obj.elapsed_time >= 3)
@@ -162,9 +162,11 @@ class TestWithMockedTime(TestCase):
             mock_on_progress = Mock(spec=on_progress)
             handle.add_progress(mock_on_progress)
             _ = handle.wait(timeout=3)
-            self.assertEquals(mock_on_progress.call_count, 2)
+            self.assertEqual(mock_on_progress.call_count, 2)
             if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-                self.assertIsInstance(mock_on_progress.call_args.args[0], MailboxProgress)
+                self.assertIsInstance(
+                    mock_on_progress.call_args.args[0], MailboxProgress
+                )
 
     def test_keepalive(self):
         """Make sure mock keepalive is called."""
@@ -189,7 +191,27 @@ class TestWithMockedTime(TestCase):
 
             handle = mailbox._deliver_record(record, iface)
             _ = handle.wait(timeout=2)
-            self.assertEquals(iface._transport_keepalive_failed.call_count, 2)
+            self.assertEqual(iface._transport_keepalive_failed.call_count, 2)
+
+    def test_wait_stop(self):
+        def on_progress(progress_handle):
+            progress_handle.wait_stop()
+
+        with self._patch_mailbox() as (event_mock, _):
+            mailbox, handle, result = get_test_setup()
+            mock_on_progress = Mock(spec=on_progress, side_effect=on_progress)
+            handle.add_progress(mock_on_progress)
+
+            result.control.mailbox_slot = handle.address
+            self.time_obj.add_timed_event(2, lambda: mailbox.deliver(result))
+
+            result = handle.wait(timeout=3)
+            self.assertEqual(result, None)
+            self.assertEqual(mock_on_progress.call_count, 1)
+            if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
+                self.assertIsInstance(
+                    mock_on_progress.call_args.args[0], MailboxProgress
+                )
 
     @parameterized.expand(
         [
@@ -227,5 +249,5 @@ class TestWithMockedTime(TestCase):
             got = mailbox.wait_all(
                 [handle1, handle2], on_progress_all=on_progress_all, timeout=8
             )
-            self.assertEquals(got, expected)
-            self.assertEquals(self.time_obj.elapsed_time, elapsed)
+            self.assertEqual(got, expected)
+            self.assertEqual(self.time_obj.elapsed_time, elapsed)
