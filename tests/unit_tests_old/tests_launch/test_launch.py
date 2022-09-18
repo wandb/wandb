@@ -1376,8 +1376,8 @@ def test_launch_build_config_file(
     )
 
     with runner.isolated_filesystem():
-        os.makedirs(os.path.expanduser("./config/wandb"))
-        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+        os.makedirs("./config/wandb")
+        with open("./config/wandb/launch-config.yaml", "w") as f:
             json.dump(launch_config, f)
 
         kwargs = {
@@ -1562,8 +1562,8 @@ def test_noop_builder(
     )
 
     with runner.isolated_filesystem():
-        os.makedirs(os.path.expanduser("./config/wandb"))
-        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+        os.makedirs("./config/wandb")
+        with open("./config/wandb/launch-config.yaml", "w") as f:
             json.dump(launch_config, f)
 
         kwargs = {

@@ -8,7 +8,7 @@ from .._project_spec import EntryPoint, LaunchProject
 
 class NoOpBuilder(AbstractBuilder):
 
-    type: str
+    type = "noop"
 
     def __init__(self, builder_config: Dict[str, Any]) -> None:
         self.builder_config = builder_config
