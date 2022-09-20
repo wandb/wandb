@@ -1027,12 +1027,79 @@ class Api:
         return result
 
     @normalize_exceptions
+    def push_to_run_queue_by_name(
+        self, entity: str, project: str, queue_name: str, run_spec: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        New mutation, should be used before legacy fallback method
+        """
+
+        mutation = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: ID!,
+            $runSpec: JSONString!,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "entityName": entity,
+                "projectName": project,
+                "queueName": queue_name,
+                "runSpec": run_spec,
+            },
+        )
+        result: Optional[Dict[str, Any]] = response.get("pushToRunQueueByName")
+
+        return result
+
+    @normalize_exceptions
     def push_to_run_queue(
         self, queue_name: str, launch_spec: Dict[str, str]
     ) -> Optional[Dict[str, Any]]:
-        # TODO(kdg): add pushToRunQueueByName to avoid this extra query
         entity = launch_spec["entity"]
         project = launch_spec["project"]
+        run_spec = json.dumps(launch_spec)
+
+        try:
+            result = self.push_to_run_queue_by_name(
+                entity, project, queue_name, run_spec
+            )
+            if result:
+                return result
+            elif queue_name == "default":
+                wandb.termwarn("Tried to push to non-existent default queue")
+            else:
+                wandb.termerror("push to queue broke")
+                raise CommError(f"{entity}/{project}/{queue_name}")
+        except CommError as e:
+            if (
+                e.message == 'Cannot query field "pushToRunQueueByName" on type '
+                '"Mutation". Did you mean "pushToRunQueue"?'
+            ):
+                pass
+            else:
+                wandb.termerror(str(e))
+        except Exception as e:
+            raise e
+
+        """ Legacy Method """
         queues_found = self.get_project_run_queues(entity, project)
         matching_queues = [
             q
