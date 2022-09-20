@@ -2452,7 +2452,7 @@ class Run:
             None
         """
         artifact_type = "model"
-        # TODO: artifact_type as parameter here and in createArtifactPortfolio mutation
+        # TODO: artifact_type as parameter in register_artifact()
         return self._register_artifact(
             portfolio_name=portfolio_name,
             project=artifact_type + "-registry",

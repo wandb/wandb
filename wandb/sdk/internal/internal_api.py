@@ -2400,6 +2400,7 @@ class Api:
                     $entityName: String!
                     $projectName: String!
                     $artifactTypeID: ID
+                    $artifactTypeName: String
                     $name: String!
                     $description: String
                     $clientMutationId: String
@@ -2409,6 +2410,7 @@ class Api:
                         entityName: $entityName
                         projectName: $projectName
                         artifactTypeID: $artifactTypeID
+                        artifactTypeName: $artifactTypeName
                         name: $name
                         description: $description
                         clientMutationId: $clientMutationId
@@ -2427,6 +2429,7 @@ class Api:
             "entityName": entity,
             "projectName": project,
             "artifactTypeID": artifact_type_id,
+            "artifactTypeName": artifact_type,
             "name": portfolio_name,
             "description": description,
         }
