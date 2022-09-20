@@ -6,8 +6,6 @@ import threading
 import time
 from typing import (
     TYPE_CHECKING,
-    Any,
-    Callable,
     List,
     Mapping,
     NamedTuple,
