@@ -2375,7 +2375,7 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        # Query to retrieve artifact type id if it exists
+        # TODO: Add backward compatibility? Or check max_cli_version
         query = gql(
             """
                 query ArtifactTypeID(
