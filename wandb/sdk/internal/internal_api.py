@@ -9,6 +9,7 @@ import socket
 import sys
 from abc import ABC
 from copy import deepcopy
+from tkinter import E
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -1039,7 +1040,7 @@ class Api:
         mutation pushToRunQueueByName(
             $entityName: String!,
             $projectName: String!,
-            $queueName: ID!,
+            $queueName: String!,
             $runSpec: JSONString!,
         ) {
             pushToRunQueueByName(
@@ -1055,16 +1056,24 @@ class Api:
         }
         """
         )
+        try:
+            response = self.gql(
+                mutation,
+                variable_values={
+                    "entityName": entity,
+                    "projectName": project,
+                    "queueName": queue_name,
+                    "runSpec": run_spec,
+                },
+            )
+        except CommError as e:
+            if (
+                e.message
+                == "Permission denied, ask the project owner to grant you access"
+            ):
+                return None
+            raise e
 
-        response = self.gql(
-            mutation,
-            variable_values={
-                "entityName": entity,
-                "projectName": project,
-                "queueName": queue_name,
-                "runSpec": run_spec,
-            },
-        )
         result: Optional[Dict[str, Any]] = response.get("pushToRunQueueByName")
 
         return result
@@ -1077,29 +1086,16 @@ class Api:
         project = launch_spec["project"]
         run_spec = json.dumps(launch_spec)
 
-        try:
-            push_result = self.push_to_run_queue_by_name(
-                entity, project, queue_name, run_spec
-            )
-            if push_result:
-                return push_result
-            elif queue_name == "default":
-                wandb.termwarn("Tried to push to non-existent default queue")
-            else:
-                wandb.termerror("push to queue broke")
-                raise CommError(f"{entity}/{project}/{queue_name}")
-        except CommError as e:
-            if (
-                e.message == 'Cannot query field "pushToRunQueueByName" on type '
-                '"Mutation". Did you mean "pushToRunQueue"?'
-            ):
-                pass
-            else:
-                wandb.termerror(str(e))
-        except Exception as e:
-            raise e
+        # TODO(gst): Handle default queue creation (more) gracefully
+        # new projects that haven't navigated to launch page have no default queue
+        push_result = self.push_to_run_queue_by_name(
+            entity, project, queue_name, run_spec
+        )
+        if push_result:
+            return push_result
 
         """ Legacy Method """
+        wandb.termwarn("Using legacy run queue push.")
         queues_found = self.get_project_run_queues(entity, project)
         matching_queues = [
             q
@@ -1116,7 +1112,7 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    f"No default queue existing for {entity}/{project} creating one."
+                    f"No default queue existing for {entity}/{project}, creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
