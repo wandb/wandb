@@ -23,7 +23,7 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 import requests
 from wandb_gql import Client, gql
@@ -2600,7 +2600,7 @@ class Files(Paginator):
     QUERY = gql(
         """
         query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
-            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {
+            $fileLimit: Int = 50, $fileNames: [String!] = [], $upload: Boolean = false) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
                     fileCount
@@ -2613,7 +2613,14 @@ class Files(Paginator):
         % FILE_FRAGMENT
     )
 
-    def __init__(self, client, run, names=None, per_page=50, upload=False):
+    def __init__(
+        self,
+        client: Client,
+        run: Run,
+        names: Optional[Sequence[str]] = None,
+        per_page: int = 50,
+        upload: bool = False,
+    ):
         self.run = run
         variables = {
             "project": run.project,

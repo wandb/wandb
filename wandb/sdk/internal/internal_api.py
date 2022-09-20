@@ -7,7 +7,6 @@ import os
 import re
 import socket
 import sys
-from abc import ABC
 from copy import deepcopy
 from typing import (
     IO,
@@ -1568,7 +1567,7 @@ class Api:
     def upload_urls(
         self,
         project: str,
-        files: Union[List[str], Dict[str, IO]],
+        files: Iterable[str],
         run: Optional[str] = None,
         entity: Optional[str] = None,
         description: Optional[str] = None,
@@ -1593,7 +1592,7 @@ class Api:
         """
         query = gql(
             """
-        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
+        query RunUploadUrls($name: String!, $files: [String!]!, $entity: String, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
