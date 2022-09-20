@@ -9,7 +9,6 @@ import socket
 import sys
 from abc import ABC
 from copy import deepcopy
-from tkinter import E
 from typing import (
     IO,
     TYPE_CHECKING,
