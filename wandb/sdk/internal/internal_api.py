@@ -1078,11 +1078,11 @@ class Api:
         run_spec = json.dumps(launch_spec)
 
         try:
-            result = self.push_to_run_queue_by_name(
+            push_result = self.push_to_run_queue_by_name(
                 entity, project, queue_name, run_spec
             )
-            if result:
-                return result
+            if push_result:
+                return push_result
             elif queue_name == "default":
                 wandb.termwarn("Tried to push to non-existent default queue")
             else:
@@ -1116,9 +1116,7 @@ class Api:
             # in the case of a missing default queue. create it
             if queue_name == "default":
                 wandb.termlog(
-                    "No default queue existing for {}/{} creating one.".format(
-                        entity, project
-                    )
+                    f"No default queue existing for {entity}/{project} creating one."
                 )
                 res = self.create_run_queue(
                     launch_spec["entity"],
@@ -1129,25 +1127,19 @@ class Api:
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
-                            entity, project
-                        )
+                        "Unable to create default queue for {entity}/{project}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
 
             else:
                 wandb.termwarn(
-                    "Unable to push to run queue {}. Queue not found.".format(
-                        queue_name
-                    )
+                    f"Unable to push to run queue {queue_name}. Queue not found."
                 )
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
-                "Unable to push to run queue {}. More than one queue found with this name.".format(
-                    queue_name
-                )
+                f"Unable to push to run queue {queue_name}. More than one queue found with this name."
             )
             return None
         else:
