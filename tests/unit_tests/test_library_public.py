@@ -180,6 +180,7 @@ SYMBOLS_RUN = {
     "upsert_artifact",
     "finish_artifact",
     "use_artifact",
+    "register_artifact",
     "log_code",
     "alert",
     "define_metric",
