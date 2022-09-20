@@ -758,7 +758,7 @@ class Api:
     def runs(
         self,
         path: Optional[str] = None,
-        filters: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
         order: str = "-created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
@@ -1548,7 +1548,7 @@ class Runs(Paginator):
         client: "RetryingClient",
         entity: str,
         project: str,
-        filters: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
         order: Optional[str] = None,
         per_page: int = 50,
         include_sweeps: bool = True,
