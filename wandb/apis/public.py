@@ -23,7 +23,7 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Dict, List, Mapping, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Mapping, Optional, TYPE_CHECKING
 
 import requests
 from wandb_gql import Client, gql
@@ -762,7 +762,7 @@ class Api:
     def runs(
         self,
         path: Optional[str] = None,
-        filters: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
         order: str = "-created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
@@ -1547,7 +1547,7 @@ class Runs(Paginator):
         client: "RetryingClient",
         entity: str,
         project: str,
-        filters: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
         order: Optional[str] = None,
         per_page: int = 50,
         include_sweeps: bool = True,
