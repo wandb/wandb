@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress
-    import wandb.apis.public
 
 
 def md5_string(string: str) -> str:

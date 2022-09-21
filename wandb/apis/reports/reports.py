@@ -1,9 +1,11 @@
 import inspect
 import json
 import re
-from typing import Any, Dict, List as LList, Optional, TYPE_CHECKING, Union
 import urllib
 from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Dict
+from typing import List as LList
+from typing import Optional, Union
 
 import wandb
 from wandb.sdk.lib import ipython

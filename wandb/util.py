@@ -33,6 +33,7 @@ from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -45,7 +46,6 @@ from typing import (
     TextIO,
     Tuple,
     Type,
-    TYPE_CHECKING,
     Union,
 )
 from urllib.parse import quote
@@ -60,10 +60,10 @@ from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
 
 if TYPE_CHECKING:
-    import wandb.sdk.wandb_settings
+    import wandb.apis.public
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_artifacts
-    import wandb.apis.public
+    import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
