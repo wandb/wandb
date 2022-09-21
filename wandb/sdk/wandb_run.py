@@ -2477,6 +2477,7 @@ class Run:
                     portfolio_name,
                     project=project,
                     entity=entity,
+                    artifact_type=artifact_type,
                     description=description,
                 )
             else:

@@ -421,6 +421,7 @@ class InterfaceBase:
         portfolio_name: str,
         project: str,
         entity: Optional[str] = None,
+        artifact_type: Optional[str] = "model",
         description: Optional[str] = None,
     ) -> None:
         create_artifact_portfolio = pb.CreateArtifactPortfolioRecord()
@@ -428,6 +429,7 @@ class InterfaceBase:
         create_artifact_portfolio.portfolio_project = project or run.project
         create_artifact_portfolio.portfolio_entity = entity or run.entity
         create_artifact_portfolio.portfolio_description = description or ""
+        create_artifact_portfolio.portfolio_type = artifact_type
 
         self._publish_create_artifact_portfolio(create_artifact_portfolio)
 
