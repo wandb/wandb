@@ -4897,7 +4897,7 @@ class ArtifactVersions(Paginator):
         type: str,
         filters: Optional[Mapping[str, Any]] = None,
         order: Optional[str] = None,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.collection_name = collection_name
@@ -4989,7 +4989,7 @@ class ArtifactFiles(Paginator):
         client: Client,
         artifact: Artifact,
         names: Optional[Sequence[str]] = None,
-        per_page: Optional[int] = 50,
+        per_page: int = 50,
     ):
         self.artifact = artifact
         variables = {
