@@ -350,6 +350,7 @@ class ArtifactSaver:
         if exc is not None:
             raise ArtifactCommitError(exc) from exc
 
+        wandb.termerror(": returning from ArtifactSaver.save")
         return self._server_artifact
 
     def _resolve_client_id_manifest_references(self) -> None:
