@@ -1,0 +1,14 @@
+name: Test Comment
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test body Comment
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: echo "$BODY"
