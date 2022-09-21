@@ -4,8 +4,7 @@ Tools for integrating `wandb` with [`Keras`](https://keras.io/), a deep learning
 Use the `WandbCallback` to add `wandb` logging to any `Keras` model.
 """
 
-from .keras import WandbCallback
 from .callbacks import WandBMetricsLogger
-
+from .keras import WandbCallback
 
 __all__ = ["WandbCallback", "WandBMetricsLogger"]

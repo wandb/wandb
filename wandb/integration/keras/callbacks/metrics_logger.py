@@ -1,10 +1,10 @@
-import wandb
 from typing import Optional
 
 from tensorflow.keras import callbacks
 
-from ..keras import patch_tf_keras
+import wandb
 
+from ..keras import patch_tf_keras
 
 patch_tf_keras()
 
