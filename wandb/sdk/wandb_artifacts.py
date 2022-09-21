@@ -42,6 +42,7 @@ from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.artifacts import (  # noqa: F401
     ArtifactEntry,
     ArtifactManifest,
+    ArtifactsCache,
     StorageHandler,
     StorageLayout,
     StoragePolicy,
