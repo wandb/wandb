@@ -3,20 +3,20 @@ import os
 import sys
 import tempfile
 import threading
-from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import wandb
-from wandb import util
 import wandb.filesync.step_prepare
+from wandb import util
 
 from ..interface.artifacts import ArtifactEntry, ArtifactManifest
 
-
 if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2
     from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.internal.progress import ProgressFn
+
     from .file_pusher import FilePusher
-    from wandb.proto import wandb_internal_pb2
 
     if sys.version_info >= (3, 8):
         from typing import Protocol

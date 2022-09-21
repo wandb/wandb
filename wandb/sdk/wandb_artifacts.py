@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import hashlib
+import json
 import os
 import pathlib
 import re
@@ -8,56 +9,60 @@ import shutil
 import tempfile
 import time
 from typing import (
+    IO,
+    TYPE_CHECKING,
     Any,
     Dict,
     Generator,
-    IO,
     List,
     Mapping,
     Optional,
     Sequence,
     Tuple,
-    TYPE_CHECKING,
     Union,
+    cast,
 )
 from urllib.parse import parse_qsl, quote, urlparse
 
 import requests
+import urllib3
+
 import wandb
-from wandb import env
-from wandb import util
+import wandb.data_types as data_types
+from wandb import env, util
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import Artifact as PublicArtifact
-import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 from wandb.sdk.internal import progress
 
 from . import lib as wandb_lib
 from .data_types._dtypes import Type, TypeRegistry
-from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
-    Artifact as ArtifactInterface,
+from .interface.artifacts import Artifact as ArtifactInterface
+from .interface.artifacts import (  # noqa: F401
     ArtifactEntry,
     ArtifactManifest,
     ArtifactsCache,
+    StorageHandler,
+    StorageLayout,
+    StoragePolicy,
     b64_string_to_hex,
     get_artifacts_cache,
     md5_file_b64,
     md5_string,
-    StorageHandler,
-    StorageLayout,
-    StoragePolicy,
 )
 
-
 if TYPE_CHECKING:
-    import google.cloud.storage as gcs_module  # type: ignore
     import boto3  # type: ignore
-    import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
+    import google.cloud.storage as gcs_module  # type: ignore
+
+    import wandb.apis.public
+    from wandb.filesync.step_prepare import StepPrepare
+    from wandb.sdk.internal import internal_api
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
-_REQUEST_RETRY_STRATEGY = requests.packages.urllib3.util.retry.Retry(
+_REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
     backoff_factor=1,
     total=16,
     status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
@@ -74,6 +79,16 @@ class _AddedObj:
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
         self.entry = entry
         self.obj = obj
+
+
+def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise TypeError(f"metadata must be dict, not {type(metadata)}")
+    return cast(
+        Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
+    )
 
 
 class Artifact(ArtifactInterface):
@@ -138,6 +153,7 @@ class Artifact(ArtifactInterface):
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
                 'Invalid name: "%s"' % name
             )
+        metadata = _normalize_metadata(metadata)
         # TODO: this shouldn't be a property of the artifact. It's a more like an
         # argument to log_artifact.
         storage_layout = StorageLayout.V2
@@ -163,7 +179,7 @@ class Artifact(ArtifactInterface):
         self._type = type
         self._name = name
         self._description = description
-        self._metadata = metadata or {}
+        self._metadata = metadata
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
@@ -289,6 +305,7 @@ class Artifact(ArtifactInterface):
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
+        metadata = _normalize_metadata(metadata)
         if self._logged_artifact:
             self._logged_artifact.metadata = metadata
             return
@@ -632,9 +649,13 @@ class Artifact(ArtifactInterface):
             "Cannot call delete on an artifact before it has been logged or in offline mode"
         )
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
+        """
+        Arguments:
+            timeout: (int, optional) Waits in seconds for artifact to finish logging if needed.
+        """
         if self._logged_artifact:
-            return self._logged_artifact.wait()
+            return self._logged_artifact.wait(timeout)  # type: ignore [call-arg]
 
         raise ValueError(
             "Cannot call wait on an artifact before it has been logged or in offline mode"
@@ -977,14 +998,15 @@ class WandbStoragePolicy(StoragePolicy):
                 shutil.copyfile(entry.local_path, f.name)
             entry.local_path = cache_path
 
-        resp = preparer.prepare(
-            lambda: {
+        def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
+            return {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-        )
+
+        resp = preparer.prepare(_prepare_fn)
 
         entry.birth_artifact_id = resp.birth_artifact_id
         exists = resp.upload_url is None

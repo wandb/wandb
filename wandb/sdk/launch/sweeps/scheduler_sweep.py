@@ -1,20 +1,30 @@
+"""Scheduler for classic wandb Sweeps."""
 import logging
-import os
 import pprint
 import queue
 import socket
-import threading
 import time
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
 import wandb
-from wandb import wandb_lib  # type: ignore
-from wandb.errors import SweepError
+from wandb.sdk.launch.sweeps import SchedulerError
+from wandb.sdk.launch.sweeps.scheduler import (
+    LOG_PREFIX,
+    Scheduler,
+    SchedulerState,
+    SimpleRunState,
+    SweepRun,
+)
 from wandb.wandb_agent import Agent as LegacySweepAgent
 
-from .scheduler import Scheduler, SchedulerState, SimpleRunState, SweepRun
-
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _Worker:
+    agent_config: Dict[str, Any]
+    agent_id: str
 
 
 class SweepScheduler(Scheduler):
@@ -25,90 +35,103 @@ class SweepScheduler(Scheduler):
     def __init__(
         self,
         *args: Any,
-        sweep_id: Optional[str] = None,
-        heartbeat_thread_sleep: int = 3,
-        heartbeat_queue_timeout: int = 3,
-        main_thread_sleep: int = 3,
+        num_workers: int = 8,
+        heartbeat_queue_timeout: float = 1.0,
+        heartbeat_queue_sleep: float = 1.0,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
-        # Make sure the provided sweep_id corresponds to a valid sweep
-        found = self._api.sweep(
-            sweep_id, "{}", entity=self._entity, project=self._project
-        )
-        if not found:
-            raise SweepError(
-                f"Could not find sweep {self._entity}/{self._project}/{sweep_id}"
-            )
-        self._sweep_id = sweep_id
-        self._heartbeat_thread_sleep: int = heartbeat_thread_sleep
-        self._heartbeat_queue_timeout: int = heartbeat_queue_timeout
-        self._main_thread_sleep: int = main_thread_sleep
-
-    def _start(self) -> None:
-        self._heartbeat_agent = self._api.register_agent(
-            socket.gethostname(),  # host
-            sweep_id=self._sweep_id,
-            project_name=self._project,
-            entity=self._entity,
-        )
-        self._heartbeat_agent_id = self._heartbeat_agent["id"]
+        # Optionally run multiple workers in (pseudo-)parallel. Workers do not
+        # actually run training workloads, they simply send heartbeat messages
+        # (emulating a real agent) and add new runs to the launch queue. The
+        # launch agent is the one that actually runs the training workloads.
+        self._workers: Dict[int, _Worker] = {}
+        self._num_workers: int = num_workers
         # Thread will pop items off the Sweeps RunQueue using AgentHeartbeat
         # and put them in this internal queue, which will be used to populate
         # the Launch RunQueue
         self._heartbeat_queue: "queue.Queue[SweepRun]" = queue.Queue()
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
-        self._heartbeat_thread.daemon = True
-        self._heartbeat_thread.start()
+        self._heartbeat_queue_timeout: float = heartbeat_queue_timeout
+        self._heartbeat_queue_sleep: float = heartbeat_queue_sleep
 
-    def _heartbeat(self) -> None:
-        while True:
-            if not self.is_alive():
-                return
-            # AgentHeartbeat wants dict of runs which are running or queued
-            _run_states = {}
-            for run_id, run in self._runs.items():
-                if run.state == SimpleRunState.ALIVE:
-                    _run_states[run_id] = True
-            _msg = f"AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
-            logger.debug(_msg)
-            commands = self._api.agent_heartbeat(
-                self._heartbeat_agent_id, {}, _run_states
+    def _start(self) -> None:
+        for worker_id in range(self._num_workers):
+            logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker {worker_id}\n")
+            agent_config = self._api.register_agent(
+                f"{socket.gethostname()}-{worker_id}",  # host
+                sweep_id=self._sweep_id,
+                project_name=self._project,
+                entity=self._entity,
             )
-            if commands:
-                _msg = f"AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
-                logger.debug(_msg)
-                for command in commands:
-                    _type = command.get("type")
-                    # type can be one of "run", "resume", "stop", "exit"
-                    if _type == "exit":
-                        self.state = SchedulerState.COMPLETED
-                        self.exit()
-                        return
-                    run = SweepRun(
-                        id=command.get("run_id"),
-                        args=command.get("args"),
-                        logs=command.get("logs"),
-                        program=command.get("program"),
-                    )
-                    self._runs[run.id] = run
-                    if _type in ["run", "resume"]:
+            self._workers[worker_id] = _Worker(
+                agent_config=agent_config,
+                agent_id=agent_config["id"],
+            )
+
+    def _heartbeat(self, worker_id: int) -> None:
+        # Make sure Scheduler is alive
+        if not self.is_alive():
+            return
+        # AgentHeartbeat wants a Dict of runs which are running or queued
+        _run_states: Dict[str, bool] = {}
+        for run_id, run in self._yield_runs():
+            # Filter out runs that are from a different worker thread
+            if run.worker_id == worker_id and run.state == SimpleRunState.ALIVE:
+                _run_states[run_id] = True
+        logger.debug(
+            f"{LOG_PREFIX}AgentHeartbeat sending: \n{pprint.pformat(_run_states)}\n"
+        )
+        commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
+            self._workers[worker_id].agent_id,  # agent_id: str
+            {},  # metrics: dict
+            _run_states,  # run_states: dict
+        )
+        logger.debug(
+            f"{LOG_PREFIX}AgentHeartbeat received {len(commands)} commands: \n{pprint.pformat(commands)}\n"
+        )
+        if commands:
+            for command in commands:
+                # The command "type" can be one of "run", "resume", "stop", "exit"
+                _type = command.get("type", None)
+                if _type in ["exit", "stop"]:
+                    # Tell (virtual) agent to stop running
+                    self.state = SchedulerState.STOPPED
+                    self.exit()
+                    return
+                elif _type in ["run", "resume"]:
+                    _run_id = command.get("run_id", None)
+                    if _run_id is None:
+                        self.state = SchedulerState.FAILED
+                        raise SchedulerError(
+                            f"AgentHeartbeat command {command} missing run_id"
+                        )
+                    if _run_id in self._runs:
+                        wandb.termlog(f"{LOG_PREFIX} Skipping duplicate run {run_id}")
+                    else:
+                        run = SweepRun(
+                            id=_run_id,
+                            args=command.get("args", {}),
+                            logs=command.get("logs", []),
+                            program=command.get("program", None),
+                            worker_id=worker_id,
+                        )
+                        self._runs[run.id] = run
                         self._heartbeat_queue.put(run)
-                    elif _type == "stop":
-                        self._stop_run(run.id)
-                        continue
-            time.sleep(self._heartbeat_thread_sleep)
+                else:
+                    self.state = SchedulerState.FAILED
+                    raise SchedulerError(f"AgentHeartbeat unknown command type {_type}")
 
     def _run(self) -> None:
+        # Go through all workers and heartbeat
+        for worker_id in self._workers.keys():
+            self._heartbeat(worker_id)
         try:
             run: SweepRun = self._heartbeat_queue.get(
                 timeout=self._heartbeat_queue_timeout
             )
         except queue.Empty:
-            _msg = "No jobs in Sweeps RunQueue, waiting..."
-            logger.debug(_msg)
-            wandb.termlog(_msg)
-            time.sleep(self._main_thread_sleep)
+            wandb.termlog(f"{LOG_PREFIX}No jobs in Sweeps RunQueue, waiting...")
+            time.sleep(self._heartbeat_queue_sleep)
             return
         # If run is already stopped just ignore the request
         if run.state in [
@@ -116,29 +139,21 @@ class SweepScheduler(Scheduler):
             SimpleRunState.UNKNOWN,
         ]:
             return
-        _msg = f"Converting Sweep Run (RunID:{run.id}) to Launch Job"
-        logger.debug(_msg)
-        wandb.termlog(_msg)
-        # This is actually what populates the wandb config
-        # since it is used in wandb.init()
-        sweep_param_path = os.path.join(
-            os.environ.get(wandb.env.DIR, os.getcwd()),
-            "wandb",
-            f"sweep-{self._sweep_id}",
-            f"config-{run.id}.yaml",
+        wandb.termlog(
+            f"{LOG_PREFIX}Converting Sweep Run (RunID:{run.id}) to Launch Job"
         )
-        wandb.termlog(f"Saving params to {sweep_param_path}")
-        wandb_lib.config_util.save_config_file_from_dict(sweep_param_path, run.args)
-        # Construct entry point using legacy sweeps utilities
-        command_args = LegacySweepAgent._create_command_args({"args": run.args})["args"]
-        entry_point = ["python", run.program] + command_args
         _ = self._add_to_launch_queue(
-            uri=os.environ.get(wandb.env.DIR, os.getcwd()),
-            resource="local-process",
-            entry_point=entry_point,
             run_id=run.id,
-            params=run.args,
+            entry_point=["python3", run.program] if run.program else None,
+            # Use legacy sweep utilities to extract args dict from agent heartbeat run.args
+            config={
+                "overrides": {
+                    "run_config": LegacySweepAgent._create_command_args(
+                        {"args": run.args}
+                    )["args_dict"]
+                }
+            },
         )
 
     def _exit(self) -> None:
-        self.state = SchedulerState.COMPLETED
+        pass

@@ -6,15 +6,15 @@ import time
 from typing import Dict, List, Optional, Union
 
 import psutil
+
 import wandb
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
-from . import tpu
-from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import telemetry
-
+from . import ipu, tpu
+from .settings_static import SettingsStatic
 
 GPUHandle = object
 SamplerDict = Dict[str, List[float]]
@@ -77,7 +77,7 @@ class SystemStats:
         self._interface = interface
         self.sampler = {}
         self.samples = 0
-        self._shutdown = False
+        self._shutdown: bool = False
         self._telem = telemetry.TelemetryRecord()
         if psutil:
             net = psutil.net_io_counters()
@@ -94,6 +94,14 @@ class SystemStats:
                 self._tpu_profiler = tpu.get_profiler()
             except Exception as e:
                 wandb.termlog("Error initializing TPUProfiler: " + str(e))
+
+        self._ipu_profiler = None
+
+        if ipu.is_ipu_available():
+            try:
+                self._ipu_profiler = ipu.IPUProfiler(self._pid)
+            except Exception as e:
+                wandb.termlog("Error initializing IPUProfiler: " + str(e))
 
     def start(self) -> None:
         if self._thread is None:
@@ -141,7 +149,7 @@ class SystemStats:
                 time.sleep(0.1)
                 seconds += 0.1
                 if self._shutdown:
-                    self.flush()
+                    self.flush()  # type: ignore
                     return
 
     def shutdown(self) -> None:
@@ -270,4 +278,7 @@ class SystemStats:
             tpu_utilization = self._tpu_profiler.get_tpu_utilization()
             if tpu_utilization is not None:
                 stats["tpu"] = tpu_utilization
+
+        if self._ipu_profiler:
+            stats.update(self._ipu_profiler.get_metrics())
         return stats

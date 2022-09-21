@@ -4,14 +4,14 @@ codecov:
     # To calculate after_n_builds use
     # ./tools/coverage-tool.py jobs | wc -l
     # also change comment block after_n_builds just below
-    after_n_builds: 22
+    after_n_builds: 36
     wait_for_ci: no
 
 comment:
   layout: "reach, diff, flags, files"
   behavior: default
   require_changes: no
-  after_n_builds: 22
+  after_n_builds: 36
 
 ignore:
   - "wandb/vendor"

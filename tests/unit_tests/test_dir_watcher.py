@@ -1,15 +1,13 @@
 """dir_watcher tests"""
 
 import os
-from pathlib import Path
 import tempfile
 import time
-from typing import Callable, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 from unittest.mock import Mock, patch
 
 import pytest
-
-from wandb import Settings
 import wandb.filesync.dir_watcher
 from wandb.filesync.dir_watcher import DirWatcher, PolicyEnd, PolicyLive, PolicyNow
 from wandb.sdk.internal.file_pusher import FilePusher

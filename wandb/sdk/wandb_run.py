@@ -1,8 +1,5 @@
 import _thread as thread
 import atexit
-from collections.abc import Mapping
-from datetime import timedelta
-from enum import IntEnum
 import functools
 import glob
 import json
@@ -14,8 +11,12 @@ import sys
 import threading
 import time
 import traceback
+from collections.abc import Mapping
+from datetime import timedelta
+from enum import IntEnum
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -28,20 +29,19 @@ from typing import (
     Type,
     Union,
 )
-from typing import TYPE_CHECKING
 
 import requests
+
 import wandb
-from wandb import errors
-from wandb import trigger
+from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
-from wandb.proto.wandb_internal_pb2 import (
-    MetricRecord,
-    PollExitResponse,
-    RunRecord,
+from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
+from wandb.sdk.lib.import_hooks import (
+    register_post_import_hook,
+    unregister_post_import_hook,
 )
 from wandb.util import (
     _is_artifact_object,
@@ -53,16 +53,9 @@ from wandb.util import (
     sentry_set_scope,
     to_forward_slash_path,
 )
-from wandb.viz import (
-    custom_chart,
-    CustomChart,
-    Visualize,
-)
+from wandb.viz import CustomChart, Visualize, custom_chart
 
-from . import wandb_artifacts
-from . import wandb_config
-from . import wandb_metric
-from . import wandb_summary
+from . import wandb_artifacts, wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
 from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import GlobStr, InterfaceBase
@@ -88,40 +81,38 @@ from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
-
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
         from typing import TypedDict
     else:
         from typing_extensions import TypedDict
 
-    from .data_types.base_types.wb_value import WBValue
-    from .wandb_alerts import AlertLevel
-
-    from .interface.artifacts import (
-        ArtifactEntry,
-        ArtifactManifest,
-    )
-    from .interface.interface import FilesDict, PolicyName
-
-    from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
         SampledHistoryResponse,
     )
 
+    from .data_types.base_types.wb_value import WBValue
+    from .interface.artifacts import ArtifactEntry, ArtifactManifest
+    from .interface.interface import FilesDict, PolicyName
+    from .lib.printer import PrinterJupyter, PrinterTerm
+    from .wandb_alerts import AlertLevel
+
     class GitSourceDict(TypedDict):
         remote: str
         commit: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ArtifactSourceDict(TypedDict):
         artifact: str
         entrypoint: List[str]
+        args: Sequence[str]
 
     class ImageSourceDict(TypedDict):
         image: str
+        args: Sequence[str]
 
     class JobSourceDict(TypedDict, total=False):
         _version: str
@@ -237,7 +228,10 @@ class _run_decorator:  # noqa: N801
             ):
 
                 if cls._is_attaching:
-                    message = f"Trying to attach `{func.__name__}` while in the middle of attaching `{cls._is_attaching}`"
+                    message = (
+                        f"Trying to attach `{func.__name__}` "
+                        f"while in the middle of attaching `{cls._is_attaching}`"
+                    )
                     raise RuntimeError(message)
                 cls._is_attaching = func.__name__
                 try:
@@ -257,10 +251,12 @@ class _run_decorator:  # noqa: N801
         @functools.wraps(func)
         def wrapper(self: Type["Run"], *args: Any, **kwargs: Any) -> Any:
             # `_attach_id` is only assigned in service hence for all service cases
-            # it will be a passthrough. We don't pickle non-service so again a way to see that we are in non-service case
+            # it will be a passthrough. We don't pickle non-service so again a way
+            # to see that we are in non-service case
             if getattr(self, "_attach_id", None) is None:
                 # `_init_pid` is only assigned in __init__ (this will be constant check for mp):
-                #   - for non-fork case the object is shared through pickling and we don't pickle non-service so will be None
+                #   - for non-fork case the object is shared through pickling,
+                #     and we don't pickle non-service so will be None
                 #   - for fork case the new process share mem space hence the value would be of parent process.
                 _init_pid = getattr(self, "_init_pid", None)
                 if _init_pid != os.getpid():
@@ -270,7 +266,8 @@ class _run_decorator:  # noqa: N801
                         _init_pid,
                         wburls.get("multiprocess"),
                     )
-                    # - if this process was pickled in non-service case, we ignore the attributes (since pickle is not supported)
+                    # - if this process was pickled in non-service case,
+                    #   we ignore the attributes (since pickle is not supported)
                     # - for fork case will use the settings of the parent process
                     # - only point of inconsistent behavior from forked and non-forked cases
                     settings = getattr(self, "_settings", None)
@@ -616,27 +613,6 @@ class Run:
             raise Exception(f"Attribute {attr} is not supported on Run object.")
         super().__setattr__(attr, value)
 
-    @staticmethod
-    def _telemetry_imports(imp: telemetry.TelemetryImports) -> None:
-        telem_map = dict(
-            pytorch_ignite="ignite",
-            transformers_huggingface="transformers",
-        )
-
-        # calculate mod_map, a mapping from module_name to telem_name
-        mod_map = dict()
-        for desc in imp.DESCRIPTOR.fields:
-            if desc.type != desc.TYPE_BOOL:
-                continue
-            telem_name = desc.name
-            mod_name = telem_map.get(telem_name, telem_name)
-            mod_map[mod_name] = telem_name
-
-        # set telemetry field for every module loaded that we track
-        mods_set = set(sys.modules)
-        for mod in mods_set.intersection(mod_map):
-            setattr(imp, mod_map[mod], True)
-
     def _update_settings(self, settings: Settings) -> None:
         self._settings = settings
         self._init_from_settings(settings)
@@ -973,7 +949,9 @@ class Run:
 
             Advanced usage
             ```python
-            run.log_code("../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"))
+            run.log_code(
+                "../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb")
+            )
             ```
 
         Returns:
@@ -1261,11 +1239,9 @@ class Run:
         step: Optional[int] = None,
         commit: Optional[bool] = None,
     ) -> None:
+        row = row.copy()
         if row:
             row = self._visualization_hack(row)
-            now = time.time()
-            row["_timestamp"] = row.get("_timestamp", now)
-            row["_runtime"] = row.get("_runtime", now - self._get_start_time())
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1391,7 +1367,8 @@ class Run:
         if step is not None:
             if os.getpid() != self._init_pid or self._is_attached:
                 wandb.termwarn(
-                    "Note that setting step in multiprocessing can result in data loss. Please log your step values as a metric such as 'global_step'",
+                    "Note that setting step in multiprocessing can result in data loss. "
+                    "Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             # if step is passed in when tensorboard_sync is used we honor the step passed
@@ -1399,7 +1376,8 @@ class Run:
             # this history later on in publish_history()
             if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    "Step cannot be set when using syncing with tensorboard. "
+                    "Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             if step > self._step:
@@ -1485,18 +1463,20 @@ class Run:
             <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'accuracy': 0.9, 'epoch': 5})
+            wandb.log({"accuracy": 0.9, "epoch": 5})
             ```
 
             ### Incremental logging
             <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
+
             wandb.init()
-            wandb.log({'loss': 0.2}, commit=False)
+            wandb.log({"loss": 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
-            wandb.log({'accuracy': 0.8})
+            wandb.log({"accuracy": 0.8})
             ```
 
             ### Histogram
@@ -1572,15 +1552,20 @@ class Run:
 
             ### PR Curve
             ```python
-            wandb.log({'pr': wandb.plots.precision_recall(y_test, y_probas, labels)})
+            wandb.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
             ### 3D Object
             ```python
-            wandb.log({"generated_samples":
-            [wandb.Object3D(open("sample.obj")),
-                wandb.Object3D(open("sample.gltf")),
-                wandb.Object3D(open("sample.glb"))]})
+            wandb.log(
+                {
+                    "generated_samples": [
+                        wandb.Object3D(open("sample.obj")),
+                        wandb.Object3D(open("sample.gltf")),
+                        wandb.Object3D(open("sample.glb")),
+                    ]
+                }
+            )
             ```
 
         Raises:
@@ -1993,9 +1978,11 @@ class Run:
         logger.info(f"got version response {self._check_version}")
 
     def _on_start(self) -> None:
-        # would like to move _set_global to _on_ready to unify _on_start and _on_attach (we want to do the set globals after attach)
+        # would like to move _set_global to _on_ready to unify _on_start and _on_attach
+        # (we want to do the set globals after attach)
         # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses `wandb.run` and hence breaks
+        # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses
+        #               `wandb.run` and hence breaks
         self._set_globals()
         self._header(
             self._check_version, settings=self._settings, printer=self._printer
@@ -2020,8 +2007,34 @@ class Run:
         self._is_attached = True
         self._on_ready()
 
+    def _register_telemetry_import_hooks(
+        self,
+    ) -> None:
+        def _telemetry_import_hook(
+            run: "Run",
+            module: Any,
+        ) -> None:
+            with telemetry.context(run=run) as tel:
+                try:
+                    name = getattr(module, "__name__", None)
+                    if name is not None:
+                        setattr(tel.imports_finish, name, True)
+                except AttributeError:
+                    return
+
+        import_telemetry_set = telemetry.list_telemetry_imports()
+        import_hook_fn = functools.partial(_telemetry_import_hook, self)
+        for module_name in import_telemetry_set:
+            register_post_import_hook(
+                import_hook_fn,
+                self._run_id,
+                module_name,
+            )
+
     def _on_ready(self) -> None:
         """Event triggered when run is ready for the user."""
+        self._register_telemetry_import_hooks()
+
         # start reporting any telemetry changes
         self._telemetry_obj_active = True
         self._telemetry_flush()
@@ -2030,6 +2043,12 @@ class Run:
         self._freeze()
 
     def _log_job(self) -> None:
+        # don't produce a job if the run is sourced from a job
+        if (
+            self._launch_artifact_mapping.get(wandb.util.LAUNCH_JOB_ARTIFACT_SLOT_NAME)
+            is not None
+        ):
+            return
         artifact = None
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
@@ -2049,6 +2068,7 @@ class Run:
                 input_types, output_types, installed_packages_list
             )
             if artifact:
+                logger.info(f"Created job using {job_creation_function.__name__}")
                 break
             else:
                 logger.info(
@@ -2102,6 +2122,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2138,6 +2159,7 @@ class Run:
                     sys.executable.split("/")[-1],
                     self._settings.program_relpath,
                 ],
+                "args": self._settings._args,
             },
             "input_types": input_types,
             "output_types": output_types,
@@ -2163,7 +2185,7 @@ class Run:
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",
-            "source": {"image": docker_image_name},
+            "source": {"image": docker_image_name, "args": self._settings._args},
             "input_types": input_types,
             "output_types": output_types,
             "runtime": self._settings._python,
@@ -2176,9 +2198,6 @@ class Run:
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
-        # populate final import telemetry
-        with telemetry.context(run=self) as tel:
-            self._telemetry_imports(tel.imports_finish)
 
         if self._run_status_checker:
             self._run_status_checker.stop()
@@ -2189,9 +2208,6 @@ class Run:
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         if self._backend and self._backend.interface:
-            # telemetry could have changed, publish final data
-            self._telemetry_flush()
-
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
@@ -2223,6 +2239,14 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.join()
+
+        self._unregister_telemetry_import_hooks(self._run_id)
+
+    @staticmethod
+    def _unregister_telemetry_import_hooks(run_id: str) -> None:
+        import_telemetry_set = telemetry.list_telemetry_imports()
+        for module_name in import_telemetry_set:
+            unregister_post_import_hook(module_name, run_id)
 
     def _on_final(self) -> None:
         self._footer(
@@ -2344,7 +2368,15 @@ class Run:
 
     # TODO(jhr): annotate this
     @_run_decorator._attach
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
+    def watch(  # type: ignore
+        self,
+        models,
+        criterion=None,
+        log="gradients",
+        log_freq=100,
+        idx=None,
+        log_graph=False,
+    ) -> None:
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
@@ -2368,7 +2400,8 @@ class Run:
             return f"{entity}/{project}/{new_name}"
         elif replacement_artifact_info is None and use_as is None:
             wandb.termwarn(
-                f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
+                f"Could not find {artifact_name} in launch artifact mapping. "
+                f"Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
             unique_artifact_replacement_info = (
@@ -2403,7 +2436,7 @@ class Run:
         self,
         artifact: Union[public.Artifact, Artifact],
         target_path: str,
-        aliases: List[str],
+        aliases: Optional[List[str]] = None,
     ) -> None:
         """Links the given artifact to a portfolio (a promoted collection of artifacts).
 
@@ -2413,7 +2446,8 @@ class Run:
             artifact: the (public or local) artifact which will be linked
             target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
                 or {entity}/{project}/{portfolio}
-            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact inside the portfolio.
+            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
+                                   inside the portfolio.
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
@@ -2421,8 +2455,12 @@ class Run:
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
+        if aliases is None:
+            aliases = []
 
         if self._backend and self._backend.interface:
+            if isinstance(artifact, Artifact) and not artifact._logged_artifact:
+                artifact = self._log_artifact(artifact)
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
                     self,
@@ -2771,9 +2809,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3168,7 +3204,7 @@ class Run:
             return
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        total_files = sum(
+        total_files: int = sum(
             sum(
                 [
                     response.file_counts.wandb_count,
@@ -3178,20 +3214,23 @@ class Run:
                 ]
             )
             for response in poll_exit_responses
-            if response and response.file_counts
+            if response is not None and response.file_counts is not None
         )
         uploaded = sum(
             response.pusher_stats.uploaded_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
         total = sum(
             response.pusher_stats.total_bytes
             for response in poll_exit_responses
-            if response and response.pusher_stats
+            if response is not None and response.pusher_stats is not None
         )
 
-        line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        line = (
+            f"Processing {len(poll_exit_responses)} runs with {total_files} files "
+            f"({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        )
         # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
         printer.progress_update(line)  # type: ignore [call-arg]
 
@@ -3358,8 +3397,8 @@ class Run:
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
-                    f"Learn more: {printer.link(wburls.get('upgrade_local'))}",
+                    f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
+                    f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
                     level="warn",
                 )
 
@@ -3547,9 +3586,14 @@ class _LazyArtifact(ArtifactInterface):
         self._assert_instance()
         return getattr(self._instance, item)
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         if not self._instance:
-            resp = self._future.get().response.log_artifact_response
+            future_get = self._future.get(timeout)
+            if not future_get:
+                raise errors.WaitTimeoutError(
+                    "Artifact upload wait timed out, failed to fetch Artifact response"
+                )
+            resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)

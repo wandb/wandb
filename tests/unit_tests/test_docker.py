@@ -1,10 +1,8 @@
 from unittest import mock
 
-
+import pytest
 import wandb
 from wandb.docker import is_buildx_installed
-
-import pytest
 
 
 @pytest.fixture
@@ -14,8 +12,8 @@ def mock_shell():
         yield mock_shell
 
 
-def test_buildx_not_installed(mock_shell, runner):
+@pytest.mark.usefixtures("mock_shell")
+def test_buildx_not_installed():
 
-    with runner.isolated_filesystem():
-        assert is_buildx_installed() is False
+    assert is_buildx_installed() is False
     assert wandb.docker._buildx_installed is False

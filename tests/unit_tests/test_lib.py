@@ -1,5 +1,6 @@
-from wandb import wandb_lib
 import os
+
+from wandb import wandb_lib
 
 
 def test_write_netrc():

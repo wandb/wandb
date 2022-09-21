@@ -5,30 +5,18 @@ import contextlib
 import hashlib
 import os
 import random
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import wandb
-from wandb import env
-from wandb import util
+from wandb import env, util
 from wandb.data_types import WBValue
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
+    import wandb.apis.public
+    from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress
-
-
-if TYPE_CHECKING:
-    import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 
 def md5_string(string: str) -> str:
@@ -206,7 +194,7 @@ class Artifact:
     def version(self) -> str:
         """
         Returns:
-            (int): The version of this artifact. For example, if this
+            (str): The version of this artifact. For example, if this
                 is the first version of an artifact, its `version` will
                 be 'v0'.
         """

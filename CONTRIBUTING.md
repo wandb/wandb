@@ -6,7 +6,7 @@
 # Contributing to `wandb`
 
 We at Weights & Biases ❤️ open source and welcome contributions from the community!
-This guide discusses the development workflow and the internals of the `wandb` client library.
+This guide discusses the development workflow and the internals of the `wandb` library.
 
 ### Table of Contents
 
@@ -16,37 +16,48 @@ Please make sure to update the ToC when you update this page!
 -->
 
 - [Development workflow](#development-workflow)
+  * [Conventional Commits](#conventional-commits)
+    + [Types](#types)
+    + [Scopes](#scopes)
+    + [Subjects](#subjects)
 - [Setting up your development environment](#setting-up-your-development-environment)
+  * [Mac with the Apple M1 chip](#mac-with-the-apple-m1-chip)
+- [Code organization](#code-organization)
 - [Building protocol buffers](#building-protocol-buffers)
 - [Linting the code](#linting-the-code)
 - [Testing](#testing)
-  - [Overview](#overview)
-  - [Finding good test points](#finding-good-test-points)
-  - [Global Pytest Fixtures](#global-pytest-fixtures)
-  - [Code Coverage](#code-coverage)
-  - [Test parallelism](#test-parallelism)
-  - [Functional Testing](#functional-testing)
-  - [Regression Testing](#regression-testing)
+  * [Overview](#overview)
+  * [Finding good test points](#finding-good-test-points)
+  * [Global Pytest Fixtures](#global-pytest-fixtures)
+  * [Code Coverage](#code-coverage)
+  * [Test parallelism](#test-parallelism)
+  * [Functional Testing](#functional-testing)
+  * [Regression Testing](#regression-testing)
 - [Live development](#live-development)
-- [Code organization](#code-organization)
 - [Library Objectives](#library-objectives)
-- [Changes from production library](#changes-from-production-library)
+  * [Supported user interface](#supported-user-interface)
+  * [Arguments/environment variables impacting wandb functions are merged with Settings](#arguments-environment-variables-impacting-wandb-functions-are-merged-with-settings)
+    + [wandb.Settings internals](#wandbsettings-internals)
+    + [Adding a new setting](#adding-a-new-setting)
+  * [Data to be synced to server is fully validated](#data-to-be-synced-to-server-is-fully-validated)
+  * [All changes to objects are reflected in sync data](#all-changes-to-objects-are-reflected-in-sync-data)
+  * [Library can be disabled](#library-can-be-disabled)
 - [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
 - [Documentation Generation](#documentation-generation)
-- [Deprecating Features](#deprecating-features)
+- [Deprecating features](#deprecating-features)
 - [Adding URLs](#adding-urls)
 
 ## Development workflow
 
-1.  Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
+1.  Browse the existing [Issues](https://github.com/wandb/wandb/issues) on GitHub to see
     if the feature/bug you are willing to add/fix has already been requested/reported.
 
-    - If not, please create a [new issue](https://github.com/wandb/client/issues/new/choose).
+    - If not, please create a [new issue](https://github.com/wandb/wandb/issues/new/choose).
       This will help the project keep track of feature requests and bug reports and make sure
       effort is not duplicated.
 
 2.  If you are a first-time contributor, please go to
-    [`https://github.com/wandb/client`](https://github.com/wandb/client)
+    [`https://github.com/wandb/client`](https://github.com/wandb/wandb)
     and click the "Fork" button in the top-right corner of the page.
     This will create your personal copy of the repository that you will use for development.
 
@@ -55,9 +66,9 @@ Please make sure to update the ToC when you update this page!
       that will point to the main `wandb` project:
 
       ```shell
-      git clone https://github.com/<your-username>/client.git
-      cd client
-      git remote add upstream https://github.com/wandb/client.git
+      git clone https://github.com/<your-username>/wandb.git
+      cd wandb
+      git remote add upstream https://github.com/wandb/wandb.git
       ```
 
 3.  Develop you contribution.
@@ -74,10 +85,13 @@ Please make sure to update the ToC when you update this page!
     - Hack! As you make progress, commit your changes locally, e.g.:
     ```shell
     git add changed-file.py tests/test-changed-file.py
-    git commit -m "Added integration with a new library"
+    git commit -m "feat(integrations): Add integration with the `awesomepyml` library"
     ```
     - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
-4.  Proposed changes are contributed through  
+    - Ensure compliance with [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/),
+      see [below](#conventional-commits). This is enforced by the CI and will prevent your PR from
+      being merged if not followed.
+4.  Proposed changes are contributed through
     [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
 
     - When your contribution is ready and the tests all pass, push your branch to GitHub:
@@ -100,11 +114,104 @@ Please make sure to update the ToC when you update this page!
 
       ```shell
       git add tests/test-changed-file.py
-      git commit -m "Added another test case to address reviewer feedback"
+      git commit -m "test(sdk): Add a test case to address reviewer feedback"
       git push origin new-awesome-feature
       ```
 
     - Once your pull request is approved by the reviewers, it will be merged into the main codebase.
+
+### Conventional Commits
+
+At Weights & Biases, we ask that all PR titles conform to the
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
+Conventional Commits is a lightweight convention on top of commit messages.
+
+**Structure**
+
+The commit message should be structured as follows:
+
+```jsx
+<type>(<scope>): <description>
+```
+
+<aside>
+⭐ **TLDR:** Every commit that has type `feat` or `fix` is **user-facing**.
+If notes are user-facing, please make sure users can clearly understand your commit message.
+
+</aside>
+
+#### Types
+
+Only certain types are permitted.
+
+<aside>
+⭐ User-facing notes such as `fix` and `feat` should be written so that a user can clearly understand the changes.
+If the feature or fix does not directly impact users, consider using a different type.
+Examples can be found in the section below.
+
+</aside>
+
+| Type     | Name                        | Description                                                                                  | User-facing? |
+|----------|-----------------------------|----------------------------------------------------------------------------------------------|--------------|
+| feat     | ✨ Feature                   | A pull request that adds new functionality that directly impacts users                       | Yes          |
+| fix      | 🐛 Fix                      | A pull request that fixes a bug                                                              | Yes          |
+| docs     | 📚 Documentation            | Documentation changes only                                                                   | Maybe        |
+| style    | 💎 Style                    | Changes that do not affect the meaning of the code (e.g. linting or adding type annotations) | No           |
+| refactor | 📦 Code Refactor            | A code change that neither fixes a bug nor adds a feature                                    | No           |
+| perf     | 🚀 Performance Improvements | A code change that improves performance                                                      | No           |
+| test     | 🚨 Tests                    | Adding new or missing tests or correcting existing tests                                     | No           |
+| build    | 🛠 Builds                   | Changes that affect the build system (e.g. protobuf) or external dependencies                | Maybe        |
+| ci       | ⚙️ Continuous Integrations  | Changes to our CI configuration files and scripts                                            | No           |
+| chore    | ♻️ Chores                   | Other changes that don't modify source code files.                                           | No           |
+| revert   | 🗑 Reverts                  | Reverts a previous commit                                                                    | Maybe        |
+| security | 🔒 Security                 | Security fix/feature                                                                         | Maybe        |
+
+#### Scopes
+
+Which part of the codebase does this change impact? Only certain scopes are permitted.
+
+| Scope        | Name                     | Description                                             |
+|--------------|--------------------------|---------------------------------------------------------|
+| sdk          | Software Development Kit | Generic SDK changes or if can't define a narrower scope |
+| cli          | Command-Line Interface   | Generic CLI changes                                     |
+| public-api   | Public API               | Public API changes                                      |
+| integrations | Integrations             | Changes related to third-party integrations             |
+| artifacts    | Artifacts                | Changes related to Artifacts                            |
+| media        | Media Types              | Changes related to Media types                          |
+| sweeps       | Sweeps                   | Changes related to Sweeps                               |
+| launch       | Launch                   | Changes related to Launch                               |
+
+Sometimes a change may span multiple scopes. In this case, please choose the scope that would be most relevant to the user.
+
+
+#### Subjects
+
+Write a short, imperative tense description of the change.
+
+User-facing notes (ones with type `fix` and `feat`) should be written so that a user can understand what has changed.
+If the feature or fix does not directly impact users, consider using a different type.
+
+✅ **Good Examples**
+
+- `feat(media): add support for RDKit Molecules`
+
+    It is clear to the user what the change introduces to our product.
+
+- `fix(sdk): fix a hang caused by keyboard interrupt on Windows`
+
+    This bug fix addressed an issue that caused the sdk to hang when hitting Ctrl-C on Windows.
+
+
+❌ **Bad Examples**
+
+- `fix(launch): fix an issue where patch is None`
+
+    It is unclear what is referenced here.
+
+- `feat(sdk): Adds new query to the the internal api getting the state of the run`
+
+    It is unclear what is of importance to the user here, what do they do with that information.
+    A better type would be `chore` or the title should indicate how it translates into a user-facing feature.
 
 ## Setting up your development environment
 
@@ -148,7 +255,7 @@ Note: to switch the default python version, edit the `.python-version` file in t
 
 - The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
 the `h5py` package to be installed, which in turn requires `hdf5` to be installed in the system.
-You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands 
+You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands
 using [homebrew](https://brew.sh/):
 
 ```shell
@@ -170,6 +277,13 @@ You can install `ffmpeg` with the following command using [homebrew](https://bre
 
 ```shell
 $ brew install ffmpeg
+```
+
+- The `lightgbm` package might require build packages `cmake` and `libomp` to be installed.
+You can install `cmake` and `libomp` with the following command using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install cmake libomp
 ```
 
 ## Code organization
@@ -436,9 +550,9 @@ If you update one of those files, you need to:
     In `tox.ini`, search for `yea-wandb==<version>` and change it to
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
-  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`. 
+  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`.
   - Merge and release `yea-wandb` (with `make release`).
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.** 
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.**
   - Point the client branch you are working on to the fresh release of `yea-wandb`.
 
 
@@ -559,6 +673,7 @@ def uses_https(x):
         raise ValueError("Must use https")
     return True
 
+
 base_url = Property(
     name="base_url",
     value="https://wandb.com/",
@@ -576,7 +691,7 @@ endpoint = Property(
 )
 ```
 
-```python
+```ipython
 >>> print(base_url)  # note the stripped "/"
 'https://wandb.com'
 >>> print(endpoint)  # note the runtime hook
@@ -642,10 +757,11 @@ not perform any serialization to sync data.
 ### Program
 
 ```python
-1 import wandb
-2 run = wandb.init(config=dict(param1=1))
-3 run.config.param2 = 2
-4 run.log(dict(this=3))
+import wandb
+
+run = wandb.init(config=dict(param1=1))
+run.config.param2 = 2
+run.log(dict(this=3))
 ```
 
 #### import wandb [line 1]
@@ -771,7 +887,7 @@ To mark a feature as deprecated (and to be removed in the next major release), p
 from wandb.sdk.lib import deprecate
 
 deprecate.deprecate(
-    field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1
+    field_name=deprecate.Deprecated.deprecated_field_name,  # new_field_name from step 1
     warning_message="This feature is deprecated and will be removed in a future release.",
 )
 ```

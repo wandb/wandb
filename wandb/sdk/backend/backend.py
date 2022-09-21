@@ -10,24 +10,23 @@ import multiprocessing
 import os
 import sys
 import threading
-from typing import Any, Callable, Dict, Optional
-from typing import cast
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 
 import wandb
 
 from ..interface.interface import InterfaceBase
 from ..interface.interface_queue import InterfaceQueue
 from ..internal.internal import wandb_internal
+from ..lib.mailbox import Mailbox
 from ..wandb_manager import _Manager
 from ..wandb_settings import Settings
 
-
 if TYPE_CHECKING:
-    from ..wandb_run import Run
     from wandb.proto.wandb_internal_pb2 import Record, Result
+
     from ..service.service_grpc import ServiceGrpcInterface
     from ..service.service_sock import ServiceSockInterface
+    from ..wandb_run import Run
 
 logger = logging.getLogger("wandb")
 
@@ -56,9 +55,14 @@ class Backend:
     _settings: Optional[Settings]
     record_q: Optional["multiprocessing.Queue[Record]"]
     result_q: Optional["multiprocessing.Queue[Result]"]
+    _mailbox: Mailbox
 
     def __init__(
-        self, settings: Settings = None, log_level: int = None, manager: _Manager = None
+        self,
+        mailbox: Mailbox,
+        settings: Settings = None,
+        log_level: int = None,
+        manager: _Manager = None,
     ) -> None:
         self._done = False
         self.record_q = None
@@ -69,6 +73,7 @@ class Backend:
         self._settings = settings
         self._log_level = log_level
         self._manager = manager
+        self._mailbox = mailbox
 
         self._multiprocessing = multiprocessing  # type: ignore
         self._multiprocessing_setup()
@@ -150,14 +155,14 @@ class Backend:
 
             svc_iface_sock = cast("ServiceSockInterface", svc_iface)
             sock_client = svc_iface_sock._get_sock_client()
-            sock_interface = InterfaceSock(sock_client)
+            sock_interface = InterfaceSock(sock_client, mailbox=self._mailbox)
             self.interface = sock_interface
         elif svc_transport == "grpc":
             from ..interface.interface_grpc import InterfaceGrpc
 
             svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
             stub = svc_iface_grpc._get_stub()
-            grpc_interface = InterfaceGrpc()
+            grpc_interface = InterfaceGrpc(mailbox=self._mailbox)
             grpc_interface._connect(stub=stub)
             self.interface = grpc_interface
         else:
@@ -227,6 +232,7 @@ class Backend:
             process=self.wandb_process,
             record_q=self.record_q,
             result_q=self.result_q,
+            mailbox=self._mailbox,
         )
 
     def server_connect(self) -> None:
