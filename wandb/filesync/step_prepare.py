@@ -6,8 +6,6 @@ import threading
 import time
 from typing import (
     TYPE_CHECKING,
-    Any,
-    Callable,
     List,
     Mapping,
     NamedTuple,
@@ -32,7 +30,7 @@ if TYPE_CHECKING:
     class OnPrepareFn(Protocol):
         def __call__(
             self,
-            upload_url: str,  # GraphQL type File.uploadUrl
+            upload_url: Optional[str],  # GraphQL type File.uploadUrl
             upload_headers: Sequence[str],  # GraphQL type File.uploadHeaders
             artifact_id: str,  # GraphQL type File.artifact.id
         ) -> None:
@@ -51,7 +49,7 @@ class RequestFinish(NamedTuple):
 
 
 class ResponsePrepare(NamedTuple):
-    upload_url: str
+    upload_url: Optional[str]
     upload_headers: Sequence[str]
     birth_artifact_id: str
 
@@ -94,9 +92,9 @@ class StepPrepare:
             for prepare_request in batch:
                 name = prepare_request.prepare_fn()["name"]
                 response_file = prepare_response[name]
-                upload_url: str = response_file["uploadUrl"]
-                upload_headers: Sequence[str] = response_file["uploadHeaders"]
-                birth_artifact_id: str = response_file["artifact"]["id"]
+                upload_url = response_file["uploadUrl"]
+                upload_headers = response_file["uploadHeaders"]
+                birth_artifact_id = response_file["artifact"]["id"]
                 if prepare_request.on_prepare:
                     prepare_request.on_prepare(
                         upload_url, upload_headers, birth_artifact_id
@@ -129,7 +127,7 @@ class StepPrepare:
 
     def _prepare_batch(
         self, batch: Sequence[RequestPrepare]
-    ) -> Mapping[str, Mapping[str, Any]]:
+    ) -> Mapping[str, "internal_api.CreateArtifactFilesResponseFile"]:
         """Execute the prepareFiles API call.
 
         Arguments:
@@ -146,7 +144,7 @@ class StepPrepare:
         return self._api.create_artifact_files(file_specs)
 
     def prepare_async(
-        self, prepare_fn: "DoPrepareFn", on_prepare: Optional[Callable[..., Any]] = None
+        self, prepare_fn: "DoPrepareFn", on_prepare: Optional["OnPrepareFn"] = None
     ) -> "queue.Queue[ResponsePrepare]":
         """Request the backend to prepare a file for upload.
 

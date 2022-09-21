@@ -56,10 +56,11 @@ class LaunchAgent:
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        if config.get("max_jobs") == -1:
+        max_jobs_from_config = int(config.get("max_jobs", 1))
+        if max_jobs_from_config == -1:
             self._max_jobs = float("inf")
         else:
-            self._max_jobs = config.get("max_jobs") or 1
+            self._max_jobs = max_jobs_from_config
         self.default_config: Dict[str, Any] = config
 
         # serverside creation

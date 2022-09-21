@@ -107,6 +107,7 @@ message Imports {
   bool kornia = 79;
   bool albumentations = 80;
   bool keras_cv = 81;
+  bool mmengine = 82;
 }
 
 message Feature {
