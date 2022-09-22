@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+
 import wandb
 
 if TYPE_CHECKING:

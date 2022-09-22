@@ -53,9 +53,8 @@ from urllib.parse import quote
 import requests
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
-import yaml
-
 import wandb
+import yaml
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
 

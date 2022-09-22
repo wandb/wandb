@@ -31,7 +31,6 @@ from typing import (
 )
 
 import requests
-
 import wandb
 from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
