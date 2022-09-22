@@ -52,7 +52,6 @@ from wandb.sdk.lib.git import GitRepo
 
 reset_path = wandb.util.vendor_setup()
 import wandb_gql
-import wandb_graphql.language.ast
 reset_path()
 
 try:
@@ -1752,11 +1751,3 @@ def inject_graphql_response(base_url: str) -> InjectedGraphQLRequestCreator:
         )
 
     return helper
-
-def only_graphql_operation(query: str) -> wandb_graphql.language.ast.OperationDefinition:
-    document = wandb_gql.gql(query)
-    try:
-        [op] = [defn for defn in document.definitions if isinstance(defn, wandb_graphql.language.ast.OperationDefinition)]
-        return op
-    except ValueError:
-        raise ValueError(f"Expected exactly one operation in query, got {len(document.definitions)}")
