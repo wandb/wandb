@@ -1,4 +1,3 @@
-from asyncio import Future
 import base64
 import binascii
 import codecs
@@ -6,6 +5,7 @@ import contextlib
 import hashlib
 import os
 import random
+from asyncio import Future
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import wandb

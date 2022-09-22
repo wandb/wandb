@@ -5,7 +5,6 @@ import shutil
 from datetime import datetime, timezone
 
 import numpy as np
-import platform
 import pytest
 import wandb
 import wandb.data_types as data_types

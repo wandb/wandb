@@ -1,5 +1,4 @@
 import _thread as thread
-from asyncio import Future
 import atexit
 import functools
 import glob
@@ -12,6 +11,7 @@ import sys
 import threading
 import time
 import traceback
+from asyncio import Future
 from collections.abc import Mapping
 from datetime import timedelta
 from enum import IntEnum
