@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 
     from .progress import ProgressFn
 
-    class CreateArtifactFileSpecInput(TypedDict):
+    class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql"""
 
         artifactID: str
@@ -64,6 +64,17 @@ if TYPE_CHECKING:
         md5: str
         mimetype: Optional[str]
         artifactManifestID: Optional[str]
+
+    class CreateArtifactFilesResponseFile(TypedDict):
+        id: str
+        name: str
+        displayName: str
+        uploadUrl: Optional[str]
+        uploadHeaders: Sequence[str]
+        artifact: "CreateArtifactFilesResponseFileNode"
+
+    class CreateArtifactFilesResponseFileNode(TypedDict):
+        id: str
 
     class DefaultSettings(TypedDict):
         section: str
@@ -2860,7 +2871,7 @@ class Api:
     @normalize_exceptions
     def create_artifact_files(
         self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
-    ) -> Mapping[str, Mapping[str, Any]]:
+    ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
         mutation = gql(
             """
         mutation CreateArtifactFiles(

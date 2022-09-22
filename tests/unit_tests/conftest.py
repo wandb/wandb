@@ -52,7 +52,6 @@ from wandb.sdk.lib.git import GitRepo
 
 reset_path = wandb.util.vendor_setup()
 import wandb_gql
-import wandb_graphql.language.ast
 reset_path()
 
 try:
@@ -1259,20 +1258,16 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict):
             return None
-        if 'query' not in request_data:
-            return None
-        query = wandb_gql.gql(request_data["query"])
-        for defn in query.definitions:
-            if isinstance(defn, wandb_graphql.language.ast.OperationDefinition) and defn.operation == "mutation" and defn.name.value == "CreateArtifact":
-                post_processed_data = {
-                    "name": response_data["data"]["createArtifact"]["artifact"]["id"],
-                    "create_artifact": [
-                        {
-                            "variables": request_data["variables"],
-                        }
-                    ],
-                }
-                return post_processed_data
+        create_artifact_resp = response_data.get("data", {}).get("createArtifact")
+        if create_artifact_resp is not None:
+            return {
+                "name": create_artifact_resp["artifact"]["id"],
+                "create_artifact": [
+                    {
+                        "variables": request_data["variables"],
+                    }
+                ],
+            }
         return None
 
     def resolve_commit_artifact(
@@ -1282,18 +1277,16 @@ class QueryResolver:
             return None
         if 'query' not in request_data:
             return None
-        query = wandb_gql.gql(request_data["query"])
-        for defn in query.definitions:
-            if isinstance(defn, wandb_graphql.language.ast.OperationDefinition) and defn.operation == "mutation" and defn.name.value == "CommitArtifact":
-                post_processed_data = {
-                    "name": request_data["variables"]["artifactID"],
-                    "commit_artifact": [
-                        {
-                            "variables": request_data["variables"],
-                        }
-                    ],
-                }
-                return post_processed_data
+        commit_artifact_resp = response_data.get("data", {}).get("commitArtifact")
+        if commit_artifact_resp is not None:
+            return {
+                "name": request_data["variables"]["artifactID"],
+                "commit_artifact": [
+                    {
+                        "variables": request_data["variables"],
+                    }
+                ],
+            }
         return None
 
     def resolve(
@@ -1477,26 +1470,23 @@ class RelayServer:
         time_elapsed: float,
         **kwargs: Any,
     ) -> None:
-        try:
-            request_data = request.get_json()
-            response_data = response.json() or {}
+        request_data = request.get_json()
+        response_data = response.json() or {}
 
-            # store raw data
-            raw_data: "RawRequestResponse" = {
-                "url": request.url,
-                "request": request_data,
-                "response": response_data,
-                "time_elapsed": time_elapsed,
-            }
-            self.context.raw_data.append(raw_data)
+        # store raw data
+        raw_data: "RawRequestResponse" = {
+            "url": request.url,
+            "request": request_data,
+            "response": response_data,
+            "time_elapsed": time_elapsed,
+        }
+        self.context.raw_data.append(raw_data)
 
-            snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
-            if snooped_context is not None:
-                self.context.upsert(snooped_context)
+        snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
+        if snooped_context is not None:
+            self.context.upsert(snooped_context)
 
-            return None
-        except Exception:
-            pytest.fail(f"RelayServer failed to snoop_context:\n{traceback.format_exc()}")
+        return None
 
     def graphql(self) -> Mapping[str, str]:
         request = flask.request
