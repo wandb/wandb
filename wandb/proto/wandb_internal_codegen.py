@@ -16,6 +16,7 @@ def generate_deprecated_class_definition() -> None:
     This is to allow static checks to ensure that proper field names are used.
     """
     from wandb.proto.wandb_telemetry_pb2 import Deprecated  # type: ignore[import]
+
     deprecated_features = Deprecated.DESCRIPTOR.fields_by_name.keys()
 
     code: str = (
@@ -26,7 +27,8 @@ def generate_deprecated_class_definition() -> None:
         "else:\n"
         "    from typing_extensions import Literal\n\n\n"
         "DEPRECATED_FEATURES = Literal[\n"
-        + ",\n".join(f'    "{feature}"' for feature in deprecated_features) + "\n"
+        + ",\n".join(f'    "{feature}"' for feature in deprecated_features)
+        + "\n"
         + "]\n\n\n"
         "class Deprecated:\n"
         + "".join(
@@ -70,14 +72,10 @@ requirements_min_version = get_min_required_version(requirements_file, package)
 # check that the installed version of the package is at least the required version
 assert pkg_resources.parse_version(package_version) >= pkg_resources.parse_version(
     requirements_min_version
-), (
-    f"Package {package} found={package_version} required>={requirements_min_version}"
-)
+), f"Package {package} found={package_version} required>={requirements_min_version}"
 
 
-protobuf_version = pkg_resources.parse_version(
-    get_pip_package_version("protobuf")
-)
+protobuf_version = pkg_resources.parse_version(get_pip_package_version("protobuf"))
 
 proto_root = os.path.join(os.path.dirname(grpc_tools.__file__), "_proto")
 tmp_out: pathlib.Path = pathlib.Path(f"wandb/proto/v{protobuf_version.major}/")
@@ -91,8 +89,10 @@ for proto_file in [
     ret = protoc.main(
         (
             "",
-            "-I", proto_root,
-            "-I", ".",
+            "-I",
+            proto_root,
+            "-I",
+            ".",
             f"--python_out={tmp_out}",
             f"--mypy_out={tmp_out}",
             f"wandb/proto/{proto_file}",
@@ -104,8 +104,10 @@ for proto_file in [
 ret = protoc.main(
     (
         "",
-        "-I", proto_root,
-        "-I", '.',
+        "-I",
+        proto_root,
+        "-I",
+        ".",
         f"--python_out={tmp_out}",
         f"--grpc_python_out={tmp_out}",
         f"--mypy_out={tmp_out}",
