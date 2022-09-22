@@ -1,0 +1,22 @@
+{
+    "overrides": {},
+    "resource": "kubernetes",
+    "resource_args": {
+        "kubernetes": {
+            "env": {
+                "key1": "val1"
+            },
+            "tolerations": [
+                {
+                    "key": "key1",
+                    "operator": "Equal",
+                    "value": "value1",
+                    "effect": "NoSchedule"
+                }
+            ],
+            "resource_limits": {
+                "nvidia.com/gpu": 1
+            }
+        }
+    }
+}
