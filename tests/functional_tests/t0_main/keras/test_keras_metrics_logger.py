@@ -3,9 +3,7 @@ import tensorflow as tf
 import wandb
 from wandb.keras import WandBMetricsLogger
 
-tf.keras.utils.set_random_seed(
-    1234
-)
+tf.keras.utils.set_random_seed(1234)
 
 run = wandb.init(project="keras")
 
