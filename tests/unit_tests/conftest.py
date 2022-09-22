@@ -1253,15 +1253,16 @@ class QueryResolver:
             return data
         return None
 
+    @staticmethod
     def resolve_create_artifact(
-        self, request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
     ) -> Optional[Dict[str, Any]]:
-        if not isinstance(request_data, dict):
+        if not isinstance(response_data, dict):
             return None
-        create_artifact_resp = response_data.get("data", {}).get("createArtifact")
-        if create_artifact_resp is not None:
+        query = response_data.get("data", {}).get("createArtifact") is not None
+        if query:
             return {
-                "name": create_artifact_resp["artifact"]["id"],
+                "name": response_data["data"]["createArtifact"]["artifact"]["id"],
                 "create_artifact": [
                     {
                         "variables": request_data["variables"],
@@ -1270,15 +1271,16 @@ class QueryResolver:
             }
         return None
 
+    @staticmethod
     def resolve_commit_artifact(
-        self, request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
     ) -> Optional[Dict[str, Any]]:
-        if not isinstance(request_data, dict):
+        if not isinstance(response_data, dict):
             return None
         if "query" not in request_data:
             return None
-        commit_artifact_resp = response_data.get("data", {}).get("commitArtifact")
-        if commit_artifact_resp is not None:
+        query = response_data.get("data", {}).get("commitArtifact") is not None
+        if query:
             return {
                 "name": request_data["variables"]["artifactID"],
                 "commit_artifact": [
