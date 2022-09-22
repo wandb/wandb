@@ -23,4 +23,4 @@ def test_commit_retries_on_500(
         logged = run.log_artifact(art).wait()
         run.finish()
 
-    assert relay.context.entries[logged.id]
+    assert len(relay.context.entries[logged.id]["commit_artifact"]) == 2
