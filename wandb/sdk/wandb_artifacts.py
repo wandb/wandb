@@ -1,3 +1,4 @@
+from asyncio import Future
 import base64
 import contextlib
 import hashlib
@@ -577,6 +578,14 @@ class Artifact(ArtifactInterface):
         )
 
     def download(self, root: str = None, recursive: bool = False) -> str:
+        if self._logged_artifact:
+            return self._logged_artifact.download(root=root, recursive=recursive)
+
+        raise ValueError(
+            "Cannot call download on an artifact before it has been logged or in offline mode"
+        )
+
+    def download_async(self, root: str = None, recursive: bool = False) -> Future:
         if self._logged_artifact:
             return self._logged_artifact.download(root=root, recursive=recursive)
 

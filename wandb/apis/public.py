@@ -11,6 +11,7 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 import ast
+import asyncio
 import datetime
 import json
 import logging
@@ -4449,6 +4450,18 @@ class Artifact(artifacts.Artifact):
                 prefix=False,
             )
         return dirpath
+
+    async def _download_async(self, fut, root, recursive=False):
+        try:
+            fut.set_result(self.download(root, recursive))
+        except Exception as e:
+            fut.set_exception(e)
+
+    def download_async(self, root=None, recursive=False):
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        loop.create_task(self._download_async(fut, root, recursive))
+        return fut
 
     def checkout(self, root=None):
         dirpath = root or self._default_root(include_version=False)

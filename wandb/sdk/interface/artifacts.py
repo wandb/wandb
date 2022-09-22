@@ -1,3 +1,4 @@
+from asyncio import Future
 import base64
 import binascii
 import codecs
@@ -614,6 +615,26 @@ class Artifact:
 
         Returns:
             (str): The path to the downloaded contents.
+        """
+        raise NotImplementedError
+
+    def download_async(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> Future:
+        """
+        Downloads the contents of the artifact to the specified root directory asynchronously.
+
+        NOTE: Any existing files at `root` are left untouched. Explicitly delete
+        root before calling `download` if you want the contents of `root` to exactly
+        match the artifact.
+
+        Arguments:
+            root: (str, optional) The directory in which to download this artifact's files.
+            recursive: (bool, optional) If true, then all dependent artifacts are eagerly
+                downloaded. Otherwise, the dependent artifacts are downloaded as needed.
+
+        Returns:
+            (Future): A future that can be awaited returning the directory
         """
         raise NotImplementedError
 
