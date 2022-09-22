@@ -2382,16 +2382,16 @@ class Api:
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
-        # Current - 0.13.1 (update based on backend update)
+        # Current - 0.13.3 (update based on backend update)
         can_register_artifact = max_cli_version is None or parse_version(
-            "0.13.1"
-        ) <= parse_version(max_cli_version)
+            "0.13.3"
+        ) < parse_version(max_cli_version)
 
         if not can_register_artifact:
             raise Exception(
                 f"Update backend. Version {max_cli_version} does not support run.register_artifact()"
             )
-            # explicit api calls to create owning project and artifact types if they don't exist?
+            # explicit api calls to create owning project and artifact types if they don't exist
             pass
         query = gql(
             """

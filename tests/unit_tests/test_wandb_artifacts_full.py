@@ -253,7 +253,8 @@ def test_create_artifact_portfolio(relay_server, wandb_init):
                 )
 
     # update cli version accordingly
-    if max_cli_version <= "0.13.1":
+    # print(max_cli_version)
+    if max_cli_version <= "0.13.3":
         assert not created_artifact_portfolio
     else:
         assert created_artifact_portfolio
