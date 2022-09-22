@@ -1470,26 +1470,23 @@ class RelayServer:
         time_elapsed: float,
         **kwargs: Any,
     ) -> None:
-        try:
-            request_data = request.get_json()
-            response_data = response.json() or {}
+        request_data = request.get_json()
+        response_data = response.json() or {}
 
-            # store raw data
-            raw_data: "RawRequestResponse" = {
-                "url": request.url,
-                "request": request_data,
-                "response": response_data,
-                "time_elapsed": time_elapsed,
-            }
-            self.context.raw_data.append(raw_data)
+        # store raw data
+        raw_data: "RawRequestResponse" = {
+            "url": request.url,
+            "request": request_data,
+            "response": response_data,
+            "time_elapsed": time_elapsed,
+        }
+        self.context.raw_data.append(raw_data)
 
-            snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
-            if snooped_context is not None:
-                self.context.upsert(snooped_context)
+        snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
+        if snooped_context is not None:
+            self.context.upsert(snooped_context)
 
-            return None
-        except Exception:
-            pytest.fail(f"RelayServer failed to snoop_context:\n{traceback.format_exc()}")
+        return None
 
     def graphql(self) -> Mapping[str, str]:
         request = flask.request
