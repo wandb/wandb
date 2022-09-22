@@ -2,13 +2,13 @@ import glob
 import io
 import os
 import platform
-import responses
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
 import pytest
 import rdkit.Chem
+import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
