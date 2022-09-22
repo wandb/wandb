@@ -4,7 +4,9 @@ import os
 from collections import deque
 from typing import TYPE_CHECKING, Deque, Optional, cast
 
-from ..interfaces import MetricType, MetricsMonitor
+from .interfaces import MetricType, MetricsMonitor
+from . import asset_registry
+
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -59,12 +61,12 @@ class TPU:
         shutdown_event: mp.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
+        self.metrics = []
         try:
             service_addr = self.get_service_addr()
-            self.metrics = [TPUUtilization(service_addr)]
+            self.metrics.append(TPUUtilization(service_addr))
         except Exception as e:
             logger.warn("Failed to initialize TPU metrics: %s", e)
-            self.metrics = []
 
         self.metrics_monitor = MetricsMonitor(
             self.metrics,
@@ -109,6 +111,13 @@ class TPU:
                 )
         service_addr = service_addr.replace("grpc://", "").replace(":8470", ":8466")
         return service_addr
+
+    def start(self) -> None:
+        if self.metrics:
+            self.metrics_monitor.start()
+
+    def finish(self) -> None:
+        self.metrics_monitor.finish()
 
     @classmethod
     def is_available(cls) -> bool:

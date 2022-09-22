@@ -5,7 +5,9 @@ from typing import TYPE_CHECKING, Deque, List, Optional, cast
 
 import psutil
 
-from ..interfaces import Metric, MetricType, MetricsMonitor
+from .interfaces import Metric, MetricType, MetricsMonitor
+from . import asset_registry
+
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -103,6 +105,7 @@ class CpuPercent:
 # self._cpu_percent_interval_per_cpu = psutil.cpu_percent(interval=1, percpu=True)
 
 
+@asset_registry.register
 class CPU:
     def __init__(
         self,
@@ -133,3 +136,9 @@ class CPU:
             "cpu_count_logical": psutil.cpu_count(logical=True),
         }
         return asset_info
+
+    def start(self) -> None:
+        self.metrics_monitor.start()
+
+    def finish(self) -> None:
+        self.metrics_monitor.finish()

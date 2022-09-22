@@ -11,6 +11,7 @@ depend:
   pip_install_timeout: 1500  # 25m
   requirements:
     - "-r 10-batch10-requirements.txt"
+    - "fairseq==0.9.0"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}

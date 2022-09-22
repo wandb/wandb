@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING, Deque, cast
 
 import psutil
 
-from ..interfaces import MetricType, MetricsMonitor
+from .interfaces import MetricType, MetricsMonitor
+from . import asset_registry
+
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -53,6 +55,7 @@ class NetworkRecv:
         return {self.name: aggregate}
 
 
+@asset_registry.register
 class Network:
     def __init__(
         self,
@@ -71,6 +74,12 @@ class Network:
             settings,
             shutdown_event,
         )
+
+    def start(self) -> None:
+        self.metrics_monitor.start()
+
+    def finish(self) -> None:
+        self.metrics_monitor.finish()
 
     @classmethod
     def is_available(cls) -> bool:

@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, Deque, List, cast
 
 from wandb.vendor.pynvml import pynvml
 
-from ..interfaces import MetricType, MetricsMonitor
+from .interfaces import MetricType, MetricsMonitor
+from . import asset_registry
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -191,6 +192,12 @@ class GPU:
             return False
         except Exception:
             return False
+
+    def start(self) -> None:
+        self.metrics_monitor.start()
+
+    def finish(self) -> None:
+        self.metrics_monitor.finish()
 
     def probe(self) -> dict:
         pynvml.nvmlInit()

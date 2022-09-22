@@ -1,6 +1,6 @@
 import datetime
 import multiprocessing as mp
-from typing import Deque, List, Optional, Tuple, TypeVar, TYPE_CHECKING
+from typing import Deque, List, Optional, TypeVar, TYPE_CHECKING
 
 try:
     from typing import Literal, Protocol, runtime_checkable
@@ -49,6 +49,14 @@ class Asset(Protocol):
     @classmethod
     def is_available(cls) -> bool:
         """Check if the resource is available"""
+        ...
+
+    def start(self) -> None:
+        """Start monitoring the resource"""
+        ...
+
+    def finish(self) -> None:
+        """finish monitoring the resource"""
         ...
 
     def probe(self) -> dict:
@@ -104,13 +112,12 @@ class MetricsMonitor:
 
     def publish(self) -> None:
         """Publish the Asset metrics"""
-        print("publishing", self.serialize())
         self._interface.publish_stats(self.serialize())
         for metric in self.metrics:
             metric.clear()
 
     def start(self) -> None:
-        if self.metrics and self._process is None and not self._shutdown_event.is_set():
+        if self._process is None and not self._shutdown_event.is_set():
             self._process = mp.Process(target=self.monitor)
             self._process.start()
 

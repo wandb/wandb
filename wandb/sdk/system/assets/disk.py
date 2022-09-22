@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, Deque, cast
 
 import psutil
 
-from ..interfaces import MetricType, MetricsMonitor
+from .interfaces import MetricType, MetricsMonitor
+from . import asset_registry
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -31,6 +32,7 @@ class DiskUsage:
         return {self.name: aggregate}
 
 
+@asset_registry.register
 class Disk:
     def __init__(
         self,
@@ -54,3 +56,9 @@ class Disk:
 
     def probe(self) -> dict:
         return {}
+
+    def start(self) -> None:
+        self.metrics_monitor.start()
+
+    def stop(self) -> None:
+        self.metrics_monitor.stop()

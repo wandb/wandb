@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, Deque, List, cast
 
 import psutil
 
-from ..interfaces import MetricType, MetricsMonitor
+from .interfaces import MetricType, MetricsMonitor
+from . import asset_registry
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -94,6 +95,7 @@ class MemoryAvailable:
         return {self.name: aggregate}
 
 
+@asset_registry.register
 class Memory:
     def __init__(
         self,
@@ -114,6 +116,12 @@ class Memory:
             settings,
             shutdown_event,
         )
+
+    def start(self) -> None:
+        self.metrics_monitor.start()
+
+    def finish(self) -> None:
+        self.metrics_monitor.finish()
 
     @classmethod
     def is_available(cls) -> bool:
