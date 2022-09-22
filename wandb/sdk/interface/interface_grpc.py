@@ -55,7 +55,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(check_version)
         run_result = self._stub.CheckVersion(check_version)
-        return run_result
+        return run_result  # type: ignore
 
     def _communicate_attach(
         self, attach: pb.AttachRequest
@@ -63,7 +63,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(attach)
         resp = self._stub.Attach(attach)
-        return resp
+        return resp  # type: ignore
 
     def _communicate_run(
         self, run: pb.RunRecord, timeout: int = None
@@ -71,7 +71,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(run)
         run_result = self._stub.RunUpdate(run)
-        return run_result
+        return run_result  # type: ignore
 
     def _publish_run(self, run: pb.RunRecord) -> None:
         assert self._stub
@@ -103,7 +103,7 @@ class InterfaceGrpc(InterfaceBase):
         except grpc.RpcError as e:
             logger.info(f"GET SUMMARY TIMEOUT: {e}")
             resp = pb.GetSummaryResponse()
-        return resp
+        return resp  # type: ignore
 
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         assert self._stub
@@ -153,7 +153,7 @@ class InterfaceGrpc(InterfaceBase):
         except grpc.RpcError as e:
             logger.info(f"RUNSTART TIMEOUT: {e}")
             run_start_response = pb.RunStartResponse()
-        return run_start_response
+        return run_start_response  # type: ignore
 
     def _publish_files(self, files: pb.FilesRecord) -> None:
         assert self._stub
@@ -224,7 +224,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(status)
         status_response = self._stub.Status(status)
-        return status_response
+        return status_response  # type: ignore
 
     def _communicate_network_status(
         self, status: pb.NetworkStatusRequest
@@ -268,7 +268,7 @@ class InterfaceGrpc(InterfaceBase):
         except grpc.RpcError as e:
             logger.info(f"POLL EXIT TIMEOUT: {e}")
             ret = pb.PollExitResponse()
-        return ret
+        return ret  # type: ignore
 
     def _communicate_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
@@ -276,7 +276,7 @@ class InterfaceGrpc(InterfaceBase):
         assert self._stub
         self._assign(sampled_history)
         ret = self._stub.SampledHistory(sampled_history)
-        return ret
+        return ret  # type: ignore
 
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         assert self._stub

@@ -66,7 +66,7 @@ class ServiceGrpcInterface(ServiceInterface):
 
         inform_attach = spb.ServerInformAttachRequest()
         inform_attach._info.stream_id = attach_id
-        return self._stub.ServerInformAttach(inform_attach)
+        return self._stub.ServerInformAttach(inform_attach)  # type: ignore
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)
