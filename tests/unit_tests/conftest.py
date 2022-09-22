@@ -37,7 +37,6 @@ import pandas as pd
 import pytest
 import requests
 import responses
-
 import wandb
 import wandb.old.settings
 import wandb.util
