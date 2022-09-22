@@ -87,6 +87,10 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import TypedDict
 
+    import wandb.apis.public
+    import wandb.sdk.backend.backend
+    import wandb.sdk.interface.interface_grpc
+    import wandb.sdk.interface.interface_queue
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
