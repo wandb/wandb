@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import re
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 
@@ -148,11 +149,22 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
         elif isinstance(data_or_path, str):
-            self._initialize_from_path(data_or_path)
+            if Image.path_is_reference(data_or_path):
+                self._path = data_or_path
+                self._is_tmp = False
+                self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
+            else:
+                self._initialize_from_path(data_or_path)
+            ext = os.path.splitext(data_or_path)[1][1:]
+            self.format = ext
         else:
             self._initialize_from_data(data_or_path, mode)
 
         self._set_initialization_meta(grouping, caption, classes, boxes, masks)
+
+    @classmethod
+    def path_is_reference(cls, path: str) -> bool:
+        return bool(re.match(r"^(gs|s3|https?)://", path))
 
     def _set_initialization_meta(
         self,
@@ -214,7 +226,8 @@ class Image(BatchableMedia):
                     for key in total_classes.keys()
                 ]
             )
-        self._width, self._height = self.image.size  # type: ignore
+        if self.image:
+            self._width, self._height = self.image.size
         self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
@@ -245,8 +258,6 @@ class Image(BatchableMedia):
         self._set_file(path, is_tmp=False)
         self._image = pil_image.open(path)
         self._image.load()
-        ext = os.path.splitext(path)[1][1:]
-        self.format = ext
 
     def _initialize_from_data(
         self,
@@ -620,7 +631,7 @@ class Image(BatchableMedia):
     @property
     def image(self) -> Optional["PIL.Image"]:
         if self._image is None:
-            if self._path is not None:
+            if self._path is not None and not Image.path_is_reference(self._path):
                 pil_image = util.get_module(
                     "PIL.Image",
                     required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',

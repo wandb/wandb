@@ -2,6 +2,7 @@ import glob
 import io
 import os
 import platform
+import responses
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
@@ -289,6 +290,32 @@ def test_max_images(mock_run):
     path = os.path.join(run.dir, "media/images/test2_0_0.png")
     assert subdict(meta, expected) == expected
     assert os.path.exists(path)
+
+
+@pytest.fixture
+def mock_reference_get_responses():
+    with responses.RequestsMock() as rsps:
+        yield rsps
+
+
+def test_image_refs(mock_reference_get_responses):
+    mock_reference_get_responses.add(
+        method="GET",
+        url="https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/puppy.jpg",
+        body=b"test",
+    )
+
+    image_obj = wandb.Image(
+        "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/puppy.jpg"
+    )
+    art = wandb.Artifact("image_ref_test", "dataset")
+    art.add(image_obj, "image_ref")
+
+    image_expected = {
+        "_type": "image-file",
+        "format": "jpg",
+    }
+    assert subdict(image_obj.to_json(art), image_expected) == image_expected
 
 
 def test_guess_mode():

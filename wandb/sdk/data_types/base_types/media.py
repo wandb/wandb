@@ -157,6 +157,7 @@ class Media(WBValue):
         # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
         # into Media itself we should get rid of them
         from wandb.data_types import Audio
+        from wandb import Image
 
         json_obj = {}
         if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
@@ -233,6 +234,10 @@ class Media(WBValue):
                         path = self._artifact_source.artifact.get_path(name)
                         artifact.add_reference(path.ref_url(), name=name)
                     elif isinstance(self, Audio) and Audio.path_is_reference(
+                        self._path
+                    ):
+                        artifact.add_reference(self._path, name=name)
+                    elif isinstance(self, Image) and Image.path_is_reference(
                         self._path
                     ):
                         artifact.add_reference(self._path, name=name)
