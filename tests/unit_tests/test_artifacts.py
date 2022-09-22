@@ -1,19 +1,27 @@
-import pytest
+from typing import TYPE_CHECKING
 
+import pytest
 import wandb
 
-from .conftest import InjectedGraphQLRequestCreator
+if TYPE_CHECKING:
+    from .conftest import InjectedGraphQLRequestCreator
 
-@pytest.mark.parametrize('status', [409, 500])
+
+@pytest.mark.parametrize("status", [409, 500])
 def test_commit_retries_on_right_statuses(
     relay_server,
     wandb_init,
-    inject_graphql_response: InjectedGraphQLRequestCreator,
+    inject_graphql_response: "InjectedGraphQLRequestCreator",
     status: int,
 ):
-    art = wandb.Artifact('test', 'dataset')
+    art = wandb.Artifact("test", "dataset")
 
-    with relay_server(inject=[inject_graphql_response(operation_name="CommitArtifact", status=status, counter=1)]) as relay:
+    injected_resp = inject_graphql_response(
+        operation_name="CommitArtifact",
+        status=status,
+        counter=1,
+    )
+    with relay_server(inject=[injected_resp]):
         run = wandb_init()
         run.log_artifact(art).wait()
         run.finish()

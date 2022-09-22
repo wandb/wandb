@@ -18,7 +18,6 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from queue import Empty, Queue
-import traceback
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -50,10 +49,6 @@ from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.git import GitRepo
 
-reset_path = wandb.util.vendor_setup()
-import wandb_gql
-reset_path()
-
 try:
     from typing import Literal, Protocol, TypedDict
 except ImportError:
@@ -78,6 +73,12 @@ if TYPE_CHECKING:
     class Resolver(TypedDict):
         name: ResolverName
         resolver: Callable[[Any], Optional[Dict[str, Any]]]
+
+
+if TYPE_CHECKING:
+    import wandb_gql
+else:
+    wandb_gql = wandb.util.vendor_import("wandb_gql")
 
 
 class ConsoleFormatter:
@@ -1275,7 +1276,7 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict):
             return None
-        if 'query' not in request_data:
+        if "query" not in request_data:
             return None
         commit_artifact_resp = response_data.get("data", {}).get("commitArtifact")
         if commit_artifact_resp is not None:
@@ -1333,7 +1334,11 @@ class InjectedResponse:
             return False
         if self.method != other.method or self.url != other.url:
             return False
-        if isinstance(other, requests.PreparedRequest) and self.predicate is not None and not self.predicate(other):
+        if (
+            isinstance(other, requests.PreparedRequest)
+            and self.predicate is not None
+            and not self.predicate(other)
+        ):
             return False
         return True
 
@@ -1733,7 +1738,6 @@ def inject_graphql_response(base_url: str) -> InjectedGraphQLRequestCreator:
         def predicate(request: requests.PreparedRequest) -> bool:
             query = wandb_gql.gql(json.loads(request.body)["query"])
             return query.definitions[0].name.value == operation_name
-
 
         return InjectedResponse(
             method="POST",
