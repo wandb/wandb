@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from queue import Empty, Queue
+import traceback
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -37,6 +38,7 @@ import pandas as pd
 import pytest
 import requests
 import responses
+
 import wandb
 import wandb.old.settings
 import wandb.util
@@ -48,10 +50,15 @@ from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.git import GitRepo
 
+reset_path = wandb.util.vendor_setup()
+import wandb_gql
+import wandb_graphql.language.ast
+reset_path()
+
 try:
-    from typing import Literal, TypedDict
+    from typing import Literal, Protocol, TypedDict
 except ImportError:
-    from typing_extensions import Literal, TypedDict
+    from typing_extensions import Literal, Protocol, TypedDict
 
 if TYPE_CHECKING:
 
@@ -1142,9 +1149,14 @@ class QueryResolver:
                 "name": "upsert_sweep",
                 "resolver": self.resolve_upsert_sweep,
             },
-            # { "name": "create_artifact",
-            #     "resolver": self.resolve_create_artifact,
-            # },
+            {
+                "name": "create_artifact",
+                "resolver": self.resolve_create_artifact,
+            },
+            {
+                "name": "commit_artifact",
+                "resolver": self.resolve_commit_artifact,
+            },
         ]
 
     @staticmethod
@@ -1247,23 +1259,35 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict):
             return None
-        query = (
-            "createArtifact(" in request_data.get("query", "")
-            and request_data.get("variables") is not None
-            and response_data is not None
-        )
-        if query:
-            name = request_data["variables"]["runName"]
-            post_processed_data = {
-                "name": name,
+        create_artifact_resp = response_data.get("data", {}).get("createArtifact")
+        if create_artifact_resp is not None:
+            return {
+                "name": create_artifact_resp["artifact"]["id"],
                 "create_artifact": [
                     {
                         "variables": request_data["variables"],
-                        "response": response_data["data"]["createArtifact"]["artifact"],
                     }
                 ],
             }
-            return post_processed_data
+        return None
+
+    def resolve_commit_artifact(
+        self, request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(request_data, dict):
+            return None
+        if 'query' not in request_data:
+            return None
+        commit_artifact_resp = response_data.get("data", {}).get("commitArtifact")
+        if commit_artifact_resp is not None:
+            return {
+                "name": request_data["variables"]["artifactID"],
+                "commit_artifact": [
+                    {
+                        "variables": request_data["variables"],
+                    }
+                ],
+            }
         return None
 
     def resolve(
@@ -1289,6 +1313,7 @@ class InjectedResponse:
     content_type: str = "text/plain"
     # todo: add more fields for other types of responses?
     counter: int = -1
+    predicate: Optional[Callable[[requests.PreparedRequest], bool]] = None
 
     def __eq__(
         self,
@@ -1307,14 +1332,17 @@ class InjectedResponse:
             return False
         if self.counter == 0:
             return False
-        # todo: add more fields for other types of responses?
-        return self.method == other.method and self.url == other.url
+        if self.method != other.method or self.url != other.url:
+            return False
+        if isinstance(other, requests.PreparedRequest) and self.predicate is not None and not self.predicate(other):
+            return False
+        return True
 
     def to_dict(self):
         return {
             k: self.__getattribute__(k)
             for k in self.__dict__
-            if (not k.startswith("_") and k != "counter")
+            if (not k.startswith("_") and k not in {"counter", "predicate"})
         }
 
 
@@ -1443,23 +1471,26 @@ class RelayServer:
         time_elapsed: float,
         **kwargs: Any,
     ) -> None:
-        request_data = request.get_json()
-        response_data = response.json() or {}
+        try:
+            request_data = request.get_json()
+            response_data = response.json() or {}
 
-        # store raw data
-        raw_data: "RawRequestResponse" = {
-            "url": request.url,
-            "request": request_data,
-            "response": response_data,
-            "time_elapsed": time_elapsed,
-        }
-        self.context.raw_data.append(raw_data)
+            # store raw data
+            raw_data: "RawRequestResponse" = {
+                "url": request.url,
+                "request": request_data,
+                "response": response_data,
+                "time_elapsed": time_elapsed,
+            }
+            self.context.raw_data.append(raw_data)
 
-        snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
-        if snooped_context is not None:
-            self.context.upsert(snooped_context)
+            snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
+            if snooped_context is not None:
+                self.context.upsert(snooped_context)
 
-        return None
+            return None
+        except Exception:
+            pytest.fail(f"RelayServer failed to snoop_context:\n{traceback.format_exc()}")
 
     def graphql(self) -> Mapping[str, str]:
         request = flask.request
@@ -1677,3 +1708,55 @@ def inject_file_stream_response(base_url, user):
         )
 
     yield helper
+
+
+class InjectedGraphQLRequestCreator(Protocol):
+    def __call__(
+        self,
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        counter: int = -1,
+    ) -> InjectedResponse:
+        ...
+
+
+# Injected responses
+@pytest.fixture(scope="function")
+def inject_graphql_response(base_url: str) -> InjectedGraphQLRequestCreator:
+    def helper(
+        operation_name: str,
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        counter: int = -1,
+    ) -> InjectedResponse:
+
+        if status > 299:
+            message = body if isinstance(body, str) else "::".join(body.args)
+            body = DeliberateHTTPError(status_code=status, message=message)
+
+        def predicate(request: requests.PreparedRequest) -> bool:
+            query = wandb_gql.gql(json.loads(request.body)["query"])
+            return query.definitions[0].name.value == operation_name
+
+
+        return InjectedResponse(
+            method="POST",
+            url=urllib.parse.urljoin(
+                base_url,
+                "/graphql",
+            ),
+            body=body,
+            status=status,
+            counter=counter,
+            predicate=predicate,
+        )
+
+    return helper
+
+def only_graphql_operation(query: str) -> wandb_graphql.language.ast.OperationDefinition:
+    document = wandb_gql.gql(query)
+    try:
+        [op] = [defn for defn in document.definitions if isinstance(defn, wandb_graphql.language.ast.OperationDefinition)]
+        return op
+    except ValueError:
+        raise ValueError(f"Expected exactly one operation in query, got {len(document.definitions)}")
