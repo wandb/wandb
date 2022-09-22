@@ -23,18 +23,13 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Mapping,
-    MutableMapping,
-    Optional,
-    Sequence,
-)
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence
 
 import requests
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
+from wandb_gql.transport.requests import RequestsHTTPTransport
+
 import wandb
 from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
@@ -48,13 +43,6 @@ from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
-from wandb_gql import Client, gql
-from wandb_gql.client import RetryError
-from wandb_gql.transport.requests import RequestsHTTPTransport
-
-if TYPE_CHECKING:
-    import wandb.apis.reports
-    import wandb.apis.reports.util
 
 logger = logging.getLogger(__name__)
 
@@ -421,7 +409,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
+        blocks: "Optional[wandb.apis.reports.Block]" = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""

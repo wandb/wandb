@@ -33,7 +33,6 @@ from sys import getsizeof
 from types import ModuleType, TracebackType
 from typing import (
     IO,
-    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -53,16 +52,11 @@ from urllib.parse import quote
 import requests
 import sentry_sdk  # type: ignore
 import shortuuid  # type: ignore
-import wandb
 import yaml
+
+import wandb
 from wandb.env import SENTRY_DSN, error_reporting_enabled, get_app_url
 from wandb.errors import CommError, UsageError, term
-
-if TYPE_CHECKING:
-    import wandb.apis.public
-    import wandb.sdk.internal.settings_static
-    import wandb.sdk.wandb_artifacts
-    import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
 
