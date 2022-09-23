@@ -22,6 +22,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    ContextManager,
     Dict,
     Generator,
     Iterable,
@@ -1060,7 +1061,7 @@ class Context:
         if self._config is not None:
             return deepcopy(self._config)
 
-        self._config = {k: v["config"] for (k, v) in self._entries.items()}
+        self._config = {k: v.get("config") for (k, v) in self._entries.items()}
         return deepcopy(self._config)
 
     # @property
@@ -1565,6 +1566,13 @@ class RelayServer:
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
         return relayed_response.json()
+
+
+class RelayServerFixture(Protocol):
+    def __call__(
+        self, inject: Optional[List[InjectedResponse]] = None
+    ) -> ContextManager[RelayServer]:
+        ...
 
 
 @pytest.fixture(scope="function")
