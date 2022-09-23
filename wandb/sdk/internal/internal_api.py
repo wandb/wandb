@@ -1887,11 +1887,20 @@ class Api:
             response_content = e.response.content if e.response is not None else ""
             logger.error(f"upload_file response body: {response_content}")
             status_code = e.response.status_code if e.response is not None else 0
+            # S3 reports retryable request timeouts out-of-band
+            is_aws_retryable = (
+                status_code == 400 and "RequestTimeout" in response_content
+            )
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
-            if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
-                e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+            if (
+                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
+                or isinstance(
+                    e,
+                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+                )
+                or is_aws_retryable
             ):
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
