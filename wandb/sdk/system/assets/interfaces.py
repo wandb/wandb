@@ -1,5 +1,6 @@
 import datetime
 import multiprocessing as mp
+import threading
 from typing import Deque, List, Optional, TypeVar, TYPE_CHECKING
 
 try:
@@ -82,7 +83,7 @@ class MetricsMonitor:
 
         self.sampling_interval: float = float(
             max(
-                0.5,
+                0.1,
                 settings._stats_sample_rate_seconds,
             )
         )  # seconds
@@ -91,6 +92,7 @@ class MetricsMonitor:
         self.samples_to_aggregate: int = min(
             30, max(2, settings._stats_samples_to_average)
         )
+        # print(self.sampling_interval, self.samples_to_aggregate)
 
     def monitor(self) -> None:
         """Poll the Asset metrics"""
@@ -118,7 +120,7 @@ class MetricsMonitor:
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
-            self._process = mp.Process(target=self.monitor)
+            self._process = threading.Thread(target=self.monitor)
             self._process.start()
 
     def finish(self) -> None:

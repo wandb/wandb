@@ -27,6 +27,7 @@ class ProcessCpuPercent:
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.samples = deque([])
+        self.process: Optional[psutil.Process] = None
 
     def sample(self) -> None:
         # todo: this is what we'd eventually want to do
@@ -36,7 +37,10 @@ class ProcessCpuPercent:
         #         psutil.Process(self.pid).cpu_percent(),
         #     )
         # )
-        self.samples.append(psutil.Process(self.pid).cpu_percent())
+        if self.process is None:
+            self.process = psutil.Process(self.pid)
+
+        self.samples.append(self.process.cpu_percent() / psutil.cpu_count())
 
     def clear(self) -> None:
         self.samples.clear()
@@ -49,6 +53,7 @@ class ProcessCpuPercent:
 
 
 class CpuPercent:
+    # fixme: this is for testing purposes only
     # name = "cpu_percent"
     name = "gpu"
     metric_type = cast("gauge", MetricType)

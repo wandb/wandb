@@ -1,6 +1,6 @@
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, Deque, List, cast
+from typing import TYPE_CHECKING, Deque, List, cast, Optional
 
 import psutil
 
@@ -21,10 +21,14 @@ class ProcessMemoryRSS:
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
+        self.process: Optional[psutil.Process] = None
         self.samples = deque([])
 
     def sample(self) -> None:
-        self.samples.append(psutil.Process(self.pid).memory_info().rss / 1024 / 1024)
+        if self.process is None:
+            self.process = psutil.Process(self.pid)
+
+        self.samples.append(self.process.memory_info().rss / 1024 / 1024)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -42,10 +46,14 @@ class ProcessMemoryPercent:
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
+        self.process: Optional[psutil.Process] = None
         self.samples = deque([])
 
     def sample(self) -> None:
-        self.samples.append(psutil.Process(self.pid).memory_percent())
+        if self.process is None:
+            self.process = psutil.Process(self.pid)
+
+        self.samples.append(self.process.memory_percent())
 
     def clear(self) -> None:
         self.samples.clear()

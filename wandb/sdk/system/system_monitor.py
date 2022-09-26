@@ -1,5 +1,5 @@
 import multiprocessing as mp
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from wandb.sdk.system.assets import asset_registry
 from wandb.sdk.system.assets.interfaces import Asset
@@ -18,6 +18,7 @@ class SystemMonitor:
     ) -> None:
 
         self._shutdown_event: mp.Event = mp.Event()
+        self._process: Optional[mp.Process] = None
 
         self.assets: List["Asset"] = []
         for asset_class in asset_registry:
@@ -31,11 +32,18 @@ class SystemMonitor:
 
         self.hardware: List[dict] = [asset.probe() for asset in self.assets]
 
-    def start(self) -> None:
+    def _start(self) -> None:
         for asset in self.assets:
             asset.start()
+
+    def start(self) -> None:
+        if self._process is None and not self._shutdown_event.is_set():
+            self._process = mp.Process(target=self._start)
+            self._process.start()
 
     def finish(self) -> None:
         self._shutdown_event.set()
         for asset in self.assets:
             asset.finish()
+        self._process.join()
+        self._process = None

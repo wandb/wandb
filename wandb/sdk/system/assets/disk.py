@@ -60,5 +60,5 @@ class Disk:
     def start(self) -> None:
         self.metrics_monitor.start()
 
-    def stop(self) -> None:
-        self.metrics_monitor.stop()
+    def finish(self) -> None:
+        self.metrics_monitor.finish()
