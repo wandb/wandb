@@ -1889,7 +1889,9 @@ class Api:
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
-                status_code == 400 and "RequestTimeout" in response_content
+                "x-amz-meta-md5" in extra_headers
+                and status_code == 400
+                and "RequestTimeout" in response_content
             )
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
