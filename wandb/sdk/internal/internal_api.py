@@ -2402,26 +2402,11 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        # TODO: Workflow based on max_cli_version
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
 
-        create_portfolio_types = (
-            self.server_create_artifact_portfolio_input_introspection()
-        )
-        if "artifactTypeName" in create_portfolio_types:
-            can_register_artifact = True
-        else:
-            can_register_artifact = False
-
-        if not can_register_artifact:
-            raise Exception(
-                f"Update backend. Version {max_cli_version} does not support run.register_artifact()"
-            )
-            # explicit api calls to create owning project and artifact types if they don't exist
-            pass
         query = gql(
             """
                 query ArtifactTypeID(
@@ -2451,8 +2436,7 @@ class Api:
         except TypeError:
             artifact_type_id = None
 
-        mutation = gql(
-            """
+        mutation_template = """
                 mutation CreateArtifactPortfolio(
                     $entityName: String!
                     $projectName: String!
@@ -2480,7 +2464,6 @@ class Api:
                     }
                 }
         """
-        )
 
         variable_values = {
             "entityName": entity,
@@ -2491,6 +2474,31 @@ class Api:
             "description": description,
         }
 
+        if artifact_type_id is None:
+            create_portfolio_types = (
+                self.server_create_artifact_portfolio_input_introspection()
+            )
+            if "artifactTypeName" not in create_portfolio_types:
+                logger.warning(
+                    f"Backend out of date. current version {max_cli_version}"
+                )
+
+                _ = self.upsert_project(project=project, entity=entity)
+                _artifact_type_id = self.create_artifact_type(
+                    artifact_type_name=artifact_type,
+                    project_name=project,
+                    entity_name=entity,
+                )
+                mutation_template = (
+                    mutation_template.replace(
+                        "$artifactTypeID: ID", "$artifactTypeID: ID!"
+                    )
+                    .replace("$artifactTypeName: String", "")
+                    .replace("artifactTypeName: $artifactTypeName", "")
+                )
+                variable_values["artifactTypeID"] = _artifact_type_id
+
+        mutation = gql(mutation_template)
         response = self.gql(mutation, variable_values=variable_values)
         create_artifact_portfolio = response["createArtifactPortfolio"][
             "artifactCollection"
