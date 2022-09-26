@@ -1068,7 +1068,5 @@ class WandbCallback(tf.keras.callbacks.Callback):
             graph=frozen_func.graph, run_meta=run_meta, cmd="scope", options=opts
         )
 
-        tf.compat.v1.reset_default_graph()
-
         # convert to GFLOPs
         return (flops.total_float_ops / 1e9) / 2
