@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 import wandb
 from wandb.errors import WaitTimeoutError
-from wandb import util
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -226,18 +225,12 @@ def test_artifact_wait_failure(wandb_init, timeout):
 def test_create_artifact_portfolio(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
-        run.register_artifact("new-tmp-registered-model")
+        run.register_artifact("tmp-registered-model")
         run.finish()
-
-    max_cli_version = util._get_max_cli_version()
 
     created_artifact_portfolio = False
     for comm in relay.context.raw_data:
         if comm["request"].get("query"):
-            # artifact types wouldn't exist for new users, hence assert None
-            if "ArtifactTypeID" in comm["request"].get("query"):
-                assert comm["response"]["data"]["project"] is None
-
             if "createArtifactPortfolio" in comm["request"].get("query"):
                 if "data" in comm["response"]:
                     created_artifact_portfolio = True
@@ -249,12 +242,6 @@ def test_create_artifact_portfolio(relay_server, wandb_init):
                     comm["response"]["data"]["createArtifactPortfolio"][
                         "artifactCollection"
                     ]["name"]
-                    == "new-tmp-registered-model"
+                    == "tmp-registered-model"
                 )
-
-    # update cli version accordingly
-    # print(max_cli_version)
-    if max_cli_version <= "0.13.3":
-        assert not created_artifact_portfolio
-    else:
-        assert created_artifact_portfolio
+    assert created_artifact_portfolio
