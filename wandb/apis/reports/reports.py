@@ -3,7 +3,7 @@ import json
 import re
 import urllib
 from copy import deepcopy
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 from typing import List as LList
 from typing import Optional, Union
 
@@ -36,6 +36,9 @@ from .validators import (
     OneOf,
     TypeValidator,
 )
+
+if TYPE_CHECKING:
+    import wandb.apis.public
 
 
 class LineKey:
