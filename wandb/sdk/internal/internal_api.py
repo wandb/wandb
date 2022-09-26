@@ -199,6 +199,7 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
+        self.server_create_artifact_portfolio_input_info: Optional[List[str]] = None
 
     def reauth(self) -> None:
         """Ensures the current api key is set in the transport"""
@@ -461,6 +462,29 @@ class Api:
                 )
             ]
         return self.server_use_artifact_input_info
+
+    def server_create_artifact_portfolio_input_introspection(self) -> List:
+        query_string = """
+           query ProbeServerCreateArtifactPortfolio {
+               CreateArtifactPortfolioInputInfoType: __type(name: "CreateArtifactPortfolio") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+        """
+
+        if self.server_create_artifact_portfolio_input_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            self.server_create_artifact_portfolio_input_info = [
+                field.get("name", "")
+                for field in res.get("CreateArtifactPortfolioInputInfoType", {}).get(
+                    "inputFields", [{}]
+                )
+            ]
+        return self.server_create_artifact_portfolio_input_info
 
     @normalize_exceptions
     def launch_agent_introspection(self) -> Optional[str]:
@@ -2378,17 +2402,19 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        from pkg_resources import parse_version
-
         # TODO: Workflow based on max_cli_version
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
-        # Current - 0.13.3 (update based on backend update)
-        can_register_artifact = max_cli_version is None or parse_version(
-            "0.13.3"
-        ) < parse_version(max_cli_version)
+
+        create_portfolio_types = (
+            self.server_create_artifact_portfolio_input_introspection()
+        )
+        if "artifactTypeName" in create_portfolio_types:
+            can_register_artifact = True
+        else:
+            can_register_artifact = False
 
         if not can_register_artifact:
             raise Exception(
