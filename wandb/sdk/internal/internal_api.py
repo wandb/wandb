@@ -40,7 +40,6 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
-
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
@@ -1042,7 +1041,7 @@ class Api:
         self, entity: str, project: str, queue_name: str, run_spec: str
     ) -> Optional[Dict[str, Any]]:
         """
-        New mutation, should be used before legacy fallback method
+        Queryless mutation, should be used before legacy fallback method
         """
 
         mutation = gql(
@@ -1066,25 +1065,16 @@ class Api:
         }
         """
         )
-        try:
-            response = self.gql(
-                mutation,
-                variable_values={
-                    "entityName": entity,
-                    "projectName": project,
-                    "queueName": queue_name,
-                    "runSpec": run_spec,
-                },
-            )
-        except CommError as e:
-            if (
-                e.message
-                == "Permission denied, ask the project owner to grant you access"
-            ):
-                return None
-            raise e
+        variables = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "runSpec": run_spec,
+        }
 
-        result: Optional[Dict[str, Any]] = response.get("pushToRunQueueByName")
+        result: Optional[Dict[str, Any]] = self.gql(mutation, variables)[
+            "pushToRunQueueByName"
+        ]
 
         return result
 
@@ -1096,16 +1086,15 @@ class Api:
         project = launch_spec["project"]
         run_spec = json.dumps(launch_spec)
 
-        # TODO(gst): Handle default queue creation (more) gracefully
-        # new projects that haven't navigated to launch page have no default queue
         push_result = self.push_to_run_queue_by_name(
             entity, project, queue_name, run_spec
         )
+
         if push_result:
             return push_result
 
         """ Legacy Method """
-        wandb.termwarn("Using legacy run queue push.")
+        wandb.termlog("Using legacy run queue push.")
         queues_found = self.get_project_run_queues(entity, project)
         matching_queues = [
             q
@@ -1121,6 +1110,7 @@ class Api:
         if not matching_queues:
             # in the case of a missing default queue. create it
             if queue_name == "default":
+                # TODO(gst): click.style('launch:', fg='magenta')
                 wandb.termlog(
                     f"No default queue existing for {entity}/{project}, creating one."
                 )
@@ -1133,7 +1123,7 @@ class Api:
 
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
-                        "Unable to create default queue for {entity}/{project}. Run could not be added to a queue"
+                        f"Unable to create default queue for {entity}/{project}. Run could not be added to a queue"
                     )
                     return None
                 queue_id = res["queueID"]
