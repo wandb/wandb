@@ -30,6 +30,7 @@ import wandb
 wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
+start = wandb_sdk.start
 setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
 _teardown = wandb_sdk.teardown
