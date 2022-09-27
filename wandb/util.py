@@ -67,12 +67,17 @@ if TYPE_CHECKING:
     import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+
 ETag = NewType("ETag", str)
 RawMD5 = NewType("RawMD5", bytes)
 HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
+
+# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
 LogicalFilePathStr = NewType("LogicalFilePathStr", str)
-LocalFilesystemPathStr = NewType("LocalFilesystemPathStr", str)
+# TODO(spencerpearson): this should probably be replaced with pathlib.Path
+FilePathStr = NewType("FilePathStr", str)
+# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
 URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
@@ -1434,14 +1439,14 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     return None
 
 
-def to_forward_slash_path(path: str) -> str:
+def to_forward_slash_path(path: str) -> LogicalFilePathStr:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return path
+    return LogicalFilePathStr(path)
 
 
-def to_native_slash_path(path: str) -> str:
-    return path.replace("/", os.sep)
+def to_native_slash_path(path: str) -> FilePathStr:
+    return FilePathStr(path.replace("/", os.sep))
 
 
 def bytes_to_hex(bytestr: Union[str, bytes]) -> str:

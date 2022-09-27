@@ -5,7 +5,18 @@ import contextlib
 import hashlib
 import os
 import random
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    ContextManager,
+    Dict,
+    IO,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import wandb
 from wandb import env, util
@@ -17,6 +28,17 @@ if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress
+
+    import sys
+
+    if sys.version_info >= (3, 8):
+        from typing import Protocol
+    else:
+        from typing_extensions import Protocol
+
+    class Opener(Protocol):
+        def __call__(self, mode: str = ...) -> ContextManager[IO]:
+            pass
 
 
 def md5_string(string: str) -> util.B64MD5:
@@ -122,9 +144,9 @@ class ArtifactManifest:
 
 
 class ArtifactEntry:
-    path: str
-    ref: Optional[str]
-    digest: Union[util.B64MD5, util.URIStr, util.LocalFilesystemPathStr, util.ETag]
+    path: util.LogicalFilePathStr
+    ref: Optional[Union[util.FilePathStr, util.URIStr]]
+    digest: Union[util.B64MD5, util.URIStr, util.FilePathStr, util.ETag]
     birth_artifact_id: Optional[str]
     size: Optional[int]
     extra: Dict
@@ -139,7 +161,7 @@ class ArtifactEntry:
         """
         raise NotImplementedError
 
-    def download(self, root: Optional[str] = None) -> str:
+    def download(self, root: Optional[str] = None) -> util.FilePathStr:
         """
         Downloads this artifact entry to the specified root path.
 
@@ -599,7 +621,9 @@ class Artifact:
         """
         raise NotImplementedError
 
-    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> util.FilePathStr:
         """
         Downloads the contents of the artifact to the specified root directory.
 
@@ -825,7 +849,7 @@ class StorageHandler:
         artifact: Artifact,
         manifest_entry: ArtifactEntry,
         local: bool = False,
-    ) -> str:
+    ) -> Union[util.URIStr, util.FilePathStr]:
         """
         Loads the file or directory within the specified artifact given its
         corresponding index entry.
@@ -867,7 +891,9 @@ class ArtifactsCache:
         self._random.seed()
         self._artifacts_by_client_id = {}
 
-    def check_md5_obj_path(self, b64_md5: str, size: int) -> Tuple[str, bool, Callable]:
+    def check_md5_obj_path(
+        self, b64_md5: util.B64MD5, size: int
+    ) -> Tuple[util.FilePathStr, bool, "Opener"]:
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
         opener = self._cache_opener(path)
@@ -876,9 +902,11 @@ class ArtifactsCache:
         util.mkdir_exists_ok(os.path.dirname(path))
         return path, False, opener
 
+    # TODO(spencerpearson): this method at least needs its signature changed.
+    # An ETag is not (necessarily) a checksum.
     def check_etag_obj_path(
-        self, etag: str, size: int
-    ) -> Tuple[util.LocalFilesystemPathStr, bool, Callable]:
+        self, etag: util.ETag, size: int
+    ) -> Tuple[util.FilePathStr, bool, "Opener"]:
         path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:

@@ -33,7 +33,7 @@ from typing import (
 import requests
 
 import wandb
-from wandb import errors, trigger
+from wandb import errors, trigger, util
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
@@ -3718,7 +3718,9 @@ class _LazyArtifact(ArtifactInterface):
     def get(self, name: str) -> "WBValue":
         return self._assert_instance().get(name)
 
-    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
+    def download(
+        self, root: Optional[str] = None, recursive: bool = False
+    ) -> util.FilePathStr:
         return self._assert_instance().download(root, recursive)
 
     def checkout(self, root: Optional[str] = None) -> str:
