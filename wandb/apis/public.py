@@ -807,7 +807,7 @@ class Api:
             ```
             api.runs(
                 path="my_entity/my_project",
-                filters={"display_name": {"$regex": "^foo.*"}}
+                filters={"displayName": {"$regex": "^foo.*"}}
             )
             ```
 
