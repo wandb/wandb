@@ -2480,8 +2480,8 @@ class Run:
                     self,
                     portfolio_name,
                     project=project,
-                    entity=entity,
                     artifact_type=artifact_type,
+                    entity=entity,
                     description=description,
                 )
             else:

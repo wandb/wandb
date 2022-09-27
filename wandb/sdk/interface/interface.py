@@ -420,8 +420,8 @@ class InterfaceBase:
         run: "Run",
         portfolio_name: str,
         project: str,
+        artifact_type: str,
         entity: Optional[str] = None,
-        artifact_type: Optional[str] = "model",
         description: Optional[str] = None,
     ) -> None:
         create_artifact_portfolio = pb.CreateArtifactPortfolioRecord()

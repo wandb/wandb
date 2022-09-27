@@ -2388,9 +2388,9 @@ class Api:
         entity: str,
         project: str,
         portfolio_name: str,
-        artifact_type: Optional[str] = "model",
+        artifact_type: str,
         description: Optional[str] = None,
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """Creates an artifact portfolio from the sdk
 
         Arguments:
@@ -2495,7 +2495,7 @@ class Api:
 
         mutation = gql(mutation_template)
         response = self.gql(mutation, variable_values=variable_values)
-        create_artifact_portfolio = response["createArtifactPortfolio"][
+        create_artifact_portfolio: Dict[str, Any] = response["createArtifactPortfolio"][
             "artifactCollection"
         ]
         return create_artifact_portfolio
