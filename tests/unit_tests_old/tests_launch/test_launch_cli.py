@@ -39,7 +39,7 @@ def test_launch_add_default(runner, test_settings, live_mock_server):
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
     ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
+    assert len(ctx["run_queues"]["1"]) == 1 or len(ctx["run_queues"]["default"]) == 1
 
 
 def test_launch_add_config_file(runner, test_settings, live_mock_server):
@@ -52,7 +52,7 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
     ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
+    assert len(ctx["run_queues"]["1"]) == 1 or len(ctx["run_queues"]["default"]) == 1
 
 
 # this test includes building a docker container which can take some time.

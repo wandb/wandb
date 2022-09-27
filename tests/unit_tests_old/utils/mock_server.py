@@ -1608,7 +1608,15 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        if "mutation pushToRunQueue" in body["query"]:
+        if "mutation pushToRunQueueByName" in body["query"]:
+            if ctx["run_queues"].get(body["variables"]["queueName"]):
+                ctx["run_queues"][body["variables"]["queueName"]].append("queueName")
+            else:
+                return json.dumps({"data": {}})
+            return json.dumps(
+                {"data": {"pushToRunQueueByName": {"runQueueItemId": "1"}}}
+            )
+        elif "mutation pushToRunQueue" in body["query"]:
             if ctx["run_queues"].get(body["variables"]["queueID"]):
                 ctx["run_queues"][body["variables"]["queueID"]].append(
                     body["variables"]["queueID"]

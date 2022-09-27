@@ -721,9 +721,11 @@ def test_push_to_runqueue(live_mock_server, test_settings):
         "entity": "mock_server_entity",
         "project": "test",
     }
+
     api.push_to_run_queue("default", launch_spec)
     ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
+
+    assert len(ctx["run_queues"]["1"]) == 1 or len(ctx["run_queues"]["default"]) == 1
 
 
 def test_push_to_default_runqueue_notexist(live_mock_server, test_settings):
@@ -738,7 +740,8 @@ def test_push_to_default_runqueue_notexist(live_mock_server, test_settings):
     }
     api.push_to_run_queue("default", launch_spec)
     ctx = live_mock_server.get_ctx()
-    assert len(ctx["run_queues"]["1"]) == 1
+
+    assert len(ctx["run_queues"]["1"]) == 1 or len(ctx["run_queues"]["default"]) == 1
 
 
 def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
