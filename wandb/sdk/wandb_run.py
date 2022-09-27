@@ -37,7 +37,7 @@ from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
-from wandb.apis.public import Api as PublicApi, Project
+from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import MetricRecord, PollExitResponse, RunRecord
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,

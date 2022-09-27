@@ -11,11 +11,11 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 import json
 import logging
-from optparse import Option
 import os
 import sys
 import time
 from abc import abstractmethod
+from optparse import Option
 from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
 from venv import create
 

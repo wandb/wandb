@@ -3,13 +3,13 @@ import base64
 import datetime
 import json
 import logging
-from optparse import Option
 import os
 import re
 import socket
 import sys
 from abc import ABC
 from copy import deepcopy
+from optparse import Option
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -2478,7 +2478,9 @@ class Api:
             self.server_create_artifact_portfolio_input_introspection()
         )
         if "artifactTypeName" not in create_portfolio_types:
-            logger.warning(f"backend out of date. current version {max_cli_version}")
+            wandb.termwarn(
+                "backend out of date. current version {}".format(max_cli_version)
+            )
             mutation_template = (
                 mutation_template.replace("$artifactTypeID: ID", "$artifactTypeID: ID!")
                 .replace("$artifactTypeName: String", "")

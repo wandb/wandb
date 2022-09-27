@@ -3,18 +3,18 @@ sender.
 """
 
 
-from html import entities
 import json
 import logging
 import os
-from pydoc import describe
 import queue
-from tempfile import TemporaryFile
 import threading
 import time
 from collections import defaultdict
 from datetime import datetime
+from html import entities
+from pydoc import describe
 from queue import Queue
+from tempfile import TemporaryFile
 from typing import (
     TYPE_CHECKING,
     Any,
