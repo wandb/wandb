@@ -2,14 +2,24 @@ import codecs
 import io
 import json
 import os
-from typing import TYPE_CHECKING, ClassVar, Optional, Sequence, Set, Tuple, Type, Union
+import sys
+from typing import (
+    TYPE_CHECKING,
+    ClassVar,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TypedDict,
+    Union,
+)
 
-try:
-    from typing import Literal, TypedDict, get_args
-except ImportError:
-    from typing_extensions import Literal, TypedDict, get_args
+if sys.version_info >= (3, 8):
+    from typing import get_args, Literal
+else:
+    from typing_extensions import get_args, Literal
 
-import numpy as np
 import wandb
 from wandb import util
 
@@ -17,55 +27,51 @@ from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
-numeric = Union[int, float, np.integer, np.float]
-FileFormat3D = Literal[
-    "obj",
-    "gltf",
-    "glb",
-    "babylon",
-    "stl",
-    "pts.json",
-]
-Point3D = Tuple[numeric, numeric, numeric]
-Point3DWithCategory = Tuple[numeric, numeric, numeric, numeric]
-Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
-Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
-PointCloudType = Literal["lidar/beta"]
-RGBColor = Tuple[int, int, int]
-
-
-class Box3D(TypedDict):
-    corners: Tuple[
-        Point3D,
-        Point3D,
-        Point3D,
-        Point3D,
-        Point3D,
-        Point3D,
-        Point3D,
-        Point3D,
-    ]
-    label: str
-    color: RGBColor
-
-
-class Vector3D(TypedDict):
-    start: Sequence[Point3D]
-    end: Sequence[Point3D]
-
-
-class Camera(TypedDict):
-    viewpoint: Sequence[Point3D]
-    target: Sequence[Point3D]
-
-
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    import numpy as np
+    import numpy as np  # type: ignore
 
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
+
+    numeric = Union[int, float, np.integer, np.float]
+    FileFormat3D = Literal[
+        "obj",
+        "gltf",
+        "glb",
+        "babylon",
+        "stl",
+        "pts.json",
+    ]
+    Point3D = Tuple[numeric, numeric, numeric]
+    Point3DWithCategory = Tuple[numeric, numeric, numeric, numeric]
+    Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
+    Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
+    PointCloudType = Literal["lidar/beta"]
+    RGBColor = Tuple[int, int, int]
+
+    class Box3D(TypedDict):
+        corners: Tuple[
+            Point3D,
+            Point3D,
+            Point3D,
+            Point3D,
+            Point3D,
+            Point3D,
+            Point3D,
+            Point3D,
+        ]
+        label: str
+        color: RGBColor
+
+    class Vector3D(TypedDict):
+        start: Sequence[Point3D]
+        end: Sequence[Point3D]
+
+    class Camera(TypedDict):
+        viewpoint: Sequence[Point3D]
+        target: Sequence[Point3D]
 
 
 class Object3D(BatchableMedia):
@@ -218,8 +224,8 @@ class Object3D(BatchableMedia):
         return cls(data_or_path)
 
     @classmethod
-    def from_numpy(cls, data: np.ndarray) -> "Object3D":
-        if not isinstance(data, np.ndarray):
+    def from_numpy(cls, data: "np.ndarray") -> "Object3D":
+        if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
 
         if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
