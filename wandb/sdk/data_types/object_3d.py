@@ -62,7 +62,7 @@ class Camera(TypedDict):
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    import numpy as np  # type: ignore
+    import numpy as np
 
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
