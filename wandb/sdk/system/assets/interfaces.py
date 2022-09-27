@@ -65,6 +65,22 @@ class Asset(Protocol):
         ...
 
 
+# class MetricContainer:
+#     def __init__(self, metric: Metric) -> None:
+#         self.metric = metric
+#         self.samples = deque([])
+#
+#     def sample(self, sampling_fn: Callable) -> None:
+#         self.samples.append(self.metric.sample())
+#
+#     def clear(self) -> None:
+#         self.samples.clear()
+#
+#     def serialize(self) -> dict:
+#         aggregate = round(sum(self.samples) / len(self.samples), 2)
+#         return {self.metric.name: aggregate}
+
+
 # MetricsMonitor takes care of collecting, sampling, serializing, and publishing metrics
 
 

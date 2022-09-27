@@ -1,7 +1,6 @@
-import datetime
 import multiprocessing as mp
 from collections import deque
-from typing import TYPE_CHECKING, Deque, List, Optional, cast
+from typing import TYPE_CHECKING, Callable, Deque, List, Optional, cast
 
 import psutil
 
@@ -53,9 +52,7 @@ class ProcessCpuPercent:
 
 
 class CpuPercent:
-    # fixme: this is for testing purposes only
-    # name = "cpu_percent"
-    name = "gpu"
+    name = "cpu.{i}.cpu_percent"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, List[float]]]
     samples: Deque[List[float]]
@@ -65,29 +62,44 @@ class CpuPercent:
         self.interval = interval
 
     def sample(self) -> None:
-        # self.samples.append(
-        #     (
-        #         datetime.datetime.utcnow(),
-        #         psutil.cpu_percent(interval=self.interval, percpu=True),
-        #     )
-        # )
         self.samples.append(psutil.cpu_percent(interval=self.interval, percpu=True))  # type: ignore
 
     def clear(self) -> None:
         self.samples.clear()
 
     def serialize(self) -> dict:
-        # fixme: ugly adapter to test things out
         num_cpu = len(self.samples[0])
         cpu_metrics = {}
         for i in range(num_cpu):
             aggregate_i = round(
                 sum(sample[i] for sample in self.samples) / len(self.samples), 2
             )
-            # fixme: fix this adapter, it's for testing 🤮🤮🤮🤮🤮
-            cpu_metrics[f"gpu.{i}.gpu"] = aggregate_i
+            cpu_metrics[self.name.format(i=i)] = aggregate_i
 
         return cpu_metrics
+
+
+class ProcessCpuThreads:
+    name = "proc.cpu.threads"
+    metric_type = cast("gauge", MetricType)
+    samples: Deque[int]
+
+    def __init__(self, pid: int) -> None:
+        self.samples = deque([])
+        self.pid = pid
+        self.process: Optional[psutil.Process] = None
+
+    def sample(self) -> None:
+        if self.process is None:
+            self.process = psutil.Process(self.pid)
+
+        self.samples.append(self.process.num_threads())
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        return {self.name: self.samples[-1]}
 
 
 # todo: more metrics to consider:
@@ -122,6 +134,7 @@ class CPU:
         self.metrics: List[Metric] = [
             ProcessCpuPercent(settings._stats_pid),
             CpuPercent(),
+            ProcessCpuThreads(settings._stats_pid),
         ]
         self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
             self.metrics,
