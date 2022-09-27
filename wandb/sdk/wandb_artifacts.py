@@ -714,7 +714,7 @@ class Artifact(ArtifactInterface):
             raise ValueError("Can't add to finalized artifact.")
 
     def _add_local_file(
-        self, name: str, path: str, digest: Optional[str] = None
+        self, name: str, path: str, digest: Optional[util.B64MD5] = None
     ) -> ArtifactEntry:
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
@@ -832,7 +832,7 @@ class ArtifactManifestEntry(ArtifactEntry):
         self,
         path: str,
         ref: Optional[str],
-        digest: str,
+        digest: Union[util.B64MD5, util.URIStr, util.LocalFilesystemPathStr, util.ETag],
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
         extra: Dict = None,
@@ -1066,7 +1066,7 @@ class __S3BucketPolicy(StoragePolicy):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1178,7 +1178,7 @@ class TrackingHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1251,7 +1251,7 @@ class LocalFileHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1263,7 +1263,7 @@ class LocalFileHandler(StorageHandler):
         # Note, we follow symlinks for files contained within the directory
         entries = []
 
-        def md5(path: str) -> str:
+        def md5(path: str) -> util.B64MD5:
             return (
                 md5_file_b64(path)
                 if checksum
@@ -1430,7 +1430,7 @@ class S3Handler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1443,7 +1443,7 @@ class S3Handler(StorageHandler):
         # parsing. Once we have that, we can store the rest of the
         # metadata in the artifact entry itself.
         bucket, key, version = self._parse_uri(path)
-        path = f"{self.scheme}://{bucket}/{key}"
+        path = util.URIStr(f"{self.scheme}://{bucket}/{key}")
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
                 f"Specifying a versionId is not valid for s3://{bucket} as it does not have versioning enabled."
@@ -1551,8 +1551,8 @@ class S3Handler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             str(posix_name),
-            f"{self.scheme}://{str(posix_ref)}",
-            self._etag_from_obj(obj),
+            util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
+            util.ETag(self._etag_from_obj(obj)),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
         )
@@ -1673,7 +1673,7 @@ class GCSHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1685,7 +1685,7 @@ class GCSHandler(StorageHandler):
         # such as version identifiers, pare down the path to just the bucket
         # and key.
         bucket, key, version = self._parse_uri(path)
-        path = f"{self.scheme}://{bucket}/{key}"
+        path = util.URIStr(f"{self.scheme}://{bucket}/{key}")
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not self.versioning_enabled(bucket) and version:
             raise ValueError(
@@ -1766,7 +1766,7 @@ class GCSHandler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             str(posix_name),
-            f"{self.scheme}://{str(posix_ref)}",
+            util.URIStr(f"{self.scheme}://{str(posix_ref)}"),
             obj.md5_hash,
             size=obj.size,
             extra=self._extra_from_obj(obj),
@@ -1818,6 +1818,7 @@ class HTTPHandler(StorageHandler):
         response = self._session.get(manifest_entry.ref, stream=True)
         response.raise_for_status()
 
+        digest: Optional[Union[util.ETag, util.LocalFilesystemPathStr]]
         digest, size, extra = self._entry_from_headers(response.headers)
         digest = digest or path
         if manifest_entry.digest != digest:
@@ -1834,7 +1835,7 @@ class HTTPHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1845,6 +1846,7 @@ class HTTPHandler(StorageHandler):
 
         with self._session.get(path, stream=True) as response:
             response.raise_for_status()
+            digest: Optional[Union[util.ETag, util.LocalFilesystemPathStr, util.URIStr]]
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
         return [
@@ -1853,7 +1855,7 @@ class HTTPHandler(StorageHandler):
 
     def _entry_from_headers(
         self, headers: requests.structures.CaseInsensitiveDict
-    ) -> Tuple[Optional[str], Optional[int], Dict[str, str]]:
+    ) -> Tuple[Optional[util.ETag], Optional[int], Dict[str, str]]:
         response_headers = {k.lower(): v for k, v in headers.items()}
         size = None
         if response_headers.get("content-length", None):
@@ -1934,7 +1936,7 @@ class WBArtifactHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,
@@ -1970,8 +1972,10 @@ class WBArtifactHandler(StorageHandler):
             path = entry.ref
 
         # Create the path reference
-        path = "{}://{}/{}".format(
-            self._scheme, util.b64_to_hex_id(target_artifact.id), artifact_file_path
+        path = util.URIStr(
+            "{}://{}/{}".format(
+                self._scheme, util.b64_to_hex_id(target_artifact.id), artifact_file_path
+            )
         )
 
         # Return the new entry
@@ -2016,7 +2020,7 @@ class WBLocalArtifactHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: str,
+        path: Union[util.URIStr, util.LocalFilesystemPathStr],
         name: Optional[str] = None,
         checksum: bool = True,
         max_objects: Optional[int] = None,

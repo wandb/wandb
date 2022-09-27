@@ -1798,7 +1798,7 @@ class Api:
         """
         fileName = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), fileName)
-        if self.file_current(fileName, metadata["md5"]):
+        if self.file_current(fileName, util.B64MD5(metadata["md5"])):
             return path, None
 
         size, response = self.download_file(metadata["url"])
@@ -2230,7 +2230,7 @@ class Api:
         return key
 
     @staticmethod
-    def file_current(fname: str, md5: str) -> bool:
+    def file_current(fname: str, md5: util.B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5"""
         return os.path.isfile(fname) and util.md5_file(fname) == md5
 

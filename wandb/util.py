@@ -40,6 +40,7 @@ from typing import (
     Generator,
     List,
     Mapping,
+    NewType,
     Optional,
     Sequence,
     Set,
@@ -66,6 +67,13 @@ if TYPE_CHECKING:
     import wandb.sdk.wandb_settings
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+ETag = NewType("ETag", str)
+RawMD5 = NewType("RawMD5", bytes)
+HexMD5 = NewType("HexMD5", str)
+B64MD5 = NewType("B64MD5", str)
+LogicalFilePathStr = NewType("LogicalFilePathStr", str)
+LocalFilesystemPathStr = NewType("LocalFilesystemPathStr", str)
+URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -1061,12 +1069,12 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def md5_file(path: str) -> str:
+def md5_file(path: str) -> B64MD5:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
-    return base64.b64encode(hash_md5.digest()).decode("ascii")
+    return B64MD5(base64.b64encode(hash_md5.digest()).decode("ascii"))
 
 
 def get_log_file_path() -> str:

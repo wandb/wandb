@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from wandb.sdk.internal import progress
 
 
-def md5_string(string: str) -> str:
+def md5_string(string: str) -> util.B64MD5:
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")
@@ -29,7 +29,7 @@ def b64_string_to_hex(string):
     return binascii.hexlify(base64.standard_b64decode(string)).decode("ascii")
 
 
-def md5_hash_file(path):
+def md5_hash_file(path) -> util.RawMD5:
     hash_md5 = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(64 * 1024), b""):
@@ -37,7 +37,7 @@ def md5_hash_file(path):
     return hash_md5
 
 
-def md5_hash_files(paths: List[str]):
+def md5_hash_files(paths: List[str]) -> util.RawMD5:
     hash_md5 = hashlib.md5()
     # Create a mutable copy to sort
     paths = [path for path in paths]
@@ -49,15 +49,15 @@ def md5_hash_files(paths: List[str]):
     return hash_md5
 
 
-def md5_file_b64(path: str) -> str:
+def md5_file_b64(path: str) -> util.B64MD5:
     return base64.b64encode(md5_hash_file(path).digest()).decode("ascii")
 
 
-def md5_files_b64(paths: List[str]) -> str:
+def md5_files_b64(paths: List[str]) -> util.B64MD5:
     return base64.b64encode(md5_hash_files(paths).digest()).decode("ascii")
 
 
-def md5_file_hex(path: str) -> str:
+def md5_file_hex(path: str) -> util.HexMD5:
     return md5_hash_file(path).hexdigest()
 
 
@@ -124,7 +124,7 @@ class ArtifactManifest:
 class ArtifactEntry:
     path: str
     ref: Optional[str]
-    digest: str
+    digest: Union[util.B64MD5, util.URIStr, util.LocalFilesystemPathStr, util.ETag]
     birth_artifact_id: Optional[str]
     size: Optional[int]
     extra: Dict
@@ -876,7 +876,9 @@ class ArtifactsCache:
         util.mkdir_exists_ok(os.path.dirname(path))
         return path, False, opener
 
-    def check_etag_obj_path(self, etag: str, size: int) -> Tuple[str, bool, Callable]:
+    def check_etag_obj_path(
+        self, etag: str, size: int
+    ) -> Tuple[util.LocalFilesystemPathStr, bool, Callable]:
         path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
         opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:

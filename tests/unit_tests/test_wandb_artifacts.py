@@ -136,7 +136,7 @@ def mock_http(artifact, path=False, headers=None):
     return mock
 
 
-def md5_string(string):
+def md5_string(string: str) -> util.B64MD5:
     hash_md5 = hashlib.md5()
     hash_md5.update(string.encode())
     return base64.b64encode(hash_md5.digest()).decode("ascii")
