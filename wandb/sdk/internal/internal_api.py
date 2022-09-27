@@ -2479,7 +2479,7 @@ class Api:
         )
         if "artifactTypeName" not in create_portfolio_types:
             wandb.termwarn(
-                "backend out of date. current version {}".format(max_cli_version)
+                f"backend out of date. current version {max_cli_version}"
             )
             mutation_template = (
                 mutation_template.replace("$artifactTypeID: ID", "$artifactTypeID: ID!")
