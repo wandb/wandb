@@ -2478,9 +2478,7 @@ class Api:
             self.server_create_artifact_portfolio_input_introspection()
         )
         if "artifactTypeName" not in create_portfolio_types:
-            wandb.termwarn(
-                f"backend out of date. current version {max_cli_version}"
-            )
+            wandb.termwarn(f"backend out of date. current version {max_cli_version}")
             mutation_template = (
                 mutation_template.replace("$artifactTypeID: ID", "$artifactTypeID: ID!")
                 .replace("$artifactTypeName: String", "")
