@@ -15,9 +15,7 @@ import os
 import sys
 import time
 from abc import abstractmethod
-from optparse import Option
 from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
-from venv import create
 
 from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb

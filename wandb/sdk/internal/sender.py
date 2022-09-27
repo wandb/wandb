@@ -11,10 +11,7 @@ import threading
 import time
 from collections import defaultdict
 from datetime import datetime
-from html import entities
-from pydoc import describe
 from queue import Queue
-from tempfile import TemporaryFile
 from typing import (
     TYPE_CHECKING,
     Any,

@@ -9,7 +9,6 @@ import socket
 import sys
 from abc import ABC
 from copy import deepcopy
-from optparse import Option
 from typing import (
     IO,
     TYPE_CHECKING,
