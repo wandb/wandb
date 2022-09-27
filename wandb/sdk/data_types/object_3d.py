@@ -1,14 +1,63 @@
 import codecs
+import io
 import json
 import os
-from typing import TYPE_CHECKING, ClassVar, Sequence, Set, Type, Union
+from typing import TYPE_CHECKING, ClassVar, Optional, Sequence, Set, Tuple, Type, Union
 
+try:
+    from typing import Literal, TypedDict, get_args
+except ImportError:
+    from typing_extensions import Literal, TypedDict, get_args
+
+import numpy as np
 import wandb
 from wandb import util
 
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
+
+numeric = Union[int, float, np.integer, np.float]
+FileFormat3D = Literal[
+    "obj",
+    "gltf",
+    "glb",
+    "babylon",
+    "stl",
+    "pts.json",
+]
+Point3D = Tuple[numeric, numeric, numeric]
+Point3DWithCategory = Tuple[numeric, numeric, numeric, numeric]
+Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
+Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
+PointCloudType = Literal["lidar/beta"]
+RGBColor = Tuple[int, int, int]
+
+
+class Box3D(TypedDict):
+    corners: Tuple[
+        Point3D,
+        Point3D,
+        Point3D,
+        Point3D,
+        Point3D,
+        Point3D,
+        Point3D,
+        Point3D,
+    ]
+    label: str
+    color: RGBColor
+
+
+class Vector3D(TypedDict):
+    start: Sequence[Point3D]
+    end: Sequence[Point3D]
+
+
+class Camera(TypedDict):
+    viewpoint: Sequence[Point3D]
+    target: Sequence[Point3D]
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
@@ -31,7 +80,7 @@ class Object3D(BatchableMedia):
             which must be one of `"obj"`, `"gltf"`, `"glb"`, `"babylon"`, `"stl"`, `"pts.json"`.
 
     The shape of the numpy array must be one of either:
-    ```python
+    ```
     [[x y z],       ...] nx3
     [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
     [x y z r g b], ...] nx4 where is rgb is color
@@ -49,7 +98,9 @@ class Object3D(BatchableMedia):
     _log_type: ClassVar[str] = "object3D-file"
 
     def __init__(
-        self, data_or_path: Union["np.ndarray", str, "TextIO"], **kwargs: str
+        self,
+        data_or_path: Union["np.ndarray", str, "TextIO", dict],
+        **kwargs: str,
     ) -> None:
         super().__init__()
 
@@ -160,6 +211,47 @@ class Object3D(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
             raise ValueError("data must be a numpy array, dict or a file object")
+
+    @classmethod
+    def from_file(cls, data_or_path: Union[io.StringIO, FileFormat3D]) -> "Object3D":
+
+        return cls(data_or_path)
+
+    @classmethod
+    def from_numpy(cls, data: np.ndarray) -> "Object3D":
+        if not isinstance(data, np.ndarray):
+            raise ValueError("`data` must be a numpy array")
+
+        if len(data.shape) != 2 or data.shape[1] not in {3, 4, 6}:
+            raise ValueError(
+                """The shape of the numpy array must be one of either
+                                [[x y z],       ...] nx3
+                                 [x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+                                 [x y z r g b], ...] nx4 where is rgb is color"""
+            )
+
+        return cls(data)
+
+    @classmethod
+    def from_point_cloud(
+        cls,
+        points: Sequence[Point],
+        boxes: Sequence[Box3D],
+        vectors: Optional[Sequence[Vector3D]] = None,
+        point_cloud_type: PointCloudType = "lidar/beta",
+        # camera: Optional[Camera] = None,
+    ) -> "Object3D":
+        if point_cloud_type not in get_args(PointCloudType):
+            raise ValueError("Point cloud type not supported")
+
+        data = {
+            "type": point_cloud_type,
+            "points": np.array(points),
+            "boxes": np.array(boxes),
+            "vectors": np.array(vectors) if vectors is not None else [],
+        }
+
+        return cls(data)
 
     @classmethod
     def get_media_subdir(cls: Type["Object3D"]) -> str:
