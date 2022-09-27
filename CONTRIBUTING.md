@@ -160,6 +160,7 @@ Examples can be found in the section below.
 | refactor | 📦 Code Refactor            | A code change that neither fixes a bug nor adds a feature                                    | No           |
 | perf     | 🚀 Performance Improvements | A code change that improves performance                                                      | No           |
 | test     | 🚨 Tests                    | Adding new or missing tests or correcting existing tests                                     | No           |
+| build    | 🛠 Builds                   | Changes that affect the build system (e.g. protobuf) or external dependencies                | Maybe        |
 | ci       | ⚙️ Continuous Integrations  | Changes to our CI configuration files and scripts                                            | No           |
 | chore    | ♻️ Chores                   | Other changes that don't modify source code files.                                           | No           |
 | revert   | 🗑 Reverts                  | Reverts a previous commit                                                                    | Maybe        |
