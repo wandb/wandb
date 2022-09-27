@@ -428,8 +428,8 @@ class InterfaceBase:
         create_artifact_portfolio.portfolio_name = portfolio_name
         create_artifact_portfolio.portfolio_project = project or run.project
         create_artifact_portfolio.portfolio_entity = entity or run.entity
-        create_artifact_portfolio.portfolio_description = description or ""
         create_artifact_portfolio.portfolio_type = artifact_type
+        create_artifact_portfolio.portfolio_description = description or ""
 
         self._publish_create_artifact_portfolio(create_artifact_portfolio)
 
