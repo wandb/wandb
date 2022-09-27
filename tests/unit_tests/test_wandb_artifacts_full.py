@@ -231,6 +231,10 @@ def test_create_artifact_portfolio(relay_server, wandb_init):
     created_artifact_portfolio = False
     for comm in relay.context.raw_data:
         if comm["request"].get("query"):
+            print(comm["request"].get("query"), end="")
+            print("variables", comm["request"]["variables"])
+            print("response", comm["response"]["data"])
+            print("\n")
             if "createArtifactPortfolio" in comm["request"].get("query"):
                 if "data" in comm["response"]:
                     created_artifact_portfolio = True

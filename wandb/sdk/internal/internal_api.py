@@ -466,7 +466,7 @@ class Api:
     def server_create_artifact_portfolio_input_introspection(self) -> List:
         query_string = """
            query ProbeServerCreateArtifactPortfolio {
-               CreateArtifactPortfolioInputInfoType: __type(name: "CreateArtifactPortfolio") {
+               CreateArtifactPortfolioInputInfoType: __type(name: "CreateArtifactPortfolioInput") {
                    name
                    inputFields {
                        name
@@ -2474,27 +2474,22 @@ class Api:
             "description": description,
         }
 
-        if artifact_type_id is None:
-            create_portfolio_types = (
-                self.server_create_artifact_portfolio_input_introspection()
+        create_portfolio_types = (
+            self.server_create_artifact_portfolio_input_introspection()
+        )
+        if "artifactTypeName" not in create_portfolio_types:
+            logger.warning(f"backend out of date. current version {max_cli_version}")
+            mutation_template = (
+                mutation_template.replace("$artifactTypeID: ID", "$artifactTypeID: ID!")
+                .replace("$artifactTypeName: String", "")
+                .replace("artifactTypeName: $artifactTypeName", "")
             )
-            if "artifactTypeName" not in create_portfolio_types:
-                logger.warning(
-                    f"Backend out of date. current version {max_cli_version}"
-                )
-
+            if artifact_type_id is None:
                 _ = self.upsert_project(project=project, entity=entity)
                 _artifact_type_id = self.create_artifact_type(
                     artifact_type_name=artifact_type,
                     project_name=project,
                     entity_name=entity,
-                )
-                mutation_template = (
-                    mutation_template.replace(
-                        "$artifactTypeID: ID", "$artifactTypeID: ID!"
-                    )
-                    .replace("$artifactTypeName: String", "")
-                    .replace("artifactTypeName: $artifactTypeName", "")
                 )
                 variable_values["artifactTypeID"] = _artifact_type_id
 
