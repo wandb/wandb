@@ -4,6 +4,7 @@ import time
 import pytest
 import wandb
 from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.launch_add import launch_add
 
 
@@ -14,7 +15,8 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     proj = "test"
     uri = "https://github.com/gtarpenning/wandb-launch-test"
 
-    api = InternalApi()
+    internal_api = InternalApi()
+    public_api = PublicApi()
     os.environ["WANDB_PROJECT"] = proj  # required for artifact query
 
     # create project
@@ -28,6 +30,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         entry_point,
         docker_args,
     ):
+        assert builder
         assert uri == launch_project.uri
         assert entry_point
         assert docker_args
@@ -41,7 +44,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     )
 
     with relay_server():
-        api.create_run_queue(
+        internal_api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
 
@@ -57,11 +60,15 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         assert queued_run.state == "pending"
         assert queued_run.entity == user
         assert queued_run.project == proj
-        assert queued_run.container_job  # requires a correctly picked up job
+        assert queued_run.container_job is True
 
-        rqi = api.pop_from_run_queue(queue, user, proj)
+        rqi = internal_api.pop_from_run_queue(queue, user, proj)
 
         assert rqi["runSpec"]["uri"] is None
         assert rqi["runSpec"]["job"] == f"job-{release_image}:v0"
+
+        job = public_api.job(f'{user}/{proj}/{rqi["runSpec"]["job"]}')
+
+        assert job._source_info["source"]["image"] == release_image
 
     run.finish()
