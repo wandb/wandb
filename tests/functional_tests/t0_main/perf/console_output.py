@@ -2,9 +2,8 @@
 import argparse
 import sys
 
-import yea
-
 import wandb
+import yea
 
 
 def main():

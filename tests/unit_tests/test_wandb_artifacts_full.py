@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
-
 import wandb
 from wandb.errors import WaitTimeoutError
 

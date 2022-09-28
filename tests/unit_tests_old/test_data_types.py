@@ -1,7 +1,6 @@
 import matplotlib
 import numpy as np
 import pytest
-
 import wandb
 from wandb import data_types
 

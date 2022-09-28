@@ -3,9 +3,8 @@
 
 import multiprocessing as mp
 
-import yea
-
 import wandb
+import yea
 
 
 def do_run(num):

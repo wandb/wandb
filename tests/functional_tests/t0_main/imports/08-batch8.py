@@ -38,7 +38,6 @@ import paddlenlp  # noqa: F401
 import paddleocr  # noqa: F401
 import paddleseg  # noqa: F401
 import ppdet  # noqa: F401
-
 import wandb
 
 run = wandb.init()

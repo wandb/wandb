@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 """Test xgboost integration for classification task."""
 
+import wandb
 from sklearn.datasets import load_wine
 from sklearn.model_selection import train_test_split
-from xgboost import XGBClassifier
-
-import wandb
 from wandb.integration.xgboost import wandb_callback
+from xgboost import XGBClassifier
 
 X, y = load_wine(return_X_y=True, as_frame=True)
 

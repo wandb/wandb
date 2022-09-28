@@ -2,7 +2,6 @@ import pathlib
 
 import numpy as np
 import torch
-
 import wandb
 
 run = wandb.init(name=pathlib.Path(__file__).stem)

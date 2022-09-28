@@ -2,7 +2,6 @@
 from unittest.mock import Mock, patch
 
 import pytest
-
 import wandb
 from wandb.apis import internal, public
 from wandb.errors import CommError

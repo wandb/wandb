@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """Test CatBoost integration."""
 
-from catboost import CatBoostClassifier, Pool, datasets
-
 import wandb
+from catboost import CatBoostClassifier, Pool, datasets
 from wandb.catboost import WandbCallback, log_summary
 
 train_df, _ = datasets.msrank_10k()

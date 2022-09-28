@@ -5,9 +5,8 @@
 
 from concurrent.futures import ProcessPoolExecutor
 
-import yea
-
 import wandb
+import yea
 
 
 def worker(log, info):

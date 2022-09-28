@@ -3,7 +3,6 @@ import os
 from unittest import mock
 
 import pytest
-
 from wandb.wandb_agent import Agent
 
 

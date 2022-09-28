@@ -8,9 +8,8 @@ rm -rf wandb \
 import sys
 
 import numpy as np
-from click.testing import CliRunner
-
 import wandb
+from click.testing import CliRunner
 from wandb.cli import cli
 
 dataset_size = 250

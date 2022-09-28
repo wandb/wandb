@@ -7,7 +7,6 @@ import tensorflow as tf
 from tensorflow.keras import backend as K  # noqa: N812
 from tensorflow.keras.layers import Dense, Flatten, Reshape
 from tensorflow.keras.models import Sequential
-
 from wandb.keras import WandbCallback
 
 
