@@ -172,24 +172,33 @@ def test_artifact_download_logger():
     now = 0
     termlog = mock.Mock()
 
+    nfiles = 10
     logger = wandb.apis.public._ArtifactDownloadLogger(
-        nfiles=1000, clock_for_testing=lambda: now, termlog_for_testing=termlog
+        nfiles=nfiles,
+        clock_for_testing=lambda: now,
+        termlog_for_testing=termlog,
     )
 
-    times_messages = [
+    times_calls = [
         (0, None),
-        (1, None),
-        (8, "Downloaded 3 of 1000 files..."),
-        (9, None),
-        (20, "Downloaded 5 of 1000 files..."),
-        (21, None),
+        (0.001, None),
+        (1, mock.call("\\ 3 of 10 files downloaded...\r", newline=False)),
+        (1.001, None),
+        (2, mock.call("| 5 of 10 files downloaded...\r", newline=False)),
+        (2.001, None),
+        (3, mock.call("/ 7 of 10 files downloaded...\r", newline=False)),
+        (4, mock.call("- 8 of 10 files downloaded...\r", newline=False)),
+        (5, mock.call("\\ 9 of 10 files downloaded...\r", newline=False)),
+        (6, mock.call("  10 of 10 files downloaded.  ", newline=True)),
     ]
+    assert len(times_calls) == nfiles
 
-    for t, message in times_messages:
+    for t, call in times_calls:
         now = t
         termlog.reset_mock()
         logger.notify_downloaded()
-        if message:
-            termlog.assert_called_once_with(message)
+        if call:
+            termlog.assert_called_once()
+            assert termlog.call_args == call
         else:
             termlog.assert_not_called()

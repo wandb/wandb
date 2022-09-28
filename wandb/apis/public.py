@@ -3987,15 +3987,26 @@ class _ArtifactDownloadLogger:
         self._termlog = termlog_for_testing
 
         self._n_files_downloaded = 0
+        self._spinner_index = 0
         self._last_log_time = self._clock()
         self._lock = multiprocessing.dummy.Lock()
 
     def notify_downloaded(self) -> None:
         with self._lock:
             self._n_files_downloaded += 1
-            if self._clock() - self._last_log_time > 5:
+            if self._n_files_downloaded == self._nfiles:
                 self._termlog(
-                    f"Downloaded {self._n_files_downloaded} of {self._nfiles} files..."
+                    f"  {self._nfiles} of {self._nfiles} files downloaded.  ",
+                    # ^ trailing spaces to wipe out ellipsis from previous logs
+                    newline=True,
+                )
+                self._last_log_time = self._clock()
+            elif self._clock() - self._last_log_time > 0.1:
+                self._spinner_index += 1
+                spinner = r"-\|/"[self._spinner_index % 4]
+                self._termlog(
+                    f"{spinner} {self._n_files_downloaded} of {self._nfiles} files downloaded...\r",
+                    newline=False,
                 )
                 self._last_log_time = self._clock()
 
@@ -4152,7 +4163,6 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = False
         self._dependent_artifacts = []
         self._download_roots = set()
-        self._download_logger: Optional[_ArtifactDownloadLogger] = None
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
