@@ -1,19 +1,15 @@
-import json
 import os
 import time
 
 import pytest
 import wandb
-from wandb.cli import cli
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
-
-from wandb.wandb_run import Run
 
 
 @pytest.mark.timeout(300)  # builds a container
 def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
-    RELEASE_IMAGE = "THISISANIMAGETAG"
+    release_image = "THISISANIMAGETAG"
     queue = "test_queue"
     proj = "test"
     uri = "https://github.com/gtarpenning/wandb-launch-test"
@@ -37,7 +33,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         assert entry_point
         assert docker_args
 
-        return RELEASE_IMAGE
+        return release_image
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
@@ -67,4 +63,4 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         rqi = api.pop_from_run_queue(queue, user, proj)
 
         assert rqi["runSpec"]["uri"] is None
-        assert rqi["runSpec"]["job"] == f"job-{RELEASE_IMAGE}:v0"
+        assert rqi["runSpec"]["job"] == f"job-{release_image}:v0"

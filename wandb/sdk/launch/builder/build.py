@@ -16,6 +16,9 @@ import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
+from .abstract import AbstractBuilder
+
+
 from ...lib.git import GitRepo
 from .._project_spec import (
     EntryPoint,
@@ -511,16 +514,16 @@ def join(split_command: List[str]) -> str:
 
 
 def make_image_uri(
-    builder,
+    builder: AbstractBuilder,
     launch_project: LaunchProject,
-    repository: str,
+    repository: Optional[Any],
     entry_point: EntryPoint,
     docker_args: dict,
-) -> str:
+) -> Optional[str]:
     """
     Helper for testing
     """
-    image_uri = builder.build_image(
+    image_uri: Optional[str] = builder.build_image(
         launch_project,
         repository,
         entry_point,
@@ -576,4 +579,7 @@ def build_image_from_project(
         entry_point,
         docker_args,
     )
-    return image_uri
+    if not image_uri:
+        raise LaunchError("Error building image uri")
+    else:
+        return image_uri
