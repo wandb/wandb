@@ -7,7 +7,6 @@ import os
 import random
 from typing import (
     TYPE_CHECKING,
-    Callable,
     ContextManager,
     Dict,
     IO,
