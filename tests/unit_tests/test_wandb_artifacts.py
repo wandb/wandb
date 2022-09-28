@@ -3,9 +3,13 @@ import hashlib
 import os
 import shutil
 from datetime import datetime, timezone
+from typing import Mapping, Optional
 
 import numpy as np
 import pytest
+import requests
+import responses
+
 import wandb
 import wandb.data_types as data_types
 from wandb import util
@@ -965,3 +969,53 @@ def test_interface_commit_hash():
     artifact = wandb.wandb_sdk.interface.artifacts.Artifact()
     with pytest.raises(NotImplementedError):
         artifact.commit_hash()
+
+
+@pytest.mark.parametrize(
+    "headers,expected_digest",
+    [
+        ({"ETag": "my-etag"}, "my-etag"),
+        # TODO(spencerpearson): I think this test is wrong:
+        # if no etag is provided, shouldn't we hash the response body, not simply use the URL?
+        (None, "https://example.com/foo.json?bar=abc"),
+    ],
+)
+def test_http_storage_handler_uses_etag_for_digest(
+    headers: Optional[Mapping[str, str]], expected_digest: Optional[str]
+):
+    with responses.RequestsMock() as rsps, requests.Session() as session:
+        rsps.add(
+            "GET",
+            "https://example.com/foo.json?bar=abc",
+            json={"result": 1},
+            headers=headers,
+        )
+        handler = wandb.wandb_sdk.wandb_artifacts.HTTPHandler(session)
+
+        art = wandb.Artifact("test", type="dataset")
+        [entry] = handler.store_path(
+            art, "https://example.com/foo.json?bar=abc", "foo.json"
+        )
+        assert entry.path == "foo.json"
+        assert entry.ref == "https://example.com/foo.json?bar=abc"
+        assert entry.digest == expected_digest
+
+
+def test_tracking_storage_handler():
+    art = wandb.wandb_sdk.wandb_artifacts.Artifact("test", "dataset")
+    handler = wandb.wandb_sdk.wandb_artifacts.TrackingHandler()
+    [entry] = handler.store_path(art, path="/path/to/file.txt", name="some-file")
+    assert entry.path == "some-file"
+    assert entry.ref == "/path/to/file.txt"
+    assert entry.digest == entry.ref
+
+    # TODO(spencerpearson): THIS TEST IS BROKEN. I'm pretty sure.
+    # I'm commenting it out rather than fixing it because this commit should be a no-op.
+    #
+    # Empirically, this test fails with:
+    #   AssertionError: assert 'some-file' == '/path/to/file.txt'
+    # But 'some-file' started out as a `name`, i.e. a util.LogicalFilePathStr,
+    # representing the location of the file *within the artifact*
+    # rather than *on the filesystem*.
+    #
+    # assert handler.load_path(art, entry) == "/path/to/file.txt"
