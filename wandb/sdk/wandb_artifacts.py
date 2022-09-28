@@ -916,7 +916,7 @@ class WandbStoragePolicy(StoragePolicy):
         self, artifact: ArtifactInterface, name: str, manifest_entry: ArtifactEntry
     ) -> str:
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),
+            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -991,7 +991,8 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> bool:
         # write-through cache
         cache_path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(entry.digest), entry.size if entry.size is not None else 0
+            util.B64MD5(entry.digest),  # TODO(spencerpearson): unsafe cast
+            entry.size if entry.size is not None else 0,
         )
         if not hit and entry.local_path is not None:
             with cache_open() as f:
@@ -1231,7 +1232,7 @@ class LocalFileHandler(StorageHandler):
             )
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),
+            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1290,6 +1291,9 @@ class LocalFileHandler(StorageHandler):
                             % max_objects
                         )
                     physical_path = os.path.join(root, sub_path)
+                    # TODO(spencerpearson): this is not a "logical path" in the sense that
+                    # `util.to_forward_slash_path` returns a "logical path"; it's a relative path
+                    # **on the local filesystem**.
                     logical_path = os.path.relpath(physical_path, start=local_path)
                     if name is not None:
                         logical_path = os.path.join(name, logical_path)
@@ -1378,7 +1382,7 @@ class S3Handler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            util.ETag(manifest_entry.digest),
+            util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1637,7 +1641,7 @@ class GCSHandler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            util.B64MD5(manifest_entry.digest),
+            util.B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
@@ -1814,7 +1818,7 @@ class HTTPHandler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            util.ETag(manifest_entry.digest),
+            util.ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:

@@ -73,10 +73,18 @@ RawMD5 = NewType("RawMD5", bytes)
 HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
 
+# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
+# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
+# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
+#
 # TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
 LogicalFilePathStr = NewType("LogicalFilePathStr", str)
+
+# `FilePathStr` represents a path to a file on the local filesystem.
+#
 # TODO(spencerpearson): this should probably be replaced with pathlib.Path
 FilePathStr = NewType("FilePathStr", str)
+
 # TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
 URIStr = NewType("URIStr", str)
 
