@@ -37,7 +37,6 @@ class Record(google.protobuf.message.Message):
     FOOTER_FIELD_NUMBER: builtins.int
     PREEMPTING_FIELD_NUMBER: builtins.int
     LINK_ARTIFACT_FIELD_NUMBER: builtins.int
-    CREATE_ARTIFACT_PORTFOLIO_FIELD_NUMBER: builtins.int
     REQUEST_FIELD_NUMBER: builtins.int
     CONTROL_FIELD_NUMBER: builtins.int
     UUID_FIELD_NUMBER: builtins.int
@@ -103,9 +102,6 @@ class Record(google.protobuf.message.Message):
     def link_artifact(self) -> global___LinkArtifactRecord: ...
 
     @property
-    def create_artifact_portfolio(self) -> global___CreateArtifactPortfolioRecord: ...
-
-    @property
     def request(self) -> global___Request: ...
 
     @property
@@ -136,15 +132,14 @@ class Record(google.protobuf.message.Message):
         footer : typing.Optional[global___FooterRecord] = ...,
         preempting : typing.Optional[global___RunPreemptingRecord] = ...,
         link_artifact : typing.Optional[global___LinkArtifactRecord] = ...,
-        create_artifact_portfolio : typing.Optional[global___CreateArtifactPortfolioRecord] = ...,
         request : typing.Optional[global___Request] = ...,
         control : typing.Optional[global___Control] = ...,
         uuid : typing.Text = ...,
         _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"create_artifact_portfolio",b"create_artifact_portfolio",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"create_artifact_portfolio",b"create_artifact_portfolio",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","output_raw","run","exit","final","header","footer","preempting","link_artifact","create_artifact_portfolio","request"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"alert",b"alert",u"artifact",b"artifact",u"config",b"config",u"control",b"control",u"exit",b"exit",u"files",b"files",u"final",b"final",u"footer",b"footer",u"header",b"header",u"history",b"history",u"link_artifact",b"link_artifact",u"metric",b"metric",u"num",b"num",u"output",b"output",u"output_raw",b"output_raw",u"preempting",b"preempting",u"record_type",b"record_type",u"request",b"request",u"run",b"run",u"stats",b"stats",u"summary",b"summary",u"tbrecord",b"tbrecord",u"telemetry",b"telemetry",u"uuid",b"uuid"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"record_type",b"record_type"]) -> typing_extensions.Literal["history","summary","output","config","files","stats","artifact","tbrecord","alert","telemetry","metric","output_raw","run","exit","final","header","footer","preempting","link_artifact","request"]: ...
 global___Record = Record
 
 class Control(google.protobuf.message.Message):
@@ -1148,43 +1143,6 @@ class ArtifactResult(google.protobuf.message.Message):
     def __init__(self,
         ) -> None: ...
 global___ArtifactResult = ArtifactResult
-
-class CreateArtifactPortfolioResult(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-
-    def __init__(self,
-        ) -> None: ...
-global___CreateArtifactPortfolioResult = CreateArtifactPortfolioResult
-
-class CreateArtifactPortfolioRecord(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
-    PORTFOLIO_NAME_FIELD_NUMBER: builtins.int
-    PORTFOLIO_PROJECT_FIELD_NUMBER: builtins.int
-    PORTFOLIO_ENTITY_FIELD_NUMBER: builtins.int
-    PORTFOLIO_TYPE_FIELD_NUMBER: builtins.int
-    PORTFOLIO_DESCRIPTION_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    portfolio_name: typing.Text = ...
-    portfolio_project: typing.Text = ...
-    portfolio_entity: typing.Text = ...
-    portfolio_type: typing.Text = ...
-    portfolio_description: typing.Text = ...
-
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-
-    def __init__(self,
-        *,
-        portfolio_name : typing.Text = ...,
-        portfolio_project : typing.Text = ...,
-        portfolio_entity : typing.Text = ...,
-        portfolio_type : typing.Text = ...,
-        portfolio_description : typing.Text = ...,
-        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
-        ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"portfolio_description",b"portfolio_description",u"portfolio_entity",b"portfolio_entity",u"portfolio_name",b"portfolio_name",u"portfolio_project",b"portfolio_project",u"portfolio_type",b"portfolio_type"]) -> None: ...
-global___CreateArtifactPortfolioRecord = CreateArtifactPortfolioRecord
 
 class LinkArtifactResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

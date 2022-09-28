@@ -167,5 +167,8 @@ class Api:
     def get_launch_agent(self, *args, **kwargs):
         return self.api.get_launch_agent(*args, **kwargs)
 
+    def create_artifact_type(self, *args, **kwargs):
+        return self.api.create_artifact_type(*args, **kwargs)
+
 
 __all__ = ["Api"]

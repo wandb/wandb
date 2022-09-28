@@ -1174,28 +1174,6 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def send_create_artifact_portfolio(self, record: "Record") -> None:
-        portfolio = record.create_artifact_portfolio
-        portfolio_name = portfolio.portfolio_name
-        entity = portfolio.portfolio_entity
-        project = portfolio.portfolio_project
-        artifact_type = portfolio.portfolio_type
-        description = portfolio.portfolio_description
-        logger.debug(
-            f"create_artifact_portfolio params - pfolio={portfolio_name}, entity={entity}, project={project}, artifact_type={artifact_type}, description={description}"
-        )
-        if portfolio_name and entity and project:
-            try:
-                self._api.create_artifact_portfolio(
-                    entity,
-                    project,
-                    portfolio_name,
-                    artifact_type=artifact_type,
-                    description=description,
-                )
-            except Exception as e:
-                logger.error("Failed to create artifact portfolio: %s", e)
-
     def send_link_artifact(self, record: "Record") -> None:
         link = record.link_artifact
         client_id = link.client_id

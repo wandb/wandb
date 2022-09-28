@@ -45,7 +45,6 @@ message Record {
     FooterRecord    footer = 22;
     RunPreemptingRecord preempting = 23;    
     LinkArtifactRecord link_artifact = 24;
-    CreateArtifactPortfolioRecord create_artifact_portfolio = 25;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -420,21 +419,6 @@ message StoragePolicyConfigItem {
 }
 
 message ArtifactResult {
-}
-
-message CreateArtifactPortfolioResult {
-}
-
-/*
-* CreateArtifactPortfolioRecord: create artifact portfolio
-*/
-message CreateArtifactPortfolioRecord {
-  string          portfolio_name = 1;
-  string          portfolio_project = 2;
-  string          portfolio_entity = 3;
-  string          portfolio_type = 4;
-  string          portfolio_description = 5;
-  _RecordInfo     _info = 200;
 }
 
 message LinkArtifactResult {

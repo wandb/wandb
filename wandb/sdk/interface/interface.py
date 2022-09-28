@@ -413,30 +413,6 @@ class InterfaceBase:
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
-    def publish_create_artifact_portfolio(
-        self,
-        run: "Run",
-        portfolio_name: str,
-        project: str,
-        artifact_type: str,
-        entity: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> None:
-        create_artifact_portfolio = pb.CreateArtifactPortfolioRecord()
-        create_artifact_portfolio.portfolio_name = portfolio_name
-        create_artifact_portfolio.portfolio_project = project or run.project
-        create_artifact_portfolio.portfolio_entity = entity or run.entity
-        create_artifact_portfolio.portfolio_type = artifact_type
-        create_artifact_portfolio.portfolio_description = description or ""
-
-        self._publish_create_artifact_portfolio(create_artifact_portfolio)
-
-    @abstractmethod
-    def _publish_create_artifact_portfolio(
-        self, create_artifact_portfolio: pb.CreateArtifactPortfolioRecord
-    ) -> None:
-        raise NotImplementedError
-
     def publish_link_artifact(
         self,
         run: "Run",

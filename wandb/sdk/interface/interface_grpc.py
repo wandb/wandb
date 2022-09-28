@@ -165,13 +165,6 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(proto_artifact)
         _ = self._stub.Artifact(proto_artifact)
 
-    def _publish_create_artifact_portfolio(
-        self, create_artifact_portfolio: pb.CreateArtifactPortfolioRecord
-    ) -> None:
-        assert self._stub
-        self._assign(create_artifact_portfolio)
-        _ = self._stub.CreateArtifactPortfolio(create_artifact_portfolio)
-
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         assert self._stub
         self._assign(link_artifact)

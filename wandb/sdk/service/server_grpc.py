@@ -142,17 +142,6 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.ArtifactResult()
         return result
 
-    def CreateArtifactPortfolio(  # noqa: N802
-        self,
-        create_artifact_portfolio: pb.CreateArtifactPortfolioRecord,
-        context: grpc.ServicerContext,
-    ) -> pb.CreateArtifactPortfolioResult:
-        stream_id = create_artifact_portfolio._info.stream_id
-        iface = self._mux.get_stream(stream_id).interface
-        iface._publish_create_artifact_portfolio(create_artifact_portfolio)
-        result = pb.CreateArtifactPortfolioResult()
-        return result
-
     def LinkArtifact(  # noqa: N802
         self,
         link_artifact: pb.LinkArtifactRecord,
