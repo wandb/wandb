@@ -1,7 +1,6 @@
 import os
 import time
 
-import pytest
 import wandb
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
