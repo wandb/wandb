@@ -1100,7 +1100,7 @@ class Api:
                 variable_values["artifactTypeID"] = _artifact_type_id
         else:
             mutation_template = mutation_template.replace(
-                "$artifactTypeID: ID", ""
+                "$artifactTypeID: ID!", ""
             ).replace("artifactTypeID: $artifactTypeID", "")
 
         mutation = gql(mutation_template)
