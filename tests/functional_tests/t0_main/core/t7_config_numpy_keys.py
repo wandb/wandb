@@ -14,6 +14,7 @@ assert:
   - :wandb:runs[0][exitcode]: 0
 """
 import numpy as np
+
 import wandb
 
 wandb.init(

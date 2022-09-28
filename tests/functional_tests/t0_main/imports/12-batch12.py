@@ -28,6 +28,7 @@ assert:
 
 import keras_cv  # noqa: F401
 import mmengine  # noqa: F401
+
 import wandb
 
 run = wandb.init()

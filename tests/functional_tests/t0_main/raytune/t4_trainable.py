@@ -5,11 +5,12 @@ Based on:
 """
 
 import numpy as np
-import wandb
 from _test_support import get_wandb_api_key_file
 from ray import tune
 from ray.tune import Trainable
 from ray.tune.integration.wandb import WandbTrainableMixin
+
+import wandb
 
 
 class WandbTrainable(WandbTrainableMixin, Trainable):

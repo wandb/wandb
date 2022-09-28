@@ -14,11 +14,12 @@ import subprocess
 import keras
 import numpy as np
 import pandas
-import wandb
 from keras import optimizers
 from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
 from keras.models import Sequential
 from keras.preprocessing.image import ImageDataGenerator
+
+import wandb
 
 
 def main():

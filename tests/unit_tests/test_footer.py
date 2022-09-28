@@ -4,6 +4,7 @@ footer tests.
 
 import numpy as np
 import pytest
+
 import wandb
 
 LINE_PREFIX = "wandb: "

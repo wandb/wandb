@@ -3,9 +3,10 @@ from importlib import reload
 from unittest.mock import patch
 
 import kfp
-import wandb
 from kfp.components import InputPath, OutputPath, create_component_from_func
 from kfp.components._structures import InputSpec, OutputSpec
+
+import wandb
 from wandb.integration.kfp import unpatch_kfp, wandb_log
 
 

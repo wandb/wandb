@@ -37,10 +37,11 @@ import pandas as pd
 import pytest
 import requests
 import responses
+from click.testing import CliRunner
+
 import wandb
 import wandb.old.settings
 import wandb.util
-from click.testing import CliRunner
 from wandb import Api
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager

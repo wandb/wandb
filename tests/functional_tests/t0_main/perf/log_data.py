@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 import argparse
 
-import wandb
 import yea
+
+import wandb
 
 
 def main():

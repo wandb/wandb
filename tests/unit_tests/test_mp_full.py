@@ -9,6 +9,7 @@ import sys
 import time
 
 import pytest
+
 import wandb
 from wandb.errors import UsageError
 

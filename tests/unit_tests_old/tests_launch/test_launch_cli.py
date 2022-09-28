@@ -2,6 +2,7 @@ import json
 import os
 
 import pytest
+
 import wandb
 from wandb.cli import cli
 from wandb.errors import LaunchError

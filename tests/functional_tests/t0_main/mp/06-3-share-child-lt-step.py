@@ -6,8 +6,9 @@ import io
 import multiprocessing as mp
 from contextlib import redirect_stderr
 
-import wandb
 import yea
+
+import wandb
 
 
 def process_child(run, check_warning=False):

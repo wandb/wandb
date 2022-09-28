@@ -3,6 +3,7 @@ require user tests.
 """
 
 import pytest
+
 import wandb
 
 

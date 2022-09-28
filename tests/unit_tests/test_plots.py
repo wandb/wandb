@@ -1,5 +1,6 @@
 import pytest
 from sklearn.naive_bayes import MultinomialNB
+
 from wandb.plots.heatmap import heatmap
 from wandb.plots.precision_recall import precision_recall
 from wandb.plots.roc import roc

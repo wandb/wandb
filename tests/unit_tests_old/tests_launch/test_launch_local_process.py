@@ -1,6 +1,7 @@
 import sys
 
 import pytest
+
 import wandb
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS

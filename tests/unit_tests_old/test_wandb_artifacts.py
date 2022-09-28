@@ -4,6 +4,7 @@ from typing import Callable
 
 import numpy as np
 import pytest
+
 import wandb
 from wandb import util
 from wandb.proto import wandb_internal_pb2 as pb

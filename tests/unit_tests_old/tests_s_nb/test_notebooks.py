@@ -5,10 +5,10 @@ import subprocess
 import sys
 
 import pytest
-import wandb
-from wandb.errors import UsageError
 
+import wandb
 from tests.unit_tests_old import utils
+from wandb.errors import UsageError
 
 
 def test_login_timeout(notebook, monkeypatch):

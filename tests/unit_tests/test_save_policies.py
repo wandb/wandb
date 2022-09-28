@@ -2,6 +2,7 @@ import os
 import time
 
 import pytest
+
 from wandb.filesync.dir_watcher import PolicyLive
 
 

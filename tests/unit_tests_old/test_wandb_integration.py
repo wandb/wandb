@@ -13,8 +13,8 @@ import time
 from unittest import mock
 
 import pytest
-import wandb
 
+import wandb
 from tests.unit_tests_old import utils
 
 reloadFn = importlib.reload

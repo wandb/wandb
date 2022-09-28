@@ -3,8 +3,9 @@
 
 import multiprocessing as mp
 
-import wandb
 import yea
+
+import wandb
 
 
 def worker_process(run, i):

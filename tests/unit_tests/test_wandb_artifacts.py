@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 import pytest
+
 import wandb
 import wandb.data_types as data_types
 from wandb import util

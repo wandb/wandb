@@ -6,11 +6,13 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
+
 import wandb
 import wandb.sdk.launch._project_spec as _project_spec
 import wandb.sdk.launch.launch as launch
 import wandb.util as util
-import yaml
+from tests.unit_tests_old.utils import fixture_open, notebook_path
 from wandb.apis import PublicApi
 from wandb.apis.public import Run
 from wandb.errors import CommError, LaunchError
@@ -19,8 +21,6 @@ from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
 from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
-
-from tests.unit_tests_old.utils import fixture_open, notebook_path
 
 EMPTY_BACKEND_CONFIG = {
     PROJECT_DOCKER_ARGS: {},

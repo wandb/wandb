@@ -4,6 +4,7 @@
 from unittest import mock
 
 import pytest
+
 import wandb
 import wandb.util
 from wandb import Api

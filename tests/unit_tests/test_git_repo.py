@@ -10,6 +10,7 @@ from typing import Callable, Optional
 
 import git
 import pytest
+
 import wandb
 
 GitRepo = wandb.wandb_lib.git.GitRepo
