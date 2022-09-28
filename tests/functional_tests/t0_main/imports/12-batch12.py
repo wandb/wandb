@@ -2,18 +2,17 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.08-batch8
+id: 0.imports.12-batch12
 tag:
-  shard: imports8
+  shard: imports12
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
   requirements:
-    - numpy
-    - lap
-    - paddlepaddle
-    - "-r 08-batch8-requirements.txt"
+    - tensorflow
+    - tensorflow_datasets
+    - "-r 12-batch12-requirements.txt"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -22,22 +21,14 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 56  # paddleocr
+    - 81  # keras_cv
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 57  # ppdet
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 58  # paddleseg
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 59  # paddlenlp
+    - 82  # mmengine
 """
 
-import paddlenlp  # noqa: F401
-import paddleocr  # noqa: F401
-import paddleseg  # noqa: F401
-import ppdet  # noqa: F401
+import keras_cv  # noqa: F401
+import mmengine  # noqa: F401
 import wandb
 
 run = wandb.init()

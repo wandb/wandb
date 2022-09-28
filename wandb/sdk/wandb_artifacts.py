@@ -56,7 +56,9 @@ if TYPE_CHECKING:
     import boto3  # type: ignore
     import google.cloud.storage as gcs_module  # type: ignore
 
-    import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
+    import wandb.apis.public
+    from wandb.filesync.step_prepare import StepPrepare
+    from wandb.sdk.internal import internal_api
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -647,9 +649,13 @@ class Artifact(ArtifactInterface):
             "Cannot call delete on an artifact before it has been logged or in offline mode"
         )
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
+        """
+        Arguments:
+            timeout: (int, optional) Waits in seconds for artifact to finish logging if needed.
+        """
         if self._logged_artifact:
-            return self._logged_artifact.wait()
+            return self._logged_artifact.wait(timeout)  # type: ignore [call-arg]
 
         raise ValueError(
             "Cannot call wait on an artifact before it has been logged or in offline mode"
@@ -992,14 +998,15 @@ class WandbStoragePolicy(StoragePolicy):
                 shutil.copyfile(entry.local_path, f.name)
             entry.local_path = cache_path
 
-        resp = preparer.prepare(
-            lambda: {
+        def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
+            return {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-        )
+
+        resp = preparer.prepare(_prepare_fn)
 
         entry.birth_artifact_id = resp.birth_artifact_id
         exists = resp.upload_url is None

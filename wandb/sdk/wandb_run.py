@@ -87,6 +87,10 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import TypedDict
 
+    import wandb.apis.public
+    import wandb.sdk.backend.backend
+    import wandb.sdk.interface.interface_grpc
+    import wandb.sdk.interface.interface_queue
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
@@ -2482,6 +2486,8 @@ class Run:
             aliases = []
 
         if self._backend and self._backend.interface:
+            if isinstance(artifact, Artifact) and not artifact._logged_artifact:
+                artifact = self._log_artifact(artifact)
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
                     self,
@@ -2830,9 +2836,7 @@ class Run:
                 return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
-                    "Expected artifact type {}, got {}".format(
-                        expected_type, artifact.type
-                    )
+                    f"Artifact {artifact.name} already exists with type {expected_type}; cannot create another with type {artifact.type}"
                 )
 
     def _prepare_artifact(
@@ -3609,9 +3613,14 @@ class _LazyArtifact(ArtifactInterface):
         self._assert_instance()
         return getattr(self._instance, item)
 
-    def wait(self) -> ArtifactInterface:
+    def wait(self, timeout: Optional[int] = None) -> ArtifactInterface:
         if not self._instance:
-            resp = self._future.get().response.log_artifact_response
+            future_get = self._future.get(timeout)
+            if not future_get:
+                raise errors.WaitTimeoutError(
+                    "Artifact upload wait timed out, failed to fetch Artifact response"
+                )
+            resp = future_get.response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)

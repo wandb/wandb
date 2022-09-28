@@ -23,7 +23,16 @@ import time
 import urllib
 from collections import namedtuple
 from functools import partial
-from typing import Dict, List, Optional
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+)
 
 import requests
 from wandb_gql import Client, gql
@@ -43,6 +52,10 @@ from wandb.sdk.interface import artifacts
 from wandb.sdk.launch.utils import _fetch_git_repo, apply_patch
 from wandb.sdk.lib import ipython, retry
 from wandb.sdk.wandb_require_helpers import requires
+
+if TYPE_CHECKING:
+    import wandb.apis.reports
+    import wandb.apis.reports.util
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +220,7 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client):
+    def __init__(self, client: Client):
         self._server_info = None
         self._client = client
 
@@ -409,7 +422,7 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: "Optional[wandb.apis.reports.Block]" = None,
+        blocks: "Optional[wandb.apis.reports.util.Block]" = None,
     ) -> "wandb.apis.reports.Report":
         if entity == "":
             entity = self.default_entity or ""
@@ -755,7 +768,14 @@ class Api:
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
+    def runs(
+        self,
+        path: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        order: str = "-created_at",
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         """
         Return a set of runs from a project that match the filters provided.
 
@@ -823,6 +843,7 @@ class Api:
                 filters=filters,
                 order=order,
                 per_page=per_page,
+                include_sweeps=include_sweeps,
             )
         return self._runs[key]
 
@@ -839,9 +860,9 @@ class Api:
         Returns:
             A `Run` object.
         """
-        entity, project, run = self._parse_path(path)
+        entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path] = Run(self.client, entity, project, run)
+            self._runs[path] = Run(self.client, entity, project, run_id)
         return self._runs[path]
 
     def queued_run(
@@ -926,7 +947,7 @@ class Api:
 
 
 class Attrs:
-    def __init__(self, attrs):
+    def __init__(self, attrs: MutableMapping[str, Any]):
         self._attrs = attrs
 
     def snake_to_camel(self, string):
@@ -964,7 +985,12 @@ class Attrs:
 class Paginator:
     QUERY = None
 
-    def __init__(self, client, variables, per_page=None):
+    def __init__(
+        self,
+        client: Client,
+        variables: MutableMapping[str, Any],
+        per_page: Optional[int] = None,
+    ):
         self.client = client
         self.variables = variables
         # We don't allow unbounded paging
@@ -1149,7 +1175,16 @@ class User(Attrs):
             return None
 
     def __repr__(self):
-        return f"<User {self.email}>"
+        if "email" in self._attrs:
+            return f"<User {self._attrs['email']}>"
+        elif "username" in self._attrs:
+            return f"<User {self._attrs['username']}>"
+        elif "id" in self._attrs:
+            return f"<User {self._attrs['id']}>"
+        elif "name" in self._attrs:
+            return f"<User {self._attrs['name']!r}>"
+        else:
+            return "<User ???>"
 
 
 class Member(Attrs):
@@ -1521,12 +1556,22 @@ class Runs(Paginator):
         % RUN_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, filters=None, order=None, per_page=50):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        filters: Optional[Dict[str, Any]] = None,
+        order: Optional[str] = None,
+        per_page: int = 50,
+        include_sweeps: bool = True,
+    ):
         self.entity = entity
         self.project = project
         self.filters = filters or {}
         self.order = order
         self._sweeps = {}
+        self._include_sweeps = include_sweeps
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -1567,10 +1612,11 @@ class Runs(Paginator):
                 self.project,
                 run_response["node"]["name"],
                 run_response["node"],
+                include_sweeps=self._include_sweeps,
             )
             objs.append(run)
 
-            if run.sweep_name:
+            if self._include_sweeps and run.sweep_name:
                 if run.sweep_name in self._sweeps:
                     sweep = self._sweeps[run.sweep_name]
                 else:
@@ -1618,7 +1664,15 @@ class Run(Attrs):
             with `wandb.log({key: value})`
     """
 
-    def __init__(self, client, entity, project, run_id, attrs=None):
+    def __init__(
+        self,
+        client: "RetryingClient",
+        entity: str,
+        project: str,
+        run_id: str,
+        attrs: Optional[Mapping] = None,
+        include_sweeps: bool = True,
+    ):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
@@ -1631,6 +1685,7 @@ class Run(Attrs):
         self._base_dir = env.get_dir(tempfile.gettempdir())
         self.id = run_id
         self.sweep = None
+        self._include_sweeps = include_sweeps
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -1747,7 +1802,7 @@ class Run(Attrs):
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
 
-            if self.sweep_name and not self.sweep:
+            if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
                 self.sweep = Sweep.get(
@@ -2435,7 +2490,7 @@ class Sweep(Attrs):
     def config(self):
         return util.load_yaml(self._attrs["config"])
 
-    def load(self, force=False):
+    def load(self, force: bool = False):
         if force or not self._attrs:
             sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:
@@ -2809,7 +2864,7 @@ class QueryGenerator:
         pass
 
     @classmethod
-    def format_order_key(cls, key):
+    def format_order_key(cls, key: str):
         if key.startswith("+") or key.startswith("-"):
             direction = key[0]
             key = key[1:]
@@ -3415,7 +3470,14 @@ class ProjectArtifactTypes(Paginator):
         % ARTIFACTS_TYPES_FRAGMENT
     )
 
-    def __init__(self, client, entity, project, name=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: Optional[str] = None,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
 
@@ -3494,7 +3556,14 @@ class ProjectArtifactCollections(Paginator):
     """
     )
 
-    def __init__(self, client, entity, project, type_name, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        per_page: Optional[int] = 50,
+    ):
         self.entity = entity
         self.project = project
         self.type_name = type_name
@@ -3610,7 +3679,9 @@ class RunArtifacts(Paginator):
         % ARTIFACT_FRAGMENT
     )
 
-    def __init__(self, client, run, mode="logged", per_page=50):
+    def __init__(
+        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
+    ):
         self.run = run
         if mode == "logged":
             self.run_key = "outputArtifacts"
@@ -3670,7 +3741,14 @@ class RunArtifacts(Paginator):
 
 
 class ArtifactType:
-    def __init__(self, client, entity, project, type_name, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        attrs: Mapping[str, Any] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3698,7 +3776,7 @@ class ArtifactType:
         }
         """
         )
-        response = self.client.execute(
+        response: Optional[Mapping[str, Any]] = self.client.execute(
             query,
             variable_values={
                 "entityName": self.entity,
@@ -3740,7 +3818,15 @@ class ArtifactType:
 
 
 class ArtifactCollection:
-    def __init__(self, client, entity, project, name, type, attrs=None):
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        name: str,
+        type: str,
+        attrs: Optional[Mapping[str, Any]] = None,
+    ):
         self.client = client
         self.entity = entity
         self.project = project
@@ -3812,7 +3898,9 @@ class ArtifactCollection:
 
 
 class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
-    def __init__(self, name, entry, parent_artifact):
+    def __init__(
+        self, name: str, entry: "artifacts.ArtifactEntry", parent_artifact: "Artifact"
+    ):
         self.name = name
         self.entry = entry
         self._parent_artifact = parent_artifact
@@ -3971,11 +4059,11 @@ class Artifact(artifacts.Artifact):
     )
 
     @classmethod
-    def from_id(cls, artifact_id, client):
+    def from_id(cls, artifact_id: str, client: Client):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(
+        response: Mapping[str, Any] = client.execute(
             Artifact.QUERY,
             variable_values={"id": artifact_id},
         )
@@ -4815,14 +4903,14 @@ class ArtifactVersions(Paginator):
 
     def __init__(
         self,
-        client,
-        entity,
-        project,
-        collection_name,
-        type,
-        filters=None,
-        order=None,
-        per_page=50,
+        client: Client,
+        entity: str,
+        project: str,
+        collection_name: str,
+        type: str,
+        filters: Optional[Mapping[str, Any]] = None,
+        order: Optional[str] = None,
+        per_page: int = 50,
     ):
         self.entity = entity
         self.collection_name = collection_name
@@ -4909,7 +4997,13 @@ class ArtifactFiles(Paginator):
         % ARTIFACT_FILES_FRAGMENT
     )
 
-    def __init__(self, client, artifact, names=None, per_page=50):
+    def __init__(
+        self,
+        client: Client,
+        artifact: Artifact,
+        names: Optional[Sequence[str]] = None,
+        per_page: int = 50,
+    ):
         self.artifact = artifact
         variables = {
             "entityName": artifact.entity,
@@ -4989,7 +5083,7 @@ class Job:
         self._entity = api.default_entity
 
         with open(os.path.join(self._fpath, "wandb-job.json")) as f:
-            self._source_info = json.load(f)
+            self._source_info: Mapping[str, Any] = json.load(f)
         self._entrypoint = self._source_info.get("source", {}).get("entrypoint")
         self._args = self._source_info.get("source", {}).get("args")
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")

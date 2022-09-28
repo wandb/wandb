@@ -1168,6 +1168,7 @@ workflows:
                 - "imports9"
                 - "imports10"
                 - "imports11"
+                - "imports12"
           name: "func-s_<<matrix.shard>>-lin-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #
