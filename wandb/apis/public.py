@@ -3979,7 +3979,7 @@ class _ArtifactDownloadLogger:
     def __init__(
         self,
         nfiles: int,
-        clock_for_testing: Callable[[], float] = time.time,
+        clock_for_testing: Callable[[], float] = time.monotonic,
         termlog_for_testing=termlog,
     ) -> None:
         self._nfiles = nfiles
