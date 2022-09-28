@@ -20,7 +20,6 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     # create project
     run = wandb.init(project=proj)
     time.sleep(1)
-    run.finish()
 
     def patched_make_image_uri(
         builder,
@@ -64,3 +63,5 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
 
         assert rqi["runSpec"]["uri"] is None
         assert rqi["runSpec"]["job"] == f"job-{release_image}:v0"
+
+    run.finish()
