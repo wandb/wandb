@@ -13,7 +13,7 @@ from wandb.wandb_run import Run
 
 @pytest.mark.timeout(300)  # builds a container
 def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
-    RELEASE_IMAGE = "THIS IS AN IMAGE TAG"
+    RELEASE_IMAGE = "THISISANIMAGETAG"
     queue = "test_queue"
     proj = "test"
     uri = "https://github.com/gtarpenning/wandb-launch-test"
@@ -45,7 +45,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         lambda b, l, r, e, d: patched_make_image_uri(b, l, r, e, d),
     )
 
-    with relay_server() as relay:
+    with relay_server():
         api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
@@ -64,16 +64,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         assert queued_run.project == proj
         assert queued_run.container_job  # requires a correctly picked up job
 
-        # queued_run.delete()
+        rqi = api.pop_from_run_queue(queue, user, proj)
 
-    for comm in relay.context.raw_data:
-        q = comm["request"].get("query")
-        if q:
-            wandb.termlog(q)
-            print("variables", comm["request"]["variables"])
-            print("response", comm["response"]["data"])
-            print("\n")
-
-    # assert result.exit_code == 0
-    # assert "'uri': None" in str(result.output)
-    # assert "'job': 'oops'" not in str(result.output)
+        assert rqi["runSpec"]["uri"] is None
+        assert rqi["runSpec"]["job"] == f"job-{RELEASE_IMAGE}:v0"
