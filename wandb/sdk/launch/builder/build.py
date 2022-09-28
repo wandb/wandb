@@ -16,9 +16,6 @@ import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import DockerError, ExecutionError, LaunchError
 
-from .abstract import AbstractBuilder
-
-
 from ...lib.git import GitRepo
 from .._project_spec import (
     EntryPoint,
@@ -28,6 +25,7 @@ from .._project_spec import (
     fetch_and_validate_project,
 )
 from ..utils import LOG_PREFIX
+from .abstract import AbstractBuilder
 from .loader import load_builder
 
 _logger = logging.getLogger(__name__)
