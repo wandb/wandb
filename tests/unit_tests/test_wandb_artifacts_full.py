@@ -221,3 +221,31 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
+
+
+def test_create_artifact_portfolio(relay_server, wandb_init):
+    with relay_server() as relay:
+        api = wandb.Api()
+        api.create_artifact_portfolio("tmp-registered-model")
+
+    created_artifact_portfolio = False
+    for comm in relay.context.raw_data:
+        if comm["request"].get("query"):
+            print(comm["request"].get("query"), end="")
+            print("variables", comm["request"]["variables"])
+            print("response", comm["response"]["data"])
+            print("\n")
+            if "createArtifactPortfolio" in comm["request"].get("query"):
+                if "data" in comm["response"]:
+                    created_artifact_portfolio = True
+                else:
+                    continue
+
+                assert comm["response"]["data"]["createArtifactPortfolio"] is not None
+                assert (
+                    comm["response"]["data"]["createArtifactPortfolio"][
+                        "artifactCollection"
+                    ]["name"]
+                    == "tmp-registered-model"
+                )
+    assert created_artifact_portfolio
