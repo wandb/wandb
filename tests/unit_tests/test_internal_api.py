@@ -2,10 +2,10 @@ import base64
 import hashlib
 import os
 import tempfile
+from typing import Optional
 
 import pytest
 import responses
-from wandb import util
 from wandb.apis import internal
 from wandb.errors import CommError
 
