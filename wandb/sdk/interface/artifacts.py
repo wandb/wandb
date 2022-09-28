@@ -6,10 +6,10 @@ import hashlib
 import os
 import random
 from typing import (
+    IO,
     TYPE_CHECKING,
     ContextManager,
     Dict,
-    IO,
     List,
     Optional,
     Sequence,
@@ -23,12 +23,12 @@ from wandb.data_types import WBValue
 
 if TYPE_CHECKING:
     # need this import for type annotations, but want to avoid circular dependency
+    import sys
+
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk import wandb_artifacts
     from wandb.sdk.internal import progress
-
-    import sys
 
     if sys.version_info >= (3, 8):
         from typing import Protocol
