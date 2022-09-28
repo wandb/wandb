@@ -1016,41 +1016,12 @@ class Api:
         Returns:
             The `requests` library response object
         """
-        query = gql(
-            """
-                query ArtifactTypeID(
-                    $entityName: String!
-                    $projectName: String!
-                    $artifactType: String!
-                ){
-                    project(name: $projectName, entityName: $entityName){
-                        artifactType(name: $artifactType)
-                            {
-                                id
-                            }
-                    }
-                }
-            """
-        )
-
-        variable_values_type_id = {
-            "entityName": entity,
-            "projectName": project,
-            "artifactType": artifact_type,
-        }
-        response = self._client.execute(query, variable_values_type_id)
-
-        try:
-            artifact_type_id = response["project"]["artifactType"]["id"]
-        except TypeError:
-            artifact_type_id = None
-
         mutation_template = """
                 mutation CreateArtifactPortfolio(
                     $entityName: String!
                     $projectName: String!
-                    $artifactTypeID: ID
-                    $artifactTypeName: String
+                    $artifactTypeID: ID!
+                    $artifactTypeName: String!
                     $name: String!
                     $description: String
                     $clientMutationId: String
@@ -1077,7 +1048,6 @@ class Api:
         variable_values = {
             "entityName": entity,
             "projectName": project,
-            "artifactTypeID": artifact_type_id,
             "artifactTypeName": artifact_type,
             "name": portfolio_name,
             "description": description,
@@ -1089,12 +1059,37 @@ class Api:
 
         if "artifactTypeName" not in create_portfolio_types:
             wandb.termwarn("Backend is out of date")
-            mutation_template = (
-                mutation_template.replace("$artifactTypeID: ID", "$artifactTypeID: ID!")
-                .replace("$artifactTypeName: String", "")
-                .replace("artifactTypeName: $artifactTypeName", "")
+            mutation_template = mutation_template.replace(
+                "$artifactTypeName: String!", ""
+            ).replace("artifactTypeName: $artifactTypeName", "")
+            query = gql(
+                """
+                    query ArtifactTypeID(
+                        $entityName: String!
+                        $projectName: String!
+                        $artifactType: String!
+                    ){
+                        project(name: $projectName, entityName: $entityName){
+                            artifactType(name: $artifactType)
+                                {
+                                    id
+                                }
+                        }
+                    }
+                """
             )
-            if artifact_type_id is None:
+
+            variable_values_type_id = {
+                "entityName": entity,
+                "projectName": project,
+                "artifactType": artifact_type,
+            }
+            response = self._client.execute(query, variable_values_type_id)
+
+            try:
+                artifact_type_id = response["project"]["artifactType"]["id"]
+                variable_values["artifactTypeID"] = artifact_type_id
+            except TypeError:
                 api = InternalApi()
                 _ = api.upsert_project(project=project, entity=entity)
                 _artifact_type_id = api.create_artifact_type(
@@ -1103,6 +1098,10 @@ class Api:
                     entity_name=entity,
                 )
                 variable_values["artifactTypeID"] = _artifact_type_id
+        else:
+            mutation_template = mutation_template.replace(
+                "$artifactTypeID: ID", ""
+            ).replace("artifactTypeID: $artifactTypeID", "")
 
         mutation = gql(mutation_template)
         response = self._client.execute(mutation, variable_values)
