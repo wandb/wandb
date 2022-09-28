@@ -4,7 +4,7 @@ import wandb
 from wandb.sdk.launch.launch_add import launch_add
 
 
-def test_launch_add_default(wandb_init, relay_server, user):
+def test_launch_add_default(relay_server, user):
     proj = "test_project"
     args = {
         "uri": "https://wandb.ai/lavanyashukla/basic-intro/runs/3dibi5mk",
@@ -17,11 +17,13 @@ def test_launch_add_default(wandb_init, relay_server, user):
     time.sleep(1)
 
     with relay_server() as relay:
-        result = launch_add(**args)
+        queued_run = launch_add(**args)
 
-    assert result.entity == args["entity"]
-    assert result.project == args["project"]
-    assert result.queue_id == args["queue"]
+    assert queued_run.id
+    assert queued_run.state == "pending"
+    assert queued_run.entity == args["entity"]
+    assert queued_run.project == args["project"]
+    assert queued_run.queue_id == args["queue"]
 
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
@@ -35,7 +37,7 @@ def test_launch_add_default(wandb_init, relay_server, user):
     run.finish()
 
 
-def test_push_to_runqueue_exists(wandb_init, relay_server, user):
+def test_push_to_runqueue_exists(relay_server, user):
     proj = "test_project"
     queue = "existing-queue"
     args = {
@@ -67,7 +69,7 @@ def test_push_to_runqueue_exists(wandb_init, relay_server, user):
     run.finish()
 
 
-def test_push_to_default_runqueue_notexist(wandb_init, relay_server, user):
+def test_push_to_default_runqueue_notexist(relay_server, user):
     api = wandb.sdk.internal.internal_api.Api()
     proj = "test_project"
     launch_spec = {

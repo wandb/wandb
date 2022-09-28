@@ -12,12 +12,10 @@ import wandb.sdk.launch.launch as launch
 import wandb.util as util
 import yaml
 from wandb.apis import PublicApi
-from wandb.apis.public import Run
 from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
-from wandb.sdk.launch.launch_add import launch_add
 from wandb.sdk.launch.utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
 
 from tests.unit_tests_old.utils import fixture_open, notebook_path
@@ -350,18 +348,6 @@ def test_launch_resource_args(
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
-
-
-def test_launch_add_base_queued_run(live_mock_server):
-    queued_run = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
-    assert queued_run.state == "pending"
-    assert queued_run.id == "1"
-    assert queued_run.entity == "mock_server_entity"
-    assert queued_run.project == "tests"
-
-    live_mock_server.set_ctx({"run_queue_item_return_type": "claimed"})
-    run = queued_run.wait_until_finished()
-    assert isinstance(run, Run)
 
 
 @pytest.mark.skipif(
