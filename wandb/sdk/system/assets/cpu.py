@@ -54,7 +54,6 @@ class ProcessCpuPercent:
 class CpuPercent:
     name = "cpu.{i}.cpu_percent"
     metric_type = cast("gauge", MetricType)
-    # samples: Deque[Tuple[datetime.datetime, List[float]]]
     samples: Deque[List[float]]
 
     def __init__(self, interval: Optional[float] = None) -> None:

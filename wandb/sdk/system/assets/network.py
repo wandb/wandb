@@ -14,8 +14,7 @@ if TYPE_CHECKING:
 
 
 class NetworkSent:
-    # name = "network_sent"
-    name = "sent"
+    name = "network.sent"
     metric_type = cast("gauge", MetricType)
     samples: Deque[float]
 
@@ -31,12 +30,13 @@ class NetworkSent:
 
     def serialize(self) -> dict:
         aggregate = round(sum(self.samples) / len(self.samples), 2)
+        # todo: this is an adapter for the legacy metrics system
+        # return {"network": {self.name: aggregate}}
         return {self.name: aggregate}
 
 
 class NetworkRecv:
-    # name = "network_recv"
-    name = "recv"
+    name = "network.recv"
     metric_type = cast("gauge", MetricType)
     samples: Deque[float]
 
@@ -52,6 +52,9 @@ class NetworkRecv:
 
     def serialize(self) -> dict:
         aggregate = round(sum(self.samples) / len(self.samples), 2)
+        # todo: this is an adapter for the legacy metrics system
+        # return {"network": {self.name: aggregate}}
+
         return {self.name: aggregate}
 
 

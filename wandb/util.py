@@ -1850,3 +1850,23 @@ def make_docker_image_name_safe(name: str) -> str:
 def has_main_file(path: str) -> bool:
     """Check if a directory has a main.py file"""
     return path != "<python with no main file>"
+
+
+def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively merge two dictionaries.
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            if isinstance(value, list):
+                if key in destination:
+                    destination[key].extend(value)
+                else:
+                    destination[key] = value
+            else:
+                destination[key] = value
+    return destination

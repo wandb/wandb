@@ -1,7 +1,8 @@
+from collections.abc import Sequence
 import datetime
 import multiprocessing as mp
 import threading
-from typing import Deque, List, Optional, TypeVar, TYPE_CHECKING
+from typing import List, Optional, TypeVar, TYPE_CHECKING
 
 try:
     from typing import Literal, Protocol, runtime_checkable
@@ -12,22 +13,23 @@ if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
+# import wandb.util
+
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 Sample = TypeVar("Sample", float, int, str, bytes, list, tuple, dict)
 MetricType = Literal["counter", "gauge", "histogram", "summary"]
-# MetricType = Literal["gauge"]
-
-
-# Base Protocols
 
 
 class Metric(Protocol):
+    """
+    Base protocol for individual metrics
+    """
+
     name: str
     # at first, we will only support the gauge type
     metric_type: MetricType
-    #
-    # samples: Deque[Tuple[TimeStamp, Sample]]
-    samples: Deque[Sample]
+    # samples: Sequence[Tuple[TimeStamp, Sample]]
+    samples: Sequence[Sample]
 
     def sample(self) -> None:
         ...
@@ -41,8 +43,11 @@ class Metric(Protocol):
 
 @runtime_checkable
 class Asset(Protocol):
-    # Base protocol to encapsulate everything relating to an "Asset"
-    #  e.g. CPU, GPU, TPU, Network, I/O etc.
+    """
+    Base protocol to encapsulate everything relating to an "Asset"
+    e.g. CPU, GPU, TPU, Network, I/O etc.
+    """
+
     name: str
     metrics: List[Metric]
     metrics_monitor: "MetricsMonitor"
@@ -65,26 +70,11 @@ class Asset(Protocol):
         ...
 
 
-# class MetricContainer:
-#     def __init__(self, metric: Metric) -> None:
-#         self.metric = metric
-#         self.samples = deque([])
-#
-#     def sample(self, sampling_fn: Callable) -> None:
-#         self.samples.append(self.metric.sample())
-#
-#     def clear(self) -> None:
-#         self.samples.clear()
-#
-#     def serialize(self) -> dict:
-#         aggregate = round(sum(self.samples) / len(self.samples), 2)
-#         return {self.metric.name: aggregate}
-
-
-# MetricsMonitor takes care of collecting, sampling, serializing, and publishing metrics
-
-
 class MetricsMonitor:
+    """
+    Takes care of collecting, sampling, serializing, and publishing a set of metrics.
+    """
+
     def __init__(
         self,
         metrics: List[Metric],
@@ -94,7 +84,7 @@ class MetricsMonitor:
     ) -> None:
         self.metrics = metrics
         self._interface = interface
-        self._process: Optional[mp.Process] = None
+        self._process: Optional[threading.Thread] = None
         self._shutdown_event: mp.Event = shutdown_event
 
         self.sampling_interval: float = float(
@@ -126,6 +116,9 @@ class MetricsMonitor:
         serialized_metrics = {}
         for metric in self.metrics:
             serialized_metrics.update(metric.serialize())
+            # serialized_metrics = wandb.util.merge_dicts(
+            #     serialized_metrics, metric.serialize()
+            # )
         return serialized_metrics
 
     def publish(self) -> None:
