@@ -23,10 +23,6 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import Protocol
 
-    class DoPrepareFn(Protocol):
-        def __call__(self) -> "internal_api.CreateArtifactFileSpecInput":
-            pass
-
     class OnPrepareFn(Protocol):
         def __call__(
             self,
@@ -39,7 +35,7 @@ if TYPE_CHECKING:
 
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
-    prepare_fn: "DoPrepareFn"
+    input: "internal_api.CreateArtifactFileSpecInput"
     on_prepare: Optional["OnPrepareFn"]
     response_queue: "queue.Queue[ResponsePrepare]"
 
@@ -90,7 +86,7 @@ class StepPrepare:
             prepare_response = self._prepare_batch(batch)
             # send responses
             for prepare_request in batch:
-                name = prepare_request.prepare_fn()["name"]
+                name = prepare_request.input["name"]
                 response_file = prepare_response[name]
                 upload_url = response_file["uploadUrl"]
                 upload_headers = response_file["uploadHeaders"]
@@ -139,12 +135,14 @@ class StepPrepare:
         """
         file_specs: List["internal_api.CreateArtifactFileSpecInput"] = []
         for prepare_request in batch:
-            file_spec = prepare_request.prepare_fn()
+            file_spec = prepare_request.input
             file_specs.append(file_spec)
         return self._api.create_artifact_files(file_specs)
 
     def prepare_async(
-        self, prepare_fn: "DoPrepareFn", on_prepare: Optional["OnPrepareFn"] = None
+        self,
+        input: "internal_api.CreateArtifactFileSpecInput",
+        on_prepare: Optional["OnPrepareFn"] = None,
     ) -> "queue.Queue[ResponsePrepare]":
         """Request the backend to prepare a file for upload.
 
@@ -153,11 +151,13 @@ class StepPrepare:
                 either a file upload url, or None if the file doesn't need to be uploaded.
         """
         response_queue: "queue.Queue[ResponsePrepare]" = queue.Queue()
-        self._request_queue.put(RequestPrepare(prepare_fn, on_prepare, response_queue))
+        self._request_queue.put(RequestPrepare(input, on_prepare, response_queue))
         return response_queue
 
-    def prepare(self, prepare_fn: "DoPrepareFn") -> ResponsePrepare:
-        return self.prepare_async(prepare_fn).get()
+    def prepare(
+        self, input: "internal_api.CreateArtifactFileSpecInput"
+    ) -> ResponsePrepare:
+        return self.prepare_async(input).get()
 
     def start(self) -> None:
         self._thread.start()

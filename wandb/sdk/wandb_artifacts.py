@@ -58,7 +58,6 @@ if TYPE_CHECKING:
 
     import wandb.apis.public
     from wandb.filesync.step_prepare import StepPrepare
-    from wandb.sdk.internal import internal_api
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -998,15 +997,14 @@ class WandbStoragePolicy(StoragePolicy):
                 shutil.copyfile(entry.local_path, f.name)
             entry.local_path = cache_path
 
-        def _prepare_fn() -> "internal_api.CreateArtifactFileSpecInput":
-            return {
+        resp = preparer.prepare(
+            {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
             }
-
-        resp = preparer.prepare(_prepare_fn)
+        )
 
         entry.birth_artifact_id = resp.birth_artifact_id
         exists = resp.upload_url is None
