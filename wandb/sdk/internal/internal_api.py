@@ -988,6 +988,7 @@ class Api:
                     name
                     createdBy
                     access
+                    defaultResourceConfigId
                 }
             }
         }
@@ -1039,6 +1040,47 @@ class Api:
             "createRunQueue"
         ]
         return result
+
+    @normalize_exceptions
+    def get_default_resource_config_by_id(
+        self,
+        entity_name: str,
+        project_name: str,
+        default_resource_config_id: str,
+    ) -> Optional[Dict[str, str]]:
+        query = gql(
+            """
+        query DefaultResourceConfigs(
+            $entityName: String!,
+            $projectName: String!,
+            $defaultResourceConfigId: ID!,
+        ){
+            project(entityName: $entityName, name: $projectName) {
+                defaultResourceConfig(id: $defaultResourceConfigId) {
+                    id
+                    resource
+                    config
+                }
+            }
+        }
+        """
+        )
+
+        response = self.gql(
+            query,
+            variable_values={
+                "projectName": project_name,
+                "entityName": entity_name,
+                "defaultResourceConfigId": default_resource_config_id,
+            },
+        )
+
+        project = response.get("project")
+        if not project:
+            return None
+
+        drc: Optional[Dict[str, str]] = project.get("defaultResourceConfig")
+        return drc
 
     @normalize_exceptions
     def push_to_run_queue(
@@ -1099,6 +1141,47 @@ class Api:
             return None
         else:
             queue_id = matching_queues[0]["id"]
+            default_resource_config_id = matching_queues[0]["defaultResourceConfigId"]
+
+            drc = self.get_default_resource_config_by_id(
+                launch_spec["entity"],
+                launch_spec["project"],
+                default_resource_config_id,
+            )
+            if drc:
+                if launch_spec.get("resource") != drc.get("resource"):
+                    # TODO: confirm this is the functionality we want.
+                    wandb.termerror(
+                        "Pushed a job to a queue with mismatched resource type"
+                    )
+                    return None
+                else:
+                    config = drc.get("config")
+                    if not config:
+                        wandb.termerror("Loaded DefaultResourceConfig with no config")
+                        return None
+
+                    try:
+                        config_parsed: Dict[str, str] = json.loads(config)
+                    except Exception as e:
+                        wandb.termerror(str(e))
+                        return None
+
+                    if not config_parsed.get("resource_args"):
+                        wandb.termwarn("Found a Default Config with no resource_args")
+                        return None
+
+                    if launch_spec.get("resource_args") and config_parsed.get(
+                        "resource_args"
+                    ):
+                        wandb.termwarn(
+                            "Found manually created resource args AND a configured default resource config."
+                            "Ignoring Default Config"
+                        )
+                    else:
+                        launch_spec["resource_args"] = config_parsed.get(
+                            "resource_args", ""
+                        )
 
         mutation = gql(
             """
