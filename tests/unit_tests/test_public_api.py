@@ -165,3 +165,31 @@ def test_override_base_url_passed_to_login():
         api = wandb.Api(api_key=None, overrides={"base_url": base_url})
         assert mock_login.call_args[1]["host"] == base_url
         assert api.settings["base_url"] == base_url
+
+
+def test_create_artifact_portfolio(relay_server, wandb_init):
+    with relay_server() as relay:
+        api = Api()
+        api.create_artifact_portfolio("tmp-registered-model")
+
+    created_artifact_portfolio = False
+    for comm in relay.context.raw_data:
+        if comm["request"].get("query"):
+            print(comm["request"].get("query"), end="")
+            print("variables", comm["request"]["variables"])
+            print("response", comm["response"]["data"])
+            print("\n")
+            if "createArtifactPortfolio" in comm["request"].get("query"):
+                if "data" in comm["response"]:
+                    created_artifact_portfolio = True
+                else:
+                    continue
+
+                assert comm["response"]["data"]["createArtifactPortfolio"] is not None
+                assert (
+                    comm["response"]["data"]["createArtifactPortfolio"][
+                        "artifactCollection"
+                    ]["name"]
+                    == "tmp-registered-model"
+                )
+    assert created_artifact_portfolio
