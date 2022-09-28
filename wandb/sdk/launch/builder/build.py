@@ -510,6 +510,25 @@ def join(split_command: List[str]) -> str:
     return " ".join(shlex.quote(arg) for arg in split_command)
 
 
+def make_image_uri(
+    builder,
+    launch_project: LaunchProject,
+    repository: str,
+    entry_point: EntryPoint,
+    docker_args: dict,
+) -> str:
+    """
+    Helper for testing
+    """
+    image_uri = builder.build_image(
+        launch_project,
+        repository,
+        entry_point,
+        docker_args,
+    )
+    return image_uri
+
+
 def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
@@ -550,7 +569,8 @@ def build_image_from_project(
         command=EntrypointDefaults.PYTHON,
     )
 
-    image_uri = builder.build_image(
+    image_uri = make_image_uri(
+        builder,
         launch_project,
         repository,
         entry_point,
