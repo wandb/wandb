@@ -23,6 +23,15 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     run = wandb.init(project=proj)
     time.sleep(1)
 
+    def patched_validate_docker_installation():
+        return None
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "validate_docker_installation",
+        lambda: patched_validate_docker_installation(),
+    )
+
     def patched_make_image_uri(
         builder,
         launch_project,
