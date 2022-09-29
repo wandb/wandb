@@ -797,6 +797,13 @@ class HandleManager:
             result.response.sampled_history_response.item.append(item)
         self._respond_result(result)
 
+    def handle_request_server_info(self, record: Record) -> None:
+        self._dispatch_record(record, always_send=True)
+
+    def handle_request_keepalive(self, record: Record) -> None:
+        """keepalive is a noop, we just want to verify transport is alive."""
+        pass
+
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
         result = proto_util._result_from_record(record)
