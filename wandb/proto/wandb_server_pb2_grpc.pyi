@@ -38,6 +38,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.PollExitRequest,
     ) -> wandb.proto.wandb_internal_pb2.PollExitResponse: ...
 
+    def ServerInfo(self,
+        request: wandb.proto.wandb_internal_pb2.ServerInfoRequest,
+    ) -> wandb.proto.wandb_internal_pb2.ServerInfoResponse: ...
+
     def Shutdown(self,
         request: wandb.proto.wandb_internal_pb2.ShutdownRequest,
     ) -> wandb.proto.wandb_internal_pb2.ShutdownResponse: ...
@@ -105,6 +109,10 @@ class InternalServiceStub:
     def ArtifactPoll(self,
         request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
+
+    def Keepalive(self,
+        request: wandb.proto.wandb_internal_pb2.KeepaliveRequest,
+    ) -> wandb.proto.wandb_internal_pb2.KeepaliveResponse: ...
 
     def CheckVersion(self,
         request: wandb.proto.wandb_internal_pb2.CheckVersionRequest,
@@ -199,6 +207,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
     ) -> wandb.proto.wandb_internal_pb2.PollExitResponse: ...
 
     @abc.abstractmethod
+    def ServerInfo(self,
+        request: wandb.proto.wandb_internal_pb2.ServerInfoRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.ServerInfoResponse: ...
+
+    @abc.abstractmethod
     def Shutdown(self,
         request: wandb.proto.wandb_internal_pb2.ShutdownRequest,
         context: grpc.ServicerContext,
@@ -299,6 +313,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
+
+    @abc.abstractmethod
+    def Keepalive(self,
+        request: wandb.proto.wandb_internal_pb2.KeepaliveRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.KeepaliveResponse: ...
 
     @abc.abstractmethod
     def CheckVersion(self,

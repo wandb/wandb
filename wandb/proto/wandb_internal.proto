@@ -489,9 +489,11 @@ message Request {
     ArtifactSendRequest   artifact_send = 14;
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
+    KeepaliveRequest      keepalive = 17;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
+    ServerInfoRequest     server_info = 67;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -512,9 +514,11 @@ message Response {
     LogArtifactResponse    log_artifact_response = 30;
     ArtifactSendResponse   artifact_send_response = 31;
     ArtifactPollResponse   artifact_poll_response = 32;
+    KeepaliveResponse      keepalive_response = 18;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
+    ServerInfoResponse     server_info_response = 67;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -533,9 +537,10 @@ message DeferRequest {
     FLUSH_OUTPUT = 6;
     FLUSH_DIR = 7;
     FLUSH_FP = 8;
-    FLUSH_FS = 9;
-    FLUSH_FINAL = 10;
-    END = 11;
+    JOIN_FP = 9;
+    FLUSH_FS = 10;
+    FLUSH_FINAL = 11;
+    END = 12;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -626,10 +631,20 @@ message PollExitRequest {
 message PollExitResponse {
   bool            done = 1;
   RunExitResult   exit_result = 2;
-  FileCounts      file_counts = 3;
-  FilePusherStats pusher_stats = 4;
-  LocalInfo local_info = 5;
-  ServerMessages server_messages = 6;
+  FilePusherStats pusher_stats = 3;
+  FileCounts      file_counts = 4;
+}
+
+/*
+ * ServerInfoRequest:
+ */
+message ServerInfoRequest {
+  _RequestInfo _info = 200;
+}
+
+message ServerInfoResponse {
+  LocalInfo      local_info = 1;
+  ServerMessages server_messages = 2;
 }
 
 message ServerMessages{
@@ -817,4 +832,14 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
+}
+
+/*
+ * Keepalive:
+ */
+message KeepaliveRequest {
+  _RequestInfo _info = 200;
+}
+
+message KeepaliveResponse {
 }
