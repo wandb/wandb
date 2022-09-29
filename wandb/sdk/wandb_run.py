@@ -2112,7 +2112,6 @@ class Run:
             wandb.termwarn("Attempting artifact query with no project set")
 
         job_artifact = wandb.Artifact(name, type="job")
-        raise Exception(job_artifact)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(patch_path, "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
