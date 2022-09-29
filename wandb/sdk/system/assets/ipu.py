@@ -1,0 +1,150 @@
+from collections import deque
+import multiprocessing as mp
+from typing import Any, TYPE_CHECKING, Deque, Dict, Optional, Set, Tuple, Union, cast
+
+import wandb
+import wandb.util
+
+from .interfaces import MetricType, MetricsMonitor
+from . import asset_registry
+
+if TYPE_CHECKING:
+    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.sdk.internal.settings_static import SettingsStatic
+
+
+class IPUStats:
+    name = "ipu.{}.{}"
+    metric_type = cast("gauge", MetricType)
+    samples: Deque[dict]
+
+    # The metrics that change over time.
+    # Only these are returned on each invocation
+    # to avoid sending a load of unnecessary data.
+    variable_metric_keys = {
+        "average board temp",
+        "average die temp",
+        "clock",
+        "ipu power",
+        "ipu utilisation",
+        "ipu utilisation (session)",
+    }
+
+    def __init__(self, pid: int, gc_ipu_info: Any = None) -> None:
+        self.samples: Deque[dict] = deque()
+        self.pid = pid
+
+        if gc_ipu_info is None:
+            import gcipuinfo  # type: ignore
+
+            self._gc_ipu_info = gcipuinfo.gcipuinfo()
+        else:
+            self._gc_ipu_info = gc_ipu_info
+        self._gc_ipu_info.setUpdateMode(True)
+
+        self._pid = pid
+        self._devices_called: Set[str] = set()
+
+    @staticmethod
+    def parse_metric(key: str, value: str) -> Optional[Tuple[str, Union[int, float]]]:
+        metric_suffixes = {
+            "temp": "C",
+            "clock": "MHz",
+            "power": "W",
+            "utilisation": "%",
+            "utilisation (session)": "%",
+            "speed": "GT/s",
+        }
+
+        for metric, suffix in metric_suffixes.items():
+            if key.endswith(metric) and value.endswith(suffix):
+                value = value[: -len(suffix)]
+                key = f"{key} ({suffix})"
+
+        try:
+            float_value = float(value)
+            num_value = int(float_value) if float_value.is_integer() else float_value
+        except ValueError:
+            return None
+
+        return key, num_value
+
+    def sample(self) -> None:
+        try:
+            stats = {}
+            devices = self._gc_ipu_info.getDevices()
+            for device in devices:
+                device_metrics: Dict[str, str] = dict(device)
+
+                pid = device_metrics.get("user process id")
+                if pid is None or int(pid) != self._pid:
+                    continue
+
+                device_id = device_metrics.get("id")
+                initial_call = device_id not in self._devices_called
+                if device_id is not None:
+                    self._devices_called.add(device_id)
+
+                for key, value in device_metrics.items():
+                    log_metric = initial_call or key in self.variable_metric_keys
+                    if not log_metric:
+                        continue
+                    parsed = self.parse_metric(key, value)
+                    if parsed is None:
+                        continue
+                    parsed_key, parsed_value = parsed
+                    stats[self.name.format(device_id, parsed_key)] = parsed_value
+
+            self.samples.append(stats)
+
+        except Exception as e:
+            wandb.termwarn(f"IPU stats error {e}", repeat=False)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        stats = {}
+        for key in self.samples[0].keys():
+            samples = [s[key] for s in self.samples]  # type: ignore
+            aggregate = round(sum(samples) / len(samples), 2)
+            stats[self.name.format(key)] = aggregate
+        return stats
+
+
+@asset_registry.register
+class IPU:
+    def __init__(
+        self,
+        interface: "InterfaceQueue",
+        settings: "SettingsStatic",
+        shutdown_event: mp.Event,
+    ) -> None:
+        self.name = self.__class__.__name__.lower()
+        self.metrics = [
+            IPUStats(settings._stats_pid),
+        ]
+        self.metrics_monitor = MetricsMonitor(
+            self.metrics,
+            interface,
+            settings,
+            shutdown_event,
+        )
+
+    @classmethod
+    def is_available(cls) -> bool:
+        try:
+            import gcipuinfo  # noqa
+        except ImportError:
+            return False
+
+        return True
+
+    def start(self) -> None:
+        self.metrics_monitor.start()
+
+    def finish(self) -> None:
+        self.metrics_monitor.finish()
+
+    def probe(self) -> dict:
+        return {"type": "ipu", "vendor": "Graphcore"}
