@@ -30,7 +30,7 @@ class SystemMonitor:
                     interface=interface,
                     settings=settings,
                     shutdown_event=self._shutdown_event,
-                    start_time_stamp=self._start_time_stamp,
+                    # start_time_stamp=self._start_time_stamp,
                 )
             )
 

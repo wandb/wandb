@@ -86,7 +86,7 @@ class MetricsMonitor:
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
-        start_time,
+        # start_time,
     ) -> None:
         self.metrics = metrics
         self._interface = interface
