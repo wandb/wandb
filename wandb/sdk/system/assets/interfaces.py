@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-# import wandb.util
+import wandb
 
 TimeStamp = TypeVar("TimeStamp", bound=datetime.datetime)
 Sample = TypeVar("Sample", float, int, str, bytes, list, tuple, dict)
@@ -123,9 +123,12 @@ class MetricsMonitor:
 
     def publish(self) -> None:
         """Publish the Asset metrics"""
-        self._interface.publish_stats(self.serialize())
-        for metric in self.metrics:
-            metric.clear()
+        try:
+            self._interface.publish_stats(self.serialize())
+            for metric in self.metrics:
+                metric.clear()
+        except Exception as e:
+            wandb.termerror(f"Failed to publish metrics: {e}", repeat=False)
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():

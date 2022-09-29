@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # TODO: just copied from old tpu code, maybe need restructuring...
 
 
+# @asset_registry.register
 class TPUUtilization:
     name = "tpu.utilization"
     metric_type = cast("gauge", MetricType)

@@ -293,11 +293,6 @@ def vendor_setup() -> Callable:
     return reset_import_path
 
 
-def apple_gpu_stats_binary() -> str:
-    parent_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(parent_dir, "bin", "apple_gpu_stats")
-
-
 def vendor_import(name: str) -> Any:
     reset_path = vendor_setup()
     module = import_module(name)

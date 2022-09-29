@@ -364,12 +364,6 @@ def test_matplotlib_to_plotly():
     plt.close()
 
 
-def test_apple_gpu_stats_binary():
-    assert util.apple_gpu_stats_binary().endswith(
-        os.path.join("bin", "apple_gpu_stats")
-    )
-
-
 def test_convert_plots():
     fig = matplotlib_without_image()
     obj = util.convert_plots(fig)
