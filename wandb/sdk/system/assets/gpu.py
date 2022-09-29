@@ -147,7 +147,7 @@ class GPUTemperature:
 
 
 class GPUPowerUsageWatts:
-    name = "gpu.{i}.powerWatts"
+    name = "gpu.{}.powerWatts"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: Deque[List[float]]
@@ -177,7 +177,7 @@ class GPUPowerUsageWatts:
 
 
 class GPUPowerUsagePercent:
-    name = "gpu.{i}.powerPercent"
+    name = "gpu.{}.powerPercent"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: Deque[List[float]]
