@@ -23,7 +23,7 @@ class TPUUtilization:
     def __init__(
         self,
         service_addr: str,
-        duration_ms: int = 1000,
+        duration_ms: int = 100,
     ) -> None:
         self.samples = deque([])
 
