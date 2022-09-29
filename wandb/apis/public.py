@@ -2269,7 +2269,6 @@ class QueuedRun:
         self._entity = entity
         self._project = project
         self._queue_name = queue_name
-        self._queue_id = None
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
@@ -2278,10 +2277,6 @@ class QueuedRun:
     @property
     def queue_name(self):
         return self._queue_name
-
-    @property
-    def queue_id(self):
-        return self._queue_id
 
     @property
     def id(self):
@@ -2344,7 +2339,6 @@ class QueuedRun:
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
                 project(name: $projectName, entityName: $entityName) {
                     runQueue(name: $runQueue) {
-                        id
                         runQueueItem(id: $itemId) {
                             id
                             state
@@ -2364,7 +2358,6 @@ class QueuedRun:
         try:
             res = self.client.execute(query, variable_values)  # exception w/ old server
             if res["project"]["runQueue"].get("runQueueItem") is not None:
-                self._queue_id = res["project"]["runQueue"]["id"]
                 return res["project"]["runQueue"]["runQueueItem"]
         except Exception as e:
             if "Cannot query field" not in str(e):
@@ -2389,9 +2382,9 @@ class QueuedRun:
         """
         mutation = gql(
             """
-            mutation DeleteFromRunQueue($queueID: ID!, $runQueueItemId: ID!)
+            mutation DeleteFromRunQueueByName($queueName: ID!, $runQueueItemId: ID!)
             {
-                deleteFromRunQueue(input: {queueID: $queueID, runQueueItemId: $runQueueItemId}) {
+                deleteFromRunQueueByName(input: {queueName: $queueName, runQueueItemId: $runQueueItemId}) {
                     success
                     clientMutationId
                 }
@@ -2401,7 +2394,7 @@ class QueuedRun:
         self.client.execute(
             mutation,
             variable_values={
-                "queueID": self.queue_id,
+                "queueName": self.queue_name,
                 "runQueueItemId": self._run_queue_item_id,
             },
         )
