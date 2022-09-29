@@ -14,12 +14,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# TODO: just copied from old tpu code, maybe need restructuring...
 
-
-# @asset_registry.register
 class TPUUtilization:
-    name = "tpu.utilization"
+    name = "tpu"
     metric_type = cast("gauge", MetricType)
     samples: Deque[float]
 
@@ -54,6 +51,7 @@ class TPUUtilization:
         return {self.name: aggregate}
 
 
+@asset_registry.register
 class TPU:
     def __init__(
         self,
@@ -62,12 +60,8 @@ class TPU:
         shutdown_event: mp.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
-        self.metrics = []
-        try:
-            service_addr = self.get_service_addr()
-            self.metrics.append(TPUUtilization(service_addr))
-        except Exception as e:
-            logger.warn("Failed to initialize TPU metrics: %s", e)
+        service_addr = self.get_service_addr()
+        self.metrics = [TPUUtilization(service_addr)]
 
         self.metrics_monitor = MetricsMonitor(
             self.metrics,
@@ -104,7 +98,7 @@ class TPU:
                     [tpu_name], zone=compute_zone, project=core_project
                 ).get_master()
             except (ValueError, TypeError):
-                raise Exception(
+                raise ValueError(
                     "Failed to find TPU. Try specifying TPU zone "
                     "(via CLOUDSDK_COMPUTE_ZONE environment variable)"
                     " and GCP project (via CLOUDSDK_CORE_PROJECT "
@@ -133,10 +127,13 @@ class TPU:
             from tensorflow.python.profiler import (  # type: ignore # noqa
                 profiler_client,
             )
+
+            cls.get_service_addr()
         except (
             ImportError,
             TypeError,
             AttributeError,
+            ValueError,
         ):  # Saw type error when iterating paths on colab...
             # TODO: Saw sentry error (https://sentry.io/organizations/weights-biases/issues/2699838212/?project=5288891&query=firstRelease%3A0.12.4&statsPeriod=14d) where
             # module 'tensorflow.python.pywrap_tensorflow' has no attribute 'TFE_DEVICE_PLACEMENT_EXPLICIT'
