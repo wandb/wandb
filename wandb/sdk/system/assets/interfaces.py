@@ -15,7 +15,7 @@ else:
     from typing import Sequence
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface.interface_queue import InterfaceQueue
+    from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 import wandb
@@ -75,6 +75,14 @@ class Asset(Protocol):
         ...
 
 
+class Interface(Protocol):
+    def publish_stats(self, stats: dict) -> None:
+        ...
+
+    def _publish_telemetry(self, telemetry: "TelemetryRecord") -> None:
+        ...
+
+
 class MetricsMonitor:
     """
     Takes care of collecting, sampling, serializing, and publishing a set of metrics.
@@ -83,7 +91,7 @@ class MetricsMonitor:
     def __init__(
         self,
         metrics: List[Metric],
-        interface: "InterfaceQueue",
+        interface: Interface,
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
         # start_time,

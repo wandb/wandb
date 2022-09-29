@@ -16,6 +16,7 @@ class SettingsStatic:
     _stats_pid: int
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
+    _stats_join_assets: bool
     files_dir: str
     log_internal: str
     _internal_check_process: bool
