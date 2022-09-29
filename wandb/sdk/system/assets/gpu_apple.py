@@ -4,7 +4,13 @@ import multiprocessing as mp
 import pathlib
 import platform
 import subprocess
-from typing import TYPE_CHECKING, Deque, Dict, TypedDict, cast
+import sys
+from typing import TYPE_CHECKING, Deque, cast
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 
 import wandb
 import wandb.util
