@@ -1,13 +1,18 @@
-from collections.abc import Sequence
 import datetime
 import multiprocessing as mp
+import sys
 import threading
 from typing import List, Optional, TypeVar, TYPE_CHECKING
 
-try:
+if sys.version_info >= (3, 8):
     from typing import Literal, Protocol, runtime_checkable
-except ImportError:
+else:
     from typing_extensions import Literal, Protocol, runtime_checkable
+
+if sys.version_info >= (3, 9):
+    from collections.abc import Sequence
+else:
+    from typing import Sequence
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -81,6 +86,7 @@ class MetricsMonitor:
         interface: "InterfaceQueue",
         settings: "SettingsStatic",
         shutdown_event: mp.Event,
+        start_time,
     ) -> None:
         self.metrics = metrics
         self._interface = interface
@@ -113,6 +119,7 @@ class MetricsMonitor:
 
     def serialize(self) -> dict:
         """Return a dict of metrics"""
+        # serialized_metrics = {"timestamp": time.monotonic() - self.start_time}
         serialized_metrics = {}
         for metric in self.metrics:
             serialized_metrics.update(metric.serialize())
