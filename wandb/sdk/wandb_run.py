@@ -417,6 +417,7 @@ class Run:
     _settings: Settings
 
     _launch_artifacts: Optional[Dict[str, Any]]
+    _printer: Union["PrinterTerm", "PrinterJupyter"]
 
     def __init__(
         self,
@@ -1205,9 +1206,10 @@ class Run:
             self._backend.interface.publish_summary(summary_record)
 
     def _on_progress_get_summary(self, handle: MailboxProgress) -> None:
-        line = "Waiting for run.summary data...\r"
-        # TODO: use printer?
-        print(line, end="")
+        pass
+        # TODO(jhr): enable printing for get_summary in later mailbox dev phase
+        # line = "Waiting for run.summary data..."
+        # self._printer.display(line)
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
         if not self._backend or not self._backend.interface:
