@@ -5,6 +5,7 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
+import time
 from abc import abstractmethod
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
@@ -27,6 +28,8 @@ class InterfaceShared(InterfaceBase):
     _process_check: bool
     _router: Optional[MessageRouter]
     _mailbox: Optional[Mailbox]
+    _transport_success_timestamp: float
+    _transport_failed: bool
 
     def __init__(
         self,
@@ -35,6 +38,8 @@ class InterfaceShared(InterfaceBase):
         mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
+        self._transport_success_timestamp = time.monotonic()
+        self._transport_failed = False
         self._process = process
         self._router = None
         self._process_check = process_check
@@ -44,6 +49,20 @@ class InterfaceShared(InterfaceBase):
     @abstractmethod
     def _init_router(self) -> None:
         raise NotImplementedError
+
+    @property
+    def transport_failed(self) -> bool:
+        return self._transport_failed
+
+    @property
+    def transport_success_timestamp(self) -> float:
+        return self._transport_success_timestamp
+
+    def _transport_mark_failed(self) -> None:
+        self._transport_failed = True
+
+    def _transport_mark_success(self) -> None:
+        self._transport_success_timestamp = time.monotonic()
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -113,6 +132,8 @@ class InterfaceShared(InterfaceBase):
         artifact_send: pb.ArtifactSendRequest = None,
         artifact_poll: pb.ArtifactPollRequest = None,
         artifact_done: pb.ArtifactDoneRequest = None,
+        server_info: pb.ServerInfoRequest = None,
+        keepalive: pb.KeepaliveRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -151,6 +172,10 @@ class InterfaceShared(InterfaceBase):
             request.artifact_poll.CopyFrom(artifact_poll)
         elif artifact_done:
             request.artifact_done.CopyFrom(artifact_done)
+        elif server_info:
+            request.server_info.CopyFrom(server_info)
+        elif keepalive:
+            request.keepalive.CopyFrom(keepalive)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -427,6 +452,21 @@ class InterfaceShared(InterfaceBase):
         assert poll_exit_response
         return poll_exit_response
 
+    def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
+        record = self._make_request(keepalive=keepalive)
+        self._publish(record)
+
+    def _communicate_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> Optional[pb.ServerInfoResponse]:
+        rec = self._make_request(server_info=server_info)
+        result = self._communicate(rec)
+        if result is None:
+            return None
+        server_info_response = result.response.server_info_response
+        assert server_info_response
+        return server_info_response
+
     def _communicate_check_version(
         self, check_version: pb.CheckVersionRequest
     ) -> Optional[pb.CheckVersionResponse]:
@@ -480,17 +520,54 @@ class InterfaceShared(InterfaceBase):
         assert mailbox
         return mailbox
 
-    def _deliver(self, record: pb.Record, slot_address: str) -> None:
-        record.control.mailbox_slot = slot_address
-        self._publish(record)
+    def _deliver_record(self, record: pb.Record) -> MailboxHandle:
+        mailbox = self._get_mailbox()
+        handle = mailbox._deliver_record(record, interface=self)
+        return handle
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
-        mailbox = self._get_mailbox()
-        rec = self._make_record(run=run)
-        handle = mailbox.get_handle()
-        slot_address = handle.address
-        self._deliver(rec, slot_address)
-        return handle
+        record = self._make_record(run=run)
+        return self._deliver_record(record)
+
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        record = self._make_request(get_summary=get_summary)
+        return self._deliver_record(record)
+
+    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        record = self._make_record(exit=exit_data)
+        return self._deliver_record(record)
+
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        record = self._make_request(poll_exit=poll_exit)
+        return self._deliver_record(record)
+
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
+        record = self._make_request(server_info=server_info)
+        return self._deliver_record(record)
+
+    def _deliver_request_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> MailboxHandle:
+        record = self._make_request(sampled_history=sampled_history)
+        return self._deliver_record(record)
+
+    def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
+        if self._transport_failed:
+            return True
+
+        now = time.monotonic()
+        if now < self._transport_success_timestamp + keepalive_interval:
+            return False
+
+        try:
+            self.publish_keepalive()
+        except Exception:
+            self._transport_mark_failed()
+        else:
+            self._transport_mark_success()
+        return self._transport_failed
 
     def join(self) -> None:
         super().join()
