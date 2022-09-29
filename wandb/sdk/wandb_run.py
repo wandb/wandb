@@ -1219,8 +1219,8 @@ class Run:
         )
         if not result:
             return {}
-        get_summary = result.response.get_summary_response
-        return proto_util.dict_from_proto_list(get_summary.item)
+        get_summary_response = result.response.get_summary_response
+        return proto_util.dict_from_proto_list(get_summary_response.item)
 
     def _metric_callback(self, metric_record: MetricRecord) -> None:
         if self._backend and self._backend.interface:
