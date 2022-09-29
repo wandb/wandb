@@ -679,11 +679,12 @@ class HandleManager:
         #     run_meta.write()
 
         # new system monitor
-        self.system_monitor = SystemMonitor(
-            self._settings,
-            self._interface,
-        )
-        self.system_monitor.start()
+        if not self._settings._disable_stats:
+            self.system_monitor = SystemMonitor(
+                self._settings,
+                self._interface,
+            )
+            self.system_monitor.start()
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
@@ -698,6 +699,9 @@ class HandleManager:
         # if self._system_stats is not None:
         #     logger.info("starting system metrics thread")
         #     self._system_stats.start()
+        if self.system_monitor is not None:
+            logger.info("starting system metrics process")
+            self.system_monitor.start()
 
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
@@ -707,6 +711,9 @@ class HandleManager:
         # if self._system_stats is not None:
         #     logger.info("stopping system metrics thread")
         #     self._system_stats.shutdown()
+        if self.system_monitor is not None:
+            logger.info("stopping system metrics process")
+            self.system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
             self._track_time = None
