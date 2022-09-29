@@ -75,7 +75,7 @@ class TimeObject:
     def __init__(self):
         self._time_elapsed = 0
         self._time_start = 0
-        now = time.time()
+        now = time.monotonic()
         self._time_start = now
         self._timed_events = []
 

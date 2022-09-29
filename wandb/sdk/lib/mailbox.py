@@ -223,7 +223,7 @@ class MailboxHandle:
         self._on_progress = on_progress
 
     def _time(self) -> float:
-        return time.time()
+        return time.monotonic()
 
     def wait(
         self,
@@ -319,7 +319,7 @@ class Mailbox:
         return handle.wait(timeout=timeout, on_progress=on_progress)
 
     def _time(self) -> float:
-        return time.time()
+        return time.monotonic()
 
     def wait_all(
         self,

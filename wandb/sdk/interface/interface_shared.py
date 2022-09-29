@@ -38,7 +38,7 @@ class InterfaceShared(InterfaceBase):
         mailbox: Optional[Any] = None,
     ) -> None:
         super().__init__()
-        self._transport_success_timestamp = time.time()
+        self._transport_success_timestamp = time.monotonic()
         self._transport_failed = False
         self._process = process
         self._router = None
@@ -62,7 +62,7 @@ class InterfaceShared(InterfaceBase):
         self._transport_failed = True
 
     def _transport_mark_success(self) -> None:
-        self._transport_success_timestamp = time.time()
+        self._transport_success_timestamp = time.monotonic()
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -557,7 +557,7 @@ class InterfaceShared(InterfaceBase):
         if self._transport_failed:
             return True
 
-        now = time.time()
+        now = time.monotonic()
         if now < self._transport_success_timestamp + keepalive_interval:
             return False
 
