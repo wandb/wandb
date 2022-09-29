@@ -5,6 +5,7 @@ StreamRecord: All the external state for the internal thread (queues, etc)
 StreamAction: Lightweight record for stream ops for thread safety with grpc
 StreamMux: Container for dictionary of stream threads per runid
 """
+import functools
 import logging
 import multiprocessing
 import queue
@@ -18,6 +19,12 @@ import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib.mailbox import (
+    Mailbox,
+    MailboxProbe,
+    MailboxProgress,
+    MailboxProgressAll,
+)
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
 
@@ -49,7 +56,8 @@ class StreamRecord:
     _thread: StreamThread
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
 
-    def __init__(self, settings: Dict[str, Any]) -> None:
+    def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
+        self._mailbox = mailbox
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
         self._relay_q = multiprocessing.Queue()
@@ -60,6 +68,7 @@ class StreamRecord:
             relay_q=self._relay_q,
             process=process,
             process_check=False,
+            mailbox=self._mailbox,
         )
         self._settings = SettingsStatic(settings)
 
@@ -128,6 +137,7 @@ class StreamMux:
     _action_q: "queue.Queue[StreamAction]"
     _stopped: Event
     _pid_checked_ts: Optional[float]
+    _mailbox: Mailbox
 
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
@@ -137,6 +147,8 @@ class StreamMux:
         self._stopped = Event()
         self._action_q = queue.Queue()
         self._pid_checked_ts = None
+        self._mailbox = Mailbox()
+        self._mailbox.enable_keepalive()
 
     def _get_stopped_event(self) -> "Event":
         # TODO: clean this up, there should be a better way to abstract this
@@ -188,7 +200,7 @@ class StreamMux:
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord(action._data)
+        stream = StreamRecord(action._data, mailbox=self._mailbox)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings_dict = action._data
         settings_dict[
@@ -227,6 +239,38 @@ class StreamMux:
                 stream.drop()
                 stream.join()
 
+    def _on_probe_exit(self, probe_handle: MailboxProbe, stream: StreamRecord) -> None:
+        handle = probe_handle.get_mailbox_handle()
+        if handle:
+            result = handle.wait(timeout=0)
+            if not result:
+                return
+            probe_handle.set_probe_result(result)
+        handle = stream.interface.deliver_poll_exit()
+        probe_handle.set_mailbox_handle(handle)
+
+    def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
+        pass
+
+    def _on_progress_exit_all(self, progress_all_handle: MailboxProgressAll) -> None:
+        probe_handles = []
+        progress_handles = progress_all_handle.get_progress_handles()
+        for progress_handle in progress_handles:
+            probe_handles.extend(progress_handle.get_probe_handles())
+
+        assert probe_handles
+
+        if self._check_orphaned():
+            self._stopped.set()
+
+        poll_exit_responses: List[Optional[pb.PollExitResponse]] = []
+        for probe_handle in probe_handles:
+            result = probe_handle.get_probe_result()
+            if result:
+                poll_exit_responses.append(result.response.poll_exit_response)
+
+        Run._footer_file_pusher_status_info(poll_exit_responses, printer=self._printer)
+
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
             return
@@ -235,44 +279,57 @@ class StreamMux:
         printer = get_printer(
             all(stream._settings._jupyter for stream in streams.values())
         )
+        self._printer = printer
+
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
+        exit_handles = []
         for stream in streams.values():
-            stream.interface.publish_exit(exit_code)
+            handle = stream.interface.deliver_exit(exit_code)
+            handle.add_progress(self._on_progress_exit)
+            handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
+            exit_handles.append(handle)
+
             Run._footer_exit_status_info(
                 exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
-        streams_to_join, poll_exit_responses = {}, {}
-        while streams and not self._stopped.is_set():
-            # Stop trying to sync data if our parent process has terminated
-            if self._check_orphaned():
-                self._stopped.set()
-                return
-            # Note that we materialize the generator so we can modify the underlying list
-            for sid, stream in list(streams.items()):
-                poll_exit_response = stream.interface.communicate_poll_exit()
-                poll_exit_responses[sid] = poll_exit_response
-                if poll_exit_response and poll_exit_response.done:
-                    streams.pop(sid)
-                    streams_to_join[sid] = stream
-            Run._footer_file_pusher_status_info(poll_exit_responses, printer=printer)
-            time.sleep(0.1)
+        got_result = self._mailbox.wait_all(
+            handles=exit_handles, timeout=-1, on_progress_all=self._on_progress_exit_all
+        )
+        assert got_result
 
-        # TODO: this would be nice to do in parallel
-        for sid, stream in streams_to_join.items():
-            history = (
-                stream.interface.communicate_sampled_history()
-                if stream.interface
-                else None
-            )
-            summary = (
-                stream.interface.communicate_get_summary() if stream.interface else None
-            )
+        # These could be done in parallel in the future
+        for _sid, stream in streams.items():
+
+            # dispatch all our final requests
+            poll_exit_handle = stream.interface.deliver_poll_exit()
+            server_info_handle = stream.interface.deliver_request_server_info()
+            final_summary_handle = stream.interface.deliver_get_summary()
+            sampled_history_handle = stream.interface.deliver_request_sampled_history()
+
+            # wait for them, its ok to do this serially but this can be improved
+            result = poll_exit_handle.wait(timeout=-1)
+            assert result
+            poll_exit_response = result.response.poll_exit_response
+
+            result = server_info_handle.wait(timeout=-1)
+            assert result
+            server_info_response = result.response.server_info_response
+
+            result = sampled_history_handle.wait(timeout=-1)
+            assert result
+            sampled_history = result.response.sampled_history_response
+
+            result = final_summary_handle.wait(timeout=-1)
+            assert result
+            final_summary = result.response.get_summary_response
+
             Run._footer(
-                history,
-                summary,
-                poll_exit_responses[sid],
+                sampled_history,
+                final_summary,
+                poll_exit_response,
+                server_info_response,
                 settings=stream._settings,  # type: ignore
                 printer=printer,
             )
