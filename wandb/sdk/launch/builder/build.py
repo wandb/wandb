@@ -6,9 +6,9 @@ import shutil
 import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
-import yaml
 
 import pkg_resources
+import yaml
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 
@@ -25,7 +25,7 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import LOG_PREFIX, LAUNCH_CONFIG_FILE, resolve_build_and_registry_config
+from ..utils import LAUNCH_CONFIG_FILE, LOG_PREFIX, resolve_build_and_registry_config
 from .abstract import AbstractBuilder
 from .loader import load_builder
 

@@ -1418,7 +1418,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         config, returned_api = launch.resolve_agent_config(
             api, None, None, -1, ["diff-queue"]
         )
-        assert returned_api.default_entity == "diffentity"
+
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
