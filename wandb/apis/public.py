@@ -407,7 +407,6 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self.server_create_artifact_portfolio_input_info: Optional[List[str]] = None
 
     def create_run(self, **kwargs):
         """Create a new run"""
@@ -946,30 +945,7 @@ class Api:
             raise ValueError("You must specify name= to fetch a job.")
         return Job(self, name, path)
 
-    def server_create_artifact_portfolio_input_introspection(self) -> List:
-        query_string = """
-           query ProbeServerCreateArtifactPortfolio {
-               CreateArtifactPortfolioInputInfoType: __type(name: "CreateArtifactPortfolioInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-        """
-
-        if self.server_create_artifact_portfolio_input_info is None:
-            query = gql(query_string)
-            res = self._client.execute(query)
-            self.server_create_artifact_portfolio_input_info = [
-                field.get("name", "")
-                for field in res.get("CreateArtifactPortfolioInputInfoType", {}).get(
-                    "inputFields", [{}]
-                )
-            ]
-        return self.server_create_artifact_portfolio_input_info
-
-    def create_artifact_portfolio(
+    def create_registered_model(
         self,
         name: str,
         entity: Optional[str] = None,
@@ -983,132 +959,25 @@ class Api:
             description (str): Description to add for the new collection
 
         Returns:
-            The `requests` library response object
+           `ArtifactPortfolio` object
         """
-        # TODO: Convert artifact_type to parameter
-        artifact_type = "model"
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
-        return self._create_artifact_portfolio(
+
+        # TODO: Convert artifact_type to parameter
+        artifact_type = "model"
+        artifact_portfolio = ArtifactPortfolio(
+            self,
             entity=entity,
             project=artifact_type + "-registry",
-            portfolio_name=name,
-            artifact_type=artifact_type,
+            name=name,
+            type_name=artifact_type,
             description=description,
         )
-
-    def _create_artifact_portfolio(
-        self,
-        entity: str,
-        project: str,
-        portfolio_name: str,
-        artifact_type: str,
-        description: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Creates an artifact portfolio from the sdk
-
-        Arguments:
-            entity (str): The entity to scope this project to.
-            project (str): The project under which to create the portfolio
-            portfolio_name (str): Name of the portfolio to create
-            artifact_type (str): Optional artifact type for portfolio, defaults to model.
-            description (str): Description for the portfolio
-        Returns:
-            The `requests` library response object
-        """
-        mutation_template = """
-                mutation CreateArtifactPortfolio(
-                    $entityName: String!
-                    $projectName: String!
-                    $artifactTypeID: ID!
-                    $artifactTypeName: String!
-                    $name: String!
-                    $description: String
-                    $clientMutationId: String
-                ){
-                    createArtifactPortfolio(
-                    input: {
-                        entityName: $entityName
-                        projectName: $projectName
-                        artifactTypeID: $artifactTypeID
-                        artifactTypeName: $artifactTypeName
-                        name: $name
-                        description: $description
-                        clientMutationId: $clientMutationId
-                    }
-                ){
-                    artifactCollection {
-                        id
-                        name
-                    }
-                    }
-                }
-        """
-
-        variable_values = {
-            "entityName": entity,
-            "projectName": project,
-            "artifactTypeName": artifact_type,
-            "name": portfolio_name,
-            "description": description,
-        }
-
-        create_portfolio_types = (
-            self.server_create_artifact_portfolio_input_introspection()
+        artifact_portfolio.create(
+            self,
         )
-
-        if "artifactTypeName" not in create_portfolio_types:
-            wandb.termwarn("Backend is out of date")
-            mutation_template = mutation_template.replace(
-                "$artifactTypeName: String!", ""
-            ).replace("artifactTypeName: $artifactTypeName", "")
-            query = gql(
-                """
-                    query ArtifactTypeID(
-                        $entityName: String!
-                        $projectName: String!
-                        $artifactType: String!
-                    ){
-                        project(name: $projectName, entityName: $entityName){
-                            artifactType(name: $artifactType)
-                                {
-                                    id
-                                }
-                        }
-                    }
-                """
-            )
-
-            variable_values_type_id = {
-                "entityName": entity,
-                "projectName": project,
-                "artifactType": artifact_type,
-            }
-            response = self._client.execute(query, variable_values_type_id)
-
-            try:
-                artifact_type_id = response["project"]["artifactType"]["id"]
-                variable_values["artifactTypeID"] = artifact_type_id
-            except TypeError:
-                api = InternalApi()
-                _ = api.upsert_project(project=project, entity=entity)
-                _artifact_type_id = api.create_artifact_type(
-                    artifact_type_name=artifact_type,
-                    project_name=project,
-                    entity_name=entity,
-                )
-                variable_values["artifactTypeID"] = _artifact_type_id
-        else:
-            mutation_template = mutation_template.replace(
-                "$artifactTypeID: ID!", ""
-            ).replace("artifactTypeID: $artifactTypeID", "")
-
-        mutation = gql(mutation_template)
-        response = self._client.execute(mutation, variable_values)
-        create_artifact_portfolio: Dict[str, Any] = response["createArtifactPortfolio"][
-            "artifactCollection"
-        ]
-        return create_artifact_portfolio
+        return artifact_portfolio
 
 
 class Attrs:
@@ -5357,3 +5226,157 @@ class Job:
             cuda=cuda,
         )
         return queued_run
+
+
+class ArtifactPortfolio(Attrs):
+    ARTIFACT_TYPE_ID_QUERY = gql(
+        """
+        query ArtifactTypeID(
+            $entityName: String!
+            $projectName: String!
+            $artifactType: String!
+        ){
+            project(name: $projectName, entityName: $entityName){
+                artifactType(name: $artifactType)
+                    {
+                        id
+                    }
+            }
+        }
+    """
+    )
+
+    MUTATION_QUERY_TEMPLATE = """mutation CreateArtifactPortfolio(
+        $entityName: String!
+        $projectName: String!
+        $artifactTypeID: ID!
+        $artifactTypeName: String!
+        $name: String!
+        $description: String
+        $clientMutationId: String)
+        {
+            createArtifactPortfolio(
+            input: {
+                entityName: $entityName
+                projectName: $projectName
+                artifactTypeID: $artifactTypeID
+                artifactTypeName: $artifactTypeName
+                name: $name
+                description: $description
+                clientMutationId: $clientMutationId
+            })
+            {
+                artifactCollection {
+                    id
+                    name
+                }
+            }
+        }
+    """
+
+    INTROSPECT_QUERY = gql(
+        """
+        query ProbeServerCreateArtifactPortfolio {
+            CreateArtifactPortfolioInputInfoType: __type(name: "CreateArtifactPortfolioInput") {
+                name
+                inputFields {
+                    name
+                }
+            }
+        }
+    """
+    )
+
+    def __init__(
+        self,
+        api: Api,
+        entity: str,
+        project: str,
+        type_name: str,
+        name: str,
+        description: Optional[str] = None,
+        attrs: Optional[Mapping] = None,
+    ):
+        super().__init__(dict(attrs or {}))
+        self._api = api
+        self.entity = entity
+        self.project = project
+        self.type_name = type_name
+        self.name = name
+        self.description = None
+        self.server_create_artifact_portfolio_input_info: Optional[List[str]] = None
+
+    def server_create_artifact_portfolio_input_introspection(self, api) -> List:
+        if self.server_create_artifact_portfolio_input_info is None:
+            res = api._client.execute(self.INTROSPECT_QUERY)
+            self.server_create_artifact_portfolio_input_info = [
+                field.get("name", "")
+                for field in res.get("CreateArtifactPortfolioInputInfoType", {}).get(
+                    "inputFields", [{}]
+                )
+            ]
+        return self.server_create_artifact_portfolio_input_info
+
+    def create(
+        self,
+        api: Api,
+    ) -> Dict[str, Any]:
+        """Creates the artifact portfolio
+
+        Arguments:
+            api: The `Api` object
+        Returns:
+            The `requests` library response object
+        """
+        # Assigning values for variables for create portfolio query
+        variable_values_portfolio = {
+            "entityName": self.entity,
+            "projectName": self.project,
+            "artifactTypeName": self.type_name,
+            "name": self.name,
+            "description": self.description,
+        }
+
+        create_portfolio_types = (
+            self.server_create_artifact_portfolio_input_introspection(self._api)
+        )
+
+        if "artifactTypeName" not in create_portfolio_types:
+            wandb.termwarn("Backend is out of date")
+            self.MUTATION_QUERY_TEMPLATE = self.MUTATION_QUERY_TEMPLATE.replace(
+                "$artifactTypeName: String!", ""
+            ).replace("artifactTypeName: $artifactTypeName", "")
+
+            # Assigning variable values for artifact type id query
+            variable_values_type_id = {
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactType": self.type_name,
+            }
+            response = self._api._client.execute(
+                self.ARTIFACT_TYPE_ID_QUERY, variable_values_type_id
+            )
+
+            try:
+                artifact_type_id = response["project"]["artifactType"]["id"]
+                variable_values_portfolio["artifactTypeID"] = artifact_type_id
+            except TypeError:
+                api = InternalApi()
+                _ = api.upsert_project(project=self.project, entity=self.entity)
+                _artifact_type_id = api.create_artifact_type(
+                    artifact_type_name=self.type_name,
+                    project_name=self.project,
+                    entity_name=self.entity,
+                )
+                variable_values_portfolio["artifactTypeID"] = _artifact_type_id
+        else:
+            self.MUTATION_QUERY_TEMPLATE = self.MUTATION_QUERY_TEMPLATE.replace(
+                "$artifactTypeID: ID!", ""
+            ).replace("artifactTypeID: $artifactTypeID", "")
+
+        mutation = gql(self.MUTATION_QUERY_TEMPLATE)
+        response = self._api._client.execute(mutation, variable_values_portfolio)
+        create_artifact_portfolio: Dict[str, Any] = response["createArtifactPortfolio"][
+            "artifactCollection"
+        ]
+        return create_artifact_portfolio

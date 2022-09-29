@@ -167,18 +167,18 @@ def test_override_base_url_passed_to_login():
         assert api.settings["base_url"] == base_url
 
 
-def test_create_artifact_portfolio(relay_server, wandb_init):
+def test_create_registered_model(relay_server, wandb_init):
     with relay_server() as relay:
         api = Api()
-        api.create_artifact_portfolio("tmp-registered-model")
+        artifact_portfolio = api.create_registered_model("test-registered-model")
+
+    assert artifact_portfolio.entity == api.settings["entity"]
+    assert artifact_portfolio.project == artifact_portfolio.type_name + "-registry"
+    assert artifact_portfolio.name == "test-registered-model"
 
     created_artifact_portfolio = False
     for comm in relay.context.raw_data:
         if comm["request"].get("query"):
-            print(comm["request"].get("query"), end="")
-            print("variables", comm["request"]["variables"])
-            print("response", comm["response"]["data"])
-            print("\n")
             if "createArtifactPortfolio" in comm["request"].get("query"):
                 if "data" in comm["response"]:
                     created_artifact_portfolio = True
@@ -190,6 +190,6 @@ def test_create_artifact_portfolio(relay_server, wandb_init):
                     comm["response"]["data"]["createArtifactPortfolio"][
                         "artifactCollection"
                     ]["name"]
-                    == "tmp-registered-model"
+                    == "test-registered-model"
                 )
     assert created_artifact_portfolio
