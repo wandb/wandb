@@ -13,7 +13,7 @@ import wandb.util as util
 import yaml
 from wandb.apis import PublicApi
 from wandb.apis.public import Run
-from wandb.errors import CommError, LaunchError
+from wandb.errors import LaunchError
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.builder.build import pull_docker_image
 from wandb.sdk.launch.builder.docker import DockerBuilder
@@ -1366,7 +1366,7 @@ def test_launch_build_config_file(
         lambda *args, **kwargs: (args, kwargs),
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.launch,
+        wandb.sdk.launch.builder.build,
         "LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
@@ -1418,7 +1418,7 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         config, returned_api = launch.resolve_agent_config(
             api, None, None, -1, ["diff-queue"]
         )
-        returned_api.default_entity == "diffentity"
+        assert returned_api.default_entity == "diffentity"
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1

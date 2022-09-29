@@ -6,6 +6,7 @@ import shutil
 import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
+import yaml
 
 import pkg_resources
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -24,7 +25,7 @@ from .._project_spec import (
     compute_command_args,
     fetch_and_validate_project,
 )
-from ..utils import LOG_PREFIX
+from ..utils import LOG_PREFIX, LAUNCH_CONFIG_FILE, resolve_build_and_registry_config
 from .abstract import AbstractBuilder
 from .loader import load_builder
 
@@ -511,7 +512,30 @@ def join(split_command: List[str]) -> str:
     return " ".join(shlex.quote(arg) for arg in split_command)
 
 
-def make_image_uri(
+def construct_builder_args(
+    launch_config: Optional[Dict] = None,
+    build_config: Optional[Dict] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    registry_config = None
+    given_docker_args = {}
+    if launch_config is not None:
+        given_docker_args = launch_config.get("docker", {}).get("args", {})
+        build_config = launch_config.get("build")
+        registry_config = launch_config.get("registry")
+
+    default_launch_config = None
+    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+            default_launch_config = yaml.safe_load(f)
+
+    build_config, registry_config = resolve_build_and_registry_config(
+        default_launch_config, build_config, registry_config
+    )
+
+    return given_docker_args, build_config, registry_config
+
+
+def build_image_with_builder(
     builder: AbstractBuilder,
     launch_project: LaunchProject,
     repository: Optional[Any],
@@ -519,8 +543,9 @@ def make_image_uri(
     docker_args: dict,
 ) -> Optional[str]:
     """
-    Helper for testing
+    Helper for testing and logging
     """
+    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source.")
     image_uri: Optional[str] = builder.build_image(
         launch_project,
         repository,
@@ -533,8 +558,8 @@ def make_image_uri(
 def build_image_from_project(
     launch_project: LaunchProject,
     api: Api,
-    build_type: Optional[str],
     launch_config: Optional[Dict] = None,
+    default_builder_type: Optional[str] = "docker",
 ) -> str:
     """
     Accepts a reference to the Api class and a pre-computed launch_spec
@@ -547,30 +572,24 @@ def build_image_from_project(
     """
     assert launch_project.uri, "To build an image on queue a URI must be set."
 
-    builder_config = {"type": build_type}
-    docker_args = {}
-    repository = None
-    if launch_config:
-        repository = launch_config.get("url")
+    repository = launch_project.git_repo
+    if not repository and launch_config:
+        repository = launch_config.get("repository")
 
-    if launch_project.python_version:
-        docker_args["python_version"] = launch_project.python_version
-
-    if launch_project.cuda_version:
-        docker_args["cuda_version"] = launch_project.cuda_version
-
-    if launch_project.docker_user_id:
-        docker_args["user"] = str(launch_project.docker_user_id)
-
-    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source.")
+    docker_args, builder_config, _ = construct_builder_args(launch_config)
     launch_project = fetch_and_validate_project(launch_project, api)
+
+    if not builder_config.get("type"):
+        wandb.termlog("no builder found in config, defaulting to docker builder")
+        builder_config["type"] = default_builder_type
+
     builder = load_builder(builder_config)
     entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
         name="main.py",
         command=EntrypointDefaults.PYTHON,
     )
 
-    image_uri = make_image_uri(
+    image_uri = build_image_with_builder(
         builder,
         launch_project,
         repository,

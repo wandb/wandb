@@ -130,7 +130,7 @@ def _launch_add(
     build: Optional[bool] = False,
 ) -> "public.QueuedRun":
 
-    resource = resource or "local"
+    resource = resource or "local"  # TODO(gst): set new default
     if config is not None:
         if isinstance(config, str):
             with open(config) as fp:
@@ -167,15 +167,13 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(
-            launch_project, api, build_type="docker"
-        )
+        docker_image_uri = build_image_from_project(launch_project, api, launch_config)
         run = wandb.run or wandb.init(project=project, job_type="launch_job")
 
         job_artifact = run._log_job_artifact_with_image(docker_image_uri)
         job_name = job_artifact.wait().name
         launch_spec["job"], job = job_name, job_name
-        launch_spec["uri"] = None
+        launch_spec["uri"] = None  # Remove given URI --> now in job
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(api, queue, launch_spec)

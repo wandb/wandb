@@ -1,13 +1,32 @@
+import json
 import os
 import time
 
+import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
 
 
-def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
+@pytest.mark.parametrize(
+    "launch_config,override_config",
+    [
+        (
+            {"build": {"type": "docker"}},
+            {"docker": {"args": ["--container_arg", "9 rams"]}},
+        ),
+        ({}, {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}}),
+        (
+            {"build": {"type": "docker"}},
+            {"cuda": False, "overrides": {"args": ["--runtime", "nvidia"]}},
+        ),
+        ({"build": {"type": ""}}, {}),
+    ],
+)
+def test_launch_build_push_job(
+    relay_server, user, monkeypatch, runner, launch_config, override_config
+):
     release_image = "THISISANIMAGETAG"
     queue = "test_queue"
     proj = "test"
@@ -25,13 +44,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     def patched_validate_docker_installation():
         return None
 
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "validate_docker_installation",
-        lambda: patched_validate_docker_installation(),
-    )
-
-    def patched_make_image_uri(
+    def patched_build_image_with_builder(
         builder,
         launch_project,
         repository,
@@ -41,17 +54,34 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         assert builder
         assert uri == launch_project.uri
         assert entry_point
-        assert docker_args
+        if override_config and override_config.get("docker"):
+            assert docker_args == override_config.get("docker").get("args")
 
         return release_image
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
-        "make_image_uri",
-        lambda b, l, r, e, d: patched_make_image_uri(b, l, r, e, d),
+        "validate_docker_installation",
+        lambda: patched_validate_docker_installation(),
     )
 
-    with relay_server():
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "LAUNCH_CONFIG_FILE",
+        "./config/wandb/launch-config.yaml",
+    )
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.build,
+        "build_image_with_builder",
+        lambda *args, **kwargs: patched_build_image_with_builder(*args, **kwargs),
+    )
+
+    with relay_server(), runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("./config/wandb"))
+        with open(os.path.expanduser("./config/wandb/launch-config.yaml"), "w") as f:
+            json.dump(launch_config, f)
+
         internal_api.create_run_queue(
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
@@ -64,6 +94,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
             build=True,
             job="DELETE ME",
             entry_point=entry_point,
+            config=override_config,
         )
 
         assert queued_run.state == "pending"

@@ -10,6 +10,7 @@ from wandb.errors import ExecutionError, LaunchError
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder import loader as builder_loader
+from .builder.build import construct_builder_args
 from .runner import loader
 from .runner.abstract import AbstractRun
 from .utils import (
@@ -17,7 +18,6 @@ from .utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
-    resolve_build_and_registry_config,
     validate_launch_spec_source,
 )
 
@@ -141,25 +141,13 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    build_config: Optional[Dict[str, Any]] = None
-    registry_config = None
-    if launch_config is not None:
-        given_docker_args = launch_config.get("docker", {}).get("args", {})
-        build_config = launch_config.get("build")
-        registry_config = launch_config.get("registry")
-        runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
-    else:
-        runner_config[PROJECT_DOCKER_ARGS] = {}
 
-    default_launch_config = None
-
-    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
-        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
-            default_launch_config = yaml.safe_load(f)
-
-    build_config, registry_config = resolve_build_and_registry_config(
-        default_launch_config, build_config, registry_config
+    given_docker_args, build_config, registry_config = construct_builder_args(
+        launch_config,
     )
+
+    runner_config[PROJECT_DOCKER_ARGS] = given_docker_args
+
     builder = builder_loader.load_builder(build_config)
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
