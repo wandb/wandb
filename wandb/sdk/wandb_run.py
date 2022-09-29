@@ -2086,7 +2086,11 @@ class Run:
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
     ) -> "Artifact":
+        if not self.project and os.getenv("PROJECT") is None:
+            wandb.termwarn("Attempting artifact query with no project set")
+
         job_artifact = wandb.Artifact(name, type="job")
+        raise Exception(job_artifact)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(patch_path, "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
