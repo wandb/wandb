@@ -1155,6 +1155,13 @@ def test_object3d_from_point_cloud(mock_run):
     assert obj.to_json(run)["_type"] == "object3D-file"
 
 
+def test_object3d_from_point_cloud_default_type(mock_run):
+    run = mock_run()
+    obj = wandb.Object3D.from_point_cloud([], [], [])
+    obj.bind_to_run(run, "object3D", 0)
+    assert obj.to_json(run)["_type"] == "object3D-file"
+
+
 def test_object3d_from_point_cloud_invalid():
     with pytest.raises(ValueError):
         wandb.Object3D.from_point_cloud([], [], [], "invalid point cloud type!")
