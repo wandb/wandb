@@ -2,7 +2,7 @@ import datetime
 import multiprocessing as mp
 import sys
 import threading
-from typing import List, Optional, TypeVar, TYPE_CHECKING
+from typing import List, Optional, TypeVar, TYPE_CHECKING, Union
 
 if sys.version_info >= (3, 8):
     from typing import Literal, Protocol, runtime_checkable
@@ -90,7 +90,7 @@ class MetricsMonitor:
     ) -> None:
         self.metrics = metrics
         self._interface = interface
-        self._process: Optional[threading.Thread] = None
+        self._process: Optional[Union[mp.Process, threading.Thread]] = None
         self._shutdown_event: mp.Event = shutdown_event
 
         self.sampling_interval: float = float(

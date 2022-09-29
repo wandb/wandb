@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import threading
 import time
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from wandb.sdk.system.assets import asset_registry
 from wandb.sdk.system.assets.interfaces import Asset
@@ -20,7 +20,7 @@ class SystemMonitor:
     ) -> None:
 
         self._shutdown_event: mp.Event = mp.Event()
-        self._process: Optional[mp.Process] = None
+        self._process: Optional[Union[mp.Process, threading.Thread]] = None
 
         # self._start_time_stamp = time.monotonic()
 

@@ -161,7 +161,7 @@ class GPUPowerUsage:
         return {self.name: aggregate}
 
 
-# @asset_registry.register
+@asset_registry.register
 class GPU:
     def __init__(
         self,
