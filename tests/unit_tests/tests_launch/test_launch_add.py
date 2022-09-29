@@ -6,11 +6,14 @@ from wandb.sdk.launch.launch_add import launch_add
 
 def test_launch_add_default(relay_server, user):
     proj = "test_project"
+    uri = "https://github.com/wandb/examples.git"
+    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     args = {
-        "uri": "https://wandb.ai/lavanyashukla/basic-intro/runs/3dibi5mk",
+        "uri": uri,
         "project": proj,
         "entity": user,
         "queue": "default",
+        "entry_point": entry_point,
     }
 
     run = wandb.init(project=proj)
@@ -40,11 +43,14 @@ def test_launch_add_default(relay_server, user):
 def test_push_to_runqueue_exists(relay_server, user):
     proj = "test_project"
     queue = "existing-queue"
+    uri = "https://github.com/wandb/examples.git"
+    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     args = {
-        "uri": "https://wandb.ai/lavanyashukla/basic-intro/runs/3dibi5mk",
+        "uri": uri,
         "project": proj,
         "entity": user,
-        "queue": queue,
+        "queue": "default",
+        "entry_point": entry_point,
     }
 
     run = wandb.init(project=proj)
@@ -72,10 +78,14 @@ def test_push_to_runqueue_exists(relay_server, user):
 def test_push_to_default_runqueue_notexist(relay_server, user):
     api = wandb.sdk.internal.internal_api.Api()
     proj = "test_project"
+    uri = "https://github.com/wandb/examples.git"
+    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
+
     launch_spec = {
-        "uri": "https://wandb.ai/lavanyashukla/basic-intro/runs/3dibi5mk",
+        "uri": uri,
         "entity": user,
         "project": proj,
+        "entry_point": entry_point,
     }
     run = wandb.init(project=proj)
     time.sleep(1)
