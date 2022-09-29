@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import threading
 import time
 from typing import TYPE_CHECKING, List, Optional
 
@@ -46,7 +47,8 @@ class SystemMonitor:
 
     def start(self) -> None:
         if self._process is None and not self._shutdown_event.is_set():
-            self._process = mp.Process(target=self._start)
+            # self._process = mp.Process(target=self._start)
+            self._process = threading.Thread(target=self._start)
             self._process.start()
 
     def finish(self) -> None:
