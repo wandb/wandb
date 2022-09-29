@@ -1119,6 +1119,24 @@ def test_object3d_numpy(
     assert obj3.to_json(run)["_type"] == "object3D-file"
 
 
+def test_object3d_from_numpy(
+    mock_run,
+    point_cloud_1,
+    point_cloud_2,
+    point_cloud_3,
+):
+    run = mock_run()
+    obj1 = wandb.Object3D.from_numpy(point_cloud_1)
+    obj2 = wandb.Object3D.from_numpy(point_cloud_2)
+    obj3 = wandb.Object3D.from_numpy(point_cloud_3)
+    obj1.bind_to_run(run, "object3d", 0)
+    obj2.bind_to_run(run, "object3d", 1)
+    obj3.bind_to_run(run, "object3d", 2)
+    assert obj1.to_json(run)["_type"] == "object3D-file"
+    assert obj2.to_json(run)["_type"] == "object3D-file"
+    assert obj3.to_json(run)["_type"] == "object3D-file"
+
+
 def test_object3d_dict(mock_run):
     run = mock_run()
     obj = wandb.Object3D(
@@ -1128,6 +1146,18 @@ def test_object3d_dict(mock_run):
     )
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
+
+
+def test_object3d_from_point_cloud(mock_run):
+    run = mock_run()
+    obj = wandb.Object3D.from_point_cloud([], [], [], "lidar/beta")
+    obj.bind_to_run(run, "object3D", 0)
+    assert obj.to_json(run)["_type"] == "object3D-file"
+
+
+def test_object3d_from_point_cloud_invalid():
+    with pytest.raises(ValueError):
+        wandb.Object3D.from_point_cloud([], [], [], "invalid point cloud type!")
 
 
 def test_object3d_dict_invalid():
@@ -1171,9 +1201,20 @@ def test_object3d_io(mock_run, assets_path):
     assert obj.to_json(run)["_type"] == "object3D-file"
 
 
+def test_object3d_from_file(mock_run, assets_path):
+    run = mock_run()
+    with open(assets_path("point_cloud.pts.json")) as f:
+        io_obj = io.StringIO(f.read())
+
+    obj = wandb.Object3D(io_obj, file_type="pts.json")
+    obj.bind_to_run(run, "object3D", 0)
+    assert obj.to_json(run)["_type"] == "object3D-file"
+
+
 @pytest.mark.parametrize(
     "object3d",
     [
+        [[1, 2, 3]],  # looks valid, but is sequence
         np.array([1]),
         np.array(
             [
@@ -1188,6 +1229,8 @@ def test_object3d_io(mock_run, assets_path):
 def test_object3d_unsupported_numpy(object3d):
     with pytest.raises(ValueError):
         wandb.Object3D(object3d)
+    with pytest.raises(ValueError):
+        wandb.Object3D.from_numpy(object3d)
 
 
 def test_object3d_unsupported_io(assets_path):
