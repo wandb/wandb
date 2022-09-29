@@ -1,19 +1,18 @@
 import os
 import time
 
-import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.launch_add import launch_add
 
 
-@pytest.mark.timeout(300)  # builds a container
 def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
     release_image = "THISISANIMAGETAG"
     queue = "test_queue"
     proj = "test"
-    uri = "https://github.com/gtarpenning/wandb-launch-test"
+    uri = "https://github.com/wandb/examples.git"
+    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
 
     internal_api = InternalApi()
     public_api = PublicApi()
@@ -64,6 +63,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
             queue=queue,
             build=True,
             job="DELETE ME",
+            entry_point=entry_point,
         )
 
         assert queued_run.state == "pending"
@@ -74,6 +74,7 @@ def test_launch_build_push_job(relay_server, runner, user, monkeypatch):
         rqi = internal_api.pop_from_run_queue(queue, user, proj)
 
         assert rqi["runSpec"]["uri"] is None
+        assert rqi["runSpec"]["job"] != "DELETE ME"
         assert rqi["runSpec"]["job"] == f"job-{release_image}:v0"
 
         job = public_api.job(f'{user}/{proj}/{rqi["runSpec"]["job"]}')
