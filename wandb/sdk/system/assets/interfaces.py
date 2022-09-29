@@ -111,7 +111,10 @@ class MetricsMonitor:
         while not self._shutdown_event.is_set():
             for _ in range(self.samples_to_aggregate):
                 for metric in self.metrics:
-                    metric.sample()
+                    try:
+                        metric.sample()
+                    except Exception as e:
+                        wandb.termerror(f"Failed to sample metric: {e}", repeat=False)
                 self._shutdown_event.wait(self.sampling_interval)
                 if self._shutdown_event.is_set():
                     break
@@ -122,16 +125,22 @@ class MetricsMonitor:
         # serialized_metrics = {"timestamp": time.monotonic() - self.start_time}
         serialized_metrics = {}
         for metric in self.metrics:
-            serialized_metrics.update(metric.serialize())
-            # serialized_metrics = wandb.util.merge_dicts(
-            #     serialized_metrics, metric.serialize()
-            # )
+            try:
+                serialized_metric = metric.serialize()
+                serialized_metrics.update(serialized_metric)
+                # serialized_metrics = wandb.util.merge_dicts(
+                #     serialized_metrics, metric.serialize()
+                # )
+            except Exception as e:
+                wandb.termerror(f"Failed to serialize metric: {e}", repeat=False)
         return serialized_metrics
 
     def publish(self) -> None:
         """Publish the Asset metrics"""
         try:
-            self._interface.publish_stats(self.serialize())
+            serialized_metrics = self.serialize()
+            if serialized_metrics:
+                self._interface.publish_stats(serialized_metrics)
             for metric in self.metrics:
                 metric.clear()
         except Exception as e:

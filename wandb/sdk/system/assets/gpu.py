@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 class GPUMemoryUtilization:
     # name = "memory_utilization"
-    name = "memory"
+    name = "gpu.{}.memory"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: Deque[List[float]]
@@ -22,11 +22,11 @@ class GPUMemoryUtilization:
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.samples = deque([])
+        self.device_count = pynvml.nvmlDeviceGetCount()
 
     def sample(self) -> None:
         memory_utilization_rate = []
-        device_count = pynvml.nvmlDeviceGetCount()
-        for i in range(device_count):
+        for i in range(self.device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             memory_utilization_rate.append(
                 pynvml.nvmlDeviceGetUtilizationRates(handle).memory
@@ -37,15 +37,17 @@ class GPUMemoryUtilization:
         self.samples.clear()
 
     def serialize(self) -> dict:
-        # todo: create a statistics class with helper methods to compute
-        #      mean, median, min, max, etc.
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
-        return {self.name: aggregate}
+        stats = {}
+        for i in range(self.device_count):
+            samples = [sample[i] for sample in self.samples]
+            aggregate = round(sum(samples) / len(samples), 2)
+            stats[self.name.format(i)] = aggregate
+        return stats
 
 
 class GPUMemoryAllocated:
     # name = "memory_allocated"
-    name = "memoryAllocated"
+    name = "gpu.{}.memoryAllocated"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: Deque[List[float]]
@@ -53,11 +55,11 @@ class GPUMemoryAllocated:
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.samples = deque([])
+        self.device_count = pynvml.nvmlDeviceGetCount()
 
     def sample(self) -> None:
         memory_allocated = []
-        device_count = pynvml.nvmlDeviceGetCount()
-        for i in range(device_count):
+        for i in range(self.device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
             memory_allocated.append(memory_info.used / memory_info.total * 100)
@@ -67,15 +69,17 @@ class GPUMemoryAllocated:
         self.samples.clear()
 
     def serialize(self) -> dict:
-        # todo: create a statistics class with helper methods to compute
-        #      mean, median, min, max, etc.
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
-        return {self.name: aggregate}
+        stats = {}
+        for i in range(self.device_count):
+            samples = [sample[i] for sample in self.samples]
+            aggregate = round(sum(samples) / len(samples), 2)
+            stats[self.name.format(i)] = aggregate
+        return stats
 
 
 class GPUUtilization:
     # name = "gpu_utilization"
-    name = "gpu"
+    name = "gpu.{}.gpu"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: Deque[List[float]]
@@ -83,11 +87,11 @@ class GPUUtilization:
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.samples = deque([])
+        self.device_count = pynvml.nvmlDeviceGetCount()
 
     def sample(self) -> None:
         gpu_utilization_rate = []
-        device_count = pynvml.nvmlDeviceGetCount()
-        for i in range(device_count):
+        for i in range(self.device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             gpu_utilization_rate.append(
                 pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
@@ -98,13 +102,17 @@ class GPUUtilization:
         self.samples.clear()
 
     def serialize(self) -> dict:
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
-        return {self.name: aggregate}
+        stats = {}
+        for i in range(self.device_count):
+            samples = [sample[i] for sample in self.samples]
+            aggregate = round(sum(samples) / len(samples), 2)
+            stats[self.name.format(i)] = aggregate
+        return stats
 
 
 class GPUTemperature:
     # name = "gpu_temperature"
-    name = "temp"
+    name = "gpu.{}.temp"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: Deque[List[float]]
@@ -112,11 +120,11 @@ class GPUTemperature:
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.samples = deque([])
+        self.device_count = pynvml.nvmlDeviceGetCount()
 
     def sample(self) -> None:
         temperature = []
-        device_count = pynvml.nvmlDeviceGetCount()
-        for i in range(device_count):
+        for i in range(self.device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             temperature.append(
                 pynvml.nvmlDeviceGetTemperature(
@@ -130,13 +138,16 @@ class GPUTemperature:
         self.samples.clear()
 
     def serialize(self) -> dict:
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
-        return {self.name: aggregate}
+        stats = {}
+        for i in range(self.device_count):
+            samples = [sample[i] for sample in self.samples]
+            aggregate = round(sum(samples) / len(samples), 2)
+            stats[self.name.format(i)] = aggregate
+        return stats
 
 
-class GPUPowerUsage:
-    # name = "power_usage"
-    name = "powerWatts"
+class GPUPowerUsageWatts:
+    name = "gpu.{i}.powerWatts"
     metric_type = cast("gauge", MetricType)
     # samples: Deque[Tuple[datetime.datetime, float]]
     samples: Deque[List[float]]
@@ -144,11 +155,11 @@ class GPUPowerUsage:
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.samples = deque([])
+        self.device_count = pynvml.nvmlDeviceGetCount()
 
     def sample(self) -> None:
         power_usage = []
-        device_count = pynvml.nvmlDeviceGetCount()
-        for i in range(device_count):
+        for i in range(self.device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             power_usage.append(pynvml.nvmlDeviceGetPowerUsage(handle) / 1000)
         self.samples.append(power_usage)
@@ -157,8 +168,44 @@ class GPUPowerUsage:
         self.samples.clear()
 
     def serialize(self) -> dict:
-        aggregate = round(sum(self.samples) / len(self.samples), 2)
-        return {self.name: aggregate}
+        stats = {}
+        for i in range(self.device_count):
+            samples = [sample[i] for sample in self.samples]
+            aggregate = round(sum(samples) / len(samples), 2)
+            stats[self.name.format(i)] = aggregate
+        return stats
+
+
+class GPUPowerUsagePercent:
+    name = "gpu.{i}.powerPercent"
+    metric_type = cast("gauge", MetricType)
+    # samples: Deque[Tuple[datetime.datetime, float]]
+    samples: Deque[List[float]]
+
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.samples = deque([])
+        self.device_count = pynvml.nvmlDeviceGetCount()
+
+    def sample(self) -> None:
+        power_usage = []
+        for i in range(self.device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            power_watts = pynvml.nvmlDeviceGetPowerUsage(handle)
+            power_capacity_watts = pynvml.nvmlDeviceGetEnforcedPowerLimit(handle)
+            power_usage.append((power_watts / power_capacity_watts) * 100)
+        self.samples.append(power_usage)
+
+    def clear(self) -> None:
+        self.samples.clear()
+
+    def serialize(self) -> dict:
+        stats = {}
+        for i in range(self.device_count):
+            samples = [sample[i] for sample in self.samples]
+            aggregate = round(sum(samples) / len(samples), 2)
+            stats[self.name.format(i)] = aggregate
+        return stats
 
 
 @asset_registry.register
@@ -175,7 +222,8 @@ class GPU:
             GPUMemoryUtilization(settings._stats_pid),
             GPUUtilization(settings._stats_pid),
             GPUTemperature(settings._stats_pid),
-            GPUPowerUsage(settings._stats_pid),
+            GPUPowerUsageWatts(settings._stats_pid),
+            GPUPowerUsagePercent(settings._stats_pid),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.metrics,
