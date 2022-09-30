@@ -142,6 +142,7 @@ class StepChecksum:
                     )
                 )
             elif isinstance(req, RequestFinish):
+                wandb.termlog("DEBUG(StepChecksum) got RequestFinish")
                 break
             else:
                 raise Exception("internal error")

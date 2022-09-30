@@ -16,7 +16,7 @@ from typing import (
     Tuple,
     Union,
 )
-
+import wandb
 if TYPE_CHECKING:
     from wandb.sdk.internal import internal_api
 
@@ -87,6 +87,7 @@ class StepPrepare:
         while True:
             request = self._request_queue.get()
             if isinstance(request, RequestFinish):
+                wandb.termlog("DEBUG(StepPrepare) got RequestFinish")
                 break
             finish, batch = self._gather_batch(request)
             prepare_response = self._prepare_batch(batch)
@@ -105,6 +106,7 @@ class StepPrepare:
                     ResponsePrepare(upload_url, upload_headers, birth_artifact_id)
                 )
             if finish:
+                wandb.termlog("DEBUG(StepPrepare) got RequestFinish (in batch)")
                 break
 
     def _gather_batch(

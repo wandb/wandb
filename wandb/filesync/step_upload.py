@@ -108,6 +108,7 @@ class StepUpload:
             wandb.termlog(f"DEBUG(StepUpload) about to process event {event}")
             if isinstance(event, RequestFinish):
                 finish_callback = event.callback
+                wandb.termlog(f"DEBUG(StepUpload) got RequestFinish, callback={finish_callback}")
                 break
             self._handle_event(event)
             wandb.termlog(f"DEBUG(StepUpload) finished processing event {event}")
@@ -125,16 +126,21 @@ class StepUpload:
             except queue.Empty:
                 event = None
             if event:
+                wandb.termlog(f"DEBUG(StepUpload) got post-finish event {event}")
                 self._handle_event(event)
             elif not self._running_jobs:
+                wandb.termlog(f"DEBUG(StepUpload) no running jobs, done!")
                 # Queue was empty and no jobs left.
                 if finish_callback:
                     finish_callback()
                 break
+            else:
+                wandb.termlog(f"DEBUG(StepUpload) waiting on running jobs {self._running_jobs}")
 
     def _handle_event(self, event: Event) -> None:
         print(f"DEBUG(ARTIFACT_fp_handle_event) {event}")
         if isinstance(event, upload_job.EventJobDone):
+            print(f"DEBUG(ARTIFACT_fp_handle_event): EventJobDone: {event.job.path}")
             job = event.job
             job.join()
             if job.artifact_id:
