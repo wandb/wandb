@@ -38,10 +38,17 @@ class WandBMetricsLogger(callbacks.Callback):
             wandb.define_metric("batch/batch_step")
             # set all other batch/ metrics to use this step
             wandb.define_metric("batch/*", step_metric="batch/batch_step")
+    
+    def _get_lr(self, step):
+        try:
+            return self.model.optimizer.learning_rate.numpy().item()
+        except AttributeError:
+            return self.model.optimizer.learning_rate(step=step).numpy()
 
     def on_epoch_end(self, epoch: int, logs: dict = {}):
         """Called at the end of an epoch."""
         wandb.log({"epoch": epoch}, commit=False)
+        logs["learning_rate"] = self._get_lr(step=epoch)
         wandb.log(logs, commit=True)
 
     def on_batch_end(self, batch: int, logs: dict = {}):
@@ -50,6 +57,7 @@ class WandBMetricsLogger(callbacks.Callback):
             wandb.log({"batch/batch_step": self.global_batch}, commit=False)
 
             logs = {f"batch/{k}": v for k, v in logs.items()}
+            logs["batch/learning_rate"] = self._get_lr(step=batch)
             wandb.log(logs, commit=True)
 
             self.global_batch += self.log_batch_frequency
