@@ -6,6 +6,9 @@ from wandb_graphql.language.printer import print_ast
 
 from .http import HTTPTransport
 
+import pprint
+PP = pprint.PrettyPrinter(indent=1)
+
 
 class RequestsHTTPTransport(HTTPTransport):
     def __init__(self, url, auth=None, use_json=False, timeout=None, **kwargs):
@@ -35,6 +38,7 @@ class RequestsHTTPTransport(HTTPTransport):
             'timeout': timeout or self.default_timeout,
             data_key: payload
         }
+        PP.pprint(dict(url=self.url, query=post_args))
         request = requests.post(self.url, **post_args)
         request.raise_for_status()
 
