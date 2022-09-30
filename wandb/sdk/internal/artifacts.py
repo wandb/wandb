@@ -95,6 +95,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
     ) -> Optional[Dict]:
+        print("DEBUG(ARTIFACT_SAVE) enter")
         aliases = aliases or []
         alias_specs = []
         for alias in aliases:
@@ -239,18 +240,23 @@ class ArtifactSaver:
             commit_event.set()
 
         # This will queue the commit. It will only happen after all the file uploads are done
+        print("DEBUG(ARTIFACT_SAVE) commit start")
         self._file_pusher.commit_artifact(
             artifact_id,
             finalize=finalize,
             before_commit=before_commit,
             on_commit=on_commit,
         )
+        print("DEBUG(ARTIFACT_SAVE) commit stop")
 
         # Block until all artifact files are uploaded and the
         # artifact is committed.
+        print("DEBUG(ARTIFACT_SAVE) wait start")
         while not commit_event.is_set():
             commit_event.wait()
+        print("DEBUG(ARTIFACT_SAVE) wait stop")
 
+        print("DEBUG(ARTIFACT_SAVE) exit")
         return self._server_artifact
 
     def _resolve_client_id_manifest_references(self) -> None:
