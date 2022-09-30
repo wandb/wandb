@@ -534,11 +534,14 @@ class SendManager:
             resp.file_counts.media_count = file_counts.media
             resp.file_counts.artifact_count = file_counts.artifact
             resp.file_counts.other_count = file_counts.other
+            wandb.termlog(f"DEBUG(poll_exit): pusher: alive: {alive}, status: {status}, file_counts: {file_counts}")
 
         if self._exit_result and not alive:
             # pusher join should not block as it was reported as not alive
             if self._pusher:
+                wandb.termlog(f"DEBUG(poll_exit): about to join on pusher...")
                 self._pusher.join()
+                wandb.termlog(f"DEBUG(poll_exit): ...joined pusher.")
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
             result.response.poll_exit_response.local_info.CopyFrom(
                 self.get_local_info()
@@ -559,6 +562,7 @@ class SendManager:
                         level=message_level_sanitized,
                     )
                 )
+        wandb.termlog(f"DEBUG(poll_exit): result: {result}")
         self._respond_result(result)
 
     def _maybe_setup_resume(

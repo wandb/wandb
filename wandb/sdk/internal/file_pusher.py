@@ -125,6 +125,7 @@ class FilePusher:
                 directory.
             path: actual string path of the file to upload on the filesystem.
         """
+        wandb.termlog(f"DEBUG(FilePusher.file_changed) called on path {path!r}")
         # Tests in linux were failing because wandb-events.jsonl didn't exist
         if not os.path.exists(path) or not os.path.isfile(path):
             return
@@ -165,6 +166,7 @@ class FilePusher:
         self._incoming_queue.put(event)
 
     def finish(self, callback: Optional[step_upload.OnRequestFinishFn] = None):
+        wandb.termlog("DEBUG(FilePusher.finish) called")
         logger.info("shutting down file pusher")
         self._incoming_queue.put(step_checksum.RequestFinish(callback))
 

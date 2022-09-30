@@ -15,6 +15,7 @@ from typing import (
     Union,
 )
 
+import wandb
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
 
@@ -104,10 +105,13 @@ class StepUpload:
         finish_callback = None
         while True:
             event = self._event_queue.get()
+            wandb.termlog(f"DEBUG(StepUpload) about to process event {event}")
             if isinstance(event, RequestFinish):
                 finish_callback = event.callback
+                wandb.termlog(f"DEBUG(StepUpload) got RequestFinish, callback={finish_callback}")
                 break
             self._handle_event(event)
+            wandb.termlog(f"DEBUG(StepUpload) finished processing event {event}")
 
         # We've received a finish event. At this point, further Upload requests
         # are invalid. Mark that we're done, which is used to tell the last
@@ -122,15 +126,21 @@ class StepUpload:
             except queue.Empty:
                 event = None
             if event:
+                wandb.termlog(f"DEBUG(StepUpload) got post-finish event {event}")
                 self._handle_event(event)
             elif not self._running_jobs:
+                wandb.termlog(f"DEBUG(StepUpload) no running jobs, done!")
                 # Queue was empty and no jobs left.
                 if finish_callback:
                     finish_callback()
                 break
+            else:
+                wandb.termlog(f"DEBUG(StepUpload) waiting on running jobs {self._running_jobs}")
 
     def _handle_event(self, event: Event) -> None:
+        print(f"DEBUG(ARTIFACT_fp_handle_event) {event}")
         if isinstance(event, upload_job.EventJobDone):
+            print(f"DEBUG(ARTIFACT_fp_handle_event): EventJobDone: {event.job.path}")
             job = event.job
             job.join()
             if job.artifact_id:
@@ -173,6 +183,7 @@ class StepUpload:
             raise Exception("Programming error: unhandled event: %s" % str(event))
 
     def _start_upload_job(self, event: Event) -> None:
+        print(f"DEBUG(ARTIFACT_start_upload_job) {event}")
         if not isinstance(event, RequestUpload):
             raise Exception("Programming error: invalid event")
 
@@ -212,6 +223,7 @@ class StepUpload:
 
     def _maybe_commit_artifact(self, artifact_id: str) -> None:
         artifact_status = self._artifacts[artifact_id]
+        print(f"DEBUG(ARTIFACT_MAYBE_COMMIT) {artifact_status}")
         if (
             artifact_status["pending_count"] == 0
             and artifact_status["commit_requested"]
