@@ -30,10 +30,10 @@ def main():
     x = np.random.randint(255, size=(100, 28, 28, 1))
     y = np.random.randint(10, size=(100,))
 
-    _ = wandb.init(project="keras")
+    wandb.init(project="keras")
 
-    _ = model.fit(x, y, epochs=2, callbacks=WandbCallback())
-    _ = model.fit(x, y, epochs=2, callbacks=WandbCallback(compute_flops=True))
+    model.fit(x, y, epochs=2, callbacks=WandbCallback())
+    model.fit(x, y, epochs=2, callbacks=WandbCallback(compute_flops=True))
 
 
 if __name__ == "__main__":
