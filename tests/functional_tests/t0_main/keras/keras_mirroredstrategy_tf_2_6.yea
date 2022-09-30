@@ -7,11 +7,11 @@ command:
     program: test_keras_mirroredstrategy.py
 depend:
     requirements:
-        - tensorflow>=2.6.2
+        - tensorflow
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][summary][epoch]: 1
-    - :wandb:runs[0][summary][loss]: 2.302401065826416
+    - :wandb:runs[0][summary][loss]: 2.30195
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
         - 8  # keras
