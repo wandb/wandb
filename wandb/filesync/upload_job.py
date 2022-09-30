@@ -69,6 +69,7 @@ class UploadJob(threading.Thread):
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> bool:
+        print(f"DEBUG(ARTIFACT_push) start(noend)")
         if self.save_fn:
             # Retry logic must happen in save_fn currently
             try:
@@ -130,12 +131,14 @@ class UploadJob(threading.Thread):
                 upload_url = f"{self._api.api_url}{upload_url}"
             try:
                 with open(self.save_path, "rb") as f:
+                    print(f"DEBUG(ARTIFACT_push) upload")
                     self._api.upload_file_retry(
                         upload_url,
                         f,
                         lambda _, t: self.progress(t),
                         extra_headers=extra_headers,
                     )
+                    print(f"DEBUG(ARTIFACT_push) upload done")
                 logger.info("Uploaded file %s", self.save_path)
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)

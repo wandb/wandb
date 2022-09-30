@@ -130,6 +130,7 @@ class StepUpload:
                 break
 
     def _handle_event(self, event: Event) -> None:
+        print(f"DEBUG(ARTIFACT_fp_handle_event) {event}")
         if isinstance(event, upload_job.EventJobDone):
             job = event.job
             job.join()
@@ -173,6 +174,7 @@ class StepUpload:
             raise Exception("Programming error: unhandled event: %s" % str(event))
 
     def _start_upload_job(self, event: Event) -> None:
+        print(f"DEBUG(ARTIFACT_start_upload_job) {event}")
         if not isinstance(event, RequestUpload):
             raise Exception("Programming error: invalid event")
 
@@ -211,6 +213,7 @@ class StepUpload:
         }
 
     def _maybe_commit_artifact(self, artifact_id: str) -> None:
+        print("DEBUG(ARTIFACT_MAYBE_COMMIT)")
         artifact_status = self._artifacts[artifact_id]
         if (
             artifact_status["pending_count"] == 0
