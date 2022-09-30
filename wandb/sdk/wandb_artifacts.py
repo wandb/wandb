@@ -53,7 +53,16 @@ from .interface.artifacts import (  # noqa: F401
 )
 
 if TYPE_CHECKING:
+
+    # We could probably use https://pypi.org/project/boto3-stubs/ or something
+    # instead of `type:ignore`ing these, but it's nontrivial: for some reason,
+    # despite being actively maintained as of 2022-09-30, the latest release of
+    # boto3-stubs doesn't include stubs for all the features we use.
     import boto3  # type: ignore
+    import boto3.resources.base  # type: ignore
+    import boto3.s3  # type: ignore
+    import boto3.session  # type: ignore
+
     import google.cloud.storage as gcs_module  # type: ignore
 
     import wandb.apis.public
@@ -1334,11 +1343,11 @@ class S3Handler(StorageHandler):
     def init_boto(self) -> "boto3.resources.base.ServiceResource":
         if self._s3 is not None:
             return self._s3
-        boto3 = util.get_module(
+        boto: "boto3" = util.get_module(
             "boto3",
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
         )
-        self._s3 = boto3.session.Session().resource(
+        self._s3 = boto.session.Session().resource(
             "s3",
             endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"),
             region_name=os.getenv("AWS_REGION"),
