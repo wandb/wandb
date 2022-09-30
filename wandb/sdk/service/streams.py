@@ -55,8 +55,10 @@ class StreamRecord:
     _iface: InterfaceRelay
     _thread: StreamThread
     _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
+    _active: bool
 
     def __init__(self, settings: Dict[str, Any], mailbox: Mailbox) -> None:
+        self._active = False
         self._mailbox = mailbox
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
@@ -101,6 +103,7 @@ class StreamRecord:
         # Note: Currently just overriding the _settings attribute
         # once we use Settings Class we might want to properly update it
         self._settings = SettingsStatic(settings)
+        self._active = True
 
 
 class StreamAction:
@@ -285,6 +288,8 @@ class StreamMux:
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
         exit_handles = []
         for stream in streams.values():
+            if not stream._active:
+                continue
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
             handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
@@ -301,6 +306,8 @@ class StreamMux:
 
         # These could be done in parallel in the future
         for _sid, stream in streams.items():
+            if not stream._active:
+                continue
 
             # dispatch all our final requests
             poll_exit_handle = stream.interface.deliver_poll_exit()
