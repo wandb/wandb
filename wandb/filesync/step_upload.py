@@ -213,8 +213,8 @@ class StepUpload:
         }
 
     def _maybe_commit_artifact(self, artifact_id: str) -> None:
-        print("DEBUG(ARTIFACT_MAYBE_COMMIT)")
         artifact_status = self._artifacts[artifact_id]
+        print(f"DEBUG(ARTIFACT_MAYBE_COMMIT) {artifact_status}")
         if (
             artifact_status["pending_count"] == 0
             and artifact_status["commit_requested"]
