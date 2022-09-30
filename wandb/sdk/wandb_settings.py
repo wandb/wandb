@@ -471,6 +471,7 @@ class Settings:
     start_method: str
     strict: bool
     summary_errors: int
+    summary_timeout: int
     summary_warnings: int
     sweep_id: str
     sweep_param_path: str
@@ -561,7 +562,7 @@ class Settings:
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            init_timeout={"value": 30, "preprocessor": lambda x: int(x)},
+            init_timeout={"value": 60, "preprocessor": lambda x: int(x)},
             is_local={
                 "hook": (
                     lambda _: self.base_url != "https://api.wandb.ai"
@@ -637,6 +638,7 @@ class Settings:
             silent={"value": "False", "preprocessor": _str_as_bool},
             start_method={"validator": self._validate_start_method},
             strict={"preprocessor": _str_as_bool},
+            summary_timeout={"value": 60, "preprocessor": lambda x: int(x)},
             summary_warnings={
                 "value": 5,
                 "preprocessor": lambda x: int(x),
