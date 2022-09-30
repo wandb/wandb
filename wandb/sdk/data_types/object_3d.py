@@ -219,9 +219,11 @@ class Object3D(BatchableMedia):
             raise ValueError("data must be a numpy array, dict or a file object")
 
     @classmethod
-    def from_file(cls, data_or_path: Union[io.StringIO, "FileFormat3D"]) -> "Object3D":
+    def from_file(
+        cls, data_or_path: Union[io.StringIO, str], file_type: "FileFormat3D" = None
+    ) -> "Object3D":
 
-        return cls(data_or_path)
+        return cls(data_or_path, file_type=file_type)
 
     @classmethod
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":

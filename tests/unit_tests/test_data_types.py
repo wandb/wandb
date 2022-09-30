@@ -1185,35 +1185,84 @@ def test_object3d_dict_invalid_string():
 
 @pytest.mark.parametrize(
     "file_name",
-    [
-        "cube.obj",
-        "Box.gltf",
-    ],
+    ["cube.obj", "Box.gltf", "point_cloud.pts.json"],
 )
-def test_object3d_obj(mock_run, assets_path, file_name):
+def test_object3d_obj_open_file(mock_run, assets_path, file_name):
     run = mock_run()
-    with open(assets_path(file_name)) as f:
-        obj = wandb.Object3D(f)
+    with open(assets_path(file_name)) as open_file:
+        obj = wandb.Object3D(open_file)
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
 
 
-def test_object3d_io(mock_run, assets_path):
+@pytest.mark.parametrize(
+    "file_name",
+    ["cube.obj", "Box.gltf", "point_cloud.pts.json"],
+)
+def test_object3d_from_file_with_path(mock_run, assets_path, file_name):
+    run = mock_run()
+    full_path = str(assets_path(file_name))
+    # precondition since this is how object_3d detects file path case
+    assert isinstance(full_path, str)
+    obj = wandb.Object3D.from_file(full_path)
+    obj.bind_to_run(run, "object3D", 0)
+    assert obj.to_json(run)["_type"] == "object3D-file"
+
+
+@pytest.mark.parametrize(
+    "file_info",
+    [
+        {"name": "cube.obj", "type": "obj"},
+        {"name": "Box.gltf", "type": "gltf"},
+        {"name": "point_cloud.pts.json", "type": "pts.json"},
+    ],
+)
+def test_object3d_from_file_with_textio(mock_run, assets_path, file_info):
+    run = mock_run()
+    with open(assets_path(file_info["name"])) as textio:
+        # precondition, since read prop is how object_3d detects textio case
+        assert hasattr(textio, "read")
+        obj = wandb.Object3D(textio, file_type=file_info["type"])
+        obj.bind_to_run(run, "object3D", 0)
+        assert obj.to_json(run)["_type"] == "object3D-file"
+
+
+def test_object3d_from_file_with_textio_invalid_file_type(assets_path):
+    with open(assets_path("point_cloud.pts.json")) as textio:
+        assert not hasattr(textio, "name")
+        with pytest.raises(ValueError):
+            _ = wandb.Object3D.from_file(textio, file_type="not a file type!")
+
+
+def test_object3d_from_file_with_textio_missing_file_type(mock_run, assets_path):
+    run = mock_run()
+    with open(assets_path("point_cloud.pts.json")) as textio:
+        assert hasattr(textio, "read")
+        obj = wandb.Object3D.from_file(textio)
+        obj.bind_to_run(run, "object3D", 0)
+        assert obj.to_json(run)["_type"] == "object3D-file"
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    ["cube.obj", "Box.gltf", "point_cloud.pts.json"],
+)
+def test_object3d_from_file_with_open_file(mock_run, assets_path, file_name):
+    run = mock_run()
+    with open(assets_path(file_name)) as open_file:
+        # precondition, since this is how object_3d detects open file case
+        assert hasattr(open_file, "name")
+        obj = wandb.Object3D(open_file)
+        obj.bind_to_run(run, "object3D", 0)
+        assert obj.to_json(run)["_type"] == "object3D-file"
+
+
+def test_object3d_textio(mock_run, assets_path):
     run = mock_run()
     with open(assets_path("Box.gltf")) as f:
         io_obj = io.StringIO(f.read())
 
     obj = wandb.Object3D(io_obj, file_type="obj")
-    obj.bind_to_run(run, "object3D", 0)
-    assert obj.to_json(run)["_type"] == "object3D-file"
-
-
-def test_object3d_from_file(mock_run, assets_path):
-    run = mock_run()
-    with open(assets_path("point_cloud.pts.json")) as f:
-        io_obj = io.StringIO(f.read())
-
-    obj = wandb.Object3D(io_obj, file_type="pts.json")
     obj.bind_to_run(run, "object3D", 0)
     assert obj.to_json(run)["_type"] == "object3D-file"
 
