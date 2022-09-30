@@ -15,6 +15,7 @@ from typing import (
     Union,
 )
 
+import wandb
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job
 
@@ -104,10 +105,12 @@ class StepUpload:
         finish_callback = None
         while True:
             event = self._event_queue.get()
+            wandb.termlog(f"DEBUG(StepUpload) about to process event {event}")
             if isinstance(event, RequestFinish):
                 finish_callback = event.callback
                 break
             self._handle_event(event)
+            wandb.termlog(f"DEBUG(StepUpload) finished processing event {event}")
 
         # We've received a finish event. At this point, further Upload requests
         # are invalid. Mark that we're done, which is used to tell the last

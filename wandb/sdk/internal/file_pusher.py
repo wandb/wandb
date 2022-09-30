@@ -125,6 +125,7 @@ class FilePusher:
                 directory.
             path: actual string path of the file to upload on the filesystem.
         """
+        wandb.termlog(f"DEBUG(FilePusher.file_changed) called on path {path!r}")
         # Tests in linux were failing because wandb-events.jsonl didn't exist
         if not os.path.exists(path) or not os.path.isfile(path):
             return
