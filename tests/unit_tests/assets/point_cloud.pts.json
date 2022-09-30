@@ -47,7 +47,9 @@
                     757.4657929961453,
                     -19.54083129462249
                 ]
-            ]
+            ],
+            "label": "I am a label from point_cloud.pts.json",
+            "score": 37
         },
         {
             "color": [

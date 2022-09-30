@@ -62,8 +62,9 @@ if TYPE_CHECKING:  # pragma: no cover
             Point3D,
             Point3D,
         ]
-        label: str
+        label: Optional[str]
         color: RGBColor
+        score: Optional[numeric]
 
     class Vector3D(TypedDict):
         start: Sequence[Point3D]

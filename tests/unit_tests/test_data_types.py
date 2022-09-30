@@ -1318,6 +1318,24 @@ def test_object3d_seq_to_json(mock_run, point_cloud_1, assets_path):
     assert obj["count"] == 3
 
 
+def test_object3d_label_is_optional(mock_run):
+    box_with_label = {
+        "corners": [],
+        "label": "i am a label",
+        "color": [0, 0, 0],
+    }
+    box_no_label = {"corners": [], "color": [0, 0, 0]}
+    wandb.Object3D.from_point_cloud(points=[], boxes=[box_no_label, box_with_label])
+    assert True
+
+
+def test_object3d_score_is_optional(mock_run):
+    box_with_score = {"corners": [], "score": 95, "color": [0, 0, 0]}
+    box_no_score = {"corners": [], "color": [0, 0, 0]}
+    wandb.Object3D.from_point_cloud(points=[], boxes=[box_no_score, box_with_score])
+    assert True
+
+
 ################################################################################
 # Test wandb.Graph
 ################################################################################
