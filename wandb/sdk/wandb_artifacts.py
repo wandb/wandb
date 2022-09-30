@@ -55,14 +55,13 @@ from .interface.artifacts import (  # noqa: F401
 if TYPE_CHECKING:
 
     # We could probably use https://pypi.org/project/boto3-stubs/ or something
-    # instead of `type:ignore`ing these, but it's nontrivial: for some reason,
-    # despite being actively maintained as of 2022-09-30, the latest release of
-    # boto3-stubs doesn't include stubs for all the features we use.
+    # instead of `type:ignore`ing these boto imports, but it's nontrivial:
+    # for some reason, despite being actively maintained as of 2022-09-30,
+    # the latest release of boto3-stubs doesn't include all the features we use.
     import boto3  # type: ignore
     import boto3.resources.base  # type: ignore
     import boto3.s3  # type: ignore
     import boto3.session  # type: ignore
-
     import google.cloud.storage as gcs_module  # type: ignore
 
     import wandb.apis.public
