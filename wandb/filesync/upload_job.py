@@ -116,6 +116,8 @@ class UploadJob(threading.Thread):
             file_info = result[self.save_name]
             upload_url = file_info["url"]
 
+        print(f"DEBUG(ARTIFACT_push) upload1 {upload_url}")
+
         if upload_url is None:
             logger.info("Skipped uploading %s", self.save_path)
             self._stats.set_file_deduped(self.save_name)
@@ -131,7 +133,7 @@ class UploadJob(threading.Thread):
                 upload_url = f"{self._api.api_url}{upload_url}"
             try:
                 with open(self.save_path, "rb") as f:
-                    print(f"DEBUG(ARTIFACT_push) upload")
+                    print(f"DEBUG(ARTIFACT_push) upload {upload_url}")
                     self._api.upload_file_retry(
                         upload_url,
                         f,
@@ -140,6 +142,7 @@ class UploadJob(threading.Thread):
                     )
                     print(f"DEBUG(ARTIFACT_push) upload done")
                 logger.info("Uploaded file %s", self.save_path)
+                print(f"DEBUG(ARTIFACT_push) upload done2")
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
@@ -150,6 +153,7 @@ class UploadJob(threading.Thread):
                             self.save_name, type(e).__name__, e
                         )
                     )
+                print(f"DEBUG(ARTIFACT_push) upload BAD")
                 return False
         return True
 
