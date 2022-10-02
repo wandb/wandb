@@ -32,7 +32,10 @@ def filtered_dir(
     root: str, include_fn: Callable[[str], bool], exclude_fn: Callable[[str], bool]
 ) -> Generator[str, None, None]:
     """Simple generator to walk a directory"""
-    for dirpath, _, files in os.walk(root):
+    for dirpath, dirs, files in os.walk(root):
+        for dir in dirs:
+            if exclude_fn(dir):
+                dirs.remove(dir)
         for fname in files:
             file_path = os.path.join(dirpath, fname)
             if include_fn(file_path) and not exclude_fn(file_path):
