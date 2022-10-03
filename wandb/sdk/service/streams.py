@@ -99,7 +99,7 @@ class StreamRecord:
     def interface(self) -> InterfaceRelay:
         return self._iface
 
-    def start(self) -> None:
+    def mark_started(self) -> None:
         self._started = True
 
     def update(self, settings: Dict[str, Any]) -> None:
@@ -234,7 +234,7 @@ class StreamMux:
 
     def _process_start(self, action: StreamAction) -> None:
         with self._streams_lock:
-            self._streams[action._stream_id].start()
+            self._streams[action._stream_id].mark_started()
 
     def _process_update(self, action: StreamAction) -> None:
         with self._streams_lock:
