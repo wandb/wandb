@@ -11,14 +11,13 @@ from typing import (
     Set,
     Tuple,
     Type,
-    TypedDict,
     Union,
 )
 
 if sys.version_info >= (3, 8):
-    from typing import get_args, Literal
+    from typing import get_args, Literal, TypedDict
 else:
-    from typing_extensions import get_args, Literal
+    from typing_extensions import get_args, Literal, TypedDict
 
 import wandb
 from wandb import util
