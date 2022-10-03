@@ -16,9 +16,9 @@ from typing import (
 )
 
 if sys.version_info >= (3, 8):
-    from typing import get_args, Literal, TypedDict
+    from typing import Literal, TypedDict, get_args
 elif sys.version_info >= (3, 7):
-    from typing_extensions import get_args, Literal, TypedDict
+    from typing_extensions import Literal, TypedDict, get_args
 else:
     from typing_extensions import Literal, TypedDict
 
