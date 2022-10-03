@@ -204,6 +204,14 @@ class StreamMux:
         with self._streams_lock:
             return stream_id in self._streams
 
+    @staticmethod
+    def _started_streams(streams: Dict[str, StreamRecord]) -> Dict[str, StreamRecord]:
+        return {
+            stream_id: stream
+            for (stream_id, stream) in streams.items()
+            if stream._started
+        }
+
     def get_stream(self, stream_id: str) -> StreamRecord:
         with self._streams_lock:
             stream = self._streams[stream_id]
@@ -298,10 +306,11 @@ class StreamMux:
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
         exit_handles = []
-        for stream in streams.values():
-            # only finish started streams, non started streams failed early
-            if not stream._started:
-                continue
+
+        # only finish started streams, non started streams failed early
+        started_streams = self._started_streams(streams)
+
+        for stream in started_streams.values():
             handle = stream.interface.deliver_exit(exit_code)
             handle.add_progress(self._on_progress_exit)
             handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
@@ -317,11 +326,7 @@ class StreamMux:
         assert got_result
 
         # These could be done in parallel in the future
-        for _sid, stream in streams.items():
-            # only finish started streams, non started streams failed early
-            if not stream._started:
-                continue
-
+        for _sid, stream in started_streams.items():
             # dispatch all our final requests
             poll_exit_handle = stream.interface.deliver_poll_exit()
             server_info_handle = stream.interface.deliver_request_server_info()
