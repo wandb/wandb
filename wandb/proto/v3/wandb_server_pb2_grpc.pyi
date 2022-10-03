@@ -38,6 +38,10 @@ class InternalServiceStub:
         wandb.proto.wandb_internal_pb2.PollExitRequest,
         wandb.proto.wandb_internal_pb2.PollExitResponse,
     ]
+    ServerInfo: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.ServerInfoRequest,
+        wandb.proto.wandb_internal_pb2.ServerInfoResponse,
+    ]
     Shutdown: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ShutdownRequest,
         wandb.proto.wandb_internal_pb2.ShutdownResponse,
@@ -106,6 +110,10 @@ class InternalServiceStub:
     ArtifactPoll: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         wandb.proto.wandb_internal_pb2.ArtifactPollResponse,
+    ]
+    Keepalive: grpc.UnaryUnaryMultiCallable[
+        wandb.proto.wandb_internal_pb2.KeepaliveRequest,
+        wandb.proto.wandb_internal_pb2.KeepaliveResponse,
     ]
     CheckVersion: grpc.UnaryUnaryMultiCallable[
         wandb.proto.wandb_internal_pb2.CheckVersionRequest,
@@ -199,6 +207,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.PollExitRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.PollExitResponse: ...
+    @abc.abstractmethod
+    def ServerInfo(
+        self,
+        request: wandb.proto.wandb_internal_pb2.ServerInfoRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.ServerInfoResponse: ...
     @abc.abstractmethod
     def Shutdown(
         self,
@@ -302,6 +316,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
+    @abc.abstractmethod
+    def Keepalive(
+        self,
+        request: wandb.proto.wandb_internal_pb2.KeepaliveRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.KeepaliveResponse: ...
     @abc.abstractmethod
     def CheckVersion(
         self,
