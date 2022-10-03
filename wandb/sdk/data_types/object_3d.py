@@ -261,7 +261,7 @@ class Object3D(BatchableMedia):
             "type": point_cloud_type,
             "points": numpy.array(points),
             "boxes": numpy.array(boxes),
-            "vectors": numpy.array(vectors) if vectors is not None else [],
+            "vectors": numpy.array(vectors) if vectors is not None else numpy.array([]),
         }
 
         return cls(data)
