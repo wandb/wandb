@@ -1091,7 +1091,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 8
-          toxenv: "protocheck,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
+          toxenv: "protocheck3,protocheck4,generatecheck,codecovcheck,mypy,mypy-report,pyupgrade,black,isort-check,flake8,docstrings"
       #
       # Unit tests with pytest on Linux, using real wandb server
       #
